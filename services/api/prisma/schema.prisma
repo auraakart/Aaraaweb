@@ -8,26 +8,28 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  phone       String   @unique
-  email       String?  @unique
+  id          String              @id @default(uuid()) @db.Uuid
+  phone       String              @unique
+  email       String?             @unique
   name        String?
-  status      UserStatus @default(ACTIVE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      UserStatus          @default(ACTIVE)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   memberships SocietyMembership[]
+  unitLinks   UnitResident[]
 }
 
 model Society {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String              @id @default(uuid()) @db.Uuid
   name        String
-  code        String   @unique
-  status      SocietyStatus @default(ACTIVE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  code        String              @unique
+  status      SocietyStatus       @default(ACTIVE)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   memberships SocietyMembership[]
   buildings   Building[]
   gates       Gate[]
+  unitLinks   UnitResident[]
 }
 
 model SocietyMembership {
@@ -54,13 +56,31 @@ model Building {
 }
 
 model Unit {
-  id         String   @id @default(uuid()) @db.Uuid
-  societyId  String   @db.Uuid
-  buildingId String   @db.Uuid
+  id         String         @id @default(uuid()) @db.Uuid
+  societyId  String         @db.Uuid
+  buildingId String         @db.Uuid
   number     String
-  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  building   Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  residents  UnitResident[]
   @@unique([buildingId, number])
   @@index([societyId])
+}
+
+model UnitResident {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  unitId    String   @db.Uuid
+  userId    String   @db.Uuid
+  relation  UnitRelation
+  primary   Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([unitId, userId])
+  @@index([societyId, unitId])
+  @@index([societyId, userId])
 }
 
 model Gate {
@@ -76,3 +96,4 @@ model Gate {
 enum UserStatus { ACTIVE SUSPENDED DELETED }
 enum SocietyStatus { ACTIVE SUSPENDED }
 enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGER ACCOUNTANT OWNER TENANT FAMILY_MEMBER SECURITY_SUPERVISOR SECURITY_GUARD STAFF VENDOR }
+enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
