@@ -23,8 +23,9 @@ export class GatesController {
 
   @Post()
   async create(@Body() dto: CreateGateDto, @CurrentTenant() societyId: string) {
-    const existing = await this.prisma.gate.findFirst({ where: { societyId, code: dto.code.trim() } });
+    const code = dto.code.trim().toUpperCase();
+    const existing = await this.prisma.gate.findFirst({ where: { societyId, code } });
     if (existing) throw new BadRequestException('Gate code already exists in this society');
-    return this.prisma.gate.create({ data: { societyId, name: dto.name.trim(), code: dto.code.trim(), active: dto.active ?? true } });
+    return this.prisma.gate.create({ data: { societyId, name: dto.name.trim(), code, active: dto.active ?? true } });
   }
 }
