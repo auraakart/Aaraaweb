@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  phone       String   @unique
+  email       String?  @unique
+  name        String?
+  status      UserStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  memberships SocietyMembership[]
+}
+
+model Society {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  code        String   @unique
+  status      SocietyStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  memberships SocietyMembership[]
+  buildings   Building[]
+  gates       Gate[]
+}
+
+model SocietyMembership {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  societyId String   @db.Uuid
+  role      MembershipRole
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  @@unique([userId, societyId, role])
+  @@index([societyId])
+}
+
+model Building {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  name      String
+  code      String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  units     Unit[]
+  @@unique([societyId, code])
+}
+
+model Unit {
+  id         String   @id @default(uuid()) @db.Uuid
+  societyId  String   @db.Uuid
+  buildingId String   @db.Uuid
+  number     String
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  @@unique([buildingId, number])
+  @@index([societyId])
+}
+
+model Gate {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  name      String
+  code      String
+  active    Boolean  @default(true)
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  @@unique([societyId, code])
+}
+
+enum UserStatus { ACTIVE SUSPENDED DELETED }
+enum SocietyStatus { ACTIVE SUSPENDED }
+enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGER ACCOUNTANT OWNER TENANT FAMILY_MEMBER SECURITY_SUPERVISOR SECURITY_GUARD STAFF VENDOR }
