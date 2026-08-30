@@ -1,0 +1,39 @@
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { IsDateString, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { PrismaService } from '../prisma/prisma.service';
+import { BearerGuard } from '../auth/bearer.guard';
+import { TenantGuard } from '../auth/tenant.guard';
+import { CurrentTenant } from '../auth/tenant.decorator';
+import { VisitorService } from './visitor.service';
+import { VisitorVerificationService } from './visitor-verification.service';
+
+class CreatePassDto {
+  @IsUUID() unitId!: string;
+  @IsString() @IsNotEmpty() name!: string;
+  @IsString() @IsNotEmpty() phone!: string;
+  @IsDateString() validFrom!: string;
+  @IsDateString() validUntil!: string;
+}
+class CredentialDto { @IsString() @IsNotEmpty() credential!: string; }
+
+@Controller('visitors')
+@UseGuards(BearerGuard, TenantGuard)
+export class VisitorsController {
+  constructor(private readonly prisma: PrismaService, private readonly visitors: VisitorService, private readonly verification: VisitorVerificationService) {}
+
+  @Post('passes')
+  createPass(@Body() dto: CreatePassDto, @CurrentTenant() societyId: string, @Body('userId') userId?: string) {
+    const hostUserId = userId;
+    if (!hostUserId) throw new Error('Host user context is required');
+    return this.visitors.createPass(societyId, hostUserId, dto.unitId, dto.name, dto.phone, new Date(dto.validFrom), new Date(dto.validUntil));
+  }
+
+  @Post('verify')
+  verify(@Body() dto: CredentialDto, @CurrentTenant() societyId: string) { return this.verification.verify(societyId, dto.credential); }
+
+  @Post('check-in')
+  checkIn(@Body() dto: CredentialDto, @CurrentTenant() societyId: string) { return this.verification.checkIn(societyId, dto.credential); }
+
+  @Post('check-out')
+  checkOut(@Body() dto: CredentialDto, @CurrentTenant() societyId: string) { return this.verification.checkOut(societyId, dto.credential); }
+}
