@@ -9,9 +9,7 @@ export class GateAuditService {
   async record(societyId: string, actorUserId: string, gateId: string, event: AuditEventType, visitorPassId: string) {
     const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId, active: true } });
     if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
-    return this.prisma.auditEvent.create({
-      data: { societyId, actorUserId, gateId, event, visitorPassId },
-    });
+    return this.prisma.auditEvent.create({ data: { societyId, actorUserId, gateId, event, visitorPassId } });
   }
 
   async list(societyId: string, gateId?: string, limit = 50) {
