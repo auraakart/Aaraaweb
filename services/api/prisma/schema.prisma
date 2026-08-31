@@ -18,6 +18,7 @@ model User {
   memberships SocietyMembership[]
   unitLinks   UnitResident[]
   visitors    Visitor[]
+  sessions    Session[]
 }
 
 model Society {
@@ -34,6 +35,7 @@ model Society {
   visitors    Visitor[]
   visitorPasses VisitorPass[]
   auditEvents AuditEvent[]
+  sessions    Session[]
 }
 
 model SocietyMembership {
@@ -146,11 +148,27 @@ model AuditEvent {
   event          AuditEventType
   occurredAt     DateTime @default(now())
   society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  gate           Gate    @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  gate           Gate     @relation(fields: [gateId], references: [id], onDelete: Cascade)
   visitorPass    VisitorPass @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
   @@index([societyId, occurredAt])
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
+}
+
+model Session {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  societyId        String?  @db.Uuid
+  accessTokenHash  String   @unique
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society          Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  @@index([userId, revokedAt])
+  @@index([societyId, revokedAt])
+  @@index([expiresAt])
 }
 
 enum UserStatus { ACTIVE SUSPENDED DELETED }
