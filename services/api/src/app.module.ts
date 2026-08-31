@@ -4,6 +4,8 @@ import { AuthModule } from './auth/auth.module';
 import { ResidentsModule } from './residents/residents.module';
 import { SocietiesModule } from './societies/societies.module';
 import { PropertiesModule } from './properties/properties.module';
+import { GatesModule } from './gates/gates.module';
+import { VisitorsModule } from './visitors/visitors.module';
 
 @Controller('health')
 class HealthController {
@@ -14,7 +16,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [AuthModule, SocietiesModule, ResidentsModule, PropertiesModule],
+  imports: [AuthModule, SocietiesModule, ResidentsModule, PropertiesModule, GatesModule, VisitorsModule],
   controllers: [HealthController],
   providers: [PrismaService],
   exports: [PrismaService],
