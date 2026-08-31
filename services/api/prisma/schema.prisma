@@ -17,7 +17,7 @@ model User {
   updatedAt   DateTime            @updatedAt
   memberships SocietyMembership[]
   unitLinks   UnitResident[]
-  visitors    Visitors[]
+  visitors    Visitor[]
 }
 
 model Society {
@@ -65,6 +65,7 @@ model Unit {
   number     String
   building   Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   residents  UnitResident[]
+  visitors   Visitor[]
   @@unique([buildingId, number])
   @@index([societyId])
 }
@@ -99,6 +100,7 @@ model Gate {
 model Visitor {
   id          String   @id @default(uuid()) @db.Uuid
   societyId   String   @db.Uuid
+  unitId      String   @db.Uuid
   hostUserId  String   @db.Uuid
   name        String
   phone       String?
@@ -107,24 +109,29 @@ model Visitor {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
   hostUser    User     @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
   passes      VisitorPass[]
   @@index([societyId, hostUserId])
+  @@index([societyId, unitId])
 }
 
 model VisitorPass {
-  id          String   @id @default(uuid()) @db.Uuid
-  societyId   String   @db.Uuid
-  visitorId   String   @db.Uuid
+  id            String   @id @default(uuid()) @db.Uuid
+  societyId     String   @db.Uuid
+  visitorId     String   @db.Uuid
   credentialHash String
-  validFrom   DateTime
-  validUntil  DateTime
-  status      VisitorPassStatus @default(ACTIVE)
-  createdAt   DateTime @default(now())
-  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  visitor     Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  validFrom     DateTime
+  validUntil    DateTime
+  status        VisitorPassStatus @default(ACTIVE)
+  checkedInAt   DateTime?
+  checkedOutAt  DateTime?
+  createdAt     DateTime @default(now())
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  visitor       Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
   @@index([societyId, status])
   @@index([visitorId])
+  @@index([societyId, credentialHash])
 }
 
 enum UserStatus { ACTIVE SUSPENDED DELETED }
