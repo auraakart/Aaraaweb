@@ -33,6 +33,7 @@ model Society {
   unitLinks   UnitResident[]
   visitors    Visitor[]
   visitorPasses VisitorPass[]
+  auditEvents AuditEvent[]
 }
 
 model SocietyMembership {
@@ -94,6 +95,7 @@ model Gate {
   code      String
   active    Boolean  @default(true)
   society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  auditEvents AuditEvent[]
   @@unique([societyId, code])
 }
 
@@ -117,21 +119,38 @@ model Visitor {
 }
 
 model VisitorPass {
-  id            String   @id @default(uuid()) @db.Uuid
-  societyId     String   @db.Uuid
-  visitorId     String   @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  societyId      String   @db.Uuid
+  visitorId      String   @db.Uuid
   credentialHash String
-  validFrom     DateTime
-  validUntil    DateTime
-  status        VisitorPassStatus @default(ACTIVE)
-  checkedInAt   DateTime?
-  checkedOutAt  DateTime?
-  createdAt     DateTime @default(now())
-  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  visitor       Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  validFrom      DateTime
+  validUntil     DateTime
+  status         VisitorPassStatus @default(ACTIVE)
+  checkedInAt    DateTime?
+  checkedOutAt   DateTime?
+  createdAt      DateTime @default(now())
+  society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  visitor        Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  auditEvents    AuditEvent[]
   @@index([societyId, status])
   @@index([visitorId])
   @@index([societyId, credentialHash])
+}
+
+model AuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  societyId      String   @db.Uuid
+  actorUserId    String   @db.Uuid
+  gateId         String   @db.Uuid
+  visitorPassId  String   @db.Uuid
+  event          AuditEventType
+  occurredAt     DateTime @default(now())
+  society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gate           Gate    @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  visitorPass    VisitorPass @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
+  @@index([societyId, occurredAt])
+  @@index([societyId, gateId, occurredAt])
+  @@index([societyId, visitorPassId, occurredAt])
 }
 
 enum UserStatus { ACTIVE SUSPENDED DELETED }
@@ -140,3 +159,4 @@ enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGE
 enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
 enum VisitorStatus { PENDING APPROVED DENIED CHECKED_IN CHECKED_OUT CANCELLED }
 enum VisitorPassStatus { ACTIVE USED EXPIRED REVOKED }
+enum AuditEventType { VISITOR_VERIFIED VISITOR_CHECKED_IN VISITOR_CHECKED_OUT }
