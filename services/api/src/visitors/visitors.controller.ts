@@ -21,7 +21,7 @@ export class VisitorsController {
     if (!hostUserId) throw new BadRequestException('Authenticated host is required');
     return this.visitors.createPass(societyId, hostUserId, dto.unitId, dto.name, dto.phone, new Date(dto.validFrom), new Date(dto.validUntil));
   }
-  @Post('verify') @UseGuards(GateAccessGuard) verify(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string) { return this.verification.verify(societyId, dto.gateId, dto.credential); }
-  @Post('check-in') @UseGuards(GateAccessGuard) checkIn(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string) { return this.verification.checkIn(societyId, dto.gateId, dto.credential); }
-  @Post('check-out') @UseGuards(GateAccessGuard) checkOut(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string) { return this.verification.checkOut(societyId, dto.gateId, dto.credential); }
+  @Post('verify') @UseGuards(GateAccessGuard) verify(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.verify(societyId, dto.gateId, dto.credential, actorUserId); }
+  @Post('check-in') @UseGuards(GateAccessGuard) checkIn(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.checkIn(societyId, dto.gateId, dto.credential, actorUserId); }
+  @Post('check-out') @UseGuards(GateAccessGuard) checkOut(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.checkOut(societyId, dto.gateId, dto.credential, actorUserId); }
 }
