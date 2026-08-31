@@ -1,20 +1,27 @@
-import { Body, Controller, Get, Param, Post, UseGuards, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { BearerGuard, AuthenticatedRequest } from '../auth/bearer.guard';
+import { BearerGuard } from '../auth/bearer.guard';
 import { TenantGuard } from '../auth/tenant.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { GateAccessGuard } from './gate-access.guard';
+import { GateAuditService } from './gate-audit.service';
 
 class CreateGateDto { @IsString() @IsNotEmpty() name!: string; @IsString() @IsNotEmpty() code!: string; @IsOptional() @IsBoolean() active?: boolean; }
 
 @Controller('gates')
 @UseGuards(BearerGuard, TenantGuard)
 export class GatesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: GateAuditService) {}
 
   @Get()
   list(@CurrentTenant() societyId: string) { return this.prisma.gate.findMany({ where: { societyId }, orderBy: { name: 'asc' } }); }
+
+  @Get('audit')
+  @UseGuards(GateAccessGuard)
+  auditHistory(@CurrentTenant() societyId: string, @Query('gateId') gateId?: string, @Query('limit') limit?: string) {
+    return this.audit.list(societyId, gateId, limit ? Number.parseInt(limit, 10) : 50);
+  }
 
   @Post()
   @UseGuards(GateAccessGuard)
