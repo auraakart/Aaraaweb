@@ -41,7 +41,14 @@ describe('AuthService security state', () => {
     for (let request = 0; request < 5; request += 1) {
       await expect(service.requestOtp('+919876543212')).resolves.toBeDefined();
     }
-    await expect(service.requestOtp('+919876543212')).rejects.toMatchObject({ status: 429 } satisfies Partial<HttpException>);
+
+    try {
+      await service.requestOtp('+919876543212');
+      throw new Error('Expected OTP rate limit');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(429);
+    }
   });
 
   it('rejects society selection grant use by a different user without consuming the valid grant', async () => {
