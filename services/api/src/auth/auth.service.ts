@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { AuthStateStore } from './auth-state.store';
+import { OtpDeliveryService } from './otp-delivery.service';
 
 export interface OtpChallenge { challengeId: string; phone: string; expiresAt: Date; attempts: number; }
 type StoredOtpChallenge = { challengeId: string; phone: string; code: string; attempts: number };
@@ -14,7 +15,10 @@ const SELECTION_TTL_SECONDS = 5 * 60;
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly state: AuthStateStore) {}
+  constructor(
+    private readonly state: AuthStateStore,
+    private readonly otpDelivery: OtpDeliveryService,
+  ) {}
 
   async requestOtp(phone: string): Promise<OtpChallenge> {
     const normalizedPhone = phone.replace(/\s+/g, '');
@@ -30,7 +34,20 @@ export class AuthService {
       code: randomInt(100000, 1000000).toString(),
       attempts: 0,
     };
-    await this.state.setJson(`auth:otp:${challengeId}`, stored, OTP_TTL_SECONDS);
+    const key = `auth:otp:${challengeId}`;
+    await this.state.setJson(key, stored, OTP_TTL_SECONDS);
+
+    try {
+      await this.otpDelivery.send({
+        phone: normalizedPhone,
+        code: stored.code,
+        expiresInSeconds: OTP_TTL_SECONDS,
+      });
+    } catch (error) {
+      await this.state.delete(key);
+      throw error;
+    }
+
     return { challengeId, phone: normalizedPhone, expiresAt: new Date(Date.now() + OTP_TTL_SECONDS * 1000), attempts: 0 };
   }
 
