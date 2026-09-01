@@ -1,4 +1,5 @@
 import { Controller, Get, Module } from '@nestjs/common';
+import { AccessModule } from './access/access.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
@@ -27,6 +28,7 @@ class HealthController {
     HouseholdsModule,
     GatesModule,
     VisitorsModule,
+    AccessModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],
