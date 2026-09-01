@@ -26,6 +26,11 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
     await widget.controller.verifyCredential(credential.text);
   }
 
+  String _unitLabel(Map<String, dynamic> unit) {
+    final building = unit['building'] is Map ? Map<String, dynamic>.from(unit['building'] as Map) : const <String, dynamic>{};
+    return '${building['name'] ?? building['code'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}';
+  }
+
   Future<void> _walkIn() async {
     final c = widget.controller;
     if (c.units.isEmpty) {
@@ -49,11 +54,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   value: unitId,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Destination / घर', border: OutlineInputBorder()),
-                  items: c.units.map((unit) {
-                    final building = unit['building'] is Map ? Map<String, dynamic>.from(unit['building'] as Map) : const <String, dynamic>{};
-                    final label = '${building['name'] ?? building['code'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}';
-                    return DropdownMenuItem(value: unit['id']?.toString(), child: Text(label, overflow: TextOverflow.ellipsis));
-                  }).toList(),
+                  items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setDialogState(() => unitId = value),
                 ),
                 const SizedBox(height: 12),
@@ -81,13 +82,70 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
     );
   }
 
+  Future<void> _quickArrival(String type) async {
+    final c = widget.controller;
+    if (c.units.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No occupied units are available.')));
+      return;
+    }
+    final isCab = type == 'CAB';
+    final name = TextEditingController(text: isCab ? 'Cab driver' : 'Delivery partner');
+    final provider = TextEditingController();
+    final vehicle = TextEditingController();
+    final phone = TextEditingController();
+    String? unitId = c.units.first['id']?.toString();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isCab ? 'Cab arrival / कैब' : 'Delivery / डिलीवरी'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: unitId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Destination / घर', border: OutlineInputBorder()),
+                  items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (value) => setDialogState(() => unitId = value),
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: provider, decoration: InputDecoration(labelText: isCab ? 'Cab app (Uber/Ola/Rapido)' : 'Provider (Swiggy/Zomato/Amazon)', border: const OutlineInputBorder())),
+                const SizedBox(height: 12),
+                TextField(controller: name, decoration: InputDecoration(labelText: isCab ? 'Driver name' : 'Delivery person', border: const OutlineInputBorder())),
+                const SizedBox(height: 12),
+                TextField(controller: vehicle, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: isCab ? 'Vehicle number' : 'Vehicle number (optional)', border: const OutlineInputBorder())),
+                const SizedBox(height: 12),
+                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone (optional)', border: OutlineInputBorder())),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('ASK RESIDENT')),
+          ],
+        ),
+      ),
+    );
+    if (submit != true || unitId == null || name.text.trim().isEmpty) return;
+    await c.createGateArrival(
+      unitId: unitId!,
+      subjectType: type,
+      name: name.text.trim(),
+      provider: provider.text.trim().isEmpty ? null : provider.text.trim(),
+      phone: phone.text.trim().isEmpty ? null : phone.text.trim(),
+      vehicleNumber: vehicle.text.trim().isEmpty ? null : vehicle.text.trim(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
     final access = c.verifiedAccess;
     final status = access?['status']?.toString();
-    final walkIn = c.walkInAccess;
-    final walkInStatus = walkIn?['status']?.toString();
+    final gateRequest = c.walkInAccess;
+    final gateRequestStatus = gateRequest?['status']?.toString();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gate Operations', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -116,26 +174,42 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
               ),
-              if (c.gates.isEmpty) ...[
-                const SizedBox(height: 10),
-                const Card(child: Padding(padding: EdgeInsets.all(14), child: Text('No active gate is configured for this society.'))),
-              ],
               const SizedBox(height: 18),
-              FilledButton.icon(
+              Row(children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: c.busy || c.gateId == null ? null : () => _quickArrival('DELIVERY'),
+                    icon: const Icon(Icons.delivery_dining_rounded),
+                    label: const Text('DELIVERY\nडिलीवरी', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: c.busy || c.gateId == null ? null : () => _quickArrival('CAB'),
+                    icon: const Icon(Icons.local_taxi_rounded),
+                    label: const Text('CAB\nकैब', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : _walkIn,
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 30),
-                label: const Text('WALK-IN VISITOR / बिना निमंत्रण', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(66)),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('WALK-IN VISITOR / बिना निमंत्रण', style: TextStyle(fontWeight: FontWeight.w900)),
+                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(58)),
               ),
-              if (walkIn != null) ...[
+              if (gateRequest != null) ...[
                 const SizedBox(height: 14),
-                _WalkInCard(
-                  access: walkIn,
+                _GateApprovalCard(
+                  access: gateRequest,
                   busy: c.busy,
                   onRefresh: c.refreshWalkIn,
-                  onEnter: walkInStatus == 'APPROVED' ? c.checkInWalkIn : null,
-                  onExit: walkInStatus == 'CHECKED_IN' ? c.checkOutWalkIn : null,
-                  onDone: walkInStatus == 'DENIED' || walkInStatus == 'CHECKED_OUT' || walkInStatus == 'CANCELLED' ? c.clearWalkIn : null,
+                  onEnter: gateRequestStatus == 'APPROVED' ? c.checkInWalkIn : null,
+                  onExit: gateRequestStatus == 'CHECKED_IN' ? c.checkOutWalkIn : null,
+                  onDone: gateRequestStatus == 'DENIED' || gateRequestStatus == 'CHECKED_OUT' || gateRequestStatus == 'CANCELLED' ? c.clearWalkIn : null,
                 ),
               ],
               const SizedBox(height: 20),
@@ -150,12 +224,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(72)),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: credential,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(labelText: 'Manual credential / कोड', prefixIcon: Icon(Icons.keyboard_alt_outlined), border: OutlineInputBorder()),
-                onSubmitted: c.busy || c.gateId == null ? null : c.verifyCredential,
-              ),
+              TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential / कोड', prefixIcon: Icon(Icons.keyboard_alt_outlined), border: OutlineInputBorder())),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : () => c.verifyCredential(credential.text),
@@ -166,45 +235,20 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               if (c.busy) const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: LinearProgressIndicator()),
               if (c.error != null) ...[
                 const SizedBox(height: 12),
-                Card(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  child: Padding(padding: const EdgeInsets.all(14), child: Text(c.error!, style: const TextStyle(fontWeight: FontWeight.w700))),
-                ),
+                Card(color: Theme.of(context).colorScheme.errorContainer, child: Padding(padding: const EdgeInsets.all(14), child: Text(c.error!, style: const TextStyle(fontWeight: FontWeight.w700)))),
               ],
               if (access != null) ...[
                 const SizedBox(height: 18),
                 _AccessResultCard(access: access),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text),
-                        icon: const Icon(Icons.login_rounded),
-                        label: const Text('ENTER\nअंदर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text),
-                        icon: const Icon(Icons.logout_rounded),
-                        label: const Text('EXIT\nबाहर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(68)),
-                      ),
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  Expanded(child: FilledButton.icon(onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text), icon: const Icon(Icons.login_rounded), label: const Text('ENTER\nअंदर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
+                  const SizedBox(width: 10),
+                  Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: const Text('EXIT\nबाहर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
+                ]),
               ],
               const SizedBox(height: 22),
-              Card(
-                child: ListTile(
-                  leading: Icon(c.queuedActions == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined),
-                  title: Text(c.queuedActions == 0 ? 'Online operations clear' : '${c.queuedActions} offline actions pending', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(c.queuedActions == 0 ? 'No locally queued gate actions.' : 'Stored securely for supervisor review and safe sync.'),
-                ),
-              ),
+              Card(child: ListTile(leading: Icon(c.queuedActions == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined), title: Text(c.queuedActions == 0 ? 'Online operations clear' : '${c.queuedActions} offline actions pending', style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(c.queuedActions == 0 ? 'No locally queued gate actions.' : 'Stored securely for supervisor review and safe sync.'))),
             ],
           ),
         ),
@@ -213,8 +257,8 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
   }
 }
 
-class _WalkInCard extends StatelessWidget {
-  const _WalkInCard({required this.access, required this.busy, required this.onRefresh, this.onEnter, this.onExit, this.onDone});
+class _GateApprovalCard extends StatelessWidget {
+  const _GateApprovalCard({required this.access, required this.busy, required this.onRefresh, this.onEnter, this.onExit, this.onDone});
   final Map<String, dynamic> access;
   final bool busy;
   final VoidCallback onRefresh;
@@ -227,34 +271,23 @@ class _WalkInCard extends StatelessWidget {
     final status = access['status']?.toString() ?? 'PENDING';
     final waiting = status == 'PENDING';
     final denied = status == 'DENIED' || status == 'CANCELLED';
-    final title = access['subjectName']?.toString() ?? 'Walk-in visitor';
+    final title = access['subjectName']?.toString() ?? 'Gate arrival';
+    final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              Icon(denied ? Icons.block_rounded : waiting ? Icons.hourglass_top_rounded : Icons.verified_rounded, size: 30),
-              const SizedBox(width: 10),
-              Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
-            ]),
-            const SizedBox(height: 10),
-            Text(
-              waiting ? 'Waiting for resident approval / निवासी की मंज़ूरी का इंतज़ार' : status.replaceAll('_', ' '),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 14),
-            if (waiting)
-              OutlinedButton.icon(onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh_rounded), label: const Text('CHECK APPROVAL')),
-            if (onEnter != null)
-              FilledButton.icon(onPressed: busy ? null : onEnter, icon: const Icon(Icons.login_rounded), label: const Text('APPROVED — ENTER / अंदर')),
-            if (onExit != null)
-              OutlinedButton.icon(onPressed: busy ? null : onExit, icon: const Icon(Icons.logout_rounded), label: const Text('EXIT / बाहर')),
-            if (onDone != null)
-              TextButton(onPressed: busy ? null : onDone, child: const Text('CLOSE')),
-          ],
-        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [Icon(denied ? Icons.block_rounded : waiting ? Icons.hourglass_top_rounded : Icons.verified_rounded, size: 30), const SizedBox(width: 10), Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)))]),
+          const SizedBox(height: 6),
+          Text(type, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text(waiting ? 'Waiting for resident approval / निवासी की मंज़ूरी का इंतज़ार' : status.replaceAll('_', ' '), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 14),
+          if (waiting) OutlinedButton.icon(onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh_rounded), label: const Text('CHECK APPROVAL')),
+          if (onEnter != null) FilledButton.icon(onPressed: busy ? null : onEnter, icon: const Icon(Icons.login_rounded), label: const Text('APPROVED — ENTER / अंदर')),
+          if (onExit != null) OutlinedButton.icon(onPressed: busy ? null : onExit, icon: const Icon(Icons.logout_rounded), label: const Text('EXIT / बाहर')),
+          if (onDone != null) TextButton(onPressed: busy ? null : onDone, child: const Text('CLOSE')),
+        ]),
       ),
     );
   }
@@ -270,30 +303,9 @@ class _AccessResultCard extends StatelessWidget {
     final positive = status == 'APPROVED' || status == 'CHECKED_IN';
     final subject = access['subjectName']?.toString() ?? 'Access holder';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'ACCESS';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: positive ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.errorContainer,
-                  child: Icon(positive ? Icons.check_rounded : Icons.block_rounded, size: 30),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(subject, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(type, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(status.replaceAll('_', ' '), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: positive ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error)),
-          ],
-        ),
-      ),
-    );
+    return Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [CircleAvatar(radius: 26, backgroundColor: positive ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.errorContainer, child: Icon(positive ? Icons.check_rounded : Icons.block_rounded, size: 30)), const SizedBox(width: 12), Expanded(child: Text(subject, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)))]),
+      const SizedBox(height: 14), Text(type, style: const TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 8), Text(status.replaceAll('_', ' '), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: positive ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error)),
+    ])));
   }
 }
