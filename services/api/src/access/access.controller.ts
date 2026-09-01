@@ -31,6 +31,19 @@ class CreateVisitorInviteDto {
   @IsDateString() validUntil!: string;
 }
 
+class CreateWalkInVisitorDto {
+  @IsUUID() gateId!: string;
+  @IsUUID() unitId!: string;
+  @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() purpose?: string;
+}
+
+class GateRequestDto {
+  @IsUUID() gateId!: string;
+  @IsUUID() requestId!: string;
+}
+
 class ApproveAccessRequestDto {
   @IsDateString() validFrom!: string;
   @IsDateString() validUntil!: string;
@@ -51,6 +64,13 @@ export class AccessController {
   listMine(@CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.access.listMine(societyId, userId);
+  }
+
+  @Get('gate/units')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  listGateUnits(@CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    return this.access.listGateUnits(societyId);
   }
 
   @Post()
@@ -74,6 +94,36 @@ export class AccessController {
       dto.phone,
       dto.purpose,
     );
+  }
+
+  @Post('gate/walk-ins')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    return this.access.createWalkInVisitor(societyId, actorUserId, dto.gateId, dto.unitId, dto.name, dto.phone, dto.purpose);
+  }
+
+  @Post('gate/request-status')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  gateRequestStatus(@Body() dto: GateRequestDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    return this.access.gateRequestStatus(societyId, dto.gateId, dto.requestId);
+  }
+
+  @Post('gate/check-in-request')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  checkInRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
+    return this.access.checkInRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
+  }
+
+  @Post('gate/check-out-request')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  checkOutRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
+    return this.access.checkOutRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
   }
 
   @Post(':requestId/approve')
