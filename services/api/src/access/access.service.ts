@@ -57,8 +57,101 @@ export class AccessService {
     });
   }
 
+  async inviteVisitor(societyId: string, userId: string, unitId: string, subjectName: string, validFrom: Date, validUntil: Date, subjectPhone?: string, purpose?: string) {
+    if (validUntil <= validFrom) throw new BadRequestException('Access validity window is invalid');
+    await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
+    await this.assertResidentUnit(societyId, userId, unitId);
+    const credential = this.credential();
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.accessRequest.create({
+        data: {
+          societyId,
+          unitId,
+          requestedById: userId,
+          subjectType: AccessSubjectType.VISITOR,
+          subjectName: subjectName.trim(),
+          subjectPhone: subjectPhone?.trim() || null,
+          purpose: purpose?.trim() || null,
+          status: AccessRequestStatus.APPROVED,
+          validFrom,
+          validUntil,
+          credentialHash: credential.hash,
+        },
+      });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_CREATED } });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_APPROVED } });
+      return created;
+    });
+    return { request, credential: credential.raw };
+  }
+
   listMine(societyId: string, userId: string) {
     return this.prisma.accessRequest.findMany({ where: { societyId, requestedById: userId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  listGateUnits(societyId: string) {
+    return this.prisma.unit.findMany({
+      where: { societyId, residents: { some: { active: true } } },
+      select: { id: true, number: true, building: { select: { id: true, name: true, code: true } } },
+      orderBy: [{ building: { name: 'asc' } }, { number: 'asc' }],
+    });
+  }
+
+  async createWalkInVisitor(societyId: string, actorUserId: string, gateId: string, unitId: string, subjectName: string, subjectPhone?: string, purpose?: string) {
+    await this.assertGate(societyId, gateId);
+    await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
+    const destination = await this.prisma.unit.findFirst({
+      where: { id: unitId, societyId },
+      select: {
+        id: true,
+        residents: {
+          where: { active: true },
+          orderBy: [{ primary: 'desc' }, { createdAt: 'asc' }],
+          take: 1,
+          select: { userId: true },
+        },
+      },
+    });
+    const hostUserId = destination?.residents[0]?.userId;
+    if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
+    return this.prisma.$transaction(async (tx) => {
+      const request = await tx.accessRequest.create({
+        data: {
+          societyId,
+          unitId,
+          requestedById: hostUserId,
+          subjectType: AccessSubjectType.VISITOR,
+          subjectName: subjectName.trim(),
+          subjectPhone: subjectPhone?.trim() || null,
+          purpose: purpose?.trim() || null,
+          metadata: { source: 'GATE_WALK_IN', gateId, createdByGuardId: actorUserId } as Prisma.InputJsonValue,
+          status: AccessRequestStatus.PENDING,
+        },
+      });
+      await tx.auditEvent.create({ data: { societyId, actorUserId, gateId, accessRequestId: request.id, event: AuditEventType.ACCESS_CREATED } });
+      return request;
+    });
+  }
+
+  async gateRequestStatus(societyId: string, gateId: string, requestId: string) {
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
+    if (!request) throw new NotFoundException('Access request not found');
+    return request;
+  }
+
+  async checkInRequest(societyId: string, gateId: string, requestId: string, actorUserId: string, idempotencyKey: string) {
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
+    if (!request) throw new NotFoundException('Access request not found');
+    return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
+  }
+
+  async checkOutRequest(societyId: string, gateId: string, requestId: string, actorUserId: string, idempotencyKey: string) {
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
+    if (!request) throw new NotFoundException('Access request not found');
+    return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_OUT);
   }
 
   async approve(societyId: string, userId: string, requestId: string, validFrom: Date, validUntil: Date) {
@@ -117,7 +210,9 @@ export class AccessService {
   }
 
   async checkIn(societyId: string, gateId: string, rawCredential: string, actorUserId: string, idempotencyKey: string) {
-    const request = await this.verify(societyId, gateId, rawCredential);
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
+    if (!request) throw new NotFoundException('Access credential not found');
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
   }
 
@@ -134,8 +229,21 @@ export class AccessService {
     const existing = await this.prisma.gateMutationReceipt.findUnique({ where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } } });
     if (existing) {
       if (existing.accessRequestId !== accessRequestId || existing.gateId !== gateId || existing.action !== action) throw new BadRequestException('Idempotency key was already used for a different gate operation');
-      return this.prisma.accessRequest.findUniqueOrThrow({ where: { id: existing.accessRequestId } });
+      const request = await this.prisma.accessRequest.findFirst({ where: { id: existing.accessRequestId, societyId } });
+      if (!request) throw new NotFoundException('Access request not found');
+      return request;
     }
+
+    if (action === GateMutationAction.CHECK_IN) {
+      const request = await this.prisma.accessRequest.findFirst({ where: { id: accessRequestId, societyId } });
+      if (!request) throw new NotFoundException('Access request not found');
+      const now = new Date();
+      if (!request.validFrom || !request.validUntil || now < request.validFrom || now > request.validUntil) {
+        throw new BadRequestException('Access credential is outside its validity window');
+      }
+      await this.assertSubjectEnabled(societyId, request.subjectType);
+    }
+
     const expectedStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.APPROVED : AccessRequestStatus.CHECKED_IN;
     const nextStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.CHECKED_IN : AccessRequestStatus.CHECKED_OUT;
     const event = action === GateMutationAction.CHECK_IN ? AuditEventType.ACCESS_CHECKED_IN : AuditEventType.ACCESS_CHECKED_OUT;
@@ -146,12 +254,18 @@ export class AccessService {
         if (changed.count !== 1) throw new BadRequestException(`Access request is not ready for ${action === GateMutationAction.CHECK_IN ? 'check-in' : 'check-out'}`);
         await tx.gateMutationReceipt.create({ data: { societyId, gateId, accessRequestId, actorUserId, idempotencyKey: key, action } });
         await tx.auditEvent.create({ data: { societyId, actorUserId, gateId, accessRequestId, event } });
-        return tx.accessRequest.findUniqueOrThrow({ where: { id: accessRequestId } });
+        const request = await tx.accessRequest.findFirst({ where: { id: accessRequestId, societyId } });
+        if (!request) throw new NotFoundException('Access request not found');
+        return request;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const receipt = await this.prisma.gateMutationReceipt.findUnique({ where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } } });
-        if (receipt && receipt.accessRequestId === accessRequestId && receipt.gateId === gateId && receipt.action === action) return this.prisma.accessRequest.findUniqueOrThrow({ where: { id: accessRequestId } });
+        if (receipt && receipt.accessRequestId === accessRequestId && receipt.gateId === gateId && receipt.action === action) {
+          const request = await this.prisma.accessRequest.findFirst({ where: { id: accessRequestId, societyId } });
+          if (!request) throw new NotFoundException('Access request not found');
+          return request;
+        }
       }
       throw error;
     }

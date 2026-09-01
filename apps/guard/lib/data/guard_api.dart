@@ -23,6 +23,38 @@ class GuardApi {
         if (accessToken.isNotEmpty) HttpHeaders.authorizationHeader: 'Bearer $accessToken',
       };
 
+  Stream<Map<String, dynamic>> gateEvents() async* {
+    if (accessToken.isEmpty) throw GuardApiException('Sign in is required', statusCode: 401);
+    final client = http.Client();
+    try {
+      final request = http.Request('GET', Uri.parse('$_root/notifications/gate-stream'));
+      request.headers.addAll({
+        HttpHeaders.acceptHeader: 'text/event-stream',
+        HttpHeaders.authorizationHeader: 'Bearer $accessToken',
+      });
+      final response = await client.send(request);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final text = await response.stream.bytesToString();
+        throw GuardApiException(text.isEmpty ? 'Gate event stream failed' : text, statusCode: response.statusCode);
+      }
+      await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (!line.startsWith('data:')) continue;
+        final payload = line.substring(5).trim();
+        if (payload.isEmpty) continue;
+        final decoded = jsonDecode(payload);
+        if (decoded is Map) yield Map<String, dynamic>.from(decoded);
+      }
+    } on GuardApiException {
+      rethrow;
+    } on SocketException catch (e) {
+      throw GuardApiException(e.message, transport: true);
+    } on http.ClientException catch (e) {
+      throw GuardApiException(e.message, transport: true);
+    } finally {
+      client.close();
+    }
+  }
+
   Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body, Map<String, String>? extraHeaders}) async {
     try {
       final uri = Uri.parse('$_root/${path.replaceFirst(RegExp(r'^/'), '')}');
@@ -52,23 +84,11 @@ class GuardApi {
     }
   }
 
-  Future<Map<String, dynamic>> requestOtp(String phone) async =>
-      Map<String, dynamic>.from(await _send('POST', '/auth/otp/request', body: {'phone': phone}) as Map);
-
-  Future<Map<String, dynamic>> verifyOtp(String challengeId, String code) async =>
-      Map<String, dynamic>.from(await _send('POST', '/auth/otp/verify', body: {'challengeId': challengeId, 'code': code}) as Map);
-
-  Future<Map<String, dynamic>> selectSociety({required String userId, required String societyId, required String selectionToken}) async =>
-      Map<String, dynamic>.from(await _send('POST', '/auth/society/select', body: {
-        'userId': userId,
-        'societyId': societyId,
-        'selectionToken': selectionToken,
-      }) as Map);
-
-  Future<Map<String, dynamic>> refresh(String sessionId, String refreshToken) async =>
-      Map<String, dynamic>.from(await _send('POST', '/auth/refresh', body: {'sessionId': sessionId, 'refreshToken': refreshToken}) as Map);
-
-  Future<void> logout(String sessionId) => _send('POST', '/auth/logout', body: {'sessionId': sessionId});
+  Future<Map<String, dynamic>> requestOtp(String phone) async => Map<String, dynamic>.from(await _send('POST', '/auth/otp/request', body: {'phone': phone}) as Map);
+  Future<Map<String, dynamic>> verifyOtp(String challengeId, String code) async => Map<String, dynamic>.from(await _send('POST', '/auth/otp/verify', body: {'challengeId': challengeId, 'code': code}) as Map);
+  Future<Map<String, dynamic>> selectSociety({required String userId, required String societyId, required String selectionToken}) async => Map<String, dynamic>.from(await _send('POST', '/auth/society/select', body: {'userId': userId, 'societyId': societyId, 'selectionToken': selectionToken}) as Map);
+  Future<Map<String, dynamic>> refresh(String sessionId, String refreshToken) async => Map<String, dynamic>.from(await _send('POST', '/auth/refresh', body: {'sessionId': sessionId, 'refreshToken': refreshToken}) as Map);
+  Future<void> logout(String sessionId, String refreshToken) => _send('POST', '/auth/logout', body: {'sessionId': sessionId, 'refreshToken': refreshToken});
 
   Future<List<Map<String, dynamic>>> gates() async {
     final value = await _send('GET', '/gates');
@@ -76,15 +96,45 @@ class GuardApi {
     return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> gateUnits() async {
+    final value = await _send('GET', '/access-requests/gate/units');
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> createWalkIn({required String gateId, required String unitId, required String name, String? phone, String? purpose}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/walk-ins', body: {
+        'gateId': gateId,
+        'unitId': unitId,
+        'name': name,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (purpose != null && purpose.trim().isNotEmpty) 'purpose': purpose.trim(),
+      }) as Map);
+
+  Future<Map<String, dynamic>> createGateArrival({required String gateId, required String unitId, required String subjectType, required String name, String? provider, String? phone, String? vehicleNumber, String? note}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/arrivals', body: {
+        'gateId': gateId,
+        'unitId': unitId,
+        'subjectType': subjectType,
+        'name': name,
+        if (provider != null && provider.trim().isNotEmpty) 'provider': provider.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (vehicleNumber != null && vehicleNumber.trim().isNotEmpty) 'vehicleNumber': vehicleNumber.trim(),
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      }) as Map);
+
+  Future<Map<String, dynamic>> requestStatus(String gateId, String requestId) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/request-status', body: {'gateId': gateId, 'requestId': requestId}) as Map);
+
+  Future<Map<String, dynamic>> checkInRequest(String gateId, String requestId, String idempotencyKey) => _requestMutation('/access-requests/gate/check-in-request', gateId, requestId, idempotencyKey);
+  Future<Map<String, dynamic>> checkOutRequest(String gateId, String requestId, String idempotencyKey) => _requestMutation('/access-requests/gate/check-out-request', gateId, requestId, idempotencyKey);
   Future<Map<String, dynamic>> verifyAccess(String gateId, String credential) => _access('/access-requests/gate/verify', gateId, credential);
   Future<Map<String, dynamic>> checkIn(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-in', gateId, credential, idempotencyKey: idempotencyKey);
   Future<Map<String, dynamic>> checkOut(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-out', gateId, credential, idempotencyKey: idempotencyKey);
 
+  Future<Map<String, dynamic>> _requestMutation(String path, String gateId, String requestId, String idempotencyKey) async =>
+      Map<String, dynamic>.from(await _send('POST', path, body: {'gateId': gateId, 'requestId': requestId}, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
+
   Future<Map<String, dynamic>> _access(String path, String gateId, String credential, {String? idempotencyKey}) async =>
-      Map<String, dynamic>.from(await _send(
-        'POST',
-        path,
-        body: {'gateId': gateId, 'credential': credential},
-        extraHeaders: idempotencyKey == null ? null : {'Idempotency-Key': idempotencyKey},
-      ) as Map);
+      Map<String, dynamic>.from(await _send('POST', path, body: {'gateId': gateId, 'credential': credential}, extraHeaders: idempotencyKey == null ? null : {'Idempotency-Key': idempotencyKey}) as Map);
 }
