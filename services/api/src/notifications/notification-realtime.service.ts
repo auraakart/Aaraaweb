@@ -37,7 +37,7 @@ export class NotificationRealtimeService {
     return stream.asObservable().pipe(startWith({ data: { type: 'CONNECTED' } }));
   }
 
-  publishApprovalRequested(event: AccessRealtimeEvent) {
+  publishResident(event: AccessRealtimeEvent) {
     if (!event.userId) return;
     this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({ data: event });
   }
