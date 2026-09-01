@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'resident_repository.dart';
 
@@ -6,6 +7,7 @@ class ResidentDataController extends ChangeNotifier {
   final ResidentRepository repository;
 
   bool loading = false;
+  bool realtimeConnected = false;
   String? authError;
   String? householdError;
   String? accessError;
@@ -16,6 +18,9 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> serviceOfferings = const [];
   List<Map<String, dynamic>> bookings = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
+  Map<String, dynamic>? latestAccessEvent;
+  StreamSubscription<Map<String, dynamic>>? _accessEvents;
+  bool _disposed = false;
 
   String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
   Map<String, dynamic>? get firstPendingAccess {
@@ -35,6 +40,33 @@ class ResidentDataController extends ChangeNotifier {
     await Future.wait([_loadHouseholds(), _loadAccess(), _loadServices()]);
     loading = false;
     notifyListeners();
+    startRealtime();
+  }
+
+  void startRealtime() {
+    _accessEvents?.cancel();
+    _accessEvents = repository.accessEvents().listen(
+      (event) async {
+        realtimeConnected = true;
+        if (event['type']?.toString() != 'CONNECTED') {
+          latestAccessEvent = event;
+          await _loadAccess();
+        }
+        if (!_disposed) notifyListeners();
+      },
+      onError: (_) {
+        realtimeConnected = false;
+        if (!_disposed) {
+          notifyListeners();
+          Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+        }
+      },
+      onDone: () {
+        realtimeConnected = false;
+        if (!_disposed) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      },
+      cancelOnError: true,
+    );
   }
 
   Future<void> _loadHouseholds() async {
@@ -116,23 +148,11 @@ class ResidentDataController extends ChangeNotifier {
     final unitId = primaryUnitId;
     if (unitId == null) throw StateError('No household unit is available');
     final now = DateTime.now();
-    final result = await repository.inviteVisitor(
-      unitId: unitId,
-      name: name,
-      phone: phone,
-      purpose: purpose,
-      validFrom: now,
-      validUntil: now.add(duration),
-    );
+    final result = await repository.inviteVisitor(unitId: unitId, name: name, phone: phone, purpose: purpose, validFrom: now, validUntil: now.add(duration));
     final rawRequest = result['request'];
     final credential = result['credential']?.toString();
-    if (rawRequest is! Map || credential == null || credential.isEmpty) {
-      throw StateError('Visitor pass was not returned');
-    }
-    lastIssuedVisitorPass = {
-      'credential': credential,
-      'request': Map<String, dynamic>.from(rawRequest),
-    };
+    if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
+    lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     await _loadAccess();
     notifyListeners();
     return lastIssuedVisitorPass!;
@@ -141,6 +161,13 @@ class ResidentDataController extends ChangeNotifier {
   void clearIssuedVisitorPass() {
     lastIssuedVisitorPass = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _accessEvents?.cancel();
+    super.dispose();
   }
 }
 
