@@ -1,25 +1,48 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
-import 'qr_scanner.dart';
+import 'data/guard_api.dart';
+import 'data/guard_session_store.dart';
+import 'data/offline_action_queue.dart';
+import 'guard_controller.dart';
+import 'screens/guard_login_screen.dart';
+import 'screens/guard_operations_screen.dart';
 
-void main() => runApp(const AaraagateGuardApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  const baseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
+  final controller = GuardController(
+    api: GuardApi(baseUrl: baseUrl),
+    sessions: const GuardSessionStore(),
+    offlineQueue: const OfflineActionQueue(),
+  );
+  runApp(AaraagateGuardApp(controller: controller));
+  controller.bootstrap();
+}
 
-class GuardSessionStore { const GuardSessionStore(); static const _storage=FlutterSecureStorage(); Future<void> save({required String sessionId,required String accessToken,required String refreshToken,required String userId,required String societyId}) async {await _storage.write(key:'sessionId',value:sessionId);await _storage.write(key:'accessToken',value:accessToken);await _storage.write(key:'refreshToken',value:refreshToken);await _storage.write(key:'userId',value:userId);await _storage.write(key:'societyId',value:societyId);} Future<Map<String,String?>> read() async=>{'sessionId':await _storage.read(key:'sessionId'),'accessToken':await _storage.read(key:'accessToken'),'refreshToken':await _storage.read(key:'refreshToken'),'userId':await _storage.read(key:'userId'),'societyId':await _storage.read(key:'societyId')}; Future<void> clear()=>_storage.deleteAll(); }
-class GuardApi { GuardApi({required this.baseUrl}); final String baseUrl; String token=''; Map<String,String> get headers=>{'Authorization':'Bearer $token','Content-Type':'application/json'}; Future<dynamic> request(String method,String path,{Map<String,dynamic>? body}) async {final r=method=='GET'?await http.get(Uri.parse('$baseUrl$path'),headers:headers):await http.post(Uri.parse('$baseUrl$path'),headers:headers,body:jsonEncode(body??{}));final d=r.body.isEmpty?null:jsonDecode(r.body);if(r.statusCode<200||r.statusCode>=300)throw Exception(d is Map?d['message']??'Request failed':'Request failed (${r.statusCode})');return d;} Future<Map<String,dynamic>> login(String c,String code)=>request('POST','/auth/otp/verify',body:{'challengeId':c,'code':code}).then((d)=>Map<String,dynamic>.from(d)); Future<Map<String,dynamic>> selectSociety(String u,String s)=>request('POST','/auth/society/select',body:{'userId':u,'societyId':s}).then((d)=>Map<String,dynamic>.from(d)); Future<Map<String,dynamic>> refresh(String id,String r)=>request('POST','/auth/refresh',body:{'sessionId':id,'refreshToken':r}).then((d)=>Map<String,dynamic>.from(d)); Future<void> logout(String id) async{await request('POST','/auth/logout',body:{'sessionId':id});} Future<List<dynamic>> gates()=>request('GET','/gates').then((d)=>List<dynamic>.from(d)); Future<Map<String,dynamic>> visitor(String p,String g,String c)=>request('POST',p,body:{'gateId':g,'credential':c}).then((d)=>Map<String,dynamic>.from(d)); }
-class AaraagateGuardApp extends StatelessWidget{const AaraagateGuardApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(title:'aaraagate Guard',debugShowCheckedModeBanner:false,theme:ThemeData(useMaterial3:true,colorSchemeSeed:const Color(0xFF176B4D)),home:const GuardDashboard());}
-class GuardDashboard extends StatefulWidget{const GuardDashboard({super.key});@override State<GuardDashboard> createState()=>_GuardDashboardState();}
-class _GuardDashboardState extends State<GuardDashboard>{final api=GuardApi(baseUrl:const String.fromEnvironment('AARAAGATE_API_URL',defaultValue:'http://localhost:3000'));final store=const GuardSessionStore();final challenge=TextEditingController(),code=TextEditingController(),credential=TextEditingController();String status='Restoring security session…';bool busy=true;List<dynamic> memberships=[],gates=[];String? gateId,sessionId,refreshToken,userId;
-@override void initState(){super.initState();_restore();} Future<void> _restore() async{final s=await store.read();sessionId=s['sessionId'];refreshToken=s['refreshToken'];userId=s['userId'];api.token=s['accessToken']??'';if(api.token.isNotEmpty&&sessionId!=null){try{await loadGates();status='Session restored';}catch(_){if(refreshToken!=null)await _refresh(s);}}else status='Sign in to start a security shift';if(mounted)setState(()=>busy=false);}
-Future<void> _refresh(Map<String,String?>s)async{try{final r=await api.refresh(s['sessionId']!,s['refreshToken']!);await _saveSession({...r,'userId':s['userId'],'societyId':s['societyId']});await loadGates();status='Session refreshed';}catch(_){await store.clear();api.token='';status='Session expired. Sign in again';}}
-Future<void> _saveSession(Map<String,dynamic>s)async{sessionId=s['sessionId'];refreshToken=s['refreshToken'];api.token=s['accessToken']??'';await store.save(sessionId:sessionId!,accessToken:api.token,refreshToken:refreshToken!,userId:userId!,societyId:s['societyId']??'');}
-Future<void> verifyOtp()async{await _busy('Verifying OTP…',()async{final r=await api.login(challenge.text.trim(),code.text.trim());userId=r['userId'];memberships=List<dynamic>.from(r['memberships']??[]);if(r['session']!=null){await _saveSession({...Map<String,dynamic>.from(r['session']),'userId':userId});await loadGates();}status=memberships.length>1?'Select your society':'Select active gate';});}
-Future<void> selectSociety(String id)async{await _busy('Selecting society…',()async{final r=await api.selectSociety(userId!,id);await _saveSession({...Map<String,dynamic>.from(r['session']),'userId':userId,'societyId':id});await loadGates();status='Select active gate';});}
-Future<void> loadGates()async{gates=await api.gates();if(gates.isNotEmpty&&gateId==null)gateId=gates.first['id'] as String;}
-Future<void> scanAndVerify()async{if(gateId==null)return;final value=await Navigator.push<String>(context,MaterialPageRoute(builder:(_)=>const GuardQrScanner()));if(value==null||value.isEmpty)return;credential.text=value;await _busy('Verifying scanned pass…',()async{await api.visitor('/visitors/verify',gateId!,value);status='Pass verified';});}
-Future<void> logout()async{try{if(sessionId!=null)await api.logout(sessionId!);}finally{await store.clear();api.token='';if(mounted)setState((){sessionId=null;refreshToken=null;userId=null;gateId=null;gates=[];status='Signed out';});}}
-Future<void> _busy(String text,Future<void>Function()work)async{setState((){busy=true;status=text;});try{await work();}catch(e){status=e.toString().replaceFirst('Exception: ','');}if(mounted)setState(()=>busy=false);}
-@override void dispose(){challenge.dispose();code.dispose();credential.dispose();super.dispose();}
-@override Widget build(BuildContext c){final authenticated=api.token.isNotEmpty;return Scaffold(appBar:AppBar(title:const Text('Gate Operations'),actions:[if(authenticated)IconButton(onPressed:busy?null:logout,tooltip:'Sign out',icon:const Icon(Icons.logout))]),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[if(!authenticated)...[_field(challenge,'OTP challenge ID'),_field(code,'6-digit OTP'),FilledButton(onPressed:busy?null:verifyOtp,child:const Text('SIGN IN'))]else...[Card(child:ListTile(leading:const Icon(Icons.shield_outlined,size:32),title:const Text('Security shift'),subtitle:Text(gateId==null?'Select an active gate':(gates.firstWhere((g)=>g['id']==gateId,orElse:()=>{'name':gateId})['name']??'Active gate')))),if(memberships.length>1)DropdownButtonFormField<String>(decoration:const InputDecoration(labelText:'Society',border:OutlineInputBorder()),items:memberships.map((m)=>DropdownMenuItem<String>(value:m['societyId'],child:Text(m['societyId']))).toList(),onChanged:busy?null:(v)=>v==null?null:selectSociety(v)),DropdownButtonFormField<String>(value:gateId,decoration:const InputDecoration(labelText:'Active gate',border:OutlineInputBorder()),items:gates.map((g)=>DropdownMenuItem<String>(value:g['id'],child:Text(g['name']??g['code']??g['id']))).toList(),onChanged:(v)=>setState(()=>gateId=v)),const SizedBox(height:16),FilledButton.icon(onPressed:busy||gateId==null?null:scanAndVerify,icon:const Icon(Icons.qr_code_scanner),label:const Text('SCAN & VERIFY PASS')),_field(credential,'Visitor pass / QR credential'),FilledButton.icon(onPressed:busy||gateId==null?null:()=>_busy('Verifying…',()async{await api.visitor('/visitors/verify',gateId!,credential.text.trim());status='Pass verified';}),icon:const Icon(Icons.verified_user),label:const Text('VERIFY PASS')),const SizedBox(height:8),Row(children:[Expanded(child:FilledButton.tonal(onPressed:busy||gateId==null?null:()=>_busy('Checking in…',()async{await api.visitor('/visitors/check-in',gateId!,credential.text.trim());status='Visitor checked in';}),child:const Text('CHECK IN'))),const SizedBox(width:8),Expanded(child:OutlinedButton(onPressed:busy||gateId==null?null:()=>_busy('Checking out…',()async{await api.visitor('/visitors/check-out',gateId!,credential.text.trim());status='Visitor checked out';}),child:const Text('CHECK OUT')))]),const SizedBox(height:20),ListTile(leading:const Icon(Icons.cloud_done),title:const Text('Connection'),subtitle:Text(status))]])));}
-Widget _field(TextEditingController c,String l)=>Padding(padding:const EdgeInsets.only(bottom:12),child:TextField(controller:c,decoration:InputDecoration(labelText:l,border:const OutlineInputBorder())));}
+class AaraagateGuardApp extends StatelessWidget {
+  const AaraagateGuardApp({super.key, required this.controller});
+  final GuardController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AuraGate Guard',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF176B4D),
+        scaffoldBackgroundColor: const Color(0xFFF6F8F7),
+      ),
+      home: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          if (controller.booting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          return controller.signedIn
+              ? GuardOperationsScreen(controller: controller)
+              : GuardLoginScreen(controller: controller);
+        },
+      ),
+    );
+  }
+}
