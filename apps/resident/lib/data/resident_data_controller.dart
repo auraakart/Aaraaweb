@@ -6,45 +6,74 @@ class ResidentDataController extends ChangeNotifier {
   final ResidentRepository repository;
 
   bool loading = false;
-  String? error;
+  String? authError;
+  String? householdError;
+  String? accessError;
+  String? servicesError;
   List<Map<String, dynamic>> households = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> serviceCategories = const [];
   List<Map<String, dynamic>> serviceOfferings = const [];
   List<Map<String, dynamic>> bookings = const [];
 
-  bool get isSignedIn => error != 'Sign in is required';
   String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
 
   Future<void> load() async {
     loading = true;
-    error = null;
+    authError = null;
+    householdError = null;
+    accessError = null;
+    servicesError = null;
     notifyListeners();
+    await Future.wait([_loadHouseholds(), _loadAccess(), _loadServices()]);
+    loading = false;
+    notifyListeners();
+  }
+
+  Future<void> _loadHouseholds() async {
+    try {
+      households = await repository.households();
+    } catch (e) {
+      _capture(e, (message) => householdError = message);
+    }
+  }
+
+  Future<void> _loadAccess() async {
+    try {
+      accessRequests = await repository.accessRequests();
+    } catch (e) {
+      _capture(e, (message) => accessError = message);
+    }
+  }
+
+  Future<void> _loadServices() async {
     try {
       final results = await Future.wait([
-        repository.households(),
-        repository.accessRequests(),
         repository.serviceCategories(),
         repository.serviceOfferings(),
         repository.bookings(),
       ]);
-      households = results[0];
-      accessRequests = results[1];
-      serviceCategories = results[2];
-      serviceOfferings = results[3];
-      bookings = results[4];
+      serviceCategories = results[0];
+      serviceOfferings = results[1];
+      bookings = results[2];
     } catch (e) {
-      final text = e.toString();
-      error = text.contains('Sign in is required') ? 'Sign in is required' : text;
-    } finally {
-      loading = false;
-      notifyListeners();
+      _capture(e, (message) => servicesError = message);
+    }
+  }
+
+  void _capture(Object error, void Function(String message) assign) {
+    final text = error.toString();
+    if (text.contains('Sign in is required') || text.contains('ApiException(401)')) {
+      authError = 'Sign in is required';
+    } else {
+      assign(text);
     }
   }
 
   Future<void> denyAccess(String requestId) async {
     await repository.denyAccess(requestId);
-    await load();
+    await _loadAccess();
+    notifyListeners();
   }
 
   Future<void> createGuest({required String name, String? phone, String? purpose}) async {
@@ -57,6 +86,7 @@ class ResidentDataController extends ChangeNotifier {
       subjectPhone: phone,
       purpose: purpose,
     );
-    await load();
+    await _loadAccess();
+    notifyListeners();
   }
 }
