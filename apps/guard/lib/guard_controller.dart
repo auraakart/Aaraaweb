@@ -21,8 +21,10 @@ class GuardController extends ChangeNotifier {
   GuardSession? session;
   List<Map<String, dynamic>> memberships = const [];
   List<Map<String, dynamic>> gates = const [];
+  List<Map<String, dynamic>> units = const [];
   String? gateId;
   Map<String, dynamic>? verifiedAccess;
+  Map<String, dynamic>? walkInAccess;
   int queuedActions = 0;
 
   bool get signedIn => session != null;
@@ -99,7 +101,9 @@ class GuardController extends ChangeNotifier {
       });
 
   Future<void> loadGates() async {
-    gates = (await api.gates()).where((g) => g['active'] != false).toList(growable: false);
+    final results = await Future.wait([api.gates(), api.gateUnits()]);
+    gates = results[0].where((g) => g['active'] != false).toList(growable: false);
+    units = results[1];
     if (gateId == null || !gates.any((g) => g['id']?.toString() == gateId)) {
       gateId = gates.isEmpty ? null : gates.first['id']?.toString();
     }
@@ -109,6 +113,36 @@ class GuardController extends ChangeNotifier {
   void selectGate(String? value) {
     gateId = value;
     verifiedAccess = null;
+    walkInAccess = null;
+    notifyListeners();
+  }
+
+  Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
+        final gate = _requireGate();
+        walkInAccess = await api.createWalkIn(gateId: gate, unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+      });
+
+  Future<void> refreshWalkIn() => _run(() async {
+        final requestId = walkInAccess?['id']?.toString();
+        if (requestId == null) throw StateError('No walk-in approval is active');
+        walkInAccess = await api.requestStatus(_requireGate(), requestId);
+      });
+
+  Future<void> checkInWalkIn() => _walkInMutation('CHECK_IN');
+  Future<void> checkOutWalkIn() => _walkInMutation('CHECK_OUT');
+
+  Future<void> _walkInMutation(String type) => _run(() async {
+        final requestId = walkInAccess?['id']?.toString();
+        if (requestId == null) throw StateError('No walk-in approval is active');
+        final gate = _requireGate();
+        final key = _idempotencyKey();
+        walkInAccess = type == 'CHECK_IN'
+            ? await api.checkInRequest(gate, requestId, key)
+            : await api.checkOutRequest(gate, requestId, key);
+      });
+
+  void clearWalkIn() {
+    walkInAccess = null;
     notifyListeners();
   }
 
@@ -184,8 +218,10 @@ class GuardController extends ChangeNotifier {
     selectionToken = null;
     memberships = const [];
     gates = const [];
+    units = const [];
     gateId = null;
     verifiedAccess = null;
+    walkInAccess = null;
     notifyListeners();
   }
 
