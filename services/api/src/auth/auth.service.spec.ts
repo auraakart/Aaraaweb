@@ -1,4 +1,4 @@
-import { TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthStateStore } from './auth-state.store';
 import { AuthService } from './auth.service';
@@ -41,7 +41,7 @@ describe('AuthService security state', () => {
     for (let request = 0; request < 5; request += 1) {
       await expect(service.requestOtp('+919876543212')).resolves.toBeDefined();
     }
-    await expect(service.requestOtp('+919876543212')).rejects.toBeInstanceOf(TooManyRequestsException);
+    await expect(service.requestOtp('+919876543212')).rejects.toMatchObject({ status: 429 } satisfies Partial<HttpException>);
   });
 
   it('rejects society selection grant use by a different user without consuming the valid grant', async () => {
