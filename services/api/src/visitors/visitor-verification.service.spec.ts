@@ -13,8 +13,10 @@ const pass = {
   visitor: { id: 'visitor-1', name: 'Test Visitor', status: 'APPROVED' },
 };
 
-function service(overrides: any = {}) {
-  const prisma: any = {
+type Overrides = Record<string, unknown>;
+
+function service(overrides: Overrides = {}) {
+  const prisma = {
     gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
     visitorPass: {
       findFirst: vi.fn().mockResolvedValue(pass),
@@ -23,8 +25,15 @@ function service(overrides: any = {}) {
     visitor: { update: vi.fn().mockResolvedValue({ ...pass.visitor }) },
     ...overrides,
   };
-  const audit: any = { record: vi.fn().mockResolvedValue(undefined) };
-  return { svc: new VisitorVerificationService(prisma, audit), prisma, audit };
+  const audit = { record: vi.fn().mockResolvedValue(undefined) };
+  return {
+    svc: new VisitorVerificationService(
+      prisma as unknown as ConstructorParameters<typeof VisitorVerificationService>[0],
+      audit as unknown as ConstructorParameters<typeof VisitorVerificationService>[1],
+    ),
+    prisma,
+    audit,
+  };
 }
 
 describe('VisitorVerificationService', () => {
