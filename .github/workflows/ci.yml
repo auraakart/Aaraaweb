@@ -2,8 +2,16 @@ name: CI
 
 on:
   pull_request:
+    branches: [develop, main]
   push:
     branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   repository-structure:
@@ -16,6 +24,7 @@ jobs:
         run: |
           test -f package.json
           test -f pnpm-workspace.yaml
+          test -d apps/admin
           test -d apps/web
           test -d apps/resident
           test -d apps/guard
@@ -27,6 +36,20 @@ jobs:
   api-validation:
     name: API validation
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_ci
     steps:
@@ -40,18 +63,45 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Validate Prisma schema
         run: pnpm --filter @aaraagate/api prisma:validate
       - name: Generate Prisma client
         run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Apply Prisma migrations to clean PostgreSQL
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Lint API
+        run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
       - name: Test API
         run: pnpm --filter @aaraagate/api test
       - name: Build API
         run: pnpm --filter @aaraagate/api build
+
+  admin-validation:
+    name: Admin validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck admin
+        run: pnpm --filter @aaraagate/admin typecheck
+      - name: Build admin
+        run: pnpm --filter @aaraagate/admin build
 
   flutter-validation:
     name: Flutter validation
@@ -71,9 +121,45 @@ jobs:
       - name: Analyze resident app
         working-directory: apps/resident
         run: flutter analyze
+      - name: Test resident app when tests exist
+        working-directory: apps/resident
+        run: |
+          if [ -d test ] && find test -name '*_test.dart' -print -quit | grep -q .; then
+            flutter test
+          else
+            echo 'No resident Flutter tests found yet.'
+          fi
       - name: Guard dependencies
         working-directory: apps/guard
         run: flutter pub get
       - name: Analyze guard app
         working-directory: apps/guard
         run: flutter analyze
+      - name: Test guard app when tests exist
+        working-directory: apps/guard
+        run: |
+          if [ -d test ] && find test -name '*_test.dart' -print -quit | grep -q .; then
+            flutter test
+          else
+            echo 'No guard Flutter tests found yet.'
+          fi
+
+  dependency-security:
+    name: Dependency security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Audit high and critical npm vulnerabilities
+        run: pnpm audit --audit-level high
