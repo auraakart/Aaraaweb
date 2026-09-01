@@ -1,31 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Camera integration boundary for visitor credentials.
-/// The scanner returns the decoded credential to the Guard workflow so all
-/// verification continues through the existing server-side visitor API.
 class GuardQrScanner extends StatefulWidget {
   const GuardQrScanner({super.key});
   @override State<GuardQrScanner> createState() => _GuardQrScannerState();
 }
 
 class _GuardQrScannerState extends State<GuardQrScanner> {
-  final controller = TextEditingController();
-  @override void dispose() { controller.dispose(); super.dispose(); }
+  final scanner = MobileScannerController();
+  bool handled = false;
+
+  @override void dispose() { scanner.dispose(); super.dispose(); }
+
+  void _handle(String value) {
+    if (handled || value.trim().isEmpty) return;
+    handled = true;
+    scanner.stop();
+    Navigator.pop(context, value.trim());
+  }
 
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Scan visitor pass')),
-    body: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(children: [
-        const Expanded(child: Center(child: Icon(Icons.qr_code_scanner, size: 120))),
-        const Text('Camera scanner integration point', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        const Text('The decoded credential will be sent to the existing server-side verification workflow.'),
-        const SizedBox(height: 20),
-        TextField(controller: controller, decoration: const InputDecoration(labelText: 'Decoded credential', border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        FilledButton(onPressed: () { final value = controller.text.trim(); if (value.isNotEmpty) Navigator.pop(context, value); }, child: const Text('USE CREDENTIAL')),
-      ]),
-    ),
+    body: Stack(children: [
+      MobileScanner(controller: scanner, onDetect: (capture) {
+        for (final barcode in capture.barcodes) {
+          final value = barcode.rawValue;
+          if (value != null) { _handle(value); break; }
+        }
+      }),
+      Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(width: 3), borderRadius: BorderRadius.circular(20)))),
+      const Positioned(left: 24,right: 24,bottom: 32,child: Card(child: Padding(padding: EdgeInsets.all(14),child: Text('Align the visitor QR code inside the frame.',textAlign: TextAlign.center))))
+    ]),
   );
 }
