@@ -10,6 +10,7 @@ import { SocietiesModule } from './societies/societies.module';
 import { PropertiesModule } from './properties/properties.module';
 import { GatesModule } from './gates/gates.module';
 import { VisitorsModule } from './visitors/visitors.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Controller('health')
 class HealthController {
@@ -23,6 +24,7 @@ class HealthController {
   imports: [
     AuthModule,
     EntitlementsModule,
+    NotificationsModule,
     SocietiesModule,
     ResidentsModule,
     PropertiesModule,
