@@ -30,6 +30,12 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<void> approveAccess(String requestId, {required DateTime validFrom, required DateTime validUntil}) =>
+      api.post('/api/v1/access-requests/$requestId/approve', {
+        'validFrom': validFrom.toUtc().toIso8601String(),
+        'validUntil': validUntil.toUtc().toIso8601String(),
+      });
+
   Future<void> denyAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/deny');
 
   Future<Map<String, dynamic>> createAccess({
