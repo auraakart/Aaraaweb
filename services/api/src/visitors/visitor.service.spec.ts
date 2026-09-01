@@ -5,19 +5,30 @@ import { VisitorService } from './visitor.service';
 type Overrides = Record<string, unknown>;
 
 function service(overrides: Overrides = {}) {
+  const unitResident = {
+    findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }),
+    ...((overrides.unitResident as Record<string, unknown> | undefined) ?? {}),
+  };
+  const visitor = {
+    create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn().mockResolvedValue({ id: 'visitor-1', societyId: 'society-1', hostUserId: 'host-1', status: 'PENDING' }),
+    update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'visitor-1', societyId: 'society-1', hostUserId: 'host-1', status: 'APPROVED' }),
+    ...((overrides.visitor as Record<string, unknown> | undefined) ?? {}),
+  };
+  const visitorPass = {
+    create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pass-1', ...data })),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    ...((overrides.visitorPass as Record<string, unknown> | undefined) ?? {}),
+  };
+  const transactionClient = { unitResident, visitor, visitorPass };
   const prisma = {
-    unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
-    visitor: {
-      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
-      findMany: vi.fn().mockResolvedValue([]),
-      findFirst: vi.fn().mockResolvedValue({ id: 'visitor-1', societyId: 'society-1', hostUserId: 'host-1', status: 'PENDING' }),
-      update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
-    },
-    visitorPass: {
-      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pass-1', ...data })),
-      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-    },
-    ...overrides,
+    unitResident,
+    visitor,
+    visitorPass,
+    $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient)),
   };
   return {
     svc: new VisitorService(prisma as unknown as ConstructorParameters<typeof VisitorService>[0]),
@@ -50,6 +61,8 @@ describe('VisitorService', () => {
     expect(result.visitor.status).toBe('APPROVED');
     expect(result.pass.status).toBe('ACTIVE');
     expect(typeof result.credential).toBe('string');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.visitor.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.visitorPass.create).toHaveBeenCalledTimes(1);
   });
 
@@ -73,11 +86,12 @@ describe('VisitorService', () => {
     const { svc, prisma } = service({
       visitor: {
         findFirst: vi.fn().mockResolvedValue({ id: 'visitor-1', status: 'APPROVED' }),
-        update: vi.fn().mockResolvedValue({ id: 'visitor-1', status: 'CANCELLED' }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'visitor-1', status: 'CANCELLED' }),
       },
     });
     const result = await svc.cancel('society-1', 'host-1', 'visitor-1');
     expect(result.status).toBe('CANCELLED');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.visitorPass.updateMany).toHaveBeenCalledWith({
       where: { societyId: 'society-1', visitorId: 'visitor-1', status: 'ACTIVE' },
       data: { status: 'REVOKED' },
