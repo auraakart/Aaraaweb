@@ -16,10 +16,7 @@ import 'theme/aaraagate_theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   const apiBaseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
-  final authController = ResidentAuthController(
-    repository: AuthRepository(baseUrl: apiBaseUrl),
-    sessionStore: SessionStore(),
-  );
+  final authController = ResidentAuthController(repository: AuthRepository(baseUrl: apiBaseUrl), sessionStore: SessionStore());
   runApp(AaraagateResidentApp(apiBaseUrl: apiBaseUrl, authController: authController));
   authController.bootstrap();
 }
@@ -58,9 +55,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
     if (session == null || _boundSessionId == session.sessionId) return;
     _boundSessionId = session.sessionId;
     _dataController?.dispose();
-    _dataController = ResidentDataController(
-      ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken)),
-    );
+    _dataController = ResidentDataController(ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken)));
   }
 
   @override
@@ -81,10 +76,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           return AuthScreen(controller: widget.authController);
         }
         _ensureDataController();
-        return ResidentHomeShell(
-          controller: _dataController!,
-          onSignOut: widget.authController.signOut,
-        );
+        return ResidentHomeShell(controller: _dataController!, onSignOut: widget.authController.signOut);
       },
     );
   }
@@ -123,9 +115,67 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           const CommunityScreen(),
           ProfileScreen(controller: controller, onSignOut: widget.onSignOut),
         ];
+        final pending = controller.firstPendingAccess;
+        final eventRequestId = controller.latestAccessEvent?['requestId']?.toString();
+        final showRealtimeApproval = pending != null && eventRequestId == pending['id']?.toString();
 
         return Scaffold(
-          body: IndexedStack(index: _index, children: pages),
+          body: Stack(
+            children: [
+              IndexedStack(index: _index, children: pages),
+              if (showRealtimeApproval)
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.notifications_active_rounded),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '${pending['subjectName'] ?? 'Someone'} is at the gate',
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text('${pending['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR'} · Approval required'),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => controller.denyAccess(pending['id'].toString()),
+                                    child: const Text('DENY'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () => controller.approveAccess(pending['id'].toString()),
+                                    child: const Text('ALLOW'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: _open,

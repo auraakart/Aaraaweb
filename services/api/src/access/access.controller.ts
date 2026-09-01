@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { AccessSubjectType } from '@prisma/client';
+import { AccessRequest, AccessSubjectType } from '@prisma/client';
 import { IsDateString, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -7,6 +7,7 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { AccessRealtimeEvent, NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { AccessService } from './access.service';
 import { GateArrivalService } from './gate-arrival.service';
 
@@ -72,7 +73,28 @@ export class AccessController {
   constructor(
     private readonly access: AccessService,
     private readonly gateArrivals: GateArrivalService,
+    private readonly realtime: NotificationRealtimeService,
   ) {}
+
+  private gateId(request: AccessRequest): string | undefined {
+    if (!request.metadata || typeof request.metadata !== 'object' || Array.isArray(request.metadata)) return undefined;
+    const value = (request.metadata as Record<string, unknown>).gateId;
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  private event(request: AccessRequest, type: AccessRealtimeEvent['type'], gateId?: string): AccessRealtimeEvent {
+    return {
+      type,
+      societyId: request.societyId,
+      userId: request.requestedById,
+      gateId: gateId ?? this.gateId(request),
+      requestId: request.id,
+      subjectType: request.subjectType,
+      subjectName: request.subjectName,
+      status: request.status,
+      createdAt: request.createdAt.toISOString(),
+    };
+  }
 
   @Get('mine')
   @RequiresPermissions(AppPermission.ACCESS_READ_OWN)
@@ -99,41 +121,25 @@ export class AccessController {
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
   inviteVisitor(@Body() dto: CreateVisitorInviteDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.inviteVisitor(
-      societyId,
-      userId,
-      dto.unitId,
-      dto.name,
-      new Date(dto.validFrom),
-      new Date(dto.validUntil),
-      dto.phone,
-      dto.purpose,
-    );
+    return this.access.inviteVisitor(societyId, userId, dto.unitId, dto.name, new Date(dto.validFrom), new Date(dto.validUntil), dto.phone, dto.purpose);
   }
 
   @Post('gate/walk-ins')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+  async createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
-    return this.access.createWalkInVisitor(societyId, actorUserId, dto.gateId, dto.unitId, dto.name, dto.phone, dto.purpose);
+    const request = await this.access.createWalkInVisitor(societyId, actorUserId, dto.gateId, dto.unitId, dto.name, dto.phone, dto.purpose);
+    this.realtime.publishResident(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
+    return request;
   }
 
   @Post('gate/arrivals')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  createGateArrival(@Body() dto: CreateGateArrivalDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+  async createGateArrival(@Body() dto: CreateGateArrivalDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
-    return this.gateArrivals.create(
-      societyId,
-      actorUserId,
-      dto.gateId,
-      dto.unitId,
-      dto.subjectType,
-      dto.name,
-      dto.provider,
-      dto.phone,
-      dto.vehicleNumber,
-      dto.note,
-    );
+    const request = await this.gateArrivals.create(societyId, actorUserId, dto.gateId, dto.unitId, dto.subjectType, dto.name, dto.provider, dto.phone, dto.vehicleNumber, dto.note);
+    this.realtime.publishResident(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
+    return request;
   }
 
   @Post('gate/request-status')
@@ -145,39 +151,49 @@ export class AccessController {
 
   @Post('gate/check-in-request')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  checkInRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+  async checkInRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
-    return this.access.checkInRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
+    const request = await this.access.checkInRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
+    this.realtime.publishResident(this.event(request, 'ACCESS_STATUS_CHANGED', dto.gateId));
+    return request;
   }
 
   @Post('gate/check-out-request')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  checkOutRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+  async checkOutRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
-    return this.access.checkOutRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
+    const request = await this.access.checkOutRequest(societyId, dto.gateId, dto.requestId, actorUserId, idempotencyKey);
+    this.realtime.publishResident(this.event(request, 'ACCESS_STATUS_CHANGED', dto.gateId));
+    return request;
   }
 
   @Post(':requestId/approve')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  approve(@Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() dto: ApproveAccessRequestDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  async approve(@Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() dto: ApproveAccessRequestDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.approve(societyId, userId, requestId, new Date(dto.validFrom), new Date(dto.validUntil));
+    const result = await this.access.approve(societyId, userId, requestId, new Date(dto.validFrom), new Date(dto.validUntil));
+    this.realtime.publishGateUpdate(this.event(result.request, 'ACCESS_APPROVAL_DECIDED'));
+    return result;
   }
 
   @Post(':requestId/deny')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  deny(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  async deny(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.deny(societyId, userId, requestId);
+    const request = await this.access.deny(societyId, userId, requestId);
+    this.realtime.publishGateUpdate(this.event(request, 'ACCESS_APPROVAL_DECIDED'));
+    return request;
   }
 
   @Post(':requestId/cancel')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  cancel(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  async cancel(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.cancel(societyId, userId, requestId);
+    const request = await this.access.cancel(societyId, userId, requestId);
+    this.realtime.publishGateUpdate(this.event(request, 'ACCESS_APPROVAL_DECIDED'));
+    return request;
   }
 
   @Post('gate/verify')

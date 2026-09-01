@@ -14,6 +14,8 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Stream<Map<String, dynamic>> accessEvents() => api.sse('/api/v1/notifications/resident-stream');
+
   Future<List<Map<String, dynamic>>> serviceCategories() async {
     final value = await api.get('/api/v1/services-marketplace/categories');
     return _list(value);
@@ -41,13 +43,7 @@ class ResidentRepository {
   Future<void> denyAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/deny');
   Future<void> cancelAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/cancel');
 
-  Future<Map<String, dynamic>> createAccess({
-    required String unitId,
-    required String subjectType,
-    required String subjectName,
-    String? subjectPhone,
-    String? purpose,
-  }) async {
+  Future<Map<String, dynamic>> createAccess({required String unitId, required String subjectType, required String subjectName, String? subjectPhone, String? purpose}) async {
     final value = await api.post('/api/v1/access-requests', {
       'unitId': unitId,
       'subjectType': subjectType,
@@ -58,14 +54,7 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<Map<String, dynamic>> inviteVisitor({
-    required String unitId,
-    required String name,
-    required DateTime validFrom,
-    required DateTime validUntil,
-    String? phone,
-    String? purpose,
-  }) async {
+  Future<Map<String, dynamic>> inviteVisitor({required String unitId, required String name, required DateTime validFrom, required DateTime validUntil, String? phone, String? purpose}) async {
     final value = await api.post('/api/v1/access-requests/visitor-invites', {
       'unitId': unitId,
       'name': name,
