@@ -1,0 +1,95 @@
+name: Staging smoke
+
+on:
+  pull_request:
+    branches: [staging]
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  staging-smoke:
+    name: Staging API smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_staging_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_staging_smoke"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_staging_smoke
+      PORT: 3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+
+      - name: Apply staging migrations
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+
+      - name: Build API
+        run: pnpm --filter @aaraagate/api build
+
+      - name: Start API
+        run: |
+          pnpm --filter @aaraagate/api start > /tmp/aaraagate-api.log 2>&1 &
+          echo $! > /tmp/aaraagate-api.pid
+
+      - name: Wait for health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become healthy in time"
+          cat /tmp/aaraagate-api.log || true
+          exit 1
+
+      - name: Assert health response
+        run: |
+          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/health.json','utf8')); if(h.status!=='ok'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/aaraagate-api.pid ]; then
+            kill $(cat /tmp/aaraagate-api.pid) || true
+          fi
+
+      - name: Print API logs on failure
+        if: failure()
+        run: cat /tmp/aaraagate-api.log || true
