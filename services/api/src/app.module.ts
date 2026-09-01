@@ -11,6 +11,7 @@ import { PropertiesModule } from './properties/properties.module';
 import { GatesModule } from './gates/gates.module';
 import { VisitorsModule } from './visitors/visitors.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { WorkforceModule } from './workforce/workforce.module';
 
 @Controller('health')
 class HealthController {
@@ -29,6 +30,7 @@ class HealthController {
     ResidentsModule,
     PropertiesModule,
     HouseholdsModule,
+    WorkforceModule,
     GatesModule,
     VisitorsModule,
     AccessModule,
