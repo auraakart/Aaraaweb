@@ -7,6 +7,7 @@ export enum AppPermission {
   GATE_VISITOR_CHECK_IN_OUT = 'GATE_VISITOR_CHECK_IN_OUT',
   ACCESS_READ_OWN = 'ACCESS_READ_OWN',
   ACCESS_MANAGE_OWN = 'ACCESS_MANAGE_OWN',
+  GATE_READ = 'GATE_READ',
   GATE_ACCESS_PROCESS = 'GATE_ACCESS_PROCESS',
   HOUSEHOLD_READ_OWN = 'HOUSEHOLD_READ_OWN',
   HOUSEHOLD_MANAGE_OWN = 'HOUSEHOLD_MANAGE_OWN',
@@ -24,17 +25,20 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
   [AppRole.SOCIETY_ADMIN]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
     AppPermission.SOCIETY_CONFIGURATION_MANAGE,
+    AppPermission.GATE_READ,
     AppPermission.REPORTS_READ,
     AppPermission.AUDIT_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
   ],
   [AppRole.COMMITTEE_MEMBER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
+    AppPermission.GATE_READ,
     AppPermission.REPORTS_READ,
     AppPermission.AUDIT_READ,
   ],
   [AppRole.FACILITY_MANAGER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
+    AppPermission.GATE_READ,
     AppPermission.REPORTS_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
   ],
@@ -66,12 +70,14 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SERVICES_MARKETPLACE_USE,
   ],
   [AppRole.SECURITY_SUPERVISOR]: [
+    AppPermission.GATE_READ,
     AppPermission.GATE_VISITOR_VERIFY,
     AppPermission.GATE_VISITOR_CHECK_IN_OUT,
     AppPermission.GATE_ACCESS_PROCESS,
     AppPermission.AUDIT_READ,
   ],
   [AppRole.SECURITY_GUARD]: [
+    AppPermission.GATE_READ,
     AppPermission.GATE_VISITOR_VERIFY,
     AppPermission.GATE_VISITOR_CHECK_IN_OUT,
     AppPermission.GATE_ACCESS_PROCESS,
