@@ -1,14 +1,23 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PrismaService } from '../prisma/prisma.service';
 import { AuthStateStore } from './auth-state.store';
 import { SessionService } from './session.service';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+type SessionPrismaMock = {
+  session: {
+    findUnique: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+  };
+  societyMembership: { findMany: ReturnType<typeof vi.fn> };
+};
 
 describe('SessionService lifecycle security', () => {
   let state: AuthStateStore;
-  let prisma: any;
+  let prisma: SessionPrismaMock;
   let service: SessionService;
 
   beforeEach(() => {
@@ -23,7 +32,7 @@ describe('SessionService lifecycle security', () => {
       },
       societyMembership: { findMany: vi.fn() },
     };
-    service = new SessionService(prisma, state);
+    service = new SessionService(prisma as unknown as PrismaService, state);
   });
 
   afterEach(async () => {
