@@ -17,6 +17,12 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> bookings = const [];
 
   String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
+  Map<String, dynamic>? get firstPendingAccess {
+    for (final request in accessRequests) {
+      if (request['status']?.toString() == 'PENDING') return request;
+    }
+    return null;
+  }
 
   Future<void> load() async {
     loading = true;
@@ -68,6 +74,13 @@ class ResidentDataController extends ChangeNotifier {
     } else {
       assign(text);
     }
+  }
+
+  Future<void> approveAccess(String requestId, {Duration duration = const Duration(hours: 4)}) async {
+    final now = DateTime.now();
+    await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(duration));
+    await _loadAccess();
+    notifyListeners();
   }
 
   Future<void> denyAccess(String requestId) async {
