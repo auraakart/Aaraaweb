@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
 function setup() {
-  const prisma: any = {
+  const prisma = {
     unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     serviceOffering: { findFirst: vi.fn(), create: vi.fn() },
     serviceBooking: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
@@ -11,13 +11,22 @@ function setup() {
     serviceCategory: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     serviceRating: { create: vi.fn() },
   };
-  const entitlements: any = { isEnabled: vi.fn().mockResolvedValue(true) };
-  const access: any = {
+  const entitlements = { isEnabled: vi.fn().mockResolvedValue(true) };
+  const access = {
     create: vi.fn().mockResolvedValue({ id: 'access-1' }),
     approve: vi.fn().mockResolvedValue({ request: { id: 'access-1' }, credential: 'raw-pass' }),
     cancel: vi.fn(),
   };
-  return { prisma, entitlements, access, service: new ServicesMarketplaceService(prisma, entitlements, access) };
+  return {
+    prisma,
+    entitlements,
+    access,
+    service: new ServicesMarketplaceService(
+      prisma as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[0],
+      entitlements as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[1],
+      access as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[2],
+    ),
+  };
 }
 
 describe('ServicesMarketplaceService', () => {
@@ -29,9 +38,9 @@ describe('ServicesMarketplaceService', () => {
       pricePaise: 200000,
       provider: { societies: [{ commissionBps: 1250 }] },
     });
-    prisma.serviceBooking.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+    prisma.serviceBooking.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve(data));
 
-    const result: any = await service.book(
+    const result = await service.book(
       'society-1',
       'user-1',
       'unit-1',
