@@ -3,6 +3,9 @@ import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-va
 import { BearerGuard, AuthenticatedRequest } from '../auth/bearer.guard';
 import { TenantGuard } from '../auth/tenant.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { ProductFeature } from '../entitlements/entitlement.types';
 import { GateAccessGuard } from '../gates/gate-access.guard';
 import { VisitorService } from './visitor.service';
 import { VisitorVerificationService } from './visitor-verification.service';
@@ -35,7 +38,8 @@ class GateCredentialDto {
 }
 
 @Controller('visitors')
-@UseGuards(BearerGuard, TenantGuard)
+@UseGuards(BearerGuard, TenantGuard, FeatureGuard)
+@RequiresFeature(ProductFeature.VISITOR_MANAGEMENT)
 export class VisitorsController {
   constructor(private readonly visitors: VisitorService, private readonly verification: VisitorVerificationService) {}
 
