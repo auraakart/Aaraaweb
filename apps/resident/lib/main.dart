@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'auth/auth_repository.dart';
+import 'auth/auth_screen.dart';
+import 'auth/resident_auth_controller.dart';
+import 'auth/session_store.dart';
 import 'data/api_client.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
@@ -10,15 +14,20 @@ import 'screens/services_screen.dart';
 import 'theme/aaraagate_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   const apiBaseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
-  const accessToken = String.fromEnvironment('AARAGATE_ACCESS_TOKEN');
-  final controller = ResidentDataController(ResidentRepository(ApiClient(baseUrl: apiBaseUrl, accessToken: accessToken)));
-  runApp(AaraagateResidentApp(controller: controller));
+  final authController = ResidentAuthController(
+    repository: AuthRepository(baseUrl: apiBaseUrl),
+    sessionStore: SessionStore(),
+  );
+  runApp(AaraagateResidentApp(apiBaseUrl: apiBaseUrl, authController: authController));
+  authController.bootstrap();
 }
 
 class AaraagateResidentApp extends StatelessWidget {
-  const AaraagateResidentApp({super.key, required this.controller});
-  final ResidentDataController controller;
+  const AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController});
+  final String apiBaseUrl;
+  final ResidentAuthController authController;
 
   @override
   Widget build(BuildContext context) {
@@ -26,14 +35,65 @@ class AaraagateResidentApp extends StatelessWidget {
       title: 'AuraGate',
       debugShowCheckedModeBanner: false,
       theme: AaraagateTheme.light(),
-      home: ResidentHomeShell(controller: controller),
+      home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController),
+    );
+  }
+}
+
+class _ResidentSessionGate extends StatefulWidget {
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController});
+  final String apiBaseUrl;
+  final ResidentAuthController authController;
+
+  @override
+  State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
+}
+
+class _ResidentSessionGateState extends State<_ResidentSessionGate> {
+  ResidentDataController? _dataController;
+  String? _boundSessionId;
+
+  void _ensureDataController() {
+    final session = widget.authController.session;
+    if (session == null || _boundSessionId == session.sessionId) return;
+    _boundSessionId = session.sessionId;
+    _dataController?.dispose();
+    _dataController = ResidentDataController(
+      ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dataController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.authController,
+      builder: (context, _) {
+        if (widget.authController.step != ResidentAuthStep.signedIn) {
+          _boundSessionId = null;
+          _dataController?.dispose();
+          _dataController = null;
+          return AuthScreen(controller: widget.authController);
+        }
+        _ensureDataController();
+        return ResidentHomeShell(
+          controller: _dataController!,
+          onSignOut: widget.authController.signOut,
+        );
+      },
     );
   }
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller});
+  const ResidentHomeShell({super.key, required this.controller, required this.onSignOut});
   final ResidentDataController controller;
+  final Future<void> Function() onSignOut;
 
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
@@ -56,36 +116,12 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       animation: widget.controller,
       builder: (context, _) {
         final controller = widget.controller;
-        if (controller.authError != null) {
-          return Scaffold(
-            body: SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.lock_outline_rounded, size: 48),
-                      const SizedBox(height: 16),
-                      Text('Sign in required', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 8),
-                      const Text('The resident app is connected to the live API. Start it with an authenticated access token until the OTP sign-in flow is wired into this shell.', textAlign: TextAlign.center),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(onPressed: controller.load, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry')),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
         final pages = <Widget>[
           HomeScreen(onOpenGate: () => _open(1), onOpenServices: () => _open(2)),
           GateScreen(controller: controller),
           ServicesScreen(controller: controller),
           const CommunityScreen(),
-          ProfileScreen(controller: controller),
+          ProfileScreen(controller: controller, onSignOut: widget.onSignOut),
         ];
 
         return Scaffold(
