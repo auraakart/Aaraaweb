@@ -1,16 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomInt, randomUUID } from 'node:crypto';
+import { PrismaService } from '../prisma/prisma.service';
 
-export interface OtpChallenge {
-  challengeId: string;
-  phone: string;
-  expiresAt: Date;
-  attempts: number;
-}
+export interface OtpChallenge { challengeId: string; phone: string; expiresAt: Date; attempts: number; }
 
 @Injectable()
 export class AuthService {
   private readonly challenges = new Map<string, OtpChallenge & { code: string }>();
+  constructor(private readonly prisma: PrismaService) {}
 
   requestOtp(phone: string): OtpChallenge {
     const normalizedPhone = phone.replace(/\s+/g, '');
@@ -23,11 +20,10 @@ export class AuthService {
 
   verifyOtp(challengeId: string, code: string) {
     const challenge = this.challenges.get(challengeId);
-    if (!challenge || challenge.expiresAt.getTime() < Date.now()) return { verified: false };
-    if (challenge.attempts >= 5) return { verified: false };
+    if (!challenge || challenge.expiresAt.getTime() < Date.now() || challenge.attempts >= 5) throw new UnauthorizedException('Invalid or expired OTP');
     challenge.attempts += 1;
-    const verified = challenge.code === code;
-    if (verified) this.challenges.delete(challengeId);
-    return { verified, phone: verified ? challenge.phone : undefined };
+    if (challenge.code !== code) throw new UnauthorizedException('Invalid or expired OTP');
+    this.challenges.delete(challengeId);
+    return { verified: true, phone: challenge.phone };
   }
 }
