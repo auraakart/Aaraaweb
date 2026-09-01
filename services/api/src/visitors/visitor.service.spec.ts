@@ -2,22 +2,27 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { VisitorService } from './visitor.service';
 
-function service(overrides: any = {}) {
-  const prisma: any = {
+type Overrides = Record<string, unknown>;
+
+function service(overrides: Overrides = {}) {
+  const prisma = {
     unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     visitor: {
-      create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'visitor-1', ...data })),
+      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue({ id: 'visitor-1', societyId: 'society-1', hostUserId: 'host-1', status: 'PENDING' }),
-      update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'visitor-1', ...data })),
+      update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
     },
     visitorPass: {
-      create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'pass-1', ...data })),
+      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pass-1', ...data })),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     ...overrides,
   };
-  return { svc: new VisitorService(prisma), prisma };
+  return {
+    svc: new VisitorService(prisma as unknown as ConstructorParameters<typeof VisitorService>[0]),
+    prisma,
+  };
 }
 
 describe('VisitorService', () => {
