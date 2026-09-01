@@ -77,12 +77,19 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> approveAccess(String requestId, {Duration duration = const Duration(hours: 4)}) async {
+  Future<Map<String, dynamic>> approveAccess(String requestId, {Duration? duration}) async {
+    final request = accessRequests.where((item) => item['id']?.toString() == requestId).firstOrNull;
+    final type = request?['subjectType']?.toString();
+    final effectiveDuration = duration ?? switch (type) {
+      'CAB' => const Duration(minutes: 15),
+      'DELIVERY' => const Duration(minutes: 30),
+      _ => const Duration(hours: 4),
+    };
     final now = DateTime.now();
-    final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(duration));
+    final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration));
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
-    if (credential != null && rawRequest is Map) {
+    if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') {
       lastIssuedVisitorPass = {
         'credential': credential,
         'request': Map<String, dynamic>.from(rawRequest),
@@ -135,4 +142,8 @@ class ResidentDataController extends ChangeNotifier {
     lastIssuedVisitorPass = null;
     notifyListeners();
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
