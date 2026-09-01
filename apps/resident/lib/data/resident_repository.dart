@@ -1,0 +1,56 @@
+import 'api_client.dart';
+
+class ResidentRepository {
+  ResidentRepository(this.api);
+  final ApiClient api;
+
+  Future<List<Map<String, dynamic>>> households() async {
+    final value = await api.get('/api/v1/households/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> accessRequests() async {
+    final value = await api.get('/api/v1/access-requests/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> serviceCategories() async {
+    final value = await api.get('/api/v1/services-marketplace/categories');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> serviceOfferings({String? categoryId}) async {
+    final suffix = categoryId == null ? '' : '?categoryId=$categoryId';
+    final value = await api.get('/api/v1/services-marketplace/offerings$suffix');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> bookings() async {
+    final value = await api.get('/api/v1/services-marketplace/bookings/mine');
+    return _list(value);
+  }
+
+  Future<void> denyAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/deny');
+
+  Future<Map<String, dynamic>> createAccess({
+    required String unitId,
+    required String subjectType,
+    required String subjectName,
+    String? subjectPhone,
+    String? purpose,
+  }) async {
+    final value = await api.post('/api/v1/access-requests', {
+      'unitId': unitId,
+      'subjectType': subjectType,
+      'subjectName': subjectName,
+      if (subjectPhone != null) 'subjectPhone': subjectPhone,
+      if (purpose != null) 'purpose': purpose,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  List<Map<String, dynamic>> _list(dynamic value) {
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+}
