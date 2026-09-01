@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../data/resident_data_controller.dart';
 
 class GateScreen extends StatelessWidget {
@@ -131,16 +132,25 @@ class GateScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Visitor pass ready'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(visitor, style: Theme.of(dialogContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            const Text('Share this one-time access credential with your visitor. The guard can scan it from a QR or enter it manually.'),
-            const SizedBox(height: 16),
-            SelectableText(credential, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(visitor, style: Theme.of(dialogContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              const Text('Share this pass with your visitor. The guard can scan the QR or enter the credential manually.'),
+              const SizedBox(height: 16),
+              Center(
+                child: Semantics(
+                  label: 'Visitor access QR code',
+                  child: QrImageView(data: credential, version: QrVersions.auto, size: 210),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(credential, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
+            ],
+          ),
         ),
         actions: [
           TextButton(
