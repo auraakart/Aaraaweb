@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
 class ResidentDataController extends ChangeNotifier {
-  ResidentDataController(this.repository);
+  ResidentDataController(this.repository) : push = PushRegistrationService(repository);
   final ResidentRepository repository;
+  final PushRegistrationService push;
 
   bool loading = false;
   bool realtimeConnected = false;
+  bool pushEnabled = false;
   String? authError;
   String? householdError;
   String? accessError;
@@ -41,6 +44,8 @@ class ResidentDataController extends ChangeNotifier {
     loading = false;
     notifyListeners();
     startRealtime();
+    pushEnabled = await push.start(onOpened: _handlePushOpened);
+    if (!_disposed) notifyListeners();
   }
 
   void startRealtime() {
@@ -67,6 +72,20 @@ class ResidentDataController extends ChangeNotifier {
       },
       cancelOnError: true,
     );
+  }
+
+  Future<void> _handlePushOpened(Map<String, dynamic> data) async {
+    final requestId = data['requestId']?.toString();
+    if (requestId == null) return;
+    latestAccessEvent = data;
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> stopPushNotifications() async {
+    await push.stop();
+    pushEnabled = false;
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> _loadHouseholds() async {
@@ -167,6 +186,7 @@ class ResidentDataController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _accessEvents?.cancel();
+    push.dispose();
     super.dispose();
   }
 }
