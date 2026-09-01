@@ -22,20 +22,22 @@ model User {
 }
 
 model Society {
-  id          String              @id @default(uuid()) @db.Uuid
-  name        String
-  code        String              @unique
-  status      SocietyStatus       @default(ACTIVE)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  memberships SocietyMembership[]
-  buildings   Building[]
-  gates       Gate[]
-  unitLinks   UnitResident[]
-  visitors    Visitor[]
-  visitorPasses VisitorPass[]
-  auditEvents AuditEvent[]
-  sessions    Session[]
+  id               String              @id @default(uuid()) @db.Uuid
+  name             String
+  code             String              @unique
+  status           SocietyStatus       @default(ACTIVE)
+  productTier      ProductTier         @default(STARTER)
+  featureOverrides Json                @default("{}")
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  memberships      SocietyMembership[]
+  buildings        Building[]
+  gates            Gate[]
+  unitLinks        UnitResident[]
+  visitors         Visitor[]
+  visitorPasses    VisitorPass[]
+  auditEvents      AuditEvent[]
+  sessions         Session[]
 }
 
 model SocietyMembership {
@@ -91,48 +93,48 @@ model UnitResident {
 }
 
 model Gate {
-  id        String   @id @default(uuid()) @db.Uuid
-  societyId String   @db.Uuid
-  name      String
-  code      String
-  active    Boolean  @default(true)
-  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  id          String       @id @default(uuid()) @db.Uuid
+  societyId   String       @db.Uuid
+  name        String
+  code        String
+  active      Boolean      @default(true)
+  society     Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
   auditEvents AuditEvent[]
   @@unique([societyId, code])
 }
 
 model Visitor {
-  id          String   @id @default(uuid()) @db.Uuid
-  societyId   String   @db.Uuid
-  unitId      String   @db.Uuid
-  hostUserId  String   @db.Uuid
-  name        String
-  phone       String?
-  purpose     String?
-  status      VisitorStatus @default(PENDING)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  hostUser    User     @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
-  passes      VisitorPass[]
+  id         String        @id @default(uuid()) @db.Uuid
+  societyId  String        @db.Uuid
+  unitId     String        @db.Uuid
+  hostUserId String        @db.Uuid
+  name       String
+  phone      String?
+  purpose    String?
+  status     VisitorStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  society    Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit       Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  hostUser   User          @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  passes     VisitorPass[]
   @@index([societyId, hostUserId])
   @@index([societyId, unitId])
 }
 
 model VisitorPass {
-  id             String   @id @default(uuid()) @db.Uuid
-  societyId      String   @db.Uuid
-  visitorId      String   @db.Uuid
+  id             String            @id @default(uuid()) @db.Uuid
+  societyId      String            @db.Uuid
+  visitorId      String            @db.Uuid
   credentialHash String
   validFrom      DateTime
   validUntil     DateTime
   status         VisitorPassStatus @default(ACTIVE)
   checkedInAt    DateTime?
   checkedOutAt   DateTime?
-  createdAt      DateTime @default(now())
-  society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  visitor        Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  society        Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  visitor        Visitor           @relation(fields: [visitorId], references: [id], onDelete: Cascade)
   auditEvents    AuditEvent[]
   @@index([societyId, status])
   @@index([visitorId])
@@ -140,33 +142,33 @@ model VisitorPass {
 }
 
 model AuditEvent {
-  id             String   @id @default(uuid()) @db.Uuid
-  societyId      String   @db.Uuid
-  actorUserId    String   @db.Uuid
-  gateId         String   @db.Uuid
-  visitorPassId  String   @db.Uuid
-  event          AuditEventType
-  occurredAt     DateTime @default(now())
-  society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  gate           Gate     @relation(fields: [gateId], references: [id], onDelete: Cascade)
-  visitorPass   VisitorPass @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
+  id            String         @id @default(uuid()) @db.Uuid
+  societyId     String         @db.Uuid
+  actorUserId   String         @db.Uuid
+  gateId        String         @db.Uuid
+  visitorPassId String         @db.Uuid
+  event         AuditEventType
+  occurredAt    DateTime       @default(now())
+  society       Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gate          Gate           @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  visitorPass   VisitorPass    @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
   @@index([societyId, occurredAt])
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
 }
 
 model Session {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @db.Uuid
-  societyId         String?  @db.Uuid
-  accessTokenHash   String   @unique
-  refreshTokenHash  String   @unique
-  expiresAt         DateTime
-  refreshExpiresAt  DateTime
-  revokedAt         DateTime?
-  createdAt         DateTime @default(now())
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  society           Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  societyId        String?  @db.Uuid
+  accessTokenHash  String   @unique
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  refreshExpiresAt DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society          Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
   @@index([userId, revokedAt])
   @@index([societyId, revokedAt])
   @@index([expiresAt])
@@ -175,6 +177,7 @@ model Session {
 
 enum UserStatus { ACTIVE SUSPENDED DELETED }
 enum SocietyStatus { ACTIVE SUSPENDED }
+enum ProductTier { STARTER PROFESSIONAL PREMIUM ENTERPRISE }
 enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGER ACCOUNTANT OWNER TENANT FAMILY_MEMBER SECURITY_SUPERVISOR SECURITY_GUARD STAFF VENDOR }
 enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
 enum VisitorStatus { PENDING APPROVED DENIED CHECKED_IN CHECKED_OUT CANCELLED }
