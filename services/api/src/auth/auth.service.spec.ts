@@ -1,23 +1,41 @@
 import { HttpException, UnauthorizedException } from '@nestjs/common';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthStateStore } from './auth-state.store';
 import { AuthService } from './auth.service';
+import { OtpDeliveryService } from './otp-delivery.service';
 
 type StoredOtp = { code: string; attempts: number; phone: string };
 
 describe('AuthService security state', () => {
   let state: AuthStateStore;
   let service: AuthService;
+  let delivery: OtpDeliveryService;
 
   beforeEach(() => {
     delete process.env.REDIS_URL;
     process.env.NODE_ENV = 'test';
     state = new AuthStateStore();
-    service = new AuthService(state);
+    delivery = new OtpDeliveryService();
+    service = new AuthService(state, delivery);
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await state.onModuleDestroy();
+  });
+
+  it('delivers the generated OTP without exposing it in the challenge response', async () => {
+    const send = vi.spyOn(delivery, 'send');
+    const challenge = await service.requestOtp('+919876543209');
+    const stored = await state.getJson<StoredOtp>(`auth:otp:${challenge.challengeId}`);
+
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ phone: '+919876543209', code: stored!.code }));
+    expect(challenge).not.toHaveProperty('code');
+  });
+
+  it('removes the challenge when OTP delivery fails', async () => {
+    vi.spyOn(delivery, 'send').mockRejectedValueOnce(new Error('provider unavailable'));
+    await expect(service.requestOtp('+919876543208')).rejects.toThrow('provider unavailable');
   });
 
   it('consumes a successful OTP so it cannot be replayed', async () => {
