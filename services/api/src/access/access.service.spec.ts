@@ -4,12 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { AccessService } from './access.service';
 
-function setup(overrides: any = {}, enabled = true) {
-  const prisma: any = {
+type Overrides = Record<string, unknown>;
+
+function setup(overrides: Overrides = {}, enabled = true) {
+  const prisma = {
     unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', active: true }) },
     accessRequest: {
-      create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'access-1', ...data })),
+      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data })),
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue({
         id: 'access-1',
@@ -26,11 +28,20 @@ function setup(overrides: any = {}, enabled = true) {
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     },
+    $transaction: vi.fn(),
     ...overrides,
   };
-  prisma.$transaction = overrides.$transaction ?? vi.fn(async (callback: any) => callback(prisma));
-  const entitlements: any = { isEnabled: vi.fn().mockResolvedValue(enabled) };
-  return { svc: new AccessService(prisma, entitlements), prisma, entitlements };
+  const suppliedTransaction = overrides.$transaction as typeof prisma.$transaction | undefined;
+  prisma.$transaction = suppliedTransaction ?? vi.fn(async (callback: (client: typeof prisma) => unknown) => callback(prisma));
+  const entitlements = { isEnabled: vi.fn().mockResolvedValue(enabled) };
+  return {
+    svc: new AccessService(
+      prisma as unknown as ConstructorParameters<typeof AccessService>[0],
+      entitlements as unknown as ConstructorParameters<typeof AccessService>[1],
+    ),
+    prisma,
+    entitlements,
+  };
 }
 
 describe('AccessService', () => {
