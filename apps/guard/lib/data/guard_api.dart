@@ -57,11 +57,11 @@ class GuardApi {
   Future<Map<String, dynamic>> verifyOtp(String challengeId, String code) async =>
       Map<String, dynamic>.from(await _send('POST', '/auth/otp/verify', body: {'challengeId': challengeId, 'code': code}) as Map);
 
-  Future<Map<String, dynamic>> selectSociety({required String userId, required String societyId, required String selectionGrant}) async =>
+  Future<Map<String, dynamic>> selectSociety({required String userId, required String societyId, required String selectionToken}) async =>
       Map<String, dynamic>.from(await _send('POST', '/auth/society/select', body: {
         'userId': userId,
         'societyId': societyId,
-        'selectionGrant': selectionGrant,
+        'selectionToken': selectionToken,
       }) as Map);
 
   Future<Map<String, dynamic>> refresh(String sessionId, String refreshToken) async =>
