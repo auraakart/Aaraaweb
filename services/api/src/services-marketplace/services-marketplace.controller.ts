@@ -48,6 +48,10 @@ class CreateBookingDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+class ListOfferingsQueryDto {
+  @IsOptional() @IsUUID() categoryId?: string;
+}
+
 class RateBookingDto {
   @IsInt() @Min(1) @Max(5) score!: number;
   @IsOptional() @IsString() comment?: string;
@@ -67,8 +71,8 @@ export class ServicesMarketplaceController {
 
   @Get('offerings')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
-  offerings(@CurrentTenant() societyId: string, @Query('categoryId') categoryId?: string) {
-    return this.marketplace.listOfferings(societyId, categoryId);
+  offerings(@CurrentTenant() societyId: string, @Query() query: ListOfferingsQueryDto) {
+    return this.marketplace.listOfferings(societyId, query.categoryId);
   }
 
   @Post('bookings')
