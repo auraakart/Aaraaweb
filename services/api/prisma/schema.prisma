@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-  id              String              @id @default(uuid()) @db.Uuid
-  phone           String              @unique
-  email           String?             @unique
-  name            String?
-  status          UserStatus          @default(ACTIVE)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  memberships     SocietyMembership[]
-  unitLinks       UnitResident[]
-  visitors        Visitor[]
-  accessRequests  AccessRequest[]
-  serviceBookings ServiceBooking[]
-  serviceRatings  ServiceRating[]
-  sessions        Session[]
+  id               String              @id @default(uuid()) @db.Uuid
+  phone            String              @unique
+  email            String?             @unique
+  name             String?
+  status           UserStatus          @default(ACTIVE)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  memberships      SocietyMembership[]
+  unitLinks        UnitResident[]
+  visitors         Visitor[]
+  accessRequests   AccessRequest[]
+  serviceBookings  ServiceBooking[]
+  serviceRatings   ServiceRating[]
+  sessions         Session[]
+  pushDeviceTokens DevicePushToken[]
 }
 
 model Society {
@@ -49,6 +50,7 @@ model Society {
   auditEvents         AuditEvent[]
   gateMutations       GateMutationReceipt[]
   sessions            Session[]
+  pushDeviceTokens    DevicePushToken[]
 }
 
 model SocietyMembership {
@@ -375,6 +377,23 @@ model GateMutationReceipt {
   @@index([accessRequestId, createdAt])
 }
 
+model DevicePushToken {
+  id         String         @id @default(uuid()) @db.Uuid
+  societyId  String         @db.Uuid
+  userId     String         @db.Uuid
+  token      String         @unique
+  platform   DevicePlatform
+  deviceId   String?
+  active     Boolean        @default(true)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  society    Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([societyId, userId, active])
+  @@index([userId, active])
+}
+
 model Session {
   id               String   @id @default(uuid()) @db.Uuid
   userId           String   @db.Uuid
@@ -436,6 +455,12 @@ enum VehicleType {
   TWO_WHEELER
   CAR
   OTHER
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
 }
 
 enum AccessSubjectType {
