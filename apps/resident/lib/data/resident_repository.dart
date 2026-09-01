@@ -30,13 +30,16 @@ class ResidentRepository {
     return _list(value);
   }
 
-  Future<void> approveAccess(String requestId, {required DateTime validFrom, required DateTime validUntil}) =>
-      api.post('/api/v1/access-requests/$requestId/approve', {
-        'validFrom': validFrom.toUtc().toIso8601String(),
-        'validUntil': validUntil.toUtc().toIso8601String(),
-      });
+  Future<Map<String, dynamic>> approveAccess(String requestId, {required DateTime validFrom, required DateTime validUntil}) async {
+    final value = await api.post('/api/v1/access-requests/$requestId/approve', {
+      'validFrom': validFrom.toUtc().toIso8601String(),
+      'validUntil': validUntil.toUtc().toIso8601String(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
 
   Future<void> denyAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/deny');
+  Future<void> cancelAccess(String requestId) => api.post('/api/v1/access-requests/$requestId/cancel');
 
   Future<Map<String, dynamic>> createAccess({
     required String unitId,
@@ -50,6 +53,25 @@ class ResidentRepository {
       'subjectType': subjectType,
       'subjectName': subjectName,
       if (subjectPhone != null) 'subjectPhone': subjectPhone,
+      if (purpose != null) 'purpose': purpose,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> inviteVisitor({
+    required String unitId,
+    required String name,
+    required DateTime validFrom,
+    required DateTime validUntil,
+    String? phone,
+    String? purpose,
+  }) async {
+    final value = await api.post('/api/v1/access-requests/visitor-invites', {
+      'unitId': unitId,
+      'name': name,
+      'validFrom': validFrom.toUtc().toIso8601String(),
+      'validUntil': validUntil.toUtc().toIso8601String(),
+      if (phone != null) 'phone': phone,
       if (purpose != null) 'purpose': purpose,
     });
     return Map<String, dynamic>.from(value as Map);
