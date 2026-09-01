@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'data/guard_api.dart';
 import 'data/guard_session_store.dart';
@@ -40,6 +42,7 @@ class GuardController extends ChangeNotifier {
         api.accessToken = stored.accessToken;
         try {
           await loadGates();
+          if (queuedActions > 0) await syncQueuedActions();
         } on GuardApiException catch (e) {
           if (e.statusCode == 401) {
             await _refresh(stored);
@@ -116,27 +119,55 @@ class GuardController extends ChangeNotifier {
         verifiedAccess = await api.verifyAccess(gate, value);
       });
 
-  Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential, () => api.checkIn(_requireGate(), credential.trim()));
-  Future<void> checkOut(String credential) => _gateMutation('CHECK_OUT', credential, () => api.checkOut(_requireGate(), credential.trim()));
+  Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential);
+  Future<void> checkOut(String credential) => _gateMutation('CHECK_OUT', credential);
 
-  Future<void> _gateMutation(String type, String credential, Future<Map<String, dynamic>> Function() execute) async {
+  Future<void> _gateMutation(String type, String credential) async {
     await _run(() async {
       final value = credential.trim();
       if (value.isEmpty) throw StateError('Scan or enter an access credential');
+      final gate = _requireGate();
+      final key = _idempotencyKey();
       try {
-        verifiedAccess = await execute();
+        verifiedAccess = type == 'CHECK_IN' ? await api.checkIn(gate, value, key) : await api.checkOut(gate, value, key);
       } on GuardApiException catch (e) {
         if (!e.transport) rethrow;
-        await offlineQueue.enqueue(QueuedGateAction(
-          type: type,
-          gateId: _requireGate(),
-          credential: value,
-          createdAt: DateTime.now(),
-        ));
+        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now()));
         queuedActions = (await offlineQueue.read()).length;
-        throw StateError('Network unavailable. Action saved for supervisor review/sync.');
+        throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
     });
+  }
+
+  Future<void> syncQueuedActions() async {
+    final pending = await offlineQueue.read();
+    if (pending.isEmpty) {
+      queuedActions = 0;
+      notifyListeners();
+      return;
+    }
+    final remaining = <QueuedGateAction>[];
+    for (var index = 0; index < pending.length; index++) {
+      final action = pending[index];
+      try {
+        if (action.type == 'CHECK_IN') {
+          await api.checkIn(action.gateId, action.credential, action.idempotencyKey);
+        } else if (action.type == 'CHECK_OUT') {
+          await api.checkOut(action.gateId, action.credential, action.idempotencyKey);
+        } else {
+          continue;
+        }
+      } on GuardApiException catch (e) {
+        if (e.transport) {
+          remaining.addAll(pending.sublist(index));
+          break;
+        }
+        remaining.add(action);
+      }
+    }
+    await offlineQueue.replace(remaining);
+    queuedActions = remaining.length;
+    notifyListeners();
   }
 
   Future<void> signOut() async {
@@ -160,31 +191,18 @@ class GuardController extends ChangeNotifier {
 
   Future<void> _refresh(GuardSession stored) async {
     final result = await api.refresh(stored.sessionId, stored.refreshToken);
-    final refreshed = GuardSession(
-      sessionId: result['sessionId']?.toString() ?? stored.sessionId,
-      accessToken: result['accessToken']?.toString() ?? '',
-      refreshToken: result['refreshToken']?.toString() ?? stored.refreshToken,
-      userId: stored.userId,
-      societyId: stored.societyId,
-    );
+    final refreshed = GuardSession(sessionId: result['sessionId']?.toString() ?? stored.sessionId, accessToken: result['accessToken']?.toString() ?? '', refreshToken: result['refreshToken']?.toString() ?? stored.refreshToken, userId: stored.userId, societyId: stored.societyId);
     if (refreshed.accessToken.isEmpty) throw StateError('Session refresh failed');
     session = refreshed;
     api.accessToken = refreshed.accessToken;
     await sessions.save(refreshed);
     await loadGates();
+    if (queuedActions > 0) await syncQueuedActions();
   }
 
   Future<void> _acceptSession(Map<String, dynamic> value, String societyId) async {
-    final accepted = GuardSession(
-      sessionId: value['sessionId']?.toString() ?? '',
-      accessToken: value['accessToken']?.toString() ?? '',
-      refreshToken: value['refreshToken']?.toString() ?? '',
-      userId: userId ?? '',
-      societyId: societyId,
-    );
-    if (accepted.sessionId.isEmpty || accepted.accessToken.isEmpty || accepted.refreshToken.isEmpty || accepted.userId.isEmpty) {
-      throw StateError('Incomplete security session');
-    }
+    final accepted = GuardSession(sessionId: value['sessionId']?.toString() ?? '', accessToken: value['accessToken']?.toString() ?? '', refreshToken: value['refreshToken']?.toString() ?? '', userId: userId ?? '', societyId: societyId);
+    if (accepted.sessionId.isEmpty || accepted.accessToken.isEmpty || accepted.refreshToken.isEmpty || accepted.userId.isEmpty) throw StateError('Incomplete security session');
     session = accepted;
     api.accessToken = accepted.accessToken;
     await sessions.save(accepted);
@@ -193,6 +211,12 @@ class GuardController extends ChangeNotifier {
   String _requireGate() {
     if (gateId == null) throw StateError('Select an active gate');
     return gateId!;
+  }
+
+  String _idempotencyKey() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(18, (_) => random.nextInt(256));
+    return base64Url.encode(bytes).replaceAll('=', '');
   }
 
   Future<void> _run(Future<void> Function() action) async {
