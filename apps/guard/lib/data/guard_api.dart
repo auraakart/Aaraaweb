@@ -23,12 +23,13 @@ class GuardApi {
         if (accessToken.isNotEmpty) HttpHeaders.authorizationHeader: 'Bearer $accessToken',
       };
 
-  Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body}) async {
+  Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body, Map<String, String>? extraHeaders}) async {
     try {
       final uri = Uri.parse('$_root/${path.replaceFirst(RegExp(r'^/'), '')}');
+      final headers = {..._headers, ...?extraHeaders};
       final response = method == 'GET'
-          ? await http.get(uri, headers: _headers)
-          : await http.post(uri, headers: _headers, body: jsonEncode(body ?? const {}));
+          ? await http.get(uri, headers: headers)
+          : await http.post(uri, headers: headers, body: jsonEncode(body ?? const {}));
       dynamic decoded;
       if (response.body.isNotEmpty) {
         try {
@@ -76,9 +77,14 @@ class GuardApi {
   }
 
   Future<Map<String, dynamic>> verifyAccess(String gateId, String credential) => _access('/access-requests/gate/verify', gateId, credential);
-  Future<Map<String, dynamic>> checkIn(String gateId, String credential) => _access('/access-requests/gate/check-in', gateId, credential);
-  Future<Map<String, dynamic>> checkOut(String gateId, String credential) => _access('/access-requests/gate/check-out', gateId, credential);
+  Future<Map<String, dynamic>> checkIn(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-in', gateId, credential, idempotencyKey: idempotencyKey);
+  Future<Map<String, dynamic>> checkOut(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-out', gateId, credential, idempotencyKey: idempotencyKey);
 
-  Future<Map<String, dynamic>> _access(String path, String gateId, String credential) async =>
-      Map<String, dynamic>.from(await _send('POST', path, body: {'gateId': gateId, 'credential': credential}) as Map);
+  Future<Map<String, dynamic>> _access(String path, String gateId, String credential, {String? idempotencyKey}) async =>
+      Map<String, dynamic>.from(await _send(
+        'POST',
+        path,
+        body: {'gateId': gateId, 'credential': credential},
+        extraHeaders: idempotencyKey == null ? null : {'Idempotency-Key': idempotencyKey},
+      ) as Map);
 }
