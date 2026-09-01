@@ -22,6 +22,15 @@ class CreateAccessRequestDto {
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
 
+class CreateVisitorInviteDto {
+  @IsUUID() unitId!: string;
+  @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() purpose?: string;
+  @IsDateString() validFrom!: string;
+  @IsDateString() validUntil!: string;
+}
+
 class ApproveAccessRequestDto {
   @IsDateString() validFrom!: string;
   @IsDateString() validUntil!: string;
@@ -49,6 +58,22 @@ export class AccessController {
   create(@Body() dto: CreateAccessRequestDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.access.create(societyId, userId, dto.unitId, dto.subjectType, dto.subjectName, dto.subjectPhone, dto.purpose, dto.metadata);
+  }
+
+  @Post('visitor-invites')
+  @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
+  inviteVisitor(@Body() dto: CreateVisitorInviteDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+    if (!userId) throw new BadRequestException('Authenticated resident is required');
+    return this.access.inviteVisitor(
+      societyId,
+      userId,
+      dto.unitId,
+      dto.name,
+      new Date(dto.validFrom),
+      new Date(dto.validUntil),
+      dto.phone,
+      dto.purpose,
+    );
   }
 
   @Post(':requestId/approve')
