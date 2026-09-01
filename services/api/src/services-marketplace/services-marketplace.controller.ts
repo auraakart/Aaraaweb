@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsDateString, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -87,14 +87,14 @@ export class ServicesMarketplaceController {
 
   @Post('bookings/:bookingId/cancel')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
-  cancel(@Param('bookingId') bookingId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  cancel(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.marketplace.cancelMine(societyId, userId, bookingId);
   }
 
   @Post('bookings/:bookingId/rating')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
-  rate(@Param('bookingId') bookingId: string, @Body() dto: RateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  rate(@Param('bookingId', ParseUUIDPipe) bookingId: string, @Body() dto: RateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.marketplace.rate(societyId, userId, bookingId, dto.score, dto.comment);
   }
@@ -113,7 +113,7 @@ export class ServicesMarketplaceController {
 
   @Post('admin/providers/:providerId/approve')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
-  approveProvider(@Param('providerId') providerId: string, @Body() dto: ApproveProviderDto, @CurrentTenant() societyId: string) {
+  approveProvider(@Param('providerId', ParseUUIDPipe) providerId: string, @Body() dto: ApproveProviderDto, @CurrentTenant() societyId: string) {
     return this.marketplace.approveProviderForSociety(societyId, providerId, dto.commissionBps);
   }
 
@@ -125,13 +125,13 @@ export class ServicesMarketplaceController {
 
   @Post('admin/bookings/:bookingId/confirm')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
-  confirm(@Param('bookingId') bookingId: string, @CurrentTenant() societyId: string) {
+  confirm(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentTenant() societyId: string) {
     return this.marketplace.confirm(societyId, bookingId);
   }
 
   @Post('admin/bookings/:bookingId/complete')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
-  complete(@Param('bookingId') bookingId: string, @CurrentTenant() societyId: string) {
+  complete(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentTenant() societyId: string) {
     return this.marketplace.complete(societyId, bookingId);
   }
 }
