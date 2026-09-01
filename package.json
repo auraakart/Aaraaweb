@@ -8,5 +8,12 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": ">=0.35.0",
+      "postcss": ">=8.5.18",
+      "deepmerge-ts": ">=8.0.1"
+    }
   }
 }
