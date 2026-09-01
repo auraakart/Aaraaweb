@@ -1,9 +1,11 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { Request } from 'express';
 import { AuthPrincipal } from './auth.types';
 import { SessionService } from './session.service';
 
-export type AuthenticatedRequest = Request & { auth?: AuthPrincipal };
+export type AuthenticatedRequest = {
+  auth?: AuthPrincipal;
+  header(name: string): string | undefined;
+};
 
 @Injectable()
 export class BearerGuard implements CanActivate {
