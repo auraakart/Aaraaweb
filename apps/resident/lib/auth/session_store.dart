@@ -34,7 +34,7 @@ class SessionStore {
       _storage.read(key: _societyId),
       _storage.read(key: _role),
     ]);
-    if (values.any((value) => value == null || value!.isEmpty)) return null;
+    if (values.any((value) => value == null || value.isEmpty)) return null;
     return ResidentSession(
       sessionId: values[0]!,
       accessToken: values[1]!,
