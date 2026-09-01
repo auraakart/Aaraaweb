@@ -4,6 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BearerGuard } from '../auth/bearer.guard';
 import { TenantGuard } from '../auth/tenant.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequiresPermissions } from '../auth/permissions.decorator';
+import { AppPermission } from '../auth/permission.types';
 import { GateAccessGuard } from './gate-access.guard';
 import { GateAuditService } from './gate-audit.service';
 
@@ -15,6 +18,8 @@ export class GatesController {
   constructor(private readonly prisma: PrismaService, private readonly audit: GateAuditService) {}
 
   @Get()
+  @UseGuards(PermissionsGuard)
+  @RequiresPermissions(AppPermission.GATE_READ)
   list(@CurrentTenant() societyId: string) { return this.prisma.gate.findMany({ where: { societyId }, orderBy: { name: 'asc' } }); }
 
   @Get('audit')
