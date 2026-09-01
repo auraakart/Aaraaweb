@@ -1,33 +1,29 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { IsPhoneNumber, IsString, Length } from 'class-validator';
+import { Body, Controller, Post, UnauthorizedException } from '@nestjs/common';
+import { IsNotEmpty, IsPhoneNumber, IsString, IsUUID, Length } from 'class-validator';
+import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
+import { SessionService } from './session.service';
 
-class RequestOtpDto {
-  @IsPhoneNumber(null)
-  phone!: string;
-}
-
-class VerifyOtpDto {
-  @IsString()
-  challengeId!: string;
-
-  @IsString()
-  @Length(6, 6)
-  code!: string;
-}
+class RequestOtpDto { @IsPhoneNumber(null) phone!: string; }
+class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
+class RefreshDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
+class LogoutDto { @IsUUID() sessionId!: string; }
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService) {}
 
-  @Post('otp/request')
-  requestOtp(@Body() dto: RequestOtpDto) {
-    const challenge = this.authService.requestOtp(dto.phone);
-    return { challengeId: challenge.challengeId, expiresAt: challenge.expiresAt };
+  @Post('otp/request') requestOtp(@Body() dto: RequestOtpDto) { const challenge = this.authService.requestOtp(dto.phone); return { challengeId: challenge.challengeId, expiresAt: challenge.expiresAt }; }
+
+  @Post('otp/verify') async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const result = this.authService.verifyOtp(dto.challengeId, dto.code);
+    if (!result.verified || !result.phone) throw new UnauthorizedException('Invalid or expired OTP');
+    const user = await this.prisma.user.findUnique({ where: { phone: result.phone } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
+    const memberships = await this.prisma.societyMembership.findMany({ where: { userId: user.id, active: true }, select: { societyId: true, role: true } });
+    return { verified: true, userId: user.id, memberships, session: memberships.length === 1 ? await this.sessions.create(user.id, memberships[0].societyId, [memberships[0].role as any]) : undefined };
   }
 
-  @Post('otp/verify')
-  verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.challengeId, dto.code);
-  }
+  @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
+  @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId); return { success: true }; }
 }
