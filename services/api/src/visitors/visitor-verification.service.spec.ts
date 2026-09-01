@@ -10,20 +10,39 @@ const pass = {
   validFrom: new Date(Date.now() - 60_000),
   validUntil: new Date(Date.now() + 60_000),
   credentialHash: createHash('sha256').update('secret').digest('hex'),
+  checkedInAt: null,
+  checkedOutAt: null,
   visitor: { id: 'visitor-1', name: 'Test Visitor', status: 'APPROVED' },
 };
 
 type Overrides = Record<string, unknown>;
 
 function service(overrides: Overrides = {}) {
+  const gate = {
+    findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }),
+    ...((overrides.gate as Record<string, unknown> | undefined) ?? {}),
+  };
+  const visitorPass = {
+    findFirst: vi.fn().mockResolvedValue(pass),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    findUniqueOrThrow: vi.fn().mockResolvedValue({ ...pass, status: 'USED', checkedInAt: new Date(), visitor: { ...pass.visitor, status: 'CHECKED_IN' } }),
+    ...((overrides.visitorPass as Record<string, unknown> | undefined) ?? {}),
+  };
+  const visitor = {
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    ...((overrides.visitor as Record<string, unknown> | undefined) ?? {}),
+  };
+  const auditEvent = {
+    create: vi.fn().mockResolvedValue({ id: 'audit-1' }),
+    ...((overrides.auditEvent as Record<string, unknown> | undefined) ?? {}),
+  };
+  const transactionClient = { gate, visitorPass, visitor, auditEvent };
   const prisma = {
-    gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
-    visitorPass: {
-      findFirst: vi.fn().mockResolvedValue(pass),
-      update: vi.fn().mockResolvedValue({ ...pass, checkedInAt: new Date() }),
-    },
-    visitor: { update: vi.fn().mockResolvedValue({ ...pass.visitor }) },
-    ...overrides,
+    gate,
+    visitorPass,
+    visitor,
+    auditEvent,
+    $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient)),
   };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
   return {
@@ -57,12 +76,13 @@ describe('VisitorVerificationService', () => {
   it('checks in an active approved visitor and synchronizes visitor state', async () => {
     const { svc, prisma } = service();
     await svc.checkIn('society-1', 'gate-1', 'secret');
-    expect(prisma.visitorPass.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'pass-1' },
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.visitorPass.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'pass-1', status: 'ACTIVE' }),
       data: expect.objectContaining({ status: 'USED' }),
     }));
-    expect(prisma.visitor.update).toHaveBeenCalledWith({
-      where: { id: 'visitor-1' },
+    expect(prisma.visitor.updateMany).toHaveBeenCalledWith({
+      where: { id: 'visitor-1', societyId: 'society-1', status: 'APPROVED' },
       data: { status: 'CHECKED_IN' },
     });
   });
