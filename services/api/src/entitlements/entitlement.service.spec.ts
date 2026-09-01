@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { EntitlementService } from './entitlement.service';
 import { ProductFeature, ProductTier } from './entitlement.types';
 
-function service(society: any) {
-  const prisma: any = {
+type SocietyEntitlement = {
+  productTier: ProductTier;
+  featureOverrides: Record<string, boolean>;
+} | null;
+
+function service(society: SocietyEntitlement) {
+  const prisma = {
     society: { findFirst: vi.fn().mockResolvedValue(society) },
   };
-  return new EntitlementService(prisma);
+  return new EntitlementService(prisma as unknown as ConstructorParameters<typeof EntitlementService>[0]);
 }
 
 describe('EntitlementService', () => {
