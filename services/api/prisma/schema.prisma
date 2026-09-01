@@ -132,7 +132,7 @@ model VisitorPass {
   checkedOutAt   DateTime?
   createdAt      DateTime @default(now())
   society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  visitor        Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  visitor        Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
   auditEvents    AuditEvent[]
   @@index([societyId, status])
   @@index([visitorId])
@@ -149,26 +149,28 @@ model AuditEvent {
   occurredAt     DateTime @default(now())
   society        Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
   gate           Gate     @relation(fields: [gateId], references: [id], onDelete: Cascade)
-  visitorPass    VisitorPass @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
+  visitorPass   VisitorPass @relation(fields: [visitorPassId], references: [id], onDelete: Cascade)
   @@index([societyId, occurredAt])
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
 }
 
 model Session {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @db.Uuid
-  societyId        String?  @db.Uuid
-  accessTokenHash  String   @unique
-  refreshTokenHash String   @unique
-  expiresAt        DateTime
-  revokedAt        DateTime?
-  createdAt        DateTime @default(now())
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  society          Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  societyId         String?  @db.Uuid
+  accessTokenHash   String   @unique
+  refreshTokenHash  String   @unique
+  expiresAt         DateTime
+  refreshExpiresAt  DateTime
+  revokedAt         DateTime?
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society           Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
   @@index([userId, revokedAt])
   @@index([societyId, revokedAt])
   @@index([expiresAt])
+  @@index([refreshExpiresAt])
 }
 
 enum UserStatus { ACTIVE SUSPENDED DELETED }
