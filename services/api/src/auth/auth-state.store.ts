@@ -41,6 +41,19 @@ export class AuthStateStore implements OnModuleDestroy {
     this.memory.set(key, { value: encoded, expiresAt: Date.now() + ttlSeconds * 1000 });
   }
 
+  async setIfAbsentJson(key: string, value: unknown, ttlSeconds: number): Promise<boolean> {
+    const encoded = JSON.stringify(value);
+    const redis = await this.redis();
+    if (redis) {
+      const result = await redis.set(key, encoded, { EX: ttlSeconds, NX: true });
+      return result === 'OK';
+    }
+    const current = this.memory.get(key);
+    if (current && current.expiresAt > Date.now()) return false;
+    this.memory.set(key, { value: encoded, expiresAt: Date.now() + ttlSeconds * 1000 });
+    return true;
+  }
+
   async getJson<T>(key: string): Promise<T | null> {
     const redis = await this.redis();
     if (redis) {

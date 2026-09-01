@@ -9,7 +9,7 @@ class RequestOtpDto { @IsPhoneNumber() phone!: string; }
 class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
 class SelectSocietyDto { @IsUUID() userId!: string; @IsUUID() societyId!: string; @IsString() @IsNotEmpty() selectionToken!: string; }
 class RefreshDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
-class LogoutDto { @IsUUID() sessionId!: string; }
+class LogoutDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
 
 @Controller('auth')
 export class AuthController {
@@ -45,5 +45,5 @@ export class AuthController {
   }
 
   @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
-  @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId); return { success: true }; }
+  @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId, dto.refreshToken); return { success: true }; }
 }
