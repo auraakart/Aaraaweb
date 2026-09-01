@@ -145,7 +145,9 @@ export class AccessService {
   }
 
   async checkIn(societyId: string, gateId: string, rawCredential: string, actorUserId: string, idempotencyKey: string) {
-    const request = await this.verify(societyId, gateId, rawCredential);
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
+    if (!request) throw new NotFoundException('Access credential not found');
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
   }
 
@@ -164,6 +166,16 @@ export class AccessService {
       if (existing.accessRequestId !== accessRequestId || existing.gateId !== gateId || existing.action !== action) throw new BadRequestException('Idempotency key was already used for a different gate operation');
       return this.prisma.accessRequest.findUniqueOrThrow({ where: { id: existing.accessRequestId } });
     }
+
+    if (action === GateMutationAction.CHECK_IN) {
+      const request = await this.prisma.accessRequest.findUniqueOrThrow({ where: { id: accessRequestId } });
+      const now = new Date();
+      if (!request.validFrom || !request.validUntil || now < request.validFrom || now > request.validUntil) {
+        throw new BadRequestException('Access credential is outside its validity window');
+      }
+      await this.assertSubjectEnabled(societyId, request.subjectType);
+    }
+
     const expectedStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.APPROVED : AccessRequestStatus.CHECKED_IN;
     const nextStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.CHECKED_IN : AccessRequestStatus.CHECKED_OUT;
     const event = action === GateMutationAction.CHECK_IN ? AuditEventType.ACCESS_CHECKED_IN : AuditEventType.ACCESS_CHECKED_OUT;
