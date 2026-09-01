@@ -57,6 +57,34 @@ export class AccessService {
     });
   }
 
+  async inviteVisitor(societyId: string, userId: string, unitId: string, subjectName: string, validFrom: Date, validUntil: Date, subjectPhone?: string, purpose?: string) {
+    if (validUntil <= validFrom) throw new BadRequestException('Access validity window is invalid');
+    await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
+    await this.assertResidentUnit(societyId, userId, unitId);
+    const credential = this.credential();
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.accessRequest.create({
+        data: {
+          societyId,
+          unitId,
+          requestedById: userId,
+          subjectType: AccessSubjectType.VISITOR,
+          subjectName: subjectName.trim(),
+          subjectPhone: subjectPhone?.trim() || null,
+          purpose: purpose?.trim() || null,
+          status: AccessRequestStatus.APPROVED,
+          validFrom,
+          validUntil,
+          credentialHash: credential.hash,
+        },
+      });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_CREATED } });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_APPROVED } });
+      return created;
+    });
+    return { request, credential: credential.raw };
+  }
+
   listMine(societyId: string, userId: string) {
     return this.prisma.accessRequest.findMany({ where: { societyId, requestedById: userId }, orderBy: { createdAt: 'desc' } });
   }
