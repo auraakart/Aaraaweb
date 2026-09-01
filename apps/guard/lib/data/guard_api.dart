@@ -76,9 +76,47 @@ class GuardApi {
     return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> gateUnits() async {
+    final value = await _send('GET', '/access-requests/gate/units');
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> createWalkIn({
+    required String gateId,
+    required String unitId,
+    required String name,
+    String? phone,
+    String? purpose,
+  }) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/walk-ins', body: {
+        'gateId': gateId,
+        'unitId': unitId,
+        'name': name,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (purpose != null && purpose.trim().isNotEmpty) 'purpose': purpose.trim(),
+      }) as Map);
+
+  Future<Map<String, dynamic>> requestStatus(String gateId, String requestId) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/request-status', body: {'gateId': gateId, 'requestId': requestId}) as Map);
+
+  Future<Map<String, dynamic>> checkInRequest(String gateId, String requestId, String idempotencyKey) =>
+      _requestMutation('/access-requests/gate/check-in-request', gateId, requestId, idempotencyKey);
+
+  Future<Map<String, dynamic>> checkOutRequest(String gateId, String requestId, String idempotencyKey) =>
+      _requestMutation('/access-requests/gate/check-out-request', gateId, requestId, idempotencyKey);
+
   Future<Map<String, dynamic>> verifyAccess(String gateId, String credential) => _access('/access-requests/gate/verify', gateId, credential);
   Future<Map<String, dynamic>> checkIn(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-in', gateId, credential, idempotencyKey: idempotencyKey);
   Future<Map<String, dynamic>> checkOut(String gateId, String credential, String idempotencyKey) => _access('/access-requests/gate/check-out', gateId, credential, idempotencyKey: idempotencyKey);
+
+  Future<Map<String, dynamic>> _requestMutation(String path, String gateId, String requestId, String idempotencyKey) async =>
+      Map<String, dynamic>.from(await _send(
+        'POST',
+        path,
+        body: {'gateId': gateId, 'requestId': requestId},
+        extraHeaders: {'Idempotency-Key': idempotencyKey},
+      ) as Map);
 
   Future<Map<String, dynamic>> _access(String path, String gateId, String credential, {String? idempotencyKey}) async =>
       Map<String, dynamic>.from(await _send(
