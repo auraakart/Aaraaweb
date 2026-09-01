@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { MembershipRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { AppRole } from '../auth/auth.types';
 
 @Injectable()
 export class GateAccessGuard implements CanActivate {
@@ -11,7 +12,7 @@ export class GateAccessGuard implements CanActivate {
 
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (!request.auth || !request.auth.roles.some((role) => this.allowed.has(role as MembershipRole))) {
+    if (!request.auth || !request.auth.roles.some((role: AppRole) => this.allowed.has(role as MembershipRole))) {
       throw new ForbiddenException('Gate security role required');
     }
     return true;
