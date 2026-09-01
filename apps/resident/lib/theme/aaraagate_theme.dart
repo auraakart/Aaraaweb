@@ -20,7 +20,7 @@ class AaraagateTheme {
         elevation: 0,
         centerTitle: false,
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: Colors.white,
