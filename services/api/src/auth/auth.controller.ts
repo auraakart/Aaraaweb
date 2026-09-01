@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 
-class RequestOtpDto { @IsPhoneNumber(null) phone!: string; }
+class RequestOtpDto { @IsPhoneNumber() phone!: string; }
 class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
 class SelectSocietyDto { @IsUUID() userId!: string; @IsUUID() societyId!: string; @IsString() @IsNotEmpty() selectionToken!: string; }
 class RefreshDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
@@ -29,21 +29,10 @@ export class AuthController {
       select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
     });
     if (memberships.length === 1) {
-      return {
-        verified: true,
-        userId: user.id,
-        memberships,
-        session: await this.sessions.create(user.id, memberships[0].societyId, [memberships[0].role as any]),
-      };
+      return { verified: true, userId: user.id, memberships, session: await this.sessions.create(user.id, memberships[0].societyId, [memberships[0].role as any]) };
     }
     const selectionGrant = this.authService.createSocietySelectionGrant(user.id);
-    return {
-      verified: true,
-      userId: user.id,
-      memberships,
-      selectionToken: selectionGrant.token,
-      selectionExpiresAt: selectionGrant.expiresAt,
-    };
+    return { verified: true, userId: user.id, memberships, selectionToken: selectionGrant.token, selectionExpiresAt: selectionGrant.expiresAt };
   }
 
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
