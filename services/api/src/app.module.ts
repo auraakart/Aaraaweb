@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { HouseholdsModule } from './households/households.module';
 import { ResidentsModule } from './residents/residents.module';
+import { ServicesMarketplaceModule } from './services-marketplace/services-marketplace.module';
 import { SocietiesModule } from './societies/societies.module';
 import { PropertiesModule } from './properties/properties.module';
 import { GatesModule } from './gates/gates.module';
@@ -29,6 +30,7 @@ class HealthController {
     GatesModule,
     VisitorsModule,
     AccessModule,
+    ServicesMarketplaceModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],
