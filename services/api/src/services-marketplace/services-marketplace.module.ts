@@ -3,11 +3,12 @@ import { AccessModule } from '../access/access.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
+import { ServicesPlatformController } from './services-platform.controller';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
 @Module({
   imports: [AccessModule, EntitlementsModule],
-  controllers: [ServicesMarketplaceController],
+  controllers: [ServicesMarketplaceController, ServicesPlatformController],
   providers: [PrismaService, ServicesMarketplaceService],
   exports: [ServicesMarketplaceService],
 })
