@@ -8,6 +8,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { AccessService } from './access.service';
+import { GateArrivalService } from './gate-arrival.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
@@ -39,6 +40,17 @@ class CreateWalkInVisitorDto {
   @IsOptional() @IsString() purpose?: string;
 }
 
+class CreateGateArrivalDto {
+  @IsUUID() gateId!: string;
+  @IsUUID() unitId!: string;
+  @IsEnum(AccessSubjectType) subjectType!: AccessSubjectType;
+  @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() provider?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() vehicleNumber?: string;
+  @IsOptional() @IsString() note?: string;
+}
+
 class GateRequestDto {
   @IsUUID() gateId!: string;
   @IsUUID() requestId!: string;
@@ -57,7 +69,10 @@ class GateAccessDto {
 @Controller('access-requests')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class AccessController {
-  constructor(private readonly access: AccessService) {}
+  constructor(
+    private readonly access: AccessService,
+    private readonly gateArrivals: GateArrivalService,
+  ) {}
 
   @Get('mine')
   @RequiresPermissions(AppPermission.ACCESS_READ_OWN)
@@ -101,6 +116,24 @@ export class AccessController {
   createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     return this.access.createWalkInVisitor(societyId, actorUserId, dto.gateId, dto.unitId, dto.name, dto.phone, dto.purpose);
+  }
+
+  @Post('gate/arrivals')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  createGateArrival(@Body() dto: CreateGateArrivalDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    return this.gateArrivals.create(
+      societyId,
+      actorUserId,
+      dto.gateId,
+      dto.unitId,
+      dto.subjectType,
+      dto.name,
+      dto.provider,
+      dto.phone,
+      dto.vehicleNumber,
+      dto.note,
+    );
   }
 
   @Post('gate/request-status')

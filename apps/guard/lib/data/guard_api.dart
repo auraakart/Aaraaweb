@@ -97,6 +97,27 @@ class GuardApi {
         if (purpose != null && purpose.trim().isNotEmpty) 'purpose': purpose.trim(),
       }) as Map);
 
+  Future<Map<String, dynamic>> createGateArrival({
+    required String gateId,
+    required String unitId,
+    required String subjectType,
+    required String name,
+    String? provider,
+    String? phone,
+    String? vehicleNumber,
+    String? note,
+  }) async =>
+      Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/arrivals', body: {
+        'gateId': gateId,
+        'unitId': unitId,
+        'subjectType': subjectType,
+        'name': name,
+        if (provider != null && provider.trim().isNotEmpty) 'provider': provider.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (vehicleNumber != null && vehicleNumber.trim().isNotEmpty) 'vehicleNumber': vehicleNumber.trim(),
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      }) as Map);
+
   Future<Map<String, dynamic>> requestStatus(String gateId, String requestId) async =>
       Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/request-status', body: {'gateId': gateId, 'requestId': requestId}) as Map);
 

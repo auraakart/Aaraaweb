@@ -122,9 +122,31 @@ class GuardController extends ChangeNotifier {
         walkInAccess = await api.createWalkIn(gateId: gate, unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
       });
 
+  Future<void> createGateArrival({
+    required String unitId,
+    required String subjectType,
+    required String name,
+    String? provider,
+    String? phone,
+    String? vehicleNumber,
+    String? note,
+  }) => _run(() async {
+        final gate = _requireGate();
+        walkInAccess = await api.createGateArrival(
+          gateId: gate,
+          unitId: unitId,
+          subjectType: subjectType,
+          name: name.trim(),
+          provider: provider,
+          phone: phone,
+          vehicleNumber: vehicleNumber,
+          note: note,
+        );
+      });
+
   Future<void> refreshWalkIn() => _run(() async {
         final requestId = walkInAccess?['id']?.toString();
-        if (requestId == null) throw StateError('No walk-in approval is active');
+        if (requestId == null) throw StateError('No gate approval is active');
         walkInAccess = await api.requestStatus(_requireGate(), requestId);
       });
 
@@ -133,7 +155,7 @@ class GuardController extends ChangeNotifier {
 
   Future<void> _walkInMutation(String type) => _run(() async {
         final requestId = walkInAccess?['id']?.toString();
-        if (requestId == null) throw StateError('No walk-in approval is active');
+        if (requestId == null) throw StateError('No gate approval is active');
         final gate = _requireGate();
         final key = _idempotencyKey();
         walkInAccess = type == 'CHECK_IN'
