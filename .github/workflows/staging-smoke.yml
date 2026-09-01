@@ -1,6 +1,8 @@
 name: Staging smoke
 
 on:
+  pull_request:
+    branches: [staging]
   push:
     branches: [staging]
   workflow_dispatch:
