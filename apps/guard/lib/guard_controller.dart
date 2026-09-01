@@ -15,7 +15,7 @@ class GuardController extends ChangeNotifier {
   String? error;
   String? challengeId;
   String? userId;
-  String? selectionGrant;
+  String? selectionToken;
   GuardSession? session;
   List<Map<String, dynamic>> memberships = const [];
   List<Map<String, dynamic>> gates = const [];
@@ -24,7 +24,7 @@ class GuardController extends ChangeNotifier {
   int queuedActions = 0;
 
   bool get signedIn => session != null;
-  bool get needsSocietySelection => session == null && userId != null && memberships.length > 1 && selectionGrant != null;
+  bool get needsSocietySelection => session == null && userId != null && memberships.length > 1 && selectionToken != null;
   String? get gateName {
     final match = gates.where((g) => g['id']?.toString() == gateId).toList();
     return match.isEmpty ? null : (match.first['name'] ?? match.first['code'])?.toString();
@@ -66,27 +66,31 @@ class GuardController extends ChangeNotifier {
         if (challengeId == null) throw StateError('Request an OTP first');
         final result = await api.verifyOtp(challengeId!, code.trim());
         userId = result['userId']?.toString();
-        selectionGrant = result['selectionGrant']?.toString();
-        memberships = _maps(result['memberships']);
+        selectionToken = result['selectionToken']?.toString();
+        memberships = _guardMemberships(_maps(result['memberships']));
+        if (memberships.isEmpty) throw StateError('This account does not have an active security guard role');
+
         final rawSession = result['session'];
-        if (rawSession is Map) {
-          final societyId = memberships.isEmpty ? null : memberships.first['societyId']?.toString();
+        if (rawSession is Map && memberships.length == 1) {
+          final societyId = memberships.first['societyId']?.toString();
           if (societyId == null) throw StateError('Society membership is missing');
           await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
           await loadGates();
         } else if (memberships.length == 1) {
-          if (selectionGrant == null) throw StateError('Society selection grant was not returned');
+          if (selectionToken == null) throw StateError('Society selection token was not returned');
           await selectSociety(memberships.first['societyId'].toString());
         }
       });
 
   Future<void> selectSociety(String societyId) => _run(() async {
-        if (userId == null || selectionGrant == null) throw StateError('OTP verification is required');
-        final result = await api.selectSociety(userId: userId!, societyId: societyId, selectionGrant: selectionGrant!);
+        if (userId == null || selectionToken == null) throw StateError('OTP verification is required');
+        final selected = memberships.where((m) => m['societyId']?.toString() == societyId).toList();
+        if (selected.isEmpty) throw StateError('Selected society is not available for this guard account');
+        final result = await api.selectSociety(userId: userId!, societyId: societyId, selectionToken: selectionToken!);
         final rawSession = result['session'];
         if (rawSession is! Map) throw StateError('Session was not returned');
         await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
-        selectionGrant = null;
+        selectionToken = null;
         memberships = const [];
         await loadGates();
       });
@@ -107,7 +111,9 @@ class GuardController extends ChangeNotifier {
 
   Future<void> verifyCredential(String credential) => _run(() async {
         final gate = _requireGate();
-        verifiedAccess = await api.verifyAccess(gate, credential.trim());
+        final value = credential.trim();
+        if (value.isEmpty) throw StateError('Scan or enter an access credential');
+        verifiedAccess = await api.verifyAccess(gate, value);
       });
 
   Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential, () => api.checkIn(_requireGate(), credential.trim()));
@@ -115,6 +121,8 @@ class GuardController extends ChangeNotifier {
 
   Future<void> _gateMutation(String type, String credential, Future<Map<String, dynamic>> Function() execute) async {
     await _run(() async {
+      final value = credential.trim();
+      if (value.isEmpty) throw StateError('Scan or enter an access credential');
       try {
         verifiedAccess = await execute();
       } on GuardApiException catch (e) {
@@ -122,7 +130,7 @@ class GuardController extends ChangeNotifier {
         await offlineQueue.enqueue(QueuedGateAction(
           type: type,
           gateId: _requireGate(),
-          credential: credential.trim(),
+          credential: value,
           createdAt: DateTime.now(),
         ));
         queuedActions = (await offlineQueue.read()).length;
@@ -142,7 +150,7 @@ class GuardController extends ChangeNotifier {
     api.accessToken = '';
     session = null;
     userId = null;
-    selectionGrant = null;
+    selectionToken = null;
     memberships = const [];
     gates = const [];
     gateId = null;
@@ -204,5 +212,10 @@ class GuardController extends ChangeNotifier {
   List<Map<String, dynamic>> _maps(dynamic value) {
     if (value is! List) return const [];
     return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _guardMemberships(List<Map<String, dynamic>> input) {
+    const allowed = {'SECURITY_GUARD', 'SECURITY_SUPERVISOR'};
+    return input.where((m) => allowed.contains(m['role']?.toString())).toList(growable: false);
   }
 }
