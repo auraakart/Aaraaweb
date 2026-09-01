@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ class GuardController extends ChangeNotifier {
 
   bool booting = true;
   bool busy = false;
+  bool realtimeConnected = false;
   String? error;
   String? challengeId;
   String? userId;
@@ -26,6 +28,8 @@ class GuardController extends ChangeNotifier {
   Map<String, dynamic>? verifiedAccess;
   Map<String, dynamic>? walkInAccess;
   int queuedActions = 0;
+  StreamSubscription<Map<String, dynamic>>? _gateEvents;
+  bool _disposed = false;
 
   bool get signedIn => session != null;
   bool get needsSocietySelection => session == null && userId != null && memberships.length > 1 && selectionToken != null;
@@ -74,7 +78,6 @@ class GuardController extends ChangeNotifier {
         selectionToken = result['selectionToken']?.toString();
         memberships = _guardMemberships(_maps(result['memberships']));
         if (memberships.isEmpty) throw StateError('This account does not have an active security guard role');
-
         final rawSession = result['session'];
         if (rawSession is Map && memberships.length == 1) {
           final societyId = memberships.first['societyId']?.toString();
@@ -104,10 +107,42 @@ class GuardController extends ChangeNotifier {
     final results = await Future.wait([api.gates(), api.gateUnits()]);
     gates = results[0].where((g) => g['active'] != false).toList(growable: false);
     units = results[1];
-    if (gateId == null || !gates.any((g) => g['id']?.toString() == gateId)) {
-      gateId = gates.isEmpty ? null : gates.first['id']?.toString();
-    }
+    if (gateId == null || !gates.any((g) => g['id']?.toString() == gateId)) gateId = gates.isEmpty ? null : gates.first['id']?.toString();
+    if (signedIn && _gateEvents == null) startRealtime();
     notifyListeners();
+  }
+
+  void startRealtime() {
+    _gateEvents?.cancel();
+    _gateEvents = api.gateEvents().listen(
+      (event) async {
+        realtimeConnected = true;
+        if (event['type']?.toString() == 'CONNECTED') {
+          if (!_disposed) notifyListeners();
+          return;
+        }
+        final eventGateId = event['gateId']?.toString();
+        if (eventGateId != null && gateId != eventGateId) return;
+        final requestId = event['requestId']?.toString();
+        if (requestId != null && walkInAccess?['id']?.toString() == requestId && gateId != null) {
+          try {
+            walkInAccess = await api.requestStatus(gateId!, requestId);
+          } catch (_) {}
+        }
+        if (!_disposed) notifyListeners();
+      },
+      onError: (_) {
+        realtimeConnected = false;
+        _gateEvents = null;
+        if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      },
+      onDone: () {
+        realtimeConnected = false;
+        _gateEvents = null;
+        if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      },
+      cancelOnError: true,
+    );
   }
 
   void selectGate(String? value) {
@@ -118,30 +153,11 @@ class GuardController extends ChangeNotifier {
   }
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
-        final gate = _requireGate();
-        walkInAccess = await api.createWalkIn(gateId: gate, unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+        walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
       });
 
-  Future<void> createGateArrival({
-    required String unitId,
-    required String subjectType,
-    required String name,
-    String? provider,
-    String? phone,
-    String? vehicleNumber,
-    String? note,
-  }) => _run(() async {
-        final gate = _requireGate();
-        walkInAccess = await api.createGateArrival(
-          gateId: gate,
-          unitId: unitId,
-          subjectType: subjectType,
-          name: name.trim(),
-          provider: provider,
-          phone: phone,
-          vehicleNumber: vehicleNumber,
-          note: note,
-        );
+  Future<void> createGateArrival({required String unitId, required String subjectType, required String name, String? provider, String? phone, String? vehicleNumber, String? note}) => _run(() async {
+        walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
       });
 
   Future<void> refreshWalkIn() => _run(() async {
@@ -158,9 +174,7 @@ class GuardController extends ChangeNotifier {
         if (requestId == null) throw StateError('No gate approval is active');
         final gate = _requireGate();
         final key = _idempotencyKey();
-        walkInAccess = type == 'CHECK_IN'
-            ? await api.checkInRequest(gate, requestId, key)
-            : await api.checkOutRequest(gate, requestId, key);
+        walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
       });
 
   void clearWalkIn() {
@@ -169,10 +183,9 @@ class GuardController extends ChangeNotifier {
   }
 
   Future<void> verifyCredential(String credential) => _run(() async {
-        final gate = _requireGate();
         final value = credential.trim();
         if (value.isEmpty) throw StateError('Scan or enter an access credential');
-        verifiedAccess = await api.verifyAccess(gate, value);
+        verifiedAccess = await api.verifyAccess(_requireGate(), value);
       });
 
   Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential);
@@ -233,6 +246,9 @@ class GuardController extends ChangeNotifier {
         await api.logout(current.sessionId);
       } catch (_) {}
     }
+    await _gateEvents?.cancel();
+    _gateEvents = null;
+    realtimeConnected = false;
     await sessions.clear();
     api.accessToken = '';
     session = null;
@@ -299,5 +315,12 @@ class GuardController extends ChangeNotifier {
   List<Map<String, dynamic>> _guardMemberships(List<Map<String, dynamic>> input) {
     const allowed = {'SECURITY_GUARD', 'SECURITY_SUPERVISOR'};
     return input.where((m) => allowed.contains(m['role']?.toString())).toList(growable: false);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _gateEvents?.cancel();
+    super.dispose();
   }
 }
