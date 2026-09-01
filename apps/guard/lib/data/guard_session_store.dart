@@ -37,7 +37,7 @@ class GuardSessionStore {
       _storage.read(key: 'guard.userId'),
       _storage.read(key: 'guard.societyId'),
     ]);
-    if (values.any((value) => value == null || value!.isEmpty)) return null;
+    if (values.any((value) => value == null || value.isEmpty)) return null;
     return GuardSession(
       sessionId: values[0]!,
       accessToken: values[1]!,
