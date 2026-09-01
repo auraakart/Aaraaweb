@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'screens/community_screen.dart';
+import 'screens/gate_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/services_screen.dart';
+import 'theme/aaraagate_theme.dart';
 
 void main() => runApp(const AaraagateResidentApp());
 
@@ -8,39 +14,47 @@ class AaraagateResidentApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'aaraagate',
+      title: 'AuraGate',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF176B4D)),
+      theme: AaraagateTheme.light(),
       home: const ResidentHomeShell(),
     );
   }
 }
 
-class ResidentHomeShell extends StatelessWidget {
+class ResidentHomeShell extends StatefulWidget {
   const ResidentHomeShell({super.key});
 
   @override
+  State<ResidentHomeShell> createState() => _ResidentHomeShellState();
+}
+
+class _ResidentHomeShellState extends State<ResidentHomeShell> {
+  int _index = 0;
+
+  void _open(int index) => setState(() => _index = index);
+
+  @override
   Widget build(BuildContext context) {
+    final pages = <Widget>[
+      HomeScreen(onOpenGate: () => _open(1), onOpenServices: () => _open(2)),
+      const GateScreen(),
+      const ServicesScreen(),
+      const CommunityScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: const Text('aaraagate')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: const [
-          Text('Good morning', style: TextStyle(fontSize: 16)),
-          SizedBox(height: 4),
-          Text('Your community at a glance', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-          SizedBox(height: 24),
-          Card(child: Padding(padding: EdgeInsets.all(20), child: Text('Approve visitors and manage passes in a few taps.'))),
-        ],
-      ),
-      bottomNavigationBar: const NavigationBar(
-        selectedIndex: 0,
-        destinations: [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.shield_outlined), label: 'Gate'),
-          NavigationDestination(icon: Icon(Icons.handyman_outlined), label: 'Services'),
-          NavigationDestination(icon: Icon(Icons.forum_outlined), label: 'Community'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+      body: IndexedStack(index: _index, children: pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: _open,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'),
+          NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
+          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Community'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
       ),
     );
