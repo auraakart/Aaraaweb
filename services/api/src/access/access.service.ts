@@ -51,9 +51,7 @@ export class AccessService {
     await this.assertSubjectEnabled(societyId, subjectType);
     await this.assertResidentUnit(societyId, userId, unitId);
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.accessRequest.create({
-        data: { societyId, unitId, requestedById: userId, subjectType, subjectName: subjectName.trim(), subjectPhone: subjectPhone?.trim() || null, purpose: purpose?.trim() || null, metadata: metadata as Prisma.InputJsonValue, status: AccessRequestStatus.PENDING },
-      });
+      const request = await tx.accessRequest.create({ data: { societyId, unitId, requestedById: userId, subjectType, subjectName: subjectName.trim(), subjectPhone: subjectPhone?.trim() || null, purpose: purpose?.trim() || null, metadata: metadata as Prisma.InputJsonValue, status: AccessRequestStatus.PENDING } });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: request.id, event: AuditEventType.ACCESS_CREATED } });
       return request;
     });
@@ -96,7 +94,7 @@ export class AccessService {
   async cancel(societyId: string, userId: string, requestId: string) {
     const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId, requestedById: userId } });
     if (!request) throw new NotFoundException('Access request not found');
-    if (![AccessRequestStatus.PENDING, AccessRequestStatus.APPROVED].includes(request.status)) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
+    if (request.status !== AccessRequestStatus.PENDING && request.status !== AccessRequestStatus.APPROVED) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
     return this.prisma.$transaction(async (tx) => {
       const changed = await tx.accessRequest.updateMany({ where: { id: request.id, societyId, requestedById: userId, status: request.status }, data: { status: AccessRequestStatus.CANCELLED, credentialHash: null } });
       if (changed.count !== 1) throw new BadRequestException('Access request changed before cancellation could complete');
@@ -138,18 +136,13 @@ export class AccessService {
       if (existing.accessRequestId !== accessRequestId || existing.gateId !== gateId || existing.action !== action) throw new BadRequestException('Idempotency key was already used for a different gate operation');
       return this.prisma.accessRequest.findUniqueOrThrow({ where: { id: existing.accessRequestId } });
     }
-
     const expectedStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.APPROVED : AccessRequestStatus.CHECKED_IN;
     const nextStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.CHECKED_IN : AccessRequestStatus.CHECKED_OUT;
     const event = action === GateMutationAction.CHECK_IN ? AuditEventType.ACCESS_CHECKED_IN : AuditEventType.ACCESS_CHECKED_OUT;
     const now = new Date();
-
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const changed = await tx.accessRequest.updateMany({
-          where: { id: accessRequestId, societyId, status: expectedStatus },
-          data: action === GateMutationAction.CHECK_IN ? { status: nextStatus, enteredAt: now } : { status: nextStatus, exitedAt: now },
-        });
+        const changed = await tx.accessRequest.updateMany({ where: { id: accessRequestId, societyId, status: expectedStatus }, data: action === GateMutationAction.CHECK_IN ? { status: nextStatus, enteredAt: now } : { status: nextStatus, exitedAt: now } });
         if (changed.count !== 1) throw new BadRequestException(`Access request is not ready for ${action === GateMutationAction.CHECK_IN ? 'check-in' : 'check-out'}`);
         await tx.gateMutationReceipt.create({ data: { societyId, gateId, accessRequestId, actorUserId, idempotencyKey: key, action } });
         await tx.auditEvent.create({ data: { societyId, actorUserId, gateId, accessRequestId, event } });
