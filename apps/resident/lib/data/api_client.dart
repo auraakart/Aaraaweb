@@ -21,6 +21,26 @@ class ApiClient {
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) => _send('PATCH', path, body);
 
+  Stream<Map<String, dynamic>> sse(String path) async* {
+    if (accessToken.isEmpty) throw ApiException(401, 'Sign in is required');
+    final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${path.replaceFirst(RegExp(r'^/'), '')}');
+    final request = await _client.getUrl(uri);
+    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
+    request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
+    final response = await request.close();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final text = await response.transform(utf8.decoder).join();
+      throw ApiException(response.statusCode, text.isEmpty ? 'Event stream failed' : text);
+    }
+    await for (final line in response.transform(utf8.decoder).transform(const LineSplitter())) {
+      if (!line.startsWith('data:')) continue;
+      final payload = line.substring(5).trim();
+      if (payload.isEmpty) continue;
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) yield Map<String, dynamic>.from(decoded);
+    }
+  }
+
   Future<dynamic> _send(String method, String path, [Map<String, dynamic>? body]) async {
     if (accessToken.isEmpty) throw ApiException(401, 'Sign in is required');
     final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${path.replaceFirst(RegExp(r'^/'), '')}');
