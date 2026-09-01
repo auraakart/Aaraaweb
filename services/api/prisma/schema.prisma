@@ -8,17 +8,18 @@ datasource db {
 }
 
 model User {
-  id          String              @id @default(uuid()) @db.Uuid
-  phone       String              @unique
-  email       String?             @unique
-  name        String?
-  status      UserStatus          @default(ACTIVE)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  memberships SocietyMembership[]
-  unitLinks   UnitResident[]
-  visitors    Visitor[]
-  sessions    Session[]
+  id             String              @id @default(uuid()) @db.Uuid
+  phone          String              @unique
+  email          String?             @unique
+  name           String?
+  status         UserStatus          @default(ACTIVE)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  memberships    SocietyMembership[]
+  unitLinks      UnitResident[]
+  visitors       Visitor[]
+  accessRequests AccessRequest[]
+  sessions       Session[]
 }
 
 model Society {
@@ -39,6 +40,7 @@ model Society {
   emergencyContacts EmergencyContact[]
   visitors          Visitor[]
   visitorPasses     VisitorPass[]
+  accessRequests    AccessRequest[]
   auditEvents       AuditEvent[]
   sessions          Session[]
 }
@@ -67,14 +69,15 @@ model Building {
 }
 
 model Unit {
-  id         String         @id @default(uuid()) @db.Uuid
-  societyId  String         @db.Uuid
-  buildingId String         @db.Uuid
-  number     String
-  building   Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  residents  UnitResident[]
-  household  Household?
-  visitors   Visitor[]
+  id             String          @id @default(uuid()) @db.Uuid
+  societyId      String          @db.Uuid
+  buildingId     String          @db.Uuid
+  number         String
+  building       Building        @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  residents      UnitResident[]
+  household      Household?
+  visitors       Visitor[]
+  accessRequests AccessRequest[]
   @@unique([buildingId, number])
   @@index([societyId])
 }
@@ -117,13 +120,13 @@ model HouseholdVehicle {
   householdId String      @db.Uuid
   plateNumber String
   vehicleType VehicleType
-  make         String?
-  model        String?
-  color        String?
-  active       Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  society      Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  household    Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  make        String?
+  model       String?
+  color       String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  society     Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
   @@unique([societyId, plateNumber])
   @@index([householdId, active])
 }
@@ -152,6 +155,32 @@ model Gate {
   society     Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
   auditEvents AuditEvent[]
   @@unique([societyId, code])
+}
+
+model AccessRequest {
+  id             String              @id @default(uuid()) @db.Uuid
+  societyId      String              @db.Uuid
+  unitId         String              @db.Uuid
+  requestedById  String              @db.Uuid
+  subjectType    AccessSubjectType
+  subjectName    String
+  subjectPhone   String?
+  purpose        String?
+  status         AccessRequestStatus @default(PENDING)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  credentialHash String?
+  enteredAt      DateTime?
+  exitedAt       DateTime?
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  society        Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit           Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  requestedBy    User                @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  @@index([societyId, unitId, status])
+  @@index([societyId, requestedById, createdAt])
+  @@index([societyId, credentialHash])
 }
 
 model Visitor {
@@ -232,6 +261,8 @@ enum ProductTier { STARTER PROFESSIONAL PREMIUM ENTERPRISE }
 enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGER ACCOUNTANT OWNER TENANT FAMILY_MEMBER SECURITY_SUPERVISOR SECURITY_GUARD STAFF VENDOR }
 enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
 enum VehicleType { TWO_WHEELER CAR OTHER }
+enum AccessSubjectType { VISITOR DELIVERY CAB DOMESTIC_HELP VENDOR SERVICE_PROVIDER CONTRACTOR OTHER }
+enum AccessRequestStatus { PENDING APPROVED DENIED CANCELLED CHECKED_IN CHECKED_OUT EXPIRED }
 enum VisitorStatus { PENDING APPROVED DENIED CHECKED_IN CHECKED_OUT CANCELLED }
 enum VisitorPassStatus { ACTIVE USED EXPIRED REVOKED }
 enum AuditEventType { VISITOR_VERIFIED VISITOR_CHECKED_IN VISITOR_CHECKED_OUT }
