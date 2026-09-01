@@ -6,6 +6,7 @@ import { SessionService } from './session.service';
 
 class RequestOtpDto { @IsPhoneNumber(null) phone!: string; }
 class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
+class SelectSocietyDto { @IsUUID() userId!: string; @IsUUID() societyId!: string; }
 class RefreshDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
 class LogoutDto { @IsUUID() sessionId!: string; }
 
@@ -22,6 +23,13 @@ export class AuthController {
     if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
     const memberships = await this.prisma.societyMembership.findMany({ where: { userId: user.id, active: true }, select: { societyId: true, role: true } });
     return { verified: true, userId: user.id, memberships, session: memberships.length === 1 ? await this.sessions.create(user.id, memberships[0].societyId, [memberships[0].role as any]) : undefined };
+  }
+
+  @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
+    const membership = await this.prisma.societyMembership.findFirst({ where: { userId: dto.userId, societyId: dto.societyId, active: true } });
+    if (!membership) throw new UnauthorizedException('User is not an active member of this society');
+    const session = await this.sessions.create(dto.userId, dto.societyId, [membership.role as any]);
+    return { societyId: dto.societyId, role: membership.role, session };
   }
 
   @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
