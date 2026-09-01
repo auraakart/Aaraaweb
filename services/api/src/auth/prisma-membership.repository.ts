@@ -21,6 +21,7 @@ export class PrismaMembershipRepository {
   }
 
   async hasRole(userId: string, societyId: string, role: AppRole): Promise<boolean> {
-    return this.prisma.societyMembership.count({ where: { userId, societyId, role: role as MembershipRole, active: true } }) > 0;
+    const count = await this.prisma.societyMembership.count({ where: { userId, societyId, role: role as MembershipRole, active: true } });
+    return count > 0;
   }
 }
