@@ -6,79 +6,6 @@ on:
     branches: [develop, main]
 
 jobs:
-  api:
-    name: API validation
-    runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_ci
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Validate Prisma schema
-        working-directory: services/api
-        run: pnpm prisma:validate
-
-      - name: Generate Prisma client
-        working-directory: services/api
-        run: pnpm prisma:generate
-
-      - name: Typecheck API
-        working-directory: services/api
-        run: pnpm typecheck
-
-      - name: Test API
-        working-directory: services/api
-        run: pnpm test
-
-      - name: Build API
-        working-directory: services/api
-        run: pnpm build
-
-  flutter:
-    name: Flutter validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: stable
-          cache: true
-
-      - name: Resident dependencies
-        working-directory: apps/resident
-        run: flutter pub get
-
-      - name: Analyze resident app
-        working-directory: apps/resident
-        run: flutter analyze
-
-      - name: Guard dependencies
-        working-directory: apps/guard
-        run: flutter pub get
-
-      - name: Analyze guard app
-        working-directory: apps/guard
-        run: flutter analyze
-
   repository-structure:
     name: Repository structure
     runs-on: ubuntu-latest
@@ -96,3 +23,57 @@ jobs:
           test -d packages/types
           test -d packages/api-client
           test -d packages/config
+
+  api-validation:
+    name: API validation
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Validate Prisma schema
+        run: pnpm --filter @aaraagate/api prisma:validate
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Typecheck API
+        run: pnpm --filter @aaraagate/api typecheck
+      - name: Test API
+        run: pnpm --filter @aaraagate/api test
+      - name: Build API
+        run: pnpm --filter @aaraagate/api build
+
+  flutter-validation:
+    name: Flutter validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+          cache: true
+      - name: Resident dependencies
+        working-directory: apps/resident
+        run: flutter pub get
+      - name: Analyze resident app
+        working-directory: apps/resident
+        run: flutter analyze
+      - name: Guard dependencies
+        working-directory: apps/guard
+        run: flutter pub get
+      - name: Analyze guard app
+        working-directory: apps/guard
+        run: flutter analyze
