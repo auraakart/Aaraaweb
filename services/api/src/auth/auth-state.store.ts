@@ -1,15 +1,16 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { createClient, RedisClientType } from 'redis';
+import { createClient } from 'redis';
 
 type MemoryValue = { value: string; expiresAt: number };
+type RedisClient = ReturnType<typeof createClient>;
 
 @Injectable()
 export class AuthStateStore implements OnModuleDestroy {
   private readonly memory = new Map<string, MemoryValue>();
-  private client?: RedisClientType;
-  private connecting?: Promise<RedisClientType>;
+  private client?: RedisClient;
+  private connecting?: Promise<RedisClient>;
 
-  private async redis(): Promise<RedisClientType | undefined> {
+  private async redis(): Promise<RedisClient | undefined> {
     const url = process.env.REDIS_URL?.trim();
     if (!url) {
       if (process.env.NODE_ENV === 'production') {
@@ -19,7 +20,7 @@ export class AuthStateStore implements OnModuleDestroy {
     }
     if (this.client?.isOpen) return this.client;
     if (!this.connecting) {
-      const client = createClient({ url });
+      const client: RedisClient = createClient({ url });
       client.on('error', () => undefined);
       this.connecting = client.connect().then(() => {
         this.client = client;
