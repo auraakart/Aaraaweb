@@ -1,5 +1,6 @@
 import { Injectable, MessageEvent } from '@nestjs/common';
 import { Observable, Subject, startWith } from 'rxjs';
+import { PushNotificationService } from './push-notification.service';
 
 export type AccessRealtimeEvent = {
   type: 'ACCESS_APPROVAL_REQUESTED' | 'ACCESS_APPROVAL_DECIDED' | 'ACCESS_STATUS_CHANGED';
@@ -17,6 +18,8 @@ export type AccessRealtimeEvent = {
 export class NotificationRealtimeService {
   private readonly residentStreams = new Map<string, Subject<MessageEvent>>();
   private readonly societyGateStreams = new Map<string, Subject<MessageEvent>>();
+
+  constructor(private readonly push: PushNotificationService) {}
 
   residentStream(societyId: string, userId: string): Observable<MessageEvent> {
     const key = `${societyId}:${userId}`;
@@ -40,6 +43,7 @@ export class NotificationRealtimeService {
   publishResident(event: AccessRealtimeEvent) {
     if (!event.userId) return;
     this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({ data: event });
+    void this.push.sendResidentEvent(event);
   }
 
   publishGateUpdate(event: AccessRealtimeEvent) {
