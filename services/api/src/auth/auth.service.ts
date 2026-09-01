@@ -1,4 +1,4 @@
-import { Injectable, TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { AuthStateStore } from './auth-state.store';
 
@@ -20,7 +20,7 @@ export class AuthService {
     const normalizedPhone = phone.replace(/\s+/g, '');
     const requestCount = await this.state.increment(`auth:otp:rate:${normalizedPhone}`, OTP_REQUEST_WINDOW_SECONDS);
     if (requestCount > OTP_MAX_REQUESTS_PER_WINDOW) {
-      throw new TooManyRequestsException('Too many OTP requests. Try again later');
+      throw new HttpException('Too many OTP requests. Try again later', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     const challengeId = randomUUID();
