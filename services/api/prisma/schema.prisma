@@ -26,31 +26,33 @@ model User {
 }
 
 model Society {
-  id                  String                    @id @default(uuid()) @db.Uuid
-  name                String
-  code                String                    @unique
-  status              SocietyStatus             @default(ACTIVE)
-  productTier         ProductTier               @default(STARTER)
-  featureOverrides    Json                      @default("{}")
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
-  memberships         SocietyMembership[]
-  buildings           Building[]
-  gates               Gate[]
-  unitLinks           UnitResident[]
-  households          Household[]
-  vehicles            HouseholdVehicle[]
-  emergencyContacts   EmergencyContact[]
-  visitors            Visitor[]
-  visitorPasses       VisitorPass[]
-  accessRequests      AccessRequest[]
-  providerApprovals   ServiceProviderSociety[]
-  serviceBookings     ServiceBooking[]
-  serviceRatings      ServiceRating[]
-  auditEvents         AuditEvent[]
-  gateMutations       GateMutationReceipt[]
-  sessions            Session[]
-  pushDeviceTokens    DevicePushToken[]
+  id                   String                    @id @default(uuid()) @db.Uuid
+  name                 String
+  code                 String                    @unique
+  status               SocietyStatus             @default(ACTIVE)
+  productTier          ProductTier               @default(STARTER)
+  featureOverrides     Json                      @default("{}")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  memberships          SocietyMembership[]
+  buildings            Building[]
+  gates                Gate[]
+  unitLinks            UnitResident[]
+  households           Household[]
+  vehicles             HouseholdVehicle[]
+  emergencyContacts    EmergencyContact[]
+  domesticWorkers      DomesticWorker[]
+  workforceAssignments WorkforceAssignment[]
+  visitors             Visitor[]
+  visitorPasses        VisitorPass[]
+  accessRequests       AccessRequest[]
+  providerApprovals    ServiceProviderSociety[]
+  serviceBookings      ServiceBooking[]
+  serviceRatings       ServiceRating[]
+  auditEvents          AuditEvent[]
+  gateMutations        GateMutationReceipt[]
+  sessions             Session[]
+  pushDeviceTokens     DevicePushToken[]
 }
 
 model SocietyMembership {
@@ -109,17 +111,18 @@ model UnitResident {
 }
 
 model Household {
-  id                String              @id @default(uuid()) @db.Uuid
-  societyId         String              @db.Uuid
-  unitId            String              @unique @db.Uuid
-  displayName       String?
-  accessPreferences Json                @default("{}")
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  society           Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit              Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  vehicles          HouseholdVehicle[]
-  emergencyContacts EmergencyContact[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  societyId            String                @db.Uuid
+  unitId               String                @unique @db.Uuid
+  displayName          String?
+  accessPreferences    Json                  @default("{}")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  society              Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                 Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  vehicles             HouseholdVehicle[]
+  emergencyContacts    EmergencyContact[]
+  workforceAssignments WorkforceAssignment[]
   @@index([societyId])
 }
 
@@ -153,6 +156,42 @@ model EmergencyContact {
   society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   @@index([householdId, active, priority])
+}
+
+model DomesticWorker {
+  id           String                           @id @default(uuid()) @db.Uuid
+  societyId    String                           @db.Uuid
+  name         String
+  phone        String
+  role         DomesticWorkerRole
+  verification DomesticWorkerVerificationStatus @default(PENDING)
+  active       Boolean                          @default(true)
+  createdAt    DateTime                         @default(now())
+  updatedAt    DateTime                         @updatedAt
+  society      Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignments  WorkforceAssignment[]
+  @@unique([societyId, phone])
+  @@index([societyId, verification, active])
+}
+
+model WorkforceAssignment {
+  id          String                    @id @default(uuid()) @db.Uuid
+  societyId   String                    @db.Uuid
+  householdId String                    @db.Uuid
+  workerId    String                    @db.Uuid
+  status      WorkforceAssignmentStatus @default(PENDING)
+  schedule    Json                      @default("{}")
+  active      Boolean                   @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  society     Society                   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household   Household                 @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  worker      DomesticWorker            @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@unique([householdId, workerId])
+  @@index([societyId, status, active])
+  @@index([societyId, workerId, active])
 }
 
 model Gate {
@@ -461,6 +500,28 @@ enum DevicePlatform {
   ANDROID
   IOS
   WEB
+}
+
+enum DomesticWorkerRole {
+  MAID
+  DRIVER
+  COOK
+  NANNY
+  OTHER
+}
+
+enum DomesticWorkerVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum WorkforceAssignmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
 }
 
 enum AccessSubjectType {
