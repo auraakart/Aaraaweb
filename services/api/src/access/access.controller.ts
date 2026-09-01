@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { AccessSubjectType } from '@prisma/client';
 import { IsDateString, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -48,59 +48,50 @@ export class AccessController {
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
   create(@Body() dto: CreateAccessRequestDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.create(
-      societyId,
-      userId,
-      dto.unitId,
-      dto.subjectType,
-      dto.subjectName,
-      dto.subjectPhone,
-      dto.purpose,
-      dto.metadata,
-    );
+    return this.access.create(societyId, userId, dto.unitId, dto.subjectType, dto.subjectName, dto.subjectPhone, dto.purpose, dto.metadata);
   }
 
   @Post(':requestId/approve')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  approve(
-    @Param('requestId') requestId: string,
-    @Body() dto: ApproveAccessRequestDto,
-    @CurrentTenant() societyId: string,
-    @CurrentUser() userId: string,
-  ) {
+  approve(@Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() dto: ApproveAccessRequestDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.access.approve(societyId, userId, requestId, new Date(dto.validFrom), new Date(dto.validUntil));
   }
 
   @Post(':requestId/deny')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  deny(@Param('requestId') requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  deny(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.access.deny(societyId, userId, requestId);
   }
 
   @Post(':requestId/cancel')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  cancel(@Param('requestId') requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  cancel(@Param('requestId', new ParseUUIDPipe()) requestId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.access.cancel(societyId, userId, requestId);
   }
 
   @Post('gate/verify')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  verify(@Body() dto: GateAccessDto, @CurrentTenant() societyId: string) {
-    return this.access.verify(societyId, dto.gateId, dto.credential);
+  verify(@Body() dto: GateAccessDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    return this.access.verify(societyId, dto.gateId, dto.credential, actorUserId);
   }
 
   @Post('gate/check-in')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  checkIn(@Body() dto: GateAccessDto, @CurrentTenant() societyId: string) {
-    return this.access.checkIn(societyId, dto.gateId, dto.credential);
+  checkIn(@Body() dto: GateAccessDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
+    return this.access.checkIn(societyId, dto.gateId, dto.credential, actorUserId, idempotencyKey);
   }
 
   @Post('gate/check-out')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  checkOut(@Body() dto: GateAccessDto, @CurrentTenant() societyId: string) {
-    return this.access.checkOut(societyId, dto.gateId, dto.credential);
+  checkOut(@Body() dto: GateAccessDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
+    if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
+    if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
+    return this.access.checkOut(societyId, dto.gateId, dto.credential, actorUserId, idempotencyKey);
   }
 }
