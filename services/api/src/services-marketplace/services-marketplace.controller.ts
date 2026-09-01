@@ -75,15 +75,7 @@ export class ServicesMarketplaceController {
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
   book(@Body() dto: CreateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.marketplace.book(
-      societyId,
-      userId,
-      dto.unitId,
-      dto.offeringId,
-      new Date(dto.scheduledFrom),
-      new Date(dto.scheduledUntil),
-      dto.notes,
-    );
+    return this.marketplace.book(societyId, userId, dto.unitId, dto.offeringId, new Date(dto.scheduledFrom), new Date(dto.scheduledUntil), dto.notes);
   }
 
   @Get('bookings/mine')
@@ -117,12 +109,6 @@ export class ServicesMarketplaceController {
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
   createProvider(@Body() dto: CreateProviderDto) {
     return this.marketplace.createProvider(dto);
-  }
-
-  @Post('platform/providers/:providerId/verify')
-  @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY)
-  verifyProvider(@Param('providerId') providerId: string) {
-    return this.marketplace.verifyProvider(providerId);
   }
 
   @Post('admin/providers/:providerId/approve')
