@@ -58,6 +58,11 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
     _dataController = ResidentDataController(ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken)));
   }
 
+  Future<void> _signOut() async {
+    await _dataController?.stopPushNotifications();
+    await widget.authController.signOut();
+  }
+
   @override
   void dispose() {
     _dataController?.dispose();
@@ -76,7 +81,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           return AuthScreen(controller: widget.authController);
         }
         _ensureDataController();
-        return ResidentHomeShell(controller: _dataController!, onSignOut: widget.authController.signOut);
+        return ResidentHomeShell(controller: _dataController!, onSignOut: _signOut);
       },
     );
   }
