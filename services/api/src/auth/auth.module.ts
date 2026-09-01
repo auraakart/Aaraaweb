@@ -9,11 +9,12 @@ import { BearerGuard } from './bearer.guard';
 import { PrismaMembershipRepository } from './prisma-membership.repository';
 import { AuthContextService } from './auth-context.service';
 import { TenantGuard } from './tenant.guard';
+import { OtpDeliveryService } from './otp-delivery.service';
 
 @Global()
 @Module({
   controllers: [AuthController],
-  providers: [RolesGuard, PermissionsGuard, AuthService, AuthStateStore, SessionService, BearerGuard, PrismaMembershipRepository, AuthContextService, TenantGuard],
-  exports: [RolesGuard, PermissionsGuard, AuthService, AuthStateStore, SessionService, BearerGuard, PrismaMembershipRepository, AuthContextService, TenantGuard],
+  providers: [RolesGuard, PermissionsGuard, AuthService, AuthStateStore, OtpDeliveryService, SessionService, BearerGuard, PrismaMembershipRepository, AuthContextService, TenantGuard],
+  exports: [RolesGuard, PermissionsGuard, AuthService, AuthStateStore, OtpDeliveryService, SessionService, BearerGuard, PrismaMembershipRepository, AuthContextService, TenantGuard],
 })
 export class AuthModule {}
