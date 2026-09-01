@@ -171,8 +171,23 @@ class _Metric extends StatelessWidget {
   const _Metric({required this.label, required this.value});
   final String label;
   final String value;
+
   @override
-  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 2), Text(label)])));
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
+            Text(label),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AccessCard extends StatelessWidget {
@@ -223,6 +238,24 @@ class _StateCard extends StatelessWidget {
   final String message;
   final String? action;
   final VoidCallback? onTap;
+
   @override
-  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(22), child: Column(children: [Icon(icon, size: 34), const SizedBox(height: 10), Text(message, textAlign: TextAlign.center), if (action != null) ...[const SizedBox(height: 10), TextButton(onPressed: onTap, child: Text(action!))]]));
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          children: [
+            Icon(icon, size: 34),
+            const SizedBox(height: 10),
+            Text(message, textAlign: TextAlign.center),
+            if (action != null) ...[
+              const SizedBox(height: 10),
+              TextButton(onPressed: onTap, child: Text(action!)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
