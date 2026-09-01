@@ -22,22 +22,25 @@ model User {
 }
 
 model Society {
-  id               String              @id @default(uuid()) @db.Uuid
-  name             String
-  code             String              @unique
-  status           SocietyStatus       @default(ACTIVE)
-  productTier      ProductTier         @default(STARTER)
-  featureOverrides Json                @default("{}")
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  memberships      SocietyMembership[]
-  buildings        Building[]
-  gates            Gate[]
-  unitLinks        UnitResident[]
-  visitors         Visitor[]
-  visitorPasses    VisitorPass[]
-  auditEvents      AuditEvent[]
-  sessions         Session[]
+  id                String              @id @default(uuid()) @db.Uuid
+  name              String
+  code              String              @unique
+  status            SocietyStatus       @default(ACTIVE)
+  productTier       ProductTier         @default(STARTER)
+  featureOverrides  Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  memberships       SocietyMembership[]
+  buildings         Building[]
+  gates             Gate[]
+  unitLinks         UnitResident[]
+  households        Household[]
+  vehicles          HouseholdVehicle[]
+  emergencyContacts EmergencyContact[]
+  visitors          Visitor[]
+  visitorPasses     VisitorPass[]
+  auditEvents       AuditEvent[]
+  sessions          Session[]
 }
 
 model SocietyMembership {
@@ -70,6 +73,7 @@ model Unit {
   number     String
   building   Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   residents  UnitResident[]
+  household  Household?
   visitors   Visitor[]
   @@unique([buildingId, number])
   @@index([societyId])
@@ -90,6 +94,53 @@ model UnitResident {
   @@unique([unitId, userId])
   @@index([societyId, unitId])
   @@index([societyId, userId])
+}
+
+model Household {
+  id                String              @id @default(uuid()) @db.Uuid
+  societyId         String              @db.Uuid
+  unitId            String              @unique @db.Uuid
+  displayName       String?
+  accessPreferences Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  society           Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit              Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  vehicles          HouseholdVehicle[]
+  emergencyContacts EmergencyContact[]
+  @@index([societyId])
+}
+
+model HouseholdVehicle {
+  id          String      @id @default(uuid()) @db.Uuid
+  societyId   String      @db.Uuid
+  householdId String      @db.Uuid
+  plateNumber String
+  vehicleType VehicleType
+  make         String?
+  model        String?
+  color        String?
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  society      Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household    Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  @@unique([societyId, plateNumber])
+  @@index([householdId, active])
+}
+
+model EmergencyContact {
+  id          String    @id @default(uuid()) @db.Uuid
+  societyId   String    @db.Uuid
+  householdId String    @db.Uuid
+  name        String
+  phone       String
+  relation    String?
+  priority    Int       @default(1)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  @@index([householdId, active, priority])
 }
 
 model Gate {
@@ -180,6 +231,7 @@ enum SocietyStatus { ACTIVE SUSPENDED }
 enum ProductTier { STARTER PROFESSIONAL PREMIUM ENTERPRISE }
 enum MembershipRole { SUPER_ADMIN SOCIETY_ADMIN COMMITTEE_MEMBER FACILITY_MANAGER ACCOUNTANT OWNER TENANT FAMILY_MEMBER SECURITY_SUPERVISOR SECURITY_GUARD STAFF VENDOR }
 enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
+enum VehicleType { TWO_WHEELER CAR OTHER }
 enum VisitorStatus { PENDING APPROVED DENIED CHECKED_IN CHECKED_OUT CANCELLED }
 enum VisitorPassStatus { ACTIVE USED EXPIRED REVOKED }
 enum AuditEventType { VISITOR_VERIFIED VISITOR_CHECKED_IN VISITOR_CHECKED_OUT }
