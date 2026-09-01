@@ -117,7 +117,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       builder: (context, _) {
         final controller = widget.controller;
         final pages = <Widget>[
-          HomeScreen(onOpenGate: () => _open(1), onOpenServices: () => _open(2)),
+          HomeScreen(controller: controller, onOpenGate: () => _open(1), onOpenServices: () => _open(2)),
           GateScreen(controller: controller),
           ServicesScreen(controller: controller),
           const CommunityScreen(),
