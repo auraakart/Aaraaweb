@@ -11,6 +11,9 @@ export enum AppPermission {
   GATE_ACCESS_PROCESS = 'GATE_ACCESS_PROCESS',
   HOUSEHOLD_READ_OWN = 'HOUSEHOLD_READ_OWN',
   HOUSEHOLD_MANAGE_OWN = 'HOUSEHOLD_MANAGE_OWN',
+  WORKFORCE_READ_OWN = 'WORKFORCE_READ_OWN',
+  WORKFORCE_MANAGE_OWN = 'WORKFORCE_MANAGE_OWN',
+  WORKFORCE_REVIEW = 'WORKFORCE_REVIEW',
   SOCIETY_CONFIGURATION_READ = 'SOCIETY_CONFIGURATION_READ',
   SOCIETY_CONFIGURATION_MANAGE = 'SOCIETY_CONFIGURATION_MANAGE',
   SERVICES_MARKETPLACE_USE = 'SERVICES_MARKETPLACE_USE',
@@ -26,6 +29,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOCIETY_CONFIGURATION_READ,
     AppPermission.SOCIETY_CONFIGURATION_MANAGE,
     AppPermission.GATE_READ,
+    AppPermission.WORKFORCE_REVIEW,
     AppPermission.REPORTS_READ,
     AppPermission.AUDIT_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
@@ -39,6 +43,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
   [AppRole.FACILITY_MANAGER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
     AppPermission.GATE_READ,
+    AppPermission.WORKFORCE_REVIEW,
     AppPermission.REPORTS_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
   ],
@@ -50,6 +55,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.ACCESS_MANAGE_OWN,
     AppPermission.HOUSEHOLD_READ_OWN,
     AppPermission.HOUSEHOLD_MANAGE_OWN,
+    AppPermission.WORKFORCE_READ_OWN,
+    AppPermission.WORKFORCE_MANAGE_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
   ],
   [AppRole.TENANT]: [
@@ -59,6 +66,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.ACCESS_MANAGE_OWN,
     AppPermission.HOUSEHOLD_READ_OWN,
     AppPermission.HOUSEHOLD_MANAGE_OWN,
+    AppPermission.WORKFORCE_READ_OWN,
+    AppPermission.WORKFORCE_MANAGE_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
   ],
   [AppRole.FAMILY_MEMBER]: [
@@ -67,6 +76,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.ACCESS_READ_OWN,
     AppPermission.ACCESS_MANAGE_OWN,
     AppPermission.HOUSEHOLD_READ_OWN,
+    AppPermission.WORKFORCE_READ_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
   ],
   [AppRole.SECURITY_SUPERVISOR]: [
