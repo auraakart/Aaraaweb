@@ -55,6 +55,31 @@ describe('AccessService', () => {
     expect(prisma.auditEvent.create).toHaveBeenCalledTimes(1);
   });
 
+  it('creates an approved visitor invite and returns the raw gate credential once', async () => {
+    const { svc, prisma, entitlements } = setup();
+    const result = await svc.inviteVisitor(
+      'society-1',
+      'user-1',
+      'unit-1',
+      'Rahul',
+      new Date(Date.now() - 1000),
+      new Date(Date.now() + 60_000),
+      '9999999999',
+      'Dinner',
+    );
+    expect(entitlements.isEnabled).toHaveBeenCalledWith('society-1', ProductFeature.VISITOR_MANAGEMENT);
+    expect(result.credential).toEqual(expect.any(String));
+    expect(result.credential.length).toBeGreaterThan(20);
+    expect(prisma.accessRequest.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        subjectType: AccessSubjectType.VISITOR,
+        status: AccessRequestStatus.APPROVED,
+        credentialHash: expect.any(String),
+      }),
+    }));
+    expect(prisma.auditEvent.create).toHaveBeenCalledTimes(2);
+  });
+
   it('denies an access type disabled for the society tier', async () => {
     const { svc } = setup({}, false);
     await expect(svc.create('society-1', 'user-1', 'unit-1', AccessSubjectType.DOMESTIC_HELP, 'Maya')).rejects.toBeInstanceOf(ForbiddenException);

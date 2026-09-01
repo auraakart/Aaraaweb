@@ -57,6 +57,34 @@ export class AccessService {
     });
   }
 
+  async inviteVisitor(societyId: string, userId: string, unitId: string, subjectName: string, validFrom: Date, validUntil: Date, subjectPhone?: string, purpose?: string) {
+    if (validUntil <= validFrom) throw new BadRequestException('Access validity window is invalid');
+    await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
+    await this.assertResidentUnit(societyId, userId, unitId);
+    const credential = this.credential();
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.accessRequest.create({
+        data: {
+          societyId,
+          unitId,
+          requestedById: userId,
+          subjectType: AccessSubjectType.VISITOR,
+          subjectName: subjectName.trim(),
+          subjectPhone: subjectPhone?.trim() || null,
+          purpose: purpose?.trim() || null,
+          status: AccessRequestStatus.APPROVED,
+          validFrom,
+          validUntil,
+          credentialHash: credential.hash,
+        },
+      });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_CREATED } });
+      await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_APPROVED } });
+      return created;
+    });
+    return { request, credential: credential.raw };
+  }
+
   listMine(societyId: string, userId: string) {
     return this.prisma.accessRequest.findMany({ where: { societyId, requestedById: userId }, orderBy: { createdAt: 'desc' } });
   }
@@ -117,7 +145,9 @@ export class AccessService {
   }
 
   async checkIn(societyId: string, gateId: string, rawCredential: string, actorUserId: string, idempotencyKey: string) {
-    const request = await this.verify(societyId, gateId, rawCredential);
+    await this.assertGate(societyId, gateId);
+    const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
+    if (!request) throw new NotFoundException('Access credential not found');
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
   }
 
@@ -136,6 +166,16 @@ export class AccessService {
       if (existing.accessRequestId !== accessRequestId || existing.gateId !== gateId || existing.action !== action) throw new BadRequestException('Idempotency key was already used for a different gate operation');
       return this.prisma.accessRequest.findUniqueOrThrow({ where: { id: existing.accessRequestId } });
     }
+
+    if (action === GateMutationAction.CHECK_IN) {
+      const request = await this.prisma.accessRequest.findUniqueOrThrow({ where: { id: accessRequestId } });
+      const now = new Date();
+      if (!request.validFrom || !request.validUntil || now < request.validFrom || now > request.validUntil) {
+        throw new BadRequestException('Access credential is outside its validity window');
+      }
+      await this.assertSubjectEnabled(societyId, request.subjectType);
+    }
+
     const expectedStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.APPROVED : AccessRequestStatus.CHECKED_IN;
     const nextStatus = action === GateMutationAction.CHECK_IN ? AccessRequestStatus.CHECKED_IN : AccessRequestStatus.CHECKED_OUT;
     const event = action === GateMutationAction.CHECK_IN ? AuditEventType.ACCESS_CHECKED_IN : AuditEventType.ACCESS_CHECKED_OUT;

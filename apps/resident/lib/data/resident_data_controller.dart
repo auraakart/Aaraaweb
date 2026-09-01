@@ -15,6 +15,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> serviceCategories = const [];
   List<Map<String, dynamic>> serviceOfferings = const [];
   List<Map<String, dynamic>> bookings = const [];
+  Map<String, dynamic>? lastIssuedVisitorPass;
 
   String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
   Map<String, dynamic>? get firstPendingAccess {
@@ -76,11 +77,20 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
-  Future<void> approveAccess(String requestId, {Duration duration = const Duration(hours: 4)}) async {
+  Future<Map<String, dynamic>> approveAccess(String requestId, {Duration duration = const Duration(hours: 4)}) async {
     final now = DateTime.now();
-    await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(duration));
+    final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(duration));
+    final credential = result['credential']?.toString();
+    final rawRequest = result['request'];
+    if (credential != null && rawRequest is Map) {
+      lastIssuedVisitorPass = {
+        'credential': credential,
+        'request': Map<String, dynamic>.from(rawRequest),
+      };
+    }
     await _loadAccess();
     notifyListeners();
+    return result;
   }
 
   Future<void> denyAccess(String requestId) async {
@@ -89,17 +99,40 @@ class ResidentDataController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createGuest({required String name, String? phone, String? purpose}) async {
+  Future<void> cancelAccess(String requestId) async {
+    await repository.cancelAccess(requestId);
+    await _loadAccess();
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
     final unitId = primaryUnitId;
     if (unitId == null) throw StateError('No household unit is available');
-    await repository.createAccess(
+    final now = DateTime.now();
+    final result = await repository.inviteVisitor(
       unitId: unitId,
-      subjectType: 'VISITOR',
-      subjectName: name,
-      subjectPhone: phone,
+      name: name,
+      phone: phone,
       purpose: purpose,
+      validFrom: now,
+      validUntil: now.add(duration),
     );
+    final rawRequest = result['request'];
+    final credential = result['credential']?.toString();
+    if (rawRequest is! Map || credential == null || credential.isEmpty) {
+      throw StateError('Visitor pass was not returned');
+    }
+    lastIssuedVisitorPass = {
+      'credential': credential,
+      'request': Map<String, dynamic>.from(rawRequest),
+    };
     await _loadAccess();
+    notifyListeners();
+    return lastIssuedVisitorPass!;
+  }
+
+  void clearIssuedVisitorPass() {
+    lastIssuedVisitorPass = null;
     notifyListeners();
   }
 }
