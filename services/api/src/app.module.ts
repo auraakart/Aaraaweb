@@ -1,6 +1,7 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
+import { EntitlementsModule } from './entitlements/entitlements.module';
 import { ResidentsModule } from './residents/residents.module';
 import { SocietiesModule } from './societies/societies.module';
 import { PropertiesModule } from './properties/properties.module';
@@ -16,7 +17,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [AuthModule, SocietiesModule, ResidentsModule, PropertiesModule, GatesModule, VisitorsModule],
+  imports: [AuthModule, EntitlementsModule, SocietiesModule, ResidentsModule, PropertiesModule, GatesModule, VisitorsModule],
   controllers: [HealthController],
   providers: [PrismaService],
   exports: [PrismaService],
