@@ -243,7 +243,7 @@ class GuardController extends ChangeNotifier {
     final current = session;
     if (current != null) {
       try {
-        await api.logout(current.sessionId);
+        await api.logout(current.sessionId, current.refreshToken);
       } catch (_) {}
     }
     await _gateEvents?.cancel();
