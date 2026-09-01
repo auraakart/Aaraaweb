@@ -1,8 +1,16 @@
 import { Controller, Get, Module } from '@nestjs/common';
+import { AccessModule } from './access/access.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
+import { EntitlementsModule } from './entitlements/entitlements.module';
+import { HouseholdsModule } from './households/households.module';
 import { ResidentsModule } from './residents/residents.module';
+import { ServicesMarketplaceModule } from './services-marketplace/services-marketplace.module';
 import { SocietiesModule } from './societies/societies.module';
+import { PropertiesModule } from './properties/properties.module';
+import { GatesModule } from './gates/gates.module';
+import { VisitorsModule } from './visitors/visitors.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Controller('health')
 class HealthController {
@@ -13,7 +21,19 @@ class HealthController {
 }
 
 @Module({
-  imports: [AuthModule, SocietiesModule, ResidentsModule],
+  imports: [
+    AuthModule,
+    EntitlementsModule,
+    NotificationsModule,
+    SocietiesModule,
+    ResidentsModule,
+    PropertiesModule,
+    HouseholdsModule,
+    GatesModule,
+    VisitorsModule,
+    AccessModule,
+    ServicesMarketplaceModule,
+  ],
   controllers: [HealthController],
   providers: [PrismaService],
   exports: [PrismaService],

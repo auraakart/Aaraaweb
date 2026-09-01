@@ -1,39 +1,47 @@
 import 'package:flutter/material.dart';
+import 'data/guard_api.dart';
+import 'data/guard_session_store.dart';
+import 'data/offline_action_queue.dart';
+import 'guard_controller.dart';
+import 'screens/guard_login_screen.dart';
+import 'screens/guard_operations_screen.dart';
 
-void main() => runApp(const AaraagateGuardApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  const baseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
+  final controller = GuardController(
+    api: GuardApi(baseUrl: baseUrl),
+    sessions: const GuardSessionStore(),
+    offlineQueue: const OfflineActionQueue(),
+  );
+  runApp(AaraagateGuardApp(controller: controller));
+  controller.bootstrap();
+}
 
 class AaraagateGuardApp extends StatelessWidget {
-  const AaraagateGuardApp({super.key});
+  const AaraagateGuardApp({super.key, required this.controller});
+  final GuardController controller;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'aaraagate Guard',
+      title: 'AuraGate Guard',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF176B4D)),
-      home: const GuardGateShell(),
-    );
-  }
-}
-
-class GuardGateShell extends StatelessWidget {
-  const GuardGateShell({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Gate Operations')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Ready at Gate 1', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)))),
-          SizedBox(height: 12),
-          FilledButton(onPressed: null, child: Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('NEW VISITOR'))),
-          SizedBox(height: 12),
-          OutlinedButton(onPressed: null, child: Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('SCAN PASS'))),
-          ListTile(leading: Icon(Icons.cloud_done), title: Text('Connection status'), subtitle: Text('Online — server verification available')),
-          ListTile(leading: Icon(Icons.pending_actions), title: Text('Pending approvals'), subtitle: Text('No live data yet')),
-        ],
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF176B4D),
+        scaffoldBackgroundColor: const Color(0xFFF6F8F7),
+      ),
+      home: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          if (controller.booting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          return controller.signedIn
+              ? GuardOperationsScreen(controller: controller)
+              : GuardLoginScreen(controller: controller);
+        },
       ),
     );
   }
