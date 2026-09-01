@@ -8,41 +8,46 @@ datasource db {
 }
 
 model User {
-  id             String              @id @default(uuid()) @db.Uuid
-  phone          String              @unique
-  email          String?             @unique
-  name           String?
-  status         UserStatus          @default(ACTIVE)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  memberships    SocietyMembership[]
-  unitLinks      UnitResident[]
-  visitors       Visitor[]
-  accessRequests AccessRequest[]
-  sessions       Session[]
+  id              String              @id @default(uuid()) @db.Uuid
+  phone           String              @unique
+  email           String?             @unique
+  name            String?
+  status          UserStatus          @default(ACTIVE)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  memberships     SocietyMembership[]
+  unitLinks       UnitResident[]
+  visitors        Visitor[]
+  accessRequests  AccessRequest[]
+  serviceBookings ServiceBooking[]
+  serviceRatings  ServiceRating[]
+  sessions        Session[]
 }
 
 model Society {
-  id                String              @id @default(uuid()) @db.Uuid
-  name              String
-  code              String              @unique
-  status            SocietyStatus       @default(ACTIVE)
-  productTier       ProductTier         @default(STARTER)
-  featureOverrides  Json                @default("{}")
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  memberships       SocietyMembership[]
-  buildings         Building[]
-  gates             Gate[]
-  unitLinks         UnitResident[]
-  households        Household[]
-  vehicles          HouseholdVehicle[]
-  emergencyContacts EmergencyContact[]
-  visitors          Visitor[]
-  visitorPasses     VisitorPass[]
-  accessRequests    AccessRequest[]
-  auditEvents       AuditEvent[]
-  sessions          Session[]
+  id                  String                    @id @default(uuid()) @db.Uuid
+  name                String
+  code                String                    @unique
+  status              SocietyStatus             @default(ACTIVE)
+  productTier         ProductTier               @default(STARTER)
+  featureOverrides    Json                      @default("{}")
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  memberships         SocietyMembership[]
+  buildings           Building[]
+  gates               Gate[]
+  unitLinks           UnitResident[]
+  households          Household[]
+  vehicles            HouseholdVehicle[]
+  emergencyContacts   EmergencyContact[]
+  visitors            Visitor[]
+  visitorPasses       VisitorPass[]
+  accessRequests      AccessRequest[]
+  providerApprovals   ServiceProviderSociety[]
+  serviceBookings     ServiceBooking[]
+  serviceRatings      ServiceRating[]
+  auditEvents         AuditEvent[]
+  sessions            Session[]
 }
 
 model SocietyMembership {
@@ -69,15 +74,16 @@ model Building {
 }
 
 model Unit {
-  id             String          @id @default(uuid()) @db.Uuid
-  societyId      String          @db.Uuid
-  buildingId     String          @db.Uuid
-  number         String
-  building       Building        @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  residents      UnitResident[]
-  household      Household?
-  visitors       Visitor[]
-  accessRequests AccessRequest[]
+  id              String           @id @default(uuid()) @db.Uuid
+  societyId       String           @db.Uuid
+  buildingId      String           @db.Uuid
+  number          String
+  building        Building         @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  residents       UnitResident[]
+  household       Household?
+  visitors        Visitor[]
+  accessRequests  AccessRequest[]
+  serviceBookings ServiceBooking[]
   @@unique([buildingId, number])
   @@index([societyId])
 }
@@ -178,9 +184,117 @@ model AccessRequest {
   society        Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
   unit           Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
   requestedBy    User                @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  serviceBooking ServiceBooking?
   @@index([societyId, unitId, status])
   @@index([societyId, requestedById, createdAt])
   @@index([societyId, credentialHash])
+}
+
+model ServiceCategory {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String            @unique
+  active    Boolean           @default(true)
+  sortOrder Int               @default(0)
+  offerings ServiceOffering[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model ServiceProvider {
+  id             String                    @id @default(uuid()) @db.Uuid
+  businessName   String
+  contactName    String?
+  phone          String
+  email          String?
+  description    String?
+  verification   ProviderVerificationStatus @default(PENDING)
+  active         Boolean                   @default(true)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  societies      ServiceProviderSociety[]
+  offerings      ServiceOffering[]
+  bookings       ServiceBooking[]
+  ratings        ServiceRating[]
+  @@index([verification, active])
+}
+
+model ServiceProviderSociety {
+  id             String                 @id @default(uuid()) @db.Uuid
+  societyId      String                 @db.Uuid
+  providerId     String                 @db.Uuid
+  status         ProviderSocietyStatus  @default(PENDING)
+  commissionBps  Int                    @default(1000)
+  approvedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  society        Society                @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  provider       ServiceProvider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  @@unique([societyId, providerId])
+  @@index([societyId, status])
+}
+
+model ServiceOffering {
+  id             String          @id @default(uuid()) @db.Uuid
+  providerId     String          @db.Uuid
+  categoryId     String          @db.Uuid
+  name           String
+  description    String?
+  pricePaise     Int
+  durationMinutes Int?
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  provider       ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category       ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  bookings       ServiceBooking[]
+  @@index([categoryId, active])
+  @@index([providerId, active])
+}
+
+model ServiceBooking {
+  id               String               @id @default(uuid()) @db.Uuid
+  societyId        String               @db.Uuid
+  unitId           String               @db.Uuid
+  residentUserId   String               @db.Uuid
+  providerId       String               @db.Uuid
+  offeringId       String               @db.Uuid
+  accessRequestId  String?              @unique @db.Uuid
+  status           ServiceBookingStatus @default(REQUESTED)
+  scheduledFrom    DateTime
+  scheduledUntil   DateTime
+  servicePricePaise Int
+  commissionBps    Int
+  commissionPaise  Int
+  notes             String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  society          Society              @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit             Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  residentUser     User                 @relation(fields: [residentUserId], references: [id], onDelete: Cascade)
+  provider         ServiceProvider      @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  offering         ServiceOffering      @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  accessRequest    AccessRequest?       @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
+  rating           ServiceRating?
+  @@index([societyId, residentUserId, createdAt])
+  @@index([societyId, providerId, status])
+}
+
+model ServiceRating {
+  id             String          @id @default(uuid()) @db.Uuid
+  societyId      String          @db.Uuid
+  bookingId      String          @unique @db.Uuid
+  providerId     String          @db.Uuid
+  residentUserId String          @db.Uuid
+  score          Int
+  comment        String?
+  createdAt      DateTime        @default(now())
+  society        Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  booking        ServiceBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  provider       ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  residentUser   User            @relation(fields: [residentUserId], references: [id], onDelete: Cascade)
+  @@index([providerId, createdAt])
+  @@index([societyId, createdAt])
 }
 
 model Visitor {
@@ -263,6 +377,9 @@ enum UnitRelation { OWNER TENANT FAMILY_MEMBER }
 enum VehicleType { TWO_WHEELER CAR OTHER }
 enum AccessSubjectType { VISITOR DELIVERY CAB DOMESTIC_HELP VENDOR SERVICE_PROVIDER CONTRACTOR OTHER }
 enum AccessRequestStatus { PENDING APPROVED DENIED CANCELLED CHECKED_IN CHECKED_OUT EXPIRED }
+enum ProviderVerificationStatus { PENDING VERIFIED REJECTED SUSPENDED }
+enum ProviderSocietyStatus { PENDING APPROVED REJECTED SUSPENDED }
+enum ServiceBookingStatus { REQUESTED CONFIRMED CANCELLED IN_PROGRESS COMPLETED }
 enum VisitorStatus { PENDING APPROVED DENIED CHECKED_IN CHECKED_OUT CANCELLED }
 enum VisitorPassStatus { ACTIVE USED EXPIRED REVOKED }
 enum AuditEventType { VISITOR_VERIFIED VISITOR_CHECKED_IN VISITOR_CHECKED_OUT }
