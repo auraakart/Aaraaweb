@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, required this.controller});
+  const ProfileScreen({super.key, required this.controller, required this.onSignOut});
   final ResidentDataController controller;
+  final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -59,12 +60,31 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Text('Settings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
-            const Card(child: Column(children: [
-              ListTile(leading: Icon(Icons.notifications_outlined), title: Text('Notifications'), trailing: Icon(Icons.chevron_right)),
-              Divider(height: 1),
-              ListTile(leading: Icon(Icons.language_rounded), title: Text('Language'), subtitle: Text('English'), trailing: Icon(Icons.chevron_right)),
-              Divider(height: 1),
-              ListTile(leading: Icon(Icons.shield_outlined), title: Text('Privacy & security'), trailing: Icon(Icons.chevron_right)),
+            Card(child: Column(children: [
+              const ListTile(leading: Icon(Icons.notifications_outlined), title: Text('Notifications'), trailing: Icon(Icons.chevron_right)),
+              const Divider(height: 1),
+              const ListTile(leading: Icon(Icons.language_rounded), title: Text('Language'), subtitle: Text('English'), trailing: Icon(Icons.chevron_right)),
+              const Divider(height: 1),
+              const ListTile(leading: Icon(Icons.shield_outlined), title: Text('Privacy & security'), trailing: Icon(Icons.chevron_right)),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.logout_rounded, color: theme.colorScheme.error),
+                title: Text('Sign out', style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w700)),
+                onTap: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Sign out?'),
+                      content: const Text('You’ll need to verify your mobile number again to access this society.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sign out')),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) await onSignOut();
+                },
+              ),
             ])),
           ],
         ),
