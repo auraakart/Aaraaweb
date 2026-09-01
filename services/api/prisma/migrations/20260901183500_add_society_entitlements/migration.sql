@@ -1,0 +1,5 @@
+CREATE TYPE "ProductTier" AS ENUM ('STARTER', 'PROFESSIONAL', 'PREMIUM', 'ENTERPRISE');
+
+ALTER TABLE "Society"
+  ADD COLUMN "productTier" "ProductTier" NOT NULL DEFAULT 'STARTER',
+  ADD COLUMN "featureOverrides" JSONB NOT NULL DEFAULT '{}';
