@@ -3,8 +3,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { VehicleType } from '@prisma/client';
 import { HouseholdService } from './household.service';
 
-function service(overrides: any = {}) {
-  const prisma: any = {
+type Overrides = Record<string, unknown>;
+
+function service(overrides: Overrides = {}) {
+  const prisma = {
     unitResident: {
       findMany: vi.fn().mockResolvedValue([{ unitId: 'unit-1' }]),
       findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1', userId: 'user-1', societyId: 'society-1', active: true }),
@@ -17,18 +19,21 @@ function service(overrides: any = {}) {
       update: vi.fn().mockResolvedValue({ id: 'household-1' }),
     },
     householdVehicle: {
-      create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'vehicle-1', ...data })),
+      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'vehicle-1', ...data })),
       findFirst: vi.fn().mockResolvedValue({ id: 'vehicle-1', active: true }),
       update: vi.fn().mockResolvedValue({ id: 'vehicle-1', active: false }),
     },
     emergencyContact: {
-      create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'contact-1', ...data })),
+      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'contact-1', ...data })),
       findFirst: vi.fn().mockResolvedValue({ id: 'contact-1', active: true }),
       update: vi.fn().mockResolvedValue({ id: 'contact-1', active: false }),
     },
     ...overrides,
   };
-  return { svc: new HouseholdService(prisma), prisma };
+  return {
+    svc: new HouseholdService(prisma as unknown as ConstructorParameters<typeof HouseholdService>[0]),
+    prisma,
+  };
 }
 
 describe('HouseholdService', () => {
