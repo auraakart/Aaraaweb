@@ -97,15 +97,16 @@ export class HelpdeskService {
     `);
   }
 
-  activities(societyId: string, ticketId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT ha.*, actor."name" AS "actorName"
-      FROM "HelpdeskActivity" ha
-      JOIN "User" actor ON actor."id" = ha."actorUserId"
-      WHERE ha."societyId" = ${societyId}::uuid
-        AND ha."ticketId" = ${ticketId}::uuid
-      ORDER BY ha."occurredAt" ASC
-    `);
+  async activitiesMine(societyId: string, userId: string, ticketId: string) {
+    const ticket = await this.findOwnedTicket(societyId, userId, ticketId);
+    if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
+    return this.activitiesForTicket(societyId, ticketId);
+  }
+
+  async activitiesReview(societyId: string, ticketId: string) {
+    const ticket = await this.findTicket(societyId, ticketId);
+    if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
+    return this.activitiesForTicket(societyId, ticketId);
   }
 
   async addComment(societyId: string, userId: string, ticketId: string, message: string, reviewer = false) {
@@ -162,6 +163,17 @@ export class HelpdeskService {
       `);
       return updated;
     });
+  }
+
+  private activitiesForTicket(societyId: string, ticketId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT ha.*, actor."name" AS "actorName"
+      FROM "HelpdeskActivity" ha
+      JOIN "User" actor ON actor."id" = ha."actorUserId"
+      WHERE ha."societyId" = ${societyId}::uuid
+        AND ha."ticketId" = ${ticketId}::uuid
+      ORDER BY ha."occurredAt" ASC
+    `);
   }
 
   private async findTicket(societyId: string, ticketId: string) {
