@@ -53,7 +53,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 DropdownButtonFormField<String>(
                   value: unitId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Destination / घर', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Destination', border: OutlineInputBorder()),
                   items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setDialogState(() => unitId = value),
                 ),
@@ -98,7 +98,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(isCab ? 'Cab arrival / कैब' : 'Delivery / डिलीवरी'),
+          title: Text(isCab ? 'Cab arrival' : 'Delivery'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -106,7 +106,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 DropdownButtonFormField<String>(
                   value: unitId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Destination / घर', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Destination', border: OutlineInputBorder()),
                   items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setDialogState(() => unitId = value),
                 ),
@@ -170,7 +170,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: c.gateId,
-                decoration: const InputDecoration(labelText: 'Active gate / सक्रिय गेट', prefixIcon: Icon(Icons.door_front_door_outlined), border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Active gate', prefixIcon: Icon(Icons.door_front_door_outlined), border: OutlineInputBorder()),
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
               ),
@@ -180,7 +180,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   child: FilledButton.icon(
                     onPressed: c.busy || c.gateId == null ? null : () => _quickArrival('DELIVERY'),
                     icon: const Icon(Icons.delivery_dining_rounded),
-                    label: const Text('DELIVERY\nडिलीवरी', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                    label: const Text('DELIVERY', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
                   ),
                 ),
@@ -189,7 +189,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   child: FilledButton.tonalIcon(
                     onPressed: c.busy || c.gateId == null ? null : () => _quickArrival('CAB'),
                     icon: const Icon(Icons.local_taxi_rounded),
-                    label: const Text('CAB\nकैब', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                    label: const Text('CAB', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
                   ),
                 ),
@@ -198,7 +198,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               OutlinedButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : _walkIn,
                 icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: const Text('WALK-IN VISITOR / बिना निमंत्रण', style: TextStyle(fontWeight: FontWeight.w900)),
+                label: const Text('WALK-IN VISITOR', style: TextStyle(fontWeight: FontWeight.w900)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(58)),
               ),
               if (gateRequest != null) ...[
@@ -215,21 +215,21 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 14),
-              Text('Pre-approved pass / पहले से मंज़ूर', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              Text('Pre-approved pass', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : _scan,
                 icon: const Icon(Icons.qr_code_scanner_rounded, size: 32),
-                label: const Text('SCAN QR / QR स्कैन करें', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+                label: const Text('SCAN QR', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(72)),
               ),
               const SizedBox(height: 12),
-              TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential / कोड', prefixIcon: Icon(Icons.keyboard_alt_outlined), border: OutlineInputBorder())),
+              TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential', prefixIcon: Icon(Icons.keyboard_alt_outlined), border: OutlineInputBorder())),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : () => c.verifyCredential(credential.text),
                 icon: const Icon(Icons.verified_user_outlined),
-                label: const Text('VERIFY / जाँच करें', style: TextStyle(fontWeight: FontWeight.w800)),
+                label: const Text('VERIFY', style: TextStyle(fontWeight: FontWeight.w800)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56)),
               ),
               if (c.busy) const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: LinearProgressIndicator()),
@@ -242,9 +242,9 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 _AccessResultCard(access: access),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: FilledButton.icon(onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text), icon: const Icon(Icons.login_rounded), label: const Text('ENTER\nअंदर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
+                  Expanded(child: FilledButton.icon(onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text), icon: const Icon(Icons.login_rounded), label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
                   const SizedBox(width: 10),
-                  Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: const Text('EXIT\nबाहर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
+                  Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(68)))),
                 ]),
               ],
               const SizedBox(height: 22),
@@ -281,11 +281,11 @@ class _GateApprovalCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(type, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          Text(waiting ? 'Waiting for resident approval / निवासी की मंज़ूरी का इंतज़ार' : status.replaceAll('_', ' '), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(waiting ? 'Waiting for resident approval' : status.replaceAll('_', ' '), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 14),
           if (waiting) OutlinedButton.icon(onPressed: busy ? null : onRefresh, icon: const Icon(Icons.refresh_rounded), label: const Text('CHECK APPROVAL')),
-          if (onEnter != null) FilledButton.icon(onPressed: busy ? null : onEnter, icon: const Icon(Icons.login_rounded), label: const Text('APPROVED — ENTER / अंदर')),
-          if (onExit != null) OutlinedButton.icon(onPressed: busy ? null : onExit, icon: const Icon(Icons.logout_rounded), label: const Text('EXIT / बाहर')),
+          if (onEnter != null) FilledButton.icon(onPressed: busy ? null : onEnter, icon: const Icon(Icons.login_rounded), label: const Text('APPROVED — ENTER')),
+          if (onExit != null) OutlinedButton.icon(onPressed: busy ? null : onExit, icon: const Icon(Icons.logout_rounded), label: const Text('EXIT')),
           if (onDone != null) TextButton(onPressed: busy ? null : onDone, child: const Text('CLOSE')),
         ]),
       ),
