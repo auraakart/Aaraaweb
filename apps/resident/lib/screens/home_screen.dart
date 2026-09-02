@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.controller, required this.onOpenGate, required this.onOpenServices});
+  const HomeScreen({
+    super.key,
+    required this.controller,
+    required this.onOpenGate,
+    required this.onOpenServices,
+    required this.onOpenHelpdesk,
+  });
 
   final ResidentDataController controller;
   final VoidCallback onOpenGate;
   final VoidCallback onOpenServices;
+  final VoidCallback onOpenHelpdesk;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +111,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(child: _QuickAction(icon: Icons.home_repair_service_rounded, label: 'Book service', onTap: onOpenServices)),
                 const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: () {})),
+                Expanded(child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
                 const SizedBox(width: 10),
                 Expanded(child: _QuickAction(icon: Icons.sos_rounded, label: 'SOS', onTap: () {}, urgent: true)),
               ],

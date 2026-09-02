@@ -7,6 +7,7 @@ import 'data/api_client.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/gate_screen.dart';
+import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -114,7 +115,14 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       builder: (context, _) {
         final controller = widget.controller;
         final pages = <Widget>[
-          HomeScreen(controller: controller, onOpenGate: () => _open(1), onOpenServices: () => _open(3)),
+          HomeScreen(
+            controller: controller,
+            onOpenGate: () => _open(1),
+            onOpenServices: () => _open(3),
+            onOpenHelpdesk: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)),
+            ),
+          ),
           GateScreen(controller: controller),
           WorkforceScreen(controller: controller),
           ServicesScreen(controller: controller),
