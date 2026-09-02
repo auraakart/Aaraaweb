@@ -1,12 +1,13 @@
+import { describe, expect, it } from 'vitest';
 import { AppPermission } from '../auth/permission.types';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { ProductFeature } from '../entitlements/entitlement.types';
-import { FEATURE_KEY } from '../entitlements/feature.decorator';
+import { REQUIRED_FEATURE_KEY } from '../entitlements/feature.decorator';
 import { WorkforceLeaveController } from './workforce-leave.controller';
 
 describe('WorkforceLeaveController authorization', () => {
   it('requires domestic-help entitlement at controller scope', () => {
-    expect(Reflect.getMetadata(FEATURE_KEY, WorkforceLeaveController)).toBe(ProductFeature.DOMESTIC_HELP);
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, WorkforceLeaveController)).toBe(ProductFeature.DOMESTIC_HELP);
   });
 
   it('uses own-workforce permissions for resident leave operations', () => {
