@@ -153,12 +153,14 @@ export class SosService {
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT ur."id"
-      FROM "UnitResident" ur
-      WHERE ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."unitId" = ${unitId}::uuid
-        AND ur."active" = true
+      SELECT uo."id"
+      FROM "UnitOccupancy" uo
+      WHERE uo."societyId" = ${societyId}::uuid
+        AND uo."userId" = ${userId}::uuid
+        AND uo."unitId" = ${unitId}::uuid
+        AND uo."active" = true
+        AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+        AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
       LIMIT 1
     `);
     if (!rows[0]) throw new BadRequestException('Unit is not assigned to the authenticated resident');

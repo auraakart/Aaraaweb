@@ -48,6 +48,7 @@ describe('HouseholdService', () => {
         unit: expect.objectContaining({
           include: expect.objectContaining({
             occupancies: expect.objectContaining({
+              where: expect.objectContaining({ active: true, effectiveFrom: expect.any(Object) }),
               select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
             }),
           }),

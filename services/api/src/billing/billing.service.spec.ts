@@ -3,6 +3,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BillingService } from './billing.service';
 
 describe('BillingService', () => {
+  it('authorizes resident finance through current ownership, never legacy residency', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new BillingService(prisma as unknown as PrismaService);
+    await service.listMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('"UnitOwnership"');
+    expect(sql).toContain('"effectiveFrom" <= CURRENT_TIMESTAMP');
+    expect(sql).not.toContain('"UnitResident"');
+  });
+
   it('rejects invalid invoice amounts before persistence', async () => {
     const prisma = { $queryRaw: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService);

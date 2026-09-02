@@ -121,7 +121,7 @@ export class AccessService {
     const now = new Date();
     const gateUnits = await this.prisma.unitOccupancy.findMany({
       where: {
-        societyId, userId, active: true, gateApprovalEnabled: true,
+        societyId, userId, active: true, gateNotificationEnabled: true,
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       },
       select: { unitId: true },

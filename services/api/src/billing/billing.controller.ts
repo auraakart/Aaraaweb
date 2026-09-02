@@ -42,7 +42,7 @@ export class BillingController {
 
   @Get('invoices/mine')
   @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
-  @RequiresPermissions(AppPermission.BILLING_READ_OWN)
+  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
   mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.listMine(societyId, this.requireUser(userId));
   }
@@ -61,7 +61,7 @@ export class BillingController {
 
   @Post('payments')
   @RequiresFeature(ProductFeature.PAYMENTS)
-  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ, AppPermission.PAYMENT_CREATE_OWN)
   pay(@Body() dto: CreatePaymentDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.createPayment(societyId, this.requireUser(userId), dto.invoiceId, dto.idempotencyKey);
   }

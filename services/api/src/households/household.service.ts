@@ -21,7 +21,7 @@ export class HouseholdService {
           include: {
             building: true,
             occupancies: {
-              where: { active: true },
+              where: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
               select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
             },
           },

@@ -30,11 +30,16 @@ export class HelpdeskService {
     return this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
       SELECT ht.*
       FROM "HelpdeskTicket" ht
-      JOIN "UnitResident" ur ON ur."unitId" = ht."unitId"
       WHERE ht."societyId" = ${societyId}::uuid
-        AND ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."unitId" = ht."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
       ORDER BY ht."createdAt" DESC
     `);
   }
@@ -51,18 +56,20 @@ export class HelpdeskService {
     if (title.length < 3 || title.length > 120) throw new BadRequestException('Title must be between 3 and 120 characters');
     if (description.length < 5 || description.length > 2000) throw new BadRequestException('Description must be between 5 and 2000 characters');
 
-    const ownership = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT ur."id"
-      FROM "UnitResident" ur
-      JOIN "Unit" u ON u."id" = ur."unitId"
-      WHERE ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."unitId" = ${input.unitId}::uuid
-        AND ur."active" = true
+    const occupancy = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT uo."id"
+      FROM "UnitOccupancy" uo
+      JOIN "Unit" u ON u."id" = uo."unitId"
+      WHERE uo."societyId" = ${societyId}::uuid
+        AND uo."userId" = ${userId}::uuid
+        AND uo."unitId" = ${input.unitId}::uuid
+        AND uo."active" = true
+        AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+        AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         AND u."societyId" = ${societyId}::uuid
       LIMIT 1
     `);
-    if (!ownership[0]) throw new NotFoundException('Unit not found');
+    if (!occupancy[0]) throw new NotFoundException('Unit not found');
 
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
@@ -189,12 +196,17 @@ export class HelpdeskService {
     const rows = await this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
       SELECT ht.*
       FROM "HelpdeskTicket" ht
-      JOIN "UnitResident" ur ON ur."unitId" = ht."unitId"
       WHERE ht."id" = ${ticketId}::uuid
         AND ht."societyId" = ${societyId}::uuid
-        AND ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."unitId" = ht."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
       LIMIT 1
     `);
     return rows[0] ?? null;
