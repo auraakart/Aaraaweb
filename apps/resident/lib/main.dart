@@ -7,6 +7,7 @@ import 'data/api_client.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/gate_screen.dart';
+import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -114,9 +115,10 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       builder: (context, _) {
         final controller = widget.controller;
         final pages = <Widget>[
-          HomeScreen(controller: controller, onOpenGate: () => _open(1), onOpenServices: () => _open(3)),
+          HomeScreen(controller: controller, onOpenGate: () => _open(1), onOpenServices: () => _open(4)),
           GateScreen(controller: controller),
           WorkforceScreen(controller: controller),
+          HelpdeskScreen(controller: controller),
           ServicesScreen(controller: controller),
           ProfileScreen(controller: controller, onSignOut: widget.onSignOut),
         ];
@@ -188,6 +190,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
               NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
               NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'),
               NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
+              NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent_rounded), label: 'Helpdesk'),
               NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
               NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
             ],
