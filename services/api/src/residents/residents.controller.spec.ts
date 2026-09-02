@@ -19,6 +19,9 @@ describe('ResidentsController authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.listOwnerships)).toEqual([
       AppPermission.SOCIETY_CONFIGURATION_READ,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.history)).toEqual([
+      AppPermission.SOCIETY_CONFIGURATION_READ,
+    ]);
   });
 
   it('requires society configuration manage permission for resident mutations', () => {
@@ -187,5 +190,31 @@ describe('ResidentsController relationship lifecycle', () => {
       where: expect.objectContaining({ role: MembershipRole.OWNER, active: true }),
     }));
     expect(prisma.session.updateMany).toHaveBeenCalled();
+  });
+
+  it('ends ownership and occupancy atomically when a resident owner moves out', async () => {
+    const ownership = {
+      id: '11111111-1111-1111-1111-111111111111', societyId: '22222222-2222-2222-2222-222222222222',
+      unitId: '33333333-3333-3333-3333-333333333333', userId: '44444444-4444-4444-4444-444444444444',
+      effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+    };
+    const occupancy = { ...ownership, id: '55555555-5555-5555-5555-555555555555', primaryGateContact: true };
+    const prisma = {
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue(ownership), update: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+      unitOccupancy: {
+        findFirst: vi.fn().mockResolvedValueOnce(occupancy).mockResolvedValueOnce(null),
+        update: vi.fn(), count: vi.fn().mockResolvedValue(0),
+      },
+      societyMembership: { upsert: vi.fn(), updateMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+      session: { updateMany: vi.fn() },
+      $transaction: vi.fn(),
+    };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    const controller = new ResidentsController(prisma as never);
+    await controller.endOwnership(ownership.id, { effectiveTo: '2026-09-01T00:00:00.000Z', endOccupancy: true }, ownership.societyId);
+    expect(prisma.unitOccupancy.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: occupancy.id }, data: expect.objectContaining({ active: false, primaryGateContact: false }),
+    }));
+    expect(prisma.unitOwnership.update).toHaveBeenCalled();
   });
 });
