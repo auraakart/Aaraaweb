@@ -57,6 +57,36 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> helpdeskTickets() async {
+    final value = await api.get('/api/v1/helpdesk/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> helpdeskActivities(String ticketId) async {
+    final value = await api.get('/api/v1/helpdesk/$ticketId/activities');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> createHelpdeskTicket({
+    required String unitId,
+    required String title,
+    required String description,
+    String? category,
+    String priority = 'NORMAL',
+  }) async {
+    final value = await api.post('/api/v1/helpdesk', {
+      'unitId': unitId,
+      'title': title.trim(),
+      'description': description.trim(),
+      'priority': priority,
+      if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<void> addHelpdeskComment(String ticketId, String message) =>
+      api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
+
   Future<Map<String, dynamic>> createWorkforceLeave({
     required String assignmentId,
     required DateTime startsOn,
