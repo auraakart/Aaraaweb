@@ -9,6 +9,7 @@ import 'data/resident_repository.dart';
 import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
 import 'screens/workforce_screen.dart';
@@ -121,6 +122,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             onOpenServices: () => _open(3),
             onOpenHelpdesk: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)),
+            ),
+            onOpenNotices: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller)),
             ),
           ),
           GateScreen(controller: controller),
