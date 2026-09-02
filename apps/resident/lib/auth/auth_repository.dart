@@ -100,7 +100,7 @@ class AuthRepository {
   }
 
   Future<void> logout(ResidentSession current) async {
-    await _post('/api/v1/auth/logout', {'sessionId': current.sessionId});
+    await _post('/api/v1/auth/logout', {'sessionId': current.sessionId, 'refreshToken': current.refreshToken});
   }
 
   ResidentSession _sessionFromJson(Map<String, dynamic> json, String societyId, String role) {

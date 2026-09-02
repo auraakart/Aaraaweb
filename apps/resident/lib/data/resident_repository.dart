@@ -16,6 +16,16 @@ class ResidentRepository {
 
   Stream<Map<String, dynamic>> accessEvents() => api.sse('/api/v1/notifications/resident-stream');
 
+  Future<void> registerPushDevice({required String token, required String platform, String? deviceId}) =>
+      api.post('/api/v1/notifications/devices/register', {
+        'token': token,
+        'platform': platform,
+        if (deviceId != null && deviceId.isNotEmpty) 'deviceId': deviceId,
+      });
+
+  Future<void> unregisterPushDevice(String token) =>
+      api.post('/api/v1/notifications/devices/unregister', {'token': token});
+
   Future<List<Map<String, dynamic>>> serviceCategories() async {
     final value = await api.get('/api/v1/services-marketplace/categories');
     return _list(value);

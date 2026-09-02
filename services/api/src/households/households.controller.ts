@@ -1,4 +1,4 @@
-import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { VehicleType } from '@prisma/client';
 import { IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { BearerGuard, AuthenticatedRequest } from '../auth/bearer.guard';
@@ -57,7 +57,7 @@ export class HouseholdsController {
   @Patch(':householdId/access-preferences')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   updatePreferences(
-    @Param('householdId') householdId: string,
+    @Param('householdId', ParseUUIDPipe) householdId: string,
     @Body() dto: UpdatePreferencesDto,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
@@ -68,7 +68,7 @@ export class HouseholdsController {
   @Post(':householdId/vehicles')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   addVehicle(
-    @Param('householdId') householdId: string,
+    @Param('householdId', ParseUUIDPipe) householdId: string,
     @Body() dto: AddVehicleDto,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
@@ -79,8 +79,8 @@ export class HouseholdsController {
   @Patch(':householdId/vehicles/:vehicleId/deactivate')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   deactivateVehicle(
-    @Param('householdId') householdId: string,
-    @Param('vehicleId') vehicleId: string,
+    @Param('householdId', ParseUUIDPipe) householdId: string,
+    @Param('vehicleId', ParseUUIDPipe) vehicleId: string,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
   ) {
@@ -90,7 +90,7 @@ export class HouseholdsController {
   @Post(':householdId/emergency-contacts')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   addEmergencyContact(
-    @Param('householdId') householdId: string,
+    @Param('householdId', ParseUUIDPipe) householdId: string,
     @Body() dto: AddEmergencyContactDto,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
@@ -101,8 +101,8 @@ export class HouseholdsController {
   @Patch(':householdId/emergency-contacts/:contactId/deactivate')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   deactivateEmergencyContact(
-    @Param('householdId') householdId: string,
-    @Param('contactId') contactId: string,
+    @Param('householdId', ParseUUIDPipe) householdId: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
   ) {

@@ -1,4 +1,4 @@
-import { Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -12,7 +12,7 @@ export class ServicesPlatformController {
 
   @Post('providers/:providerId/verify')
   @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY)
-  verifyProvider(@Param('providerId') providerId: string) {
+  verifyProvider(@Param('providerId', ParseUUIDPipe) providerId: string) {
     return this.marketplace.verifyProvider(providerId);
   }
 }

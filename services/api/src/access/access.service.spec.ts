@@ -117,7 +117,48 @@ describe('AccessService', () => {
     await expect(svc.verify('society-1', 'gate-1', 'wrong')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('returns the previously committed result for a repeated idempotency key', async () => {
+  it('does not resolve a request id outside the authenticated society', async () => {
+    const findFirst = vi.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === 'foreign-request' && where.societyId === 'society-1') return Promise.resolve(null);
+      return Promise.resolve({ id: 'access-1', societyId: 'society-1', status: AccessRequestStatus.APPROVED });
+    });
+    const { svc } = setup({ accessRequest: { findFirst, updateMany: vi.fn(), findUniqueOrThrow: vi.fn() } });
+
+    await expect(svc.checkInRequest('society-1', 'gate-1', 'foreign-request', 'guard-1', 'tenant-key')).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: 'foreign-request', societyId: 'society-1' } });
+  });
+
+  it('does not resolve a gate credential outside the authenticated society', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const { svc } = setup({ accessRequest: { findFirst, updateMany: vi.fn(), findUniqueOrThrow: vi.fn() } });
+
+    await expect(svc.checkIn('society-1', 'gate-1', 'foreign-credential', 'guard-1', 'tenant-key')).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ societyId: 'society-1', credentialHash: expect.any(String) }) }));
+  });
+
+  it('keeps the gate-mutation pre-check tenant scoped', async () => {
+    const findFirst = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'access-1',
+        societyId: 'society-1',
+        subjectType: AccessSubjectType.VISITOR,
+        status: AccessRequestStatus.APPROVED,
+      })
+      .mockResolvedValueOnce(null);
+    const { svc, prisma } = setup({
+      accessRequest: {
+        findFirst,
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn(),
+      },
+    });
+
+    await expect(svc.checkInRequest('society-1', 'gate-1', 'access-1', 'guard-1', 'tenant-key')).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst.mock.calls[1]?.[0]).toEqual({ where: { id: 'access-1', societyId: 'society-1' } });
+    expect(prisma.accessRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns the previously committed result for a repeated idempotency key within the same society', async () => {
     const existing = {
       id: 'receipt-1',
       societyId: 'society-1',
@@ -127,18 +168,21 @@ describe('AccessService', () => {
       idempotencyKey: 'same-key',
       action: GateMutationAction.CHECK_IN,
     };
+    const findFirst = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'access-1',
+        societyId: 'society-1',
+        requestedById: 'user-1',
+        subjectType: AccessSubjectType.VISITOR,
+        status: AccessRequestStatus.APPROVED,
+        validFrom: new Date(Date.now() - 1000),
+        validUntil: new Date(Date.now() + 60_000),
+      })
+      .mockResolvedValueOnce({ id: 'access-1', societyId: 'society-1', status: AccessRequestStatus.CHECKED_IN });
     const { svc, prisma } = setup({
       accessRequest: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: 'access-1',
-          societyId: 'society-1',
-          requestedById: 'user-1',
-          subjectType: AccessSubjectType.VISITOR,
-          status: AccessRequestStatus.APPROVED,
-          validFrom: new Date(Date.now() - 1000),
-          validUntil: new Date(Date.now() + 60_000),
-        }),
-        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'access-1', status: AccessRequestStatus.CHECKED_IN }),
+        findFirst,
+        findUniqueOrThrow: vi.fn(),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(existing), create: vi.fn() },
@@ -146,6 +190,7 @@ describe('AccessService', () => {
 
     const result = await svc.checkIn('society-1', 'gate-1', 'credential', 'guard-1', 'same-key');
     expect(result.status).toBe(AccessRequestStatus.CHECKED_IN);
+    expect(findFirst.mock.calls[1]?.[0]).toEqual({ where: { id: 'access-1', societyId: 'society-1' } });
     expect(prisma.accessRequest.updateMany).not.toHaveBeenCalled();
     expect(prisma.gateMutationReceipt.create).not.toHaveBeenCalled();
   });
