@@ -14,6 +14,11 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> notices() async {
+    final value = await api.get('/api/v1/notices');
+    return _list(value);
+  }
+
   Stream<Map<String, dynamic>> accessEvents() => api.sse('/api/v1/notifications/resident-stream');
 
   Future<void> registerPushDevice({required String token, required String platform, String? deviceId}) =>
@@ -40,6 +45,79 @@ class ResidentRepository {
   Future<List<Map<String, dynamic>>> bookings() async {
     final value = await api.get('/api/v1/services-marketplace/bookings/mine');
     return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> workforce() async {
+    final value = await api.get('/api/v1/workforce/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> workforceLeaves() async {
+    final value = await api.get('/api/v1/workforce/leaves/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> workforceRatings() async {
+    final value = await api.get('/api/v1/workforce/ratings/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> helpdeskTickets() async {
+    final value = await api.get('/api/v1/helpdesk/mine');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> helpdeskActivities(String ticketId) async {
+    final value = await api.get('/api/v1/helpdesk/$ticketId/activities');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> createHelpdeskTicket({
+    required String unitId,
+    required String title,
+    required String description,
+    String? category,
+    String priority = 'NORMAL',
+  }) async {
+    final value = await api.post('/api/v1/helpdesk', {
+      'unitId': unitId,
+      'title': title.trim(),
+      'description': description.trim(),
+      'priority': priority,
+      if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<void> addHelpdeskComment(String ticketId, String message) =>
+      api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
+
+  Future<Map<String, dynamic>> createWorkforceLeave({
+    required String assignmentId,
+    required DateTime startsOn,
+    required DateTime endsOn,
+    String? reason,
+  }) async {
+    final value = await api.post('/api/v1/workforce/leaves', {
+      'assignmentId': assignmentId,
+      'startsOn': _dateOnly(startsOn),
+      'endsOn': _dateOnly(endsOn),
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> cancelWorkforceLeave(String leaveId) async {
+    final value = await api.patch('/api/v1/workforce/leaves/$leaveId/cancel');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
+    final value = await api.put('/api/v1/workforce/ratings/$assignmentId', {
+      'score': score,
+      if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
   }
 
   Future<Map<String, dynamic>> approveAccess(String requestId, {required DateTime validFrom, required DateTime validUntil}) async {
@@ -75,6 +153,9 @@ class ResidentRepository {
     });
     return Map<String, dynamic>.from(value as Map);
   }
+
+  String _dateOnly(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   List<Map<String, dynamic>> _list(dynamic value) {
     if (value is! List) return const [];

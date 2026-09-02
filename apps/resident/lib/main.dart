@@ -6,11 +6,13 @@ import 'auth/session_store.dart';
 import 'data/api_client.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
-import 'screens/community_screen.dart';
 import 'screens/gate_screen.dart';
+import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
+import 'screens/workforce_screen.dart';
 import 'theme/aaraagate_theme.dart';
 
 void main() {
@@ -114,10 +116,20 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       builder: (context, _) {
         final controller = widget.controller;
         final pages = <Widget>[
-          HomeScreen(controller: controller, onOpenGate: () => _open(1), onOpenServices: () => _open(2)),
+          HomeScreen(
+            controller: controller,
+            onOpenGate: () => _open(1),
+            onOpenServices: () => _open(3),
+            onOpenHelpdesk: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)),
+            ),
+            onOpenNotices: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller)),
+            ),
+          ),
           GateScreen(controller: controller),
+          WorkforceScreen(controller: controller),
           ServicesScreen(controller: controller),
-          const CommunityScreen(),
           ProfileScreen(controller: controller, onSignOut: widget.onSignOut),
         ];
         final pending = controller.firstPendingAccess;
@@ -187,8 +199,8 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
               NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'),
+              NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
               NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
-              NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Community'),
               NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
             ],
           ),

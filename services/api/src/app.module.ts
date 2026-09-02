@@ -3,6 +3,9 @@ import { AccessModule } from './access/access.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
+import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { NoticesModule } from './notices/notices.module';
+import { SosModule } from './sos/sos.module';
 import { HouseholdsModule } from './households/households.module';
 import { ResidentsModule } from './residents/residents.module';
 import { ServicesMarketplaceModule } from './services-marketplace/services-marketplace.module';
@@ -31,6 +34,9 @@ class HealthController {
     PropertiesModule,
     HouseholdsModule,
     WorkforceModule,
+    HelpdeskModule,
+    NoticesModule,
+    SosModule,
     GatesModule,
     VisitorsModule,
     AccessModule,

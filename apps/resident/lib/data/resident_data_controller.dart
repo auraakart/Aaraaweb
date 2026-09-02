@@ -14,12 +14,18 @@ class ResidentDataController extends ChangeNotifier {
   String? authError;
   String? householdError;
   String? accessError;
+  String? noticesError;
   String? servicesError;
+  String? workforceError;
   List<Map<String, dynamic>> households = const [];
   List<Map<String, dynamic>> accessRequests = const [];
+  List<Map<String, dynamic>> notices = const [];
   List<Map<String, dynamic>> serviceCategories = const [];
   List<Map<String, dynamic>> serviceOfferings = const [];
   List<Map<String, dynamic>> bookings = const [];
+  List<Map<String, dynamic>> workforceAssignments = const [];
+  List<Map<String, dynamic>> workforceLeaves = const [];
+  List<Map<String, dynamic>> workforceRatings = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
@@ -38,13 +44,27 @@ class ResidentDataController extends ChangeNotifier {
     authError = null;
     householdError = null;
     accessError = null;
+    noticesError = null;
     servicesError = null;
+    workforceError = null;
     notifyListeners();
-    await Future.wait([_loadHouseholds(), _loadAccess(), _loadServices()]);
+    await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
     loading = false;
     notifyListeners();
     startRealtime();
     pushEnabled = await push.start(onOpened: _handlePushOpened);
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> refreshNotices() async {
+    noticesError = null;
+    await _loadNotices();
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> refreshWorkforce() async {
+    workforceError = null;
+    await Future.wait([_loadWorkforce(), _loadAccess()]);
     if (!_disposed) notifyListeners();
   }
 
@@ -104,6 +124,14 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadNotices() async {
+    try {
+      notices = await repository.notices();
+    } catch (e) {
+      _capture(e, (message) => noticesError = message);
+    }
+  }
+
   Future<void> _loadServices() async {
     try {
       final results = await Future.wait([
@@ -117,6 +145,55 @@ class ResidentDataController extends ChangeNotifier {
     } catch (e) {
       _capture(e, (message) => servicesError = message);
     }
+  }
+
+  Future<void> _loadWorkforce() async {
+    try {
+      final results = await Future.wait([
+        repository.workforce(),
+        repository.workforceLeaves(),
+        repository.workforceRatings(),
+      ]);
+      workforceAssignments = results[0];
+      workforceLeaves = results[1];
+      workforceRatings = results[2];
+    } catch (e) {
+      _capture(e, (message) => workforceError = message);
+    }
+  }
+
+  bool isWorkforcePresent(String assignmentId) {
+    for (final request in accessRequests) {
+      if (request['subjectType']?.toString() != 'DOMESTIC_HELP' || request['status']?.toString() != 'CHECKED_IN') continue;
+      final metadata = request['metadata'];
+      if (metadata is Map && metadata['workforceAssignmentId']?.toString() == assignmentId) return true;
+    }
+    return false;
+  }
+
+  Map<String, dynamic>? ratingFor(String assignmentId) =>
+      workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
+
+  List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves
+      .where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false)
+      .toList(growable: false);
+
+  Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
+    await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
+    await _loadWorkforce();
+    notifyListeners();
+  }
+
+  Future<void> cancelWorkforceLeave(String leaveId) async {
+    await repository.cancelWorkforceLeave(leaveId);
+    await _loadWorkforce();
+    notifyListeners();
+  }
+
+  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
+    await repository.rateWorkforce(assignmentId, score: score, comment: comment);
+    await _loadWorkforce();
+    notifyListeners();
   }
 
   void _capture(Object error, void Function(String message) assign) {
@@ -141,10 +218,7 @@ class ResidentDataController extends ChangeNotifier {
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
     if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') {
-      lastIssuedVisitorPass = {
-        'credential': credential,
-        'request': Map<String, dynamic>.from(rawRequest),
-      };
+      lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     }
     await _loadAccess();
     notifyListeners();
