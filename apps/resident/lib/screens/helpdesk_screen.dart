@@ -44,7 +44,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const ListView(children: [SizedBox(height: 240), Center(child: CircularProgressIndicator())])
+            ? ListView(children: const [SizedBox(height: 240), Center(child: CircularProgressIndicator())])
             : _error != null
                 ? ListView(padding: const EdgeInsets.all(20), children: [
                     const Icon(Icons.error_outline_rounded, size: 42),
