@@ -12,7 +12,7 @@ class ProfileScreen extends StatelessWidget {
     final household = controller.households.isEmpty ? null : controller.households.first;
     final vehicles = household?['vehicles'] is List ? (household!['vehicles'] as List).length : 0;
     final contacts = household?['emergencyContacts'] is List ? (household!['emergencyContacts'] as List).length : 0;
-    final residents = household?['unit'] is Map && (household!['unit'] as Map)['residents'] is List ? (((household['unit'] as Map)['residents']) as List).length : 0;
+    final residents = household?['unit'] is Map && (household!['unit'] as Map)['occupancies'] is List ? (((household['unit'] as Map)['occupancies']) as List).length : 0;
 
     return SafeArea(
       child: RefreshIndicator(

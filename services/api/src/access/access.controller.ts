@@ -86,6 +86,7 @@ export class AccessController {
     return {
       type,
       societyId: request.societyId,
+      unitId: request.unitId,
       userId: request.requestedById,
       gateId: gateId ?? this.gateId(request),
       requestId: request.id,
@@ -129,7 +130,7 @@ export class AccessController {
   async createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     const request = await this.access.createWalkInVisitor(societyId, actorUserId, dto.gateId, dto.unitId, dto.name, dto.phone, dto.purpose);
-    this.realtime.publishResident(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
+    await this.realtime.publishUnitOccupants(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
     return request;
   }
 
@@ -138,7 +139,7 @@ export class AccessController {
   async createGateArrival(@Body() dto: CreateGateArrivalDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     const request = await this.gateArrivals.create(societyId, actorUserId, dto.gateId, dto.unitId, dto.subjectType, dto.name, dto.provider, dto.phone, dto.vehicleNumber, dto.note);
-    this.realtime.publishResident(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
+    await this.realtime.publishUnitOccupants(this.event(request, 'ACCESS_APPROVAL_REQUESTED', dto.gateId));
     return request;
   }
 

@@ -8,7 +8,7 @@ function setup(enabled = true) {
   const prisma = {
     gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
     unit: {
-      findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', residents: [{ userId: 'resident-1' }] }),
+      findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', occupancies: [{ userId: 'resident-1' }] }),
     },
     accessRequest: {
       create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data })),

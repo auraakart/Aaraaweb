@@ -33,19 +33,20 @@ export class GateArrivalService {
     const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId, active: true } });
     if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
 
+    const now = new Date();
     const destination = await this.prisma.unit.findFirst({
       where: { id: unitId, societyId },
       select: {
         id: true,
-        residents: {
-          where: { active: true },
-          orderBy: [{ primary: 'desc' }, { createdAt: 'asc' }],
+        occupancies: {
+          where: { active: true, gateApprovalEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+          orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
           take: 1,
           select: { userId: true },
         },
       },
     });
-    const hostUserId = destination?.residents[0]?.userId;
+    const hostUserId = destination?.occupancies[0]?.userId;
     if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
 
     const metadata = {

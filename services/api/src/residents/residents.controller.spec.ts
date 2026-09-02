@@ -15,6 +15,9 @@ describe('ResidentsController authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.list)).toEqual([
       AppPermission.SOCIETY_CONFIGURATION_READ,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.listOwnerships)).toEqual([
+      AppPermission.SOCIETY_CONFIGURATION_READ,
+    ]);
   });
 
   it('requires society configuration manage permission for resident mutations', () => {

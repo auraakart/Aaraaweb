@@ -28,8 +28,28 @@ export class AccessService {
   }
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
-    const link = await this.prisma.unitResident.findFirst({ where: { societyId, userId, unitId, active: true } });
+    const now = new Date();
+    const link = await this.prisma.unitOccupancy.findFirst({
+      where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+    });
     if (!link) throw new ForbiddenException('Unit does not belong to authenticated resident');
+  }
+
+  private async assertGateApprover(societyId: string, userId: string, unitId: string) {
+    const now = new Date();
+    const occupant = await this.prisma.unitOccupancy.findFirst({
+      where: {
+        societyId,
+        userId,
+        unitId,
+        active: true,
+        gateApprovalEnabled: true,
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      },
+      select: { id: true },
+    });
+    if (!occupant) throw new NotFoundException('Access request not found');
   }
 
   private async assertGate(societyId: string, gateId: string) {
@@ -45,6 +65,18 @@ export class AccessService {
 
   private hash(value: string) {
     return createHash('sha256').update(value).digest('hex');
+  }
+
+  private isGateOriginated(metadata: Prisma.JsonValue) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+    const source = (metadata as Record<string, unknown>).source;
+    return source === 'GATE_WALK_IN' || source === 'GATE_QUICK_ARRIVAL';
+  }
+
+  private async assertCanDecideRequest(request: { societyId: string; unitId: string; requestedById: string; metadata: Prisma.JsonValue }, userId: string) {
+    if (request.requestedById === userId) return;
+    if (!this.isGateOriginated(request.metadata)) throw new NotFoundException('Access request not found');
+    await this.assertGateApprover(request.societyId, userId, request.unitId);
   }
 
   async create(societyId: string, userId: string, unitId: string, subjectType: AccessSubjectType, subjectName: string, subjectPhone?: string, purpose?: string, metadata: Record<string, unknown> = {}) {
@@ -85,13 +117,33 @@ export class AccessService {
     return { request, credential: credential.raw };
   }
 
-  listMine(societyId: string, userId: string) {
-    return this.prisma.accessRequest.findMany({ where: { societyId, requestedById: userId }, orderBy: { createdAt: 'desc' } });
+  async listMine(societyId: string, userId: string) {
+    const now = new Date();
+    const gateUnits = await this.prisma.unitOccupancy.findMany({
+      where: {
+        societyId, userId, active: true, gateApprovalEnabled: true,
+        effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      },
+      select: { unitId: true },
+    });
+    const unitIds = gateUnits.map(({ unitId }) => unitId);
+    return this.prisma.accessRequest.findMany({
+      where: {
+        societyId,
+        OR: [
+          { requestedById: userId },
+          { unitId: { in: unitIds }, metadata: { path: ['source'], equals: 'GATE_WALK_IN' } },
+          { unitId: { in: unitIds }, metadata: { path: ['source'], equals: 'GATE_QUICK_ARRIVAL' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   listGateUnits(societyId: string) {
+    const now = new Date();
     return this.prisma.unit.findMany({
-      where: { societyId, residents: { some: { active: true } } },
+      where: { societyId, occupancies: { some: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } } },
       select: { id: true, number: true, building: { select: { id: true, name: true, code: true } } },
       orderBy: [{ building: { name: 'asc' } }, { number: 'asc' }],
     });
@@ -100,19 +152,20 @@ export class AccessService {
   async createWalkInVisitor(societyId: string, actorUserId: string, gateId: string, unitId: string, subjectName: string, subjectPhone?: string, purpose?: string) {
     await this.assertGate(societyId, gateId);
     await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
+    const now = new Date();
     const destination = await this.prisma.unit.findFirst({
       where: { id: unitId, societyId },
       select: {
         id: true,
-        residents: {
-          where: { active: true },
-          orderBy: [{ primary: 'desc' }, { createdAt: 'asc' }],
+        occupancies: {
+          where: { active: true, gateApprovalEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+          orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
           take: 1,
           select: { userId: true },
         },
       },
     });
-    const hostUserId = destination?.residents[0]?.userId;
+    const hostUserId = destination?.occupancies[0]?.userId;
     if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
     return this.prisma.$transaction(async (tx) => {
       const request = await tx.accessRequest.create({
@@ -156,13 +209,14 @@ export class AccessService {
 
   async approve(societyId: string, userId: string, requestId: string, validFrom: Date, validUntil: Date) {
     if (validUntil <= validFrom) throw new BadRequestException('Access validity window is invalid');
-    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId, requestedById: userId } });
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
     if (!request) throw new NotFoundException('Access request not found');
+    await this.assertCanDecideRequest(request, userId);
     if (request.status !== AccessRequestStatus.PENDING) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
     await this.assertSubjectEnabled(societyId, request.subjectType);
     const credential = this.credential();
     const updated = await this.prisma.$transaction(async (tx) => {
-      const changed = await tx.accessRequest.updateMany({ where: { id: request.id, societyId, requestedById: userId, status: AccessRequestStatus.PENDING }, data: { status: AccessRequestStatus.APPROVED, validFrom, validUntil, credentialHash: credential.hash } });
+      const changed = await tx.accessRequest.updateMany({ where: { id: request.id, societyId, status: AccessRequestStatus.PENDING }, data: { status: AccessRequestStatus.APPROVED, validFrom, validUntil, credentialHash: credential.hash } });
       if (changed.count !== 1) throw new BadRequestException('Access request changed before approval could complete');
       const value = await tx.accessRequest.findUniqueOrThrow({ where: { id: request.id } });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: request.id, event: AuditEventType.ACCESS_APPROVED } });
@@ -172,11 +226,12 @@ export class AccessService {
   }
 
   async deny(societyId: string, userId: string, requestId: string) {
-    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId, requestedById: userId } });
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
     if (!request) throw new NotFoundException('Access request not found');
+    await this.assertCanDecideRequest(request, userId);
     if (request.status !== AccessRequestStatus.PENDING) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
     return this.prisma.$transaction(async (tx) => {
-      const changed = await tx.accessRequest.updateMany({ where: { id: request.id, societyId, requestedById: userId, status: AccessRequestStatus.PENDING }, data: { status: AccessRequestStatus.DENIED } });
+      const changed = await tx.accessRequest.updateMany({ where: { id: request.id, societyId, status: AccessRequestStatus.PENDING }, data: { status: AccessRequestStatus.DENIED } });
       if (changed.count !== 1) throw new BadRequestException('Access request changed before denial could complete');
       const value = await tx.accessRequest.findUniqueOrThrow({ where: { id: request.id } });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: request.id, event: AuditEventType.ACCESS_DENIED } });

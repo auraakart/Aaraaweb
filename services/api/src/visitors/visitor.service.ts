@@ -10,7 +10,8 @@ export class VisitorService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async assertHostUnit(societyId: string, hostUserId: string, unitId: string) {
-    const link = await this.prisma.unitResident.findFirst({ where: { societyId, userId: hostUserId, unitId, active: true } });
+    const now = new Date();
+    const link = await this.prisma.unitOccupancy.findFirst({ where: { societyId, userId: hostUserId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } });
     if (!link) throw new BadRequestException('Host is not an active resident of this unit');
   }
 

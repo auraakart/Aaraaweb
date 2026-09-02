@@ -51,6 +51,11 @@ Authorization is enforced server-side. UI visibility is never a security boundar
 - Offline guard actions use durable local IDs/idempotency keys and must be reconciled without duplicate state transitions.
 - Session revocation, expiry and refresh-token rotation must be enforced server-side.
 - Support/admin override paths, if introduced, must be explicit, time/scope constrained where practical and fully auditable.
+- Ownership and occupancy are independent. Non-resident ownership alone never grants household-private data, routine gate notifications or approval authority.
+- Gate notifications and approval requests target active, time-valid occupants configured as gate contacts, whether the occupant is an owner, tenant or family member.
+- Move-out revokes occupant-scoped household and gate authority immediately.
+- Property profile, finance, document and voting capabilities are owner-only unless an explicit policy or delegation grants narrower access.
+- Household responses use audience-specific projections and do not expose another member's phone/email by default.
 
 ## Permission design rule
 Prefer capability permissions (for example `visitor.approve`, `gate.check_in`, `resident.manage`, `billing.manage`) over role-name conditionals inside business services. Roles map to permissions; business services authorize capabilities and resource scope.
