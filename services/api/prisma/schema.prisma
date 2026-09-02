@@ -23,6 +23,18 @@ model User {
   serviceRatings   ServiceRating[]
   sessions         Session[]
   pushDeviceTokens DevicePushToken[]
+  workforceLeavesCreated WorkforceLeave[] @relation("WorkforceLeaveCreator")
+  workforceRatingsGiven WorkforceRating[] @relation("WorkforceRatingAuthor")
+  workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
+  helpdeskTicketsCreated HelpdeskTicket[] @relation("HelpdeskTicketCreator")
+  helpdeskTicketsAssigned HelpdeskTicket[] @relation("HelpdeskTicketAssignee")
+  helpdeskActivities HelpdeskActivity[]
+  noticesCreated Notice[] @relation("NoticeCreator")
+  noticeEvents NoticeEvent[]
+  sosIncidents SosIncident[] @relation("SosResident")
+  sosAcknowledgements SosIncident[] @relation("SosAcknowledgedBy")
+  sosResolutions SosIncident[] @relation("SosResolvedBy")
+  sosEvents SosIncidentEvent[]
 }
 
 model Society {
@@ -53,6 +65,15 @@ model Society {
   gateMutations        GateMutationReceipt[]
   sessions             Session[]
   pushDeviceTokens     DevicePushToken[]
+  workforceLeaves      WorkforceLeave[]
+  workforceRatings     WorkforceRating[]
+  workforceSuspensions WorkforceSuspensionEvent[]
+  helpdeskTickets      HelpdeskTicket[]
+  helpdeskActivities   HelpdeskActivity[]
+  notices              Notice[]
+  noticeEvents         NoticeEvent[]
+  sosIncidents         SosIncident[]
+  sosEvents            SosIncidentEvent[]
 }
 
 model SocietyMembership {
@@ -89,6 +110,8 @@ model Unit {
   visitors        Visitor[]
   accessRequests  AccessRequest[]
   serviceBookings ServiceBooking[]
+  helpdeskTickets HelpdeskTicket[]
+  sosIncidents    SosIncident[]
   @@unique([buildingId, number])
   @@index([societyId])
 }
@@ -170,6 +193,8 @@ model DomesticWorker {
   updatedAt    DateTime                         @updatedAt
   society      Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
   assignments  WorkforceAssignment[]
+  ratings      WorkforceRating[]
+  suspensionEvents WorkforceSuspensionEvent[]
   @@unique([societyId, phone])
   @@index([societyId, verification, active])
 }
@@ -189,9 +214,69 @@ model WorkforceAssignment {
   society     Society                   @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household                 @relation(fields: [householdId], references: [id], onDelete: Cascade)
   worker      DomesticWorker            @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  leaves      WorkforceLeave[]
+  rating      WorkforceRating?
+  suspensionEvents WorkforceSuspensionEvent[]
   @@unique([householdId, workerId])
   @@index([societyId, status, active])
   @@index([societyId, workerId, active])
+}
+
+model WorkforceLeave {
+  id           String              @id @default(uuid()) @db.Uuid
+  societyId    String              @db.Uuid
+  assignmentId String              @db.Uuid
+  createdById  String              @db.Uuid
+  startsOn     DateTime            @db.Date
+  endsOn       DateTime            @db.Date
+  reason       String?
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @db.Timestamptz(6)
+  society      Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdBy    User                @relation("WorkforceLeaveCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, active, startsOn, endsOn], map: "WorkforceLeave_societyId_active_startsOn_endsOn_idx")
+  @@index([assignmentId, active, startsOn, endsOn], map: "WorkforceLeave_assignmentId_active_startsOn_endsOn_idx")
+}
+
+model WorkforceRating {
+  id           String              @id @default(uuid()) @db.Uuid
+  societyId    String              @db.Uuid
+  assignmentId String              @unique @db.Uuid
+  workerId     String              @db.Uuid
+  ratedById    String              @db.Uuid
+  score        Int                 @db.SmallInt
+  comment      String?
+  createdAt    DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @db.Timestamptz(6)
+  society      Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  worker       DomesticWorker      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  ratedBy      User                @relation("WorkforceRatingAuthor", fields: [ratedById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, workerId], map: "WorkforceRating_societyId_workerId_idx")
+  @@index([societyId, score], map: "WorkforceRating_societyId_score_idx")
+}
+
+model WorkforceSuspensionEvent {
+  id           String               @id @default(uuid()) @db.Uuid
+  societyId    String               @db.Uuid
+  workerId     String?              @db.Uuid
+  assignmentId String?              @db.Uuid
+  actorUserId  String               @db.Uuid
+  action       String
+  reason       String?
+  occurredAt   DateTime             @default(now()) @db.Timestamptz(6)
+  society      Society              @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker       DomesticWorker?      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  actor        User                 @relation("WorkforceSuspensionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_societyId_occurredAt_idx")
+  @@index([workerId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_workerId_occurredAt_idx")
+  @@index([assignmentId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_assignmentId_occurredAt_idx")
 }
 
 model Gate {
@@ -451,10 +536,143 @@ model Session {
   @@index([refreshExpiresAt])
 }
 
+model HelpdeskTicket {
+  id           String             @id @default(uuid()) @db.Uuid
+  societyId    String             @db.Uuid
+  unitId       String             @db.Uuid
+  createdById  String             @db.Uuid
+  title        String
+  description  String
+  category     String?
+  priority     String             @default("NORMAL")
+  status       String             @default("OPEN")
+  assignedToId String?            @db.Uuid
+  resolvedAt   DateTime?          @db.Timestamptz(6)
+  closedAt     DateTime?          @db.Timestamptz(6)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime           @default(now()) @db.Timestamptz(6)
+  society      Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit         Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("HelpdeskTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo   User?              @relation("HelpdeskTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activities   HelpdeskActivity[]
+
+  @@index([societyId, status, createdAt(sort: Desc)], map: "HelpdeskTicket_society_status_created_idx")
+  @@index([societyId, createdById, createdAt(sort: Desc)], map: "HelpdeskTicket_society_creator_created_idx")
+  @@index([societyId, unitId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_unit_created_idx")
+}
+
+model HelpdeskActivity {
+  id          String         @id @default(uuid()) @db.Uuid
+  societyId   String         @db.Uuid
+  ticketId    String         @db.Uuid
+  actorUserId String         @db.Uuid
+  type        String
+  message     String?
+  fromStatus  String?
+  toStatus    String?
+  occurredAt  DateTime       @default(now()) @db.Timestamptz(6)
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  ticket      HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor       User           @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, occurredAt], map: "HelpdeskActivity_ticket_time_idx")
+  @@index([societyId, occurredAt(sort: Desc)], map: "HelpdeskActivity_society_time_idx")
+}
+
+model Notice {
+  id          String        @id @default(uuid()) @db.Uuid
+  societyId   String        @db.Uuid
+  createdById String        @db.Uuid
+  title       String
+  body        String
+  category    String?
+  status      String        @default("DRAFT")
+  publishedAt DateTime?     @db.Timestamptz(6)
+  expiresAt   DateTime?     @db.Timestamptz(6)
+  archivedAt  DateTime?     @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime      @default(now()) @db.Timestamptz(6)
+  society     Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  events      NoticeEvent[]
+
+  @@index([societyId, status, publishedAt(sort: Desc)], map: "Notice_society_status_published_idx")
+  @@index([societyId, createdAt(sort: Desc)], map: "Notice_society_created_idx")
+}
+
+model NoticeEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  societyId   String   @db.Uuid
+  noticeId    String   @db.Uuid
+  actorUserId String   @db.Uuid
+  action      String
+  fromStatus  String?
+  toStatus    String?
+  occurredAt  DateTime @default(now()) @db.Timestamptz(6)
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  notice      Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([noticeId, occurredAt], map: "NoticeEvent_notice_time_idx")
+  @@index([societyId, occurredAt(sort: Desc)], map: "NoticeEvent_society_time_idx")
+}
+
+model SosIncident {
+  id               String             @id @default(uuid()) @db.Uuid
+  societyId        String             @db.Uuid
+  unitId           String             @db.Uuid
+  residentUserId   String             @db.Uuid
+  status           SosStatus          @default(ACTIVE)
+  message          String?
+  latitude         Float?
+  longitude        Float?
+  acknowledgedById String?            @db.Uuid
+  acknowledgedAt   DateTime?          @db.Timestamp(3)
+  resolvedById     String?            @db.Uuid
+  resolvedAt       DateTime?          @db.Timestamp(3)
+  cancelledAt      DateTime?          @db.Timestamp(3)
+  createdAt        DateTime           @default(now()) @db.Timestamp(3)
+  updatedAt        DateTime           @default(now()) @db.Timestamp(3)
+  society          Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit             Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  resident         User               @relation("SosResident", fields: [residentUserId], references: [id], onDelete: Cascade)
+  acknowledgedBy   User?              @relation("SosAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy       User?              @relation("SosResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  events           SosIncidentEvent[]
+
+  @@index([societyId, status, createdAt], map: "SosIncident_societyId_status_createdAt_idx")
+  @@index([societyId, residentUserId, createdAt], map: "SosIncident_societyId_residentUserId_createdAt_idx")
+}
+
+model SosIncidentEvent {
+  id          String      @id @default(uuid()) @db.Uuid
+  societyId   String      @db.Uuid
+  incidentId  String      @db.Uuid
+  actorUserId String      @db.Uuid
+  action      String
+  fromStatus  SosStatus?
+  toStatus    SosStatus?
+  note        String?
+  occurredAt  DateTime    @default(now()) @db.Timestamp(3)
+  society     Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  incident    SosIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  actor       User        @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, incidentId, occurredAt], map: "SosIncidentEvent_societyId_incidentId_occurredAt_idx")
+}
+
 enum UserStatus {
   ACTIVE
   SUSPENDED
   DELETED
+}
+
+enum SosStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  CANCELLED
 }
 
 enum SocietyStatus {
