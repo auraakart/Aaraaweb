@@ -102,6 +102,26 @@ class GuardApi {
     return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> eligibleWorkforce({String? query}) async {
+    final normalized = query?.trim();
+    final suffix = normalized == null || normalized.isEmpty ? '' : '?query=${Uri.encodeQueryComponent(normalized)}';
+    final value = await _send('GET', '/workforce/gate/eligible$suffix');
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> workforceCheckIn({required String gateId, required String assignmentId, required String idempotencyKey}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/workforce/gate/check-in', body: {
+        'gateId': gateId,
+        'assignmentId': assignmentId,
+      }, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
+
+  Future<Map<String, dynamic>> workforceCheckOut({required String gateId, required String assignmentId, required String idempotencyKey}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/workforce/gate/check-out', body: {
+        'gateId': gateId,
+        'assignmentId': assignmentId,
+      }, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
+
   Future<Map<String, dynamic>> createWalkIn({required String gateId, required String unitId, required String name, String? phone, String? purpose}) async =>
       Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/walk-ins', body: {
         'gateId': gateId,

@@ -37,10 +37,10 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
             const SizedBox(height: 18),
             Text('Security shift', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Guard login · गार्ड लॉगिन', textAlign: TextAlign.center),
+            const Text('Guard login', textAlign: TextAlign.center),
             const SizedBox(height: 30),
             if (c.needsSocietySelection) ...[
-              Text('Choose society / सोसाइटी चुनें', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              Text('Choose society', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               for (final membership in c.memberships)
                 Padding(
@@ -55,7 +55,7 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
               TextField(
                 controller: phone,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Mobile number / मोबाइल नंबर', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder()),
               ),
               const SizedBox(height: 12),
               FilledButton(
@@ -69,13 +69,13 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                   controller: otp,
                   keyboardType: TextInputType.number,
                   maxLength: 6,
-                  decoration: const InputDecoration(labelText: '6-digit OTP / ओटीपी', prefixIcon: Icon(Icons.password_rounded), counterText: '', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.password_rounded), counterText: '', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: c.busy ? null : () => c.verifyOtp(otp.text),
                   icon: const Icon(Icons.login_rounded),
-                  label: const Text('START SHIFT / शिफ्ट शुरू करें', style: TextStyle(fontWeight: FontWeight.w900)),
+                  label: const Text('START SHIFT', style: TextStyle(fontWeight: FontWeight.w900)),
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(60)),
                 ),
               ],
