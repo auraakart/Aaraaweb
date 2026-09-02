@@ -1,14 +1,13 @@
 import { BadRequestException, CallHandler, ExecutionContext } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkforceLeaveGateInterceptor } from './workforce-leave-gate.interceptor';
 import { WorkforceLeaveService } from './workforce-leave.service';
 
 describe('WorkforceLeaveGateInterceptor', () => {
-  const leaves = {
-    assertNoActiveLeave: jest.fn(),
-    activeAssignmentIds: jest.fn(),
-  } as unknown as WorkforceLeaveService;
-
+  const assertNoActiveLeave = vi.fn();
+  const activeAssignmentIds = vi.fn();
+  const leaves = { assertNoActiveLeave, activeAssignmentIds } as unknown as WorkforceLeaveService;
   const interceptor = new WorkforceLeaveGateInterceptor(leaves);
 
   function context(request: Record<string, unknown>) {
@@ -17,11 +16,12 @@ describe('WorkforceLeaveGateInterceptor', () => {
     } as unknown as ExecutionContext;
   }
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('blocks workforce check-in when the assignment is on leave', async () => {
-    (leaves.assertNoActiveLeave as jest.Mock).mockRejectedValue(new BadRequestException('Worker is on approved leave today'));
-    const next = { handle: jest.fn(() => of({ id: 'request-1' })) } as unknown as CallHandler;
+    assertNoActiveLeave.mockRejectedValue(new BadRequestException('Worker is on approved leave today'));
+    const handle = vi.fn(() => of({ id: 'request-1' }));
+    const next = { handle } as unknown as CallHandler;
 
     await expect(
       interceptor.intercept(
@@ -34,12 +34,13 @@ describe('WorkforceLeaveGateInterceptor', () => {
         next,
       ),
     ).rejects.toThrow('Worker is on approved leave today');
-    expect(next.handle).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
   });
 
   it('allows workforce check-in when there is no active leave', async () => {
-    (leaves.assertNoActiveLeave as jest.Mock).mockResolvedValue(undefined);
-    const next = { handle: jest.fn(() => of({ id: 'request-1' })) } as unknown as CallHandler;
+    assertNoActiveLeave.mockResolvedValue(undefined);
+    const handle = vi.fn(() => of({ id: 'request-1' }));
+    const next = { handle } as unknown as CallHandler;
 
     const stream = await interceptor.intercept(
       context({
@@ -52,14 +53,13 @@ describe('WorkforceLeaveGateInterceptor', () => {
     );
 
     await expect(lastValueFrom(stream)).resolves.toEqual({ id: 'request-1' });
-    expect(leaves.assertNoActiveLeave).toHaveBeenCalledWith('society-1', 'assignment-1');
+    expect(assertNoActiveLeave).toHaveBeenCalledWith('society-1', 'assignment-1');
   });
 
   it('filters workers on leave from gate eligibility', async () => {
-    (leaves.activeAssignmentIds as jest.Mock).mockResolvedValue(new Set(['assignment-2']));
-    const next = {
-      handle: jest.fn(() => of([{ id: 'assignment-1' }, { id: 'assignment-2' }])),
-    } as unknown as CallHandler;
+    activeAssignmentIds.mockResolvedValue(new Set(['assignment-2']));
+    const handle = vi.fn(() => of([{ id: 'assignment-1' }, { id: 'assignment-2' }]));
+    const next = { handle } as unknown as CallHandler;
 
     const stream = await interceptor.intercept(
       context({
@@ -71,11 +71,12 @@ describe('WorkforceLeaveGateInterceptor', () => {
     );
 
     await expect(lastValueFrom(stream)).resolves.toEqual([{ id: 'assignment-1' }]);
-    expect(leaves.activeAssignmentIds).toHaveBeenCalledWith('society-1', ['assignment-1', 'assignment-2']);
+    expect(activeAssignmentIds).toHaveBeenCalledWith('society-1', ['assignment-1', 'assignment-2']);
   });
 
   it('does not block workforce checkout', async () => {
-    const next = { handle: jest.fn(() => of({ id: 'request-1' })) } as unknown as CallHandler;
+    const handle = vi.fn(() => of({ id: 'request-1' }));
+    const next = { handle } as unknown as CallHandler;
     const stream = await interceptor.intercept(
       context({
         method: 'POST',
@@ -87,6 +88,6 @@ describe('WorkforceLeaveGateInterceptor', () => {
     );
 
     await expect(lastValueFrom(stream)).resolves.toEqual({ id: 'request-1' });
-    expect(leaves.assertNoActiveLeave).not.toHaveBeenCalled();
+    expect(assertNoActiveLeave).not.toHaveBeenCalled();
   });
 });
