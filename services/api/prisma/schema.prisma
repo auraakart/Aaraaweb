@@ -8,44 +8,46 @@ datasource db {
 }
 
 model User {
-  id               String              @id @default(uuid()) @db.Uuid
-  phone            String              @unique
-  email            String?             @unique
-  name             String?
-  status           UserStatus          @default(ACTIVE)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  memberships      SocietyMembership[]
-  unitLinks        UnitResident[]
-  visitors         Visitor[]
-  accessRequests   AccessRequest[]
-  serviceBookings  ServiceBooking[]
-  serviceRatings   ServiceRating[]
-  sessions         Session[]
-  pushDeviceTokens DevicePushToken[]
-  workforceLeavesCreated WorkforceLeave[] @relation("WorkforceLeaveCreator")
-  workforceRatingsGiven WorkforceRating[] @relation("WorkforceRatingAuthor")
+  id                        String                     @id @default(uuid()) @db.Uuid
+  phone                     String                     @unique
+  email                     String?                    @unique
+  name                      String?
+  status                    UserStatus                 @default(ACTIVE)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  memberships               SocietyMembership[]
+  unitLinks                 UnitResident[]
+  visitors                  Visitor[]
+  accessRequests            AccessRequest[]
+  serviceBookings           ServiceBooking[]
+  serviceRatings            ServiceRating[]
+  sessions                  Session[]
+  pushDeviceTokens          DevicePushToken[]
+  workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
+  workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
   workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
-  helpdeskTicketsCreated HelpdeskTicket[] @relation("HelpdeskTicketCreator")
-  helpdeskTicketsAssigned HelpdeskTicket[] @relation("HelpdeskTicketAssignee")
-  helpdeskActivities HelpdeskActivity[]
-  noticesCreated Notice[] @relation("NoticeCreator")
-  noticeEvents NoticeEvent[]
-  sosIncidents SosIncident[] @relation("SosResident")
-  sosAcknowledgements SosIncident[] @relation("SosAcknowledgedBy")
-  sosResolutions SosIncident[] @relation("SosResolvedBy")
-  sosEvents SosIncidentEvent[]
+  helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
+  helpdeskTicketsAssigned   HelpdeskTicket[]           @relation("HelpdeskTicketAssignee")
+  helpdeskActivities        HelpdeskActivity[]
+  noticesCreated            Notice[]                   @relation("NoticeCreator")
+  noticeEvents              NoticeEvent[]
+  sosIncidents              SosIncident[]              @relation("SosResident")
+  sosAcknowledgements       SosIncident[]              @relation("SosAcknowledgedBy")
+  sosResolutions            SosIncident[]              @relation("SosResolvedBy")
+  sosEvents                 SosIncidentEvent[]
+  invoicesCreated           MaintenanceInvoice[]       @relation("InvoiceCreator")
+  paymentEvents             PaymentEvent[]             @relation("PaymentEventActor")
 }
 
 model Society {
-  id                   String                    @id @default(uuid()) @db.Uuid
+  id                   String                     @id @default(uuid()) @db.Uuid
   name                 String
-  code                 String                    @unique
-  status               SocietyStatus             @default(ACTIVE)
-  productTier          ProductTier               @default(STARTER)
-  featureOverrides     Json                      @default("{}")
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
+  code                 String                     @unique
+  status               SocietyStatus              @default(ACTIVE)
+  productTier          ProductTier                @default(STARTER)
+  featureOverrides     Json                       @default("{}")
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
   memberships          SocietyMembership[]
   buildings            Building[]
   gates                Gate[]
@@ -74,60 +76,68 @@ model Society {
   noticeEvents         NoticeEvent[]
   sosIncidents         SosIncident[]
   sosEvents            SosIncidentEvent[]
+  maintenanceInvoices  MaintenanceInvoice[]
+  payments             Payment[]
+  paymentEvents        PaymentEvent[]
 }
 
 model SocietyMembership {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  societyId String   @db.Uuid
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  societyId String         @db.Uuid
   role      MembershipRole
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society   Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
   @@unique([userId, societyId, role])
   @@index([societyId])
 }
 
 model Building {
-  id        String   @id @default(uuid()) @db.Uuid
-  societyId String   @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  societyId String  @db.Uuid
   name      String
   code      String
-  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  society   Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
   units     Unit[]
+
   @@unique([societyId, code])
 }
 
 model Unit {
-  id              String           @id @default(uuid()) @db.Uuid
-  societyId       String           @db.Uuid
-  buildingId      String           @db.Uuid
-  number          String
-  building        Building         @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  residents       UnitResident[]
-  household       Household?
-  visitors        Visitor[]
-  accessRequests  AccessRequest[]
-  serviceBookings ServiceBooking[]
-  helpdeskTickets HelpdeskTicket[]
-  sosIncidents    SosIncident[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  societyId           String               @db.Uuid
+  buildingId          String               @db.Uuid
+  number              String
+  building            Building             @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  residents           UnitResident[]
+  household           Household?
+  visitors            Visitor[]
+  accessRequests      AccessRequest[]
+  serviceBookings     ServiceBooking[]
+  helpdeskTickets     HelpdeskTicket[]
+  sosIncidents        SosIncident[]
+  maintenanceInvoices MaintenanceInvoice[]
+
   @@unique([buildingId, number])
   @@index([societyId])
 }
 
 model UnitResident {
-  id        String   @id @default(uuid()) @db.Uuid
-  societyId String   @db.Uuid
-  unitId    String   @db.Uuid
-  userId    String   @db.Uuid
+  id        String       @id @default(uuid()) @db.Uuid
+  societyId String       @db.Uuid
+  unitId    String       @db.Uuid
+  userId    String       @db.Uuid
   relation  UnitRelation
-  primary   Boolean  @default(false)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primary   Boolean      @default(false)
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  society   Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit      Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([unitId, userId])
   @@index([societyId, unitId])
   @@index([societyId, userId])
@@ -146,6 +156,7 @@ model Household {
   vehicles             HouseholdVehicle[]
   emergencyContacts    EmergencyContact[]
   workforceAssignments WorkforceAssignment[]
+
   @@index([societyId])
 }
 
@@ -162,6 +173,7 @@ model HouseholdVehicle {
   createdAt   DateTime    @default(now())
   society     Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
   @@unique([societyId, plateNumber])
   @@index([householdId, active])
 }
@@ -178,45 +190,48 @@ model EmergencyContact {
   createdAt   DateTime  @default(now())
   society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
   @@index([householdId, active, priority])
 }
 
 model DomesticWorker {
-  id           String                           @id @default(uuid()) @db.Uuid
-  societyId    String                           @db.Uuid
-  name         String
-  phone        String
-  role         DomesticWorkerRole
-  verification DomesticWorkerVerificationStatus @default(PENDING)
-  active       Boolean                          @default(true)
-  createdAt    DateTime                         @default(now())
-  updatedAt    DateTime                         @updatedAt
-  society      Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  assignments  WorkforceAssignment[]
-  ratings      WorkforceRating[]
+  id               String                           @id @default(uuid()) @db.Uuid
+  societyId        String                           @db.Uuid
+  name             String
+  phone            String
+  role             DomesticWorkerRole
+  verification     DomesticWorkerVerificationStatus @default(PENDING)
+  active           Boolean                          @default(true)
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
+  society          Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignments      WorkforceAssignment[]
+  ratings          WorkforceRating[]
   suspensionEvents WorkforceSuspensionEvent[]
+
   @@unique([societyId, phone])
   @@index([societyId, verification, active])
 }
 
 model WorkforceAssignment {
-  id          String                    @id @default(uuid()) @db.Uuid
-  societyId   String                    @db.Uuid
-  householdId String                    @db.Uuid
-  workerId    String                    @db.Uuid
-  status      WorkforceAssignmentStatus @default(PENDING)
-  schedule    Json                      @default("{}")
-  active      Boolean                   @default(true)
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-  society     Society                   @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  household   Household                 @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  worker      DomesticWorker            @relation(fields: [workerId], references: [id], onDelete: Cascade)
-  leaves      WorkforceLeave[]
-  rating      WorkforceRating?
+  id               String                     @id @default(uuid()) @db.Uuid
+  societyId        String                     @db.Uuid
+  householdId      String                     @db.Uuid
+  workerId         String                     @db.Uuid
+  status           WorkforceAssignmentStatus  @default(PENDING)
+  schedule         Json                       @default("{}")
+  active           Boolean                    @default(true)
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  society          Society                    @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household        Household                  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  worker           DomesticWorker             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  leaves           WorkforceLeave[]
+  rating           WorkforceRating?
   suspensionEvents WorkforceSuspensionEvent[]
+
   @@unique([householdId, workerId])
   @@index([societyId, status, active])
   @@index([societyId, workerId, active])
@@ -288,6 +303,7 @@ model Gate {
   society       Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
   auditEvents   AuditEvent[]
   gateMutations GateMutationReceipt[]
+
   @@unique([societyId, code])
 }
 
@@ -315,6 +331,7 @@ model AccessRequest {
   serviceBooking ServiceBooking?
   auditEvents    AuditEvent[]
   gateMutations  GateMutationReceipt[]
+
   @@index([societyId, unitId, status])
   @@index([societyId, requestedById, createdAt])
   @@index([societyId, credentialHash])
@@ -332,20 +349,21 @@ model ServiceCategory {
 }
 
 model ServiceProvider {
-  id             String                     @id @default(uuid()) @db.Uuid
-  businessName   String
-  contactName    String?
-  phone          String
-  email          String?
-  description    String?
-  verification   ProviderVerificationStatus @default(PENDING)
-  active         Boolean                    @default(true)
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
-  societies      ServiceProviderSociety[]
-  offerings      ServiceOffering[]
-  bookings       ServiceBooking[]
-  ratings        ServiceRating[]
+  id           String                     @id @default(uuid()) @db.Uuid
+  businessName String
+  contactName  String?
+  phone        String
+  email        String?
+  description  String?
+  verification ProviderVerificationStatus @default(PENDING)
+  active       Boolean                    @default(true)
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  societies    ServiceProviderSociety[]
+  offerings    ServiceOffering[]
+  bookings     ServiceBooking[]
+  ratings      ServiceRating[]
+
   @@index([verification, active])
 }
 
@@ -360,24 +378,26 @@ model ServiceProviderSociety {
   updatedAt     DateTime              @updatedAt
   society       Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
   provider      ServiceProvider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@unique([societyId, providerId])
   @@index([societyId, status])
 }
 
 model ServiceOffering {
-  id              String          @id @default(uuid()) @db.Uuid
-  providerId      String          @db.Uuid
-  categoryId      String          @db.Uuid
+  id              String           @id @default(uuid()) @db.Uuid
+  providerId      String           @db.Uuid
+  categoryId      String           @db.Uuid
   name            String
   description     String?
   pricePaise      Int
   durationMinutes Int?
-  active          Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  provider        ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  category        ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  provider        ServiceProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category        ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   bookings        ServiceBooking[]
+
   @@index([categoryId, active])
   @@index([providerId, active])
 }
@@ -406,6 +426,7 @@ model ServiceBooking {
   offering          ServiceOffering      @relation(fields: [offeringId], references: [id], onDelete: Restrict)
   accessRequest     AccessRequest?       @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
   rating            ServiceRating?
+
   @@index([societyId, residentUserId, createdAt])
   @@index([societyId, providerId, status])
 }
@@ -423,6 +444,7 @@ model ServiceRating {
   booking        ServiceBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   provider       ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   residentUser   User            @relation(fields: [residentUserId], references: [id], onDelete: Cascade)
+
   @@index([providerId, createdAt])
   @@index([societyId, createdAt])
 }
@@ -442,6 +464,7 @@ model Visitor {
   unit       Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
   hostUser   User          @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
   passes     VisitorPass[]
+
   @@index([societyId, hostUserId])
   @@index([societyId, unitId])
 }
@@ -460,6 +483,7 @@ model VisitorPass {
   society        Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
   visitor        Visitor           @relation(fields: [visitorId], references: [id], onDelete: Cascade)
   auditEvents    AuditEvent[]
+
   @@index([societyId, status])
   @@index([visitorId])
   @@index([societyId, credentialHash])
@@ -478,6 +502,7 @@ model AuditEvent {
   gate            Gate?          @relation(fields: [gateId], references: [id], onDelete: SetNull)
   visitorPass     VisitorPass?   @relation(fields: [visitorPassId], references: [id], onDelete: SetNull)
   accessRequest   AccessRequest? @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
+
   @@index([societyId, occurredAt])
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
@@ -496,6 +521,7 @@ model GateMutationReceipt {
   society         Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
   gate            Gate               @relation(fields: [gateId], references: [id], onDelete: Cascade)
   accessRequest   AccessRequest      @relation(fields: [accessRequestId], references: [id], onDelete: Cascade)
+
   @@unique([societyId, idempotencyKey])
   @@index([societyId, gateId, createdAt])
   @@index([accessRequestId, createdAt])
@@ -514,22 +540,24 @@ model DevicePushToken {
   updatedAt  DateTime       @updatedAt
   society    Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([societyId, userId, active])
   @@index([userId, active])
 }
 
 model Session {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @db.Uuid
-  societyId        String?  @db.Uuid
-  accessTokenHash  String   @unique
-  refreshTokenHash String   @unique
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  societyId        String?   @db.Uuid
+  accessTokenHash  String    @unique
+  refreshTokenHash String    @unique
   expiresAt        DateTime
   refreshExpiresAt DateTime
   revokedAt        DateTime?
-  createdAt        DateTime @default(now())
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  society          Society? @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society          Society?  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
   @@index([userId, revokedAt])
   @@index([societyId, revokedAt])
   @@index([expiresAt])
@@ -618,6 +646,69 @@ model NoticeEvent {
   @@index([societyId, occurredAt(sort: Desc)], map: "NoticeEvent_society_time_idx")
 }
 
+model MaintenanceInvoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  societyId     String        @db.Uuid
+  unitId        String        @db.Uuid
+  createdById   String        @db.Uuid
+  invoiceNumber String
+  billingPeriod String
+  description   String?
+  amountPaise   Int
+  dueDate       DateTime      @db.Date
+  status        InvoiceStatus @default(ISSUED)
+  issuedAt      DateTime      @default(now()) @db.Timestamptz(6)
+  paidAt        DateTime?     @db.Timestamptz(6)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(6)
+  society       Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit          Unit          @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  createdBy     User          @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  payments      Payment[]
+
+  @@unique([societyId, invoiceNumber])
+  @@index([societyId, unitId, status, dueDate])
+}
+
+model Payment {
+  id                String             @id @default(uuid()) @db.Uuid
+  societyId         String             @db.Uuid
+  invoiceId         String             @db.Uuid
+  payerUserId       String             @db.Uuid
+  idempotencyKey    String
+  provider          String
+  providerOrderId   String             @unique
+  providerPaymentId String?
+  amountPaise       Int
+  status            PaymentStatus      @default(CREATED)
+  failureCode       String?
+  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
+  completedAt       DateTime?          @db.Timestamptz(6)
+  society           Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  invoice           MaintenanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  events            PaymentEvent[]
+
+  @@unique([societyId, payerUserId, idempotencyKey])
+  @@index([societyId, invoiceId, status])
+}
+
+model PaymentEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  societyId       String   @db.Uuid
+  paymentId       String   @db.Uuid
+  actorUserId     String?  @db.Uuid
+  providerEventId String?  @unique
+  type            String
+  payloadDigest   String?
+  occurredAt      DateTime @default(now()) @db.Timestamptz(6)
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  actorUser       User?    @relation("PaymentEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, paymentId, occurredAt])
+}
+
 model SosIncident {
   id               String             @id @default(uuid()) @db.Uuid
   societyId        String             @db.Uuid
@@ -678,6 +769,20 @@ enum SosStatus {
 enum SocietyStatus {
   ACTIVE
   SUSPENDED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+  VOID
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
 }
 
 enum ProductTier {
