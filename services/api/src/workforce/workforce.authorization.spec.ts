@@ -14,7 +14,7 @@ describe('WorkforceController authorization', () => {
     expect(guards).toEqual([BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard]);
   });
 
-  it('separates resident workforce permissions from society review permission', () => {
+  it('separates resident, society review, and gate processing permissions', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.mine)).toEqual([
       AppPermission.WORKFORCE_READ_OWN,
     ]);
@@ -32,6 +32,15 @@ describe('WorkforceController authorization', () => {
     ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.reject)).toEqual([
       AppPermission.WORKFORCE_REVIEW,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.gateEligible)).toEqual([
+      AppPermission.GATE_ACCESS_PROCESS,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.gateCheckIn)).toEqual([
+      AppPermission.GATE_ACCESS_PROCESS,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.gateCheckOut)).toEqual([
+      AppPermission.GATE_ACCESS_PROCESS,
     ]);
   });
 });
