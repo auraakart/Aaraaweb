@@ -7,8 +7,9 @@ export class HouseholdService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listMine(societyId: string, userId: string) {
-    const links = await this.prisma.unitResident.findMany({
-      where: { societyId, userId, active: true },
+    const now = new Date();
+    const links = await this.prisma.unitOccupancy.findMany({
+      where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
       select: { unitId: true },
     });
     if (!links.length) return [];
@@ -19,9 +20,9 @@ export class HouseholdService {
         unit: {
           include: {
             building: true,
-            residents: {
-              where: { active: true },
-              include: { user: true },
+            occupancies: {
+              where: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+              select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
             },
           },
         },
@@ -111,8 +112,9 @@ export class HouseholdService {
   }
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
-    const link = await this.prisma.unitResident.findFirst({
-      where: { societyId, userId, unitId, active: true },
+    const now = new Date();
+    const link = await this.prisma.unitOccupancy.findFirst({
+      where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
     });
     if (!link) throw new BadRequestException('Unit does not belong to the authenticated resident');
     return link;

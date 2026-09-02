@@ -14,7 +14,8 @@ export class ServicesMarketplaceService {
   }
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
-    const link = await this.prisma.unitResident.findFirst({ where: { societyId, userId, unitId, active: true } });
+    const now = new Date();
+    const link = await this.prisma.unitOccupancy.findFirst({ where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } });
     if (!link) throw new ForbiddenException('Unit does not belong to authenticated resident');
   }
 

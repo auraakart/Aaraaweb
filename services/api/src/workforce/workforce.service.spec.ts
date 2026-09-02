@@ -10,7 +10,7 @@ describe('WorkforceService tenant isolation', () => {
   it('does not reveal a household outside the authenticated society', async () => {
     const prisma = {
       household: { findFirst: vi.fn().mockResolvedValue(null) },
-      unitResident: { findFirst: vi.fn() },
+      unitOccupancy: { findFirst: vi.fn() },
     };
     const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
 
@@ -23,7 +23,7 @@ describe('WorkforceService tenant isolation', () => {
       }),
     ).rejects.toThrow('Household not found');
     expect(prisma.household.findFirst).toHaveBeenCalledWith({ where: { id: 'household-b', societyId: 'society-a' } });
-    expect(prisma.unitResident.findFirst).not.toHaveBeenCalled();
+    expect(prisma.unitOccupancy.findFirst).not.toHaveBeenCalled();
   });
 
   it('scopes society review lookup by assignment id and tenant society', async () => {
@@ -59,7 +59,7 @@ describe('WorkforceService gate attendance', () => {
           endDate: null,
           schedule: { days: ['MONDAY'] },
           worker: { id: 'worker-a', name: 'Maya', phone: '+919900000000', role: 'MAID', active: true, verification: 'VERIFIED' },
-          household: { unitId: 'unit-a', unit: { residents: [{ userId: 'resident-a' }] } },
+          household: { unitId: 'unit-a', unit: { occupancies: [{ userId: 'resident-a' }] } },
         }),
       },
       accessRequest: { findFirst: vi.fn() },
@@ -90,7 +90,7 @@ describe('WorkforceService gate attendance', () => {
         }),
       },
       accessRequest: { findFirst: vi.fn().mockResolvedValue(request) },
-      unitResident: { findMany: vi.fn().mockResolvedValue([{ userId: 'resident-a' }]) },
+      unitOccupancy: { findMany: vi.fn().mockResolvedValue([{ userId: 'resident-a' }]) },
     };
     const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
 

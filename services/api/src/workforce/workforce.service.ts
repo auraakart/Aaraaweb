@@ -20,8 +20,9 @@ export class WorkforceService {
   ) {}
 
   async listMine(societyId: string, userId: string) {
-    const unitLinks = await this.prisma.unitResident.findMany({
-      where: { societyId, userId, active: true },
+    const now = new Date();
+    const unitLinks = await this.prisma.unitOccupancy.findMany({
+      where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
       select: { unitId: true },
     });
     if (!unitLinks.length) return [];
@@ -200,9 +201,9 @@ export class WorkforceService {
           include: {
             unit: {
               include: {
-                residents: {
-                  where: { active: true },
-                  orderBy: [{ primary: 'desc' }, { createdAt: 'asc' }],
+                occupancies: {
+                  where: { active: true, gateNotificationEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+                  orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
                 },
               },
             },
@@ -218,7 +219,7 @@ export class WorkforceService {
     if (assignment.endDate && now > assignment.endDate) throw new BadRequestException('Workforce assignment has expired');
     if (!this.isScheduleAllowed(assignment.schedule, now)) throw new BadRequestException('Worker is outside the approved schedule');
 
-    const residentUserIds = assignment.household.unit.residents.map((resident) => resident.userId);
+    const residentUserIds = assignment.household.unit.occupancies.map((occupant) => occupant.userId);
     const hostUserId = residentUserIds[0];
     if (!hostUserId) throw new BadRequestException('Destination household does not have an active resident');
 
@@ -346,9 +347,10 @@ export class WorkforceService {
   }
 
   private async residentUserIds(societyId: string, unitId: string) {
-    const residents = await this.prisma.unitResident.findMany({
-      where: { societyId, unitId, active: true },
-      orderBy: [{ primary: 'desc' }, { createdAt: 'asc' }],
+    const now = new Date();
+    const residents = await this.prisma.unitOccupancy.findMany({
+      where: { societyId, unitId, active: true, gateNotificationEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+      orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
       select: { userId: true },
     });
     return residents.map((resident) => resident.userId);
@@ -398,8 +400,9 @@ export class WorkforceService {
   private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {
     const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
-    const link = await this.prisma.unitResident.findFirst({
-      where: { societyId, userId, unitId: household.unitId, active: true },
+    const now = new Date();
+    const link = await this.prisma.unitOccupancy.findFirst({
+      where: { societyId, userId, unitId: household.unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
       select: { id: true },
     });
     if (!link) throw new NotFoundException('Household not found');

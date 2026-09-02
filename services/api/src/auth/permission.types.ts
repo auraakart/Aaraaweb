@@ -11,6 +11,11 @@ export enum AppPermission {
   GATE_ACCESS_PROCESS = 'GATE_ACCESS_PROCESS',
   HOUSEHOLD_READ_OWN = 'HOUSEHOLD_READ_OWN',
   HOUSEHOLD_MANAGE_OWN = 'HOUSEHOLD_MANAGE_OWN',
+  PROPERTY_PROFILE_READ = 'PROPERTY_PROFILE_READ',
+  PROPERTY_PROFILE_MANAGE = 'PROPERTY_PROFILE_MANAGE',
+  PROPERTY_FINANCE_READ = 'PROPERTY_FINANCE_READ',
+  PROPERTY_DOCUMENT_READ = 'PROPERTY_DOCUMENT_READ',
+  PROPERTY_VOTE = 'PROPERTY_VOTE',
   WORKFORCE_READ_OWN = 'WORKFORCE_READ_OWN',
   WORKFORCE_MANAGE_OWN = 'WORKFORCE_MANAGE_OWN',
   WORKFORCE_REVIEW = 'WORKFORCE_REVIEW',
@@ -29,6 +34,9 @@ export enum AppPermission {
   PLATFORM_PROVIDER_VERIFY = 'PLATFORM_PROVIDER_VERIFY',
   REPORTS_READ = 'REPORTS_READ',
   AUDIT_READ = 'AUDIT_READ',
+  BILLING_MANAGE = 'BILLING_MANAGE',
+  PAYMENT_CREATE_OWN = 'PAYMENT_CREATE_OWN',
+  PAYMENT_RECONCILE = 'PAYMENT_RECONCILE',
 }
 
 export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]>> = {
@@ -45,6 +53,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.REPORTS_READ,
     AppPermission.AUDIT_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
+    AppPermission.BILLING_MANAGE,
+    AppPermission.PAYMENT_RECONCILE,
   ],
   [AppRole.COMMITTEE_MEMBER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -67,8 +77,13 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.REPORTS_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
   ],
-  [AppRole.ACCOUNTANT]: [AppPermission.REPORTS_READ],
+  [AppRole.ACCOUNTANT]: [AppPermission.REPORTS_READ, AppPermission.BILLING_MANAGE, AppPermission.PAYMENT_RECONCILE],
   [AppRole.OWNER]: [
+    AppPermission.PROPERTY_PROFILE_READ,
+    AppPermission.PROPERTY_PROFILE_MANAGE,
+    AppPermission.PROPERTY_FINANCE_READ,
+    AppPermission.PROPERTY_DOCUMENT_READ,
+    AppPermission.PROPERTY_VOTE,
     AppPermission.VISITOR_READ_OWN,
     AppPermission.VISITOR_MANAGE_OWN,
     AppPermission.ACCESS_READ_OWN,
@@ -83,6 +98,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOS_TRIGGER,
     AppPermission.SOS_READ_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
+    AppPermission.PAYMENT_CREATE_OWN,
   ],
   [AppRole.TENANT]: [
     AppPermission.VISITOR_READ_OWN,

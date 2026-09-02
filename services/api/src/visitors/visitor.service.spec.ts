@@ -5,9 +5,9 @@ import { VisitorService } from './visitor.service';
 type Overrides = Record<string, unknown>;
 
 function service(overrides: Overrides = {}) {
-  const unitResident = {
+  const unitOccupancy = {
     findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }),
-    ...((overrides.unitResident as Record<string, unknown> | undefined) ?? {}),
+    ...((overrides.unitOccupancy as Record<string, unknown> | undefined) ?? {}),
   };
   const visitor = {
     create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'visitor-1', ...data })),
@@ -23,9 +23,9 @@ function service(overrides: Overrides = {}) {
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     ...((overrides.visitorPass as Record<string, unknown> | undefined) ?? {}),
   };
-  const transactionClient = { unitResident, visitor, visitorPass };
+  const transactionClient = { unitOccupancy, visitor, visitorPass };
   const prisma = {
-    unitResident,
+    unitOccupancy,
     visitor,
     visitorPass,
     $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) => callback(transactionClient)),
@@ -45,7 +45,7 @@ describe('VisitorService', () => {
   });
 
   it('rejects visitor creation for a unit not linked to the host', async () => {
-    const { svc } = service({ unitResident: { findFirst: vi.fn().mockResolvedValue(null) } });
+    const { svc } = service({ unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(svc.createRequest('society-1', 'host-1', 'unit-x', 'Visitor')).rejects.toBeInstanceOf(BadRequestException);
   });
 

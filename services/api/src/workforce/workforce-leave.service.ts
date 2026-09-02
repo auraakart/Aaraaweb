@@ -33,12 +33,17 @@ export class WorkforceLeaveService {
       FROM "WorkforceLeave" wl
       JOIN "WorkforceAssignment" wa ON wa."id" = wl."assignmentId"
       JOIN "Household" h ON h."id" = wa."householdId"
-      JOIN "UnitResident" ur ON ur."unitId" = h."unitId"
       WHERE wl."societyId" = ${societyId}::uuid
         AND wa."societyId" = ${societyId}::uuid
-        AND ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."unitId" = h."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
       ORDER BY wl."startsOn" DESC, wl."createdAt" DESC
     `);
   }
@@ -103,13 +108,18 @@ export class WorkforceLeaveService {
       FROM "WorkforceLeave" wl
       JOIN "WorkforceAssignment" wa ON wa."id" = wl."assignmentId"
       JOIN "Household" h ON h."id" = wa."householdId"
-      JOIN "UnitResident" ur ON ur."unitId" = h."unitId"
       WHERE wl."id" = ${leaveId}::uuid
         AND wl."societyId" = ${societyId}::uuid
         AND wa."societyId" = ${societyId}::uuid
-        AND ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."unitId" = h."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
         AND wl."active" = true
       LIMIT 1
     `);
@@ -161,13 +171,18 @@ export class WorkforceLeaveService {
       SELECT wa."id" AS "assignmentId"
       FROM "WorkforceAssignment" wa
       JOIN "Household" h ON h."id" = wa."householdId"
-      JOIN "UnitResident" ur ON ur."unitId" = h."unitId"
       WHERE wa."id" = ${assignmentId}::uuid
         AND wa."societyId" = ${societyId}::uuid
         AND wa."active" = true
-        AND ur."societyId" = ${societyId}::uuid
-        AND ur."userId" = ${userId}::uuid
-        AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."unitId" = h."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
       LIMIT 1
     `);
     if (!rows.length) throw new NotFoundException('Active workforce assignment not found');

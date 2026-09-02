@@ -248,7 +248,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 ]),
               ],
               const SizedBox(height: 22),
-              Card(child: ListTile(leading: Icon(c.queuedActions == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined), title: Text(c.queuedActions == 0 ? 'Online operations clear' : '${c.queuedActions} offline actions pending', style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(c.queuedActions == 0 ? 'No locally queued gate actions.' : 'Stored securely for supervisor review and safe sync.'))),
+              Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [ListTile(contentPadding: EdgeInsets.zero, leading: Icon(c.queuedActions == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined), title: Text(c.queuedActions == 0 ? 'Online operations clear' : '${c.queuedActions} offline actions pending', style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(c.offlineSyncMessage ?? (c.queuedActions == 0 ? 'No locally queued gate actions.' : 'Stored securely for supervisor review and safe sync.'))), if (c.queuedActions > 0) OutlinedButton.icon(onPressed: c.busy ? null : c.retryQueuedActions, icon: const Icon(Icons.sync_rounded), label: const Text('RETRY SAFE SYNC'))]))),
             ],
           ),
         ),

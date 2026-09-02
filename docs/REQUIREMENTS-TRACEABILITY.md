@@ -26,11 +26,11 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
 | Visitor management | Active vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out and audit |
 | Guard application | Functional foundation | Login/session, scanner, operational screen, offline queue and API integration |
-| Household/domestic help | Foundation | Household model, vehicles/emergency contacts and recurring-access expansion |
+| Household/domestic help | Hardened foundation | Ownership separated from time-bound occupancy; household data and workforce access follow active occupancy |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
 | Admin operations | Foundation | Operational modules exist; full production workflows remain incomplete |
-| Notifications | Planned/partial | Resident/gate events must trigger tenant-safe push/in-app notifications |
+| Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
 | Maintenance/billing | Planned | Bills, server-verified payments, receipts and ledger-ready records |
 | Reports/analytics | Planned | Operational, audit and management reporting |
 | Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
@@ -54,9 +54,18 @@ Visitor Management is not complete until all of the following are verified end-t
 - Visitor/pass states remain synchronized.
 - Gate actions create auditable events where required.
 - Resident notification is delivered for material gate events.
+- Routine gate approval is delivered to active configured occupants, not to a non-resident owner by default.
+- Any configured active occupant gate approver can decide the request; ownership alone cannot.
+- Expired or ended occupancy cannot receive or approve new gate requests.
 - Wrong society, wrong gate, expired, revoked, reused and concurrent credentials fail safely.
 - Offline guard actions are idempotently synchronized when that workflow is enabled.
 - UI includes loading, empty, error and recovery states.
+
+### Guard offline recovery evidence
+- Transport failures queue gate check-in/out actions in secure local storage with stable idempotency keys.
+- Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
+- Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
+- Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
 
 ## Definition of done
 A feature is not production-ready until it has requirement mapping, responsive UI, loading/empty/error/offline states where relevant, tenant isolation, role/permission/entitlement checks, validation, audit implications reviewed, tests, documented acceptance criteria, green CI and staging validation appropriate to its risk.
