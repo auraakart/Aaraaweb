@@ -63,14 +63,24 @@ export class HelpdeskController {
 
   @Get(':ticketId/activities')
   @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
-  activities(@Param('ticketId', ParseUUIDPipe) ticketId: string, @CurrentTenant() societyId: string) {
-    return this.helpdesk.activities(societyId, ticketId);
+  activities(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.activitiesMine(societyId, this.requireUser(userId), ticketId);
   }
 
   @Get('review/queue')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   queue(@CurrentTenant() societyId: string) {
     return this.helpdesk.listReview(societyId);
+  }
+
+  @Get('review/:ticketId/activities')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reviewActivities(@Param('ticketId', ParseUUIDPipe) ticketId: string, @CurrentTenant() societyId: string) {
+    return this.helpdesk.activitiesReview(societyId, ticketId);
   }
 
   @Post('review/:ticketId/comments')
