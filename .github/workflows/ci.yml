@@ -119,28 +119,18 @@ jobs:
       - name: Analyze resident app
         working-directory: apps/resident
         run: flutter analyze
-      - name: Test resident app when tests exist
+      - name: Test resident app
         working-directory: apps/resident
-        run: |
-          if [ -d test ] && find test -name '*_test.dart' -print -quit | grep -q .; then
-            flutter test
-          else
-            echo 'No resident Flutter tests found yet.'
-          fi
+        run: flutter test
       - name: Guard dependencies
         working-directory: apps/guard
         run: flutter pub get
       - name: Analyze guard app
         working-directory: apps/guard
         run: flutter analyze
-      - name: Test guard app when tests exist
+      - name: Test guard app
         working-directory: apps/guard
-        run: |
-          if [ -d test ] && find test -name '*_test.dart' -print -quit | grep -q .; then
-            flutter test
-          else
-            echo 'No guard Flutter tests found yet.'
-          fi
+        run: flutter test
 
   dependency-security:
     name: Dependency security
