@@ -5,6 +5,7 @@ import 'data/offline_action_queue.dart';
 import 'guard_controller.dart';
 import 'screens/guard_login_screen.dart';
 import 'screens/guard_operations_screen.dart';
+import 'screens/guard_workforce_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,9 +39,26 @@ class AaraagateGuardApp extends StatelessWidget {
           if (controller.booting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          return controller.signedIn
-              ? GuardOperationsScreen(controller: controller)
-              : GuardLoginScreen(controller: controller);
+          if (!controller.signedIn) return GuardLoginScreen(controller: controller);
+          return Stack(
+            children: [
+              GuardOperationsScreen(controller: controller),
+              Positioned(
+                right: 18,
+                bottom: 24,
+                child: FloatingActionButton.extended(
+                  heroTag: 'workforce',
+                  onPressed: controller.gateId == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => GuardWorkforceScreen(controller: controller)),
+                          ),
+                  icon: const Icon(Icons.badge_outlined),
+                  label: const Text('STAFF / स्टाफ', style: TextStyle(fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ],
+          );
         },
       ),
     );
