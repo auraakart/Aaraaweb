@@ -3,23 +3,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceSuspensionService } from './workforce-suspension.service';
 
+const withTransaction = (tx: Record<string, unknown>) => ({
+  $transaction: vi.fn(async (callback: (client: Record<string, unknown>) => unknown) => callback(tx)),
+});
+
 describe('WorkforceSuspensionService', () => {
   it('scopes worker suspension lookup to the authenticated society', async () => {
-    const prisma = {
-      domesticWorker: {
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
+    const tx = {
+      domesticWorker: { findFirst: vi.fn().mockResolvedValue(null) },
     };
+    const prisma = withTransaction(tx);
     const service = new WorkforceSuspensionService(prisma as unknown as PrismaService);
 
-    await expect(service.suspendWorker('society-a', 'worker-b')).rejects.toThrow('Active domestic worker not found');
-    expect(prisma.domesticWorker.findFirst).toHaveBeenCalledWith({
+    await expect(service.suspendWorker('society-a', 'worker-b', 'reviewer-a', 'Access policy breach')).rejects.toThrow(
+      'Active domestic worker not found',
+    );
+    expect(tx.domesticWorker.findFirst).toHaveBeenCalledWith({
       where: { id: 'worker-b', societyId: 'society-a', active: true },
     });
   });
 
-  it('suspends only a verified worker', async () => {
-    const prisma = {
+  it('suspends a verified worker and writes the audit event in the same transaction', async () => {
+    const tx = {
       domesticWorker: {
         findFirst: vi.fn().mockResolvedValue({
           id: 'worker-a',
@@ -29,18 +34,31 @@ describe('WorkforceSuspensionService', () => {
         }),
         update: vi.fn().mockResolvedValue({ id: 'worker-a', verification: DomesticWorkerVerificationStatus.SUSPENDED }),
       },
+      $executeRaw: vi.fn().mockResolvedValue(1),
     };
+    const prisma = withTransaction(tx);
     const service = new WorkforceSuspensionService(prisma as unknown as PrismaService);
 
-    await service.suspendWorker('society-a', 'worker-a');
-    expect(prisma.domesticWorker.update).toHaveBeenCalledWith({
+    await service.suspendWorker('society-a', 'worker-a', 'reviewer-a', ' Access policy breach ');
+    expect(tx.domesticWorker.update).toHaveBeenCalledWith({
       where: { id: 'worker-a' },
       data: { verification: DomesticWorkerVerificationStatus.SUSPENDED },
     });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a meaningful suspension reason before starting a transaction', async () => {
+    const prisma = withTransaction({});
+    const service = new WorkforceSuspensionService(prisma as unknown as PrismaService);
+
+    await expect(service.suspendWorker('society-a', 'worker-a', 'reviewer-a', '  ')).rejects.toThrow(
+      'Suspension reason must be at least 3 characters',
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('refuses assignment reinstatement while the worker remains suspended', async () => {
-    const prisma = {
+    const tx = {
       workforceAssignment: {
         findFirst: vi.fn().mockResolvedValue({
           id: 'assignment-a',
@@ -55,26 +73,26 @@ describe('WorkforceSuspensionService', () => {
         update: vi.fn(),
       },
     };
+    const prisma = withTransaction(tx);
     const service = new WorkforceSuspensionService(prisma as unknown as PrismaService);
 
-    await expect(service.reinstateAssignment('society-a', 'assignment-a')).rejects.toThrow(
+    await expect(service.reinstateAssignment('society-a', 'assignment-a', 'reviewer-a')).rejects.toThrow(
       'Domestic worker must be active and verified before assignment reinstatement',
     );
-    expect(prisma.workforceAssignment.update).not.toHaveBeenCalled();
+    expect(tx.workforceAssignment.update).not.toHaveBeenCalled();
   });
 
   it('scopes assignment suspension lookup to the authenticated society', async () => {
-    const prisma = {
-      workforceAssignment: {
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
+    const tx = {
+      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(null) },
     };
+    const prisma = withTransaction(tx);
     const service = new WorkforceSuspensionService(prisma as unknown as PrismaService);
 
-    await expect(service.suspendAssignment('society-a', 'assignment-b')).rejects.toThrow(
-      'Active workforce assignment not found',
-    );
-    expect(prisma.workforceAssignment.findFirst).toHaveBeenCalledWith({
+    await expect(
+      service.suspendAssignment('society-a', 'assignment-b', 'reviewer-a', 'Resident safety concern'),
+    ).rejects.toThrow('Active workforce assignment not found');
+    expect(tx.workforceAssignment.findFirst).toHaveBeenCalledWith({
       where: { id: 'assignment-b', societyId: 'society-a', active: true },
     });
   });
