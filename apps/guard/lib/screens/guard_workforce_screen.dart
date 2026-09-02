@@ -113,7 +113,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(type == 'CHECK_IN' ? 'Worker checked in / अंदर दर्ज' : 'Worker checked out / बाहर दर्ज')),
+        SnackBar(content: Text(type == 'CHECK_IN' ? 'Worker checked in' : 'Worker checked out')),
       );
       await _load();
     } on GuardApiException catch (e) {
@@ -149,7 +149,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily Workforce / घरेलू स्टाफ', style: TextStyle(fontWeight: FontWeight.w900))),
+      appBar: AppBar(title: const Text('Daily Workforce', style: TextStyle(fontWeight: FontWeight.w900))),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -174,7 +174,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _load(),
                 decoration: InputDecoration(
-                  labelText: 'Search name or phone / नाम या फोन',
+                  labelText: 'Search name or phone',
                   prefixIcon: const Icon(Icons.search_rounded),
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(onPressed: _busy ? null : _load, icon: const Icon(Icons.arrow_forward_rounded)),
@@ -217,7 +217,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                             child: FilledButton.icon(
                               onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_IN'),
                               icon: const Icon(Icons.login_rounded),
-                              label: const Text('ENTER\nअंदर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                              label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
                               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
                             ),
                           ),
@@ -226,7 +226,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                             child: OutlinedButton.icon(
                               onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_OUT'),
                               icon: const Icon(Icons.logout_rounded),
-                              label: const Text('EXIT\nबाहर', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                              label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
                               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
                             ),
                           ),
