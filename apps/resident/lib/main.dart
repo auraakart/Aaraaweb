@@ -7,6 +7,7 @@ import 'data/api_client.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/gate_screen.dart';
+import 'screens/billing_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/notices_screen.dart';
@@ -125,6 +126,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             ),
             onOpenNotices: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller)),
+            ),
+            onOpenBilling: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository)),
             ),
           ),
           GateScreen(controller: controller),

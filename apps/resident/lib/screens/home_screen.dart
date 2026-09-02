@@ -10,6 +10,7 @@ class HomeScreen extends StatelessWidget {
     required this.onOpenServices,
     required this.onOpenHelpdesk,
     required this.onOpenNotices,
+    required this.onOpenBilling,
   });
 
   final ResidentDataController controller;
@@ -17,6 +18,7 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onOpenServices;
   final VoidCallback onOpenHelpdesk;
   final VoidCallback onOpenNotices;
+  final VoidCallback onOpenBilling;
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +123,16 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                onTap: onOpenBilling,
+                leading: const CircleAvatar(child: Icon(Icons.receipt_long_outlined)),
+                title: const Text('Maintenance & payments', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('Owner-only dues and payment history'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+              ),
+            ),
             const SizedBox(height: 24),
             Text('Quick actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
