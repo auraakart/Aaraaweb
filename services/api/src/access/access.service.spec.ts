@@ -8,7 +8,10 @@ type Overrides = Record<string, unknown>;
 
 function setup(overrides: Overrides = {}, enabled = true) {
   const prisma = {
-    unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
+    unitOccupancy: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }),
+      findMany: vi.fn().mockResolvedValue([{ unitId: 'unit-1' }]),
+    },
     gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', active: true }) },
     accessRequest: {
       create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data })),
@@ -16,9 +19,11 @@ function setup(overrides: Overrides = {}, enabled = true) {
       findFirst: vi.fn().mockResolvedValue({
         id: 'access-1',
         societyId: 'society-1',
+        unitId: 'unit-1',
         requestedById: 'user-1',
         subjectType: AccessSubjectType.VISITOR,
         status: AccessRequestStatus.PENDING,
+        metadata: { source: 'GATE_WALK_IN' },
       }),
       findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'access-1', status: AccessRequestStatus.APPROVED }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -86,7 +91,7 @@ describe('AccessService', () => {
   });
 
   it('denies creation for a unit outside the resident household', async () => {
-    const { svc } = setup({ unitResident: { findFirst: vi.fn().mockResolvedValue(null) } });
+    const { svc } = setup({ unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(svc.create('society-1', 'user-1', 'unit-x', AccessSubjectType.VISITOR, 'Rahul')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -99,6 +104,34 @@ describe('AccessService', () => {
   it('does not allow a resident to approve another resident request', async () => {
     const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(svc.approve('society-1', 'user-1', 'access-x', new Date(Date.now() - 1000), new Date(Date.now() + 1000))).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('allows an active tenant gate approver to decide a unit request', async () => {
+    const { svc, prisma } = setup();
+    await svc.approve('society-1', 'tenant-1', 'access-1', new Date(Date.now() - 1000), new Date(Date.now() + 60_000));
+    expect(prisma.unitOccupancy.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        societyId: 'society-1', unitId: 'unit-1', userId: 'tenant-1', active: true, gateApprovalEnabled: true,
+      }),
+    }));
+  });
+
+  it('denies a non-resident owner gate approval when no active occupancy exists', async () => {
+    const { svc } = setup({ unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) } });
+    await expect(
+      svc.approve('society-1', 'owner-1', 'access-1', new Date(Date.now() - 1000), new Date(Date.now() + 60_000)),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('does not let another occupant decide a private resident-created request', async () => {
+    const request = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'resident-1',
+      subjectType: AccessSubjectType.VISITOR, status: AccessRequestStatus.PENDING, metadata: {},
+    };
+    const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(request) } });
+    await expect(
+      svc.approve('society-1', 'tenant-1', 'access-1', new Date(Date.now() - 1000), new Date(Date.now() + 60_000)),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('issues a credential and commits approval with compare-and-set', async () => {

@@ -17,6 +17,8 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   unitLinks                 UnitResident[]
+  unitOwnerships            UnitOwnership[]
+  unitOccupancies           UnitOccupancy[]
   visitors                  Visitor[]
   accessRequests            AccessRequest[]
   serviceBookings           ServiceBooking[]
@@ -52,6 +54,8 @@ model Society {
   buildings            Building[]
   gates                Gate[]
   unitLinks            UnitResident[]
+  unitOwnerships       UnitOwnership[]
+  unitOccupancies      UnitOccupancy[]
   households           Household[]
   vehicles             HouseholdVehicle[]
   emergencyContacts    EmergencyContact[]
@@ -113,6 +117,8 @@ model Unit {
   number              String
   building            Building             @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   residents           UnitResident[]
+  ownerships          UnitOwnership[]
+  occupancies         UnitOccupancy[]
   household           Household?
   visitors            Visitor[]
   accessRequests      AccessRequest[]
@@ -141,6 +147,55 @@ model UnitResident {
   @@unique([unitId, userId])
   @@index([societyId, unitId])
   @@index([societyId, userId])
+}
+
+/// Legal/property relationship. Ownership does not imply residence, household
+/// access, gate notifications or gate approval authority.
+model UnitOwnership {
+  id            String    @id @default(uuid()) @db.Uuid
+  societyId     String    @db.Uuid
+  unitId        String    @db.Uuid
+  userId        String    @db.Uuid
+  verified      Boolean   @default(false)
+  ownershipBps  Int       @default(10000)
+  effectiveFrom DateTime  @default(now()) @db.Timestamptz(6)
+  effectiveTo   DateTime? @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+  society       Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, userId])
+  @@index([societyId, unitId, active])
+  @@index([societyId, userId, active])
+}
+
+/// Time-bound physical occupancy. Gate routing and day-to-day household
+/// authority are derived from this record, never from ownership alone.
+model UnitOccupancy {
+  id                      String       @id @default(uuid()) @db.Uuid
+  societyId               String       @db.Uuid
+  unitId                  String       @db.Uuid
+  userId                  String       @db.Uuid
+  relation                UnitRelation
+  effectiveFrom           DateTime     @default(now()) @db.Timestamptz(6)
+  effectiveTo             DateTime?    @db.Timestamptz(6)
+  active                  Boolean      @default(true)
+  primaryGateContact      Boolean      @default(false)
+  gateApprovalEnabled     Boolean      @default(true)
+  gateNotificationEnabled Boolean      @default(true)
+  escalationOrder         Int          @default(100)
+  createdAt               DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime     @updatedAt @db.Timestamptz(6)
+  society                 Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                    Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, userId])
+  @@index([societyId, unitId, active, gateNotificationEnabled])
+  @@index([societyId, userId, active])
 }
 
 model Household {

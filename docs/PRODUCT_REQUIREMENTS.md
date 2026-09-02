@@ -37,6 +37,18 @@ V1 prioritizes Security, Residents, Domestic Help, Deliveries, Vehicles, Service
 - Staff
 - Vendor / Service Provider where applicable
 
+## Property relationship, occupancy and privacy rules
+- Legal ownership, physical occupancy and society roles are independent relationships. An owner is not assumed to reside in the unit.
+- `UnitOwnership` grants only explicitly defined property capabilities. It does not grant household-private access, routine gate notifications or gate approval authority.
+- `UnitOccupancy` is time-bound and identifies the owner-occupant, tenant or authorized family member who currently lives in the unit.
+- Routine visitor, delivery, cab and domestic-help gate notifications are routed to active occupants configured as gate contacts, regardless of whether they own the unit.
+- A non-resident owner does not receive routine gate activity by default. Property/security-critical notifications may include the owner only through an explicit, audited policy.
+- Every occupied unit must have a primary gate contact. Additional adult occupants may be approval recipients, notification-only recipients or ordered fallback contacts.
+- Move-out or occupancy termination immediately removes gate approval, notification and household-operational authority. Historical tenancy must not be exposed to a later occupant.
+- Household APIs return explicit response DTOs and minimum necessary fields; another occupant's phone/email is not returned by default.
+- Owner-only property finance, documents, voting and tenancy management use separate permissions from occupant day-to-day operations.
+- Delegation, where introduced, must be explicit, scoped, time-bound, revocable and audited.
+
 ## V1 modules
 1. Authentication, OTP abstraction, session lifecycle and role/permission-based access
 2. Society > Building/Block > Floor > Unit/Flat hierarchy
@@ -96,3 +108,4 @@ A requirement is complete only when:
 - Privileged/admin/gate mutations are auditable.
 - Staging smoke validation passes before production promotion.
 - Documentation and acceptance criteria are updated.
+- Relationship-sensitive features prove by negative tests that ownership alone does not grant occupancy-private access and that active occupants receive gate notifications/approval authority.

@@ -69,15 +69,18 @@ describe('Walk-in visitor approval lifecycle', () => {
         requests.set(row.id, row);
         return { count: 1 };
       }),
-      findMany: vi.fn(async ({ where }: { where: { societyId: string; requestedById: string } }) =>
-        [...requests.values()].filter((row) => row.societyId === where.societyId && row.requestedById === where.requestedById).map((row) => ({ ...row }))),
+      findMany: vi.fn(async ({ where }: { where: { societyId: string } }) =>
+        [...requests.values()].filter((row) => row.societyId === where.societyId).map((row) => ({ ...row }))),
     };
 
     const prisma = {
-      unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'resident-link' }) },
+      unitOccupancy: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'resident-link' }),
+        findMany: vi.fn().mockResolvedValue([{ unitId: 'unit-1' }]),
+      },
       unit: {
         findMany: vi.fn().mockResolvedValue([{ id: 'unit-1', number: 'A-101', building: { id: 'building-1', name: 'A Tower', code: 'A' } }]),
-        findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', residents: [{ userId: 'resident-1' }] }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', occupancies: [{ userId: 'resident-1' }] }),
       },
       gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
       accessRequest,

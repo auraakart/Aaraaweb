@@ -52,8 +52,8 @@ describe('Visitor Management end-to-end lifecycle', () => {
         requests.set(id, row);
         return { ...row };
       }),
-      findMany: vi.fn(async ({ where }: { where: { societyId: string; requestedById: string } }) =>
-        [...requests.values()].filter((row) => row.societyId === where.societyId && row.requestedById === where.requestedById).map((row) => ({ ...row }))),
+      findMany: vi.fn(async ({ where }: { where: { societyId: string } }) =>
+        [...requests.values()].filter((row) => row.societyId === where.societyId).map((row) => ({ ...row }))),
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         return [...requests.values()].find((row) => {
           if (where.id != null && row.id !== where.id) return false;
@@ -78,7 +78,10 @@ describe('Visitor Management end-to-end lifecycle', () => {
     };
 
     const prisma = {
-      unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'resident-unit-1' }) },
+      unitOccupancy: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'resident-unit-1' }),
+        findMany: vi.fn().mockResolvedValue([{ unitId: 'unit-1' }]),
+      },
       gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
       accessRequest,
       auditEvent: {
