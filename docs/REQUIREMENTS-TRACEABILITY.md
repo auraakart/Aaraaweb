@@ -31,7 +31,7 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
 | Admin operations | Foundation | Operational modules exist; full production workflows remain incomplete |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
-| Maintenance/billing | Planned | Bills, server-verified payments, receipts and ledger-ready records |
+| Maintenance/billing | Active vertical slice | Owner-only dues and payments, society invoice operations, server-verified reconciliation and auditable events |
 | Reports/analytics | Planned | Operational, audit and management reporting |
 | Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
 | CI/CD | Green baseline achieved | Full CI validates migrations, lint, typecheck, tests, builds, Flutter and dependency security |

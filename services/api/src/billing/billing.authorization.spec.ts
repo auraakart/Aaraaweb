@@ -9,6 +9,7 @@ describe('BillingController authorization', () => {
   it('separates resident and administrator invoice permissions', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.mine)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.issue)).toEqual([AppPermission.BILLING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.units)).toEqual([AppPermission.BILLING_MANAGE]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.issue)).toBe(ProductFeature.MAINTENANCE_BILLING);
   });
 
