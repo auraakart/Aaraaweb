@@ -61,5 +61,11 @@ Visitor Management is not complete until all of the following are verified end-t
 - Offline guard actions are idempotently synchronized when that workflow is enabled.
 - UI includes loading, empty, error and recovery states.
 
+### Guard offline recovery evidence
+- Transport failures queue gate check-in/out actions in secure local storage with stable idempotency keys.
+- Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
+- Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
+- Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
+
 ## Definition of done
 A feature is not production-ready until it has requirement mapping, responsive UI, loading/empty/error/offline states where relevant, tenant isolation, role/permission/entitlement checks, validation, audit implications reviewed, tests, documented acceptance criteria, green CI and staging validation appropriate to its risk.
