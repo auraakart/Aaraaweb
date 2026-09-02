@@ -1,6 +1,9 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-01
+Updated: 2026-09-03
+
+## Execution status
+The current active vertical slice is **Maintenance/Billing**. Gate/Visitor Management has reached an advanced vertical-slice baseline and returns to active priority for final E2E/edge-case closure after Billing. The detailed current execution order is maintained in `DEVELOPMENT-CONTROL.md`; this roadmap describes the durable phase sequence rather than serving as a frequently changing task list.
 
 ## Phase 1 — Foundation
 - Application shells and shared design principles
@@ -27,7 +30,7 @@ Updated: 2026-09-01
 - Entitlement enforcement server-side and reflected in clients
 
 ## Phase 4 — Gate and visitor management
-Current active vertical slice.
+Advanced vertical slice; final E2E and edge-case completion follows the active Billing milestone.
 
 - Resident visitor request
 - Approval/rejection/cancellation
@@ -47,6 +50,8 @@ Current active vertical slice.
 Release gate: full visitor journey validated in staging, including tenant-isolation and failure-path smoke/E2E tests.
 
 ## Phase 5 — Resident experience
+Active across completed and in-progress vertical slices.
+
 - Home action center
 - Visitor approvals
 - Deliveries
@@ -60,6 +65,8 @@ Release gate: full visitor journey validated in staging, including tenant-isolat
 - Consistent loading, empty, error and offline/recovery states
 
 ## Phase 6 — Household services and operations
+In progress; follows closure of Billing and final Visitor/Guard gaps.
+
 - Admin dashboard
 - Resident verification
 - Gate monitoring
@@ -73,11 +80,18 @@ Release gate: full visitor journey validated in staging, including tenant-isolat
 - Reports and audit trail
 
 ## Phase 7 — Finance and community
+**Current active vertical slice: Maintenance/Billing.**
+
 - Maintenance billing
 - Server-verified payments and receipts
+- Owner-only property-finance visibility and tenant fail-closed behavior
+- Society Admin and Accountant billing operations
+- Resident owner dues, paid history and payment preparation
 - Basic operational reporting
 - Community announcements/events
 - Facility/amenity booking where commercially prioritized
+
+Billing release gate: owner/tenant authorization tests, reconciliation/audit tests, Resident/Admin UX states, green protected CI and staging validation appropriate to the payment risk.
 
 ## Phase 8 — Quality, release and production
 This phase begins early and runs continuously; it is not deferred until feature completion.
@@ -96,6 +110,17 @@ This phase begins early and runs continuously; it is not deferred until feature 
 - Pilot society rollout
 - Production deployment and rollback procedure
 - Play Store closed testing and release readiness
+
+## Usage-efficient milestone execution
+For each milestone, use the smallest safe reasoning scope:
+1. Read the current execution state and affected acceptance criteria.
+2. Inspect affected modules and their direct authorization/data dependencies only.
+3. Implement related changes as one coherent vertical slice.
+4. Run targeted tests during development.
+5. Run full protected CI at integration/release boundaries.
+6. Update traceability and execution state after material completion.
+
+Full-repository audits are reserved for major release boundaries or cross-cutting architectural/security changes.
 
 ## Release governance
 Promotion path:
