@@ -69,3 +69,10 @@ Visitor Management is not complete until all of the following are verified end-t
 
 ## Definition of done
 A feature is not production-ready until it has requirement mapping, responsive UI, loading/empty/error/offline states where relevant, tenant isolation, role/permission/entitlement checks, validation, audit implications reviewed, tests, documented acceptance criteria, green CI and staging validation appropriate to its risk.
+
+## Maintenance billing acceptance criteria
+- Society billing roles can issue and track unit invoices without broader property-mutation access.
+- Only verified active owners can list dues or initiate payment for their owned units; occupancy alone grants no financial access.
+- Resident UI provides loading, empty, owner-only denial, failure/retry, outstanding and paid-history states.
+- Payment initiation is idempotent and never presents success before a signed gateway callback is reconciled server-side.
+- Paid history exposes an invoice reference without disclosing another unit's financial information.
