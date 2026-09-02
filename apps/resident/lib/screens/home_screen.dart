@@ -8,12 +8,14 @@ class HomeScreen extends StatelessWidget {
     required this.onOpenGate,
     required this.onOpenServices,
     required this.onOpenHelpdesk,
+    required this.onOpenNotices,
   });
 
   final ResidentDataController controller;
   final VoidCallback onOpenGate;
   final VoidCallback onOpenServices;
   final VoidCallback onOpenHelpdesk;
+  final VoidCallback onOpenNotices;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,11 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton.filledTonal(onPressed: () {}, icon: const Icon(Icons.notifications_none_rounded)),
+                Badge(
+                  isLabelVisible: controller.notices.isNotEmpty,
+                  label: Text(controller.notices.length.toString()),
+                  child: IconButton.filledTonal(onPressed: onOpenNotices, icon: const Icon(Icons.notifications_none_rounded)),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -102,6 +108,18 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
+            if (controller.notices.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: ListTile(
+                  onTap: onOpenNotices,
+                  leading: const CircleAvatar(child: Icon(Icons.campaign_outlined)),
+                  title: Text(controller.notices.first['title']?.toString() ?? 'Society notice', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: const Text('Latest society update'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Text('Quick actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
