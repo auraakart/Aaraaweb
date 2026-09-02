@@ -27,6 +27,7 @@ class EndOccupancyDto { @IsDateString() effectiveTo!: string; }
 class EndOwnershipDto {
   @IsDateString() effectiveTo!: string;
   @IsOptional() @IsEnum(UnitRelation) continuingOccupantRelation?: UnitRelation;
+  @IsOptional() @IsBoolean() endOccupancy?: boolean;
 }
 
 const membershipRoleForRelation = (relation: UnitRelation): MembershipRole => {
@@ -71,6 +72,33 @@ export class ResidentsController {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  @Get('history')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
+  async history(@CurrentTenant() societyId: string) {
+    const [occupancies, ownerships] = await Promise.all([
+      this.prisma.unitOccupancy.findMany({
+        where: { societyId },
+        select: {
+          id: true, active: true, relation: true, effectiveFrom: true, effectiveTo: true,
+          primaryGateContact: true, gateApprovalEnabled: true, gateNotificationEnabled: true, escalationOrder: true,
+          user: { select: { id: true, name: true, status: true } },
+          unit: { include: { building: true } },
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      }),
+      this.prisma.unitOwnership.findMany({
+        where: { societyId },
+        select: {
+          id: true, active: true, verified: true, ownershipBps: true, effectiveFrom: true, effectiveTo: true,
+          user: { select: { id: true, name: true, status: true } },
+          unit: { include: { building: true } },
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      }),
+    ]);
+    return { occupancies, ownerships };
   }
 
   @Post()
@@ -200,12 +228,21 @@ export class ResidentsController {
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       },
     });
-    if (occupancy && (!dto.continuingOccupantRelation || dto.continuingOccupantRelation === UnitRelation.OWNER)) {
-      throw new BadRequestException('Choose tenant or family status for an owner who continues to occupy the unit');
+    if (occupancy && dto.endOccupancy === (dto.continuingOccupantRelation !== undefined)) {
+      throw new BadRequestException('Choose either move-out or tenant/family status when ending resident ownership');
+    }
+    if (dto.continuingOccupantRelation === UnitRelation.OWNER) {
+      throw new BadRequestException('Continuing occupants must become a tenant or family member');
     }
     return this.prisma.$transaction(async (tx) => {
       const ended = await tx.unitOwnership.update({ where: { id: ownership.id }, data: { active: false, effectiveTo } });
-      if (occupancy && dto.continuingOccupantRelation) {
+      if (occupancy && dto.endOccupancy) {
+        await tx.unitOccupancy.update({
+          where: { id: occupancy.id },
+          data: { active: false, effectiveTo, primaryGateContact: false, gateApprovalEnabled: false, gateNotificationEnabled: false },
+        });
+        if (occupancy.primaryGateContact) await this.assignFallbackPrimary(tx, societyId, occupancy.unitId, now);
+      } else if (occupancy && dto.continuingOccupantRelation) {
         await tx.unitOccupancy.update({ where: { id: occupancy.id }, data: { relation: dto.continuingOccupantRelation } });
       }
       await this.syncRelationshipMemberships(tx, societyId, ownership.userId, now);
