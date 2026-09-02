@@ -15,9 +15,16 @@ export class BillingService {
       FROM "MaintenanceInvoice" i
       JOIN "Unit" u ON u."id" = i."unitId"
       JOIN "Building" b ON b."id" = u."buildingId"
-      JOIN "UnitResident" ur ON ur."unitId" = i."unitId"
       WHERE i."societyId" = ${societyId}::uuid AND u."societyId" = ${societyId}::uuid
-        AND ur."societyId" = ${societyId}::uuid AND ur."userId" = ${userId}::uuid AND ur."active" = true
+        AND EXISTS (
+          SELECT 1 FROM "UnitOwnership" uo
+          WHERE uo."unitId" = i."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
       ORDER BY i."dueDate" DESC
     `);
   }
@@ -46,9 +53,18 @@ export class BillingService {
 
   async createPayment(societyId: string, userId: string, invoiceId: string, idempotencyKey: string) {
     const invoices = await this.prisma.$queryRaw<InvoiceRow[]>(Prisma.sql`
-      SELECT i.* FROM "MaintenanceInvoice" i JOIN "UnitResident" ur ON ur."unitId"=i."unitId"
+      SELECT i.* FROM "MaintenanceInvoice" i
       WHERE i."id"=${invoiceId}::uuid AND i."societyId"=${societyId}::uuid
-        AND ur."societyId"=${societyId}::uuid AND ur."userId"=${userId}::uuid AND ur."active"=true LIMIT 1
+        AND EXISTS (
+          SELECT 1 FROM "UnitOwnership" uo
+          WHERE uo."unitId" = i."unitId"
+            AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid
+            AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        )
+      LIMIT 1
     `);
     const invoice = invoices[0];
     if (!invoice) throw new NotFoundException('Invoice not found');

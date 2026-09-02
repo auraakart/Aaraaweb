@@ -16,7 +16,6 @@ model User {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
-  unitLinks                 UnitResident[]
   unitOwnerships            UnitOwnership[]
   unitOccupancies           UnitOccupancy[]
   visitors                  Visitor[]
@@ -53,7 +52,6 @@ model Society {
   memberships          SocietyMembership[]
   buildings            Building[]
   gates                Gate[]
-  unitLinks            UnitResident[]
   unitOwnerships       UnitOwnership[]
   unitOccupancies      UnitOccupancy[]
   households           Household[]
@@ -116,7 +114,6 @@ model Unit {
   buildingId          String               @db.Uuid
   number              String
   building            Building             @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  residents           UnitResident[]
   ownerships          UnitOwnership[]
   occupancies         UnitOccupancy[]
   household           Household?
@@ -129,24 +126,6 @@ model Unit {
 
   @@unique([buildingId, number])
   @@index([societyId])
-}
-
-model UnitResident {
-  id        String       @id @default(uuid()) @db.Uuid
-  societyId String       @db.Uuid
-  unitId    String       @db.Uuid
-  userId    String       @db.Uuid
-  relation  UnitRelation
-  primary   Boolean      @default(false)
-  active    Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  society   Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit      Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([unitId, userId])
-  @@index([societyId, unitId])
-  @@index([societyId, userId])
 }
 
 /// Legal/property relationship. Ownership does not imply residence, household
@@ -167,7 +146,7 @@ model UnitOwnership {
   unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([unitId, userId])
+  @@index([unitId, userId, active])
   @@index([societyId, unitId, active])
   @@index([societyId, userId, active])
 }
@@ -193,7 +172,7 @@ model UnitOccupancy {
   unit                    Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
   user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([unitId, userId])
+  @@index([unitId, userId, active])
   @@index([societyId, unitId, active, gateNotificationEnabled])
   @@index([societyId, userId, active])
 }

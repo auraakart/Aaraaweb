@@ -38,10 +38,11 @@ Commercially gated features also require server-side entitlement checks. UI hidi
 ### Ownership and occupancy
 - `UnitOwnership` models the time-bound legal/property relationship.
 - `UnitOccupancy` models the time-bound physical household relationship and contains gate-contact preferences.
-- The legacy combined resident link is not an authorization source for new workflows.
+- The legacy combined resident table is removed after ownership/occupancy reconciliation.
 - Resource authorization evaluates society, unit, active relationship window, capability and record ownership. Role membership alone is insufficient.
 - Routine gate routing resolves active `UnitOccupancy` records ordered by primary contact and escalation order. It never infers recipients from `UnitOwnership`.
 - Move-out disables notification and approval flags atomically with occupancy termination.
+- Move-out and ownership transfer reconcile relationship-derived roles and revoke society sessions when no active membership remains.
 - API projections minimize fields by audience; UI hiding is not used as a privacy boundary.
 
 ## Security

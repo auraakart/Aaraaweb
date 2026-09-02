@@ -1,6 +1,6 @@
 # Aaraagate Role and Permission Baseline
 
-Updated: 2026-09-01
+Updated: 2026-09-02
 
 Authorization is enforced server-side. UI visibility is never a security boundary.
 
@@ -19,22 +19,22 @@ Authorization is enforced server-side. UI visibility is never a security boundar
 - Vendor / Service Provider
 
 ## Initial capability matrix
-| Capability | Resident/Owner/Tenant | Family | Guard | Security Supervisor | Society Admin | Committee | Operations | Accountant | Vendor |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| View own household | yes | yes | no | no | scoped | scoped | scoped | limited | no |
-| Approve visitor for own unit | yes | policy-based | no | no | support | support | support | no | no |
-| Create visitor pass for own unit | yes | policy-based | no | no | support | support | support | no | no |
-| Register gate entry/exit | no | no | yes | yes | yes | view/support | yes | no | no |
-| View gate queue | no | no | yes | yes | yes | view | yes | no | no |
-| Manage guards/gates | no | no | no | scoped | yes | approved scope | yes | no | no |
-| Manage residents | own/profile | own/profile | no | no | yes | approved scope | approved scope | limited | no |
-| Manage society configuration | no | no | no | no | yes | approved scope | approved scope | limited finance | no |
-| Manage complaints | own | own | operational | operational | yes | yes | yes | limited | assigned only |
-| Manage notices | no | no | no | no | yes | yes | approved scope | no | no |
-| Manage household services | own bookings | own bookings | no | no | yes | approved scope | yes | no | own provider scope |
-| View billing/payments | own | policy-based | no | no | yes | approved scope | approved scope | yes | no |
-| View audit logs | no | no | limited operational | scoped security | yes | approved scope | approved scope | finance-related | own events only |
-| Manage feature entitlements | no | no | no | no | no* | no | no | no | no |
+| Capability | Owner | Tenant | Family | Guard | Security Supervisor | Society Admin | Committee | Operations | Accountant | Vendor |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| View own household | if occupant | yes | yes | no | no | scoped | scoped | scoped | limited | no |
+| Approve visitor for own unit | if occupant | yes | policy-based | no | no | support | support | support | no | no |
+| Create visitor pass for own unit | if occupant | yes | policy-based | no | no | support | support | support | no | no |
+| Register gate entry/exit | no | no | no | yes | yes | yes | view/support | yes | no | no |
+| View gate queue | no | no | no | yes | yes | yes | view | yes | no | no |
+| Manage guards/gates | no | no | no | no | scoped | yes | approved scope | yes | no | no |
+| Manage residents | property/profile | own/profile | own/profile | no | no | yes | approved scope | approved scope | limited | no |
+| Manage society configuration | no | no | no | no | no | yes | approved scope | approved scope | limited finance | no |
+| Manage complaints | if occupant | own | own | operational | operational | yes | yes | yes | limited | assigned only |
+| Manage notices | no | no | no | no | no | yes | yes | approved scope | no | no |
+| Manage household services | if occupant | own bookings | own bookings | no | no | yes | approved scope | yes | no | own provider scope |
+| View billing/payments | own | no | no | no | no | yes | approved scope | approved scope | yes | no |
+| View audit logs | no | no | no | limited operational | scoped security | yes | approved scope | approved scope | finance-related | own events only |
+| Manage feature entitlements | no | no | no | no | no | no* | no | no | no | no |
 
 `*` Product-tier and entitlement administration is reserved for platform-level administration unless an explicitly delegated workflow is introduced.
 

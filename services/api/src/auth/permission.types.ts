@@ -34,7 +34,6 @@ export enum AppPermission {
   PLATFORM_PROVIDER_VERIFY = 'PLATFORM_PROVIDER_VERIFY',
   REPORTS_READ = 'REPORTS_READ',
   AUDIT_READ = 'AUDIT_READ',
-  BILLING_READ_OWN = 'BILLING_READ_OWN',
   BILLING_MANAGE = 'BILLING_MANAGE',
   PAYMENT_CREATE_OWN = 'PAYMENT_CREATE_OWN',
   PAYMENT_RECONCILE = 'PAYMENT_RECONCILE',
@@ -99,7 +98,6 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOS_TRIGGER,
     AppPermission.SOS_READ_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
-    AppPermission.BILLING_READ_OWN,
     AppPermission.PAYMENT_CREATE_OWN,
   ],
   [AppRole.TENANT]: [
@@ -117,8 +115,6 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOS_TRIGGER,
     AppPermission.SOS_READ_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
-    AppPermission.BILLING_READ_OWN,
-    AppPermission.PAYMENT_CREATE_OWN,
   ],
   [AppRole.FAMILY_MEMBER]: [
     AppPermission.VISITOR_READ_OWN,

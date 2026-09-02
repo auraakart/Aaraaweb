@@ -123,6 +123,16 @@ describe('AccessService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('lets a notification-only occupant retrieve the gate request without granting approval', async () => {
+    const { svc, prisma } = setup();
+    await svc.listMine('society-1', 'resident-1');
+    expect(prisma.unitOccupancy.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        societyId: 'society-1', userId: 'resident-1', active: true, gateNotificationEnabled: true,
+      }),
+    }));
+  });
+
   it('does not let another occupant decide a private resident-created request', async () => {
     const request = {
       id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'resident-1',
