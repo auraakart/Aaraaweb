@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import 'sos_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -131,7 +132,14 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
                 const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.sos_rounded, label: 'SOS', onTap: () {}, urgent: true)),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.sos_rounded,
+                    label: 'SOS',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SosScreen(controller: controller))),
+                    urgent: true,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),
