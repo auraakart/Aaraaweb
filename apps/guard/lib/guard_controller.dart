@@ -28,6 +28,7 @@ class GuardController extends ChangeNotifier {
   Map<String, dynamic>? verifiedAccess;
   Map<String, dynamic>? walkInAccess;
   int queuedActions = 0;
+  String? offlineSyncMessage;
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   bool _disposed = false;
 
@@ -203,6 +204,7 @@ class GuardController extends ChangeNotifier {
         if (!e.transport) rethrow;
         await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now()));
         queuedActions = (await offlineQueue.read()).length;
+        offlineSyncMessage = 'Action saved securely. Retry when connectivity returns.';
         throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
     });
@@ -212,10 +214,13 @@ class GuardController extends ChangeNotifier {
     final pending = await offlineQueue.read();
     if (pending.isEmpty) {
       queuedActions = 0;
+      offlineSyncMessage = 'No offline actions are pending.';
       notifyListeners();
       return;
     }
     final remaining = <QueuedGateAction>[];
+    var synced = 0;
+    var rejected = 0;
     for (var index = 0; index < pending.length; index++) {
       final action = pending[index];
       try {
@@ -224,20 +229,31 @@ class GuardController extends ChangeNotifier {
         } else if (action.type == 'CHECK_OUT') {
           await api.checkOut(action.gateId, action.credential, action.idempotencyKey);
         } else {
+          remaining.add(action);
+          rejected++;
           continue;
         }
+        synced++;
       } on GuardApiException catch (e) {
         if (e.transport) {
           remaining.addAll(pending.sublist(index));
           break;
         }
         remaining.add(action);
+        rejected++;
       }
     }
     await offlineQueue.replace(remaining);
     queuedActions = remaining.length;
+    offlineSyncMessage = remaining.isEmpty
+        ? '$synced offline ${synced == 1 ? 'action' : 'actions'} synced.'
+        : rejected > 0
+            ? '$synced synced; $rejected retained for supervisor review.'
+            : 'Connectivity is still unavailable. ${remaining.length} ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
     notifyListeners();
   }
+
+  Future<void> retryQueuedActions() => _run(syncQueuedActions);
 
   Future<void> signOut() async {
     final current = session;
@@ -260,6 +276,7 @@ class GuardController extends ChangeNotifier {
     gateId = null;
     verifiedAccess = null;
     walkInAccess = null;
+    offlineSyncMessage = null;
     notifyListeners();
   }
 
