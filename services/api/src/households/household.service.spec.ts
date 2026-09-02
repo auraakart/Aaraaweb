@@ -7,7 +7,7 @@ type Overrides = Record<string, unknown>;
 
 function service(overrides: Overrides = {}) {
   const prisma = {
-    unitResident: {
+    unitOccupancy: {
       findMany: vi.fn().mockResolvedValue([{ unitId: 'unit-1' }]),
       findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1', userId: 'user-1', societyId: 'society-1', active: true }),
     },
@@ -43,11 +43,23 @@ describe('HouseholdService', () => {
     expect(prisma.household.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { societyId: 'society-1', unitId: { in: ['unit-1'] } } }),
     );
+    expect(prisma.household.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        unit: expect.objectContaining({
+          include: expect.objectContaining({
+            occupancies: expect.objectContaining({
+              where: expect.objectContaining({ active: true, effectiveFrom: expect.any(Object) }),
+              select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
+            }),
+          }),
+        }),
+      }),
+    }));
   });
 
   it('rejects household creation for an unrelated unit', async () => {
     const { svc } = service({
-      unitResident: {
+      unitOccupancy: {
         findMany: vi.fn().mockResolvedValue([]),
         findFirst: vi.fn().mockResolvedValue(null),
       },
@@ -57,7 +69,7 @@ describe('HouseholdService', () => {
 
   it('prevents duplicate household profiles for a unit', async () => {
     const { svc } = service({
-      unitResident: {
+      unitOccupancy: {
         findMany: vi.fn().mockResolvedValue([]),
         findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1', active: true }),
       },

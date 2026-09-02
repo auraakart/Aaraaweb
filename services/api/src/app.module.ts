@@ -15,6 +15,7 @@ import { GatesModule } from './gates/gates.module';
 import { VisitorsModule } from './visitors/visitors.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WorkforceModule } from './workforce/workforce.module';
+import { BillingModule } from './billing/billing.module';
 
 @Controller('health')
 class HealthController {
@@ -41,6 +42,7 @@ class HealthController {
     VisitorsModule,
     AccessModule,
     ServicesMarketplaceModule,
+    BillingModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],

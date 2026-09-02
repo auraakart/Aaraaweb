@@ -1,10 +1,12 @@
 import { Injectable, Logger, MessageEvent } from '@nestjs/common';
 import { Observable, Subject, startWith } from 'rxjs';
 import { PushNotificationService } from './push-notification.service';
+import { GateRecipientService } from './gate-recipient.service';
 
 export type AccessRealtimeEvent = {
   type: 'ACCESS_APPROVAL_REQUESTED' | 'ACCESS_APPROVAL_DECIDED' | 'ACCESS_STATUS_CHANGED';
   societyId: string;
+  unitId?: string;
   userId?: string;
   gateId?: string;
   requestId: string;
@@ -20,7 +22,7 @@ export class NotificationRealtimeService {
   private readonly residentStreams = new Map<string, Subject<MessageEvent>>();
   private readonly societyGateStreams = new Map<string, Subject<MessageEvent>>();
 
-  constructor(private readonly push: PushNotificationService) {}
+  constructor(private readonly push: PushNotificationService, private readonly gateRecipients: GateRecipientService) {}
 
   residentStream(societyId: string, userId: string): Observable<MessageEvent> {
     const key = `${societyId}:${userId}`;
@@ -47,6 +49,12 @@ export class NotificationRealtimeService {
     void this.push.sendResidentEvent(event).catch((error: unknown) => {
       this.logger.warn(`Push delivery failed for access request ${event.requestId}: ${error instanceof Error ? error.message : 'unknown error'}`);
     });
+  }
+
+  async publishUnitOccupants(event: AccessRealtimeEvent) {
+    if (!event.unitId) return;
+    const recipients = await this.gateRecipients.notificationRecipients(event.societyId, event.unitId);
+    recipients.forEach(({ userId }) => this.publishResident({ ...event, userId }));
   }
 
   publishGateUpdate(event: AccessRealtimeEvent) {

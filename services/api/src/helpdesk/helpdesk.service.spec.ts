@@ -3,6 +3,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { HelpdeskService } from './helpdesk.service';
 
 describe('HelpdeskService', () => {
+  it('authorizes household tickets through current occupancy, never legacy residency', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+    await service.listMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).toContain('"effectiveFrom" <= CURRENT_TIMESTAMP');
+    expect(sql).not.toContain('"UnitResident"');
+  });
+
   it('rejects invalid ticket title before writing', async () => {
     const prisma = { $queryRaw: vi.fn(), $transaction: vi.fn() };
     const service = new HelpdeskService(prisma as unknown as PrismaService);

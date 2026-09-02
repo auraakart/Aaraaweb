@@ -3,7 +3,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
 
 function setup() {
   const prisma = {
-    unitResident: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
+    unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     serviceOffering: { findFirst: vi.fn(), create: vi.fn() },
     serviceBooking: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     serviceProvider: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
