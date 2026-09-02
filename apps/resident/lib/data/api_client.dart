@@ -19,6 +19,7 @@ class ApiClient {
 
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
+  Future<dynamic> put(String path, [Map<String, dynamic>? body]) => _send('PUT', path, body);
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) => _send('PATCH', path, body);
 
   Stream<Map<String, dynamic>> sse(String path) async* {
