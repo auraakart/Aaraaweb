@@ -52,6 +52,11 @@ export class BillingController {
   @RequiresPermissions(AppPermission.BILLING_MANAGE)
   admin(@CurrentTenant() societyId: string) { return this.billing.listForSociety(societyId); }
 
+  @Get('invoices/admin/units')
+  @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
+  units(@CurrentTenant() societyId: string) { return this.billing.listBillableUnits(societyId); }
+
   @Post('invoices/admin')
   @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
   @RequiresPermissions(AppPermission.BILLING_MANAGE)
