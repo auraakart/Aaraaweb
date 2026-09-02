@@ -54,7 +54,7 @@ class AaraagateGuardApp extends StatelessWidget {
                             MaterialPageRoute(builder: (_) => GuardWorkforceScreen(controller: controller)),
                           ),
                   icon: const Icon(Icons.badge_outlined),
-                  label: const Text('STAFF / स्टाफ', style: TextStyle(fontWeight: FontWeight.w900)),
+                  label: const Text('STAFF', style: TextStyle(fontWeight: FontWeight.w900)),
                 ),
               ),
             ],
