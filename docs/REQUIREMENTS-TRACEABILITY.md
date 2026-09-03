@@ -28,10 +28,10 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
 | Visitor management | Validated release baseline | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, session-scoped offline recovery and audit |
 | Guard application | Advanced vertical slices | Login/session, scanner, visitor and workforce operations, offline recovery and API integration |
-| Household/domestic help | Current active vertical slice | Occupancy-scoped assignments, review, schedules, leave, ratings, gate attendance and suspension controls; final E2E/recovery gaps are being closed |
+| Household/domestic help | Validated release baseline | Occupancy-scoped assignments, review, schedules, leave, ratings, concurrency-safe gate attendance, session-scoped recovery and suspension controls |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
-| Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
-| Admin operations | Active vertical slices | Helpdesk/notices and billing operations are live foundations; remaining V1 workflows still need completion |
+| Services marketplace | Advanced vertical slice | Categories, platform-verified providers, society approval, tenant-scoped offerings, booking lifecycle and ratings |
+| Admin operations | Milestone validation | Role-aware operations are implemented for residents, workforce, helpdesk, notices, billing, gates, marketplace and SOS response |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
 | Maintenance/billing | Validated release baseline | Owner/current-tenant unit-scoped dues and payments, society invoice operations, server-verified reconciliation, receipts/history, audience controls and auditable events |
 | Reports/analytics | Planned / minimal foundation | Essential V1 operational and audit views remain to be completed |
@@ -41,7 +41,7 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
 ## Current execution focus
-The active milestone is **Domestic-help/workforce user journeys and operational UX completion**. Current work closes Resident/Admin/Guard E2E behavior, attendance concurrency, session-scoped offline recovery, schedule and occupancy boundaries, notifications and auditability. After workforce closure, proceed to remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
+The active milestone is **Society Admin operational completeness**. Gate configuration/monitoring, marketplace provider/booking, SOS response and role-aware Admin navigation are implemented and entering consolidated validation. After Admin closure, proceed to essential reports, marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
 
 Maintenance/Billing is now treated as a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
 
@@ -54,6 +54,7 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
 - Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
 - Visitor credential lifecycle and session-scoped Guard offline recovery hardening have passed staging and production promotion and are synchronized back into `develop`.
+- Domestic-help/workforce Resident, Society Admin and Guard lifecycles have passed staging and production promotion and are synchronized back into `develop`.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
