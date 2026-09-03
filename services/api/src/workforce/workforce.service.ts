@@ -120,6 +120,18 @@ export class WorkforceService {
     });
   }
 
+  listForReview(societyId: string) {
+    return this.prisma.workforceAssignment.findMany({
+      where: { societyId, active: true },
+      include: {
+        worker: true,
+        household: { include: { unit: { include: { building: true } } } },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+  }
+
   async review(societyId: string, assignmentId: string, decision: 'APPROVED' | 'REJECTED') {
     const assignment = await this.prisma.workforceAssignment.findFirst({
       where: { id: assignmentId, societyId, active: true },
@@ -223,18 +235,31 @@ export class WorkforceService {
     const hostUserId = residentUserIds[0];
     if (!hostUserId) throw new BadRequestException('Destination household does not have an active resident');
 
-    const activeVisit = await this.prisma.accessRequest.findFirst({
-      where: {
-        societyId,
-        subjectType: AccessSubjectType.DOMESTIC_HELP,
-        status: AccessRequestStatus.CHECKED_IN,
-        metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
-      },
-    });
-    if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
-
     try {
       const request = await this.prisma.$transaction(async (tx) => {
+        const indiaDate = new Date(`${this.indiaDate(now)}T00:00:00.000Z`);
+        const activeLeave = await tx.workforceLeave.findFirst({
+          where: {
+            societyId,
+            assignmentId,
+            active: true,
+            startsOn: { lte: indiaDate },
+            endsOn: { gte: indiaDate },
+          },
+          select: { id: true },
+        });
+        if (activeLeave) throw new BadRequestException('Worker is on approved leave today');
+
+        const activeVisit = await tx.accessRequest.findFirst({
+          where: {
+            societyId,
+            subjectType: AccessSubjectType.DOMESTIC_HELP,
+            status: AccessRequestStatus.CHECKED_IN,
+            metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
+          },
+        });
+        if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
+
         const created = await tx.accessRequest.create({
           data: {
             societyId,
@@ -275,20 +300,27 @@ export class WorkforceService {
           ],
         });
         return created;
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return { request, residentUserIds };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const receipt = await this.prisma.gateMutationReceipt.findUnique({
-          where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
-        });
-        if (receipt && receipt.gateId === gateId && receipt.action === GateMutationAction.CHECK_IN) {
-          const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
-          if (request && this.workforceAssignmentId(request.metadata) === assignmentId) {
-            return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
-          }
+      const receipt = await this.prisma.gateMutationReceipt.findUnique({
+        where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
+      });
+      if (receipt && receipt.gateId === gateId && receipt.action === GateMutationAction.CHECK_IN) {
+        const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
+        if (request && this.workforceAssignmentId(request.metadata) === assignmentId) {
+          return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
         }
       }
+      const activeVisit = await this.prisma.accessRequest.findFirst({
+        where: {
+          societyId,
+          subjectType: AccessSubjectType.DOMESTIC_HELP,
+          status: AccessRequestStatus.CHECKED_IN,
+          metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
+        },
+      });
+      if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
       throw error;
     }
   }
@@ -395,6 +427,17 @@ export class WorkforceService {
     const minute = Number(match[2]);
     if (hour > 23 || minute > 59) return undefined;
     return hour * 60 + minute;
+  }
+
+  private indiaDate(value: Date) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
   }
 
   private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {

@@ -33,6 +33,9 @@ describe('WorkforceController authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.reject)).toEqual([
       AppPermission.WORKFORCE_REVIEW,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.reviewList)).toEqual([
+      AppPermission.WORKFORCE_REVIEW,
+    ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, WorkforceController.prototype.gateEligible)).toEqual([
       AppPermission.GATE_ACCESS_PROCESS,
     ]);

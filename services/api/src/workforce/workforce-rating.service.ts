@@ -119,7 +119,7 @@ export class WorkforceRatingService {
         dw."name" AS "workerName",
         dw."phone" AS "workerPhone",
         dw."role"::text AS "workerRole",
-        COUNT(wr."id") AS "ratingCount",
+        COUNT(wr."id")::int AS "ratingCount",
         ROUND(AVG(wr."score")::numeric, 2)::float8 AS "averageScore"
       FROM "DomesticWorker" dw
       LEFT JOIN "WorkforceRating" wr
