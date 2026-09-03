@@ -94,6 +94,12 @@ export class WorkforceController {
     return this.workforce.listPending(societyId);
   }
 
+  @Get('review/all')
+  @RequiresPermissions(AppPermission.WORKFORCE_REVIEW)
+  reviewList(@CurrentTenant() societyId: string) {
+    return this.workforce.listForReview(societyId);
+  }
+
   @Patch('review/:assignmentId/approve')
   @RequiresPermissions(AppPermission.WORKFORCE_REVIEW)
   approve(@Param('assignmentId', ParseUUIDPipe) assignmentId: string, @CurrentTenant() societyId: string) {

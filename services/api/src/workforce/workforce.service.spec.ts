@@ -7,6 +7,17 @@ import { WorkforceService } from './workforce.service';
 const accessStub = {} as AccessService;
 
 describe('WorkforceService tenant isolation', () => {
+  it('scopes the operational review list to the authenticated society', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new WorkforceService({ workforceAssignment: { findMany } } as unknown as PrismaService, accessStub);
+
+    await expect(service.listForReview('society-a')).resolves.toEqual([]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { societyId: 'society-a', active: true },
+      take: 500,
+    }));
+  });
+
   it('does not reveal a household outside the authenticated society', async () => {
     const prisma = {
       household: { findFirst: vi.fn().mockResolvedValue(null) },
@@ -43,6 +54,20 @@ describe('WorkforceService tenant isolation', () => {
 });
 
 describe('WorkforceService gate attendance', () => {
+  const assignment = {
+    id: 'assignment-a',
+    societyId: 'society-a',
+    householdId: 'household-a',
+    workerId: 'worker-a',
+    status: 'APPROVED',
+    active: true,
+    startDate: null,
+    endDate: null,
+    schedule: {},
+    worker: { id: 'worker-a', name: 'Maya', phone: '+919900000000', role: 'MAID', active: true, verification: 'VERIFIED' },
+    household: { unitId: 'unit-a', unit: { occupancies: [{ userId: 'resident-a' }] } },
+  };
+
   it('denies a worker outside the approved schedule before creating a visit', async () => {
     const prisma = {
       gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -101,5 +126,75 @@ describe('WorkforceService gate attendance', () => {
     expect(prisma.gateMutationReceipt.findUnique).toHaveBeenCalledWith({
       where: { societyId_idempotencyKey: { societyId: 'society-a', idempotencyKey: 'idem-1' } },
     });
+  });
+
+  it('checks active attendance inside a serializable transaction', async () => {
+    const created = { id: 'request-a', societyId: 'society-a', unitId: 'unit-a', metadata: { workforceAssignmentId: 'assignment-a' } };
+    const tx = {
+      workforceLeave: { findFirst: vi.fn().mockResolvedValue(null) },
+      accessRequest: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(created) },
+      gateMutationReceipt: { create: vi.fn() },
+      auditEvent: { createMany: vi.fn() },
+    };
+    const transaction = vi.fn().mockImplementation(async (operation: (client: typeof tx) => unknown) => operation(tx));
+    const prisma = {
+      gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-a' }) },
+      gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(null) },
+      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(assignment) },
+      accessRequest: { findFirst: vi.fn() },
+      $transaction: transaction,
+    };
+    const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
+
+    await expect(service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-a', 'idem-1')).resolves.toEqual({
+      request: created,
+      residentUserIds: ['resident-a'],
+    });
+
+    expect(tx.accessRequest.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'CHECKED_IN' }),
+    }));
+    expect(tx.workforceLeave.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ societyId: 'society-a', assignmentId: 'assignment-a', active: true }),
+    }));
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+  });
+
+  it('rejects approved leave again inside the check-in transaction', async () => {
+    const tx = {
+      workforceLeave: { findFirst: vi.fn().mockResolvedValue({ id: 'leave-a' }) },
+      accessRequest: { findFirst: vi.fn(), create: vi.fn() },
+      gateMutationReceipt: { create: vi.fn() },
+      auditEvent: { createMany: vi.fn() },
+    };
+    const prisma = {
+      gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-a' }) },
+      gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(null) },
+      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(assignment) },
+      accessRequest: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn().mockImplementation(async (operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
+    const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
+
+    await expect(service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-a', 'idem-leave')).rejects.toThrow(
+      'Worker is on approved leave today',
+    );
+    expect(tx.accessRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a competing check-in after a serialization conflict commits another visit', async () => {
+    const committed = { id: 'request-b', societyId: 'society-a', unitId: 'unit-a', metadata: { workforceAssignmentId: 'assignment-a' } };
+    const prisma = {
+      gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-a' }) },
+      gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(null) },
+      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(assignment) },
+      accessRequest: { findFirst: vi.fn().mockResolvedValue(committed) },
+      $transaction: vi.fn().mockRejectedValue(new Error('serialization conflict')),
+    };
+    const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
+
+    await expect(service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-b', 'idem-2')).rejects.toThrow(
+      'Worker is already checked in for this assignment',
+    );
   });
 });

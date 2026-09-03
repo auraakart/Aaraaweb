@@ -5,26 +5,25 @@ Updated: 2026-09-03
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
 ## Current priority
-Complete the Visitor/Guard final E2E and edge-case vertical slice.
+Complete the Domestic-help/workforce user journeys and operational UX vertical slice.
 
 Execution order:
-1. Close the remaining Visitor/Guard credential lifecycle and E2E gaps, including wrong-society, wrong-gate, expired, revoked, reused and concurrent credential behavior.
-2. Verify transactional check-in/check-out consistency, pass/request synchronization and idempotent offline recovery under retry/concurrency conditions.
-3. Validate occupant-based notification/approval routing, ended-occupancy fail-closed behavior and privacy-safe Guard recovery UX.
-4. Run targeted access/guard tests first, then protected CI and staging smoke/E2E appropriate to the gate-security risk.
-5. Promote the validated Visitor/Guard milestone through staging and main using the standard release path.
+1. Close Resident assignment, leave and rating journeys plus Society Admin verification, rejection, suspension and reinstatement operations.
+2. Verify schedule-, assignment-, worker- and occupancy-aware gate eligibility and attendance lifecycle behavior.
+3. Harden workforce attendance concurrency, idempotent offline recovery, guard-session isolation, notifications and auditability.
+4. Run targeted workforce/guard/resident tests first, then protected CI and staging smoke/E2E appropriate to workforce access risk.
+5. Promote the validated Domestic-help/workforce milestone through staging and main using the standard release path.
 
-Maintenance/Billing is now a validated release baseline. Owner and current-tenant unit-scoped dues/payment access, owner-only broader finance, configurable notification audiences, reconciliation, receipts/history and audit visibility have been promoted through the release path. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
+Maintenance/Billing and Visitor/Guard are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
 ## Next milestone sequence
-After Visitor/Guard final closure, proceed in this order unless a blocking defect changes priority:
-1. Domestic-help/workforce user journeys and operational UX completion.
-2. Society Admin operational completeness across the remaining V1 modules.
-3. Essential V1 reports and operational audit views.
-4. Household-services marketplace/service-booking lifecycle completion.
-5. Resident/Admin/Guard UX and design-system consistency pass.
-6. Consolidated security, tenant-isolation, permissions and regression review.
-7. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
+After Domestic-help/workforce closure, proceed in this order unless a blocking defect changes priority:
+1. Society Admin operational completeness across the remaining V1 modules.
+2. Essential V1 reports and operational audit views.
+3. Household-services marketplace/service-booking lifecycle completion.
+4. Resident/Admin/Guard UX and design-system consistency pass.
+5. Consolidated security, tenant-isolation, permissions and regression review.
+6. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
 
 ## Usage-efficient execution policy
 To conserve agentic/Codex usage without reducing quality:

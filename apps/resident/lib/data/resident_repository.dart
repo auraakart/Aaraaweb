@@ -62,6 +62,26 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> addWorkforce({
+    required String householdId,
+    required String name,
+    required String phone,
+    required String role,
+  }) async {
+    final value = await api.post('/api/v1/workforce', {
+      'householdId': householdId,
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'role': role,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> deactivateWorkforce(String assignmentId) async {
+    final value = await api.patch('/api/v1/workforce/assignments/$assignmentId/deactivate');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> helpdeskTickets() async {
     final value = await api.get('/api/v1/helpdesk/mine');
     return _list(value);
