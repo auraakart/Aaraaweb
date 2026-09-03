@@ -102,6 +102,23 @@ export class AccessService {
     return request;
   }
 
+  private assertGateApprovalWindow(request: { subjectType: AccessSubjectType; metadata: Prisma.JsonValue }, validFrom: Date, validUntil: Date) {
+    if (!this.isGateOriginated(request.metadata)) return;
+    const maxMinutes = request.subjectType === AccessSubjectType.CAB
+      ? 15
+      : request.subjectType === AccessSubjectType.DELIVERY
+        ? 30
+        : 240;
+    const now = Date.now();
+    const clockSkewMs = 5 * 60 * 1000;
+    if (validFrom.getTime() < now - clockSkewMs || validFrom.getTime() > now + clockSkewMs) {
+      throw new BadRequestException('Gate arrival approval must start immediately');
+    }
+    if (validUntil.getTime() - validFrom.getTime() > maxMinutes * 60 * 1000) {
+      throw new BadRequestException(`Gate arrival approval cannot exceed ${maxMinutes} minutes`);
+    }
+  }
+
   private async assertCanDecideRequest(request: { societyId: string; unitId: string; requestedById: string; metadata: Prisma.JsonValue }, userId: string) {
     if (request.requestedById === userId) return;
     if (!this.isGateOriginated(request.metadata)) throw new NotFoundException('Access request not found');
@@ -245,6 +262,7 @@ export class AccessService {
     if (!request) throw new NotFoundException('Access request not found');
     await this.assertCanDecideRequest(request, userId);
     if (request.status !== AccessRequestStatus.PENDING) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
+    this.assertGateApprovalWindow(request, validFrom, validUntil);
     await this.assertSubjectEnabled(societyId, request.subjectType);
     const credential = this.credential();
     const updated = await this.prisma.$transaction(async (tx) => {

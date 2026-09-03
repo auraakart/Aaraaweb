@@ -111,6 +111,37 @@ describe('AccessService', () => {
     await expect(svc.approve('society-1', 'user-1', 'access-1', now, now)).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it.each([
+    [AccessSubjectType.CAB, 15],
+    [AccessSubjectType.DELIVERY, 30],
+  ])('enforces the %s quick-arrival approval window server-side', async (subjectType, maxMinutes) => {
+    const request = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
+      subjectType, status: AccessRequestStatus.PENDING,
+      metadata: { source: 'GATE_QUICK_ARRIVAL', gateId: 'gate-1' },
+    };
+    const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(request) } });
+    const validFrom = new Date();
+
+    await expect(svc.approve(
+      'society-1', 'user-1', 'access-1', validFrom, new Date(validFrom.getTime() + (maxMinutes + 1) * 60_000),
+    )).rejects.toThrow(`Gate arrival approval cannot exceed ${maxMinutes} minutes`);
+  });
+
+  it('rejects a delayed approval window for a gate-originated request', async () => {
+    const request = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
+      subjectType: AccessSubjectType.DELIVERY, status: AccessRequestStatus.PENDING,
+      metadata: { source: 'GATE_QUICK_ARRIVAL', gateId: 'gate-1' },
+    };
+    const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(request) } });
+    const validFrom = new Date(Date.now() + 10 * 60_000);
+
+    await expect(svc.approve(
+      'society-1', 'user-1', 'access-1', validFrom, new Date(validFrom.getTime() + 10 * 60_000),
+    )).rejects.toThrow('Gate arrival approval must start immediately');
+  });
+
   it('does not allow a resident to approve another resident request', async () => {
     const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(svc.approve('society-1', 'user-1', 'access-x', new Date(Date.now() - 1000), new Date(Date.now() + 1000))).rejects.toBeInstanceOf(NotFoundException);
