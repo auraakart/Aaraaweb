@@ -5,25 +5,24 @@ Updated: 2026-09-03
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
 ## Current priority
-Complete the Domestic-help/workforce user journeys and operational UX vertical slice.
+Complete Society Admin operational workflows across the remaining V1 modules.
 
 Execution order:
-1. Close Resident assignment, leave and rating journeys plus Society Admin verification, rejection, suspension and reinstatement operations.
-2. Verify schedule-, assignment-, worker- and occupancy-aware gate eligibility and attendance lifecycle behavior.
-3. Harden workforce attendance concurrency, idempotent offline recovery, guard-session isolation, notifications and auditability.
-4. Run targeted workforce/guard/resident tests first, then protected CI and staging smoke/E2E appropriate to workforce access risk.
-5. Promote the validated Domestic-help/workforce milestone through staging and main using the standard release path.
+1. Complete gate configuration and monitoring with strict separation between Admin configuration and Guard processing permissions.
+2. Validate Society Admin role-aware navigation and operational UX. Marketplace/provider, booking and SOS response operations are implemented.
+3. Verify loading, empty, failure, authorization, tenant-isolation and audit states for each operational surface.
+4. Run targeted Admin/API tests first, then protected CI and staging validation at coherent integration boundaries.
+5. Promote the validated Society Admin milestone through staging and main using the standard release path.
 
-Maintenance/Billing and Visitor/Guard are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
+Maintenance/Billing, Visitor/Guard and Domestic-help/workforce are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
 ## Next milestone sequence
-After Domestic-help/workforce closure, proceed in this order unless a blocking defect changes priority:
-1. Society Admin operational completeness across the remaining V1 modules.
-2. Essential V1 reports and operational audit views.
-3. Household-services marketplace/service-booking lifecycle completion.
-4. Resident/Admin/Guard UX and design-system consistency pass.
-5. Consolidated security, tenant-isolation, permissions and regression review.
-6. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
+After Society Admin operational closure, proceed in this order unless a blocking defect changes priority:
+1. Essential V1 reports and operational audit views.
+2. Household-services marketplace/service-booking lifecycle completion.
+3. Resident/Admin/Guard UX and design-system consistency pass.
+4. Consolidated security, tenant-isolation, permissions and regression review.
+5. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
 
 ## Usage-efficient execution policy
 To conserve agentic/Codex usage without reducing quality:
