@@ -649,6 +649,7 @@ model Notice {
   title       String
   body        String
   category    String?
+  audience    NoticeAudience @default(OWNER_AND_OCCUPANTS)
   status      String        @default("DRAFT")
   publishedAt DateTime?     @db.Timestamptz(6)
   expiresAt   DateTime?     @db.Timestamptz(6)
@@ -809,6 +810,11 @@ enum InvoiceStatus {
   ISSUED
   PAID
   VOID
+}
+
+enum NoticeAudience {
+  OWNER_ONLY
+  OWNER_AND_OCCUPANTS
 }
 
 enum PaymentStatus {

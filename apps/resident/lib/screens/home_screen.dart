@@ -129,7 +129,7 @@ class HomeScreen extends StatelessWidget {
                 onTap: onOpenBilling,
                 leading: const CircleAvatar(child: Icon(Icons.receipt_long_outlined)),
                 title: const Text('Maintenance & payments', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('Owner-only dues and payment history'),
+                subtitle: const Text('Dues and payments for your unit'),
                 trailing: const Icon(Icons.chevron_right_rounded),
               ),
             ),
