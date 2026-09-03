@@ -223,18 +223,18 @@ export class WorkforceService {
     const hostUserId = residentUserIds[0];
     if (!hostUserId) throw new BadRequestException('Destination household does not have an active resident');
 
-    const activeVisit = await this.prisma.accessRequest.findFirst({
-      where: {
-        societyId,
-        subjectType: AccessSubjectType.DOMESTIC_HELP,
-        status: AccessRequestStatus.CHECKED_IN,
-        metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
-      },
-    });
-    if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
-
     try {
       const request = await this.prisma.$transaction(async (tx) => {
+        const activeVisit = await tx.accessRequest.findFirst({
+          where: {
+            societyId,
+            subjectType: AccessSubjectType.DOMESTIC_HELP,
+            status: AccessRequestStatus.CHECKED_IN,
+            metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
+          },
+        });
+        if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
+
         const created = await tx.accessRequest.create({
           data: {
             societyId,
@@ -275,20 +275,27 @@ export class WorkforceService {
           ],
         });
         return created;
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return { request, residentUserIds };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const receipt = await this.prisma.gateMutationReceipt.findUnique({
-          where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
-        });
-        if (receipt && receipt.gateId === gateId && receipt.action === GateMutationAction.CHECK_IN) {
-          const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
-          if (request && this.workforceAssignmentId(request.metadata) === assignmentId) {
-            return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
-          }
+      const receipt = await this.prisma.gateMutationReceipt.findUnique({
+        where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
+      });
+      if (receipt && receipt.gateId === gateId && receipt.action === GateMutationAction.CHECK_IN) {
+        const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
+        if (request && this.workforceAssignmentId(request.metadata) === assignmentId) {
+          return { request, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
         }
       }
+      const activeVisit = await this.prisma.accessRequest.findFirst({
+        where: {
+          societyId,
+          subjectType: AccessSubjectType.DOMESTIC_HELP,
+          status: AccessRequestStatus.CHECKED_IN,
+          metadata: { path: ['workforceAssignmentId'], equals: assignmentId },
+        },
+      });
+      if (activeVisit) throw new BadRequestException('Worker is already checked in for this assignment');
       throw error;
     }
   }
