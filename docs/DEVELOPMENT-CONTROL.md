@@ -8,8 +8,8 @@ This repository is the active development baseline for Aaraagate. Changes must r
 Complete the Maintenance/Billing vertical slice end-to-end.
 
 Execution order:
-1. Merge and validate the owner-facing maintenance dues and payment experience (PR #93 or its successor if superseded).
-2. Close any remaining billing acceptance gaps across Resident, Society Admin and Accountant surfaces.
+1. Owner-facing maintenance dues and payment experience merged through successor PR #95 and promoted to `staging` through PR #96.
+2. Close the remaining gateway-independent billing acceptance gaps across Resident, Society Admin and Accountant surfaces.
 3. Verify owner-only finance visibility, tenant fail-closed behavior, server-verified reconciliation, receipts/history and auditability.
 4. Run targeted billing tests first, then protected CI.
 5. Promote the validated billing milestone through staging and main using the standard release path.

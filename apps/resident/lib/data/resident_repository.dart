@@ -80,6 +80,16 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<List<Map<String, dynamic>>> maintenancePayments() async {
+    final value = await api.get('/api/v1/billing/payments/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> maintenanceReceipt(String paymentId) async {
+    final value = await api.get('/api/v1/billing/payments/$paymentId/receipt');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> helpdeskActivities(String ticketId) async {
     final value = await api.get('/api/v1/helpdesk/$ticketId/activities');
     return _list(value);
