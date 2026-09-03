@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AppRole } from '../auth/auth.types';
+import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { AppPermission, hasPermission } from '../auth/permission.types';
+import { SosController } from './sos.controller';
 
 describe('SOS authorization', () => {
   it('allows residents to trigger and read their own SOS incidents', () => {
@@ -29,6 +31,12 @@ describe('SOS authorization', () => {
       expect(hasPermission([role], AppPermission.SOS_TRIGGER)).toBe(false);
       expect(hasPermission([role], AppPermission.SOS_READ_OWN)).toBe(false);
       expect(hasPermission([role], AppPermission.SOS_RESPOND)).toBe(false);
+    }
+  });
+
+  it('protects every operational response endpoint with SOS respond permission', () => {
+    for (const handler of ['manage', 'acknowledge', 'resolve', 'history'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, SosController.prototype[handler])).toEqual([AppPermission.SOS_RESPOND]);
     }
   });
 });

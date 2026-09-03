@@ -31,7 +31,7 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Household/domestic help | Validated release baseline | Occupancy-scoped assignments, review, schedules, leave, ratings, concurrency-safe gate attendance, session-scoped recovery and suspension controls |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Advanced vertical slice | Categories, platform-verified providers, society approval, tenant-scoped offerings, booking lifecycle and ratings |
-| Admin operations | Current active vertical slice | Residents, workforce, helpdesk, notices, billing, gates and marketplace operations are implemented; SOS and remaining V1 workflows are being completed |
+| Admin operations | Current active vertical slice | Residents, workforce, helpdesk, notices, billing, gates, marketplace and SOS response operations are implemented; remaining V1 workflows are being completed |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
 | Maintenance/billing | Validated release baseline | Owner/current-tenant unit-scoped dues and payments, society invoice operations, server-verified reconciliation, receipts/history, audience controls and auditable events |
 | Reports/analytics | Planned / minimal foundation | Essential V1 operational and audit views remain to be completed |
@@ -41,7 +41,7 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
 ## Current execution focus
-The active milestone is **Society Admin operational completeness**. Gate configuration/monitoring and marketplace provider/booking operations are implemented. Current work proceeds to SOS response, authorization separation and remaining Admin UX states. After Admin closure, proceed to essential reports, marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
+The active milestone is **Society Admin operational completeness**. Gate configuration/monitoring, marketplace provider/booking and SOS response operations are implemented. Current work proceeds to remaining authorization and Admin UX states. After Admin closure, proceed to essential reports, marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
 
 Maintenance/Billing is now treated as a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
 
