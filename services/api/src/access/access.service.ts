@@ -89,6 +89,19 @@ export class AccessService {
     }
   }
 
+  private async committedGateMutation(societyId: string, gateId: string, accessRequestId: string, idempotencyKey: string, action: GateMutationAction) {
+    const receipt = await this.prisma.gateMutationReceipt.findUnique({
+      where: { societyId_idempotencyKey: { societyId, idempotencyKey } },
+    });
+    if (!receipt) return null;
+    if (receipt.accessRequestId !== accessRequestId || receipt.gateId !== gateId || receipt.action !== action) {
+      throw new BadRequestException('Idempotency key was already used for a different gate operation');
+    }
+    const request = await this.prisma.accessRequest.findFirst({ where: { id: receipt.accessRequestId, societyId } });
+    if (!request) throw new NotFoundException('Access request not found');
+    return request;
+  }
+
   private async assertCanDecideRequest(request: { societyId: string; unitId: string; requestedById: string; metadata: Prisma.JsonValue }, userId: string) {
     if (request.requestedById === userId) return;
     if (!this.isGateOriginated(request.metadata)) throw new NotFoundException('Access request not found');
@@ -303,13 +316,8 @@ export class AccessService {
   private async gateMutation(societyId: string, gateId: string, accessRequestId: string, actorUserId: string, idempotencyKey: string, action: GateMutationAction) {
     const key = idempotencyKey.trim();
     if (!key) throw new BadRequestException('Idempotency key is required');
-    const existing = await this.prisma.gateMutationReceipt.findUnique({ where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } } });
-    if (existing) {
-      if (existing.accessRequestId !== accessRequestId || existing.gateId !== gateId || existing.action !== action) throw new BadRequestException('Idempotency key was already used for a different gate operation');
-      const request = await this.prisma.accessRequest.findFirst({ where: { id: existing.accessRequestId, societyId } });
-      if (!request) throw new NotFoundException('Access request not found');
-      return request;
-    }
+    const existing = await this.committedGateMutation(societyId, gateId, accessRequestId, key, action);
+    if (existing) return existing;
 
     if (action === GateMutationAction.CHECK_IN) {
       const request = await this.prisma.accessRequest.findFirst({ where: { id: accessRequestId, societyId } });
@@ -336,14 +344,8 @@ export class AccessService {
         return request;
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const receipt = await this.prisma.gateMutationReceipt.findUnique({ where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } } });
-        if (receipt && receipt.accessRequestId === accessRequestId && receipt.gateId === gateId && receipt.action === action) {
-          const request = await this.prisma.accessRequest.findFirst({ where: { id: accessRequestId, societyId } });
-          if (!request) throw new NotFoundException('Access request not found');
-          return request;
-        }
-      }
+      const committed = await this.committedGateMutation(societyId, gateId, accessRequestId, key, action);
+      if (committed) return committed;
       throw error;
     }
   }
