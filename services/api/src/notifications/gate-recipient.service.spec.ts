@@ -14,8 +14,16 @@ describe('GateRecipientService', () => {
       where: expect.objectContaining({
         societyId: 'society-1', unitId: 'unit-1', active: true, gateNotificationEnabled: true,
         effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       }),
       orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
     }));
+  });
+
+  it('returns no recipient when all occupancies have ended', async () => {
+    const prisma = { unitOccupancy: { findMany: vi.fn().mockResolvedValue([]) } };
+    const service = new GateRecipientService(prisma as unknown as ConstructorParameters<typeof GateRecipientService>[0]);
+
+    await expect(service.notificationRecipients('society-1', 'unit-1')).resolves.toEqual([]);
   });
 });

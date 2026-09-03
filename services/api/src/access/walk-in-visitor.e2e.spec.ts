@@ -1,4 +1,5 @@
 import { AccessRequestStatus, AccessSubjectType, AuditEventType, GateMutationAction } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { AccessService } from './access.service';
@@ -117,6 +118,9 @@ describe('Walk-in visitor approval lifecycle', () => {
 
     const gateView = await service.gateRequestStatus('society-1', 'gate-1', pending.id);
     expect(gateView.status).toBe(AccessRequestStatus.APPROVED);
+
+    await expect(service.gateRequestStatus('society-1', 'gate-2', pending.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.checkInRequest('society-1', 'gate-2', pending.id, 'guard-2', 'wrong-gate')).rejects.toBeInstanceOf(BadRequestException);
 
     const entered = await service.checkInRequest('society-1', 'gate-1', pending.id, 'guard-1', 'walkin-enter-1');
     expect(entered.status).toBe(AccessRequestStatus.CHECKED_IN);

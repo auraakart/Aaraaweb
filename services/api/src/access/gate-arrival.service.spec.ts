@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { GateArrivalService } from './gate-arrival.service';
 
-function setup(enabled = true) {
+function setup(enabled = true, hasApprover = true) {
   const prisma = {
     gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-1', societyId: 'society-1', active: true }) },
     unit: {
-      findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', occupancies: [{ userId: 'resident-1' }] }),
+      findFirst: vi.fn().mockResolvedValue({ id: 'unit-1', occupancies: hasApprover ? [{ userId: 'resident-1' }] : [] }),
     },
     accessRequest: {
       create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data })),
@@ -77,5 +77,28 @@ describe('GateArrivalService', () => {
   it('rejects delivery/cab when the society feature is disabled', async () => {
     const { service } = setup(false);
     await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.DELIVERY, 'Partner')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects whitespace-only arrival names', async () => {
+    const { service, prisma } = setup();
+    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.DELIVERY, '   ')).rejects.toThrow('Gate arrival name is required');
+    expect(prisma.accessRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the destination has no current gate approver', async () => {
+    const { service, prisma } = setup(true, false);
+    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.CAB, 'Driver')).rejects.toThrow('Destination unit does not have an active resident');
+    expect(prisma.accessRequest.create).not.toHaveBeenCalled();
+    expect(prisma.unit.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        occupancies: expect.objectContaining({
+          where: expect.objectContaining({
+            active: true,
+            gateApprovalEnabled: true,
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: expect.any(Date) } }],
+          }),
+        }),
+      }),
+    }));
   });
 });
