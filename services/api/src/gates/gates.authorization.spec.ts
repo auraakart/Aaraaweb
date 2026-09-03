@@ -26,4 +26,14 @@ describe('gate discovery authorization', () => {
     expect(hasPermission([AppRole.STAFF], AppPermission.GATE_READ)).toBe(false);
     expect(hasPermission([AppRole.VENDOR], AppPermission.GATE_READ)).toBe(false);
   });
+
+  it('separates gate configuration from security processing roles', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, GatesController.prototype.create)).toEqual([AppPermission.GATE_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, GatesController.prototype.activate)).toEqual([AppPermission.GATE_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, GatesController.prototype.deactivate)).toEqual([AppPermission.GATE_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, GatesController.prototype.auditHistory)).toEqual([AppPermission.AUDIT_READ]);
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.GATE_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.SECURITY_GUARD], AppPermission.GATE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.SECURITY_SUPERVISOR], AppPermission.GATE_MANAGE)).toBe(false);
+  });
 });
