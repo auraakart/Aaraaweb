@@ -120,6 +120,18 @@ export class WorkforceService {
     });
   }
 
+  listForReview(societyId: string) {
+    return this.prisma.workforceAssignment.findMany({
+      where: { societyId, active: true },
+      include: {
+        worker: true,
+        household: { include: { unit: { include: { building: true } } } },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+  }
+
   async review(societyId: string, assignmentId: string, decision: 'APPROVED' | 'REJECTED') {
     const assignment = await this.prisma.workforceAssignment.findFirst({
       where: { id: assignmentId, societyId, active: true },
