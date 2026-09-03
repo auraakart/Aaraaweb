@@ -9,7 +9,7 @@ Complete Society Admin operational workflows across the remaining V1 modules.
 
 Execution order:
 1. Complete gate configuration and monitoring with strict separation between Admin configuration and Guard processing permissions.
-2. Complete Society Admin marketplace/provider, booking, SOS and remaining community operations exposed by V1 APIs.
+2. Complete Society Admin SOS and remaining community operations exposed by V1 APIs. Marketplace/provider and booking operations are implemented and awaiting release validation.
 3. Verify loading, empty, failure, authorization, tenant-isolation and audit states for each operational surface.
 4. Run targeted Admin/API tests first, then protected CI and staging validation at coherent integration boundaries.
 5. Promote the validated Society Admin milestone through staging and main using the standard release path.

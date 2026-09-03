@@ -109,6 +109,18 @@ export class ServicesMarketplaceController {
     return this.marketplace.createCategory(dto.name, dto.slug, dto.sortOrder);
   }
 
+  @Get('admin/catalog')
+  @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
+  adminCatalog(@CurrentTenant() societyId: string) {
+    return this.marketplace.adminCatalog(societyId);
+  }
+
+  @Get('admin/bookings')
+  @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
+  adminBookings(@CurrentTenant() societyId: string) {
+    return this.marketplace.listAdminBookings(societyId);
+  }
+
   @Post('admin/providers')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
   createProvider(@Body() dto: CreateProviderDto) {
@@ -123,8 +135,8 @@ export class ServicesMarketplaceController {
 
   @Post('admin/offerings')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
-  createOffering(@Body() dto: CreateOfferingDto) {
-    return this.marketplace.createOffering(dto.providerId, dto.categoryId, dto.name, dto.pricePaise, dto.description, dto.durationMinutes);
+  createOffering(@Body() dto: CreateOfferingDto, @CurrentTenant() societyId: string) {
+    return this.marketplace.createOffering(societyId, dto.providerId, dto.categoryId, dto.name, dto.pricePaise, dto.description, dto.durationMinutes);
   }
 
   @Post('admin/bookings/:bookingId/confirm')
