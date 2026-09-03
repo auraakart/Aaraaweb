@@ -43,7 +43,7 @@ jobs:
 
       - name: Generate Android platform wrapper
         working-directory: apps/resident
-        run: flutter create --platforms=android --project-name aaraagate_resident --org in.aaraaplatforms .
+        run: flutter create --platforms=android --project-name aaraagate_resident --org com.aaraaplatforms .
 
       - name: Restore Resident source and manifest
         run: |
