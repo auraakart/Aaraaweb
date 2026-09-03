@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -52,6 +52,11 @@ export class BillingController {
   @RequiresPermissions(AppPermission.BILLING_MANAGE)
   admin(@CurrentTenant() societyId: string) { return this.billing.listForSociety(societyId); }
 
+  @Get('invoices/admin/units')
+  @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
+  units(@CurrentTenant() societyId: string) { return this.billing.listBillableUnits(societyId); }
+
   @Post('invoices/admin')
   @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
   @RequiresPermissions(AppPermission.BILLING_MANAGE)
@@ -64,6 +69,27 @@ export class BillingController {
   @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ, AppPermission.PAYMENT_CREATE_OWN)
   pay(@Body() dto: CreatePaymentDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.createPayment(societyId, this.requireUser(userId), dto.invoiceId, dto.idempotencyKey);
+  }
+
+  @Get('payments/mine')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
+  paymentsMine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.billing.listPaymentsMine(societyId, this.requireUser(userId));
+  }
+
+  @Get('payments/:paymentId/receipt')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
+  receipt(@Param('paymentId', new ParseUUIDPipe()) paymentId: string, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.billing.getReceipt(societyId, this.requireUser(userId), paymentId);
+  }
+
+  @Get('payments/admin/audit')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
+  paymentAudit(@CurrentTenant() societyId: string) {
+    return this.billing.listPaymentAudit(societyId);
   }
 
   private requireUser(userId?: string) {

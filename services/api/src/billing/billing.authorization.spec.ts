@@ -9,6 +9,7 @@ describe('BillingController authorization', () => {
   it('separates resident and administrator invoice permissions', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.mine)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.issue)).toEqual([AppPermission.BILLING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.units)).toEqual([AppPermission.BILLING_MANAGE]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.issue)).toBe(ProductFeature.MAINTENANCE_BILLING);
   });
 
@@ -18,5 +19,9 @@ describe('BillingController authorization', () => {
       AppPermission.PAYMENT_CREATE_OWN,
     ]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.pay)).toBe(ProductFeature.PAYMENTS);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.paymentsMine)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.receipt)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.paymentAudit)).toEqual([AppPermission.BILLING_MANAGE]);
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.paymentAudit)).toBe(ProductFeature.PAYMENTS);
   });
 });
