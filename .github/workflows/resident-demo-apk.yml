@@ -1,0 +1,80 @@
+name: Resident Demo APK
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'apps/resident/**'
+      - '.github/workflows/resident-demo-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resident-demo-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-resident-apk:
+    name: Build Resident demo APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform wrapper
+        working-directory: apps/resident
+        run: flutter create --platforms=android --project-name aaraagate_resident --org in.aaraaplatforms .
+
+      - name: Restore Resident source and manifest
+        run: git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
+
+      - name: Get dependencies
+        working-directory: apps/resident
+        run: flutter pub get
+
+      - name: Analyze Resident app
+        working-directory: apps/resident
+        run: flutter analyze
+
+      - name: Test Resident app
+        working-directory: apps/resident
+        run: flutter test
+
+      - name: Build debug APK
+        working-directory: apps/resident
+        env:
+          DEMO_API_BASE_URL: ${{ vars.AARAGATE_DEMO_API_BASE_URL }}
+        run: |
+          if [ -n "$DEMO_API_BASE_URL" ]; then
+            flutter build apk --debug --dart-define=AARAGATE_API_BASE_URL="$DEMO_API_BASE_URL"
+          else
+            flutter build apk --debug
+          fi
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p dist
+          cp apps/resident/build/app/outputs/flutter-apk/app-debug.apk dist/Aaraagate-Resident-Demo.apk
+
+      - name: Upload Resident APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aaraagate-resident-demo-apk
+          path: dist/Aaraagate-Resident-Demo.apk
+          if-no-files-found: error
+          retention-days: 14
