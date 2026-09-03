@@ -1,8 +1,10 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-01
+Updated: 2026-09-03
 
 This document is the implementation guardrail for the Aaraagate build. Features are only complete when their requirement, UX intent, security model, tenant/permission model, acceptance criteria and release validation are defined.
+
+`PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. This document is the feature-status and acceptance source of truth. `DEVELOPMENT-CONTROL.md` is the current execution-order source of truth.
 
 ## Product pillars
 1. Security-first gated-community operations
@@ -24,25 +26,33 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | RBAC/permissions | Advanced foundation | Society-scoped roles, typed permissions and server-side enforcement |
 | Society structure | Advanced foundation | Society → building/block → floor → unit → household/membership |
 | SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
-| Visitor management | Active vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out and audit |
+| Visitor management | Advanced vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, offline recovery and audit; final E2E/edge cases remain |
 | Guard application | Functional foundation | Login/session, scanner, operational screen, offline queue and API integration |
 | Household/domestic help | Hardened foundation | Ownership separated from time-bound occupancy; household data and workforce access follow active occupancy |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
-| Admin operations | Foundation | Operational modules exist; full production workflows remain incomplete |
+| Admin operations | Active vertical slices | Helpdesk/notices and billing operations are live foundations; remaining V1 workflows still need completion |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
-| Maintenance/billing | Planned | Bills, server-verified payments, receipts and ledger-ready records |
-| Reports/analytics | Planned | Operational, audit and management reporting |
+| Maintenance/billing | Current active vertical slice | Owner-only dues and payments, society invoice operations, server-verified reconciliation and auditable events |
+| Reports/analytics | Planned / minimal foundation | Essential V1 operational and audit views remain to be completed |
 | Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
 | CI/CD | Green baseline achieved | Full CI validates migrations, lint, typecheck, tests, builds, Flutter and dependency security |
 | Staging release gate | Green baseline achieved | Clean DB migration, API production build/startup and health smoke validation |
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
+## Current execution focus
+The active milestone is **Maintenance/Billing**. Complete the owner-facing dues/payment experience and remaining Resident/Admin/Accountant billing acceptance criteria, then validate through protected CI and staging. After Billing, return to final Visitor/Guard E2E gaps, then workforce/domestic-help, remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
+
+The detailed execution sequence and usage-efficient working rules live in `DEVELOPMENT-CONTROL.md` so this traceability document can stay focused on requirement status and acceptance.
+
 ## Current release evidence
 - Full CI on `develop` has reached an all-green baseline including API build/tests, admin build, Flutter validation, clean PostgreSQL migrations and dependency audit.
 - A `staging` branch and staging smoke workflow exist.
 - Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
-- Branch protection/required checks are still an administrative gap and must be enabled before production governance is considered complete.
+- Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
+- Society Admin maintenance billing operations have been merged into `develop` with green CI.
+- The owner-facing maintenance dues/payment experience is the current active billing completion step.
+- Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
 Visitor Management is not complete until all of the following are verified end-to-end:
@@ -66,6 +76,20 @@ Visitor Management is not complete until all of the following are verified end-t
 - Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
 - Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
 - Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
+
+## Maintenance/Billing acceptance direction
+The active Billing milestone is not complete until:
+- Society Admin/Accountant can create and manage tenant-scoped maintenance invoices under least-privilege permissions.
+- Owner can view only owner-authorized dues, paid history and receipts for owned property.
+- Tenant/occupant without ownership fails closed for owner-only property finance even if they occupy the unit.
+- Payment-order preparation is idempotent and does not present false success before signed gateway reconciliation.
+- Gateway callbacks are authenticated, deduplicated and reconcile capture/refund outcomes safely.
+- Payment and reconciliation events are auditable without exposing unnecessary payment data.
+- Resident/Admin clients include loading, empty, denied, failure and retry/recovery states.
+- Targeted authorization/service/widget tests pass, followed by protected CI and staging validation appropriate to payment risk.
+
+## Usage-efficient validation rule
+During normal milestone development, inspect and test the affected modules plus direct dependencies. Run full-repository review/regression only at major release boundaries or when a cross-cutting architecture/security change warrants it. CI failures should be diagnosed from the failing job first rather than triggering an unconditional repository-wide audit.
 
 ## Definition of done
 A feature is not production-ready until it has requirement mapping, responsive UI, loading/empty/error/offline states where relevant, tenant isolation, role/permission/entitlement checks, validation, audit implications reviewed, tests, documented acceptance criteria, green CI and staging validation appropriate to its risk.

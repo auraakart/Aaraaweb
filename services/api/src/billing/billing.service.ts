@@ -38,6 +38,17 @@ export class BillingService {
     `);
   }
 
+  listBillableUnits(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT u."id", u."number" AS "unitNumber", b."name" AS "buildingName"
+      FROM "Unit" u
+      JOIN "Building" b ON b."id" = u."buildingId"
+      WHERE u."societyId" = ${societyId}::uuid
+        AND b."societyId" = ${societyId}::uuid
+      ORDER BY b."name", u."number"
+    `);
+  }
+
   async issue(societyId: string, actorUserId: string, input: { unitId: string; billingPeriod: string; amountPaise: number; dueDate: string; description?: string }) {
     if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise < 100) throw new BadRequestException('Invoice amount must be at least one rupee');
     const units = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT "id" FROM "Unit" WHERE "id"=${input.unitId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
