@@ -120,6 +120,7 @@ describe('WorkforceService gate attendance', () => {
   it('checks active attendance inside a serializable transaction', async () => {
     const created = { id: 'request-a', societyId: 'society-a', unitId: 'unit-a', metadata: { workforceAssignmentId: 'assignment-a' } };
     const tx = {
+      workforceLeave: { findFirst: vi.fn().mockResolvedValue(null) },
       accessRequest: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(created) },
       gateMutationReceipt: { create: vi.fn() },
       auditEvent: { createMany: vi.fn() },
@@ -142,7 +143,32 @@ describe('WorkforceService gate attendance', () => {
     expect(tx.accessRequest.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: 'CHECKED_IN' }),
     }));
+    expect(tx.workforceLeave.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ societyId: 'society-a', assignmentId: 'assignment-a', active: true }),
+    }));
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+  });
+
+  it('rejects approved leave again inside the check-in transaction', async () => {
+    const tx = {
+      workforceLeave: { findFirst: vi.fn().mockResolvedValue({ id: 'leave-a' }) },
+      accessRequest: { findFirst: vi.fn(), create: vi.fn() },
+      gateMutationReceipt: { create: vi.fn() },
+      auditEvent: { createMany: vi.fn() },
+    };
+    const prisma = {
+      gate: { findFirst: vi.fn().mockResolvedValue({ id: 'gate-a' }) },
+      gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(null) },
+      workforceAssignment: { findFirst: vi.fn().mockResolvedValue(assignment) },
+      accessRequest: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn().mockImplementation(async (operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
+    const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
+
+    await expect(service.gateCheckIn('society-a', 'gate-a', 'assignment-a', 'guard-a', 'idem-leave')).rejects.toThrow(
+      'Worker is on approved leave today',
+    );
+    expect(tx.accessRequest.create).not.toHaveBeenCalled();
   });
 
   it('rejects a competing check-in after a serialization conflict commits another visit', async () => {
