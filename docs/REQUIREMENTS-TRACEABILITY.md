@@ -53,7 +53,7 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
 - Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
 - Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
-- Visitor credential lifecycle concurrency hardening is merged into `develop` with green CI and staging smoke, and final Visitor/Guard E2E closure is the active milestone.
+- Visitor credential lifecycle and session-scoped Guard offline recovery hardening are merged into `develop` with green CI; staging promotion remains the milestone release gate.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
@@ -76,6 +76,7 @@ Visitor Management is not complete until all of the following are verified end-t
 
 ### Guard offline recovery evidence
 - Transport failures queue gate check-in/out actions in secure local storage with stable idempotency keys.
+- Every queued action is bound to its society and guard identity; another session cannot see its count or replay it, and unsafe legacy records are purged.
 - Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
 - Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
 - Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
