@@ -7,6 +7,17 @@ import { WorkforceService } from './workforce.service';
 const accessStub = {} as AccessService;
 
 describe('WorkforceService tenant isolation', () => {
+  it('scopes the operational review list to the authenticated society', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new WorkforceService({ workforceAssignment: { findMany } } as unknown as PrismaService, accessStub);
+
+    await expect(service.listForReview('society-a')).resolves.toEqual([]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { societyId: 'society-a', active: true },
+      take: 500,
+    }));
+  });
+
   it('does not reveal a household outside the authenticated society', async () => {
     const prisma = {
       household: { findFirst: vi.fn().mockResolvedValue(null) },
