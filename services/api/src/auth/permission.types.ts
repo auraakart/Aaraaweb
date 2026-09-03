@@ -115,6 +115,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOS_TRIGGER,
     AppPermission.SOS_READ_OWN,
     AppPermission.SERVICES_MARKETPLACE_USE,
+    AppPermission.PAYMENT_CREATE_OWN,
   ],
   [AppRole.FAMILY_MEMBER]: [
     AppPermission.VISITOR_READ_OWN,

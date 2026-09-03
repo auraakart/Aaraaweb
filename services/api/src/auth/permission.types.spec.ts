@@ -12,10 +12,11 @@ describe('permission matrix', () => {
     expect(hasPermission([AppRole.VENDOR], AppPermission.VISITOR_MANAGE_OWN)).toBe(false);
   });
 
-  it('keeps property finance owner-only', () => {
+  it('keeps property finance owner-only while allowing tenants to pay occupied-unit dues', () => {
     expect(hasPermission([AppRole.OWNER], AppPermission.PROPERTY_FINANCE_READ)).toBe(true);
     expect(hasPermission([AppRole.TENANT], AppPermission.PROPERTY_FINANCE_READ)).toBe(false);
-    expect(hasPermission([AppRole.TENANT], AppPermission.PAYMENT_CREATE_OWN)).toBe(false);
+    expect(hasPermission([AppRole.TENANT], AppPermission.PAYMENT_CREATE_OWN)).toBe(true);
+    expect(hasPermission([AppRole.FAMILY_MEMBER], AppPermission.PAYMENT_CREATE_OWN)).toBe(false);
   });
 
   it('allows guards to perform gate visitor operations', () => {

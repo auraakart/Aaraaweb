@@ -2,13 +2,14 @@ import { BadRequestException, Injectable, NotFoundException, UnauthorizedExcepti
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 
 type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
 type PaymentWebhookRow = { id: string; invoiceId: string; societyId: string; status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' };
 
 @Injectable()
 export class BillingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
   listMine(societyId: string, userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -22,10 +23,36 @@ export class BillingService {
           WHERE uo."unitId" = i."unitId"
             AND uo."societyId" = ${societyId}::uuid
             AND uo."userId" = ${userId}::uuid
+            AND uo."verified" = true
             AND uo."active" = true
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
+      ORDER BY i."dueDate" DESC
+    `);
+  }
+
+  listPayable(societyId: string, userId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"
+      FROM "MaintenanceInvoice" i
+      JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = i."societyId"
+      JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = i."societyId"
+      WHERE i."societyId" = ${societyId}::uuid AND (
+        EXISTS (
+          SELECT 1 FROM "UnitOwnership" uo
+          WHERE uo."unitId" = i."unitId" AND uo."societyId" = ${societyId}::uuid
+            AND uo."userId" = ${userId}::uuid AND uo."verified" = true AND uo."active" = true
+            AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+        ) OR EXISTS (
+          SELECT 1 FROM "UnitOccupancy" ur
+          WHERE ur."unitId" = i."unitId" AND ur."societyId" = ${societyId}::uuid
+            AND ur."userId" = ${userId}::uuid AND ur."relation" = 'TENANT' AND ur."active" = true
+            AND ur."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (ur."effectiveTo" IS NULL OR ur."effectiveTo" > CURRENT_TIMESTAMP)
+        )
+      )
       ORDER BY i."dueDate" DESC
     `);
   }
@@ -49,13 +76,13 @@ export class BillingService {
       JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = p."societyId"
       JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = p."societyId"
       WHERE p."societyId" = ${societyId}::uuid
-        AND EXISTS (
+        AND (p."payerUserId" = ${userId}::uuid OR EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
           WHERE uo."unitId" = i."unitId" AND uo."societyId" = ${societyId}::uuid
-            AND uo."userId" = ${userId}::uuid AND uo."active" = true
+            AND uo."userId" = ${userId}::uuid AND uo."verified" = true AND uo."active" = true
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
-        )
+        ))
       ORDER BY p."createdAt" DESC
     `);
   }
@@ -73,13 +100,13 @@ export class BillingService {
       JOIN "Society" s ON s."id" = p."societyId"
       WHERE p."id" = ${paymentId}::uuid AND p."societyId" = ${societyId}::uuid
         AND p."status" IN ('CAPTURED', 'REFUNDED')
-        AND EXISTS (
+        AND (p."payerUserId" = ${userId}::uuid OR EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
           WHERE uo."unitId" = i."unitId" AND uo."societyId" = ${societyId}::uuid
-            AND uo."userId" = ${userId}::uuid AND uo."active" = true
+            AND uo."userId" = ${userId}::uuid AND uo."verified" = true AND uo."active" = true
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
-        )
+        ))
       LIMIT 1
     `).then((rows) => {
       const receipt = (rows as unknown[])[0];
@@ -126,22 +153,52 @@ export class BillingService {
       VALUES (${societyId}::uuid,${input.unitId}::uuid,${actorUserId}::uuid,${invoiceNumber},${input.billingPeriod},${input.description?.trim() || null},${input.amountPaise},${input.dueDate}::date)
       RETURNING *
     `);
-    return (rows as unknown[])[0];
+    const invoice = (rows as { id: string; invoiceNumber: string; amountPaise: number }[])[0];
+    if (invoice && this.realtime) {
+      const recipients = await this.prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
+        SELECT "userId" FROM "UnitOwnership"
+        WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
+          AND "verified"=true AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
+          AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+        UNION
+        SELECT "userId" FROM "UnitOccupancy"
+        WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
+          AND "relation"='TENANT' AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
+          AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+      `);
+      const title = 'Maintenance payment due';
+      const body = `Invoice ${invoice.invoiceNumber} for ₹${(invoice.amountPaise / 100).toFixed(2)} is due on ${input.dueDate}.`;
+      recipients.forEach(({ userId }) => this.realtime?.publishResident({
+        type: 'MAINTENANCE_DUE_ISSUED', societyId, userId, invoiceId: invoice.id,
+        title, body, createdAt: new Date().toISOString(),
+      }));
+    }
+    return invoice;
   }
 
   async createPayment(societyId: string, userId: string, invoiceId: string, idempotencyKey: string) {
     const invoices = await this.prisma.$queryRaw<InvoiceRow[]>(Prisma.sql`
       SELECT i.* FROM "MaintenanceInvoice" i
       WHERE i."id"=${invoiceId}::uuid AND i."societyId"=${societyId}::uuid
-        AND EXISTS (
+        AND (EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
           WHERE uo."unitId" = i."unitId"
             AND uo."societyId" = ${societyId}::uuid
             AND uo."userId" = ${userId}::uuid
+            AND uo."verified" = true
             AND uo."active" = true
             AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
-        )
+        ) OR EXISTS (
+          SELECT 1 FROM "UnitOccupancy" ur
+          WHERE ur."unitId" = i."unitId"
+            AND ur."societyId" = ${societyId}::uuid
+            AND ur."userId" = ${userId}::uuid
+            AND ur."relation" = 'TENANT'
+            AND ur."active" = true
+            AND ur."effectiveFrom" <= CURRENT_TIMESTAMP
+            AND (ur."effectiveTo" IS NULL OR ur."effectiveTo" > CURRENT_TIMESTAMP)
+        ))
       LIMIT 1
     `);
     const invoice = invoices[0];

@@ -68,7 +68,7 @@ class ResidentRepository {
   }
 
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
-    final value = await api.get('/api/v1/billing/invoices/mine');
+    final value = await api.get('/api/v1/billing/invoices/payable');
     return _list(value);
   }
 

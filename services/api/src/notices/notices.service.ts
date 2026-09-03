@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 
 type NoticeStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -11,6 +12,7 @@ type NoticeRow = {
   title: string;
   body: string;
   category: string | null;
+  audience: 'OWNER_ONLY' | 'OWNER_AND_OCCUPANTS';
   status: NoticeStatus;
   publishedAt: Date | null;
   expiresAt: Date | null;
@@ -21,9 +23,9 @@ type NoticeRow = {
 
 @Injectable()
 export class NoticesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
-  listPublished(societyId: string) {
+  listPublished(societyId: string, userId: string) {
     return this.prisma.$queryRaw<NoticeRow[]>(Prisma.sql`
       SELECT n.*
       FROM "Notice" n
@@ -31,6 +33,19 @@ export class NoticesService {
         AND n."status" = 'PUBLISHED'
         AND n."publishedAt" <= CURRENT_TIMESTAMP
         AND (n."expiresAt" IS NULL OR n."expiresAt" > CURRENT_TIMESTAMP)
+        AND (
+          EXISTS (
+            SELECT 1 FROM "UnitOwnership" uo
+            WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${userId}::uuid
+              AND uo."verified"=true AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+          ) OR (n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS (
+            SELECT 1 FROM "UnitOccupancy" ur
+            WHERE ur."societyId"=${societyId}::uuid AND ur."userId"=${userId}::uuid
+              AND ur."active"=true AND ur."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (ur."effectiveTo" IS NULL OR ur."effectiveTo">CURRENT_TIMESTAMP)
+          ))
+        )
       ORDER BY n."publishedAt" DESC, n."createdAt" DESC
     `);
   }
@@ -47,7 +62,7 @@ export class NoticesService {
   async createDraft(
     societyId: string,
     actorUserId: string,
-    input: { title: string; body: string; category?: string; expiresAt?: string },
+    input: { title: string; body: string; category?: string; expiresAt?: string; audience?: 'OWNER_ONLY' | 'OWNER_AND_OCCUPANTS' },
   ) {
     const title = input.title.trim();
     const body = input.body.trim();
@@ -61,8 +76,8 @@ export class NoticesService {
 
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<NoticeRow[]>(Prisma.sql`
-        INSERT INTO "Notice" ("societyId", "createdById", "title", "body", "category", "expiresAt")
-        VALUES (${societyId}::uuid, ${actorUserId}::uuid, ${title}, ${body}, ${category}, ${expiresAt})
+        INSERT INTO "Notice" ("societyId", "createdById", "title", "body", "category", "expiresAt", "audience")
+        VALUES (${societyId}::uuid, ${actorUserId}::uuid, ${title}, ${body}, ${category}, ${expiresAt}, ${input.audience ?? 'OWNER_AND_OCCUPANTS'}::"NoticeAudience")
         RETURNING *
       `);
       const notice = rows[0];
@@ -84,21 +99,29 @@ export class NoticesService {
       throw new BadRequestException('Expiry must be in the future');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<NoticeRow[]>(Prisma.sql`
         UPDATE "Notice"
         SET "status" = 'PUBLISHED', "publishedAt" = CURRENT_TIMESTAMP, "expiresAt" = ${expiresAt}, "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${noticeId}::uuid AND "societyId" = ${societyId}::uuid AND "status" = 'DRAFT'
         RETURNING *
       `);
-      const updated = rows[0];
-      if (!updated) throw new BadRequestException('Notice changed; refresh and retry');
+      const published = rows[0];
+      if (!published) throw new BadRequestException('Notice changed; refresh and retry');
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "NoticeEvent" ("societyId", "noticeId", "actorUserId", "action", "fromStatus", "toStatus")
         VALUES (${societyId}::uuid, ${noticeId}::uuid, ${actorUserId}::uuid, 'PUBLISHED', 'DRAFT', 'PUBLISHED')
       `);
-      return updated;
+      return published;
     });
+    if (this.realtime) {
+      const recipients = await this.broadcastRecipients(societyId, updated.audience);
+      recipients.forEach(({ userId }) => this.realtime?.publishResident({
+        type: 'GENERAL_NOTICE_PUBLISHED', societyId, userId, noticeId: updated.id,
+        title: updated.title, body: updated.body, createdAt: new Date().toISOString(),
+      }));
+    }
+    return updated;
   }
 
   async archive(societyId: string, actorUserId: string, noticeId: string) {
@@ -142,5 +165,17 @@ export class NoticesService {
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  private broadcastRecipients(societyId: string, audience: NoticeRow['audience']) {
+    return this.prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
+      SELECT "userId" FROM "UnitOwnership"
+      WHERE "societyId"=${societyId}::uuid AND "verified"=true AND "active"=true
+        AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+      UNION
+      SELECT "userId" FROM "UnitOccupancy"
+      WHERE ${audience}='OWNER_AND_OCCUPANTS' AND "societyId"=${societyId}::uuid AND "active"=true
+        AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+    `);
   }
 }

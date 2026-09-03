@@ -47,6 +47,13 @@ export class BillingController {
     return this.billing.listMine(societyId, this.requireUser(userId));
   }
 
+  @Get('invoices/payable')
+  @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  payable(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.billing.listPayable(societyId, this.requireUser(userId));
+  }
+
   @Get('invoices/admin')
   @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
   @RequiresPermissions(AppPermission.BILLING_MANAGE)
@@ -66,21 +73,21 @@ export class BillingController {
 
   @Post('payments')
   @RequiresFeature(ProductFeature.PAYMENTS)
-  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ, AppPermission.PAYMENT_CREATE_OWN)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   pay(@Body() dto: CreatePaymentDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.createPayment(societyId, this.requireUser(userId), dto.invoiceId, dto.idempotencyKey);
   }
 
   @Get('payments/mine')
   @RequiresFeature(ProductFeature.PAYMENTS)
-  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   paymentsMine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.listPaymentsMine(societyId, this.requireUser(userId));
   }
 
   @Get('payments/:paymentId/receipt')
   @RequiresFeature(ProductFeature.PAYMENTS)
-  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   receipt(@Param('paymentId', new ParseUUIDPipe()) paymentId: string, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.getReceipt(societyId, this.requireUser(userId), paymentId);
   }
