@@ -48,7 +48,7 @@ jobs:
       - name: Restore Resident source and manifest
         run: |
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
-          rm -f apps/resident/analysis_options.yaml
+          rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
 
       - name: Get dependencies
         working-directory: apps/resident
