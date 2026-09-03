@@ -49,8 +49,8 @@ jobs:
         run: |
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
           rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' apps/resident/android/app/build.gradle
-          grep -q 'minSdkVersion 23' apps/resident/android/app/build.gradle
+          sed -i -E 's/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdkVersion 23/' apps/resident/android/app/build.gradle
+          grep -Eq 'minSdk(Version)?([[:space:]]*=)?[[:space:]]*23' apps/resident/android/app/build.gradle
 
       - name: Get dependencies
         working-directory: apps/resident
