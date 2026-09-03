@@ -50,8 +50,8 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - A `staging` branch and staging smoke workflow exist.
 - Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
 - Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
-- Society Admin maintenance billing operations have been merged into `develop` with green CI.
-- The owner-facing maintenance dues/payment experience is the current active billing completion step.
+- Society Admin maintenance billing operations and the owner-facing dues/payment experience have been merged into `develop`, validated by protected CI and promoted to `staging`.
+- Gateway-independent payment reconciliation, verified receipts/history and administrator audit visibility are the current billing completion step; live gateway activation remains configuration-dependent.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
