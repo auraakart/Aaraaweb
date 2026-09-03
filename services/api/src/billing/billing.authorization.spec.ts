@@ -19,5 +19,9 @@ describe('BillingController authorization', () => {
       AppPermission.PAYMENT_CREATE_OWN,
     ]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.pay)).toBe(ProductFeature.PAYMENTS);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.paymentsMine)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.receipt)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.paymentAudit)).toEqual([AppPermission.BILLING_MANAGE]);
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.paymentAudit)).toBe(ProductFeature.PAYMENTS);
   });
 });

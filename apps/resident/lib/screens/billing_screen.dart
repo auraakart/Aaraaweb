@@ -12,6 +12,7 @@ class BillingScreen extends StatefulWidget {
 
 class _BillingScreenState extends State<BillingScreen> {
   List<Map<String, dynamic>> invoices = const [];
+  List<Map<String, dynamic>> payments = const [];
   bool loading = true;
   String? error;
   String? payingInvoiceId;
@@ -25,8 +26,11 @@ class _BillingScreenState extends State<BillingScreen> {
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
-      final result = await widget.repository.maintenanceInvoices();
-      if (mounted) setState(() => invoices = result);
+      final result = await Future.wait([
+        widget.repository.maintenanceInvoices(),
+        widget.repository.maintenancePayments(),
+      ]);
+      if (mounted) setState(() { invoices = result[0]; payments = result[1]; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403
           ? 'Maintenance billing is available only to verified owners.'
@@ -35,6 +39,25 @@ class _BillingScreenState extends State<BillingScreen> {
       if (mounted) setState(() => error = 'Your maintenance invoices could not be loaded.');
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _showReceipt(Map<String, dynamic> payment) async {
+    setState(() => error = null);
+    try {
+      final receipt = await widget.repository.maintenanceReceipt(payment['id'].toString());
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.receipt_long_outlined),
+          title: Text('Receipt ${receipt['receiptNumber']}'),
+          content: Text('${receipt['societyName']}\n${receipt['buildingName']} · ${receipt['unitNumber']}\nInvoice ${receipt['invoiceNumber']}\n${_money((receipt['amountPaise'] as num?)?.toInt() ?? 0)} · ${receipt['status']}'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => error = 'The verified receipt could not be loaded. Please retry.');
     }
   }
 
@@ -67,7 +90,7 @@ class _BillingScreenState extends State<BillingScreen> {
   @override
   Widget build(BuildContext context) {
     final outstanding = invoices.where((invoice) => invoice['status'] == 'ISSUED').toList();
-    final paid = invoices.where((invoice) => invoice['status'] == 'PAID').toList();
+    final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     return Scaffold(
       appBar: AppBar(title: const Text('Maintenance & payments')),
       body: RefreshIndicator(
@@ -89,14 +112,30 @@ class _BillingScreenState extends State<BillingScreen> {
               const SizedBox(height: 22),
               Text('Payment history', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              if (paid.isEmpty) const _Message(icon: Icons.history_rounded, text: 'No completed payments yet.'),
-              for (final invoice in paid) _InvoiceCard(invoice: invoice),
+              if (completedPayments.isEmpty) const _Message(icon: Icons.history_rounded, text: 'No completed payments yet.'),
+              for (final payment in completedPayments) _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
             ],
           ],
         ),
       ),
     );
   }
+}
+
+class _PaymentCard extends StatelessWidget {
+  const _PaymentCard({required this.payment, required this.onReceipt});
+  final Map<String, dynamic> payment;
+  final VoidCallback onReceipt;
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    child: ListTile(
+      title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: const TextStyle(fontWeight: FontWeight.w900)),
+      subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
+      isThreeLine: true,
+      trailing: TextButton.icon(onPressed: onReceipt, icon: const Icon(Icons.receipt_long_outlined), label: const Text('Receipt')),
+    ),
+  );
 }
 
 class _SummaryCard extends StatelessWidget {
