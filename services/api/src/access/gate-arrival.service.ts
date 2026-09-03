@@ -23,6 +23,7 @@ export class GateArrivalService {
     vehicleNumber?: string,
     note?: string,
   ) {
+    if (!name.trim()) throw new BadRequestException('Gate arrival name is required');
     if (subjectType !== AccessSubjectType.DELIVERY && subjectType !== AccessSubjectType.CAB) {
       throw new BadRequestException('Gate arrival type must be DELIVERY or CAB');
     }
