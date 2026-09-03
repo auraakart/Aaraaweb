@@ -170,6 +170,22 @@ describe('AccessService', () => {
     await expect(svc.verify('society-1', 'gate-1', 'wrong')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('rejects expired, cancelled and reused credentials safely', async () => {
+    const base = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
+      subjectType: AccessSubjectType.VISITOR, metadata: {}, validFrom: new Date(Date.now() - 60_000),
+      validUntil: new Date(Date.now() - 1000),
+    };
+    const expired = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue({ ...base, status: AccessRequestStatus.APPROVED }) } }).svc;
+    await expect(expired.verify('society-1', 'gate-1', 'credential')).rejects.toThrow('outside its validity window');
+    await expect(expired.checkIn('society-1', 'gate-1', 'credential', 'guard-1', 'expired-key')).rejects.toThrow('outside its validity window');
+
+    for (const status of [AccessRequestStatus.CANCELLED, AccessRequestStatus.CHECKED_OUT]) {
+      const reused = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue({ ...base, status, validUntil: new Date(Date.now() + 60_000) }) } }).svc;
+      await expect(reused.verify('society-1', 'gate-1', 'credential')).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
   it('rejects a gate-originated request at a different gate', async () => {
     const request = {
       id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
@@ -269,5 +285,52 @@ describe('AccessService', () => {
     expect(findFirst.mock.calls[1]?.[0]).toEqual({ where: { id: 'access-1', societyId: 'society-1' } });
     expect(prisma.accessRequest.updateMany).not.toHaveBeenCalled();
     expect(prisma.gateMutationReceipt.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the committed result when a concurrent retry loses the status race', async () => {
+    const receipt = {
+      id: 'receipt-1', societyId: 'society-1', gateId: 'gate-1', accessRequestId: 'access-1',
+      actorUserId: 'guard-1', idempotencyKey: 'concurrent-key', action: GateMutationAction.CHECK_IN,
+    };
+    const approved = {
+      id: 'access-1', societyId: 'society-1', requestedById: 'user-1', subjectType: AccessSubjectType.VISITOR,
+      status: AccessRequestStatus.APPROVED, validFrom: new Date(Date.now() - 1000), validUntil: new Date(Date.now() + 60_000),
+      metadata: {},
+    };
+    const findFirst = vi.fn()
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce({ ...approved, status: AccessRequestStatus.CHECKED_IN });
+    const findUnique = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(receipt);
+    const { svc } = setup({
+      accessRequest: { findFirst, updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+      gateMutationReceipt: { findUnique, create: vi.fn() },
+      $transaction: vi.fn().mockRejectedValue(new BadRequestException('Access request is not ready for check-in')),
+    });
+
+    await expect(svc.checkIn('society-1', 'gate-1', 'credential', 'guard-1', 'concurrent-key')).resolves.toEqual(
+      expect.objectContaining({ status: AccessRequestStatus.CHECKED_IN }),
+    );
+    expect(findUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a conflicting concurrent idempotency key rejected', async () => {
+    const conflicting = {
+      id: 'receipt-1', societyId: 'society-1', gateId: 'gate-1', accessRequestId: 'another-request',
+      actorUserId: 'guard-1', idempotencyKey: 'conflict-key', action: GateMutationAction.CHECK_IN,
+    };
+    const request = {
+      id: 'access-1', societyId: 'society-1', requestedById: 'user-1', subjectType: AccessSubjectType.VISITOR,
+      status: AccessRequestStatus.APPROVED, validFrom: new Date(Date.now() - 1000), validUntil: new Date(Date.now() + 60_000),
+      metadata: {},
+    };
+    const { svc } = setup({
+      accessRequest: { findFirst: vi.fn().mockResolvedValue(request), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+      gateMutationReceipt: { findUnique: vi.fn().mockResolvedValue(conflicting), create: vi.fn() },
+    });
+
+    await expect(svc.checkIn('society-1', 'gate-1', 'credential', 'guard-1', 'conflict-key')).rejects.toThrow(
+      'Idempotency key was already used for a different gate operation',
+    );
   });
 });
