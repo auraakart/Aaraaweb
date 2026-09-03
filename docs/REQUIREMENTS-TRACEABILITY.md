@@ -26,14 +26,14 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | RBAC/permissions | Advanced foundation | Society-scoped roles, typed permissions and server-side enforcement |
 | Society structure | Advanced foundation | Society → building/block → floor → unit → household/membership |
 | SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
-| Visitor management | Advanced vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, offline recovery and audit; final E2E/edge cases remain |
-| Guard application | Functional foundation | Login/session, scanner, operational screen, offline queue and API integration |
+| Visitor management | Current active vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, offline recovery and audit; final E2E/edge cases are being closed |
+| Guard application | Active hardening | Login/session, scanner, operational screen, offline queue and API integration; final recovery/concurrency UX remains |
 | Household/domestic help | Hardened foundation | Ownership separated from time-bound occupancy; household data and workforce access follow active occupancy |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
 | Admin operations | Active vertical slices | Helpdesk/notices and billing operations are live foundations; remaining V1 workflows still need completion |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
-| Maintenance/billing | Current active vertical slice | Owner-only dues and payments, society invoice operations, server-verified reconciliation and auditable events |
+| Maintenance/billing | Validated release baseline | Owner/current-tenant unit-scoped dues and payments, society invoice operations, server-verified reconciliation, receipts/history, audience controls and auditable events |
 | Reports/analytics | Planned / minimal foundation | Essential V1 operational and audit views remain to be completed |
 | Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
 | CI/CD | Green baseline achieved | Full CI validates migrations, lint, typecheck, tests, builds, Flutter and dependency security |
@@ -41,7 +41,9 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
 ## Current execution focus
-The active milestone is **Maintenance/Billing**. Complete the owner-facing dues/payment experience and remaining Resident/Admin/Accountant billing acceptance criteria, then validate through protected CI and staging. After Billing, return to final Visitor/Guard E2E gaps, then workforce/domestic-help, remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
+The active milestone is **Visitor/Guard final E2E and edge-case completion**. Current work closes credential lifecycle, concurrency, idempotent recovery, gate-scope failure paths and final Guard/Resident recovery behavior. After Visitor/Guard closure, proceed to workforce/domestic-help, remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
+
+Maintenance/Billing is now treated as a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
 
 The detailed execution sequence and usage-efficient working rules live in `DEVELOPMENT-CONTROL.md` so this traceability document can stay focused on requirement status and acceptance.
 
@@ -50,8 +52,8 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - A `staging` branch and staging smoke workflow exist.
 - Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
 - Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
-- Society Admin maintenance billing operations and the owner-facing dues/payment experience have been merged into `develop`, validated by protected CI and promoted to `staging`.
-- Gateway-independent payment reconciliation, verified receipts/history and administrator audit visibility are the current billing completion step; live gateway activation remains configuration-dependent.
+- Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
+- Visitor credential lifecycle concurrency hardening is merged into `develop` with green CI and staging smoke, and final Visitor/Guard E2E closure is the active milestone.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
@@ -68,6 +70,7 @@ Visitor Management is not complete until all of the following are verified end-t
 - Any configured active occupant gate approver can decide the request; ownership alone cannot.
 - Expired or ended occupancy cannot receive or approve new gate requests.
 - Wrong society, wrong gate, expired, revoked, reused and concurrent credentials fail safely.
+- Matching concurrent retries recover idempotently without creating duplicate gate actions; conflicting/reused credentials fail closed.
 - Offline guard actions are idempotently synchronized when that workflow is enabled.
 - UI includes loading, empty, error and recovery states.
 
@@ -77,8 +80,8 @@ Visitor Management is not complete until all of the following are verified end-t
 - Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
 - Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
 
-## Maintenance/Billing acceptance direction
-The active Billing milestone is not complete until:
+## Maintenance/Billing validated baseline
+The gateway-independent Billing milestone is considered validated when the following remain true:
 - Society Admin/Accountant can create and manage tenant-scoped maintenance invoices under least-privilege permissions.
 - Verified owners and current tenants can view and pay dues only for units they own or currently occupy; tenant history/receipts remain limited to payments they made.
 - Broader property-finance data remains owner-only, and former/cross-unit occupants fail closed.
