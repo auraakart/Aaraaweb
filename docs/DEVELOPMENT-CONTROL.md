@@ -10,7 +10,7 @@ Complete the Maintenance/Billing vertical slice end-to-end.
 Execution order:
 1. Owner-facing maintenance dues and payment experience merged through successor PR #95 and promoted to `staging` through PR #96.
 2. Close the remaining gateway-independent billing acceptance gaps across Resident, Society Admin and Accountant surfaces.
-3. Verify owner-only finance visibility, tenant fail-closed behavior, server-verified reconciliation, receipts/history and auditability.
+3. Verify owner/current-tenant unit-scoped dues and payment access, owner-only broader finance, audience-controlled notifications, server-verified reconciliation, receipts/history and auditability.
 4. Run targeted billing tests first, then protected CI.
 5. Promote the validated billing milestone through staging and main using the standard release path.
 
@@ -64,7 +64,7 @@ Before a change is considered release-ready, relevant gates must include:
 ## Security control
 Every tenant-owned request and mutation must be society-scoped. Authorization must be server-side and based on membership, role, permission and feature entitlement where applicable. UI hiding is never an access-control boundary. Cross-society access must fail closed.
 
-Ownership and occupancy are independent. Ownership alone must not grant occupancy-private access or routine gate authority. Routine gate notifications and approvals must follow configured active occupants; owner-only property finance and other owner-only capabilities remain separately permissioned.
+Ownership and occupancy are independent. Ownership alone must not grant occupancy-private access or routine gate authority. Routine gate notifications and approvals follow configured active occupants. Maintenance dues are payable by verified owners or current tenants for their respective unit, while broader property finance remains owner-only. General broadcasts must honor the Admin-selected owner-only or owner-and-occupants audience.
 
 ## Definition of production readiness
 Production readiness requires UI states, input validation, authorization, tenant isolation, entitlement enforcement, audit review, automated tests, repeatable migrations, dependency security, staging validation, observability, backup/restore readiness, UAT and documented acceptance criteria.

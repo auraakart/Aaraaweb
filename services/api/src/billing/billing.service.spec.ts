@@ -20,6 +20,17 @@ describe('BillingService', () => {
     expect(sql).not.toContain('"UnitResident"');
   });
 
+  it('lists payable invoices for verified owners or current tenants only', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new BillingService(prisma as unknown as PrismaService);
+    await service.listPayable('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+    const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sql).toContain('"UnitOwnership"');
+    expect(sql).toContain('uo."verified" = true');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).toContain('ur."relation" = \'TENANT\'');
+  });
+
   it('rejects invalid invoice amounts before persistence', async () => {
     const prisma = { $queryRaw: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService);
@@ -34,6 +45,28 @@ describe('BillingService', () => {
     const service = new BillingService(prisma as unknown as PrismaService);
     await expect(service.createPayment('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','payment-key-123')).rejects.toThrow('Invoice not found');
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sql).toContain('"UnitOwnership"');
+    expect(sql).toContain('uo."verified" = true');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).toContain('ur."relation" = \'TENANT\'');
+  });
+
+  it('notifies the verified owner and current tenant when dues are issued', async () => {
+    const prisma = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333' }])
+        .mockResolvedValueOnce([{ id: 'invoice-1', invoiceNumber: '202609-33333333', amountPaise: 125000 }])
+        .mockResolvedValueOnce([{ userId: 'owner-1' }, { userId: 'tenant-1' }]),
+    };
+    const realtime = { publishResident: vi.fn() };
+    const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
+    await service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
+      unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
+    });
+    expect(realtime.publishResident).toHaveBeenCalledTimes(2);
+    expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'owner-1' }));
+    expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'tenant-1' }));
   });
 
   it('rejects an idempotency key reused for another invoice', async () => {

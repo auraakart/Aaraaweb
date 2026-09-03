@@ -84,4 +84,15 @@ describe('NotificationRealtimeService', () => {
     const message = await gateEvent;
     expect(message.data).toMatchObject({ requestId: 'request-1', gateId: 'gate-1', status: 'APPROVED' });
   });
+
+  it('delivers a billing due event to the selected owner or tenant stream', async () => {
+    const { service, push } = createService();
+    const event = {
+      type: 'MAINTENANCE_DUE_ISSUED' as const,
+      societyId: 'society-1', userId: 'tenant-1', invoiceId: 'invoice-1',
+      title: 'Maintenance payment due', body: 'Payment is due.', createdAt: new Date().toISOString(),
+    };
+    service.publishResident(event);
+    expect(push.sendResidentEvent).toHaveBeenCalledWith(event);
+  });
 });

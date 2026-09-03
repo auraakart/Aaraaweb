@@ -33,7 +33,7 @@ class _BillingScreenState extends State<BillingScreen> {
       if (mounted) setState(() { invoices = result[0]; payments = result[1]; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403
-          ? 'Maintenance billing is available only to verified owners.'
+          ? 'Maintenance billing is available only to verified owners and current tenants.'
           : 'Your maintenance invoices could not be loaded.');
     } catch (_) {
       if (mounted) setState(() => error = 'Your maintenance invoices could not be loaded.');
