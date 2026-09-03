@@ -4,9 +4,9 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
 function setup() {
   const prisma = {
     unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
-    serviceOffering: { findFirst: vi.fn(), create: vi.fn() },
+    serviceOffering: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     serviceBooking: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-    serviceProvider: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    serviceProvider: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     serviceProviderSociety: { upsert: vi.fn() },
     serviceCategory: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     serviceRating: { create: vi.fn() },
@@ -91,5 +91,36 @@ describe('ServicesMarketplaceService', () => {
     const { entitlements, service } = setup();
     entitlements.isEnabled.mockResolvedValue(false);
     await expect(service.listOfferings('society-1')).rejects.toThrow('not enabled');
+  });
+
+  it('lists the admin booking queue only for the current society', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceBooking.findMany.mockResolvedValue([]);
+
+    await service.listAdminBookings('society-1');
+
+    expect(prisma.serviceBooking.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { societyId: 'society-1' } }));
+  });
+
+  it('exposes only platform-verified providers and current-society approvals in the admin catalog', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceCategory.findMany.mockResolvedValue([]);
+    prisma.serviceProvider.findMany.mockResolvedValue([]);
+    prisma.serviceOffering.findMany.mockResolvedValue([]);
+
+    await service.adminCatalog('society-1');
+
+    expect(prisma.serviceProvider.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { active: true, verification: 'VERIFIED' },
+      include: { societies: { where: { societyId: 'society-1' }, take: 1 } },
+    }));
+  });
+
+  it('requires an approved provider relationship in the current society before creating an offering', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceProvider.findFirst.mockResolvedValue(null);
+
+    await expect(service.createOffering('society-1', 'provider-1', 'category-1', 'Pipe repair', 50000)).rejects.toThrow('Approved service provider');
+    expect(prisma.serviceProvider.findFirst).toHaveBeenCalledWith({ where: expect.objectContaining({ societies: { some: { societyId: 'society-1', status: 'APPROVED' } } }) });
   });
 });
