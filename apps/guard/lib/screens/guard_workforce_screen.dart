@@ -56,7 +56,18 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   }
 
   Future<void> _syncQueue() async {
-    final pending = await _queue.read();
+    final session = widget.controller.session;
+    if (session == null) {
+      if (mounted) setState(() => _queued = 0);
+      return;
+    }
+    final all = await _queue.read();
+    final pending = all
+        .where((action) => action.belongsTo(societyId: session.societyId, guardUserId: session.userId))
+        .toList(growable: false);
+    final otherSessions = all
+        .where((action) => !action.belongsTo(societyId: session.societyId, guardUserId: session.userId))
+        .toList(growable: false);
     if (pending.isEmpty) {
       if (mounted) setState(() => _queued = 0);
       return;
@@ -86,7 +97,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         remaining.add(action);
       }
     }
-    await _queue.replace(remaining);
+    await _queue.replace([...otherSessions, ...remaining]);
     if (mounted) setState(() => _queued = remaining.length);
   }
 
@@ -101,6 +112,11 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     final assignmentId = assignment['id']?.toString();
     if (gateId == null || assignmentId == null || assignmentId.isEmpty) return;
     final key = _idempotencyKey();
+    final session = widget.controller.session;
+    if (session == null) {
+      setState(() => _error = 'Sign in is required to record workforce attendance.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -127,8 +143,12 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         assignmentId: assignmentId,
         idempotencyKey: key,
         createdAt: DateTime.now(),
+        societyId: session.societyId,
+        guardUserId: session.userId,
       ));
-      final count = (await _queue.read()).length;
+      final count = (await _queue.read())
+          .where((action) => action.belongsTo(societyId: session.societyId, guardUserId: session.userId))
+          .length;
       if (!mounted) return;
       setState(() => _queued = count);
       ScaffoldMessenger.of(context).showSnackBar(

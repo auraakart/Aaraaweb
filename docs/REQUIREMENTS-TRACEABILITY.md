@@ -26,9 +26,9 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | RBAC/permissions | Advanced foundation | Society-scoped roles, typed permissions and server-side enforcement |
 | Society structure | Advanced foundation | Society → building/block → floor → unit → household/membership |
 | SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
-| Visitor management | Current active vertical slice | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, offline recovery and audit; final E2E/edge cases are being closed |
-| Guard application | Active hardening | Login/session, scanner, operational screen, offline queue and API integration; final recovery/concurrency UX remains |
-| Household/domestic help | Hardened foundation | Ownership separated from time-bound occupancy; household data and workforce access follow active occupancy |
+| Visitor management | Validated release baseline | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, session-scoped offline recovery and audit |
+| Guard application | Advanced vertical slices | Login/session, scanner, visitor and workforce operations, offline recovery and API integration |
+| Household/domestic help | Current active vertical slice | Occupancy-scoped assignments, review, schedules, leave, ratings, gate attendance and suspension controls; final E2E/recovery gaps are being closed |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Foundation | Categories, providers, society availability, offerings, bookings and ratings |
 | Admin operations | Active vertical slices | Helpdesk/notices and billing operations are live foundations; remaining V1 workflows still need completion |
@@ -41,7 +41,7 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
 ## Current execution focus
-The active milestone is **Visitor/Guard final E2E and edge-case completion**. Current work closes credential lifecycle, concurrency, idempotent recovery, gate-scope failure paths and final Guard/Resident recovery behavior. After Visitor/Guard closure, proceed to workforce/domestic-help, remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
+The active milestone is **Domestic-help/workforce user journeys and operational UX completion**. Current work closes Resident/Admin/Guard E2E behavior, attendance concurrency, session-scoped offline recovery, schedule and occupancy boundaries, notifications and auditability. After workforce closure, proceed to remaining Admin operations, essential reports, marketplace completion, UX consistency, consolidated regression/security review and production-readiness work.
 
 Maintenance/Billing is now treated as a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
 
@@ -53,7 +53,7 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
 - Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
 - Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
-- Visitor credential lifecycle and session-scoped Guard offline recovery hardening are merged into `develop` with green CI; staging promotion remains the milestone release gate.
+- Visitor credential lifecycle and session-scoped Guard offline recovery hardening have passed staging and production promotion and are synchronized back into `develop`.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
 
 ## Visitor vertical-slice acceptance criteria
