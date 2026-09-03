@@ -73,6 +73,7 @@ Visitor Management is not complete until all of the following are verified end-t
 
 ### Guard offline recovery evidence
 - Transport failures queue gate check-in/out actions in secure local storage with stable idempotency keys.
+- Every queued action is bound to its society and guard identity; another session cannot see its count or replay it, and unsafe legacy records are purged.
 - Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
 - Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
 - Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.

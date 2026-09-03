@@ -41,8 +41,8 @@ class GuardController extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     try {
-      queuedActions = (await offlineQueue.read()).length;
       final stored = await sessions.read();
+      queuedActions = stored == null ? 0 : _sessionActions(await offlineQueue.read(), stored).length;
       if (stored != null) {
         session = stored;
         userId = stored.userId;
@@ -202,8 +202,10 @@ class GuardController extends ChangeNotifier {
         verifiedAccess = type == 'CHECK_IN' ? await api.checkIn(gate, value, key) : await api.checkOut(gate, value, key);
       } on GuardApiException catch (e) {
         if (!e.transport) rethrow;
-        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now()));
-        queuedActions = (await offlineQueue.read()).length;
+        final current = session;
+        if (current == null) throw StateError('Sign in is required to save an offline action');
+        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now(), societyId: current.societyId, guardUserId: current.userId));
+        queuedActions = _sessionActions(await offlineQueue.read(), current).length;
         offlineSyncMessage = 'Action saved securely. Retry when connectivity returns.';
         throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
@@ -211,7 +213,11 @@ class GuardController extends ChangeNotifier {
   }
 
   Future<void> syncQueuedActions() async {
-    final pending = await offlineQueue.read();
+    final current = session;
+    if (current == null) throw StateError('Sign in is required to sync offline actions');
+    final all = await offlineQueue.read();
+    final pending = _sessionActions(all, current);
+    final otherSessions = all.where((action) => !action.belongsTo(societyId: current.societyId, guardUserId: current.userId)).toList();
     if (pending.isEmpty) {
       queuedActions = 0;
       offlineSyncMessage = 'No offline actions are pending.';
@@ -243,7 +249,7 @@ class GuardController extends ChangeNotifier {
         rejected++;
       }
     }
-    await offlineQueue.replace(remaining);
+    await offlineQueue.replace([...otherSessions, ...remaining]);
     queuedActions = remaining.length;
     offlineSyncMessage = remaining.isEmpty
         ? '$synced offline ${synced == 1 ? 'action' : 'actions'} synced.'
@@ -276,6 +282,7 @@ class GuardController extends ChangeNotifier {
     gateId = null;
     verifiedAccess = null;
     walkInAccess = null;
+    queuedActions = 0;
     offlineSyncMessage = null;
     notifyListeners();
   }
@@ -309,6 +316,10 @@ class GuardController extends ChangeNotifier {
     final bytes = List<int>.generate(18, (_) => random.nextInt(256));
     return base64Url.encode(bytes).replaceAll('=', '');
   }
+
+  List<QueuedGateAction> _sessionActions(List<QueuedGateAction> actions, GuardSession current) => actions
+      .where((action) => action.belongsTo(societyId: current.societyId, guardUserId: current.userId))
+      .toList(growable: false);
 
   Future<void> _run(Future<void> Function() action) async {
     busy = true;
