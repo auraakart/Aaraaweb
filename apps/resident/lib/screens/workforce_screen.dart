@@ -27,6 +27,12 @@ class WorkforceScreen extends StatelessWidget {
                   ),
                 ),
                 IconButton.filledTonal(
+                  onPressed: controller.households.isEmpty ? null : () => _openAddSheet(context),
+                  tooltip: 'Add household staff',
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
                   onPressed: controller.refreshWorkforce,
                   tooltip: 'Refresh staff',
                   icon: const Icon(Icons.refresh_rounded),
@@ -60,6 +66,70 @@ class WorkforceScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openAddSheet(BuildContext context) async {
+    final name = TextEditingController();
+    final phone = TextEditingController(text: '+91');
+    var householdId = controller.households.first['id']?.toString() ?? '';
+    var role = 'MAID';
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: householdId,
+                decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
+                items: controller.households.map((household) {
+                  final id = household['id']?.toString() ?? '';
+                  final unit = household['unit'] is Map ? Map<String, dynamic>.from(household['unit'] as Map) : const <String, dynamic>{};
+                  return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
+                }).where((item) => item.value?.isNotEmpty == true).toList(),
+                onChanged: (value) => setState(() => householdId = value ?? ''),
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: role,
+                decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+                items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER'].map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value)))).toList(),
+                onChanged: (value) => setState(() => role = value ?? 'OTHER'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () async {
+                  if (householdId.isEmpty || name.text.trim().isEmpty || phone.text.trim().length < 8) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Enter a household, name and valid mobile number.')));
+                    return;
+                  }
+                  try {
+                    await controller.addWorkforce(householdId: householdId, name: name.text, phone: phone.text, role: role);
+                    if (sheetContext.mounted) Navigator.pop(sheetContext, true);
+                  } catch (error) {
+                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                },
+                child: const Text('SUBMIT FOR REVIEW'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    name.dispose();
+    phone.dispose();
+    if (submitted == true && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment submitted for society review.')));
   }
 }
 
@@ -113,6 +183,12 @@ class _StaffCard extends StatelessWidget {
                 ),
                 _PresencePill(present: present),
               ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: assignmentId.isEmpty ? null : () => _confirmDeactivate(context, assignmentId),
+              icon: const Icon(Icons.person_remove_outlined),
+              label: const Text('END ASSIGNMENT'),
             ),
             const SizedBox(height: 14),
             Wrap(
@@ -280,6 +356,27 @@ class _StaffCard extends StatelessWidget {
     try {
       await controller.cancelWorkforceLeave(leaveId);
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave cancelled.')));
+    } catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _confirmDeactivate(BuildContext context, String assignmentId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('End staff assignment?'),
+        content: const Text('The staff member will no longer be eligible for this household. Existing history remains available.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('KEEP')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('END ASSIGNMENT')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await controller.deactivateWorkforce(assignmentId);
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment ended.')));
     } catch (error) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
     }
