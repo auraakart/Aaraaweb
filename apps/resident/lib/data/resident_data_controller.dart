@@ -215,6 +215,19 @@ class ResidentDataController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
+    await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    await _loadWorkforce();
+    notifyListeners();
+  }
+
+  Future<void> deactivateWorkforce(String assignmentId) async {
+    await repository.deactivateWorkforce(assignmentId);
+    await _loadWorkforce();
+    await _loadAccess();
+    notifyListeners();
+  }
+
   void _capture(Object error, void Function(String message) assign) {
     final text = error.toString();
     if (text.contains('Sign in is required') || text.contains('ApiException(401)')) {
