@@ -60,6 +60,16 @@ describe('AccessService', () => {
     expect(prisma.auditEvent.create).toHaveBeenCalledTimes(1);
   });
 
+  it('strips gate-origin metadata from resident-created requests', async () => {
+    const { svc, prisma } = setup();
+    await svc.create('society-1', 'user-1', 'unit-1', AccessSubjectType.VISITOR, 'Rahul', undefined, undefined, {
+      source: 'GATE_WALK_IN', gateId: 'gate-2', createdByGuardId: 'guard-2', note: 'expected',
+    });
+    expect(prisma.accessRequest.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ metadata: { note: 'expected' } }),
+    }));
+  });
+
   it('creates an approved visitor invite and returns the raw gate credential once', async () => {
     const { svc, prisma, entitlements } = setup();
     const result = await svc.inviteVisitor(
@@ -158,6 +168,29 @@ describe('AccessService', () => {
   it('rejects unknown gate credentials', async () => {
     const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(svc.verify('society-1', 'gate-1', 'wrong')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects a gate-originated request at a different gate', async () => {
+    const request = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
+      subjectType: AccessSubjectType.VISITOR, status: AccessRequestStatus.APPROVED,
+      metadata: { source: 'GATE_WALK_IN', gateId: 'gate-1' },
+    };
+    const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(request) } });
+
+    await expect(svc.gateRequestStatus('society-1', 'gate-2', 'access-1')).rejects.toThrow('Access request belongs to a different gate');
+    await expect(svc.checkInRequest('society-1', 'gate-2', 'access-1', 'guard-2', 'wrong-gate')).rejects.toThrow('Access request belongs to a different gate');
+  });
+
+  it('allows a resident-issued credential at any authorized society gate', async () => {
+    const request = {
+      id: 'access-1', societyId: 'society-1', unitId: 'unit-1', requestedById: 'user-1',
+      subjectType: AccessSubjectType.VISITOR, status: AccessRequestStatus.APPROVED,
+      validFrom: new Date(Date.now() - 1000), validUntil: new Date(Date.now() + 60_000), metadata: {},
+    };
+    const { svc } = setup({ accessRequest: { findFirst: vi.fn().mockResolvedValue(request) } });
+
+    await expect(svc.verify('society-1', 'gate-2', 'credential', 'guard-2')).resolves.toBe(request);
   });
 
   it('does not resolve a request id outside the authenticated society', async () => {

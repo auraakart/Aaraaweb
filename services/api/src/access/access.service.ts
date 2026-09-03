@@ -73,6 +73,22 @@ export class AccessService {
     return source === 'GATE_WALK_IN' || source === 'GATE_QUICK_ARRIVAL';
   }
 
+  private residentMetadata(metadata: Record<string, unknown>) {
+    const safe = { ...metadata };
+    delete safe.source;
+    delete safe.gateId;
+    delete safe.createdByGuardId;
+    return safe;
+  }
+
+  private assertOriginatingGate(request: { metadata: Prisma.JsonValue }, gateId: string) {
+    if (!this.isGateOriginated(request.metadata)) return;
+    const metadata = request.metadata as Record<string, unknown>;
+    if (typeof metadata.gateId !== 'string' || metadata.gateId !== gateId) {
+      throw new BadRequestException('Access request belongs to a different gate');
+    }
+  }
+
   private async assertCanDecideRequest(request: { societyId: string; unitId: string; requestedById: string; metadata: Prisma.JsonValue }, userId: string) {
     if (request.requestedById === userId) return;
     if (!this.isGateOriginated(request.metadata)) throw new NotFoundException('Access request not found');
@@ -83,7 +99,7 @@ export class AccessService {
     await this.assertSubjectEnabled(societyId, subjectType);
     await this.assertResidentUnit(societyId, userId, unitId);
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.accessRequest.create({ data: { societyId, unitId, requestedById: userId, subjectType, subjectName: subjectName.trim(), subjectPhone: subjectPhone?.trim() || null, purpose: purpose?.trim() || null, metadata: metadata as Prisma.InputJsonValue, status: AccessRequestStatus.PENDING } });
+      const request = await tx.accessRequest.create({ data: { societyId, unitId, requestedById: userId, subjectType, subjectName: subjectName.trim(), subjectPhone: subjectPhone?.trim() || null, purpose: purpose?.trim() || null, metadata: this.residentMetadata(metadata) as Prisma.InputJsonValue, status: AccessRequestStatus.PENDING } });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: request.id, event: AuditEventType.ACCESS_CREATED } });
       return request;
     });
@@ -190,6 +206,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
     if (!request) throw new NotFoundException('Access request not found');
+    this.assertOriginatingGate(request, gateId);
     return request;
   }
 
@@ -197,6 +214,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
     if (!request) throw new NotFoundException('Access request not found');
+    this.assertOriginatingGate(request, gateId);
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
   }
 
@@ -204,6 +222,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { id: requestId, societyId } });
     if (!request) throw new NotFoundException('Access request not found');
+    this.assertOriginatingGate(request, gateId);
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_OUT);
   }
 
@@ -256,6 +275,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
     if (!request) throw new NotFoundException('Access credential not found');
+    this.assertOriginatingGate(request, gateId);
     if (request.status !== AccessRequestStatus.APPROVED) throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
     const now = new Date();
     if (!request.validFrom || !request.validUntil || now < request.validFrom || now > request.validUntil) throw new BadRequestException('Access credential is outside its validity window');
@@ -268,6 +288,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
     if (!request) throw new NotFoundException('Access credential not found');
+    this.assertOriginatingGate(request, gateId);
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_IN);
   }
 
@@ -275,6 +296,7 @@ export class AccessService {
     await this.assertGate(societyId, gateId);
     const request = await this.prisma.accessRequest.findFirst({ where: { societyId, credentialHash: this.hash(rawCredential) } });
     if (!request) throw new NotFoundException('Access credential not found');
+    this.assertOriginatingGate(request, gateId);
     return this.gateMutation(societyId, gateId, request.id, actorUserId, idempotencyKey, GateMutationAction.CHECK_OUT);
   }
 
