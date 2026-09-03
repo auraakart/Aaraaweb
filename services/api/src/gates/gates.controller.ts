@@ -7,7 +7,6 @@ import { CurrentTenant } from '../auth/tenant.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { AppPermission } from '../auth/permission.types';
-import { GateAccessGuard } from './gate-access.guard';
 import { GateAuditService } from './gate-audit.service';
 
 class CreateGateDto { @IsString() @IsNotEmpty() name!: string; @IsString() @IsNotEmpty() code!: string; @IsOptional() @IsBoolean() active?: boolean; }
@@ -23,13 +22,15 @@ export class GatesController {
   list(@CurrentTenant() societyId: string) { return this.prisma.gate.findMany({ where: { societyId }, orderBy: { name: 'asc' } }); }
 
   @Get('audit')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(PermissionsGuard)
+  @RequiresPermissions(AppPermission.AUDIT_READ)
   auditHistory(@CurrentTenant() societyId: string, @Query('gateId') gateId?: string, @Query('limit') limit?: string) {
     return this.audit.list(societyId, gateId, limit ? Number.parseInt(limit, 10) : 50);
   }
 
   @Post()
-  @UseGuards(GateAccessGuard)
+  @UseGuards(PermissionsGuard)
+  @RequiresPermissions(AppPermission.GATE_MANAGE)
   async create(@Body() dto: CreateGateDto, @CurrentTenant() societyId: string) {
     const code = dto.code.trim().toUpperCase();
     if (await this.prisma.gate.findFirst({ where: { societyId, code } })) throw new BadRequestException('Gate code already exists in this society');
@@ -37,7 +38,8 @@ export class GatesController {
   }
 
   @Post(':gateId/activate')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(PermissionsGuard)
+  @RequiresPermissions(AppPermission.GATE_MANAGE)
   async activate(@Param('gateId') gateId: string, @CurrentTenant() societyId: string) {
     const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId } });
     if (!gate) throw new BadRequestException('Gate does not belong to authenticated society');
@@ -45,7 +47,8 @@ export class GatesController {
   }
 
   @Post(':gateId/deactivate')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(PermissionsGuard)
+  @RequiresPermissions(AppPermission.GATE_MANAGE)
   async deactivate(@Param('gateId') gateId: string, @CurrentTenant() societyId: string) {
     const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId } });
     if (!gate) throw new BadRequestException('Gate does not belong to authenticated society');
