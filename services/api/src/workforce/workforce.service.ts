@@ -225,6 +225,19 @@ export class WorkforceService {
 
     try {
       const request = await this.prisma.$transaction(async (tx) => {
+        const indiaDate = new Date(`${this.indiaDate(now)}T00:00:00.000Z`);
+        const activeLeave = await tx.workforceLeave.findFirst({
+          where: {
+            societyId,
+            assignmentId,
+            active: true,
+            startsOn: { lte: indiaDate },
+            endsOn: { gte: indiaDate },
+          },
+          select: { id: true },
+        });
+        if (activeLeave) throw new BadRequestException('Worker is on approved leave today');
+
         const activeVisit = await tx.accessRequest.findFirst({
           where: {
             societyId,
@@ -402,6 +415,17 @@ export class WorkforceService {
     const minute = Number(match[2]);
     if (hour > 23 || minute > 59) return undefined;
     return hour * 60 + minute;
+  }
+
+  private indiaDate(value: Date) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
   }
 
   private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {
