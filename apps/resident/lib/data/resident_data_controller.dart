@@ -28,6 +28,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceRatings = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
+  Map<String, dynamic>? latestNotificationEvent;
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
   bool _disposed = false;
 
@@ -73,9 +74,15 @@ class ResidentDataController extends ChangeNotifier {
     _accessEvents = repository.accessEvents().listen(
       (event) async {
         realtimeConnected = true;
-        if (event['type']?.toString() != 'CONNECTED') {
+        final type = event['type']?.toString() ?? '';
+        if (type.startsWith('ACCESS_')) {
           latestAccessEvent = event;
           await _loadAccess();
+        } else if (type == 'GENERAL_NOTICE_PUBLISHED') {
+          latestNotificationEvent = event;
+          await _loadNotices();
+        } else if (type == 'MAINTENANCE_DUE_ISSUED') {
+          latestNotificationEvent = event;
         }
         if (!_disposed) notifyListeners();
       },
@@ -95,6 +102,18 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   Future<void> _handlePushOpened(Map<String, dynamic> data) async {
+    final type = data['type']?.toString() ?? '';
+    if (type == 'GENERAL_NOTICE_PUBLISHED') {
+      latestNotificationEvent = data;
+      await _loadNotices();
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    if (type == 'MAINTENANCE_DUE_ISSUED') {
+      latestNotificationEvent = data;
+      if (!_disposed) notifyListeners();
+      return;
+    }
     final requestId = data['requestId']?.toString();
     if (requestId == null) return;
     latestAccessEvent = data;

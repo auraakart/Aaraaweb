@@ -80,8 +80,10 @@ Visitor Management is not complete until all of the following are verified end-t
 ## Maintenance/Billing acceptance direction
 The active Billing milestone is not complete until:
 - Society Admin/Accountant can create and manage tenant-scoped maintenance invoices under least-privilege permissions.
-- Owner can view only owner-authorized dues, paid history and receipts for owned property.
-- Tenant/occupant without ownership fails closed for owner-only property finance even if they occupy the unit.
+- Verified owners and current tenants can view and pay dues only for units they own or currently occupy; tenant history/receipts remain limited to payments they made.
+- Broader property-finance data remains owner-only, and former/cross-unit occupants fail closed.
+- New dues notify both verified owners and current tenants, including when the owner is non-resident, without granting gate authority through ownership.
+- General Admin broadcasts persist an explicit `OWNER_ONLY` or `OWNER_AND_OCCUPANTS` audience and are filtered server-side before feed/push delivery.
 - Payment-order preparation is idempotent and does not present false success before signed gateway reconciliation.
 - Gateway callbacks are authenticated, deduplicated and reconcile capture/refund outcomes safely.
 - Payment and reconciliation events are auditable without exposing unnecessary payment data.

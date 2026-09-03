@@ -16,6 +16,17 @@ export type AccessRealtimeEvent = {
   createdAt: string;
 };
 
+export type ResidentMessageEvent = AccessRealtimeEvent | {
+  type: 'MAINTENANCE_DUE_ISSUED' | 'GENERAL_NOTICE_PUBLISHED';
+  societyId: string;
+  userId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  invoiceId?: string;
+  noticeId?: string;
+};
+
 @Injectable()
 export class NotificationRealtimeService {
   private readonly logger = new Logger(NotificationRealtimeService.name);
@@ -43,11 +54,11 @@ export class NotificationRealtimeService {
     return stream.asObservable().pipe(startWith({ data: { type: 'CONNECTED' } }));
   }
 
-  publishResident(event: AccessRealtimeEvent) {
+  publishResident(event: ResidentMessageEvent) {
     if (!event.userId) return;
     this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({ data: event });
     void this.push.sendResidentEvent(event).catch((error: unknown) => {
-      this.logger.warn(`Push delivery failed for access request ${event.requestId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
     });
   }
 

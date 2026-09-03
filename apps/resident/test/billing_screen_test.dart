@@ -57,10 +57,10 @@ void main() {
     expect(find.textContaining('No payment is marked successful'), findsOneWidget);
   });
 
-  testWidgets('tenant financial access fails closed with a clear message', (tester) async {
+  testWidgets('ineligible resident payment access fails closed with a clear message', (tester) async {
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: _BillingRepository(denied: true))));
     await tester.pumpAndSettle();
-    expect(find.text('Maintenance billing is available only to verified owners.'), findsOneWidget);
+    expect(find.text('Maintenance billing is available only to verified owners and current tenants.'), findsOneWidget);
     expect(find.text('Pay securely'), findsNothing);
   });
 

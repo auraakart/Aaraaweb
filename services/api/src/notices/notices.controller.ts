@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -20,6 +20,7 @@ class CreateNoticeDto {
   @IsString() @MinLength(5) @MaxLength(5000) body!: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;
   @IsOptional() @IsDateString() expiresAt?: string;
+  @IsOptional() @IsIn(['OWNER_ONLY', 'OWNER_AND_OCCUPANTS']) audience?: 'OWNER_ONLY' | 'OWNER_AND_OCCUPANTS';
 }
 
 class PublishNoticeDto {
@@ -34,8 +35,8 @@ export class NoticesController {
 
   @Get()
   @RequiresPermissions(AppPermission.NOTICE_READ)
-  listPublished(@CurrentTenant() societyId: string) {
-    return this.notices.listPublished(societyId);
+  listPublished(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.notices.listPublished(societyId, this.requireUser(userId));
   }
 
   @Get('manage')

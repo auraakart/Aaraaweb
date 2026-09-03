@@ -3,7 +3,7 @@ import { DevicePlatform } from '@prisma/client';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AccessRealtimeEvent } from './notification-realtime.service';
+import type { ResidentMessageEvent } from './notification-realtime.service';
 
 @Injectable()
 export class PushNotificationService {
@@ -65,7 +65,7 @@ export class PushNotificationService {
     });
   }
 
-  async sendResidentEvent(event: AccessRealtimeEvent) {
+  async sendResidentEvent(event: ResidentMessageEvent) {
     if (!this.firebaseApp || !event.userId) return;
     const registrations = await this.prisma.devicePushToken.findMany({
       where: { societyId: event.societyId, userId: event.userId, active: true },
@@ -73,24 +73,32 @@ export class PushNotificationService {
     });
     if (registrations.length === 0) return;
 
-    const title = event.type === 'ACCESS_APPROVAL_REQUESTED'
-      ? `${this.label(event.subjectType)} at the gate`
-      : 'Gate access updated';
-    const body = event.type === 'ACCESS_APPROVAL_REQUESTED'
-      ? `${event.subjectName} is waiting for your approval.`
-      : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`;
-
-    const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
-      tokens: registrations.map((item) => item.token),
-      notification: { title, body },
+    const content = 'requestId' in event ? {
+      title: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${this.label(event.subjectType)} at the gate` : 'Gate access updated',
+      body: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${event.subjectName} is waiting for your approval.` : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`,
       data: {
-        type: event.type,
         requestId: event.requestId,
         subjectType: event.subjectType,
         subjectName: event.subjectName,
         status: event.status,
-        societyId: event.societyId,
         ...(event.gateId ? { gateId: event.gateId } : {}),
+      },
+    } : {
+      title: event.title,
+      body: event.body,
+      data: {
+        ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}),
+        ...(event.noticeId ? { noticeId: event.noticeId } : {}),
+      },
+    };
+
+    const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
+      tokens: registrations.map((item) => item.token),
+      notification: { title: content.title, body: content.body },
+      data: {
+        type: event.type,
+        societyId: event.societyId,
+        ...content.data,
       },
       android: { priority: 'high' },
       apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },
@@ -103,7 +111,7 @@ export class PushNotificationService {
       if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
         invalidIds.push(registrations[index].id);
       } else {
-        this.logger.warn(`FCM delivery failed for access request ${event.requestId}: ${code ?? 'unknown error'}`);
+        this.logger.warn(`FCM delivery failed for resident event ${event.type}: ${code ?? 'unknown error'}`);
       }
     });
     if (invalidIds.length > 0) {
