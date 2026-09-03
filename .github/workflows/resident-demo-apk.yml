@@ -1,6 +1,11 @@
 name: Resident Demo APK
 
 on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'apps/resident/**'
+      - '.github/workflows/resident-demo-apk.yml'
   push:
     branches: [develop]
     paths:
