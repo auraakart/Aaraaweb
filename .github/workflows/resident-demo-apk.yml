@@ -46,7 +46,9 @@ jobs:
         run: flutter create --platforms=android --project-name aaraagate_resident --org in.aaraaplatforms .
 
       - name: Restore Resident source and manifest
-        run: git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
+        run: |
+          git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
+          rm -f apps/resident/analysis_options.yaml
 
       - name: Get dependencies
         working-directory: apps/resident
