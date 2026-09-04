@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../widgets/app_state_card.dart';
 import 'sos_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -57,11 +58,16 @@ class HomeScreen extends StatelessWidget {
             Text('Needs your attention', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             if (controller.loading && controller.accessRequests.isEmpty)
-              const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Checking gate activity…', loading: true)
             else if (controller.accessError != null)
-              Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [const Text('Access requests could not be loaded.'), TextButton(onPressed: controller.load, child: const Text('Retry'))])))
+              AppStateCard(
+                icon: Icons.error_outline_rounded,
+                message: 'Access requests could not be loaded.',
+                actionLabel: 'Retry',
+                onAction: controller.load,
+              )
             else if (pending == null)
-              const Card(child: Padding(padding: EdgeInsets.all(18), child: Row(children: [Icon(Icons.check_circle_outline_rounded), SizedBox(width: 12), Expanded(child: Text('Nothing needs approval right now.'))])))
+              const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'Nothing needs approval right now.')
             else
               Card(
                 child: Padding(
@@ -92,19 +98,9 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => controller.denyAccess(pending['id'].toString()),
-                              child: const Text('Deny'),
-                            ),
-                          ),
+                          Expanded(child: OutlinedButton(onPressed: () => controller.denyAccess(pending['id'].toString()), child: const Text('Deny'))),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: () => controller.approveAccess(pending['id'].toString()),
-                              child: const Text('Allow'),
-                            ),
-                          ),
+                          Expanded(child: FilledButton(onPressed: () => controller.approveAccess(pending['id'].toString()), child: const Text('Allow'))),
                         ],
                       ),
                     ],
@@ -158,7 +154,7 @@ class HomeScreen extends StatelessWidget {
             Text('Today', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             if (controller.accessRequests.isEmpty)
-              const _TimelineTile(icon: Icons.shield_outlined, title: 'No access activity yet', subtitle: 'New entries will appear here.', time: '')
+              const AppStateCard(icon: Icons.shield_outlined, message: 'No access activity yet. New entries will appear here.')
             else
               for (final item in controller.accessRequests.take(3))
                 _TimelineTile(
@@ -213,7 +209,7 @@ class _QuickAction extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: Ink(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 6),
-        decoration: BoxDecoration(color: urgent ? scheme.errorContainer : Colors.white, borderRadius: BorderRadius.circular(18)),
+        decoration: BoxDecoration(color: urgent ? scheme.errorContainer : scheme.surface, borderRadius: BorderRadius.circular(18)),
         child: Column(children: [Icon(icon, color: urgent ? scheme.error : scheme.primary), const SizedBox(height: 8), Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))]),
       ),
     );
