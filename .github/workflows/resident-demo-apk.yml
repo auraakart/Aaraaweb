@@ -37,7 +37,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'
+          # Keep packaging on the same validated Flutter baseline as normal CI.
+          # Upgrading this independently caused Material theme API drift.
+          flutter-version: '3.24.0'
           channel: stable
           cache: true
 
