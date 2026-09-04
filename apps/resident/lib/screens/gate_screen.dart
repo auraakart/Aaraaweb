@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../data/resident_data_controller.dart';
+import '../widgets/app_state_card.dart';
 
 class GateScreen extends StatelessWidget {
   const GateScreen({super.key, required this.controller});
@@ -38,11 +39,16 @@ class GateScreen extends StatelessWidget {
             Text('Access activity', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             if (controller.loading && controller.accessRequests.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading access activity…', loading: true)
             else if (controller.accessError != null)
-              _StateCard(icon: Icons.cloud_off_outlined, message: 'Could not load access activity.', action: 'Retry', onTap: controller.load)
+              AppStateCard(
+                icon: Icons.cloud_off_outlined,
+                message: 'Could not load access activity.',
+                actionLabel: 'Retry',
+                onAction: () { controller.load(); },
+              )
             else if (controller.accessRequests.isEmpty)
-              const _StateCard(icon: Icons.shield_outlined, message: 'No access requests yet. Invite a guest when you need one.')
+              const AppStateCard(icon: Icons.shield_outlined, message: 'No access requests yet. Invite a guest when you need one.')
             else
               ...controller.accessRequests.map((request) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -230,32 +236,4 @@ class _AccessCard extends StatelessWidget {
   }
 
   static String _label(String? value) => (value ?? '').toLowerCase().split('_').map((e) => e.isEmpty ? e : '${e[0].toUpperCase()}${e.substring(1)}').join(' ');
-}
-
-class _StateCard extends StatelessWidget {
-  const _StateCard({required this.icon, required this.message, this.action, this.onTap});
-  final IconData icon;
-  final String message;
-  final String? action;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          children: [
-            Icon(icon, size: 34),
-            const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center),
-            if (action != null) ...[
-              const SizedBox(height: 10),
-              TextButton(onPressed: onTap, child: Text(action!)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }

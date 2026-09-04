@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../widgets/app_state_card.dart';
 
 class HelpdeskScreen extends StatefulWidget {
   const HelpdeskScreen({super.key, required this.controller});
@@ -44,26 +45,37 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? ListView(children: const [SizedBox(height: 240), Center(child: CircularProgressIndicator())])
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                children: const [
+                  AppStateCard(icon: Icons.sync_rounded, message: 'Loading complaints…', loading: true),
+                ],
+              )
             : _error != null
-                ? ListView(padding: const EdgeInsets.all(20), children: [
-                    const Icon(Icons.error_outline_rounded, size: 42),
-                    const SizedBox(height: 12),
-                    Text('Unable to load complaints', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    Text(_error!),
-                    const SizedBox(height: 16),
-                    FilledButton(onPressed: _load, child: const Text('Try again')),
-                  ])
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      AppStateCard(
+                        icon: Icons.error_outline_rounded,
+                        message: 'Unable to load complaints.',
+                        actionLabel: 'Try again',
+                        onAction: () { _load(); },
+                      ),
+                    ],
+                  )
                 : _tickets.isEmpty
-                    ? ListView(padding: const EdgeInsets.all(24), children: [
-                        const SizedBox(height: 120),
-                        const Icon(Icons.task_alt_rounded, size: 54),
-                        const SizedBox(height: 16),
-                        Text('No open complaints', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 8),
-                        const Text('Report a society issue and track every update here.', textAlign: TextAlign.center),
-                      ])
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(24),
+                        children: const [
+                          AppStateCard(
+                            icon: Icons.task_alt_rounded,
+                            message: 'No open complaints. Report a society issue and track every update here.',
+                          ),
+                        ],
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                         itemCount: _tickets.length,
@@ -210,13 +222,17 @@ class _TicketDetailState extends State<_TicketDetail> {
         const SizedBox(height: 20),
         Text('Activity', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
-        if (loading) const Center(child: CircularProgressIndicator())
-        else ...activities.map((item) => ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const CircleAvatar(child: Icon(Icons.history_rounded)),
-          title: Text(item['message']?.toString().isNotEmpty == true ? item['message'].toString() : item['type']?.toString().replaceAll('_', ' ') ?? 'Update'),
-          subtitle: Text([item['actorName'], item['toStatus']].where((v) => v != null && v.toString().isNotEmpty).join(' · ')),
-        )),
+        if (loading)
+          const AppStateCard(icon: Icons.sync_rounded, message: 'Loading complaint activity…', loading: true)
+        else if (activities.isEmpty)
+          const AppStateCard(icon: Icons.history_rounded, message: 'No complaint activity yet.')
+        else
+          ...activities.map((item) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const CircleAvatar(child: Icon(Icons.history_rounded)),
+            title: Text(item['message']?.toString().isNotEmpty == true ? item['message'].toString() : item['type']?.toString().replaceAll('_', ' ') ?? 'Update'),
+            subtitle: Text([item['actorName'], item['toStatus']].where((v) => v != null && v.toString().isNotEmpty).join(' · ')),
+          )),
         const Divider(height: 32),
         TextField(controller: comment, decoration: const InputDecoration(labelText: 'Add a comment'), maxLength: 1000, minLines: 2, maxLines: 4),
         FilledButton.icon(
