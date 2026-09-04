@@ -1,28 +1,28 @@
 # Aaraagate Development Control
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
 ## Current priority
-Complete Society Admin operational workflows across the remaining V1 modules.
+Complete the Essential V1 Reports and Operational Audit Views milestone.
 
 Execution order:
-1. Complete gate configuration and monitoring with strict separation between Admin configuration and Guard processing permissions.
-2. Validate Society Admin role-aware navigation and operational UX. Marketplace/provider, booking and SOS response operations are implemented.
-3. Verify loading, empty, failure, authorization, tenant-isolation and audit states for each operational surface.
-4. Run targeted Admin/API tests first, then protected CI and staging validation at coherent integration boundaries.
-5. Promote the validated Society Admin milestone through staging and main using the standard release path.
+1. Deliver the minimum decision-useful Society Admin reports for visitor/gate activity, workforce attendance, maintenance collections/outstanding dues, helpdesk/SLA and audit events.
+2. Keep reporting tenant-scoped, permission-scoped and privacy-safe; reports must not become a bypass around established owner/occupant or society isolation rules.
+3. Prefer server-side aggregation and paginated drill-downs over large client-side datasets; avoid building a general-purpose BI platform in V1.
+4. Verify loading, empty, failure, authorization, tenant-isolation and export/drill-down states where applicable.
+5. Run targeted report/API/Admin tests first, then protected CI and staging validation at the milestone boundary.
+6. Promote the validated Reports milestone through staging and main using the standard release path.
 
-Maintenance/Billing, Visitor/Guard and Domestic-help/workforce are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
+Maintenance/Billing, Visitor/Guard, Domestic-help/workforce and Society Admin operations are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
 ## Next milestone sequence
-After Society Admin operational closure, proceed in this order unless a blocking defect changes priority:
-1. Essential V1 reports and operational audit views.
-2. Household-services marketplace/service-booking lifecycle completion.
-3. Resident/Admin/Guard UX and design-system consistency pass.
-4. Consolidated security, tenant-isolation, permissions and regression review.
-5. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
+After Essential Reports / Audit Views are complete, proceed in this order unless a blocking defect changes priority:
+1. Household-services marketplace/service-booking Resident lifecycle completion.
+2. Resident/Admin/Guard UX and design-system consistency pass.
+3. Consolidated security, tenant-isolation, permissions and regression review.
+4. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
 
 ## Usage-efficient execution policy
 To conserve agentic/Codex usage without reducing quality:
@@ -64,6 +64,8 @@ Before a change is considered release-ready, relevant gates must include:
 Every tenant-owned request and mutation must be society-scoped. Authorization must be server-side and based on membership, role, permission and feature entitlement where applicable. UI hiding is never an access-control boundary. Cross-society access must fail closed.
 
 Ownership and occupancy are independent. Ownership alone must not grant occupancy-private access or routine gate authority. Routine gate notifications and approvals follow configured active occupants. Maintenance dues are payable by verified owners or current tenants for their respective unit, while broader property finance remains owner-only. General broadcasts must honor the Admin-selected owner-only or owner-and-occupants audience.
+
+Reports and audit views must preserve the same tenant, role, permission and relationship constraints as their source operations. Aggregation, export or drill-down endpoints must not widen access beyond what the requesting role could legitimately inspect operationally.
 
 ## Definition of production readiness
 Production readiness requires UI states, input validation, authorization, tenant isolation, entitlement enforcement, audit review, automated tests, repeatable migrations, dependency security, staging validation, observability, backup/restore readiness, UAT and documented acceptance criteria.
