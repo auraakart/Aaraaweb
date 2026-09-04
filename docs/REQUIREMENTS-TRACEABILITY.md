@@ -1,6 +1,6 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
 This document is the implementation guardrail for the Aaraagate build. Features are only complete when their requirement, UX intent, security model, tenant/permission model, acceptance criteria and release validation are defined.
 
@@ -31,19 +31,21 @@ This document is the implementation guardrail for the Aaraagate build. Features 
 | Household/domestic help | Validated release baseline | Occupancy-scoped assignments, review, schedules, leave, ratings, concurrency-safe gate attendance, session-scoped recovery and suspension controls |
 | Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
 | Services marketplace | Advanced vertical slice | Categories, platform-verified providers, society approval, tenant-scoped offerings, booking lifecycle and ratings |
-| Admin operations | Milestone validation | Role-aware operations are implemented for residents, workforce, helpdesk, notices, billing, gates, marketplace and SOS response |
+| Admin operations | Validated release baseline | Role-aware operations for residents, workforce, helpdesk, notices, billing, gates, marketplace and SOS response |
 | Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
 | Maintenance/billing | Validated release baseline | Owner/current-tenant unit-scoped dues and payments, society invoice operations, server-verified reconciliation, receipts/history, audience controls and auditable events |
-| Reports/analytics | Planned / minimal foundation | Essential V1 operational and audit views remain to be completed |
+| Reports/analytics | Current active vertical slice | Essential V1 operational summaries, paginated drill-downs and audit views without general-purpose BI scope |
 | Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
 | CI/CD | Green baseline achieved | Full CI validates migrations, lint, typecheck, tests, builds, Flutter and dependency security |
 | Staging release gate | Green baseline achieved | Clean DB migration, API production build/startup and health smoke validation |
 | Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
 
 ## Current execution focus
-The active milestone is **Society Admin operational completeness**. Gate configuration/monitoring, marketplace provider/booking, SOS response and role-aware Admin navigation are implemented and entering consolidated validation. After Admin closure, proceed to essential reports, marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
+The active milestone is **Essential V1 Reports and Operational Audit Views**. Society Admin operational completeness is now a validated release baseline. The reports milestone should deliver only the decision-useful V1 views required for society operations: visitor/gate activity, workforce attendance, maintenance collections/outstanding dues, helpdesk/SLA and audit events, with tenant-safe aggregation and drill-downs.
 
-Maintenance/Billing is now treated as a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
+After Reports, proceed to marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
+
+Maintenance/Billing remains a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
 
 The detailed execution sequence and usage-efficient working rules live in `DEVELOPMENT-CONTROL.md` so this traceability document can stay focused on requirement status and acceptance.
 
@@ -55,7 +57,20 @@ The detailed execution sequence and usage-efficient working rules live in `DEVEL
 - Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
 - Visitor credential lifecycle and session-scoped Guard offline recovery hardening have passed staging and production promotion and are synchronized back into `develop`.
 - Domestic-help/workforce Resident, Society Admin and Guard lifecycles have passed staging and production promotion and are synchronized back into `develop`.
+- Society Admin gate configuration/monitoring, marketplace/provider operations, SOS response and role-aware navigation have passed protected CI, staging validation and production promotion; release ancestry is synchronized back into `develop`.
 - Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
+
+## Essential Reports / Audit acceptance direction
+The V1 Reports milestone is not complete until:
+- Society Admin can view tenant-scoped visitor/gate activity summaries and paginated drill-downs without exposing credentials or unrelated private data.
+- Society Admin can view workforce attendance/entry summaries constrained to the same society and authorized operational scope.
+- Authorized finance roles can view maintenance billed, collected and outstanding summaries without widening owner-only or payment-detail visibility.
+- Authorized Admin roles can view helpdesk volume/status/SLA-style operational summaries using the existing permission model.
+- Audit views expose operationally useful event metadata while masking secrets, credentials and unnecessary personal/payment data.
+- Aggregation, filtering, export or drill-down endpoints enforce tenant/role/permission checks server-side; client-side hiding is never the boundary.
+- Empty, loading, denied, failure and no-data states are implemented on Admin surfaces.
+- Queries are bounded/paginated and avoid unbounded in-memory aggregation or N+1 access patterns.
+- Targeted API/Admin tests cover happy path, cross-society denial, insufficient permission and representative empty/error states, followed by protected CI and staging validation.
 
 ## Visitor vertical-slice acceptance criteria
 Visitor Management is not complete until all of the following are verified end-to-end:
