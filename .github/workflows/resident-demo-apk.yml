@@ -37,9 +37,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          # Keep packaging on the same validated Flutter baseline as normal CI.
-          # Upgrading this independently caused Material theme API drift.
-          flutter-version: '3.24.0'
+          # Packaging needs current Android SDK 36 support required by
+          # flutter_secure_storage. Product CI remains independently pinned.
+          flutter-version: '3.32.8'
           channel: stable
           cache: true
 
@@ -47,17 +47,18 @@ jobs:
         working-directory: apps/resident
         run: flutter create --platforms=android --project-name aaraagate_resident --org com.aaraaplatforms .
 
-      - name: Restore Resident source and manifest
+      - name: Restore Resident source and prepare packaging compatibility
         run: |
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
           rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
+          # Flutter 3.32 expects CardThemeData in ThemeData.cardTheme. Keep this
+          # packaging-only so the validated 3.24 product source is unchanged.
+          sed -i 's/cardTheme: CardTheme(/cardTheme: CardThemeData(/' apps/resident/lib/theme/aaraagate_theme.dart
           APP_GRADLE=$(find apps/resident/android/app -maxdepth 1 -type f \( -name 'build.gradle' -o -name 'build.gradle.kts' \) -print -quit)
           test -n "$APP_GRADLE"
-          # Flutter 3.24's generated Android Gradle/AAPT2 toolchain is compatible with API 35.
-          # API 36 caused resource-table linking failures in the demo wrapper.
-          sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = 35/' "$APP_GRADLE"
+          sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = 36/' "$APP_GRADLE"
           sed -i -E 's/minSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/minSdk = 23/' "$APP_GRADLE"
-          grep -Eq 'compileSdk(Version)?([[:space:]]*=)?[[:space:]]*35' "$APP_GRADLE"
+          grep -Eq 'compileSdk(Version)?([[:space:]]*=)?[[:space:]]*36' "$APP_GRADLE"
           grep -Eq 'minSdk(Version)?([[:space:]]*=)?[[:space:]]*23' "$APP_GRADLE"
 
       - name: Get dependencies
