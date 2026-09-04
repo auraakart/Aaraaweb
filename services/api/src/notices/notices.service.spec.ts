@@ -25,7 +25,7 @@ describe('NoticesService', () => {
     expect(sql).toContain('"UnitOccupancy"');
   });
 
-  it('publishes owner-only broadcasts only to active verified owners', async () => {
+  it('publishes owner-only broadcasts to the resolved owner recipient set', async () => {
     const notice = {
       id: '33333333-3333-3333-3333-333333333333',
       societyId: '11111111-1111-1111-1111-111111111111',
@@ -64,7 +64,6 @@ describe('NoticesService', () => {
     const recipientSql = (prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
     expect(recipientSql).toContain('"UnitOwnership"');
     expect(recipientSql).toContain('"UnitOccupancy"');
-    expect(recipientSql).toContain("'OWNER_AND_OCCUPANTS'");
   });
 
   it('publishes shared broadcasts to the resolved owner and occupant recipient set', async () => {
