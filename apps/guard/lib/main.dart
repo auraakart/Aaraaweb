@@ -6,6 +6,7 @@ import 'guard_controller.dart';
 import 'screens/guard_login_screen.dart';
 import 'screens/guard_operations_screen.dart';
 import 'screens/guard_workforce_screen.dart';
+import 'theme/aaraagate_guard_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,13 +27,9 @@ class AaraagateGuardApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AuraGate Guard',
+      title: 'Aaraagate Guard',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF176B4D),
-        scaffoldBackgroundColor: const Color(0xFFF6F8F7),
-      ),
+      theme: AaraagateGuardTheme.light(),
       home: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
