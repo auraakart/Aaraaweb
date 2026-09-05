@@ -172,7 +172,7 @@ class _SosScreenState extends State<SosScreen> {
                   children: [
                     Icon(Icons.info_outline_rounded),
                     SizedBox(width: 12),
-                    Expanded(child: Text('AuraGate SOS supports society emergency response. For medical, police, or fire emergencies, also contact the appropriate local emergency service directly.')),
+                    Expanded(child: Text('Aaraagate SOS supports society emergency response. For medical, police, or fire emergencies, also contact the appropriate local emergency service directly.')),
                   ],
                 ),
               ),

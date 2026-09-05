@@ -18,7 +18,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Welcome to AuraGate'), findsOneWidget);
+    expect(find.text('Welcome to Aaraagate'), findsOneWidget);
     expect(find.byType(ResidentHomeShell), findsNothing);
   });
 }
