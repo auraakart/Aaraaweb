@@ -13,7 +13,6 @@ export class HouseholdService {
       select: { unitId: true },
     });
     if (!links.length) return [];
-
     return this.prisma.household.findMany({
       where: { societyId, unitId: { in: links.map((link) => link.unitId) } },
       include: {
@@ -23,12 +22,8 @@ export class HouseholdService {
             occupancies: {
               where: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
               select: {
-                id: true,
-                relation: true,
-                primaryGateContact: true,
-                gateApprovalEnabled: true,
-                gateNotificationEnabled: true,
-                escalationOrder: true,
+                id: true, relation: true, primaryGateContact: true, gateApprovalEnabled: true,
+                gateNotificationEnabled: true, escalationOrder: true,
                 user: { select: { id: true, name: true, phone: true, status: true } },
               },
               orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
@@ -49,43 +44,27 @@ export class HouseholdService {
     return this.prisma.household.create({ data: { societyId, unitId, displayName: displayName?.trim() || null } });
   }
 
-  async addFamilyMember(
-    societyId: string,
-    ownerUserId: string,
-    householdId: string,
-    input: {
-      name: string;
-      phone: string;
-      gateApprovalEnabled?: boolean;
-      gateNotificationEnabled?: boolean;
-      primaryGateContact?: boolean;
-      escalationOrder?: number;
-    },
-  ) {
+  async addFamilyMember(societyId: string, ownerUserId: string, householdId: string, input: {
+    name: string; phone: string; gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean;
+    primaryGateContact?: boolean; escalationOrder?: number;
+  }) {
     const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
     const phone = input.phone.trim();
     const name = input.name.trim();
     if (!phone || !name) throw new BadRequestException('Family member name and phone are required');
     const now = new Date();
-
     return this.prisma.$transaction(async (tx) => {
       let member = await tx.user.findUnique({ where: { phone } });
       if (!member) member = await tx.user.create({ data: { phone, name } });
       if (member.id === ownerUserId) throw new BadRequestException('Owner is already linked to this home');
-
       const conflicting = await tx.unitOccupancy.findFirst({
         where: {
-          societyId,
-          unitId: household.unitId,
-          userId: member.id,
-          active: true,
-          relation: { in: [UnitRelation.OWNER, UnitRelation.TENANT] },
-          effectiveFrom: { lte: now },
+          societyId, unitId: household.unitId, userId: member.id, active: true,
+          relation: { in: [UnitRelation.OWNER, UnitRelation.TENANT] }, effectiveFrom: { lte: now },
           OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
         },
       });
       if (conflicting) throw new BadRequestException('This person already has an owner or tenant relationship with the unit');
-
       const existing = await tx.unitOccupancy.findFirst({
         where: { societyId, unitId: household.unitId, userId: member.id, relation: UnitRelation.FAMILY_MEMBER, active: true },
       });
@@ -110,7 +89,6 @@ export class HouseholdService {
       const occupancy = existing
         ? await tx.unitOccupancy.update({ where: { id: existing.id }, data })
         : await tx.unitOccupancy.create({ data: { unitId: household.unitId, userId: member.id, ...data } });
-
       await tx.societyMembership.upsert({
         where: { userId_societyId_role: { userId: member.id, societyId, role: MembershipRole.FAMILY_MEMBER } },
         update: { active: true },
@@ -120,13 +98,9 @@ export class HouseholdService {
     });
   }
 
-  async updateFamilyMember(
-    societyId: string,
-    ownerUserId: string,
-    householdId: string,
-    occupancyId: string,
-    input: { gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean; primaryGateContact?: boolean; escalationOrder?: number },
-  ) {
+  async updateFamilyMember(societyId: string, ownerUserId: string, householdId: string, occupancyId: string, input: {
+    gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean; primaryGateContact?: boolean; escalationOrder?: number;
+  }) {
     const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
     const occupancy = await this.prisma.unitOccupancy.findFirst({
       where: { id: occupancyId, societyId, unitId: household.unitId, relation: UnitRelation.FAMILY_MEMBER, active: true },
@@ -139,16 +113,15 @@ export class HouseholdService {
           data: { primaryGateContact: false },
         });
       }
-      return tx.unitOccupancy.update({
-        where: { id: occupancy.id },
-        data: {
-          if (input.gateApprovalEnabled != null) gateApprovalEnabled: input.gateApprovalEnabled,
-          if (input.gateNotificationEnabled != null || input.primaryGateContact == true)
-            gateNotificationEnabled: input.primaryGateContact == true ? true : input.gateNotificationEnabled,
-          if (input.primaryGateContact != null) primaryGateContact: input.primaryGateContact,
-          if (input.escalationOrder != null) escalationOrder: input.escalationOrder,
-        },
-      });
+      const data: Prisma.UnitOccupancyUpdateInput = {
+        ...(input.gateApprovalEnabled !== undefined ? { gateApprovalEnabled: input.gateApprovalEnabled } : {}),
+        ...((input.gateNotificationEnabled !== undefined || input.primaryGateContact === true)
+          ? { gateNotificationEnabled: input.primaryGateContact === true ? true : input.gateNotificationEnabled }
+          : {}),
+        ...(input.primaryGateContact !== undefined ? { primaryGateContact: input.primaryGateContact } : {}),
+        ...(input.escalationOrder !== undefined ? { escalationOrder: input.escalationOrder } : {}),
+      };
+      return tx.unitOccupancy.update({ where: { id: occupancy.id }, data });
     });
   }
 
@@ -167,12 +140,8 @@ export class HouseholdService {
       if (occupancy.primaryGateContact) {
         const fallback = await tx.unitOccupancy.findFirst({
           where: {
-            societyId,
-            unitId: household.unitId,
-            active: true,
-            gateNotificationEnabled: true,
-            effectiveFrom: { lte: now },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            societyId, unitId: household.unitId, active: true, gateNotificationEnabled: true,
+            effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
           },
           orderBy: [{ escalationOrder: 'asc' }, { createdAt: 'asc' }],
         });
@@ -180,12 +149,8 @@ export class HouseholdService {
       }
       const remainingFamily = await tx.unitOccupancy.count({
         where: {
-          societyId,
-          userId: occupancy.userId,
-          relation: UnitRelation.FAMILY_MEMBER,
-          active: true,
-          effectiveFrom: { lte: now },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+          societyId, userId: occupancy.userId, relation: UnitRelation.FAMILY_MEMBER, active: true,
+          effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
         },
       });
       if (remainingFamily === 0) {
@@ -207,7 +172,9 @@ export class HouseholdService {
     await this.assertOwnHousehold(societyId, userId, householdId);
     const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    return this.prisma.householdVehicle.create({ data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null } });
+    return this.prisma.householdVehicle.create({
+      data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
+    });
   }
 
   async deactivateVehicle(societyId: string, userId: string, householdId: string, vehicleId: string) {
@@ -219,7 +186,9 @@ export class HouseholdService {
 
   async addEmergencyContact(societyId: string, userId: string, householdId: string, input: { name: string; phone: string; relation?: string; priority?: number }) {
     await this.assertOwnHousehold(societyId, userId, householdId);
-    return this.prisma.emergencyContact.create({ data: { societyId, householdId, name: input.name.trim(), phone: input.phone.trim(), relation: input.relation?.trim() || null, priority: input.priority ?? 1 } });
+    return this.prisma.emergencyContact.create({
+      data: { societyId, householdId, name: input.name.trim(), phone: input.phone.trim(), relation: input.relation?.trim() || null, priority: input.priority ?? 1 },
+    });
   }
 
   async deactivateEmergencyContact(societyId: string, userId: string, householdId: string, contactId: string) {
@@ -231,7 +200,9 @@ export class HouseholdService {
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
     const now = new Date();
-    const link = await this.prisma.unitOccupancy.findFirst({ where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } });
+    const link = await this.prisma.unitOccupancy.findFirst({
+      where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+    });
     if (!link) throw new BadRequestException('Unit does not belong to the authenticated resident');
     return link;
   }
@@ -249,13 +220,8 @@ export class HouseholdService {
     const now = new Date();
     const ownership = await this.prisma.unitOwnership.findFirst({
       where: {
-        societyId,
-        unitId: household.unitId,
-        userId,
-        active: true,
-        verified: true,
-        effectiveFrom: { lte: now },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        societyId, unitId: household.unitId, userId, active: true, verified: true,
+        effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
       },
     });
     if (!ownership) throw new BadRequestException('Only a verified current owner can manage family members for this unit');
