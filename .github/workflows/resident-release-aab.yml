@@ -83,15 +83,14 @@ jobs:
 
       - name: Configure Android release signing
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/apps/resident/android/app/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          export ANDROID_KEYSTORE_PATH="$GITHUB_WORKSPACE/apps/resident/android/app/upload-keystore.jks"
           python - <<'PY'
           from pathlib import Path
-          import os
 
           app = Path('apps/resident/android/app')
           kts = app / 'build.gradle.kts'
@@ -130,11 +129,6 @@ jobs:
           else:
               raise SystemExit('No Android app Gradle file found')
           PY
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/apps/resident/android/app/upload-keystore.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
 
       - name: Get dependencies
         working-directory: apps/resident
