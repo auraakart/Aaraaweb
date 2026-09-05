@@ -35,24 +35,10 @@ class HomeScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Welcome home', style: theme.textTheme.bodyLarge),
-                      const SizedBox(height: 2),
-                      Text(householdName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                ),
-                Badge(
-                  isLabelVisible: controller.notices.isNotEmpty,
-                  label: Text(controller.notices.length.toString()),
-                  child: IconButton.filledTonal(onPressed: onOpenNotices, icon: const Icon(Icons.notifications_none_rounded)),
-                ),
-              ],
+            _HomeHero(
+              householdName: householdName,
+              noticeCount: controller.notices.length,
+              onOpenNotices: onOpenNotices,
             ),
             const SizedBox(height: 24),
             Text('Needs your attention', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -112,7 +98,11 @@ class HomeScreen extends StatelessWidget {
               Card(
                 child: ListTile(
                   onTap: onOpenNotices,
-                  leading: const CircleAvatar(child: Icon(Icons.campaign_outlined)),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    foregroundColor: theme.colorScheme.onPrimaryContainer,
+                    child: const Icon(Icons.campaign_outlined),
+                  ),
                   title: Text(controller.notices.first['title']?.toString() ?? 'Society notice', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: const Text('Latest society update'),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -123,7 +113,11 @@ class HomeScreen extends StatelessWidget {
             Card(
               child: ListTile(
                 onTap: onOpenBilling,
-                leading: const CircleAvatar(child: Icon(Icons.receipt_long_outlined)),
+                leading: CircleAvatar(
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                  child: const Icon(Icons.receipt_long_outlined),
+                ),
                 title: const Text('Maintenance & payments', style: TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: const Text('Dues and payments for your unit'),
                 trailing: const Icon(Icons.chevron_right_rounded),
@@ -132,23 +126,28 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Text('Quick actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _QuickAction(icon: Icons.person_add_alt_1_rounded, label: 'Invite guest', onTap: onOpenGate)),
-                const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.home_repair_service_rounded, label: 'Book service', onTap: onOpenServices)),
-                const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.sos_rounded,
-                    label: 'SOS',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SosScreen(controller: controller))),
-                    urgent: true,
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final itemWidth = (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.person_add_alt_1_rounded, label: 'Invite guest', onTap: onOpenGate)),
+                    SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.home_repair_service_rounded, label: 'Book service', onTap: onOpenServices)),
+                    SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
+                    SizedBox(
+                      width: itemWidth,
+                      child: _QuickAction(
+                        icon: Icons.sos_rounded,
+                        label: 'SOS',
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SosScreen(controller: controller))),
+                        urgent: true,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
             Text('Today', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -169,9 +168,26 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(18),
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
+                    ),
                     const SizedBox(width: 12),
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Ask Aaraagate', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('“My electrician is coming tomorrow at 11.”')])),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Ask Aaraagate', style: TextStyle(fontWeight: FontWeight.w800)),
+                          SizedBox(height: 3),
+                          Text('“My electrician is coming tomorrow at 11.”'),
+                        ],
+                      ),
+                    ),
                     const Icon(Icons.arrow_forward_ios_rounded, size: 16),
                   ],
                 ),
@@ -185,12 +201,72 @@ class HomeScreen extends StatelessWidget {
 
   static IconData _iconFor(String? type) {
     switch (type) {
-      case 'DELIVERY': return Icons.local_shipping_outlined;
-      case 'DOMESTIC_HELP': return Icons.cleaning_services_outlined;
-      case 'CAB': return Icons.local_taxi_outlined;
-      case 'SERVICE_PROVIDER': return Icons.home_repair_service_outlined;
-      default: return Icons.person_outline_rounded;
+      case 'DELIVERY':
+        return Icons.local_shipping_outlined;
+      case 'DOMESTIC_HELP':
+        return Icons.cleaning_services_outlined;
+      case 'CAB':
+        return Icons.local_taxi_outlined;
+      case 'SERVICE_PROVIDER':
+        return Icons.home_repair_service_outlined;
+      default:
+        return Icons.person_outline_rounded;
     }
+  }
+}
+
+class _HomeHero extends StatelessWidget {
+  const _HomeHero({required this.householdName, required this.noticeCount, required this.onOpenNotices});
+
+  final String householdName;
+  final int noticeCount;
+  final VoidCallback onOpenNotices;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [scheme.primaryContainer, Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.outline.withOpacity(.55)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.home_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Welcome home', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 3),
+                Text(householdName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
+              ],
+            ),
+          ),
+          Badge(
+            isLabelVisible: noticeCount > 0,
+            label: Text(noticeCount.toString()),
+            child: IconButton.filledTonal(onPressed: onOpenNotices, icon: const Icon(Icons.notifications_none_rounded)),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -204,13 +280,26 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final background = urgent ? scheme.errorContainer : scheme.surface;
+    final foreground = urgent ? scheme.error : scheme.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Ink(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 6),
-        decoration: BoxDecoration(color: urgent ? scheme.errorContainer : scheme.surface, borderRadius: BorderRadius.circular(18)),
-        child: Column(children: [Icon(icon, color: urgent ? scheme.error : scheme.primary), const SizedBox(height: 8), Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))]),
+        constraints: const BoxConstraints(minHeight: 74),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: urgent ? scheme.error.withOpacity(.18) : scheme.outline.withOpacity(.55)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: foreground),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
+          ],
+        ),
       ),
     );
   }
