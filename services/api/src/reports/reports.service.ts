@@ -12,7 +12,7 @@ const MAX_PAGE_SIZE = 100;
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async summary(societyId: string, from?: string, to?: string) {
+  async summary(societyId: string, from?: string, to?: string, includeFinancialAmounts = false) {
     const range = this.dateRange(from, to);
     const [
       visitorRequests,
@@ -67,11 +67,11 @@ export class ReportsService {
       },
       maintenance: {
         billedCount: billed._count._all,
-        billedPaise: billed._sum.amountPaise ?? 0,
+        billedPaise: includeFinancialAmounts ? (billed._sum.amountPaise ?? 0) : null,
         collectedCount: collected._count._all,
-        collectedPaise: collected._sum.amountPaise ?? 0,
+        collectedPaise: includeFinancialAmounts ? (collected._sum.amountPaise ?? 0) : null,
         outstandingCount: outstanding._count._all,
-        outstandingPaise: outstanding._sum.amountPaise ?? 0,
+        outstandingPaise: includeFinancialAmounts ? (outstanding._sum.amountPaise ?? 0) : null,
       },
       helpdesk: {
         open: helpdeskOpen,

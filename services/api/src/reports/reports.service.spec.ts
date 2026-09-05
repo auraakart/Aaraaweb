@@ -10,9 +10,9 @@ function prismaMock() {
     },
     maintenanceInvoice: {
       aggregate: vi.fn()
-        .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } })
-        .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } })
-        .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } }),
+        .mockResolvedValueOnce({ _count: { _all: 2 }, _sum: { amountPaise: 10000 } })
+        .mockResolvedValueOnce({ _count: { _all: 1 }, _sum: { amountPaise: 5000 } })
+        .mockResolvedValueOnce({ _count: { _all: 1 }, _sum: { amountPaise: 5000 } }),
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -28,7 +28,7 @@ function prismaMock() {
 }
 
 describe('ReportsService', () => {
-  it('keeps every summary query scoped to the authenticated society', async () => {
+  it('keeps every summary query scoped to the authenticated society and redacts finance amounts by default', async () => {
     const prisma = prismaMock();
     const service = new ReportsService(prisma as unknown as PrismaService);
     const societyId = '11111111-1111-1111-1111-111111111111';
@@ -39,7 +39,26 @@ describe('ReportsService', () => {
     for (const [query] of prisma.maintenanceInvoice.aggregate.mock.calls) expect(query.where.societyId).toBe(societyId);
     for (const [query] of prisma.helpdeskTicket.count.mock.calls) expect(query.where.societyId).toBe(societyId);
     expect(prisma.auditEvent.count.mock.calls[0][0].where.societyId).toBe(societyId);
-    expect(result.maintenance.outstandingPaise).toBe(0);
+    expect(result.maintenance.billedCount).toBe(2);
+    expect(result.maintenance.billedPaise).toBeNull();
+    expect(result.maintenance.collectedPaise).toBeNull();
+    expect(result.maintenance.outstandingPaise).toBeNull();
+  });
+
+  it('returns finance amounts only when the caller is explicitly finance-authorized', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+
+    const result = await service.summary(
+      'society-1',
+      '2026-09-01T00:00:00.000Z',
+      '2026-09-02T00:00:00.000Z',
+      true,
+    );
+
+    expect(result.maintenance.billedPaise).toBe(10000);
+    expect(result.maintenance.collectedPaise).toBe(5000);
+    expect(result.maintenance.outstandingPaise).toBe(5000);
   });
 
   it('rejects unbounded or reversed report windows before querying data', async () => {
