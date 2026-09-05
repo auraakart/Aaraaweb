@@ -14,7 +14,7 @@ export default function RolesPage(){
   const[name,setName]=useState(''),[phone,setPhone]=useState('+91'),[role,setRole]=useState('SECURITY_GUARD')
   const allowed=(s:Session|null)=>!!s&&['SUPER_ADMIN','SOCIETY_ADMIN'].includes(s.role)
   const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{setRows(await api<Membership[]>(s,'/society-roles'))}catch(e){setError(e instanceof Error?e.message:'Could not load society roles')}finally{setLoading(false)}},[])
-  useEffect(()=>{const s=getSession();setSession(s);if(allowed(s))void load(s);else setLoading(false)},[load])
+  useEffect(()=>{const s=getSession();setSession(s);if(s&&allowed(s))void load(s);else setLoading(false)},[load])
   const provision=(e:FormEvent)=>{e.preventDefault();if(!session)return;setBusy(true);setError('');void api(session,'/society-roles',{method:'POST',body:JSON.stringify({name:name.trim(),phone:phone.trim(),role})}).then(()=>{setName('');setPhone('+91');return load(session)}).catch(e=>setError(e instanceof Error?e.message:'Could not assign role')).finally(()=>setBusy(false))}
   const deactivate=(m:Membership)=>{if(!session||!confirm(`Deactivate ${m.role.replaceAll('_',' ')} for ${m.user.name||m.user.phone}? Active sessions for this society will be revoked.`))return;setBusy(true);setError('');void api(session,`/society-roles/${m.id}/deactivate`,{method:'PATCH',body:'{}'}).then(()=>load(session)).catch(e=>setError(e instanceof Error?e.message:'Could not deactivate role')).finally(()=>setBusy(false))}
   if(loading)return <main style={{padding:32}}>Loading people and roles…</main>
