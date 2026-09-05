@@ -30,7 +30,7 @@ Railway and Render remain viable portability targets, but their current lack of 
 - Managed PostgreSQL in the same Bangalore region.
 - Managed Valkey in the same Bangalore region, used through `REDIS_URL`.
 - Private/VPC connectivity between application and data services where supported.
-- Provider health/deployment alerts plus external health monitoring of `/api/v1/health`.
+- Provider liveness checks against `/api/v1/health/live` plus external dependency-aware readiness monitoring of `/api/v1/health/ready`.
 
 ### Production
 Use the same topology and region, but do not promote until hosted staging UAT passes.
@@ -70,18 +70,32 @@ Database migrations remain an explicit release action using `pnpm --filter @aara
 Minimum alerts:
 - deployment failure;
 - domain/TLS failure;
-- API health failure;
+- API liveness failure;
+- API readiness failure, including PostgreSQL or authentication-state/Valkey connectivity;
 - elevated 5xx rate or sustained latency where supported;
 - container restart/resource pressure;
 - PostgreSQL storage/availability/failover notifications;
 - Valkey availability/resource pressure;
-- external `/api/v1/health` availability.
+- external `/api/v1/health/ready` availability.
+
+Use `/api/v1/health/live` for platform liveness so a transient database or Valkey outage does not trigger avoidable application restart loops. Use `/api/v1/health/ready` for dependency-aware routing, staging validation and external operational monitoring. The compatibility endpoint `/api/v1/health` remains available for release metadata and existing integrations.
 
 The API health response must continue to identify environment, version and deployed commit without exposing secrets or personal data.
 
 ## Backup and recovery
 
 Provider-managed PostgreSQL backups are mandatory. Before pilot acceptance, perform and record a real restore into an isolated non-production database in addition to the repository backup/restore CI drill.
+
+Production acceptance must record:
+- provider backup schedule and retention;
+- encryption-at-rest status;
+- point-in-time recovery window where the selected plan supports PITR;
+- date/time of the most recent isolated restore drill;
+- source backup/recovery point and restored target;
+- verification owner and result;
+- measured restore duration/RTO evidence.
+
+The GitHub Actions backup/restore smoke proves schema-level `pg_dump`/`pg_restore` recoverability only; it is not evidence that hosted provider backups or PITR are configured.
 
 Rollback uses the release-evidence artifact to identify the previous known-good `main` SHA. Application rollback must not automatically reverse destructive database migrations.
 
@@ -97,9 +111,10 @@ Before production promotion:
 1. hosted staging deploys successfully from `staging`;
 2. migrations complete cleanly;
 3. `/api/v1/health` reports the expected staging release SHA/version;
-4. PostgreSQL and Valkey connectivity are healthy;
-5. provider backups are enabled and one isolated restore is evidenced;
-6. external availability monitoring and alert routing are active;
-7. the full UAT/pilot checklist is executed with real roles/devices;
-8. no open critical/high security defect remains;
-9. rollback owner and previous-known-good release are recorded.
+4. `/api/v1/health/live` succeeds and `/api/v1/health/ready` confirms PostgreSQL and authentication-state/Valkey readiness;
+5. provider backups are enabled and one isolated provider-managed restore is evidenced;
+6. backup retention/encryption and PITR capability are recorded for the chosen plan;
+7. external availability/readiness monitoring and alert routing are active;
+8. the full UAT/pilot checklist is executed with real roles/devices;
+9. no open critical/high security defect remains;
+10. rollback owner and previous-known-good release are recorded.

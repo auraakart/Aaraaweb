@@ -33,7 +33,11 @@ jobs:
           test -d packages/api-client
           test -d packages/config
           test -f scripts/production-preflight.sh
+          test -f scripts/check-product-branding.sh
           bash -n scripts/production-preflight.sh
+          bash -n scripts/check-product-branding.sh
+      - name: Enforce Aaraagate product branding boundary
+        run: bash scripts/check-product-branding.sh
       - name: Exercise production preflight control
         env:
           NODE_ENV: production
@@ -81,7 +85,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Validate Prisma schema
         run: pnpm --filter @aaraagate/api prisma:validate
       - name: Generate Prisma client
@@ -112,7 +116,9 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Test Admin access boundaries
+        run: pnpm --filter @aaraagate/admin test
       - name: Typecheck admin
         run: pnpm --filter @aaraagate/admin typecheck
       - name: Build admin
@@ -164,6 +170,6 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Audit high and critical npm vulnerabilities
         run: pnpm audit --audit-level high
