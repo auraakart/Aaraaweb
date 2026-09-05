@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Widget host(ResidentDataController controller) => MaterialApp(
+        home: Scaffold(body: ServicesScreen(controller: controller)),
+      );
+
   testWidgets('marketplace filters offerings by category and search', (tester) async {
     final controller = ResidentDataController(DemoResidentRepository())
       ..serviceCategories = [
@@ -32,7 +36,7 @@ void main() {
         },
       ];
 
-    await tester.pumpWidget(MaterialApp(home: ServicesScreen(controller: controller)));
+    await tester.pumpWidget(host(controller));
 
     expect(find.text('Deep cleaning'), findsOneWidget);
     expect(find.text('Electrician visit'), findsOneWidget);
@@ -70,7 +74,7 @@ void main() {
         },
       ];
 
-    await tester.pumpWidget(MaterialApp(home: ServicesScreen(controller: controller)));
+    await tester.pumpWidget(host(controller));
 
     expect(find.text('Waiting for the provider to confirm this request. No gate pass has been created yet.'), findsOneWidget);
     expect(find.text('Provider confirmed. Linked gate access: APPROVED.'), findsOneWidget);
