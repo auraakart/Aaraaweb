@@ -139,6 +139,17 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.update).not.toHaveBeenCalled();
   });
 
+  it('rejects family-member management by a resident without verified current ownership', async () => {
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(svc.addFamilyMember('society-1', 'tenant-1', 'household-1', {
+      name: 'Family Member',
+      phone: '+919876543210',
+    })).rejects.toThrow('Only a verified current owner can manage family members for this unit');
+  });
+
   it('rejects access to a household outside the tenant', async () => {
     const { svc } = service({
       household: {
