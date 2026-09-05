@@ -5,10 +5,19 @@ import { AppPermission, hasPermission } from '../auth/permission.types';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 
 describe('services marketplace admin authorization', () => {
-  it('protects society catalog, booking and lifecycle operations with provider management', () => {
-    for (const handler of ['adminCatalog', 'adminBookings', 'approveProvider', 'createOffering', 'confirm', 'complete'] as const) {
+  it('protects society provider, booking and lifecycle operations with provider management', () => {
+    for (const handler of ['adminCatalog', 'adminBookings', 'createProvider', 'approveProvider', 'confirm', 'complete'] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, ServicesMarketplaceController.prototype[handler])).toEqual([AppPermission.SERVICES_PROVIDER_MANAGE]);
     }
+  });
+
+  it('keeps global category and offering changes platform-only', () => {
+    for (const handler of ['createCategory', 'createOffering'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, ServicesMarketplaceController.prototype[handler])).toEqual([AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE]);
+    }
+    expect(hasPermission([AppRole.SUPER_ADMIN], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(false);
   });
 
   it('keeps platform verification separate from society operations', () => {
@@ -16,5 +25,6 @@ describe('services marketplace admin authorization', () => {
     expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.SERVICES_PROVIDER_MANAGE)).toBe(true);
     expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(false);
     expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(false);
+    expect(hasPermission([AppRole.SUPER_ADMIN], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(true);
   });
 });
