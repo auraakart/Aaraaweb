@@ -1,6 +1,95 @@
 :root {
-  --bg: #f6f8f7;
-  --brand: #0f6b50;
-  --accent: #e6f3ec;
-  --radius: 22px;
+  --bg: #f5fbfc;
+  --surface: #ffffff;
+  --ink: #17323a;
+  --ink-soft: #38545c;
+  --muted: #6a7f85;
+  --line: #d5e8eb;
+  --line-strong: #b9d8dd;
+  --brand: #05879a;
+  --brand-bright: #0eabbe;
+  --accent: #d4f2f4;
+  --accent-strong: #a6dfe4;
+  --focus-ring: #b6e8ed;
+  --neutral-soft: #eef6f7;
+  --danger: #b42318;
+  --warning: #8a6100;
+  --radius: 18px;
+  --shadow-soft: 0 14px 36px rgba(5, 135, 154, 0.08);
+  --brand-gradient: linear-gradient(135deg, #05879a 0%, #0eabbe 58%, #6ec9d2 100%);
+}
+
+/* Product UI deliberately carries only Aaraagate branding. These selectors
+   refine the shared admin components without introducing corporate naming. */
+.sidebar {
+  box-shadow: 8px 0 30px rgba(5, 135, 154, 0.035);
+}
+
+.brand {
+  color: var(--brand);
+  letter-spacing: -0.02em;
+}
+
+.society {
+  background: linear-gradient(145deg, #eefafa 0%, var(--accent) 100%);
+  border: 1px solid var(--line);
+}
+
+.metric,
+.panel,
+.actions button,
+.notice,
+.loginCard {
+  box-shadow: var(--shadow-soft);
+}
+
+.metric,
+.actions button,
+.notice {
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.actions button:hover,
+.notice:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-strong);
+}
+
+.primary {
+  background: var(--brand-gradient) !important;
+  border-color: var(--brand) !important;
+  box-shadow: 0 8px 22px rgba(5, 135, 154, 0.16);
+}
+
+input,
+textarea,
+select {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline-color: var(--focus-ring);
+  border-color: var(--brand);
+}
+
+.notice p {
+  color: var(--ink-soft);
+}
+
+.badge {
+  background: var(--neutral-soft);
+  color: var(--ink-soft);
+}
+
+.resolved,
+.published {
+  background: var(--accent);
+  color: var(--brand);
+}
+
+.progress {
+  background: var(--brand-gradient);
 }

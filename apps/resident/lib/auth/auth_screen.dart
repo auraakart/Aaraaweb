@@ -27,30 +27,97 @@ class _AuthScreenState extends State<AuthScreen> {
       animation: widget.controller,
       builder: (context, _) {
         final controller = widget.controller;
+        final theme = Theme.of(context);
         return Scaffold(
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 460),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(Icons.shield_rounded, size: 54, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(height: 18),
-                      Text('Welcome to Aaraagate', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                      Center(
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.primary.withOpacity(.18),
+                                blurRadius: 28,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.shield_rounded, size: 38, color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        'Welcome to Aaraagate',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.4),
+                      ),
                       const SizedBox(height: 8),
-                      Text('Secure access to your home and community.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
+                      Text(
+                        'Secure access to your home and community.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
                       const SizedBox(height: 28),
-                      if (controller.step == ResidentAuthStep.loading) const Center(child: CircularProgressIndicator()),
-                      if (controller.step == ResidentAuthStep.phone) _phoneStep(controller),
-                      if (controller.step == ResidentAuthStep.otp) _otpStep(controller),
-                      if (controller.step == ResidentAuthStep.society) _societyStep(controller),
-                      if (controller.error != null) ...[
-                        const SizedBox(height: 16),
-                        Text(controller.error!, style: TextStyle(color: Theme.of(context).colorScheme.error), textAlign: TextAlign.center),
-                      ],
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(22),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (controller.step == ResidentAuthStep.loading)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Center(child: CircularProgressIndicator()),
+                                ),
+                              if (controller.step == ResidentAuthStep.phone) _phoneStep(controller),
+                              if (controller.step == ResidentAuthStep.otp) _otpStep(controller),
+                              if (controller.step == ResidentAuthStep.society) _societyStep(controller),
+                              if (controller.error != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.errorContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    controller.error!,
+                                    style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.lock_outline_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Society-scoped secure session',
+                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -66,6 +133,10 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text('Sign in', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        Text('Use the mobile number registered with your society.', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 18),
         TextField(
           controller: _phone,
           keyboardType: TextInputType.phone,
@@ -111,6 +182,10 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text('Verify mobile', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        const Text('Enter the 6-digit OTP sent to your registered number.'),
+        const SizedBox(height: 18),
         TextField(
           controller: _otp,
           keyboardType: TextInputType.number,
@@ -131,15 +206,16 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Choose your society', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Choose your society', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 6),
         const Text('Your session will be scoped to the selected society.'),
-        const SizedBox(height: 14),
-        for (final membership in controller.memberships) _SocietyTile(
-          membership: membership,
-          busy: controller.busy,
-          onTap: () => controller.selectSociety(membership),
-        ),
+        const SizedBox(height: 16),
+        for (final membership in controller.memberships)
+          _SocietyTile(
+            membership: membership,
+            busy: controller.busy,
+            onTap: () => controller.selectSociety(membership),
+          ),
       ],
     );
   }
@@ -153,11 +229,16 @@ class _SocietyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: busy ? null : onTap,
-        leading: const CircleAvatar(child: Icon(Icons.apartment_rounded)),
+        leading: CircleAvatar(
+          backgroundColor: scheme.primaryContainer,
+          foregroundColor: scheme.onPrimaryContainer,
+          child: const Icon(Icons.apartment_rounded),
+        ),
         title: Text(membership.name, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text('${membership.code.isEmpty ? 'Community' : membership.code} · ${membership.role.replaceAll('_', ' ')}'),
         trailing: const Icon(Icons.chevron_right_rounded),
