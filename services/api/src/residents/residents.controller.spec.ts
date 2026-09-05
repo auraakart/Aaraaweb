@@ -24,7 +24,7 @@ describe('ResidentsController authorization', () => {
     ]);
   });
 
-  it('requires society configuration manage permission for resident mutations', () => {
+  it('requires society configuration manage permission for resident and operational-role mutations', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.create)).toEqual([
       AppPermission.SOCIETY_CONFIGURATION_MANAGE,
     ]);
@@ -35,6 +35,9 @@ describe('ResidentsController authorization', () => {
       AppPermission.SOCIETY_CONFIGURATION_MANAGE,
     ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.membership)).toEqual([
+      AppPermission.SOCIETY_CONFIGURATION_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ResidentsController.prototype.deactivateMembership)).toEqual([
       AppPermission.SOCIETY_CONFIGURATION_MANAGE,
     ]);
   });
@@ -157,6 +160,67 @@ describe('ResidentsController relationship lifecycle', () => {
       role: MembershipRole.TENANT,
     }, '22222222-2222-2222-2222-222222222222')).toThrow('must be managed through a unit relationship');
     expect(prisma.societyMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it('blocks society-scoped privilege escalation into platform or society-admin roles', () => {
+    const prisma = { societyMembership: { upsert: vi.fn() } };
+    const controller = new ResidentsController(prisma as never);
+    for (const role of [MembershipRole.SUPER_ADMIN, MembershipRole.SOCIETY_ADMIN, MembershipRole.VENDOR]) {
+      expect(() => controller.membership({
+        userId: '44444444-4444-4444-4444-444444444444',
+        role,
+      }, '22222222-2222-2222-2222-222222222222')).toThrow('platform administration boundary');
+    }
+    expect(prisma.societyMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it('allows only explicitly society-assignable operational roles', async () => {
+    const prisma = { societyMembership: { upsert: vi.fn().mockResolvedValue({ id: 'membership-1' }) } };
+    const controller = new ResidentsController(prisma as never);
+    await controller.membership({
+      userId: '44444444-4444-4444-4444-444444444444',
+      role: MembershipRole.SECURITY_GUARD,
+    }, '22222222-2222-2222-2222-222222222222');
+    expect(prisma.societyMembership.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ role: MembershipRole.SECURITY_GUARD, active: true }),
+    }));
+  });
+
+  it('deactivates an operational role and revokes all active society sessions immediately', async () => {
+    const prisma = {
+      societyMembership: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      session: { updateMany: vi.fn().mockResolvedValue({ count: 2 }) },
+      $transaction: vi.fn(),
+    };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    const controller = new ResidentsController(prisma as never);
+    const result = await controller.deactivateMembership(
+      '44444444-4444-4444-4444-444444444444',
+      MembershipRole.SECURITY_SUPERVISOR,
+      '22222222-2222-2222-2222-222222222222',
+    );
+    expect(result).toEqual({ success: true, deactivated: 1 });
+    expect(prisma.session.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        userId: '44444444-4444-4444-4444-444444444444',
+        societyId: '22222222-2222-2222-2222-222222222222',
+        revokedAt: null,
+      }),
+    }));
+  });
+
+  it('does not let a society admin overwrite an existing global user profile name', async () => {
+    const existing = { id: '44444444-4444-4444-4444-444444444444', phone: '+919999999999', name: 'Existing Name' };
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+      },
+    };
+    const controller = new ResidentsController(prisma as never);
+    const result = await controller.create({ phone: '+919999999999', name: 'Different Society Name' });
+    expect(result).toEqual(existing);
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('removes owner finance authority when a non-resident ownership ends', async () => {

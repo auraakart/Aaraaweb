@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, ParseEnumPipe, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { MembershipRole, Prisma, UnitRelation } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,6 +37,14 @@ const membershipRoleForRelation = (relation: UnitRelation): MembershipRole => {
 };
 
 const RELATIONSHIP_ROLES = [MembershipRole.OWNER, MembershipRole.TENANT, MembershipRole.FAMILY_MEMBER] as const;
+const SOCIETY_ASSIGNABLE_OPERATIONAL_ROLES = new Set<MembershipRole>([
+  MembershipRole.COMMITTEE_MEMBER,
+  MembershipRole.FACILITY_MANAGER,
+  MembershipRole.ACCOUNTANT,
+  MembershipRole.SECURITY_SUPERVISOR,
+  MembershipRole.SECURITY_GUARD,
+  MembershipRole.STAFF,
+]);
 
 @Controller('residents')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
@@ -103,8 +111,11 @@ export class ResidentsController {
 
   @Post()
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
-  create(@Body() dto: CreateResidentDto) {
-    return this.prisma.user.upsert({ where: { phone: dto.phone.trim() }, update: { name: dto.name.trim() }, create: { phone: dto.phone.trim(), name: dto.name.trim() } });
+  async create(@Body() dto: CreateResidentDto) {
+    const phone = dto.phone.trim();
+    const existing = await this.prisma.user.findUnique({ where: { phone } });
+    if (existing) return existing;
+    return this.prisma.user.create({ data: { phone, name: dto.name.trim() } });
   }
 
   @Post('link')
@@ -157,11 +168,11 @@ export class ResidentsController {
           });
         }
         const occupancyData = {
-            societyId, relation: dto.relation, active: true, effectiveFrom, effectiveTo,
-            primaryGateContact,
-            gateApprovalEnabled: dto.gateApprovalEnabled ?? true,
-            gateNotificationEnabled: primaryGateContact ? true : (dto.gateNotificationEnabled ?? true),
-            escalationOrder: dto.escalationOrder ?? 100,
+          societyId, relation: dto.relation, active: true, effectiveFrom, effectiveTo,
+          primaryGateContact,
+          gateApprovalEnabled: dto.gateApprovalEnabled ?? true,
+          gateNotificationEnabled: primaryGateContact ? true : (dto.gateNotificationEnabled ?? true),
+          escalationOrder: dto.escalationOrder ?? 100,
         };
         occupancy = currentOccupancy
           ? await tx.unitOccupancy.update({ where: { id: currentOccupancy.id }, data: occupancyData })
@@ -253,10 +264,44 @@ export class ResidentsController {
   @Post('membership')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
   membership(@Body() dto: MembershipDto, @CurrentTenant() societyId: string) {
-    if ((RELATIONSHIP_ROLES as readonly MembershipRole[]).includes(dto.role)) {
+    this.assertSocietyAssignableOperationalRole(dto.role);
+    return this.prisma.societyMembership.upsert({
+      where: { userId_societyId_role: { userId: dto.userId, societyId, role: dto.role } },
+      update: { active: true },
+      create: { userId: dto.userId, societyId, role: dto.role, active: true },
+    });
+  }
+
+  @Patch('membership/:userId/:role/deactivate')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  async deactivateMembership(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('role', new ParseEnumPipe(MembershipRole)) role: MembershipRole,
+    @CurrentTenant() societyId: string,
+  ) {
+    this.assertSocietyAssignableOperationalRole(role);
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.societyMembership.updateMany({
+        where: { userId, societyId, role, active: true },
+        data: { active: false },
+      });
+      if (result.count > 0) {
+        await tx.session.updateMany({
+          where: { userId, societyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return { success: true, deactivated: result.count };
+    });
+  }
+
+  private assertSocietyAssignableOperationalRole(role: MembershipRole) {
+    if ((RELATIONSHIP_ROLES as readonly MembershipRole[]).includes(role)) {
       throw new BadRequestException('Owner, tenant and family roles must be managed through a unit relationship');
     }
-    return this.prisma.societyMembership.upsert({ where: { userId_societyId_role: { userId: dto.userId, societyId, role: dto.role } }, update: { active: true }, create: { userId: dto.userId, societyId, role: dto.role, active: true } });
+    if (!SOCIETY_ASSIGNABLE_OPERATIONAL_ROLES.has(role)) {
+      throw new ForbiddenException('This role can only be managed by the platform administration boundary');
+    }
   }
 
   private async assignFallbackPrimary(tx: Prisma.TransactionClient, societyId: string, unitId: string, now: Date) {
