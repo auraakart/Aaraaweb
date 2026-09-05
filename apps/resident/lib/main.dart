@@ -38,7 +38,7 @@ class AaraagateResidentApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AuraGate',
+      title: 'Aaraagate',
       debugShowCheckedModeBanner: false,
       theme: AaraagateTheme.light(),
       home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController),
