@@ -132,7 +132,7 @@ describe('ServicesMarketplaceService', () => {
     expect(query.include.accessRequest.select).not.toHaveProperty('subjectPhone');
   });
 
-  it('exposes only platform-verified providers and current-society approvals in the admin catalog', async () => {
+  it('keeps current-society pending submissions visible without exposing other societies pending providers', async () => {
     const { prisma, service } = setup();
     prisma.serviceCategory.findMany.mockResolvedValue([]);
     prisma.serviceProvider.findMany.mockResolvedValue([]);
@@ -141,7 +141,47 @@ describe('ServicesMarketplaceService', () => {
     await service.adminCatalog('society-1');
 
     expect(prisma.serviceProvider.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { active: true, verification: 'VERIFIED' },
+      where: {
+        active: true,
+        OR: [
+          { verification: 'VERIFIED' },
+          { societies: { some: { societyId: 'society-1' } } },
+        ],
+      },
+      include: { societies: { where: { societyId: 'society-1' }, take: 1 } },
+    }));
+  });
+
+  it('redacts contact details for verified providers not yet linked to the current society', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceCategory.findMany.mockResolvedValue([]);
+    prisma.serviceProvider.findMany.mockResolvedValue([
+      { id: 'provider-1', businessName: 'Platform Provider', contactName: 'Contact', phone: '9999999999', email: 'p@example.com', verification: 'VERIFIED', societies: [] },
+    ]);
+    prisma.serviceOffering.findMany.mockResolvedValue([]);
+
+    const result = await service.adminCatalog('society-1');
+
+    expect(result.providers[0]).toMatchObject({ contactName: null, phone: '', email: null });
+  });
+
+  it('creates a pending provider-to-society relationship when a society submits a provider', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceProvider.create.mockResolvedValue({ id: 'provider-1' });
+
+    await service.createProvider('society-1', {
+      businessName: 'CoolCare',
+      contactName: 'Rajesh',
+      phone: '9999999999',
+      email: 'service@example.com',
+      description: 'AC servicing',
+    });
+
+    expect(prisma.serviceProvider.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        businessName: 'CoolCare',
+        societies: { create: { societyId: 'society-1', status: 'PENDING' } },
+      }),
       include: { societies: { where: { societyId: 'society-1' }, take: 1 } },
     }));
   });

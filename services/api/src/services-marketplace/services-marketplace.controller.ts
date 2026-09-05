@@ -104,7 +104,7 @@ export class ServicesMarketplaceController {
   }
 
   @Post('admin/categories')
-  @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.marketplace.createCategory(dto.name, dto.slug, dto.sortOrder);
   }
@@ -123,8 +123,8 @@ export class ServicesMarketplaceController {
 
   @Post('admin/providers')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
-  createProvider(@Body() dto: CreateProviderDto) {
-    return this.marketplace.createProvider(dto);
+  createProvider(@Body() dto: CreateProviderDto, @CurrentTenant() societyId: string) {
+    return this.marketplace.createProvider(societyId, dto);
   }
 
   @Post('admin/providers/:providerId/approve')
@@ -134,7 +134,7 @@ export class ServicesMarketplaceController {
   }
 
   @Post('admin/offerings')
-  @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
   createOffering(@Body() dto: CreateOfferingDto, @CurrentTenant() societyId: string) {
     return this.marketplace.createOffering(societyId, dto.providerId, dto.categoryId, dto.name, dto.pricePaise, dto.description, dto.durationMinutes);
   }
