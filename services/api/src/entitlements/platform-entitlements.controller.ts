@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
-import { IsEnum, IsObject, IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsPhoneNumber, IsString, IsUUID } from 'class-validator';
 import { MembershipRole, SocietyStatus } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { BearerGuard } from '../auth/bearer.guard';
@@ -26,6 +26,15 @@ class UpdateSocietyStatusDto {
 class AssignSocietyAdminDto {
   @IsUUID()
   userId!: string;
+}
+
+class ProvisionSocietyAdminDto {
+  @IsPhoneNumber()
+  phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
 }
 
 @Controller('platform')
@@ -86,6 +95,22 @@ export class PlatformEntitlementsController {
     });
   }
 
+  @Get('societies/:societyId/admins')
+  listSocietyAdmins(@Param('societyId', ParseUUIDPipe) societyId: string) {
+    return this.prisma.societyMembership.findMany({
+      where: { societyId, role: MembershipRole.SOCIETY_ADMIN, active: true },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        active: true,
+        createdAt: true,
+        user: { select: { name: true, phone: true, email: true, status: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   @Post('societies/:societyId/admins')
   async assignSocietyAdmin(
     @Param('societyId', ParseUUIDPipe) societyId: string,
@@ -97,12 +122,26 @@ export class PlatformEntitlementsController {
     ]);
     if (!society) throw new BadRequestException('Society not found');
     if (!user || user.status !== 'ACTIVE') throw new BadRequestException('Active user not found');
-    return this.prisma.societyMembership.upsert({
-      where: { userId_societyId_role: { userId: dto.userId, societyId, role: MembershipRole.SOCIETY_ADMIN } },
-      update: { active: true },
-      create: { userId: dto.userId, societyId, role: MembershipRole.SOCIETY_ADMIN, active: true },
-      select: { id: true, userId: true, societyId: true, role: true, active: true },
-    });
+    return this.upsertSocietyAdmin(societyId, dto.userId);
+  }
+
+  @Post('societies/:societyId/admins/provision')
+  async provisionSocietyAdmin(
+    @Param('societyId', ParseUUIDPipe) societyId: string,
+    @Body() dto: ProvisionSocietyAdminDto,
+  ) {
+    const society = await this.prisma.society.findUnique({ where: { id: societyId }, select: { id: true } });
+    if (!society) throw new BadRequestException('Society not found');
+    const phone = dto.phone.replace(/\s+/g, '');
+    let user = await this.prisma.user.findUnique({ where: { phone }, select: { id: true, status: true } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { phone, name: dto.name.trim() },
+        select: { id: true, status: true },
+      });
+    }
+    if (user.status !== 'ACTIVE') throw new BadRequestException('User is not active');
+    return this.upsertSocietyAdmin(societyId, user.id);
   }
 
   @Patch('societies/:societyId/admins/:userId/deactivate')
@@ -119,6 +158,15 @@ export class PlatformEntitlementsController {
         await tx.session.updateMany({ where: { userId, societyId, revokedAt: null }, data: { revokedAt: new Date() } });
       }
       return { success: true, deactivated: result.count };
+    });
+  }
+
+  private upsertSocietyAdmin(societyId: string, userId: string) {
+    return this.prisma.societyMembership.upsert({
+      where: { userId_societyId_role: { userId, societyId, role: MembershipRole.SOCIETY_ADMIN } },
+      update: { active: true },
+      create: { userId, societyId, role: MembershipRole.SOCIETY_ADMIN, active: true },
+      select: { id: true, userId: true, societyId: true, role: true, active: true },
     });
   }
 
