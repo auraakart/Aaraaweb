@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('vehicle registry shows active household vehicles, parking, and details', (tester) async {
+  testWidgets('vehicle registry shows society-managed parking as read-only', (tester) async {
     final controller = ResidentDataController(
       ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test-token')),
     );
@@ -41,11 +41,13 @@ void main() {
     );
 
     expect(find.text('Vehicles & parking'), findsOneWidget);
+    expect(find.textContaining('Parking bay assignments are managed by society administration'), findsOneWidget);
     expect(find.text('KA01AB1234'), findsOneWidget);
     expect(find.text('Car · Maruti Suzuki · Baleno · Blue · Parking: B2-18'), findsOneWidget);
     expect(find.text('KA02CD5678'), findsOneWidget);
     expect(find.text('Two-wheeler · Honda · Activa'), findsOneWidget);
     expect(find.text('Add vehicle'), findsOneWidget);
+    expect(find.byTooltip('Edit parking slot'), findsNothing);
 
     controller.dispose();
   });

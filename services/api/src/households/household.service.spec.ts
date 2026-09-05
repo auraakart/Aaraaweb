@@ -101,27 +101,24 @@ describe('HouseholdService', () => {
     );
   });
 
-  it('stores an optional parking label without changing vehicle registration data', async () => {
+  it('stores a society-managed parking label without changing vehicle registration data', async () => {
     const { svc, prisma } = service();
-    await svc.addVehicle('society-1', 'user-1', 'household-1', {
-      plateNumber: 'KA01AB1234',
-      vehicleType: VehicleType.CAR,
-      parkingSlot: ' B2-18 ',
-    });
+    await svc.updateVehicleParkingSlot('society-1', 'household-1', 'vehicle-1', ' B2-18 ');
     expect(prisma.household.update).toHaveBeenCalledWith({
       where: { id: 'household-1' },
       data: { accessPreferences: { parkingSlots: { 'vehicle-1': 'B2-18' } } },
     });
+    expect(prisma.householdVehicle.update).not.toHaveBeenCalled();
   });
 
-  it('updates parking data only for an active vehicle in the authenticated household and society', async () => {
+  it('scopes admin parking updates to the target household and society', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const { svc, prisma } = service({
       householdVehicle: { create: vi.fn(), findFirst, update: vi.fn() },
     });
 
     await expect(
-      svc.updateVehicleParkingSlot('society-1', 'user-1', 'household-1', 'foreign-vehicle', 'B2-18'),
+      svc.updateVehicleParkingSlot('society-1', 'household-1', 'foreign-vehicle', 'B2-18'),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(findFirst).toHaveBeenCalledWith({
       where: { id: 'foreign-vehicle', householdId: 'household-1', societyId: 'society-1', active: true },
