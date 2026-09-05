@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
+import { ProviderSocietyStatus } from '@prisma/client';
+import { IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -9,6 +10,7 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
+import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
@@ -31,6 +33,11 @@ class ApproveProviderDto {
   @IsOptional() @IsInt() @Min(0) @Max(10000) commissionBps?: number;
 }
 
+class SetProviderSocietyStatusDto {
+  @IsEnum(ProviderSocietyStatus) status!: ProviderSocietyStatus;
+  @IsOptional() @IsInt() @Min(0) @Max(10000) commissionBps?: number;
+}
+
 class CreateOfferingDto {
   @IsUUID() providerId!: string;
   @IsUUID() categoryId!: string;
@@ -38,6 +45,10 @@ class CreateOfferingDto {
   @IsInt() @Min(0) pricePaise!: number;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsInt() @Min(1) durationMinutes?: number;
+}
+
+class SetOfferingActiveDto {
+  @IsBoolean() active!: boolean;
 }
 
 class CreateBookingDto {
@@ -61,7 +72,10 @@ class RateBookingDto {
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.HOUSEHOLD_SERVICES)
 export class ServicesMarketplaceController {
-  constructor(private readonly marketplace: ServicesMarketplaceService) {}
+  constructor(
+    private readonly marketplace: ServicesMarketplaceService,
+    private readonly operations: ServicesMarketplaceOperationsService,
+  ) {}
 
   @Get('categories')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
@@ -133,10 +147,26 @@ export class ServicesMarketplaceController {
     return this.marketplace.approveProviderForSociety(societyId, providerId, dto.commissionBps);
   }
 
+  @Patch('admin/providers/:providerId/status')
+  @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
+  setProviderStatus(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Body() dto: SetProviderSocietyStatusDto,
+    @CurrentTenant() societyId: string,
+  ) {
+    return this.operations.setSocietyStatus(societyId, providerId, dto.status, dto.commissionBps);
+  }
+
   @Post('admin/offerings')
   @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
   createOffering(@Body() dto: CreateOfferingDto, @CurrentTenant() societyId: string) {
     return this.marketplace.createOffering(societyId, dto.providerId, dto.categoryId, dto.name, dto.pricePaise, dto.description, dto.durationMinutes);
+  }
+
+  @Patch('admin/offerings/:offeringId/active')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  setOfferingActive(@Param('offeringId', ParseUUIDPipe) offeringId: string, @Body() dto: SetOfferingActiveDto) {
+    return this.operations.setOfferingActive(offeringId, dto.active);
   }
 
   @Post('admin/bookings/:bookingId/confirm')

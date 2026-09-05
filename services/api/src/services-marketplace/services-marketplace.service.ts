@@ -4,10 +4,16 @@ import { AccessService } from '../access/access.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 
 @Injectable()
 export class ServicesMarketplaceService {
-  constructor(private readonly prisma: PrismaService, private readonly entitlements: EntitlementService, private readonly access: AccessService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementService,
+    private readonly access: AccessService,
+    private readonly operations: ServicesMarketplaceOperationsService,
+  ) {}
 
   private async assertEnabled(societyId: string) {
     if (!(await this.entitlements.isEnabled(societyId, ProductFeature.HOUSEHOLD_SERVICES))) throw new ForbiddenException('Household services marketplace is not enabled for this society');
@@ -23,7 +29,7 @@ export class ServicesMarketplaceService {
 
   async adminCatalog(societyId: string) {
     await this.assertEnabled(societyId);
-    const [categories, rawProviders, offerings] = await Promise.all([
+    const [categories, rawProviders, rawOfferings] = await Promise.all([
       this.prisma.serviceCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
       this.prisma.serviceProvider.findMany({
         where: {
@@ -37,7 +43,7 @@ export class ServicesMarketplaceService {
         orderBy: { businessName: 'asc' },
       }),
       this.prisma.serviceOffering.findMany({
-        where: { active: true, provider: { societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } } } },
+        where: { provider: { societies: { some: { societyId } } } },
         include: { category: true, provider: { select: { id: true, businessName: true } } },
         orderBy: { name: 'asc' },
       }),
@@ -47,6 +53,7 @@ export class ServicesMarketplaceService {
       if (linkedToSociety) return provider;
       return { ...provider, contactName: null, phone: '', email: null };
     });
+    const offerings = await this.operations.enrichOfferings(societyId, rawOfferings);
     return { categories, providers, offerings };
   }
 
@@ -67,7 +74,20 @@ export class ServicesMarketplaceService {
 
   async listOfferings(societyId: string, categoryId?: string) {
     await this.assertEnabled(societyId);
-    return this.prisma.serviceOffering.findMany({ where: { active: true, categoryId: categoryId || undefined, provider: { active: true, verification: ProviderVerificationStatus.VERIFIED, societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } } } }, include: { category: true, provider: { select: { id: true, businessName: true, description: true } } }, orderBy: { name: 'asc' } });
+    const offerings = await this.prisma.serviceOffering.findMany({
+      where: {
+        active: true,
+        categoryId: categoryId || undefined,
+        provider: {
+          active: true,
+          verification: ProviderVerificationStatus.VERIFIED,
+          societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } },
+        },
+      },
+      include: { category: true, provider: { select: { id: true, businessName: true, description: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return this.operations.enrichOfferings(societyId, offerings);
   }
 
   createCategory(name: string, slug: string, sortOrder = 0) { return this.prisma.serviceCategory.create({ data: { name: name.trim(), slug: slug.trim().toLowerCase(), sortOrder } }); }
@@ -87,7 +107,7 @@ export class ServicesMarketplaceService {
     });
   }
 
-  verifyProvider(providerId: string) { return this.prisma.serviceProvider.update({ where: { id: providerId }, data: { verification: ProviderVerificationStatus.VERIFIED, active: true } }); }
+  verifyProvider(providerId: string) { return this.operations.setPlatformVerification(providerId, ProviderVerificationStatus.VERIFIED); }
 
   async approveProviderForSociety(societyId: string, providerId: string, commissionBps = 1000) {
     await this.assertEnabled(societyId);
@@ -110,7 +130,7 @@ export class ServicesMarketplaceService {
   async book(societyId: string, residentUserId: string, unitId: string, offeringId: string, scheduledFrom: Date, scheduledUntil: Date, notes?: string) {
     await this.assertEnabled(societyId);
     await this.assertResidentUnit(societyId, residentUserId, unitId);
-    if (scheduledUntil <= scheduledFrom) throw new BadRequestException('Booking time window is invalid');
+    await this.operations.assertProviderAvailable(societyId, offeringId, scheduledFrom, scheduledUntil);
     const offering = await this.prisma.serviceOffering.findFirst({ where: { id: offeringId, active: true, provider: { active: true, verification: ProviderVerificationStatus.VERIFIED, societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } } } }, include: { provider: { include: { societies: { where: { societyId }, take: 1 } } } } });
     if (!offering) throw new NotFoundException('Service offering is unavailable for this society');
     const approval = offering.provider.societies[0];
