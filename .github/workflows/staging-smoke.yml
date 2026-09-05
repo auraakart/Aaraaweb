@@ -66,22 +66,27 @@ jobs:
           pnpm --filter @aaraagate/api start > /tmp/aaraagate-api.log 2>&1 &
           echo $! > /tmp/aaraagate-api.pid
 
-      - name: Wait for health endpoint
+      - name: Wait for readiness endpoint
         run: |
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:3000/api/v1/health > /tmp/health.json; then
-              cat /tmp/health.json
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health/ready > /tmp/readiness.json; then
+              cat /tmp/readiness.json
               exit 0
             fi
             sleep 2
           done
-          echo "API did not become healthy in time"
+          echo "API did not become ready in time"
           cat /tmp/aaraagate-api.log || true
           exit 1
 
-      - name: Assert health response
+      - name: Assert readiness response
         run: |
-          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/health.json','utf8')); if(h.status!=='ok'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
+          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/readiness.json','utf8')); if(h.status!=='ready'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
+
+      - name: Verify liveness endpoint
+        run: |
+          curl --fail --silent http://127.0.0.1:3000/api/v1/health/live > /tmp/liveness.json
+          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/liveness.json','utf8')); if(h.status!=='ok'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
 
       - name: Stop API
         if: always()
