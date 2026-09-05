@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import 'family_members_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, required this.controller, required this.onSignOut});
+  const ProfileScreen({
+    super.key,
+    required this.controller,
+    required this.onSignOut,
+    required this.canManageFamilyMembers,
+  });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
+  final bool canManageFamilyMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +19,10 @@ class ProfileScreen extends StatelessWidget {
     final household = controller.households.isEmpty ? null : controller.households.first;
     final vehicles = household?['vehicles'] is List ? (household!['vehicles'] as List).length : 0;
     final contacts = household?['emergencyContacts'] is List ? (household!['emergencyContacts'] as List).length : 0;
-    final residents = household?['unit'] is Map && (household!['unit'] as Map)['occupancies'] is List ? (((household['unit'] as Map)['occupancies']) as List).length : 0;
+    final occupancies = household?['unit'] is Map && (household!['unit'] as Map)['occupancies'] is List
+        ? (((household['unit'] as Map)['occupancies']) as List)
+        : const [];
+    final residents = occupancies.isNotEmpty ? occupancies.length : (household?['id']?.toString().startsWith('demo-') == true ? 4 : 0);
 
     return SafeArea(
       child: RefreshIndicator(
@@ -37,9 +47,9 @@ class ProfileScreen extends StatelessWidget {
                     const CircleAvatar(radius: 28, child: Icon(Icons.home_rounded, size: 30)),
                     const SizedBox(width: 14),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(household['displayName']?.toString() ?? 'Your household', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(household['displayName']?.toString() ?? household['societyName']?.toString() ?? 'Your household', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 3),
-                      Text('Unit ${household['unitId'] ?? ''}'),
+                      Text(_unitLabel(household)),
                     ])),
                   ]),
                 ),
@@ -48,7 +58,19 @@ class ProfileScreen extends StatelessWidget {
               Text('Your household', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               Card(child: Column(children: [
-                ListTile(leading: const Icon(Icons.group_outlined), title: const Text('Family members'), subtitle: Text('$residents active members'), trailing: const Icon(Icons.chevron_right)),
+                ListTile(
+                  leading: const Icon(Icons.group_outlined),
+                  title: const Text('Family members'),
+                  subtitle: Text('$residents active occupants'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => FamilyMembersScreen(
+                      controller: controller,
+                      householdId: household['id'].toString(),
+                      canManage: canManageFamilyMembers,
+                    ),
+                  )),
+                ),
                 const Divider(height: 1),
                 ListTile(leading: const Icon(Icons.directions_car_outlined), title: const Text('Vehicles'), subtitle: Text('$vehicles registered vehicles'), trailing: const Icon(Icons.chevron_right)),
                 const Divider(height: 1),
@@ -90,5 +112,20 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _unitLabel(Map<String, dynamic> household) {
+    final unit = household['unit'];
+    if (unit is Map) {
+      final number = unit['number']?.toString();
+      final building = unit['building'];
+      final buildingName = building is Map ? building['name']?.toString() : null;
+      if (number != null && buildingName != null) return '$buildingName · Unit $number';
+      if (number != null) return 'Unit $number';
+    }
+    final number = household['unitNumber']?.toString();
+    final buildingName = household['buildingName']?.toString();
+    if (number != null && buildingName != null) return '$buildingName · Unit $number';
+    return 'Unit ${household['unitId'] ?? ''}';
   }
 }
