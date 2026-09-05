@@ -4,14 +4,22 @@ import { ReportsService } from './reports.service';
 
 function prismaMock() {
   return {
-    accessRequest: { count: vi.fn().mockResolvedValue(0) },
+    accessRequest: {
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     maintenanceInvoice: {
       aggregate: vi.fn()
         .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } })
         .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } })
         .mockResolvedValueOnce({ _count: { _all: 0 }, _sum: { amountPaise: null } }),
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
     },
-    helpdeskTicket: { count: vi.fn().mockResolvedValue(0) },
+    helpdeskTicket: {
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     auditEvent: {
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
@@ -47,6 +55,84 @@ describe('ReportsService', () => {
     expect(prisma.accessRequest.count).not.toHaveBeenCalled();
   });
 
+  it('returns a bounded privacy-safe access drilldown scoped to one society', async () => {
+    const prisma = prismaMock();
+    prisma.accessRequest.count.mockResolvedValue(1);
+    prisma.accessRequest.findMany.mockResolvedValue([
+      {
+        id: 'request-1',
+        subjectType: 'VISITOR',
+        subjectName: 'Guest',
+        purpose: 'Visit',
+        status: 'APPROVED',
+        createdAt: new Date('2026-09-04T00:00:00.000Z'),
+        enteredAt: null,
+        exitedAt: null,
+        unit: { number: '101', building: { name: 'A' } },
+      },
+    ]);
+    const service = new ReportsService(prisma as unknown as PrismaService);
+
+    const result = await service.accessFeed(
+      'society-1',
+      'VISITOR',
+      '2026-09-01T00:00:00.000Z',
+      '2026-09-05T00:00:00.000Z',
+      2,
+      25,
+    );
+
+    expect(prisma.accessRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ societyId: 'society-1', subjectType: 'VISITOR' }),
+        skip: 25,
+        take: 25,
+        select: expect.not.objectContaining({ subjectPhone: true, credentialHash: true, metadata: true }),
+      }),
+    );
+    expect(result.total).toBe(1);
+  });
+
+  it('rejects invalid access subject types before querying drilldown data', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+
+    await expect(service.accessFeed('society-1', 'UNKNOWN')).rejects.toThrow(
+      'subjectType must be a valid access subject type',
+    );
+    expect(prisma.accessRequest.findMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps helpdesk drilldown society scoped and privacy limited', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+
+    await service.helpdeskFeed('society-2', '2026-09-01T00:00:00.000Z', '2026-09-05T00:00:00.000Z', 1, 20);
+
+    expect(prisma.helpdeskTicket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ societyId: 'society-2' }),
+        take: 20,
+        select: expect.not.objectContaining({ description: true, createdBy: true, assignedTo: true }),
+      }),
+    );
+  });
+
+  it('keeps maintenance drilldown society scoped without payment payloads', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+
+    await service.maintenanceFeed('society-3', '2026-09-01T00:00:00.000Z', '2026-09-05T00:00:00.000Z', 1, 25);
+
+    expect(prisma.maintenanceInvoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ societyId: 'society-3' }),
+        take: 25,
+        select: expect.not.objectContaining({ payments: true, createdBy: true }),
+      }),
+    );
+  });
+
   it('returns a bounded privacy-safe audit feed scoped to one society', async () => {
     const prisma = prismaMock();
     prisma.auditEvent.count.mockResolvedValue(1);
@@ -76,10 +162,15 @@ describe('ReportsService', () => {
     expect(result.total).toBe(1);
   });
 
-  it('rejects excessive audit page sizes', async () => {
+  it('rejects excessive page sizes for all paginated feeds', async () => {
     const prisma = prismaMock();
     const service = new ReportsService(prisma as unknown as PrismaService);
+
     await expect(service.auditFeed('society-1', 1, 101)).rejects.toThrow('pageSize must be between 1 and 100');
+    await expect(service.helpdeskFeed('society-1', undefined, undefined, 1, 101)).rejects.toThrow(
+      'pageSize must be between 1 and 100',
+    );
     expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
+    expect(prisma.helpdeskTicket.findMany).not.toHaveBeenCalled();
   });
 });
