@@ -31,6 +31,14 @@ export class AuthStateStore implements OnModuleDestroy {
     return this.connecting;
   }
 
+  async ping(): Promise<'redis' | 'memory'> {
+    const redis = await this.redis();
+    if (!redis) return 'memory';
+    const result = await redis.ping();
+    if (result !== 'PONG') throw new Error('Redis ping failed');
+    return 'redis';
+  }
+
   async setJson(key: string, value: unknown, ttlSeconds: number) {
     const encoded = JSON.stringify(value);
     const redis = await this.redis();

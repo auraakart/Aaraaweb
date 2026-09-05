@@ -3,18 +3,32 @@ import { AppRole } from '../auth/auth.types';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
+import { ServicesPlatformController } from './services-platform.controller';
 
 describe('services marketplace admin authorization', () => {
-  it('protects society catalog, booking and lifecycle operations with provider management', () => {
-    for (const handler of ['adminCatalog', 'adminBookings', 'approveProvider', 'createOffering', 'confirm', 'complete'] as const) {
+  it('protects society provider, booking and lifecycle operations with provider management', () => {
+    for (const handler of ['adminCatalog', 'adminBookings', 'createProvider', 'approveProvider', 'setProviderStatus', 'confirm', 'complete'] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, ServicesMarketplaceController.prototype[handler])).toEqual([AppPermission.SERVICES_PROVIDER_MANAGE]);
     }
   });
 
+  it('keeps global category and offering changes platform-only', () => {
+    for (const handler of ['createCategory', 'createOffering', 'setOfferingActive'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, ServicesMarketplaceController.prototype[handler])).toEqual([AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE]);
+    }
+    expect(hasPermission([AppRole.SUPER_ADMIN], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)).toBe(false);
+  });
+
   it('keeps platform verification separate from society operations', () => {
+    for (const handler of ['listProviders', 'verifyProvider', 'setVerification'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, ServicesPlatformController.prototype[handler])).toEqual([AppPermission.PLATFORM_PROVIDER_VERIFY]);
+    }
     expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.SERVICES_PROVIDER_MANAGE)).toBe(true);
     expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.SERVICES_PROVIDER_MANAGE)).toBe(true);
     expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(false);
     expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(false);
+    expect(hasPermission([AppRole.SUPER_ADMIN], AppPermission.PLATFORM_PROVIDER_VERIFY)).toBe(true);
   });
 });

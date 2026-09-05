@@ -1,0 +1,27 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+type Session={accessToken:string;role:string}
+type SocietyLink={societyId:string;status:string;commissionBps:number;society:{name:string;code:string}}
+type Provider={id:string;businessName:string;contactName?:string|null;phone:string;email?:string|null;description?:string|null;verification:'PENDING'|'VERIFIED'|'REJECTED'|'SUSPENDED';active:boolean;createdAt:string;societies:SocietyLink[]}
+const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
+function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
+
+export default function PlatformProvidersPage(){
+  const[s,setS]=useState<Session|null>(null),[providers,setProviders]=useState<Provider[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[error,setError]=useState(''),[query,setQuery]=useState('')
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{setProviders(await api<Provider[]>(x,'/platform/services/providers'))}catch(e){setError(e instanceof Error?e.message:'Providers could not be loaded')}finally{setLoading(false)}},[])
+  useEffect(()=>{const x=getSession();setS(x);if(x?.role==='SUPER_ADMIN')void load(x);else setLoading(false)},[load])
+  const visible=useMemo(()=>{const q=query.trim().toLowerCase();return q?providers.filter(p=>[p.businessName,p.phone,p.email??'',p.verification,...p.societies.map(x=>x.society.name)].join(' ').toLowerCase().includes(q)):providers},[providers,query])
+  const setVerification=async(p:Provider,verification:Provider['verification'])=>{if(!s)return;if(!confirm(`${verification.toLowerCase()} ${p.businessName} at platform level? This affects availability across societies.`))return;setBusy(p.id);setError('');try{await api(s,`/platform/services/providers/${p.id}/verification`,{method:'PATCH',body:JSON.stringify({verification})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Provider verification could not be updated')}finally{setBusy('')}}
+  if(loading)return <main style={{padding:32}}>Loading platform providers…</main>
+  if(!s||s.role!=='SUPER_ADMIN')return <main style={{padding:32}}><h1>Platform access required</h1><a href="/">Return to Admin</a></main>
+  return <main style={{maxWidth:1160,margin:'0 auto',padding:'28px 22px 80px'}}><header style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small>SUPER ADMIN</small><h1 style={{margin:'4px 0'}}>Provider verification</h1><p style={{margin:0}}>Global provider trust is independent from each society&apos;s approval decision.</p></div><div style={{display:'flex',gap:12}}><a href="/platform">Platform societies</a><a href="/">Admin console</a></div></header>{error&&<div style={errorBox}>{error}</div>}<section style={panel}><input aria-label="Search providers" placeholder="Search provider, mobile, society or status" value={query} onChange={e=>setQuery(e.target.value)} style={{...input,width:'100%',maxWidth:480}}/><div style={{display:'grid',gap:10,marginTop:16}}>{visible.length===0?<p>No matching providers.</p>:visible.map(p=><article key={p.id} style={card}><div style={{minWidth:260,flex:'1 1 420px'}}><b style={{fontSize:17}}>{p.businessName}</b><div>{[p.contactName,p.phone,p.email].filter(Boolean).join(' · ')}</div>{p.description&&<div>{p.description}</div>}<small>{p.verification} · {p.active?'ACTIVE':'INACTIVE'} · submitted {new Date(p.createdAt).toLocaleDateString('en-IN')}</small>{p.societies.length>0&&<div style={{marginTop:6}}><small>Societies: {p.societies.map(x=>`${x.society.name} (${x.status})`).join(', ')}</small></div>}</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{p.verification!=='VERIFIED'&&<button disabled={!!busy} onClick={()=>void setVerification(p,'VERIFIED')} style={primary}>Verify</button>}{p.verification!=='REJECTED'&&<button disabled={!!busy} onClick={()=>void setVerification(p,'REJECTED')} style={button}>Reject</button>}{p.verification!=='SUSPENDED'&&<button disabled={!!busy} onClick={()=>void setVerification(p,'SUSPENDED')} style={button}>Suspend</button>}{['REJECTED','SUSPENDED'].includes(p.verification)&&<button disabled={!!busy} onClick={()=>void setVerification(p,'VERIFIED')} style={primary}>Re-verify</button>}</div></article>)}</div></section></main>
+}
+const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}
+const card:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:14,border:'1px solid #e5e7eb',borderRadius:12,flexWrap:'wrap'}
+const input:React.CSSProperties={padding:11,border:'1px solid #cbd5e1',borderRadius:10}
+const button:React.CSSProperties={padding:'9px 12px',borderRadius:10,border:'1px solid #cbd5e1',background:'white',fontWeight:700}
+const primary:React.CSSProperties={...button,background:'#05879A',color:'white',borderColor:'#05879A'}
+const errorBox:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #ef4444',borderRadius:10}

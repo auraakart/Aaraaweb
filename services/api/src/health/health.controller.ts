@@ -1,4 +1,5 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { AuthStateStore } from '../auth/auth-state.store';
 import { PrismaService } from '../prisma/prisma.service';
 
 function releaseMetadata() {
@@ -13,7 +14,7 @@ function releaseMetadata() {
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authState: AuthStateStore) {}
 
   @Get()
   health() {
@@ -33,23 +34,27 @@ export class HealthController {
 
   @Get('ready')
   async ready() {
-    try {
-      await this.prisma.$queryRawUnsafe('SELECT 1');
-      return {
-        status: 'ready',
-        ...releaseMetadata(),
-        dependencies: {
-          database: 'ok',
-        },
-      };
-    } catch {
+    const [database, authState] = await Promise.allSettled([
+      this.prisma.$queryRawUnsafe('SELECT 1'),
+      this.authState.ping(),
+    ]);
+    const databaseReady = database.status === 'fulfilled';
+    const authStateReady = authState.status === 'fulfilled';
+    const dependencies = {
+      database: databaseReady ? 'ok' : 'unavailable',
+      authState: authStateReady ? (authState.value === 'redis' ? 'redis-ok' : 'memory-ok') : 'unavailable',
+    };
+    if (!databaseReady || !authStateReady) {
       throw new ServiceUnavailableException({
         status: 'not-ready',
         ...releaseMetadata(),
-        dependencies: {
-          database: 'unavailable',
-        },
+        dependencies,
       });
     }
+    return {
+      status: 'ready',
+      ...releaseMetadata(),
+      dependencies,
+    };
   }
 }

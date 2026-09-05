@@ -85,7 +85,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Validate Prisma schema
         run: pnpm --filter @aaraagate/api prisma:validate
       - name: Generate Prisma client
@@ -116,7 +116,9 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Test Admin access boundaries
+        run: pnpm --filter @aaraagate/admin test
       - name: Typecheck admin
         run: pnpm --filter @aaraagate/admin typecheck
       - name: Build admin
@@ -168,6 +170,6 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Audit high and critical npm vulnerabilities
         run: pnpm audit --audit-level high
