@@ -1,117 +1,64 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
-This document is the implementation guardrail for the Aaraagate build. Features are only complete when their requirement, UX intent, security model, tenant/permission model, acceptance criteria and release validation are defined.
-
-`PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. This document is the feature-status and acceptance source of truth. `DEVELOPMENT-CONTROL.md` is the current execution-order source of truth.
-
-## Product pillars
-1. Security-first gated-community operations
-2. Resident-first everyday experience
-3. Guard-first speed, clarity and offline resilience
-4. Admin-grade operational control
-5. Privacy, auditability, tenant isolation and least-privilege access
-6. Mobile-first, accessible and scalable UI
-7. Tier-one competitive quality with maintainable, upgradeable technology choices
-8. Multi-tier SaaS entitlements without product fragmentation
+`PRODUCT_REQUIREMENTS.md` remains the product-scope source of truth. This document records implementation/acceptance state. `DEVELOPMENT-CONTROL.md` remains the execution-order source of truth.
 
 ## Current implementation baseline
-| Area | Status | Acceptance direction |
+| Area | Status | Current acceptance state |
 |---|---|---|
-| Application foundation | Advanced foundation | Monorepo, reusable app shells, strict typing and modular architecture |
-| Design system | In progress | Mobile-first cards, action-led navigation, accessible contrast and consistent states |
-| Resident home | Functional foundation | Quick actions, community/gate information and real API integration |
-| Authentication/session | Advanced foundation | OTP abstraction, access/refresh lifecycle, rotation/revocation and persistent sessions |
-| RBAC/permissions | Advanced foundation | Society-scoped roles, typed permissions and server-side enforcement |
-| Society structure | Advanced foundation | Society → building/block → floor → unit → household/membership |
-| SaaS entitlements | In progress | Server-side tier resolution and feature overrides per society |
-| Visitor management | Validated release baseline | Request, approval/rejection, QR/OTP credential, gate verify, transactional check-in/out, session-scoped offline recovery and audit |
-| Guard application | Advanced vertical slices | Login/session, scanner, visitor and workforce operations, offline recovery and API integration |
-| Household/domestic help | Validated release baseline | Occupancy-scoped assignments, review, schedules, leave, ratings, concurrency-safe gate attendance, session-scoped recovery and suspension controls |
-| Unified access | Foundation | Common access-request model for visitor/delivery/domestic-help style workflows |
-| Services marketplace | Advanced vertical slice | Categories, platform-verified providers, society approval, tenant-scoped offerings, booking lifecycle and ratings |
-| Admin operations | Validated release baseline | Role-aware operations for residents, workforce, helpdesk, notices, billing, gates, marketplace and SOS response |
-| Notifications | Active vertical slice | Gate events route to configured active occupants, independent of ownership, with tenant-safe push/in-app delivery |
-| Maintenance/billing | Validated release baseline | Owner/current-tenant unit-scoped dues and payments, society invoice operations, server-verified reconciliation, receipts/history, audience controls and auditable events |
-| Reports/analytics | Current active vertical slice | Essential V1 operational summaries, paginated drill-downs and audit views without general-purpose BI scope |
-| Security/audit | Active hardening | Tenant isolation, permissions, atomic mutations, masked data and auditable events |
-| CI/CD | Green baseline achieved | Full CI validates migrations, lint, typecheck, tests, builds, Flutter and dependency security |
-| Staging release gate | Green baseline achieved | Clean DB migration, API production build/startup and health smoke validation |
-| Production deployment | Not yet ready | Requires branch protection, staging E2E, observability, backups/restore, UAT and pilot |
+| Foundation / monorepo | Validated | Modular API, Flutter Resident/Guard, Next.js Admin, strict CI |
+| Design system | Validated V1 baseline | Logo-inspired teal/cyan Aaraagate theme; corporate name excluded from product UI by CI guard |
+| Authentication/session | Advanced | OTP abstraction, Redis-backed auth state, token rotation/replay protection, session revocation |
+| Tenancy / RBAC / SoD | Hardened | Society fail-closed isolation, permission gates, relationship roles separated from operational roles, tenant admins cannot grant platform roles |
+| Platform administration | Gap-closure candidate | Super Admin society lifecycle, plans/feature overrides, Society Admin provisioning/deactivation |
+| Society structure | Gap-closure candidate | Society → Building/Block → Floor → Unit → household; migration preserves existing unit IDs |
+| SaaS entitlements | Gap-closure candidate | Tier/feature resolution plus supported platform management controls |
+| Visitor / gate | Validated V1 | Occupant-based approval/routing, QR/OTP, audit, guard processing, idempotent offline recovery |
+| Delivery / cab | Validated V1 | Dedicated access semantics and short-window operational flows |
+| Household / owner / tenant | Validated V1 | Legal ownership and physical occupancy independent; stale relationships revoke authority |
+| Vehicles / parking | Gap-closure candidate | Resident registration/deactivation; parking read-only to resident; Admin assignment UI/API |
+| Workforce / domestic help | Validated V1 | Assignment, schedules, leave, rating, suspension and gate integration |
+| Notices | Validated V1 | OWNER_ONLY / OWNER_AND_OCCUPANTS with current relationship filtering |
+| Helpdesk / SOS | Validated V1 | Tenant-scoped resident and operations lifecycles |
+| Marketplace | Gap-closure candidate | Multiple provider choice, platform verification, society lifecycle, provider reputation, booking conflict prevention, offering activation lifecycle |
+| Billing / payments | Validated V1 | Owner/current-tenant dues, payer privacy, signed reconciliation, audit |
+| Reports / audit | Validated V1 | Operational summaries and finance redaction for non-finance report readers |
+| Notifications | Validated V1 | Occupant-based gate notifications, push/in-app routing |
+| Health / runtime readiness | Gap-closure candidate | Liveness independent; readiness validates PostgreSQL and Redis/auth state |
+| CI / release controls | Hardened | Frozen lockfile installs, API/Admin/Flutter validation, dependency audit, staging smoke, backup restore drill |
+| Hosted production evidence | Pending external setup | Real provider deployment, managed backups/PITR, restore drill, monitoring, secrets and production integrations still require hosted evidence |
 
-## Current execution focus
-The active milestone is **Essential V1 Reports and Operational Audit Views**. Society Admin operational completeness is now a validated release baseline. The reports milestone should deliver only the decision-useful V1 views required for society operations: visitor/gate activity, workforce attendance, maintenance collections/outstanding dues, helpdesk/SLA and audit events, with tenant-safe aggregation and drill-downs.
+## Security findings closed in this remediation
+- Society-scoped role administration explicitly forbids `SUPER_ADMIN`, `SOCIETY_ADMIN`, vendor and relationship-role grants.
+- Operational role deactivation revokes active sessions for the affected user/society.
+- Tenant resident creation no longer overwrites an existing user's global canonical name.
+- Platform-only society/entitlement and provider-verification operations are separated from society-management permissions.
 
-After Reports, proceed to marketplace Resident lifecycle completion, UX consistency, consolidated regression/security review and production-readiness work.
+## Current release direction
+The active milestone is **Commercial V1 gap closure and consolidated release validation**. No additional feature expansion should enter this candidate unless it fixes a blocker or regression.
 
-Maintenance/Billing remains a validated release baseline. Live payment-gateway activation remains environment/configuration dependent and does not reopen the gateway-independent milestone unless a defect or requirement change requires it.
+Required sequence:
+1. complete gap-closure implementation and targeted tests;
+2. full protected CI on the consolidated branch;
+3. merge to `develop`;
+4. promote exact candidate to `staging`;
+5. staging smoke + backup/restore on the exact SHA;
+6. execute updated security/UAT acceptance, including platform-role boundary, floor/property setup, parking and marketplace provider lifecycle;
+7. protected `staging → main` promotion with independent approval;
+8. verify post-main CI and reconcile release history to `develop`.
 
-The detailed execution sequence and usage-efficient working rules live in `DEVELOPMENT-CONTROL.md` so this traceability document can stay focused on requirement status and acceptance.
-
-## Current release evidence
-- Full CI on `develop` has reached an all-green baseline including API build/tests, admin build, Flutter validation, clean PostgreSQL migrations and dependency audit.
-- A `staging` branch and staging smoke workflow exist.
-- Staging smoke has validated clean migration, API build, startup and `/api/v1/health` response.
-- Owner/occupant authorization, occupant-based gate routing and guard offline-recovery work have been promoted through the validated release path.
-- Society Admin maintenance billing operations, owner/current-tenant dues/payment access, verified receipts/history, reconciliation visibility and configurable notification audiences have been promoted through the validated release path.
-- Visitor credential lifecycle and session-scoped Guard offline recovery hardening have passed staging and production promotion and are synchronized back into `develop`.
-- Domestic-help/workforce Resident, Society Admin and Guard lifecycles have passed staging and production promotion and are synchronized back into `develop`.
-- Society Admin gate configuration/monitoring, marketplace/provider operations, SOS response and role-aware navigation have passed protected CI, staging validation and production promotion; release ancestry is synchronized back into `develop`.
-- Branch protection/required checks remain an administrative production-governance requirement even when repository rules enforce PR/check workflows.
-
-## Essential Reports / Audit acceptance direction
-The V1 Reports milestone is not complete until:
-- Society Admin can view tenant-scoped visitor/gate activity summaries and paginated drill-downs without exposing credentials or unrelated private data.
-- Society Admin can view workforce attendance/entry summaries constrained to the same society and authorized operational scope.
-- Authorized finance roles can view maintenance billed, collected and outstanding summaries without widening owner-only or payment-detail visibility.
-- Authorized Admin roles can view helpdesk volume/status/SLA-style operational summaries using the existing permission model.
-- Audit views expose operationally useful event metadata while masking secrets, credentials and unnecessary personal/payment data.
-- Aggregation, filtering, export or drill-down endpoints enforce tenant/role/permission checks server-side; client-side hiding is never the boundary.
-- Empty, loading, denied, failure and no-data states are implemented on Admin surfaces.
-- Queries are bounded/paginated and avoid unbounded in-memory aggregation or N+1 access patterns.
-- Targeted API/Admin tests cover happy path, cross-society denial, insufficient permission and representative empty/error states, followed by protected CI and staging validation.
-
-## Visitor vertical-slice acceptance criteria
-Visitor Management is not complete until all of the following are verified end-to-end:
-- Resident can create a visitor request only for an authorized unit.
-- Resident can approve/reject/cancel only within the correct society and host scope.
-- Approved visit issues a valid QR/OTP-compatible credential with expiry.
-- Guard can verify only at an authorized active gate within the same society.
-- Check-in and check-out are transactionally safe and concurrency-resistant.
-- Visitor/pass states remain synchronized.
-- Gate actions create auditable events where required.
-- Resident notification is delivered for material gate events.
-- Routine gate approval is delivered to active configured occupants, not to a non-resident owner by default.
-- Any configured active occupant gate approver can decide the request; ownership alone cannot.
-- Expired or ended occupancy cannot receive or approve new gate requests.
-- Wrong society, wrong gate, expired, revoked, reused and concurrent credentials fail safely.
-- Matching concurrent retries recover idempotently without creating duplicate gate actions; conflicting/reused credentials fail closed.
-- Offline guard actions are idempotently synchronized when that workflow is enabled.
-- UI includes loading, empty, error and recovery states.
-
-### Guard offline recovery evidence
-- Transport failures queue gate check-in/out actions in secure local storage with stable idempotency keys.
-- Every queued action is bound to its society and guard identity; another session cannot see its count or replay it, and unsafe legacy records are purged.
-- Guards can manually retry safe synchronization and see a privacy-safe outcome without visitor credentials being displayed.
-- Successfully synchronized actions are removed; transport-pending and server-rejected actions remain available for retry or supervisor review.
-- Controller tests cover queueing, successful retry/idempotency preservation and rejected-action retention.
-
-## Maintenance/Billing validated baseline
-The gateway-independent Billing milestone is considered validated when the following remain true:
-- Society Admin/Accountant can create and manage tenant-scoped maintenance invoices under least-privilege permissions.
-- Verified owners and current tenants can view and pay dues only for units they own or currently occupy; tenant history/receipts remain limited to payments they made.
-- Broader property-finance data remains owner-only, and former/cross-unit occupants fail closed.
-- New dues notify both verified owners and current tenants, including when the owner is non-resident, without granting gate authority through ownership.
-- General Admin broadcasts persist an explicit `OWNER_ONLY` or `OWNER_AND_OCCUPANTS` audience and are filtered server-side before feed/push delivery.
-- Payment-order preparation is idempotent and does not present false success before signed gateway reconciliation.
-- Gateway callbacks are authenticated, deduplicated and reconcile capture/refund outcomes safely.
-- Payment and reconciliation events are auditable without exposing unnecessary payment data.
-- Resident/Admin clients include loading, empty, denied, failure and retry/recovery states.
-- Targeted authorization/service/widget tests pass, followed by protected CI and staging validation appropriate to payment risk.
-
-## Usage-efficient validation rule
-During normal milestone development, inspect and test the affected modules plus direct dependencies. Run full-repository review/regression only at major release boundaries or when a cross-cutting architecture/security change warrants it. CI failures should be diagnosed from the failing job first rather than triggering an unconditional repository-wide audit.
+## Production truth
+A green repository release does not mean the product is live. Commercial production still requires:
+- hosted API/Admin deployment from the approved `main` SHA;
+- production PostgreSQL and Redis/Valkey;
+- MSG91 OTP credentials;
+- Firebase/FCM credentials;
+- payment gateway/webhook credentials;
+- production CORS/domains/TLS;
+- managed backup retention/PITR and an isolated restore exercise;
+- monitoring/logging/alert ownership;
+- production preflight evidence and rollback target.
 
 ## Definition of done
-A feature is not production-ready until it has requirement mapping, responsive UI, loading/empty/error/offline states where relevant, tenant isolation, role/permission/entitlement checks, validation, audit implications reviewed, tests, documented acceptance criteria, green CI and staging validation appropriate to its risk.
+A feature is production-ready only when requirement mapping, tenant/permission/entitlement controls, data validation, privacy/audit implications, UX states, targeted tests, full CI and staging validation appropriate to risk are complete. Cross-cutting authorization, payment or data-migration changes also require explicit regression/UAT evidence before `main`.
