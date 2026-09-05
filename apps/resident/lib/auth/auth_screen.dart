@@ -78,6 +78,31 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         const SizedBox(height: 12),
         const Text('We’ll send a one-time password to verify your registered mobile number.', textAlign: TextAlign.center),
+        if (controller.demoEnabled) ...[
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('DEMO', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+              ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: controller.busy ? null : controller.enterDemo,
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text('Continue as Demo Resident'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Explore the app with sample local data. No OTP or live backend is used.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ],
     );
   }

@@ -49,7 +49,17 @@ describe('HouseholdService', () => {
           include: expect.objectContaining({
             occupancies: expect.objectContaining({
               where: expect.objectContaining({ active: true, effectiveFrom: expect.any(Object) }),
-              select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
+              select: expect.objectContaining({
+                id: true,
+                relation: true,
+                primaryGateContact: true,
+                gateApprovalEnabled: true,
+                gateNotificationEnabled: true,
+                escalationOrder: true,
+                user: {
+                  select: expect.objectContaining({ id: true, name: true, phone: true, status: true }),
+                },
+              }),
             }),
           }),
         }),
