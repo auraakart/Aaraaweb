@@ -1,132 +1,120 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-03
+Updated: 2026-09-05
 
-## Execution status
-The current active vertical slice is **Maintenance/Billing**. Gate/Visitor Management has reached an advanced vertical-slice baseline and returns to active priority for final E2E/edge-case closure after Billing. The detailed current execution order is maintained in `DEVELOPMENT-CONTROL.md`; this roadmap describes the durable phase sequence rather than serving as a frequently changing task list.
+## Current execution status
+The active milestone is **Commercial V1 gap closure and release consolidation**. Core V1 features are already implemented; current work is focused on closing security/operational gaps discovered by the full product audit and producing one coherent release candidate.
 
-## Phase 1 — Foundation
-- Application shells and shared design principles
-- Strict TypeScript and modular monorepo structure
-- Requirement traceability
-- Responsive/mobile-first layout
-- Portable PostgreSQL/API-first architecture
+## Phase 1 — Foundation — COMPLETE
+- Modular monorepo
+- Flutter Resident and Guard apps
+- Next.js Admin
+- NestJS/PostgreSQL API
+- strict CI, design system and requirement controls
 
-## Phase 2 — Identity, tenancy and access
-- OTP authentication abstraction
-- Persistent session lifecycle with rotation/revocation
-- Resident, family, guard, society admin and operations roles
-- Typed permission matrix and server-side authorization
-- Society-level tenant isolation on all operational records
-- Audit events for privileged actions
-- Future organization/property-manager hierarchy without weakening society isolation
+## Phase 2 — Identity, tenancy and access — V1 COMPLETE / HARDENED
+- OTP/session lifecycle
+- Redis-backed auth state
+- society tenant isolation
+- typed permissions and least privilege
+- ownership/occupancy separation
+- operational-role lifecycle
+- platform-role boundary preventing tenant-to-platform privilege escalation
 
-## Phase 3 — Society and SaaS model
-- Society, gate, tower/block, floor, unit/flat and household
-- Resident membership
-- Staff/vendor relationships
-- Product tiers and per-society feature entitlements
-- Controlled feature overrides
-- Entitlement enforcement server-side and reflected in clients
+## Phase 3 — Society and SaaS model — GAP-CLOSURE CANDIDATE
+- Society → Building/Block → Floor → Unit → household
+- society lifecycle
+- product tiers and feature overrides
+- Super Admin platform controls
+- Society Admin provisioning/deactivation
 
-## Phase 4 — Gate and visitor management
-Advanced vertical slice; final E2E and edge-case completion follows the active Billing milestone.
+## Phase 4 — Gate, visitor, delivery and cab — V1 COMPLETE
+- Visitor request/approval/QR-OTP
+- Guard verification/check-in/out
+- occupant-based routing
+- audit and idempotency
+- secure offline Guard queue
+- delivery/cab flows
 
-- Resident visitor request
-- Approval/rejection/cancellation
-- QR/OTP passes
-- Gate-scoped credential verification
-- Transactional check-in/check-out
-- Entry/exit audit records
-- Resident notifications
-- Wrong-tenant/wrong-gate/expired/revoked/reused credential rejection
-- Concurrency/race-condition safety
-- Guard offline queue and idempotent synchronization
-- Delivery and cab workflows
-- Domestic help/frequent visitor workflows
-- Photo capture where policy permits
-- Overstay/blacklist rules
+Deferred beyond V1 unless separately approved:
+- ANPR/RFID
+- advanced blacklist/overstay automation
+- broad visitor-photo retention workflows
 
-Release gate: full visitor journey validated in staging, including tenant-isolation and failure-path smoke/E2E tests.
+## Phase 5 — Resident experience — V1 COMPLETE / UX ITERATIVE
+- Home action centre
+- visitor approvals
+- notices
+- helpdesk/SOS
+- household/family
+- vehicles/basic parking visibility
+- household services
+- billing/payments
+- updated Aaraagate visual system
 
-## Phase 5 — Resident experience
-Active across completed and in-progress vertical slices.
+## Phase 6 — Operations and marketplace — GAP-CLOSURE CANDIDATE
+- People & Roles administration
+- property/floor setup
+- society-managed parking UI
+- provider onboarding and platform verification
+- society provider approval/suspension/rejection
+- multiple-provider resident comparison
+- rating/completed-job reputation signals
+- provider time-slot conflict prevention
+- offering lifecycle controls
 
-- Home action center
-- Visitor approvals
-- Deliveries
-- Notices/announcements
-- Helpdesk/complaints
-- Emergency/SOS
-- Household and profile management
-- Vehicles
-- Service bookings
-- Payment/bill views
-- Consistent loading, empty, error and offline/recovery states
-
-## Phase 6 — Household services and operations
-In progress; follows closure of Billing and final Visitor/Guard gaps.
-
-- Admin dashboard
-- Resident verification
-- Gate monitoring
-- Complaints/helpdesk
-- Staff/vendor management
-- Domestic help operations
-- Service categories/providers/offerings
-- Provider verification and society availability
-- Service booking lifecycle
-- Ratings/reviews
-- Reports and audit trail
-
-## Phase 7 — Finance and community
-**Current active vertical slice: Maintenance/Billing.**
-
+## Phase 7 — Finance, reports and community — V1 COMPLETE
 - Maintenance billing
-- Server-verified payments and receipts
-- Owner-only property-finance visibility and tenant fail-closed behavior
-- Society Admin and Accountant billing operations
-- Resident owner dues, paid history and payment preparation
-- Basic operational reporting
-- Community announcements/events
-- Facility/amenity booking where commercially prioritized
+- owner/current-tenant payment access
+- signed reconciliation and audit
+- dues notifications to owner + current tenant
+- notice audience controls
+- essential reports with finance redaction for non-finance roles
 
-Billing release gate: owner/tenant authorization tests, reconciliation/audit tests, Resident/Admin UX states, green protected CI and staging validation appropriate to the payment risk.
+## Phase 8 — Release and production — ACTIVE
+Repository controls:
+- frozen-lockfile Node installs
+- API lint/typecheck/tests/build
+- Admin access regression/typecheck/build
+- Resident/Guard analyze/tests
+- dependency audit
+- staging smoke
+- backup/restore CI drill
+- release-readiness evidence
 
-## Phase 8 — Quality, release and production
-This phase begins early and runs continuously; it is not deferred until feature completion.
+Hosted environment exit criteria:
+- hosted staging API/Admin from exact staging SHA
+- PostgreSQL + Redis/Valkey healthy
+- OTP/push/payment integrations configured
+- managed backup retention/PITR enabled
+- isolated hosted restore evidenced
+- external monitoring and alert owner assigned
+- full UAT with real roles/devices
+- no open critical/high security blocker
 
-- CI on `develop`: repository structure, clean DB migrations, API lint/typecheck/tests/build, admin typecheck/build, Flutter analysis/tests and high/critical dependency audit
-- `staging` release branch and production-style smoke validation
-- Visitor and critical-workflow E2E tests
-- Accessibility checks
-- Performance budgets
-- Security/tenant-isolation review
-- Dependency and secret scanning
-- Observability and alerting
-- Backups, point-in-time recovery and restore testing
-- Staging deployment
-- UAT
-- Pilot society rollout
-- Production deployment and rollback procedure
-- Play Store closed testing and release readiness
+## Promotion governance
+`feature/hotfix → develop → staging → main`
 
-## Usage-efficient milestone execution
-For each milestone, use the smallest safe reasoning scope:
-1. Read the current execution state and affected acceptance criteria.
-2. Inspect affected modules and their direct authorization/data dependencies only.
-3. Implement related changes as one coherent vertical slice.
-4. Run targeted tests during development.
-5. Run full protected CI at integration/release boundaries.
-6. Update traceability and execution state after material completion.
+For release promotion:
+1. targeted tests during implementation;
+2. full CI before merge to `develop`;
+3. exact-SHA staging smoke and backup/restore;
+4. UAT/security approval;
+5. independent approval on `staging → main`;
+6. post-main CI;
+7. reconcile release history back to `develop`.
 
-Full-repository audits are reserved for major release boundaries or cross-cutting architectural/security changes.
+## Phase 9 — Post-V1 roadmap
+Only after Commercial V1 release/pilot evidence is stable:
+- advanced parking
+- amenities
+- advanced accounting
+- separate provider experience/app
+- analytics/polls
+- EV workflows
+- WhatsApp automation
+- AI features
+- ANPR/RFID and other hardware integrations
 
-## Release governance
-Promotion path:
-`develop` → green CI → `staging` → migration/build/startup + functional smoke/E2E → UAT/security approval → `main` → production.
-
-Branch protection and required checks must be enabled for protected release branches before commercial production. No direct promotion based only on commit count or compilation status.
-
-## Quality bar
-Aaraagate is being built as a long-lived SaaS product. Technology choices must favor proven ecosystems, maintainability, portability, security, measurable testability and clear upgrade paths. Short-term hacks that create tenant/security or operational debt are not acceptable release shortcuts.
+## Quality rule
+Do not trade tenant isolation, authorization, payment integrity or operational recoverability for speed. Major cross-cutting changes require explicit regression and release evidence even when compilation and unit tests pass.

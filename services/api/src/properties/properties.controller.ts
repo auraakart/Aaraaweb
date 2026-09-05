@@ -7,6 +7,7 @@ import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { PropertiesService } from './properties.service';
 import { CreateBuildingDto } from './dto/create-building.dto';
+import { CreateFloorDto } from './dto/create-floor.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
 
 @Controller('societies/:societyId')
@@ -39,6 +40,29 @@ export class PropertiesController {
     return this.service.createBuilding(societyId, dto.name, dto.code);
   }
 
+  @Get('buildings/:buildingId/floors')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
+  listFloors(
+    @Param('societyId', ParseUUIDPipe) societyId: string,
+    @Param('buildingId', ParseUUIDPipe) buildingId: string,
+    @CurrentTenant() tenantSocietyId: string,
+  ) {
+    this.assertTenantPath(societyId, tenantSocietyId);
+    return this.service.listFloors(societyId, buildingId);
+  }
+
+  @Post('buildings/:buildingId/floors')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  createFloor(
+    @Param('societyId', ParseUUIDPipe) societyId: string,
+    @Param('buildingId', ParseUUIDPipe) buildingId: string,
+    @CurrentTenant() tenantSocietyId: string,
+    @Body() dto: CreateFloorDto,
+  ) {
+    this.assertTenantPath(societyId, tenantSocietyId);
+    return this.service.createFloor(societyId, buildingId, dto.name, dto.sortOrder);
+  }
+
   @Get('buildings/:buildingId/units')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   listUnits(
@@ -59,6 +83,6 @@ export class PropertiesController {
     @Body() dto: CreateUnitDto,
   ) {
     this.assertTenantPath(societyId, tenantSocietyId);
-    return this.service.createUnit(societyId, buildingId, dto.number);
+    return this.service.createUnit(societyId, buildingId, dto.number, dto.floorId);
   }
 }

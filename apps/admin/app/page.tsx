@@ -1,6 +1,6 @@
 import { AdminConsole } from './admin-console'
-import { ReportsShortcut } from './reports-shortcut'
+import { AdminShortcuts } from './admin-shortcuts'
 
 export default function AdminHome() {
-  return <><AdminConsole/><ReportsShortcut/></>
+  return <><AdminConsole/><AdminShortcuts/></>
 }
