@@ -2,10 +2,7 @@ name: Backup restore smoke
 
 on:
   push:
-    branches: [develop, staging]
-    paths:
-      - 'services/api/prisma/**'
-      - '.github/workflows/backup-restore-smoke.yml'
+    branches: [staging]
   pull_request:
     paths:
       - 'services/api/prisma/**'
