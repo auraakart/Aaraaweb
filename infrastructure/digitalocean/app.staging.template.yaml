@@ -25,7 +25,7 @@ services:
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     liveness_health_check:
-      http_path: /api/v1/health
+      http_path: /api/v1/health/live
       port: 8080
       initial_delay_seconds: 15
       period_seconds: 10
