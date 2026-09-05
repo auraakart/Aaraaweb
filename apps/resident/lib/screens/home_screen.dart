@@ -286,19 +286,21 @@ class _QuickAction extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Ink(
-        constraints: const BoxConstraints(minHeight: 74),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
         decoration: BoxDecoration(
           color: background,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: urgent ? scheme.error.withOpacity(.18) : scheme.outline.withOpacity(.55)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: foreground),
-            const SizedBox(width: 10),
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 46),
+          child: Row(
+            children: [
+              Icon(icon, color: foreground),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
+            ],
+          ),
         ),
       ),
     );
