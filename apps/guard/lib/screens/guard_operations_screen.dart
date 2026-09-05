@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../qr_scanner.dart';
+import '../widgets/guard_state_card.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
   const GuardOperationsScreen({super.key, required this.controller});
@@ -53,16 +54,16 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 DropdownButtonFormField<String>(
                   value: unitId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Destination', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Destination'),
                   items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setDialogState(() => unitId = value),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Visitor name', border: OutlineInputBorder())),
+                TextField(controller: name, decoration: const InputDecoration(labelText: 'Visitor name')),
                 const SizedBox(height: 12),
-                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder())),
+                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')),
                 const SizedBox(height: 12),
-                TextField(controller: purpose, decoration: const InputDecoration(labelText: 'Purpose', border: OutlineInputBorder())),
+                TextField(controller: purpose, decoration: const InputDecoration(labelText: 'Purpose')),
               ],
             ),
           ),
@@ -106,18 +107,18 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 DropdownButtonFormField<String>(
                   value: unitId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Destination', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Destination'),
                   items: c.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setDialogState(() => unitId = value),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: provider, decoration: InputDecoration(labelText: isCab ? 'Cab app (Uber/Ola/Rapido)' : 'Provider (Swiggy/Zomato/Amazon)', border: const OutlineInputBorder())),
+                TextField(controller: provider, decoration: InputDecoration(labelText: isCab ? 'Cab app (Uber/Ola/Rapido)' : 'Provider (Swiggy/Zomato/Amazon)')),
                 const SizedBox(height: 12),
-                TextField(controller: name, decoration: InputDecoration(labelText: isCab ? 'Driver name' : 'Delivery person', border: const OutlineInputBorder())),
+                TextField(controller: name, decoration: InputDecoration(labelText: isCab ? 'Driver name' : 'Delivery person')),
                 const SizedBox(height: 12),
-                TextField(controller: vehicle, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: isCab ? 'Vehicle number' : 'Vehicle number (optional)', border: const OutlineInputBorder())),
+                TextField(controller: vehicle, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: isCab ? 'Vehicle number' : 'Vehicle number (optional)')),
                 const SizedBox(height: 12),
-                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone (optional)', border: OutlineInputBorder())),
+                TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone (optional)')),
               ],
             ),
           ),
@@ -170,7 +171,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: c.gateId,
-                decoration: const InputDecoration(labelText: 'Active gate', prefixIcon: Icon(Icons.door_front_door_outlined), border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Active gate', prefixIcon: Icon(Icons.door_front_door_outlined)),
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
               ),
@@ -224,7 +225,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(72)),
               ),
               const SizedBox(height: 12),
-              TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential', prefixIcon: Icon(Icons.keyboard_alt_outlined), border: OutlineInputBorder())),
+              TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential', prefixIcon: Icon(Icons.keyboard_alt_outlined))),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: c.busy || c.gateId == null ? null : () => c.verifyCredential(credential.text),
@@ -232,10 +233,13 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 label: const Text('VERIFY', style: TextStyle(fontWeight: FontWeight.w800)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56)),
               ),
-              if (c.busy) const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: LinearProgressIndicator()),
+              if (c.busy) ...[
+                const SizedBox(height: 14),
+                const GuardStateCard(icon: Icons.sync_rounded, message: 'Processing gate operation…', loading: true),
+              ],
               if (c.error != null) ...[
                 const SizedBox(height: 12),
-                Card(color: Theme.of(context).colorScheme.errorContainer, child: Padding(padding: const EdgeInsets.all(14), child: Text(c.error!, style: const TextStyle(fontWeight: FontWeight.w700)))),
+                GuardStateCard(icon: Icons.error_outline_rounded, message: c.error!, error: true),
               ],
               if (access != null) ...[
                 const SizedBox(height: 18),

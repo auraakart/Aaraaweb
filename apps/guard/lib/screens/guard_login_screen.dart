@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
+import '../widgets/guard_state_card.dart';
 
 class GuardLoginScreen extends StatefulWidget {
   const GuardLoginScreen({super.key, required this.controller});
@@ -55,7 +56,7 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
               TextField(
                 controller: phone,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined)),
               ),
               const SizedBox(height: 12),
               FilledButton(
@@ -69,7 +70,7 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                   controller: otp,
                   keyboardType: TextInputType.number,
                   maxLength: 6,
-                  decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.password_rounded), counterText: '', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.password_rounded), counterText: ''),
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
@@ -80,13 +81,13 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                 ),
               ],
             ],
-            if (c.busy) const Padding(padding: EdgeInsets.only(top: 18), child: LinearProgressIndicator()),
+            if (c.busy) ...[
+              const SizedBox(height: 18),
+              const GuardStateCard(icon: Icons.sync_rounded, message: 'Working securely…', loading: true),
+            ],
             if (c.error != null) ...[
               const SizedBox(height: 16),
-              Card(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: Padding(padding: const EdgeInsets.all(14), child: Text(c.error!, style: const TextStyle(fontWeight: FontWeight.w700))),
-              ),
+              GuardStateCard(icon: Icons.error_outline_rounded, message: c.error!, error: true),
             ],
           ],
         ),

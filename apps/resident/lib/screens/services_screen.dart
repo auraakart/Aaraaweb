@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/service_booking_actions.dart';
+import '../widgets/app_state_card.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key, required this.controller});
@@ -183,21 +184,26 @@ class _ServicesScreenState extends State<ServicesScreen> {
             const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'What do you need help with?')),
             const SizedBox(height: 24),
             if (controller.loading && controller.serviceCategories.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading home services…', loading: true)
             else if (controller.servicesError != null)
-              Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [const Icon(Icons.lock_outline_rounded, size: 34), const SizedBox(height: 10), const Text('Services are unavailable for this society or could not be loaded.', textAlign: TextAlign.center), const SizedBox(height: 8), TextButton(onPressed: _busy ? null : controller.load, child: const Text('Retry'))])))
+              AppStateCard(
+                icon: Icons.error_outline_rounded,
+                message: 'Services are unavailable for this society or could not be loaded.',
+                actionLabel: 'Retry',
+                onAction: _busy ? null : controller.load,
+              )
             else ...[
               Text('Categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               if (controller.serviceCategories.isEmpty)
-                const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No service categories are available yet.')))
+                const AppStateCard(icon: Icons.category_outlined, message: 'No service categories are available yet.')
               else
                 Wrap(spacing: 8, runSpacing: 8, children: [for (final category in controller.serviceCategories) Chip(label: Text(category['name']?.toString() ?? 'Service'))]),
               const SizedBox(height: 24),
               Text('Available services', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               if (controller.serviceOfferings.isEmpty)
-                const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No approved provider offerings are available yet.')))
+                const AppStateCard(icon: Icons.home_repair_service_outlined, message: 'No approved provider offerings are available yet.')
               else
                 ...controller.serviceOfferings.map((offering) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -222,7 +228,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
               Text('Your bookings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               if (controller.bookings.isEmpty)
-                const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('You have no service bookings yet.')))
+                const AppStateCard(icon: Icons.event_available_outlined, message: 'You have no service bookings yet.')
               else
                 ...controller.bookings.map((booking) {
                   final status = booking['status']?.toString() ?? 'REQUESTED';
@@ -253,6 +259,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     ),
                   );
                 }),
+            ],
+            if (_busy) ...[
+              const SizedBox(height: 16),
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Updating your service request…', loading: true),
             ],
           ],
         ),
