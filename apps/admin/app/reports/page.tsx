@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 type Session={sessionId:string;accessToken:string;refreshToken:string;societyId:string;role:string;societyName:string}
-type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number;collectedCount:number;collectedPaise:number;outstandingCount:number;outstandingPaise:number};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
+type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
 type UnitRef={number:string;building:{name:string}}
 type AccessItem={id:string;subjectType:string;subjectName:string;purpose?:string|null;status:string;createdAt:string;enteredAt?:string|null;exitedAt?:string|null;unit:UnitRef}
 type HelpdeskItem={id:string;title:string;category?:string|null;priority:string;status:string;createdAt:string;resolvedAt?:string|null;closedAt?:string|null;unit:UnitRef}
@@ -23,7 +23,7 @@ async function api<T>(path:string,session:Session):Promise<T>{
   return body as T
 }
 
-const currency=(paise:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(paise/100)
+const currency=(paise:number|null)=>paise===null?'Restricted':new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(paise/100)
 const isoDay=(date:Date)=>date.toISOString().slice(0,10)
 const location=(unit:UnitRef)=>`${unit.building.name} · ${unit.number}`
 

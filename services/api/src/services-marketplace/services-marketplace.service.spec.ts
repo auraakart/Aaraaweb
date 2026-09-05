@@ -102,6 +102,36 @@ describe('ServicesMarketplaceService', () => {
     expect(prisma.serviceBooking.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { societyId: 'society-1' } }));
   });
 
+  it('minimizes provider PII and linked gate data in resident booking history', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceBooking.findMany.mockResolvedValue([]);
+
+    await service.listMine('society-1', 'resident-1');
+
+    expect(prisma.serviceBooking.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { societyId: 'society-1', residentUserId: 'resident-1' },
+      include: expect.objectContaining({
+        provider: { select: { id: true, businessName: true, description: true } },
+        accessRequest: {
+          select: expect.objectContaining({
+            id: true,
+            status: true,
+            validFrom: true,
+            validUntil: true,
+            enteredAt: true,
+            exitedAt: true,
+          }),
+        },
+      }),
+    }));
+    const query = prisma.serviceBooking.findMany.mock.calls[0][0];
+    expect(query.include.provider.select).not.toHaveProperty('phone');
+    expect(query.include.provider.select).not.toHaveProperty('email');
+    expect(query.include.accessRequest.select).not.toHaveProperty('credentialHash');
+    expect(query.include.accessRequest.select).not.toHaveProperty('metadata');
+    expect(query.include.accessRequest.select).not.toHaveProperty('subjectPhone');
+  });
+
   it('exposes only platform-verified providers and current-society approvals in the admin catalog', async () => {
     const { prisma, service } = setup();
     prisma.serviceCategory.findMany.mockResolvedValue([]);
