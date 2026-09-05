@@ -60,6 +60,16 @@ Before production deployment confirm:
 - rollback owner is identified;
 - release notes identify material user-visible and operational changes.
 
+Immediately before deploying a live environment, run:
+
+```bash
+bash scripts/production-preflight.sh
+```
+
+The preflight fails closed unless the production environment provides valid release metadata, PostgreSQL and Redis URLs, non-local CORS origins, MSG91 OTP configuration, Firebase service-account JSON, the payment webhook secret and the HTTPS Admin API base URL. It prints only configuration names/status and must never print secret values.
+
+A green GitHub release-readiness workflow proves the preflight control itself is present and executable with structurally valid test values. It does **not** prove that live hosting secrets are configured; the preflight must be run again in the actual production deployment environment before traffic is enabled.
+
 Deploy immutable artifacts tied to the `main` commit SHA where the hosting platform supports it.
 
 ## 4. Rollback
@@ -89,6 +99,7 @@ Pilot should use a limited society cohort before broad rollout. Required UAT sce
 - notices/broadcast audience selection;
 - helpdesk complaint lifecycle;
 - Resident marketplace booking lifecycle;
+- vehicle registration and basic parking-slot data visibility/update;
 - Admin operational reports/audit access by permitted roles;
 - Guard offline queue retry/idempotency recovery;
 - denied cross-society and stale-occupancy access attempts.
@@ -101,6 +112,7 @@ Move from pilot to wider production only when:
 - no open critical/high security defect exists;
 - backup/restore drill is evidenced;
 - health/availability monitoring and alert routing are active;
+- production integration preflight passes in the live hosting environment;
 - critical UAT scenarios pass;
 - rollback procedure has been reviewed by the release owner;
 - known medium/low issues have explicit disposition;
