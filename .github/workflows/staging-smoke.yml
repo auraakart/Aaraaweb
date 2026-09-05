@@ -35,6 +35,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_staging_smoke
       PORT: 3000
+      NODE_ENV: production
+      APP_VERSION: staging-smoke
+      GIT_SHA: ${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,14 +82,47 @@ jobs:
           cat /tmp/aaraagate-api.log || true
           exit 1
 
-      - name: Assert readiness response
+      - name: Assert readiness response and release metadata
         run: |
-          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/readiness.json','utf8')); if(h.status!=='ready'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
+          node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/readiness.json', 'utf8'));
+          const expected = {
+            status: 'ready',
+            service: 'aaraagate-api',
+            environment: 'production',
+            version: process.env.APP_VERSION,
+            commit: process.env.GIT_SHA,
+          };
+          for (const [key, value] of Object.entries(expected)) {
+            if (h[key] !== value) {
+              console.error(`Unexpected ${key}:`, h[key], 'expected:', value);
+              process.exit(1);
+            }
+          }
+          if (h.dependencies?.database !== 'ok') {
+            console.error('Database readiness missing or unhealthy:', h.dependencies);
+            process.exit(1);
+          }
+          NODE
 
-      - name: Verify liveness endpoint
+      - name: Verify liveness endpoint and release metadata
         run: |
           curl --fail --silent http://127.0.0.1:3000/api/v1/health/live > /tmp/liveness.json
-          node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/liveness.json','utf8')); if(h.status!=='ok'||h.service!=='aaraagate-api'){console.error(h); process.exit(1)}"
+          node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/liveness.json', 'utf8'));
+          if (
+            h.status !== 'ok' ||
+            h.service !== 'aaraagate-api' ||
+            h.environment !== 'production' ||
+            h.version !== process.env.APP_VERSION ||
+            h.commit !== process.env.GIT_SHA
+          ) {
+            console.error(h);
+            process.exit(1);
+          }
+          NODE
 
       - name: Stop API
         if: always()
