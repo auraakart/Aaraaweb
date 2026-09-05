@@ -24,10 +24,23 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Guard can process entry/exit with clear success/failure states.
 - [ ] Offline Guard action queues recover without duplicate processing when connectivity returns.
 
+### Delivery and cab
+- [ ] Delivery approval uses the direct allow-entry flow and does not expose visitor QR behaviour.
+- [ ] Cab approval shows the relevant provider/vehicle details and uses the configured short access window.
+- [ ] Delivery/cab approval reaches the current authorised occupant rather than a non-resident owner by ownership alone.
+
 ### Ownership, occupancy and household
 - [ ] Owner and occupant relationships remain distinct.
 - [ ] Tenant cannot see owner-only finance/legal information.
 - [ ] Household, vehicles and emergency contacts are restricted to current valid occupancy.
+
+### Vehicles and basic parking
+- [ ] Current Owner/Tenant can register and deactivate their household vehicle as permitted.
+- [ ] Family Member cannot perform vehicle/parking write actions unless explicitly granted an approved future capability.
+- [ ] Resident can see the society-assigned parking bay for an active vehicle.
+- [ ] Resident cannot assign, edit or clear the parking bay from the Resident app/API.
+- [ ] Society Admin/configuration-authorised user can assign, update or clear a parking bay within the selected society and household scope.
+- [ ] Vehicle deactivation removes the associated parking assignment.
 
 ### Maintenance billing and payments
 - [ ] Maintenance dues are visible/payable by verified owner and current tenant for the unit.
@@ -54,9 +67,11 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Resident can browse approved offerings and book for a current household unit.
 - [ ] Cancel/rate transitions are limited to valid booking states.
 - [ ] Cross-unit/cross-society booking access is rejected.
+- [ ] Resident booking payload does not expose unnecessary provider contact data or sensitive linked access-request fields.
 
 ### Reports and audit
 - [ ] Reports contain only society-scoped data available to the requesting role.
+- [ ] Non-finance report users can see operational counts but not billed/collected/outstanding monetary totals.
 - [ ] Accountant cannot access audit-only views.
 - [ ] Security Supervisor cannot access society configuration/billing-management functions.
 - [ ] Audit output does not expose secrets, credentials or unnecessary sensitive payment data.
@@ -67,13 +82,14 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Guard primary flows remain fast and readable in low-distraction operational use.
 - [ ] Admin key surfaces render correctly at supported desktop widths.
 - [ ] Loading, empty, denied, failure and recovery states are understandable.
-- [ ] Resident demo APK installs and starts successfully for pilot testing.
+- APK/demo packaging is currently on hold and is not a pilot-entry blocker unless explicitly re-enabled by the release owner.
 
 ## Operational acceptance
 
 - [ ] `/api/v1/health` identifies expected service/environment/version/commit.
 - [ ] Database migration completes on staging from a clean database.
 - [ ] Backup/restore smoke proves logical backup can restore schema and verification data.
+- [ ] Production preflight confirms required OTP, Redis, push, payment, CORS and release metadata configuration before live deployment.
 - [ ] Rollback target SHA is recorded before production promotion.
 - [ ] Rollback procedure has been reviewed by the release owner.
 - [ ] Monitoring/log destination and alert ownership are assigned for the pilot.
@@ -89,6 +105,7 @@ Track during pilot:
 - billing/payment failures or duplicates;
 - notification delivery issues;
 - helpdesk/SOS reliability;
+- vehicle/parking assignment issues;
 - user-blocking UX defects;
 - API error rate and service availability;
 - data-integrity or tenant-isolation anomalies.
