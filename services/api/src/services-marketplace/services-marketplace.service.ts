@@ -23,10 +23,16 @@ export class ServicesMarketplaceService {
 
   async adminCatalog(societyId: string) {
     await this.assertEnabled(societyId);
-    const [categories, providers, offerings] = await Promise.all([
+    const [categories, rawProviders, offerings] = await Promise.all([
       this.prisma.serviceCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
       this.prisma.serviceProvider.findMany({
-        where: { active: true, verification: ProviderVerificationStatus.VERIFIED },
+        where: {
+          active: true,
+          OR: [
+            { verification: ProviderVerificationStatus.VERIFIED },
+            { societies: { some: { societyId } } },
+          ],
+        },
         include: { societies: { where: { societyId }, take: 1 } },
         orderBy: { businessName: 'asc' },
       }),
@@ -36,6 +42,11 @@ export class ServicesMarketplaceService {
         orderBy: { name: 'asc' },
       }),
     ]);
+    const providers = rawProviders.map((provider) => {
+      const linkedToSociety = provider.societies.length > 0;
+      if (linkedToSociety) return provider;
+      return { ...provider, contactName: null, phone: '', email: null };
+    });
     return { categories, providers, offerings };
   }
 
@@ -61,8 +72,19 @@ export class ServicesMarketplaceService {
 
   createCategory(name: string, slug: string, sortOrder = 0) { return this.prisma.serviceCategory.create({ data: { name: name.trim(), slug: slug.trim().toLowerCase(), sortOrder } }); }
 
-  createProvider(input: { businessName: string; contactName?: string; phone: string; email?: string; description?: string }) {
-    return this.prisma.serviceProvider.create({ data: { businessName: input.businessName.trim(), contactName: input.contactName?.trim() || null, phone: input.phone.trim(), email: input.email?.trim() || null, description: input.description?.trim() || null } });
+  async createProvider(societyId: string, input: { businessName: string; contactName?: string; phone: string; email?: string; description?: string }) {
+    await this.assertEnabled(societyId);
+    return this.prisma.serviceProvider.create({
+      data: {
+        businessName: input.businessName.trim(),
+        contactName: input.contactName?.trim() || null,
+        phone: input.phone.trim(),
+        email: input.email?.trim() || null,
+        description: input.description?.trim() || null,
+        societies: { create: { societyId, status: ProviderSocietyStatus.PENDING } },
+      },
+      include: { societies: { where: { societyId }, take: 1 } },
+    });
   }
 
   verifyProvider(providerId: string) { return this.prisma.serviceProvider.update({ where: { id: providerId }, data: { verification: ProviderVerificationStatus.VERIFIED, active: true } }); }
