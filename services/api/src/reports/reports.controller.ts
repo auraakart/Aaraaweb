@@ -1,6 +1,7 @@
-import { Controller, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
-import { BearerGuard } from '../auth/bearer.guard';
-import { AppPermission } from '../auth/permission.types';
+import { Controller, Get, ParseIntPipe, Query, Req, UseGuards } from '@nestjs/common';
+import { AppRole } from '../auth/auth.types';
+import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { AppPermission, hasPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
@@ -16,10 +17,13 @@ export class ReportsController {
   @RequiresPermissions(AppPermission.REPORTS_READ)
   summary(
     @CurrentTenant() societyId: string,
+    @Req() request: AuthenticatedRequest,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.reports.summary(societyId, from, to);
+    const roles = request.auth?.roles as AppRole[] | undefined;
+    const includeFinancialAmounts = !!roles && hasPermission(roles, AppPermission.BILLING_MANAGE);
+    return this.reports.summary(societyId, from, to, includeFinancialAmounts);
   }
 
   @Get('access')

@@ -94,10 +94,30 @@ export class ServicesMarketplaceService {
     const approval = offering.provider.societies[0];
     if (!approval) throw new NotFoundException('Service provider is not approved for this society');
     const commissionPaise = Math.round((offering.pricePaise * approval.commissionBps) / 10000);
-    return this.prisma.serviceBooking.create({ data: { societyId, unitId, residentUserId, providerId: offering.providerId, offeringId: offering.id, scheduledFrom, scheduledUntil, servicePricePaise: offering.pricePaise, commissionBps: approval.commissionBps, commissionPaise, notes: notes?.trim() || null }, include: { offering: true, provider: true } });
+    return this.prisma.serviceBooking.create({ data: { societyId, unitId, residentUserId, providerId: offering.providerId, offeringId: offering.id, scheduledFrom, scheduledUntil, servicePricePaise: offering.pricePaise, commissionBps: approval.commissionBps, commissionPaise, notes: notes?.trim() || null }, include: { offering: true, provider: { select: { id: true, businessName: true, description: true } } } });
   }
 
-  listMine(societyId: string, residentUserId: string) { return this.prisma.serviceBooking.findMany({ where: { societyId, residentUserId }, include: { offering: { include: { category: true } }, provider: true, rating: true, accessRequest: true }, orderBy: { createdAt: 'desc' } }); }
+  listMine(societyId: string, residentUserId: string) {
+    return this.prisma.serviceBooking.findMany({
+      where: { societyId, residentUserId },
+      include: {
+        offering: { include: { category: true } },
+        provider: { select: { id: true, businessName: true, description: true } },
+        rating: { select: { id: true, score: true, comment: true, createdAt: true } },
+        accessRequest: {
+          select: {
+            id: true,
+            status: true,
+            validFrom: true,
+            validUntil: true,
+            enteredAt: true,
+            exitedAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   async confirm(societyId: string, bookingId: string) {
     await this.assertEnabled(societyId);
@@ -106,7 +126,7 @@ export class ServicesMarketplaceService {
     if (booking.status !== ServiceBookingStatus.REQUESTED) throw new BadRequestException(`Booking is ${booking.status.toLowerCase()}`);
     const request = await this.access.create(societyId, booking.residentUserId, booking.unitId, AccessSubjectType.SERVICE_PROVIDER, booking.provider.businessName, booking.provider.phone, booking.offering.name, { bookingId: booking.id, providerId: booking.providerId, offeringId: booking.offeringId });
     const approved = await this.access.approve(societyId, booking.residentUserId, request.id, booking.scheduledFrom, booking.scheduledUntil);
-    const updated = await this.prisma.serviceBooking.update({ where: { id: booking.id }, data: { status: ServiceBookingStatus.CONFIRMED, accessRequestId: approved.request.id }, include: { offering: true, provider: true, accessRequest: true } });
+    const updated = await this.prisma.serviceBooking.update({ where: { id: booking.id }, data: { status: ServiceBookingStatus.CONFIRMED, accessRequestId: approved.request.id }, include: { offering: true, provider: { select: { id: true, businessName: true, description: true } }, accessRequest: { select: { id: true, status: true, validFrom: true, validUntil: true, enteredAt: true, exitedAt: true } } } });
     return { booking: updated, accessCredential: approved.credential };
   }
 
