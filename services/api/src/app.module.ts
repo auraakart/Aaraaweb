@@ -1,4 +1,4 @@
-import { Controller, Get, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AccessModule } from './access/access.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
@@ -17,21 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { BillingModule } from './billing/billing.module';
 import { ReportsModule } from './reports/reports.module';
-
-@Controller('health')
-class HealthController {
-  @Get()
-  health() {
-    return {
-      status: 'ok',
-      service: 'aaraagate-api',
-      environment: process.env.NODE_ENV ?? 'development',
-      version: process.env.APP_VERSION ?? 'dev',
-      commit: process.env.GIT_SHA ?? 'unknown',
-      uptimeSeconds: Math.floor(process.uptime()),
-    };
-  }
-}
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
