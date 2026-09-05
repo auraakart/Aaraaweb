@@ -1,0 +1,69 @@
+name: Release readiness
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-readiness:
+    name: Production release gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce staging to main release path
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ "${{ github.head_ref }}" != "staging" ]; then
+            echo "Production releases must be promoted from staging to main."
+            exit 1
+          fi
+
+      - name: Record release candidate and rollback target
+        env:
+          PR_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p release-evidence
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            CANDIDATE_SHA="${PR_CANDIDATE_SHA}"
+          else
+            CANDIDATE_SHA="${GITHUB_SHA}"
+          fi
+          git fetch origin main --depth=1
+          ROLLBACK_SHA="$(git rev-parse origin/main)"
+          MIGRATION_COUNT="$(find services/api/prisma/migrations -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
+          {
+            echo "# Aaraagate release evidence"
+            echo
+            echo "- Candidate SHA: ${CANDIDATE_SHA}"
+            echo "- Rollback target (current main): ${ROLLBACK_SHA}"
+            echo "- Source ref: ${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+            echo "- Target ref: ${GITHUB_BASE_REF:-manual}"
+            echo "- Migration directories: ${MIGRATION_COUNT}"
+            echo "- Workflow run: ${GITHUB_RUN_ID}"
+            echo "- Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > release-evidence/release-evidence.md
+          cat release-evidence/release-evidence.md
+
+      - name: Verify production-readiness controls exist
+        run: |
+          test -f .github/workflows/backup-restore-smoke.yml
+          test -f docs/PRODUCTION-READINESS.md
+          test -f docs/UAT-PILOT-CHECKLIST.md
+          test -f services/api/src/health/health.controller.ts
+          grep -q "process.env.GIT_SHA" services/api/src/health/health.controller.ts
+          grep -q "rollback" docs/PRODUCTION-READINESS.md
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence
+          path: release-evidence/release-evidence.md
+          retention-days: 30

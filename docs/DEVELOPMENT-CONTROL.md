@@ -1,27 +1,27 @@
 # Aaraagate Development Control
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
 ## Current priority
-Complete the Resident/Admin/Guard UX and design-system consistency milestone.
+Complete the production-readiness milestone.
 
 Execution order:
-1. Consolidate shared visual tokens across Resident, Guard and Admin without changing authorization, data flow or business behavior.
-2. Standardize typography, spacing, cards, controls, loading/empty/error/recovery states and navigation patterns where the current surfaces differ unnecessarily.
-3. Preserve role-specific operational clarity: Resident should remain simple and action-led, Guard should remain fast and low-distraction, and Admin should remain information-dense but readable.
-4. Keep branding implementation token-driven so the final AaraaPlatforms/Aaraagate logo palette can be applied centrally later without scattered hard-coded changes.
-5. Run targeted Flutter/Admin validation while iterating, then protected CI and staging validation at the milestone boundary.
-6. Promote the validated UX consistency milestone through staging and main using the standard release path.
+1. Establish provider-neutral observability and safe release-identification metadata without exposing secrets or unnecessary personal data.
+2. Automate backup/restore verification and document provider-level backup/restore evidence required before pilot launch.
+3. Define deployment and rollback gates tied to immutable release commits/artifacts and backward-compatible database migration practices.
+4. Execute structured UAT for critical Resident/Admin/Guard workflows and authorization boundaries.
+5. Run a limited pilot cohort with operational monitoring, support ownership and explicit exit criteria before broad rollout.
+6. Promote final production-readiness changes through staging and main using the standard release path.
 
-Maintenance/Billing, Visitor/Guard, Domestic-help/workforce, Society Admin operations, Essential V1 Reports/Audit Views and the Resident marketplace booking lifecycle are validated release baselines. The Resident demo APK workflow is established on `develop` and produces an installable Android artifact after validation. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
+Maintenance/Billing, Visitor/Guard, Domestic-help/workforce, Society Admin operations, Essential V1 Reports/Audit Views, Resident marketplace booking lifecycle, Resident/Admin/Guard UX consistency and the consolidated security/regression milestone are validated release baselines. The Resident demo APK workflow is established and produces an installable Android artifact after validation. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
 ## Next milestone sequence
-After UX/design-system consistency is complete, proceed in this order unless a blocking defect changes priority:
-1. Consolidated security, tenant-isolation, permissions and regression review.
-2. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
-3. Final release hardening and production promotion.
+After production readiness is complete, proceed in this order unless a blocking defect changes priority:
+1. Final UAT/pilot defect resolution and release hardening.
+2. Final production promotion and post-release verification.
+3. Subsequent roadmap enhancements only after the production baseline is stable.
 
 ## Usage-efficient execution policy
 To conserve agentic/Codex usage without reducing quality:
@@ -57,7 +57,8 @@ Before a change is considered release-ready, relevant gates must include:
 - High/critical dependency security audit.
 - Tenant-isolation and permission tests for privileged/tenant-owned operations.
 - Staging smoke validation for production startup and health.
-- Functional smoke/E2E for critical workflows before production promotion.
+- Backup/restore verification before pilot and production release.
+- Functional smoke/E2E and structured UAT for critical workflows before production promotion.
 
 ## Security control
 Every tenant-owned request and mutation must be society-scoped. Authorization must be server-side and based on membership, role, permission and feature entitlement where applicable. UI hiding is never an access-control boundary. Cross-society access must fail closed.
@@ -67,4 +68,4 @@ Ownership and occupancy are independent. Ownership alone must not grant occupanc
 Reports and audit views must preserve the same tenant, role, permission and relationship constraints as their source operations. Aggregation, export or drill-down endpoints must not widen access beyond what the requesting role could legitimately inspect operationally.
 
 ## Definition of production readiness
-Production readiness requires UI states, input validation, authorization, tenant isolation, entitlement enforcement, audit review, automated tests, repeatable migrations, dependency security, staging validation, observability, backup/restore readiness, UAT and documented acceptance criteria.
+Production readiness requires UI states, input validation, authorization, tenant isolation, entitlement enforcement, audit review, automated tests, repeatable migrations, dependency security, staging validation, observability, backup/restore readiness, UAT, pilot acceptance evidence and documented deployment/rollback procedures.

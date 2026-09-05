@@ -49,7 +49,17 @@ describe('HouseholdService', () => {
           include: expect.objectContaining({
             occupancies: expect.objectContaining({
               where: expect.objectContaining({ active: true, effectiveFrom: expect.any(Object) }),
-              select: { relation: true, primaryGateContact: true, user: { select: { id: true, name: true } } },
+              select: expect.objectContaining({
+                id: true,
+                relation: true,
+                primaryGateContact: true,
+                gateApprovalEnabled: true,
+                gateNotificationEnabled: true,
+                escalationOrder: true,
+                user: {
+                  select: expect.objectContaining({ id: true, name: true, phone: true, status: true }),
+                },
+              }),
             }),
           }),
         }),
@@ -89,6 +99,55 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ plateNumber: 'KA01AB1234' }) }),
     );
+  });
+
+  it('rejects vehicle creation for a household outside the authenticated resident scope', async () => {
+    const { svc, prisma } = service({
+      household: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(svc.addVehicle('society-1', 'user-1', 'foreign-household', {
+      plateNumber: 'KA01AB1234',
+      vehicleType: VehicleType.CAR,
+    })).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.householdVehicle.create).not.toHaveBeenCalled();
+  });
+
+  it('scopes vehicle deactivation to the authenticated society and household', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const { svc, prisma } = service({
+      householdVehicle: {
+        create: vi.fn(),
+        findFirst,
+        update: vi.fn(),
+      },
+    });
+
+    await expect(
+      svc.deactivateVehicle('society-1', 'user-1', 'household-1', 'foreign-vehicle'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'foreign-vehicle',
+        householdId: 'household-1',
+        societyId: 'society-1',
+        active: true,
+      },
+    });
+    expect(prisma.householdVehicle.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects family-member management by a resident without verified current ownership', async () => {
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(svc.addFamilyMember('society-1', 'tenant-1', 'household-1', {
+      name: 'Family Member',
+      phone: '+919876543210',
+    })).rejects.toThrow('Only a verified current owner can manage family members for this unit');
   });
 
   it('rejects access to a household outside the tenant', async () => {

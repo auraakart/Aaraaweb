@@ -4,6 +4,7 @@ import 'auth/auth_screen.dart';
 import 'auth/resident_auth_controller.dart';
 import 'auth/session_store.dart';
 import 'data/api_client.dart';
+import 'data/demo_resident_repository.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/gate_screen.dart';
@@ -19,7 +20,12 @@ import 'theme/aaraagate_theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   const apiBaseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
-  final authController = ResidentAuthController(repository: AuthRepository(baseUrl: apiBaseUrl), sessionStore: SessionStore());
+  const demoMode = bool.fromEnvironment('AARAGATE_DEMO_MODE', defaultValue: false);
+  final authController = ResidentAuthController(
+    repository: AuthRepository(baseUrl: apiBaseUrl),
+    sessionStore: SessionStore(),
+    demoEnabled: demoMode,
+  );
   runApp(AaraagateResidentApp(apiBaseUrl: apiBaseUrl, authController: authController));
   authController.bootstrap();
 }
@@ -32,7 +38,7 @@ class AaraagateResidentApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AuraGate',
+      title: 'Aaraagate',
       debugShowCheckedModeBanner: false,
       theme: AaraagateTheme.light(),
       home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController),
@@ -58,7 +64,10 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
     if (session == null || _boundSessionId == session.sessionId) return;
     _boundSessionId = session.sessionId;
     _dataController?.dispose();
-    _dataController = ResidentDataController(ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken)));
+    final ResidentRepository repository = widget.authController.isDemoSession
+        ? DemoResidentRepository()
+        : ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken));
+    _dataController = ResidentDataController(repository);
   }
 
   Future<void> _signOut() async {
@@ -84,16 +93,26 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           return AuthScreen(controller: widget.authController);
         }
         _ensureDataController();
-        return ResidentHomeShell(controller: _dataController!, onSignOut: _signOut);
+        return ResidentHomeShell(
+          controller: _dataController!,
+          onSignOut: _signOut,
+          canManageFamilyMembers: widget.authController.session?.role == 'OWNER',
+        );
       },
     );
   }
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.onSignOut});
+  const ResidentHomeShell({
+    super.key,
+    required this.controller,
+    required this.onSignOut,
+    required this.canManageFamilyMembers,
+  });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
+  final bool canManageFamilyMembers;
 
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
@@ -134,7 +153,11 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           GateScreen(controller: controller),
           WorkforceScreen(controller: controller),
           ServicesScreen(controller: controller),
-          ProfileScreen(controller: controller, onSignOut: widget.onSignOut),
+          ProfileScreen(
+            controller: controller,
+            onSignOut: widget.onSignOut,
+            canManageFamilyMembers: widget.canManageFamilyMembers,
+          ),
         ];
         final pending = controller.firstPendingAccess;
         final eventRequestId = controller.latestAccessEvent?['requestId']?.toString();
@@ -177,14 +200,14 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                                 Expanded(
                                   child: OutlinedButton(
                                     onPressed: () => controller.denyAccess(pending['id'].toString()),
-                                    child: const Text('DENY'),
+                                    child: const Text('Deny'),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: FilledButton(
                                     onPressed: () => controller.approveAccess(pending['id'].toString()),
-                                    child: const Text('ALLOW'),
+                                    child: const Text('Allow'),
                                   ),
                                 ),
                               ],

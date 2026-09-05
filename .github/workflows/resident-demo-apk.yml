@@ -78,10 +78,11 @@ jobs:
         env:
           DEMO_API_BASE_URL: ${{ vars.AARAGATE_DEMO_API_BASE_URL }}
         run: |
+          DEMO_FLAGS=(--dart-define=AARAGATE_DEMO_MODE=true)
           if [ -n "$DEMO_API_BASE_URL" ]; then
-            flutter build apk --debug --dart-define=AARAGATE_API_BASE_URL="$DEMO_API_BASE_URL"
+            flutter build apk --debug "${DEMO_FLAGS[@]}" --dart-define=AARAGATE_API_BASE_URL="$DEMO_API_BASE_URL"
           else
-            flutter build apk --debug
+            flutter build apk --debug "${DEMO_FLAGS[@]}"
           fi
 
       - name: Prepare artifact

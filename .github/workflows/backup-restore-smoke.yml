@@ -1,0 +1,90 @@
+name: Backup restore smoke
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    paths:
+      - 'services/api/prisma/**'
+      - '.github/workflows/backup-restore-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-restore:
+    name: PostgreSQL backup restore drill
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_backup_source
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_backup_source"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_backup_source
+      RESTORE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_backup_restore
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+
+      - name: Apply migrations to source database
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+
+      - name: Confirm PostgreSQL client tools
+        run: |
+          pg_dump --version
+          pg_restore --version
+          psql --version
+
+      - name: Add restore verification marker
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE backup_restore_probe (
+            id text PRIMARY KEY,
+            value text NOT NULL
+          );
+          INSERT INTO backup_restore_probe (id, value)
+          VALUES ('restore-check', 'aaraagate-backup-ok');
+          SQL
+
+      - name: Create logical backup
+        run: pg_dump --format=custom --no-owner --no-privileges --dbname="$DATABASE_URL" --file=/tmp/aaraagate-backup.dump
+
+      - name: Restore into clean database
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE aaraagate_backup_restore;"
+          pg_restore --no-owner --no-privileges --exit-on-error --dbname="$RESTORE_DATABASE_URL" /tmp/aaraagate-backup.dump
+
+      - name: Verify restored schema and data
+        run: |
+          restored_value=$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT value FROM backup_restore_probe WHERE id = 'restore-check';")
+          test "$restored_value" = "aaraagate-backup-ok"
+          migration_count=$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc 'SELECT COUNT(*) FROM "_prisma_migrations";')
+          test "$migration_count" -gt 0
+          echo "Backup restore verified with $migration_count Prisma migrations."

@@ -56,7 +56,7 @@ class GateScreen extends StatelessWidget {
                       request: request,
                       onApprove: request['status'] == 'PENDING' ? () => _approve(context, request) : null,
                       onDeny: request['status'] == 'PENDING' ? () => _deny(context, request) : null,
-                      onCancel: request['status'] == 'APPROVED' ? () => _cancel(context, request) : null,
+                      onCancel: request['status'] == 'APPROVED' && request['subjectType'] == 'VISITOR' ? () => _cancel(context, request) : null,
                     ),
                   )),
           ],
@@ -106,9 +106,13 @@ class GateScreen extends StatelessWidget {
       final rawRequest = result['request'];
       final credential = result['credential']?.toString();
       if (!context.mounted) return;
-      if (rawRequest is Map && credential != null && credential.isNotEmpty) {
+      final subjectType = rawRequest is Map ? rawRequest['subjectType']?.toString() : request['subjectType']?.toString();
+      if (subjectType == 'VISITOR' && rawRequest is Map && credential != null && credential.isNotEmpty) {
         await _showPass(context, {'request': Map<String, dynamic>.from(rawRequest), 'credential': credential});
+        return;
       }
+      final label = subjectType == 'CAB' ? 'Cab' : subjectType == 'DELIVERY' ? 'Delivery' : 'Entry';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label approved. Security has been updated.')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -206,8 +210,28 @@ class _AccessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = request['subjectName']?.toString() ?? 'Unknown';
-    final type = _label(request['subjectType']?.toString());
+    final rawType = request['subjectType']?.toString();
+    final type = _label(rawType);
     final status = _label(request['status']?.toString());
+    final metadata = request['metadata'] is Map ? Map<String, dynamic>.from(request['metadata'] as Map) : const <String, dynamic>{};
+    final provider = metadata['provider']?.toString();
+    final vehicleNumber = metadata['vehicleNumber']?.toString();
+    final detail = [
+      if (provider != null && provider.trim().isNotEmpty) provider.trim(),
+      if (vehicleNumber != null && vehicleNumber.trim().isNotEmpty) vehicleNumber.trim(),
+    ].join(' · ');
+    final icon = switch (rawType) {
+      'DELIVERY' => Icons.delivery_dining_rounded,
+      'CAB' => Icons.local_taxi_rounded,
+      'DOMESTIC_HELP' => Icons.home_repair_service_outlined,
+      _ => Icons.person_outline_rounded,
+    };
+    final approvalHint = request['status'] == 'PENDING' && rawType == 'CAB'
+        ? 'Allow for the next 15 minutes'
+        : request['status'] == 'PENDING' && rawType == 'DELIVERY'
+            ? 'Allow for the next 30 minutes'
+            : null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
@@ -215,17 +239,25 @@ class _AccessCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const CircleAvatar(child: Icon(Icons.badge_outlined)),
+              CircleAvatar(child: Icon(icon)),
               const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), Text(type)])),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(type),
+                if (detail.isNotEmpty) Text(detail, style: Theme.of(context).textTheme.bodySmall),
+              ])),
               Text(status, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
             ]),
+            if (approvalHint != null) ...[
+              const SizedBox(height: 8),
+              Text(approvalHint, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
+            ],
             if (onApprove != null || onDeny != null || onCancel != null) ...[
               const SizedBox(height: 12),
               Row(children: [
                 if (onDeny != null) Expanded(child: OutlinedButton(onPressed: onDeny, child: const Text('Deny'))),
                 if (onDeny != null && onApprove != null) const SizedBox(width: 8),
-                if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: const Text('Allow'))),
+                if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? 'Allow entry' : 'Allow'))),
                 if (onCancel != null) Expanded(child: OutlinedButton(onPressed: onCancel, child: const Text('Cancel pass'))),
               ]),
             ],
