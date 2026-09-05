@@ -101,6 +101,44 @@ describe('HouseholdService', () => {
     );
   });
 
+  it('rejects vehicle creation for a household outside the authenticated resident scope', async () => {
+    const { svc, prisma } = service({
+      household: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(svc.addVehicle('society-1', 'user-1', 'foreign-household', {
+      plateNumber: 'KA01AB1234',
+      vehicleType: VehicleType.CAR,
+    })).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.householdVehicle.create).not.toHaveBeenCalled();
+  });
+
+  it('scopes vehicle deactivation to the authenticated society and household', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const { svc, prisma } = service({
+      householdVehicle: {
+        create: vi.fn(),
+        findFirst,
+        update: vi.fn(),
+      },
+    });
+
+    await expect(
+      svc.deactivateVehicle('society-1', 'user-1', 'household-1', 'foreign-vehicle'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'foreign-vehicle',
+        householdId: 'household-1',
+        societyId: 'society-1',
+        active: true,
+      },
+    });
+    expect(prisma.householdVehicle.update).not.toHaveBeenCalled();
+  });
+
   it('rejects access to a household outside the tenant', async () => {
     const { svc } = service({
       household: {
