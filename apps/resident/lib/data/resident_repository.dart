@@ -9,6 +9,42 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> addFamilyMember({
+    required String householdId,
+    required String name,
+    required String phone,
+    bool gateApprovalEnabled = false,
+    bool gateNotificationEnabled = true,
+    bool primaryGateContact = false,
+  }) async {
+    final value = await api.post('/api/v1/households/$householdId/family-members', {
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'gateApprovalEnabled': gateApprovalEnabled,
+      'gateNotificationEnabled': gateNotificationEnabled,
+      'primaryGateContact': primaryGateContact,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> updateFamilyMember({
+    required String householdId,
+    required String occupancyId,
+    bool? gateApprovalEnabled,
+    bool? gateNotificationEnabled,
+    bool? primaryGateContact,
+  }) async {
+    final value = await api.patch('/api/v1/households/$householdId/family-members/$occupancyId', {
+      if (gateApprovalEnabled != null) 'gateApprovalEnabled': gateApprovalEnabled,
+      if (gateNotificationEnabled != null) 'gateNotificationEnabled': gateNotificationEnabled,
+      if (primaryGateContact != null) 'primaryGateContact': primaryGateContact,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<void> deactivateFamilyMember({required String householdId, required String occupancyId}) =>
+      api.patch('/api/v1/households/$householdId/family-members/$occupancyId/deactivate');
+
   Future<List<Map<String, dynamic>>> accessRequests() async {
     final value = await api.get('/api/v1/access-requests/mine');
     return _list(value);
@@ -62,18 +98,8 @@ class ResidentRepository {
     return _list(value);
   }
 
-  Future<Map<String, dynamic>> addWorkforce({
-    required String householdId,
-    required String name,
-    required String phone,
-    required String role,
-  }) async {
-    final value = await api.post('/api/v1/workforce', {
-      'householdId': householdId,
-      'name': name.trim(),
-      'phone': phone.trim(),
-      'role': role,
-    });
+  Future<Map<String, dynamic>> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
+    final value = await api.post('/api/v1/workforce', {'householdId': householdId, 'name': name.trim(), 'phone': phone.trim(), 'role': role});
     return Map<String, dynamic>.from(value as Map);
   }
 
@@ -93,10 +119,7 @@ class ResidentRepository {
   }
 
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
-    final value = await api.post('/api/v1/billing/payments', {
-      'invoiceId': invoiceId,
-      'idempotencyKey': idempotencyKey,
-    });
+    final value = await api.post('/api/v1/billing/payments', {'invoiceId': invoiceId, 'idempotencyKey': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);
   }
 
@@ -115,13 +138,7 @@ class ResidentRepository {
     return _list(value);
   }
 
-  Future<Map<String, dynamic>> createHelpdeskTicket({
-    required String unitId,
-    required String title,
-    required String description,
-    String? category,
-    String priority = 'NORMAL',
-  }) async {
+  Future<Map<String, dynamic>> createHelpdeskTicket({required String unitId, required String title, required String description, String? category, String priority = 'NORMAL'}) async {
     final value = await api.post('/api/v1/helpdesk', {
       'unitId': unitId,
       'title': title.trim(),
@@ -132,15 +149,9 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<void> addHelpdeskComment(String ticketId, String message) =>
-      api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
+  Future<void> addHelpdeskComment(String ticketId, String message) => api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
 
-  Future<Map<String, dynamic>> createWorkforceLeave({
-    required String assignmentId,
-    required DateTime startsOn,
-    required DateTime endsOn,
-    String? reason,
-  }) async {
+  Future<Map<String, dynamic>> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     final value = await api.post('/api/v1/workforce/leaves', {
       'assignmentId': assignmentId,
       'startsOn': _dateOnly(startsOn),
@@ -156,18 +167,12 @@ class ResidentRepository {
   }
 
   Future<Map<String, dynamic>> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
-    final value = await api.put('/api/v1/workforce/ratings/$assignmentId', {
-      'score': score,
-      if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim(),
-    });
+    final value = await api.put('/api/v1/workforce/ratings/$assignmentId', {'score': score, if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim()});
     return Map<String, dynamic>.from(value as Map);
   }
 
   Future<Map<String, dynamic>> approveAccess(String requestId, {required DateTime validFrom, required DateTime validUntil}) async {
-    final value = await api.post('/api/v1/access-requests/$requestId/approve', {
-      'validFrom': validFrom.toUtc().toIso8601String(),
-      'validUntil': validUntil.toUtc().toIso8601String(),
-    });
+    final value = await api.post('/api/v1/access-requests/$requestId/approve', {'validFrom': validFrom.toUtc().toIso8601String(), 'validUntil': validUntil.toUtc().toIso8601String()});
     return Map<String, dynamic>.from(value as Map);
   }
 
@@ -197,8 +202,7 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  String _dateOnly(DateTime value) =>
-      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+  String _dateOnly(DateTime value) => '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   List<Map<String, dynamic>> _list(dynamic value) {
     if (value is! List) return const [];
