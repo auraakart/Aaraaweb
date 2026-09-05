@@ -5,10 +5,15 @@ import 'session_store.dart';
 enum ResidentAuthStep { loading, phone, otp, society, signedIn }
 
 class ResidentAuthController extends ChangeNotifier {
-  ResidentAuthController({required this.repository, required this.sessionStore});
+  ResidentAuthController({
+    required this.repository,
+    required this.sessionStore,
+    this.demoEnabled = false,
+  });
 
   final AuthRepository repository;
   final SessionStore sessionStore;
+  final bool demoEnabled;
 
   ResidentAuthStep step = ResidentAuthStep.loading;
   bool busy = false;
@@ -18,6 +23,8 @@ class ResidentAuthController extends ChangeNotifier {
   String? selectionToken;
   List<SocietyMembershipOption> memberships = const [];
   ResidentSession? session;
+
+  bool get isDemoSession => session?.sessionId == 'demo-resident-session';
 
   Future<void> bootstrap() async {
     error = null;
@@ -39,6 +46,24 @@ class ResidentAuthController extends ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  Future<void> enterDemo() async {
+    if (!demoEnabled) return;
+    error = null;
+    challengeId = null;
+    userId = 'demo-resident';
+    selectionToken = null;
+    memberships = const [];
+    session = const ResidentSession(
+      sessionId: 'demo-resident-session',
+      accessToken: 'demo-local-only',
+      refreshToken: 'demo-local-only',
+      societyId: 'demo-society-1',
+      role: 'OWNER',
+    );
+    step = ResidentAuthStep.signedIn;
+    notifyListeners();
   }
 
   Future<void> requestOtp(String phone) async {
@@ -85,7 +110,7 @@ class ResidentAuthController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      if (current != null) {
+      if (current != null && !isDemoSession) {
         try {
           await repository.logout(current);
         } catch (_) {}
