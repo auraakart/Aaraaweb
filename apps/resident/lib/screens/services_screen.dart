@@ -83,6 +83,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         final offering = sorted[index];
                         final provider = offering['provider'];
                         final providerDescription = provider is Map ? provider['description']?.toString() : null;
+                        final ratingAverage = provider is Map ? (provider['ratingAverage'] as num?)?.toDouble() : null;
+                        final ratingCount = provider is Map ? (provider['ratingCount'] as num?)?.toInt() ?? 0 : 0;
+                        final completedJobs = provider is Map ? (provider['completedJobs'] as num?)?.toInt() ?? 0 : 0;
                         final duration = (offering['durationMinutes'] as num?)?.toInt();
                         return Card(
                           child: Padding(
@@ -129,6 +132,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
+                                    if (ratingAverage != null && ratingCount > 0)
+                                      Chip(avatar: const Icon(Icons.star_rounded, size: 16), label: Text('${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}')),
+                                    if (completedJobs > 0)
+                                      Chip(avatar: const Icon(Icons.task_alt_rounded, size: 16), label: Text('$completedJobs completed job${completedJobs == 1 ? '' : 's'}')),
                                     if (duration != null) Chip(avatar: const Icon(Icons.schedule_rounded, size: 16), label: Text('Approx. $duration min')),
                                     const Chip(avatar: Icon(Icons.shield_outlined, size: 16), label: Text('Society approved')),
                                   ],
