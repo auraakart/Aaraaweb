@@ -4,7 +4,7 @@ on:
   push:
     branches: [fix/admin-marketplace-access-lifecycle]
     paths:
-      - 'scripts/temporary-admin-marketplace-codemod.py'
+      - 'scripts/temporary-admin-session-codemod.py'
       - '.github/workflows/temp-admin-marketplace-codemod.yml'
 
 permissions:
@@ -18,10 +18,10 @@ jobs:
         with:
           ref: fix/admin-marketplace-access-lifecycle
           fetch-depth: 0
-      - name: Apply codemod
+      - name: Apply session codemod
         run: |
-          if [ -f scripts/temporary-admin-marketplace-codemod.py ]; then
-            python scripts/temporary-admin-marketplace-codemod.py
+          if [ -f scripts/temporary-admin-session-codemod.py ]; then
+            python scripts/temporary-admin-session-codemod.py
           fi
       - name: Commit generated admin change
         run: |
@@ -31,6 +31,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No generated change required.'
           else
-            git commit -m 'Align admin access and marketplace onboarding lifecycle'
+            git commit -m 'Reject stale unsupported admin sessions'
             git push origin HEAD:fix/admin-marketplace-access-lifecycle
           fi
