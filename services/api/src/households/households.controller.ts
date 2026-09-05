@@ -24,7 +24,6 @@ class AddVehicleDto {
   @IsOptional() @IsString() make?: string;
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() color?: string;
-  @IsOptional() @IsString() parkingSlot?: string;
 }
 class UpdateVehicleParkingDto {
   @IsOptional() @IsString() parkingSlot?: string;
@@ -114,15 +113,14 @@ export class HouseholdsController {
   }
 
   @Patch(':householdId/vehicles/:vehicleId/parking-slot')
-  @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
   updateVehicleParking(
     @Param('householdId', ParseUUIDPipe) householdId: string,
     @Param('vehicleId', ParseUUIDPipe) vehicleId: string,
     @Body() dto: UpdateVehicleParkingDto,
     @CurrentTenant() societyId: string,
-    @CurrentUser() userId: string,
   ) {
-    return this.households.updateVehicleParkingSlot(societyId, userId, householdId, vehicleId, dto.parkingSlot);
+    return this.households.updateVehicleParkingSlot(societyId, householdId, vehicleId, dto.parkingSlot);
   }
 
   @Patch(':householdId/vehicles/:vehicleId/deactivate')
