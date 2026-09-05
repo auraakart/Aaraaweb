@@ -38,6 +38,9 @@ jobs:
       NODE_ENV: production
       APP_VERSION: staging-smoke
       GIT_SHA: ${{ github.sha }}
+      OTP_DELIVERY_PROVIDER: msg91
+      MSG91_AUTH_KEY: staging-smoke-placeholder
+      MSG91_OTP_TEMPLATE_ID: staging-smoke-placeholder
     steps:
       - name: Checkout
         uses: actions/checkout@v4
