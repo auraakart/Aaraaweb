@@ -5,24 +5,23 @@ Updated: 2026-09-04
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
 ## Current priority
-Complete the Essential V1 Reports and Operational Audit Views milestone.
+Complete the Resident/Admin/Guard UX and design-system consistency milestone.
 
 Execution order:
-1. Deliver the minimum decision-useful Society Admin reports for visitor/gate activity, workforce attendance, maintenance collections/outstanding dues, helpdesk/SLA and audit events.
-2. Keep reporting tenant-scoped, permission-scoped and privacy-safe; reports must not become a bypass around established owner/occupant or society isolation rules.
-3. Prefer server-side aggregation and paginated drill-downs over large client-side datasets; avoid building a general-purpose BI platform in V1.
-4. Verify loading, empty, failure, authorization, tenant-isolation and export/drill-down states where applicable.
-5. Run targeted report/API/Admin tests first, then protected CI and staging validation at the milestone boundary.
-6. Promote the validated Reports milestone through staging and main using the standard release path.
+1. Consolidate shared visual tokens across Resident, Guard and Admin without changing authorization, data flow or business behavior.
+2. Standardize typography, spacing, cards, controls, loading/empty/error/recovery states and navigation patterns where the current surfaces differ unnecessarily.
+3. Preserve role-specific operational clarity: Resident should remain simple and action-led, Guard should remain fast and low-distraction, and Admin should remain information-dense but readable.
+4. Keep branding implementation token-driven so the final AaraaPlatforms/Aaraagate logo palette can be applied centrally later without scattered hard-coded changes.
+5. Run targeted Flutter/Admin validation while iterating, then protected CI and staging validation at the milestone boundary.
+6. Promote the validated UX consistency milestone through staging and main using the standard release path.
 
-Maintenance/Billing, Visitor/Guard, Domestic-help/workforce and Society Admin operations are validated release baselines. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
+Maintenance/Billing, Visitor/Guard, Domestic-help/workforce, Society Admin operations, Essential V1 Reports/Audit Views and the Resident marketplace booking lifecycle are validated release baselines. The Resident demo APK workflow is established on `develop` and produces an installable Android artifact after validation. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
 ## Next milestone sequence
-After Essential Reports / Audit Views are complete, proceed in this order unless a blocking defect changes priority:
-1. Household-services marketplace/service-booking Resident lifecycle completion.
-2. Resident/Admin/Guard UX and design-system consistency pass.
-3. Consolidated security, tenant-isolation, permissions and regression review.
-4. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
+After UX/design-system consistency is complete, proceed in this order unless a blocking defect changes priority:
+1. Consolidated security, tenant-isolation, permissions and regression review.
+2. Production-readiness work: observability, backup/restore validation, UAT, pilot rollout and deployment/rollback readiness.
+3. Final release hardening and production promotion.
 
 ## Usage-efficient execution policy
 To conserve agentic/Codex usage without reducing quality:

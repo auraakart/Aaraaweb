@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
+import '../widgets/app_state_card.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key, required this.repository});
@@ -99,20 +100,25 @@ class _BillingScreenState extends State<BillingScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            if (loading) const Padding(padding: EdgeInsets.all(48), child: Center(child: CircularProgressIndicator()))
-            else if (error != null) _Message(icon: Icons.lock_outline_rounded, text: error!, action: _load)
-            else if (invoices.isEmpty) const _Message(icon: Icons.receipt_long_outlined, text: 'No maintenance invoices are available.')
+            if (loading)
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading maintenance and payment details…', loading: true)
+            else if (error != null)
+              AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: 'Retry', onAction: () { _load(); })
+            else if (invoices.isEmpty)
+              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No maintenance invoices are available.')
             else ...[
               _SummaryCard(outstanding: outstanding),
               const SizedBox(height: 22),
               Text('Outstanding', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              if (outstanding.isEmpty) const _Message(icon: Icons.check_circle_outline_rounded, text: 'You have no outstanding maintenance dues.'),
+              if (outstanding.isEmpty)
+                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding maintenance dues.'),
               for (final invoice in outstanding) _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id'], onPay: () => _preparePayment(invoice)),
               const SizedBox(height: 22),
               Text('Payment history', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              if (completedPayments.isEmpty) const _Message(icon: Icons.history_rounded, text: 'No completed payments yet.'),
+              if (completedPayments.isEmpty)
+                const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.'),
               for (final payment in completedPayments) _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
             ],
           ],
@@ -159,15 +165,6 @@ class _InvoiceCard extends StatelessWidget {
     final due = DateTime.tryParse(invoice['dueDate']?.toString() ?? '');
     return Card(margin: const EdgeInsets.only(bottom: 10), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text('${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}', style: const TextStyle(fontWeight: FontWeight.w800))), Chip(label: Text(paid ? 'PAID' : 'DUE'))]), const SizedBox(height: 8), Text(_money((invoice['amountPaise'] as num?)?.toInt() ?? 0), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)), Text('${invoice['billingPeriod'] ?? ''} · ${paid ? 'Receipt' : 'Due'} ${due == null ? '' : _date(due)}'), if ((invoice['description']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 7), Text(invoice['description'].toString())], const SizedBox(height: 12), if (paid) Text('Reference ${invoice['invoiceNumber']}', style: Theme.of(context).textTheme.labelMedium) else SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : onPay, icon: const Icon(Icons.lock_outline_rounded), label: Text(busy ? 'Preparing…' : 'Pay securely')))])));
   }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({required this.icon, required this.text, this.action});
-  final IconData icon;
-  final String text;
-  final Future<void> Function()? action;
-  @override
-  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [Icon(icon, size: 36), const SizedBox(height: 10), Text(text, textAlign: TextAlign.center), if (action != null) TextButton(onPressed: action, child: const Text('Retry'))])));
 }
 
 String _money(int paise) => '₹${(paise / 100).toStringAsFixed(2)}';

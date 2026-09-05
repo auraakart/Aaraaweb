@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../widgets/app_state_card.dart';
 
 class NoticesScreen extends StatelessWidget {
   const NoticesScreen({super.key, required this.controller});
@@ -21,32 +22,18 @@ class NoticesScreen extends StatelessWidget {
             Text('Important announcements and updates from your society.', style: theme.textTheme.bodyMedium),
             const SizedBox(height: 18),
             if (controller.loading && controller.notices.isEmpty)
-              const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading society notices…', loading: true)
             else if (controller.noticesError != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    children: [
-                      const Text('Notices could not be loaded.'),
-                      const SizedBox(height: 8),
-                      TextButton(onPressed: controller.refreshNotices, child: const Text('Retry')),
-                    ],
-                  ),
-                ),
+              AppStateCard(
+                icon: Icons.error_outline_rounded,
+                message: 'Notices could not be loaded.',
+                actionLabel: 'Retry',
+                onAction: controller.refreshNotices,
               )
             else if (controller.notices.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(22),
-                  child: Row(
-                    children: [
-                      Icon(Icons.campaign_outlined),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('No active notices right now.')),
-                    ],
-                  ),
-                ),
+              const AppStateCard(
+                icon: Icons.campaign_outlined,
+                message: 'No active notices right now.',
               )
             else
               for (final notice in controller.notices)
@@ -85,9 +72,7 @@ class _NoticeCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    child: const Icon(Icons.campaign_outlined),
-                  ),
+                  const CircleAvatar(child: Icon(Icons.campaign_outlined)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
