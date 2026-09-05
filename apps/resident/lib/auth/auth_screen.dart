@@ -39,7 +39,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     children: [
                       Icon(Icons.shield_rounded, size: 54, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(height: 18),
-                      Text('Welcome to AuraGate', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                      Text('Welcome to Aaraagate', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 8),
                       Text('Secure access to your home and community.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
                       const SizedBox(height: 28),

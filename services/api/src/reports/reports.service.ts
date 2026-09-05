@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 366;
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
 
 @Injectable()
 export class ReportsService {
@@ -81,19 +83,138 @@ export class ReportsService {
     };
   }
 
+  async accessFeed(
+    societyId: string,
+    subjectType: string,
+    from?: string,
+    to?: string,
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
+    const range = this.dateRange(from, to);
+    const paging = this.paging(page, pageSize);
+    const type = this.accessSubjectType(subjectType);
+    const where = { societyId, subjectType: type, createdAt: range };
+
+    const [total, items] = await Promise.all([
+      this.prisma.accessRequest.count({ where }),
+      this.prisma.accessRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: paging.skip,
+        take: paging.take,
+        select: {
+          id: true,
+          subjectType: true,
+          subjectName: true,
+          purpose: true,
+          status: true,
+          createdAt: true,
+          enteredAt: true,
+          exitedAt: true,
+          unit: {
+            select: {
+              number: true,
+              building: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return { page, pageSize, total, items };
+  }
+
+  async helpdeskFeed(
+    societyId: string,
+    from?: string,
+    to?: string,
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
+    const range = this.dateRange(from, to);
+    const paging = this.paging(page, pageSize);
+    const where = { societyId, createdAt: range };
+
+    const [total, items] = await Promise.all([
+      this.prisma.helpdeskTicket.count({ where }),
+      this.prisma.helpdeskTicket.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: paging.skip,
+        take: paging.take,
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          priority: true,
+          status: true,
+          createdAt: true,
+          resolvedAt: true,
+          closedAt: true,
+          unit: {
+            select: {
+              number: true,
+              building: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return { page, pageSize, total, items };
+  }
+
+  async maintenanceFeed(
+    societyId: string,
+    from?: string,
+    to?: string,
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
+    const range = this.dateRange(from, to);
+    const paging = this.paging(page, pageSize);
+    const where = { societyId, issuedAt: range, status: { not: InvoiceStatus.VOID } };
+
+    const [total, items] = await Promise.all([
+      this.prisma.maintenanceInvoice.count({ where }),
+      this.prisma.maintenanceInvoice.findMany({
+        where,
+        orderBy: { issuedAt: 'desc' },
+        skip: paging.skip,
+        take: paging.take,
+        select: {
+          id: true,
+          invoiceNumber: true,
+          billingPeriod: true,
+          amountPaise: true,
+          dueDate: true,
+          status: true,
+          issuedAt: true,
+          paidAt: true,
+          unit: {
+            select: {
+              number: true,
+              building: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return { page, pageSize, total, items };
+  }
+
   async auditFeed(societyId: string, page = 1, pageSize = 50) {
-    if (!Number.isInteger(page) || page < 1) throw new BadRequestException('page must be a positive integer');
-    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
-      throw new BadRequestException('pageSize must be between 1 and 100');
-    }
+    const paging = this.paging(page, pageSize);
 
     const [total, items] = await Promise.all([
       this.prisma.auditEvent.count({ where: { societyId } }),
       this.prisma.auditEvent.findMany({
         where: { societyId },
         orderBy: { occurredAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: paging.skip,
+        take: paging.take,
         select: {
           id: true,
           event: true,
@@ -107,6 +228,21 @@ export class ReportsService {
     ]);
 
     return { page, pageSize, total, items };
+  }
+
+  private paging(page: number, pageSize: number) {
+    if (!Number.isInteger(page) || page < 1) throw new BadRequestException('page must be a positive integer');
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw new BadRequestException(`pageSize must be between 1 and ${MAX_PAGE_SIZE}`);
+    }
+    return { skip: (page - 1) * pageSize, take: pageSize };
+  }
+
+  private accessSubjectType(value: string) {
+    if (!Object.values(AccessSubjectType).includes(value as AccessSubjectType)) {
+      throw new BadRequestException('subjectType must be a valid access subject type');
+    }
+    return value as AccessSubjectType;
   }
 
   private dateRange(from?: string, to?: string) {

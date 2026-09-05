@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import 'family_members_screen.dart';
+import 'vehicles_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
@@ -72,7 +73,15 @@ class ProfileScreen extends StatelessWidget {
                   )),
                 ),
                 const Divider(height: 1),
-                ListTile(leading: const Icon(Icons.directions_car_outlined), title: const Text('Vehicles'), subtitle: Text('$vehicles registered vehicles'), trailing: const Icon(Icons.chevron_right)),
+                ListTile(
+                  leading: const Icon(Icons.directions_car_outlined),
+                  title: const Text('Vehicles'),
+                  subtitle: Text('$vehicles registered vehicles'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => VehiclesScreen(controller: controller, householdId: household['id'].toString()),
+                  )),
+                ),
                 const Divider(height: 1),
                 ListTile(leading: const Icon(Icons.contact_emergency_outlined), title: const Text('Emergency contacts'), subtitle: Text('$contacts contacts'), trailing: const Icon(Icons.chevron_right)),
                 const Divider(height: 1),
