@@ -16,6 +16,8 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] User can sign in only to societies where an active membership exists.
 - [ ] Cross-society access attempts fail closed.
 - [ ] Admin, Accountant, Security Supervisor, Guard, Owner, Tenant and Family Member permissions match the approved matrix.
+- [ ] Security Supervisor can use the Admin/operations console only for permitted Gates/SOS operations and cannot reach marketplace, billing, resident-management, workforce, helpdesk, notices or society-configuration surfaces.
+- [ ] Unsupported/stale Admin-console roles are rejected after session refresh rather than inheriting a default view.
 - [ ] Historic/ended occupancy cannot access current household-private actions.
 
 ### Visitor and gate operations
@@ -65,9 +67,22 @@ This checklist is the acceptance evidence for a production candidate after techn
 
 ### Resident marketplace
 - [ ] Resident can browse approved offerings and book for a current household unit.
+- [ ] When multiple verified/approved providers offer the same category + service, the Resident app groups the service and requires explicit provider selection before booking.
+- [ ] Provider comparison shows useful non-sensitive choice information such as business name, price, description and duration without exposing provider phone/email.
+- [ ] The selected provider-specific offering ID remains the booking source of truth and price/commission are snapshotted at booking time.
 - [ ] Cancel/rate transitions are limited to valid booking states.
+- [ ] Provider confirmation creates linked service-provider gate access using the existing booking lifecycle; cancellation continues to revoke linked access where applicable.
 - [ ] Cross-unit/cross-society booking access is rejected.
 - [ ] Resident booking payload does not expose unnecessary provider contact data or sensitive linked access-request fields.
+
+### Admin marketplace and provider lifecycle
+- [ ] Society Admin/Facility Manager can submit a new provider for the currently selected society without exposing that pending submission to another society.
+- [ ] Newly submitted provider remains visible to the submitting society as PENDING while awaiting platform verification.
+- [ ] Only Super Admin/platform-authorised user can perform platform provider verification.
+- [ ] Society provider approval remains separate from platform verification and can apply society-specific commission only after verification.
+- [ ] Globally verified providers not yet associated with the current society do not expose unnecessary contact details in society catalog discovery.
+- [ ] Global service-category and provider-offering creation is restricted to Super Admin/platform catalog permission so one society cannot mutate another society's shared catalog.
+- [ ] Society provider-management users can still manage society booking confirmation/completion without gaining platform catalog authority.
 
 ### Reports and audit
 - [ ] Reports contain only society-scoped data available to the requesting role.
@@ -106,6 +121,7 @@ Track during pilot:
 - notification delivery issues;
 - helpdesk/SOS reliability;
 - vehicle/parking assignment issues;
+- marketplace/provider onboarding or provider-choice issues;
 - user-blocking UX defects;
 - API error rate and service availability;
 - data-integrity or tenant-isolation anomalies.
