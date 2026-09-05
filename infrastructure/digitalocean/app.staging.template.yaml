@@ -1,0 +1,91 @@
+# TEMPLATE ONLY. Replace all REPLACE_* values in the DigitalOcean control plane before deployment.
+# Hosted staging baseline for Aaraagate. Application code remains provider-portable.
+name: aaraagate-staging
+region: blr
+features:
+  - buildpack-stack=ubuntu-22
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+services:
+  - name: aaraagate-api
+    environment_slug: node-js
+    github:
+      repo: auraakart/Aaraaweb
+      branch: staging
+      deploy_on_push: false
+    source_dir: /
+    build_command: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @aaraagate/api prisma:generate &&
+      pnpm --filter @aaraagate/api build
+    run_command: pnpm --filter @aaraagate/api start
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    liveness_health_check:
+      http_path: /api/v1/health
+      port: 8080
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 6
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+        type: GENERAL
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: DATABASE_URL
+        value: REPLACE_WITH_MANAGED_POSTGRES_PRIVATE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: REDIS_URL
+        value: REPLACE_WITH_MANAGED_VALKEY_PRIVATE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CORS_ALLOWED_ORIGINS
+        value: REPLACE_WITH_STAGING_ADMIN_ORIGIN
+        scope: RUN_TIME
+        type: GENERAL
+      - key: APP_VERSION
+        value: REPLACE_WITH_RELEASE_VERSION
+        scope: RUN_TIME
+        type: GENERAL
+      - key: GIT_SHA
+        value: REPLACE_WITH_STAGING_COMMIT_SHA
+        scope: RUN_TIME
+        type: GENERAL
+      - key: OTP_DELIVERY_PROVIDER
+        value: REPLACE_WITH_PRODUCTION_CAPABLE_OTP_PROVIDER
+        scope: RUN_TIME
+        type: GENERAL
+
+  - name: aaraagate-admin
+    environment_slug: node-js
+    github:
+      repo: auraakart/Aaraaweb
+      branch: staging
+      deploy_on_push: false
+    source_dir: /
+    build_command: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @aaraagate/admin build
+    run_command: pnpm --filter @aaraagate/admin start -- -p 8080
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+        type: GENERAL
+      - key: NEXT_PUBLIC_AARAGATE_API_BASE_URL
+        value: REPLACE_WITH_STAGING_API_ORIGIN
+        scope: RUN_AND_BUILD_TIME
+        type: GENERAL
