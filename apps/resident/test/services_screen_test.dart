@@ -77,8 +77,12 @@ void main() {
     await tester.pumpWidget(host(controller));
 
     expect(find.text('Waiting for the provider to confirm this request. No gate pass has been created yet.'), findsOneWidget);
-    expect(find.text('Provider confirmed. Linked gate access: APPROVED.'), findsOneWidget);
     expect(find.text('CoolCare'), findsOneWidget);
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Provider confirmed. Linked gate access: APPROVED.'), findsOneWidget);
     expect(find.text('FixRight'), findsOneWidget);
   });
 }
