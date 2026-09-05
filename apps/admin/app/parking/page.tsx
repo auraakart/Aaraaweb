@@ -12,7 +12,7 @@ export default function ParkingPage(){
   const[session,setSession]=useState<Session|null>(null),[rows,setRows]=useState<ParkingRow[]>([]),[loading,setLoading]=useState(true),[busyId,setBusyId]=useState(''),[error,setError]=useState(''),[query,setQuery]=useState('')
   const allowed=(s:Session|null)=>!!s&&['SUPER_ADMIN','SOCIETY_ADMIN'].includes(s.role)
   const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{setRows(await api<ParkingRow[]>(s,'/parking/admin'))}catch(e){setError(e instanceof Error?e.message:'Could not load parking')}finally{setLoading(false)}},[])
-  useEffect(()=>{const s=getSession();setSession(s);if(allowed(s))void load(s);else setLoading(false)},[load])
+  useEffect(()=>{const s=getSession();setSession(s);if(s&&allowed(s))void load(s);else setLoading(false)},[load])
   const filtered=useMemo(()=>{const q=query.trim().toLowerCase();if(!q)return rows;return rows.filter(r=>[r.vehicle.plateNumber,r.unit.number,r.unit.building.name,r.parkingSlot??'',r.vehicle.make??'',r.vehicle.model??''].some(v=>v.toLowerCase().includes(q)))},[rows,query])
   const update=async(row:ParkingRow)=>{if(!session)return;const value=prompt(`Parking bay for ${row.vehicle.plateNumber}. Leave blank to clear.`,row.parkingSlot??'');if(value===null)return;setBusyId(row.vehicle.id);setError('');try{await api(session,`/parking/admin/${row.householdId}/vehicles/${row.vehicle.id}`,{method:'PATCH',body:JSON.stringify({parkingSlot:value.trim()||undefined})});await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not update parking')}finally{setBusyId('')}}
   if(loading)return <main style={{padding:32}}>Loading parking assignments…</main>
