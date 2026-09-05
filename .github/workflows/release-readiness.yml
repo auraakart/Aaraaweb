@@ -27,9 +27,15 @@ jobs:
           fi
 
       - name: Record release candidate and rollback target
+        env:
+          PR_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           mkdir -p release-evidence
-          CANDIDATE_SHA="${GITHUB_SHA}"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            CANDIDATE_SHA="${PR_CANDIDATE_SHA}"
+          else
+            CANDIDATE_SHA="${GITHUB_SHA}"
+          fi
           git fetch origin main --depth=1
           ROLLBACK_SHA="$(git rev-parse origin/main)"
           MIGRATION_COUNT="$(find services/api/prisma/migrations -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
@@ -51,7 +57,8 @@ jobs:
           test -f .github/workflows/backup-restore-smoke.yml
           test -f docs/PRODUCTION-READINESS.md
           test -f docs/UAT-PILOT-CHECKLIST.md
-          grep -q "commitSha" services/api/src/app.module.ts
+          test -f services/api/src/health/health.controller.ts
+          grep -q "process.env.GIT_SHA" services/api/src/health/health.controller.ts
           grep -q "rollback" docs/PRODUCTION-READINESS.md
 
       - name: Upload release evidence
