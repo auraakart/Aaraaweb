@@ -200,14 +200,14 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                                 Expanded(
                                   child: OutlinedButton(
                                     onPressed: () => controller.denyAccess(pending['id'].toString()),
-                                    child: const Text('DENY'),
+                                    child: const Text('Deny'),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: FilledButton(
                                     onPressed: () => controller.approveAccess(pending['id'].toString()),
-                                    child: const Text('ALLOW'),
+                                    child: const Text('Allow'),
                                   ),
                                 ),
                               ],
