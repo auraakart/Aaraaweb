@@ -35,7 +35,6 @@ class VehiclesScreen extends StatelessWidget {
     final make = TextEditingController();
     final model = TextEditingController();
     final color = TextEditingController();
-    final parkingSlot = TextEditingController();
     var type = 'CAR';
     final submit = await showDialog<bool>(
       context: context,
@@ -66,12 +65,6 @@ class VehiclesScreen extends StatelessWidget {
               TextField(controller: model, decoration: const InputDecoration(labelText: 'Model (optional)', hintText: 'Baleno')),
               const SizedBox(height: 12),
               TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
-              const SizedBox(height: 12),
-              TextField(
-                controller: parkingSlot,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(labelText: 'Parking slot (optional)', hintText: 'B2-18'),
-              ),
             ]),
           ),
           actions: [
@@ -90,44 +83,9 @@ class VehiclesScreen extends StatelessWidget {
         make: make.text,
         model: model.text,
         color: color.text,
-        parkingSlot: parkingSlot.text,
       );
       await controller.load();
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle registered')));
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
-  Future<void> _editParking(BuildContext context, Map<String, dynamic> vehicle) async {
-    final vehicleId = vehicle['id']?.toString();
-    if (vehicleId == null || vehicleId.isEmpty) return;
-    final parkingSlot = TextEditingController(text: _parkingSlots[vehicleId] ?? '');
-    final submit = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Parking slot'),
-        content: TextField(
-          controller: parkingSlot,
-          autofocus: true,
-          textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(labelText: 'Slot / bay label', hintText: 'B2-18', helperText: 'Leave blank to clear the parking label.'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
-        ],
-      ),
-    );
-    if (submit != true || !context.mounted) return;
-    try {
-      await controller.repository.updateVehicleParkingSlot(
-        householdId: householdId,
-        vehicleId: vehicleId,
-        parkingSlot: parkingSlot.text,
-      );
-      await controller.load();
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parking slot updated')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -175,7 +133,7 @@ class VehiclesScreen extends StatelessWidget {
           children: [
             Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Keep vehicle details and your basic parking bay label current for society operations.'),
+            const Text('Register your vehicles here. Parking bay assignments are managed by society administration and shown below when assigned.'),
             const SizedBox(height: 18),
             if (vehicles.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No active vehicles registered for this household.')))
@@ -189,13 +147,7 @@ class VehiclesScreen extends StatelessWidget {
                     subtitle: Text(_details(vehicle, parkingSlots[vehicleId])),
                     trailing: demo
                         ? null
-                        : SizedBox(
-                            width: 96,
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              IconButton(icon: const Icon(Icons.local_parking_rounded), tooltip: 'Edit parking slot', onPressed: () => _editParking(context, vehicle)),
-                              IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
-                            ]),
-                          ),
+                        : IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
                   ),
                 );
               }),

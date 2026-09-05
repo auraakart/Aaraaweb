@@ -168,42 +168,29 @@ export class HouseholdService {
     return this.prisma.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
   }
 
-  async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string; parkingSlot?: string }) {
+  async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
     await this.assertOwnHousehold(societyId, userId, householdId);
     const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    const vehicle = await this.prisma.householdVehicle.create({
+    return this.prisma.householdVehicle.create({
       data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
     });
-    const parkingSlot = input.parkingSlot?.trim();
-    if (parkingSlot) await this.updateVehicleParkingSlot(societyId, userId, householdId, vehicle.id, parkingSlot);
-    return vehicle;
   }
 
-  async updateVehicleParkingSlot(societyId: string, userId: string, householdId: string, vehicleId: string, parkingSlot?: string) {
-    const household = await this.assertOwnHousehold(societyId, userId, householdId);
+  async updateVehicleParkingSlot(societyId: string, householdId: string, vehicleId: string, parkingSlot?: string) {
+    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
+    if (!household) throw new NotFoundException('Household not found');
     const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
     if (!vehicle) throw new NotFoundException('Active household vehicle not found');
-
-    const preferences = this.jsonObject(household.accessPreferences);
-    const parkingSlots = this.stringMap(preferences.parkingSlots);
-    const normalizedSlot = parkingSlot?.trim();
-    if (normalizedSlot) parkingSlots[vehicle.id] = normalizedSlot;
-    else delete parkingSlots[vehicle.id];
-    preferences.parkingSlots = parkingSlots;
-
-    await this.prisma.household.update({
-      where: { id: household.id },
-      data: { accessPreferences: preferences as Prisma.InputJsonValue },
-    });
-    return { vehicleId: vehicle.id, parkingSlot: normalizedSlot || null };
+    await this.setVehicleParkingSlot(household, vehicle.id, parkingSlot);
+    return { vehicleId: vehicle.id, parkingSlot: parkingSlot?.trim() || null };
   }
 
   async deactivateVehicle(societyId: string, userId: string, householdId: string, vehicleId: string) {
-    await this.assertOwnHousehold(societyId, userId, householdId);
+    const household = await this.assertOwnHousehold(societyId, userId, householdId);
     const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
     if (!vehicle) throw new NotFoundException('Active household vehicle not found');
-    await this.updateVehicleParkingSlot(societyId, userId, householdId, vehicle.id, undefined);
+    await this.setVehicleParkingSlot(household, vehicle.id, undefined);
     return this.prisma.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
   }
 
@@ -219,6 +206,19 @@ export class HouseholdService {
     const contact = await this.prisma.emergencyContact.findFirst({ where: { id: contactId, householdId, societyId, active: true } });
     if (!contact) throw new NotFoundException('Active emergency contact not found');
     return this.prisma.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
+  }
+
+  private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot?: string) {
+    const preferences = this.jsonObject(household.accessPreferences);
+    const parkingSlots = this.stringMap(preferences.parkingSlots);
+    const normalizedSlot = parkingSlot?.trim();
+    if (normalizedSlot) parkingSlots[vehicleId] = normalizedSlot;
+    else delete parkingSlots[vehicleId];
+    preferences.parkingSlots = parkingSlots;
+    await this.prisma.household.update({
+      where: { id: household.id },
+      data: { accessPreferences: preferences as Prisma.InputJsonValue },
+    });
   }
 
   private jsonObject(value: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
