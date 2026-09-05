@@ -8,12 +8,26 @@ class VehiclesScreen extends StatelessWidget {
   final ResidentDataController controller;
   final String householdId;
 
-  List<Map<String, dynamic>> get _vehicles {
+  Map<String, dynamic>? get _household {
     final households = controller.households.where((item) => item['id']?.toString() == householdId);
-    if (households.isEmpty) return const [];
-    final raw = households.first['vehicles'];
+    return households.isEmpty ? null : households.first;
+  }
+
+  List<Map<String, dynamic>> get _vehicles {
+    final raw = _household?['vehicles'];
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
+  }
+
+  Map<String, String> get _parkingSlots {
+    final preferences = _household?['accessPreferences'];
+    if (preferences is! Map) return const {};
+    final raw = preferences['parkingSlots'];
+    if (raw is! Map) return const {};
+    return {
+      for (final entry in raw.entries)
+        if (entry.value is String && (entry.value as String).trim().isNotEmpty) entry.key.toString(): (entry.value as String).trim(),
+    };
   }
 
   Future<void> _add(BuildContext context) async {
@@ -21,6 +35,7 @@ class VehiclesScreen extends StatelessWidget {
     final make = TextEditingController();
     final model = TextEditingController();
     final color = TextEditingController();
+    final parkingSlot = TextEditingController();
     var type = 'CAR';
     final submit = await showDialog<bool>(
       context: context,
@@ -51,6 +66,12 @@ class VehiclesScreen extends StatelessWidget {
               TextField(controller: model, decoration: const InputDecoration(labelText: 'Model (optional)', hintText: 'Baleno')),
               const SizedBox(height: 12),
               TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
+              const SizedBox(height: 12),
+              TextField(
+                controller: parkingSlot,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Parking slot (optional)', hintText: 'B2-18'),
+              ),
             ]),
           ),
           actions: [
@@ -69,9 +90,44 @@ class VehiclesScreen extends StatelessWidget {
         make: make.text,
         model: model.text,
         color: color.text,
+        parkingSlot: parkingSlot.text,
       );
       await controller.load();
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle registered')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _editParking(BuildContext context, Map<String, dynamic> vehicle) async {
+    final vehicleId = vehicle['id']?.toString();
+    if (vehicleId == null || vehicleId.isEmpty) return;
+    final parkingSlot = TextEditingController(text: _parkingSlots[vehicleId] ?? '');
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Parking slot'),
+        content: TextField(
+          controller: parkingSlot,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'Slot / bay label', hintText: 'B2-18', helperText: 'Leave blank to clear the parking label.'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (submit != true || !context.mounted) return;
+    try {
+      await controller.repository.updateVehicleParkingSlot(
+        householdId: householdId,
+        vehicleId: vehicleId,
+        parkingSlot: parkingSlot.text,
+      );
+      await controller.load();
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parking slot updated')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -102,10 +158,12 @@ class VehiclesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vehicles = _vehicles;
+    final parkingSlots = _parkingSlots;
+    final demo = householdId.startsWith('demo-');
     return Scaffold(
-      appBar: AppBar(title: const Text('Vehicles', style: TextStyle(fontWeight: FontWeight.w900))),
+      appBar: AppBar(title: const Text('Vehicles & parking', style: TextStyle(fontWeight: FontWeight.w900))),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: householdId.startsWith('demo-') ? null : () => _add(context),
+        onPressed: demo ? null : () => _add(context),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add vehicle'),
       ),
@@ -117,33 +175,43 @@ class VehiclesScreen extends StatelessWidget {
           children: [
             Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Keep household vehicle details current for society and future parking/access workflows.'),
+            const Text('Keep vehicle details and your basic parking bay label current for society operations.'),
             const SizedBox(height: 18),
             if (vehicles.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No active vehicles registered for this household.')))
             else
-              ...vehicles.map((vehicle) => Card(
-                    child: ListTile(
-                      leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
-                      title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(_details(vehicle)),
-                      trailing: householdId.startsWith('demo-')
-                          ? null
-                          : IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
-                    ),
-                  )),
+              ...vehicles.map((vehicle) {
+                final vehicleId = vehicle['id']?.toString() ?? '';
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
+                    title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: Text(_details(vehicle, parkingSlots[vehicleId])),
+                    trailing: demo
+                        ? null
+                        : SizedBox(
+                            width: 96,
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(icon: const Icon(Icons.local_parking_rounded), tooltip: 'Edit parking slot', onPressed: () => _editParking(context, vehicle)),
+                              IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
+                            ]),
+                          ),
+                  ),
+                );
+              }),
           ],
         ),
       ),
     );
   }
 
-  String _details(Map<String, dynamic> vehicle) {
+  String _details(Map<String, dynamic> vehicle, String? parkingSlot) {
     final values = <String>[
       _typeLabel(vehicle['vehicleType']?.toString()),
       if (vehicle['make']?.toString().trim().isNotEmpty == true) vehicle['make'].toString().trim(),
       if (vehicle['model']?.toString().trim().isNotEmpty == true) vehicle['model'].toString().trim(),
       if (vehicle['color']?.toString().trim().isNotEmpty == true) vehicle['color'].toString().trim(),
+      if (parkingSlot?.trim().isNotEmpty == true) 'Parking: ${parkingSlot!.trim()}',
     ];
     return values.where((value) => value.isNotEmpty).join(' · ');
   }

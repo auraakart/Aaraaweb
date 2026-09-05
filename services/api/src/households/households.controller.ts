@@ -24,6 +24,10 @@ class AddVehicleDto {
   @IsOptional() @IsString() make?: string;
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() color?: string;
+  @IsOptional() @IsString() parkingSlot?: string;
+}
+class UpdateVehicleParkingDto {
+  @IsOptional() @IsString() parkingSlot?: string;
 }
 class AddEmergencyContactDto {
   @IsString() @IsNotEmpty() name!: string;
@@ -107,6 +111,18 @@ export class HouseholdsController {
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   addVehicle(@Param('householdId', ParseUUIDPipe) householdId: string, @Body() dto: AddVehicleDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     return this.households.addVehicle(societyId, userId, householdId, dto);
+  }
+
+  @Patch(':householdId/vehicles/:vehicleId/parking-slot')
+  @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
+  updateVehicleParking(
+    @Param('householdId', ParseUUIDPipe) householdId: string,
+    @Param('vehicleId', ParseUUIDPipe) vehicleId: string,
+    @Body() dto: UpdateVehicleParkingDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string,
+  ) {
+    return this.households.updateVehicleParkingSlot(societyId, userId, householdId, vehicleId, dto.parkingSlot);
   }
 
   @Patch(':householdId/vehicles/:vehicleId/deactivate')
