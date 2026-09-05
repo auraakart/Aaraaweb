@@ -22,7 +22,14 @@ import { ReportsModule } from './reports/reports.module';
 class HealthController {
   @Get()
   health() {
-    return { status: 'ok', service: 'aaraagate-api' };
+    return {
+      status: 'ok',
+      service: 'aaraagate-api',
+      environment: process.env.NODE_ENV ?? 'development',
+      version: process.env.APP_VERSION ?? 'dev',
+      commit: process.env.GIT_SHA ?? 'unknown',
+      uptimeSeconds: Math.floor(process.uptime()),
+    };
   }
 }
 
