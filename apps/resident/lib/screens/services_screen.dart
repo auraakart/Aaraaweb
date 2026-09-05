@@ -36,10 +36,126 @@ class _ServicesScreenState extends State<ServicesScreen> {
         offering['name'],
         offering['description'],
         provider is Map ? provider['businessName'] : null,
+        provider is Map ? provider['description'] : null,
         category is Map ? category['name'] : null,
       ].whereType<Object>().map((value) => value.toString().toLowerCase()).join(' ');
       return haystack.contains(query);
     }).toList(growable: false);
+  }
+
+  List<List<Map<String, dynamic>>> get _serviceGroups {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final offering in _visibleOfferings) {
+      final categoryId = offering['categoryId']?.toString() ?? '';
+      final name = offering['name']?.toString().trim().toLowerCase() ?? 'service';
+      groups.putIfAbsent('$categoryId::$name', () => <Map<String, dynamic>>[]).add(offering);
+    }
+    return groups.values.toList(growable: false);
+  }
+
+  Future<void> _chooseProvider(List<Map<String, dynamic>> offerings) async {
+    if (offerings.isEmpty) return;
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final serviceName = offerings.first['name']?.toString() ?? 'Service';
+        final sorted = [...offerings]..sort((a, b) => _pricePaise(a).compareTo(_pricePaise(b)));
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.82,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Choose a provider', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('$serviceName · ${sorted.length} verified provider${sorted.length == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: sorted.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final offering = sorted[index];
+                        final provider = offering['provider'];
+                        final providerDescription = provider is Map ? provider['description']?.toString() : null;
+                        final duration = (offering['durationMinutes'] as num?)?.toInt();
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      child: Text(_providerInitial(offering)),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(_providerName(offering), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.verified_rounded, size: 16, color: theme.colorScheme.primary),
+                                              const SizedBox(width: 4),
+                                              Text('Verified provider', style: theme.textTheme.bodySmall),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(_price(offering['pricePaise']), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                                  ],
+                                ),
+                                if ((providerDescription ?? '').trim().isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(providerDescription!),
+                                ],
+                                if ((offering['description']?.toString() ?? '').trim().isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(offering['description'].toString(), style: theme.textTheme.bodySmall),
+                                ],
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (duration != null) Chip(avatar: const Icon(Icons.schedule_rounded, size: 16), label: Text('Approx. $duration min')),
+                                    const Chip(avatar: Icon(Icons.shield_outlined, size: 16), label: Text('Society approved')),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton(
+                                    onPressed: () => Navigator.pop(context, offering),
+                                    child: Text('Choose ${_providerName(offering)}'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null && mounted) await _book(selected);
   }
 
   Future<void> _book(Map<String, dynamic> offering) async {
@@ -73,6 +189,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Provider: ${_providerName(offering)}'),
+            const SizedBox(height: 6),
+            Text('Price: ${_price(offering['pricePaise'])}'),
             const SizedBox(height: 6),
             Text('Scheduled: ${date.day}/${date.month}/${date.year} · ${time.format(context)}'),
             const SizedBox(height: 12),
@@ -204,7 +322,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final visibleOfferings = _visibleOfferings;
+    final groups = _serviceGroups;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: controller.load,
@@ -214,7 +332,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
           children: [
             Text('Home services', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text('Verified professionals. Gate access handled by Aaraagate.', style: theme.textTheme.bodyLarge),
+            Text('Compare verified professionals and choose who works for you.', style: theme.textTheme.bodyLarge),
             const SizedBox(height: 18),
             TextField(
               controller: _searchController,
@@ -254,11 +372,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    ChoiceChip(
-                      label: const Text('All'),
-                      selected: _categoryId == null,
-                      onSelected: (_) => setState(() => _categoryId = null),
-                    ),
+                    ChoiceChip(label: const Text('All'), selected: _categoryId == null, onSelected: (_) => setState(() => _categoryId = null)),
                     for (final category in controller.serviceCategories)
                       ChoiceChip(
                         label: Text(category['name']?.toString() ?? 'Service'),
@@ -272,12 +386,19 @@ class _ServicesScreenState extends State<ServicesScreen> {
               const SizedBox(height: 12),
               if (controller.serviceOfferings.isEmpty)
                 const AppStateCard(icon: Icons.home_repair_service_outlined, message: 'No approved provider offerings are available yet.')
-              else if (visibleOfferings.isEmpty)
+              else if (groups.isEmpty)
                 const AppStateCard(icon: Icons.search_off_rounded, message: 'No services match your search or selected category.')
               else
-                ...visibleOfferings.map((offering) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Card(
+                ...groups.map((offerings) {
+                  final first = offerings.first;
+                  final minPrice = offerings.map(_pricePaise).reduce((a, b) => a < b ? a : b);
+                  final count = offerings.length;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _busy ? null : () => _chooseProvider(offerings),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
@@ -289,27 +410,25 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                    const SizedBox(height: 3),
-                                    Text(_providerName(offering), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 3),
-                                    Text(offering['description']?.toString() ?? 'Verified service provider'),
+                                    Text(first['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    const SizedBox(height: 4),
+                                    Text('$count verified provider${count == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    Text(first['description']?.toString() ?? 'Compare providers, prices and service details.'),
+                                    const SizedBox(height: 8),
+                                    Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: theme.colorScheme.primary)),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(_price(offering['pricePaise']), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                  TextButton(onPressed: _busy ? null : () => _book(offering), child: const Text('Book')),
-                                ],
-                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right_rounded),
                             ],
                           ),
                         ),
                       ),
-                    )),
+                    ),
+                  );
+                }),
               const SizedBox(height: 24),
               Text('Your bookings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
@@ -365,6 +484,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return 'Service booking';
   }
 
+  static int _pricePaise(Map<String, dynamic> offering) => (offering['pricePaise'] as num?)?.toInt() ?? 0;
+
+  static String _providerInitial(Map<String, dynamic> item) {
+    final name = _providerName(item).trim();
+    return name.isEmpty ? 'V' : name.substring(0, 1).toUpperCase();
+  }
+
   static String _providerName(Map<String, dynamic> item) {
     final provider = item['provider'];
     if (provider is Map && provider['businessName'] != null) return provider['businessName'].toString();
@@ -379,9 +505,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
       case 'CONFIRMED':
         final access = booking['accessRequest'];
         final accessStatus = access is Map ? access['status']?.toString().replaceAll('_', ' ') : null;
-        return accessStatus == null
-            ? 'Provider confirmed. Gate access is linked to this booking.'
-            : 'Provider confirmed. Linked gate access: $accessStatus.';
+        return accessStatus == null ? 'Provider confirmed. Gate access is linked to this booking.' : 'Provider confirmed. Linked gate access: $accessStatus.';
       case 'IN_PROGRESS':
         return 'Service is in progress.';
       case 'COMPLETED':
