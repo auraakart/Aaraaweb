@@ -221,9 +221,13 @@ export class HouseholdService {
     return this.prisma.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
   }
 
-  private jsonObject(value: Prisma.JsonValue | null | undefined): Record<string, Prisma.JsonValue> {
+  private jsonObject(value: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return { ...(value as Prisma.JsonObject) };
+    const result: Prisma.JsonObject = {};
+    for (const [key, item] of Object.entries(value as Prisma.JsonObject)) {
+      if (item !== undefined) result[key] = item;
+    }
+    return result;
   }
 
   private stringMap(value: Prisma.JsonValue | undefined): Record<string, string> {
