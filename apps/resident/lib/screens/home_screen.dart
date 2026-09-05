@@ -171,7 +171,7 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
                     const SizedBox(width: 12),
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Ask AuraGate', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('“My electrician is coming tomorrow at 11.”')])),
+                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Ask Aaraagate', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('“My electrician is coming tomorrow at 11.”')])),
                     const Icon(Icons.arrow_forward_ios_rounded, size: 16),
                   ],
                 ),
