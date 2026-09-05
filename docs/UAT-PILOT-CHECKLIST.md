@@ -3,138 +3,105 @@
 This checklist is the acceptance evidence for a production candidate after technical CI and staging validation are green.
 
 ## Entry criteria
+- [ ] Candidate promoted from `develop` to `staging` through PR.
+- [ ] Full CI, staging smoke and backup/restore smoke green on the candidate.
+- [ ] No unresolved Sev-1/Sev-2, tenant-isolation, authorization or payment-integrity blocker.
+- [ ] Candidate SHA and current `main` rollback SHA recorded.
+- [ ] Pilot Admin, Guard and Resident test accounts/devices ready.
 
-- Candidate is promoted from `develop` to `staging` through a protected PR.
-- CI, staging smoke and backup/restore smoke are green for the release state.
-- No open critical/high security defect blocks the candidate.
-- Release candidate SHA and current `main` rollback SHA are recorded.
-- Pilot society configuration, Admin accounts, Guard devices and Resident test accounts are ready.
-
-## Core UAT scenarios
-
-### Authentication, tenancy and roles
+## Authentication, tenancy and role boundaries
 - [ ] User can sign in only to societies where an active membership exists.
-- [ ] Cross-society access attempts fail closed.
-- [ ] Admin, Accountant, Security Supervisor, Guard, Owner, Tenant and Family Member permissions match the approved matrix.
-- [ ] Security Supervisor can use the Admin/operations console only for permitted Gates/SOS operations and cannot reach marketplace, billing, resident-management, workforce, helpdesk, notices or society-configuration surfaces.
-- [ ] Unsupported/stale Admin-console roles are rejected after session refresh rather than inheriting a default view.
-- [ ] Historic/ended occupancy cannot access current household-private actions.
+- [ ] Cross-society requests fail closed.
+- [ ] Society Admin cannot grant `SUPER_ADMIN`, `SOCIETY_ADMIN`, `VENDOR`, OWNER, TENANT or FAMILY_MEMBER through operational-role administration.
+- [ ] OWNER/TENANT/FAMILY_MEMBER authority comes only from valid unit relationships.
+- [ ] Society operational role grant is limited to Committee Member, Facility Manager, Accountant, Security Supervisor, Security Guard and Staff.
+- [ ] Removing an operational role revokes the affected user's active society sessions.
+- [ ] Security Supervisor Admin access is limited to Gate/SOS operations.
+- [ ] Tenant Admin creation/linking of an existing phone does not overwrite that person's canonical profile identity across other societies.
 
-### Visitor and gate operations
-- [ ] Resident/occupant can create and manage visitor access as permitted.
-- [ ] Walk-in visitor approval reaches the configured active occupant, not a non-resident owner by ownership alone.
-- [ ] Guard can process entry/exit with clear success/failure states.
-- [ ] Offline Guard action queues recover without duplicate processing when connectivity returns.
+## Platform administration
+- [ ] Super Admin can list societies and inspect status/tier/feature overrides.
+- [ ] Super Admin can update product tier and validated feature overrides.
+- [ ] Suspending a society revokes active sessions for that society.
+- [ ] Only platform authority can provision/deactivate `SOCIETY_ADMIN`.
+- [ ] Society Admin cannot access platform society/entitlement controls.
+- [ ] Only platform provider-verification authority can verify/reject/suspend/reactivate global service providers.
 
-### Delivery and cab
-- [ ] Delivery approval uses the direct allow-entry flow and does not expose visitor QR behaviour.
-- [ ] Cab approval shows the relevant provider/vehicle details and uses the configured short access window.
-- [ ] Delivery/cab approval reaches the current authorised occupant rather than a non-resident owner by ownership alone.
+## Property hierarchy and parking
+- [ ] Property setup follows Society → Building/Block → Floor → Unit.
+- [ ] Existing migrated units remain usable with unchanged unit IDs and existing ownership/occupancy/billing/gate references.
+- [ ] Building/floor/unit creation is tenant scoped.
+- [ ] Resident can register/deactivate a vehicle but cannot assign/edit/clear its parking bay.
+- [ ] Society configuration-authorised Admin can search vehicles and assign/change/clear parking bays only within the selected society.
+- [ ] Vehicle deactivation clears the bay mapping.
 
-### Ownership, occupancy and household
-- [ ] Owner and occupant relationships remain distinct.
+## Visitor, gate, delivery and cab
+- [ ] Resident/occupant visitor access works only for authorised current units.
+- [ ] Gate approval routes to configured active occupants, not non-resident owner by ownership alone.
+- [ ] Wrong society/gate/expired/revoked/reused credentials fail closed.
+- [ ] Guard check-in/out is auditable and retry-safe.
+- [ ] Offline Guard queue replays safely without duplicate gate actions.
+- [ ] Delivery and cab use their dedicated access semantics and current-occupant routing.
+
+## Ownership, household and workforce
+- [ ] Owner and physical occupant relationships remain independent.
+- [ ] Ended occupancy immediately loses household/gate authority.
 - [ ] Tenant cannot see owner-only finance/legal information.
-- [ ] Household, vehicles and emergency contacts are restricted to current valid occupancy.
+- [ ] Domestic-help assignment, leave, suspension, rating and gate flows remain society/unit scoped.
 
-### Vehicles and basic parking
-- [ ] Current Owner/Tenant can register and deactivate their household vehicle as permitted.
-- [ ] Family Member cannot perform vehicle/parking write actions unless explicitly granted an approved future capability.
-- [ ] Resident can see the society-assigned parking bay for an active vehicle.
-- [ ] Resident cannot assign, edit or clear the parking bay from the Resident app/API.
-- [ ] Society Admin/configuration-authorised user can assign, update or clear a parking bay within the selected society and household scope.
-- [ ] Vehicle deactivation removes the associated parking assignment.
+## Marketplace — Resident choice
+- [ ] Equivalent services are grouped and Resident must choose a specific verified/society-approved provider.
+- [ ] Provider comparison shows business name, price, description, duration, rating summary and completed-job count where available.
+- [ ] Provider phone/email remain hidden from Resident comparison/history payloads.
+- [ ] Selected provider offering ID remains booking source of truth and price/commission are snapshotted.
+- [ ] Overlapping active bookings for the same provider/time window are rejected.
+- [ ] Non-overlapping bookings remain possible.
+- [ ] Provider confirmation creates linked service-provider gate access.
+- [ ] Cancellation invalidates linked access where applicable.
+- [ ] Completion/rating transitions remain state constrained.
 
-### Maintenance billing and payments
-- [ ] Maintenance dues are visible/payable by verified owner and current tenant for the unit.
-- [ ] Due notification reaches both owner and current tenant when owner is non-resident.
-- [ ] Payment retry/idempotency prevents duplicate payment creation.
-- [ ] Receipt/history visibility follows owner/payer rules.
+## Marketplace — Admin/platform lifecycle
+- [ ] Society Admin/Facility Manager can submit a provider only into the selected society context.
+- [ ] New submission remains visible as PENDING to that society while awaiting platform verification.
+- [ ] Other societies cannot see pending provider contact details.
+- [ ] Society approval requires platform verification first.
+- [ ] Society can approve/reject/suspend a linked provider without changing that provider's status in another society.
+- [ ] Platform suspension removes provider availability globally.
+- [ ] Offering activation/deactivation is platform-catalog controlled.
+- [ ] Global category/offering changes are inaccessible to Society Admin/Facility Manager.
 
-### Notices and broadcasts
-- [ ] OWNER_ONLY broadcast is visible only to current verified owners.
-- [ ] OWNER_AND_OCCUPANTS broadcast reaches owner plus current occupants/tenant.
-- [ ] Expired/unpublished notices are not exposed as current announcements.
+## Billing, notices, helpdesk, SOS and reports
+- [ ] Verified owner and current tenant can view/pay the unit's dues as defined.
+- [ ] Dues notification reaches owner + current tenant when owner is non-resident.
+- [ ] Tenant payment history is payer-own; owner retains permitted broader property history.
+- [ ] OWNER_ONLY and OWNER_AND_OCCUPANTS notices resolve against current relationships.
+- [ ] Helpdesk/SOS operations remain tenant scoped and role constrained.
+- [ ] Non-finance report users can see counts but not billed/collected/outstanding monetary totals.
+- [ ] Audit output contains no secrets, credentials or unnecessary payment/provider PII.
 
-### Workforce/domestic help
-- [ ] Domestic-help profiles and assignments stay society/unit scoped.
-- [ ] Leave/suspension/gate-interception behaviour matches Admin configuration.
-- [ ] Resident rating flow is restricted to valid relationship/action state.
-
-### Helpdesk and SOS
-- [ ] Resident can create/view tickets only for valid current household scope.
-- [ ] Admin/helpdesk role can operate tickets only within the selected society.
-- [ ] SOS creation, visibility and handling obey society/relationship permissions.
-
-### Resident marketplace
-- [ ] Resident can browse approved offerings and book for a current household unit.
-- [ ] When multiple verified/approved providers offer the same category + service, the Resident app groups the service and requires explicit provider selection before booking.
-- [ ] Provider comparison shows useful non-sensitive choice information such as business name, price, description and duration without exposing provider phone/email.
-- [ ] The selected provider-specific offering ID remains the booking source of truth and price/commission are snapshotted at booking time.
-- [ ] Cancel/rate transitions are limited to valid booking states.
-- [ ] Provider confirmation creates linked service-provider gate access using the existing booking lifecycle; cancellation continues to revoke linked access where applicable.
-- [ ] Cross-unit/cross-society booking access is rejected.
-- [ ] Resident booking payload does not expose unnecessary provider contact data or sensitive linked access-request fields.
-
-### Admin marketplace and provider lifecycle
-- [ ] Society Admin/Facility Manager can submit a new provider for the currently selected society without exposing that pending submission to another society.
-- [ ] Newly submitted provider remains visible to the submitting society as PENDING while awaiting platform verification.
-- [ ] Only Super Admin/platform-authorised user can perform platform provider verification.
-- [ ] Society provider approval remains separate from platform verification and can apply society-specific commission only after verification.
-- [ ] Globally verified providers not yet associated with the current society do not expose unnecessary contact details in society catalog discovery.
-- [ ] Global service-category and provider-offering creation is restricted to Super Admin/platform catalog permission so one society cannot mutate another society's shared catalog.
-- [ ] Society provider-management users can still manage society booking confirmation/completion without gaining platform catalog authority.
-
-### Reports and audit
-- [ ] Reports contain only society-scoped data available to the requesting role.
-- [ ] Non-finance report users can see operational counts but not billed/collected/outstanding monetary totals.
-- [ ] Accountant cannot access audit-only views.
-- [ ] Security Supervisor cannot access society configuration/billing-management functions.
-- [ ] Audit output does not expose secrets, credentials or unnecessary sensitive payment data.
+## Runtime and operational acceptance
+- [ ] `/api/v1/health/live` reports process liveness without depending on database/Redis availability.
+- [ ] `/api/v1/health/ready` reports expected release metadata and validates PostgreSQL + Redis/auth-state readiness.
+- [ ] Staging migration completes on a clean PostgreSQL database.
+- [ ] CI backup/restore drill passes.
+- [ ] Hosted environment separately proves managed backup retention/PITR/encryption policy and an isolated restore before commercial rollout.
+- [ ] Production preflight validates OTP, Redis, push, payment, CORS and release metadata configuration.
+- [ ] Monitoring/log destination, alert owner and rollback target are recorded.
 
 ## UX/device acceptance
-
-- [ ] Resident primary flows are usable on representative supported Android devices.
-- [ ] Guard primary flows remain fast and readable in low-distraction operational use.
-- [ ] Admin key surfaces render correctly at supported desktop widths.
-- [ ] Loading, empty, denied, failure and recovery states are understandable.
-- APK/demo packaging is currently on hold and is not a pilot-entry blocker unless explicitly re-enabled by the release owner.
-
-## Operational acceptance
-
-- [ ] `/api/v1/health` identifies expected service/environment/version/commit.
-- [ ] Database migration completes on staging from a clean database.
-- [ ] Backup/restore smoke proves logical backup can restore schema and verification data.
-- [ ] Production preflight confirms required OTP, Redis, push, payment, CORS and release metadata configuration before live deployment.
-- [ ] Rollback target SHA is recorded before production promotion.
-- [ ] Rollback procedure has been reviewed by the release owner.
-- [ ] Monitoring/log destination and alert ownership are assigned for the pilot.
-
-## Pilot execution
-
-Recommended initial pilot: one society with a controlled group of Admin, Guard and Resident users.
-
-Track during pilot:
-- authentication/access failures;
-- gate approval delivery and latency;
-- Guard offline recovery;
-- billing/payment failures or duplicates;
-- notification delivery issues;
-- helpdesk/SOS reliability;
-- vehicle/parking assignment issues;
-- marketplace/provider onboarding or provider-choice issues;
-- user-blocking UX defects;
-- API error rate and service availability;
-- data-integrity or tenant-isolation anomalies.
+- [ ] Resident key flows work on representative supported Android devices.
+- [ ] Guard operations remain fast/readable with large touch targets and clear offline state.
+- [ ] Admin, Platform, Property, Roles and Parking screens render correctly at supported desktop widths.
+- [ ] Loading, empty, denied, error and recovery states are understandable.
+- APK/demo packaging is not a production-entry requirement unless explicitly re-enabled by release owner.
 
 ## Exit criteria
+Production promotion may proceed only when:
+- [ ] all mandatory scenarios pass or have an explicitly accepted non-blocking exception;
+- [ ] no unresolved Sev-1/Sev-2 or security/payment-integrity blocker remains;
+- [ ] exact staging candidate has green smoke and backup/restore evidence;
+- [ ] candidate and rollback SHAs are recorded;
+- [ ] release owner/business UAT approval is recorded;
+- [ ] independent PR approval and production release checks pass.
 
-Production rollout may proceed when:
-- [ ] no unresolved severity-1 or severity-2 defect remains;
-- [ ] no tenant-isolation, authorization or payment-integrity defect remains;
-- [ ] all mandatory UAT scenarios above pass or have an explicitly accepted non-blocking exception;
-- [ ] staging smoke and backup/restore evidence are green;
-- [ ] release candidate and rollback SHA are documented;
-- [ ] release owner and business/UAT approver sign off;
-- [ ] pilot feedback contains no launch-blocking issue.
-
-Record sign-off with candidate SHA, approver, date, accepted exceptions and pilot society identifier. Do not place resident personal data, credentials, tokens or payment secrets in the sign-off record.
+Record candidate SHA, approver, date, accepted exceptions and pilot identifier. Do not record resident PII, credentials, tokens or payment secrets.
