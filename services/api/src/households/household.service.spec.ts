@@ -14,7 +14,7 @@ function service(overrides: Overrides = {}) {
     household: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
-      findFirst: vi.fn().mockResolvedValue({ id: 'household-1', societyId: 'society-1', unitId: 'unit-1' }),
+      findFirst: vi.fn().mockResolvedValue({ id: 'household-1', societyId: 'society-1', unitId: 'unit-1', accessPreferences: {} }),
       create: vi.fn().mockResolvedValue({ id: 'household-1', societyId: 'society-1', unitId: 'unit-1' }),
       update: vi.fn().mockResolvedValue({ id: 'household-1' }),
     },
@@ -99,6 +99,34 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ plateNumber: 'KA01AB1234' }) }),
     );
+  });
+
+  it('stores an optional parking label without changing vehicle registration data', async () => {
+    const { svc, prisma } = service();
+    await svc.addVehicle('society-1', 'user-1', 'household-1', {
+      plateNumber: 'KA01AB1234',
+      vehicleType: VehicleType.CAR,
+      parkingSlot: ' B2-18 ',
+    });
+    expect(prisma.household.update).toHaveBeenCalledWith({
+      where: { id: 'household-1' },
+      data: { accessPreferences: { parkingSlots: { 'vehicle-1': 'B2-18' } } },
+    });
+  });
+
+  it('updates parking data only for an active vehicle in the authenticated household and society', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const { svc, prisma } = service({
+      householdVehicle: { create: vi.fn(), findFirst, update: vi.fn() },
+    });
+
+    await expect(
+      svc.updateVehicleParkingSlot('society-1', 'user-1', 'household-1', 'foreign-vehicle', 'B2-18'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 'foreign-vehicle', householdId: 'household-1', societyId: 'society-1', active: true },
+    });
+    expect(prisma.household.update).not.toHaveBeenCalled();
   });
 
   it('rejects vehicle creation for a household outside the authenticated resident scope', async () => {
