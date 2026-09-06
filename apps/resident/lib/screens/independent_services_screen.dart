@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import 'consumer_booking_screen.dart';
+import 'consumer_bookings_screen.dart';
 
 class IndependentServicesScreen extends StatefulWidget {
   const IndependentServicesScreen({
@@ -62,6 +63,14 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     );
   }
 
+  Future<void> _openMyBookings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConsumerBookingsScreen(apiClient: widget.apiClient),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -69,6 +78,11 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       appBar: AppBar(
         title: const Text('External Services'),
         actions: [
+          IconButton(
+            tooltip: 'My bookings',
+            onPressed: _openMyBookings,
+            icon: const Icon(Icons.event_note_rounded),
+          ),
           IconButton(
             tooltip: 'Sign out',
             onPressed: () => widget.onSignOut(),
@@ -102,6 +116,12 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                           Text(
                             'Only Aaraagate external services are available in this mode. Society features are intentionally hidden.',
                             style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: _openMyBookings,
+                            icon: const Icon(Icons.event_note_rounded),
+                            label: const Text('My Bookings'),
                           ),
                         ],
                       ),
