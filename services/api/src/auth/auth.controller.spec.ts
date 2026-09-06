@@ -49,13 +49,13 @@ describe('AuthController user contexts', () => {
 
     const result = await controller.verifyOtp({ challengeId: 'challenge', code: '123456' });
 
-    expect(result).toMatchObject({ contextType: 'INDEPENDENT_HOME', memberships: [] });
+    expect(result).toMatchObject({ contextType: 'INDEPENDENT_HOME', memberships: [], contexts: [] });
     expect(sessions.create).toHaveBeenCalledWith(activeUser.id, undefined, []);
   });
 
-  it('groups multiple roles in one society and does not force a duplicate society choice', async () => {
+  it('preserves legacy role rows while grouping multiple roles into one resident society context', async () => {
     const societyId = '22222222-2222-4222-8222-222222222222';
-    const { controller, sessions } = buildController({
+    const { controller, authService, sessions } = buildController({
       memberships: [
         { societyId, role: 'OWNER', society: { name: 'Green Heights', code: 'GH' } },
         { societyId, role: 'COMMITTEE_MEMBER', society: { name: 'Green Heights', code: 'GH' } },
@@ -64,13 +64,15 @@ describe('AuthController user contexts', () => {
 
     const result = await controller.verifyOtp({ challengeId: 'challenge', code: '123456' });
 
-    expect(result.contextType).toBe('SOCIETY');
-    expect(result.memberships).toHaveLength(1);
-    expect(result.memberships[0].roles).toEqual(['OWNER', 'COMMITTEE_MEMBER']);
-    expect(sessions.create).toHaveBeenCalledWith(activeUser.id, societyId, ['OWNER', 'COMMITTEE_MEMBER']);
+    expect(result.contextType).toBe('SOCIETY_SELECTION');
+    expect(result.memberships).toHaveLength(2);
+    expect(result.contexts).toHaveLength(1);
+    expect(result.contexts[0].roles).toEqual(['OWNER', 'COMMITTEE_MEMBER']);
+    expect(authService.createSocietySelectionGrant).toHaveBeenCalledWith(activeUser.id);
+    expect(sessions.create).not.toHaveBeenCalled();
   });
 
-  it('returns one chooser entry per society with both owned and occupied properties', async () => {
+  it('returns one grouped chooser context per society with both owned and occupied properties', async () => {
     const firstSociety = '22222222-2222-4222-8222-222222222222';
     const secondSociety = '33333333-3333-4333-8333-333333333333';
     const property = (societyId: string, unitId: string, number: string): PropertyRow => ({
@@ -91,8 +93,9 @@ describe('AuthController user contexts', () => {
 
     expect(result.contextType).toBe('SOCIETY_SELECTION');
     expect(result.memberships).toHaveLength(2);
-    expect(result.memberships[0].properties[0]).toMatchObject({ unitNumber: '1204', relationship: 'OWNER' });
-    expect(result.memberships[1].properties[0]).toMatchObject({ unitNumber: '703', relationship: 'OCCUPANT' });
+    expect(result.contexts).toHaveLength(2);
+    expect(result.contexts[0].properties[0]).toMatchObject({ unitNumber: '1204', relationship: 'OWNER' });
+    expect(result.contexts[1].properties[0]).toMatchObject({ unitNumber: '703', relationship: 'OCCUPANT' });
     expect(authService.createSocietySelectionGrant).toHaveBeenCalledWith(activeUser.id);
     expect(sessions.create).not.toHaveBeenCalled();
   });
