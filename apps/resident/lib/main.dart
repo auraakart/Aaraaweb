@@ -79,11 +79,6 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
   Future<void> _switchProperty(SocietyMembershipOption membership) async {
     await _dataController?.stopPushNotifications();
     await widget.authController.switchSociety(membership);
-    if (widget.authController.error == null) {
-      _boundSessionId = null;
-      _dataController?.dispose();
-      _dataController = null;
-    }
   }
 
   @override
@@ -117,6 +112,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 
         _ensureDataController();
         return ResidentHomeShell(
+          key: ValueKey(session.sessionId),
           controller: _dataController!,
           onSignOut: _signOut,
           canManageFamilyMembers: session.role == 'OWNER',
