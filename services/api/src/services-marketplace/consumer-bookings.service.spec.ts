@@ -18,6 +18,23 @@ function sqlValues(call: unknown): unknown[] {
   return (call as { values?: unknown[] }).values ?? [];
 }
 
+const home = {
+  id: '22222222-2222-2222-2222-222222222222',
+  userId: '11111111-1111-1111-1111-111111111111',
+  label: 'Home',
+  addressLine1: '12 Lake Road',
+  addressLine2: null,
+  locality: 'Indiranagar',
+  city: 'Bengaluru',
+  state: 'Karnataka',
+  postalCode: '560038',
+  latitude: null,
+  longitude: null,
+  active: true,
+  createdAt: new Date('2026-09-01T00:00:00Z'),
+  updatedAt: new Date('2026-09-01T00:00:00Z'),
+};
+
 describe('ConsumerBookingsService', () => {
   it('scopes home listing to the authenticated user', async () => {
     const { prisma, service } = setup();
@@ -46,27 +63,32 @@ describe('ConsumerBookingsService', () => {
     expect(values).toContain('22222222-2222-2222-2222-222222222222');
   });
 
-  it('snapshots the verified offering price instead of accepting a client price', async () => {
+  it('snapshots price, service identity and address instead of trusting mutable client or catalogue data', async () => {
     const { prisma, service } = setup();
     prisma.$queryRaw
-      .mockResolvedValueOnce([{ id: '22222222-2222-2222-2222-222222222222' }])
+      .mockResolvedValueOnce([home])
       .mockResolvedValueOnce([{
         id: '44444444-4444-4444-4444-444444444444',
-        userId: '11111111-1111-1111-1111-111111111111',
-        homeId: '22222222-2222-2222-2222-222222222222',
+        userId: home.userId,
+        homeId: home.id,
         providerId: '55555555-5555-5555-5555-555555555555',
         offeringId: '33333333-3333-3333-3333-333333333333',
+        offeringName: 'AC service',
+        providerName: 'CoolCare',
+        addressSnapshot: { label: 'Home', addressLine1: '12 Lake Road' },
         status: 'REQUESTED',
         servicePricePaise: 75000,
       }]);
     prisma.serviceOffering.findFirst.mockResolvedValue({
       id: '33333333-3333-3333-3333-333333333333',
+      name: 'AC service',
       providerId: '55555555-5555-5555-5555-555555555555',
       pricePaise: 75000,
+      provider: { businessName: 'CoolCare' },
     });
 
-    const result = await service.createBooking('11111111-1111-1111-1111-111111111111', {
-      homeId: '22222222-2222-2222-2222-222222222222',
+    const result = await service.createBooking(home.userId, {
+      homeId: home.id,
       offeringId: '33333333-3333-3333-3333-333333333333',
       scheduledFrom: new Date('2030-01-01T10:00:00Z'),
       scheduledUntil: new Date('2030-01-01T11:00:00Z'),
@@ -79,8 +101,19 @@ describe('ConsumerBookingsService', () => {
         active: true,
         provider: { active: true, verification: 'VERIFIED' },
       }),
+      select: expect.objectContaining({
+        name: true,
+        pricePaise: true,
+        provider: { select: { businessName: true } },
+      }),
     }));
-    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain(75000);
+
+    const values = sqlValues(prisma.$queryRaw.mock.calls[1][0]);
+    expect(values).toContain(75000);
+    expect(values).toContain('AC service');
+    expect(values).toContain('CoolCare');
+    const snapshot = values.find((value) => typeof value === 'string' && value.includes('12 Lake Road'));
+    expect(snapshot).toEqual(expect.stringContaining('560038'));
   });
 
   it('does not cancel another users booking', async () => {
