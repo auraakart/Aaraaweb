@@ -11,6 +11,7 @@ import 'screens/gate_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -61,7 +62,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 
   void _ensureDataController() {
     final session = widget.authController.session;
-    if (session == null || _boundSessionId == session.sessionId) return;
+    if (session == null || session.isIndependentHome || _boundSessionId == session.sessionId) return;
     _boundSessionId = session.sessionId;
     _dataController?.dispose();
     final ResidentRepository repository = widget.authController.isDemoSession
@@ -92,11 +93,23 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           _dataController = null;
           return AuthScreen(controller: widget.authController);
         }
+
+        final session = widget.authController.session!;
+        if (session.isIndependentHome) {
+          _boundSessionId = null;
+          _dataController?.dispose();
+          _dataController = null;
+          return IndependentServicesScreen(
+            apiClient: ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
+            onSignOut: _signOut,
+          );
+        }
+
         _ensureDataController();
         return ResidentHomeShell(
           controller: _dataController!,
           onSignOut: _signOut,
-          canManageFamilyMembers: widget.authController.session?.role == 'OWNER',
+          canManageFamilyMembers: session.role == 'OWNER',
         );
       },
     );
