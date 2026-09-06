@@ -68,7 +68,6 @@ export class AuthController {
     // continue through the existing selection-grant path. The resident app uses
     // the new grouped `contexts` field and can auto-select a sole society context.
     if (membershipRows.length === 1) {
-      const selected = contexts[0];
       return {
         verified: true,
         userId: user.id,
