@@ -10,23 +10,42 @@ class AuthApiException implements Exception {
   String toString() => message;
 }
 
+class PropertySummary {
+  const PropertySummary({required this.unitId, required this.unitNumber, required this.buildingName, required this.buildingCode});
+  final String unitId;
+  final String unitNumber;
+  final String buildingName;
+  final String buildingCode;
+}
+
 class SocietyMembershipOption {
-  const SocietyMembershipOption({required this.societyId, required this.role, required this.name, required this.code});
+  const SocietyMembershipOption({
+    required this.societyId,
+    required this.role,
+    required this.name,
+    required this.code,
+    this.roles = const [],
+    this.properties = const [],
+  });
   final String societyId;
   final String role;
   final String name;
   final String code;
+  final List<String> roles;
+  final List<PropertySummary> properties;
 }
 
 class OtpVerificationResult {
   const OtpVerificationResult({
     required this.userId,
     required this.memberships,
+    required this.contextType,
     this.selectionToken,
     this.session,
   });
   final String userId;
   final List<SocietyMembershipOption> memberships;
+  final String contextType;
   final String? selectionToken;
   final ResidentSession? session;
 }
@@ -43,26 +62,41 @@ class AuthRepository {
 
   Future<OtpVerificationResult> verifyOtp(String challengeId, String code) async {
     final json = await _post('/api/v1/auth/otp/verify', {'challengeId': challengeId, 'code': code}) as Map<String, dynamic>;
+    final contextType = json['contextType']?.toString() ?? 'SOCIETY';
     final memberships = (json['memberships'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map((item) {
           final society = item['society'] as Map<String, dynamic>? ?? const {};
+          final properties = (item['properties'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map((property) => PropertySummary(
+                    unitId: property['unitId']?.toString() ?? '',
+                    unitNumber: property['unitNumber']?.toString() ?? '',
+                    buildingName: property['buildingName']?.toString() ?? '',
+                    buildingCode: property['buildingCode']?.toString() ?? '',
+                  ))
+              .toList();
           return SocietyMembershipOption(
             societyId: item['societyId'].toString(),
             role: item['role'].toString(),
+            roles: (item['roles'] as List<dynamic>? ?? const []).map((role) => role.toString()).toList(),
             name: society['name']?.toString() ?? 'Society',
             code: society['code']?.toString() ?? '',
+            properties: properties,
           );
         })
         .toList();
     final sessionJson = json['session'] as Map<String, dynamic>?;
     ResidentSession? session;
-    if (sessionJson != null && memberships.length == 1) {
-      session = _sessionFromJson(sessionJson, memberships.first.societyId, memberships.first.role);
+    if (sessionJson != null) {
+      final societyId = memberships.isEmpty ? null : memberships.first.societyId;
+      final role = memberships.isEmpty ? '' : memberships.first.role;
+      session = _sessionFromJson(sessionJson, societyId: societyId, role: role, contextType: contextType);
     }
     return OtpVerificationResult(
       userId: json['userId'].toString(),
       memberships: memberships,
+      contextType: contextType,
       selectionToken: json['selectionToken']?.toString(),
       session: session,
     );
@@ -80,8 +114,9 @@ class AuthRepository {
     }) as Map<String, dynamic>;
     return _sessionFromJson(
       json['session'] as Map<String, dynamic>,
-      json['societyId'].toString(),
-      json['role'].toString(),
+      societyId: json['societyId'].toString(),
+      role: json['role'].toString(),
+      contextType: json['contextType']?.toString() ?? 'SOCIETY',
     );
   }
 
@@ -96,6 +131,7 @@ class AuthRepository {
       refreshToken: json['refreshToken'].toString(),
       societyId: current.societyId,
       role: current.role,
+      contextType: current.contextType,
     );
   }
 
@@ -103,13 +139,19 @@ class AuthRepository {
     await _post('/api/v1/auth/logout', {'sessionId': current.sessionId, 'refreshToken': current.refreshToken});
   }
 
-  ResidentSession _sessionFromJson(Map<String, dynamic> json, String societyId, String role) {
+  ResidentSession _sessionFromJson(
+    Map<String, dynamic> json, {
+    required String? societyId,
+    required String role,
+    required String contextType,
+  }) {
     return ResidentSession(
       sessionId: json['sessionId'].toString(),
       accessToken: json['accessToken'].toString(),
       refreshToken: json['refreshToken'].toString(),
       societyId: societyId,
       role: role,
+      contextType: contextType,
     );
   }
 
