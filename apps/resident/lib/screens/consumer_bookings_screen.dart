@@ -75,7 +75,7 @@ class _ConsumerBookingsScreenState extends State<ConsumerBookingsScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const ListView(children: [SizedBox(height: 180), Center(child: CircularProgressIndicator())])
+            ? ListView(children: const [SizedBox(height: 180), Center(child: CircularProgressIndicator())])
             : _error != null
                 ? ListView(
                     padding: const EdgeInsets.all(16),
