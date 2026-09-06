@@ -70,7 +70,7 @@ class AuthRepository {
   Future<OtpVerificationResult> verifyOtp(String challengeId, String code) async {
     final json = await _post('/api/v1/auth/otp/verify', {'challengeId': challengeId, 'code': code}) as Map<String, dynamic>;
     final contextType = json['contextType']?.toString() ?? 'SOCIETY';
-    final memberships = _parseMemberships(json['memberships']);
+    final memberships = _parseMemberships(json['contexts'] ?? json['memberships']);
     final sessionJson = json['session'] as Map<String, dynamic>?;
     ResidentSession? session;
     if (sessionJson != null) {
@@ -89,7 +89,7 @@ class AuthRepository {
 
   Future<List<SocietyMembershipOption>> contexts(ResidentSession session) async {
     final json = await _authorized('GET', '/api/v1/auth/contexts', session.accessToken) as Map<String, dynamic>;
-    return _parseMemberships(json['memberships']);
+    return _parseMemberships(json['contexts'] ?? json['memberships']);
   }
 
   Future<ResidentSession> selectSociety({
