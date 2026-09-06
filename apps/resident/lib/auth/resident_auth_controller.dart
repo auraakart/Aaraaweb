@@ -94,6 +94,15 @@ class ResidentAuthController extends ChangeNotifier {
         step = ResidentAuthStep.signedIn;
       } else if (memberships.isEmpty) {
         throw StateError('No available Aaraagate access context is available for this account');
+      } else if (memberships.length == 1 && selectionToken != null) {
+        session = await repository.selectSociety(
+          userId: result.userId,
+          societyId: memberships.first.societyId,
+          selectionToken: selectionToken!,
+        );
+        selectionToken = null;
+        await sessionStore.write(session!);
+        step = ResidentAuthStep.signedIn;
       } else {
         step = ResidentAuthStep.society;
       }
@@ -106,6 +115,7 @@ class ResidentAuthController extends ChangeNotifier {
     if (id == null || token == null) return;
     await _run(() async {
       session = await repository.selectSociety(userId: id, societyId: membership.societyId, selectionToken: token);
+      selectionToken = null;
       await sessionStore.write(session!);
       step = ResidentAuthStep.signedIn;
     });
