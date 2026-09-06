@@ -25,23 +25,97 @@ export class AuthController {
     if (!result.verified || !result.phone) throw new UnauthorizedException('Invalid or expired OTP');
     const user = await this.prisma.user.findUnique({ where: { phone: result.phone } });
     if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
-    const memberships = await this.prisma.societyMembership.findMany({
+
+    const membershipRows = await this.prisma.societyMembership.findMany({
       where: { userId: user.id, active: true },
       select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
     });
-    if (memberships.length === 1) {
-      return { verified: true, userId: user.id, memberships, session: await this.sessions.create(user.id, memberships[0].societyId, [memberships[0].role as AppRole]) };
+
+    // Independent-home consumers are valid Aaraagate users even without a society.
+    // Their session deliberately carries no societyId, so TenantGuard keeps all
+    // society-only APIs inaccessible.
+    if (membershipRows.length === 0) {
+      return {
+        verified: true,
+        userId: user.id,
+        contextType: 'INDEPENDENT_HOME',
+        memberships: [],
+        session: await this.sessions.create(user.id, undefined, []),
+      };
     }
+
+    const propertyRows = await this.prisma.unitOwnership.findMany({
+      where: { userId: user.id, active: true },
+      select: {
+        societyId: true,
+        unitId: true,
+        unit: { select: { number: true, building: { select: { name: true, code: true } } } },
+      },
+    });
+
+    const societyMap = new Map<string, {
+      societyId: string;
+      role: string;
+      roles: string[];
+      society: { name: string; code: string };
+      properties: { unitId: string; unitNumber: string; buildingName: string; buildingCode: string }[];
+    }>();
+
+    for (const row of membershipRows) {
+      const existing = societyMap.get(row.societyId);
+      if (existing) {
+        if (!existing.roles.includes(row.role)) existing.roles.push(row.role);
+        continue;
+      }
+      societyMap.set(row.societyId, {
+        societyId: row.societyId,
+        role: row.role,
+        roles: [row.role],
+        society: row.society,
+        properties: propertyRows
+          .filter((property) => property.societyId === row.societyId)
+          .map((property) => ({
+            unitId: property.unitId,
+            unitNumber: property.unit.number,
+            buildingName: property.unit.building.name,
+            buildingCode: property.unit.building.code,
+          })),
+      });
+    }
+
+    const memberships = [...societyMap.values()];
+    if (memberships.length === 1) {
+      const selected = memberships[0];
+      return {
+        verified: true,
+        userId: user.id,
+        contextType: 'SOCIETY',
+        memberships,
+        session: await this.sessions.create(user.id, selected.societyId, selected.roles as AppRole[]),
+      };
+    }
+
     const selectionGrant = await this.authService.createSocietySelectionGrant(user.id);
-    return { verified: true, userId: user.id, memberships, selectionToken: selectionGrant.token, selectionExpiresAt: selectionGrant.expiresAt };
+    return {
+      verified: true,
+      userId: user.id,
+      contextType: 'SOCIETY_SELECTION',
+      memberships,
+      selectionToken: selectionGrant.token,
+      selectionExpiresAt: selectionGrant.expiresAt,
+    };
   }
 
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
     await this.authService.consumeSocietySelectionGrant(dto.selectionToken, dto.userId);
-    const membership = await this.prisma.societyMembership.findFirst({ where: { userId: dto.userId, societyId: dto.societyId, active: true } });
-    if (!membership) throw new UnauthorizedException('User is not an active member of this society');
-    const session = await this.sessions.create(dto.userId, dto.societyId, [membership.role as AppRole]);
-    return { societyId: dto.societyId, role: membership.role, session };
+    const memberships = await this.prisma.societyMembership.findMany({
+      where: { userId: dto.userId, societyId: dto.societyId, active: true },
+      select: { role: true },
+    });
+    if (!memberships.length) throw new UnauthorizedException('User is not an active member of this society');
+    const roles = memberships.map((membership) => membership.role as AppRole);
+    const session = await this.sessions.create(dto.userId, dto.societyId, roles);
+    return { contextType: 'SOCIETY', societyId: dto.societyId, role: memberships[0].role, roles, session };
   }
 
   @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
