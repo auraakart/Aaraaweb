@@ -25,6 +25,7 @@ class ResidentAuthController extends ChangeNotifier {
   ResidentSession? session;
 
   bool get isDemoSession => session?.sessionId == 'demo-resident-session';
+  bool get isIndependentHome => session?.isIndependentHome ?? false;
 
   Future<void> bootstrap() async {
     error = null;
@@ -61,6 +62,7 @@ class ResidentAuthController extends ChangeNotifier {
       refreshToken: 'demo-local-only',
       societyId: 'demo-society-1',
       role: 'OWNER',
+      contextType: 'SOCIETY',
     );
     step = ResidentAuthStep.signedIn;
     notifyListeners();
@@ -86,7 +88,7 @@ class ResidentAuthController extends ChangeNotifier {
         await sessionStore.write(session!);
         step = ResidentAuthStep.signedIn;
       } else if (memberships.isEmpty) {
-        throw StateError('No active society membership is available for this account');
+        throw StateError('No available Aaraagate access context is available for this account');
       } else {
         step = ResidentAuthStep.society;
       }
