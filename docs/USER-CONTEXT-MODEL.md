@@ -21,6 +21,8 @@ A society context is scoped by `userId + societyId`, with property relationships
 
 The context chooser displays the society plus the user's linked properties where available. Both ownership and occupancy are represented, and multiple roles in the same society must not create duplicate society choices.
 
+The first chooser appears immediately after login for users with multiple society contexts. After entering a society, the same list is available under **My Properties** so the user can switch context without signing out.
+
 Changing a client-side society or unit identifier must never grant access. Every protected API call must revalidate the active session context and the user's relationship to the requested resource. Authenticated context switching is permitted only when the server confirms an active membership in the target society.
 
 ## Independent-home context
