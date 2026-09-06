@@ -46,6 +46,9 @@ type ConsumerBookingRow = {
   homeId: string;
   providerId: string;
   offeringId: string;
+  offeringName: string;
+  providerName: string;
+  addressSnapshot: Record<string, unknown>;
   status: ServiceBookingStatus;
   scheduledFrom: Date;
   scheduledUntil: Date;
@@ -118,16 +121,11 @@ export class ConsumerBookingsService {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT
         b.*,
-        h."label" AS "homeLabel",
-        h."addressLine1",
-        h."locality",
-        h."city",
-        o."name" AS "offeringName",
-        p."businessName" AS "providerName"
+        b."addressSnapshot"->>'label' AS "homeLabel",
+        b."addressSnapshot"->>'addressLine1' AS "addressLine1",
+        b."addressSnapshot"->>'locality' AS "locality",
+        b."addressSnapshot"->>'city' AS "city"
       FROM "ConsumerServiceBooking" b
-      JOIN "ConsumerHome" h ON h."id" = b."homeId"
-      JOIN "ServiceOffering" o ON o."id" = b."offeringId"
-      JOIN "ServiceProvider" p ON p."id" = b."providerId"
       WHERE b."userId" = ${userId}::uuid
       ORDER BY b."createdAt" DESC
     `);
@@ -138,12 +136,13 @@ export class ConsumerBookingsService {
     if (input.scheduledFrom <= now) throw new BadRequestException('Scheduled start must be in the future');
     if (input.scheduledUntil <= input.scheduledFrom) throw new BadRequestException('Scheduled end must be after scheduled start');
 
-    const homeRows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT "id" FROM "ConsumerHome"
+    const homeRows = await this.prisma.$queryRaw<ConsumerHomeRow[]>(Prisma.sql`
+      SELECT * FROM "ConsumerHome"
       WHERE "id" = ${input.homeId}::uuid AND "userId" = ${userId}::uuid AND "active" = true
       LIMIT 1
     `);
-    if (!homeRows.length) throw new NotFoundException('Active home not found');
+    const home = homeRows[0];
+    if (!home) throw new NotFoundException('Active home not found');
 
     const offering = await this.prisma.serviceOffering.findFirst({
       where: {
@@ -156,22 +155,39 @@ export class ConsumerBookingsService {
       },
       select: {
         id: true,
+        name: true,
         providerId: true,
         pricePaise: true,
+        provider: { select: { businessName: true } },
       },
     });
     if (!offering) throw new NotFoundException('Verified service offering not found');
 
+    const addressSnapshot = JSON.stringify({
+      label: home.label,
+      addressLine1: home.addressLine1,
+      addressLine2: home.addressLine2,
+      locality: home.locality,
+      city: home.city,
+      state: home.state,
+      postalCode: home.postalCode,
+      latitude: home.latitude?.toString() ?? null,
+      longitude: home.longitude?.toString() ?? null,
+    });
+
     const id = randomUUID();
     const rows = await this.prisma.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
       INSERT INTO "ConsumerServiceBooking" (
-        "id", "userId", "homeId", "providerId", "offeringId", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "createdAt", "updatedAt"
+        "id", "userId", "homeId", "providerId", "offeringId", "offeringName", "providerName", "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "createdAt", "updatedAt"
       ) VALUES (
         ${id}::uuid,
         ${userId}::uuid,
         ${input.homeId}::uuid,
         ${offering.providerId}::uuid,
         ${offering.id}::uuid,
+        ${offering.name},
+        ${offering.provider.businessName},
+        ${addressSnapshot}::jsonb,
         ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",
         ${input.scheduledFrom},
         ${input.scheduledUntil},
