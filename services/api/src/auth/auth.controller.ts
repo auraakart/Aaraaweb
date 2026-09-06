@@ -46,26 +46,36 @@ export class AuthController {
     const user = await this.prisma.user.findUnique({ where: { phone: result.phone } });
     if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
 
-    const memberships = await this.listSocietyContexts(user.id);
+    const membershipRows = await this.prisma.societyMembership.findMany({
+      where: { userId: user.id, active: true },
+      select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
+    });
+    const contexts = await this.listSocietyContexts(user.id, membershipRows);
 
-    if (memberships.length === 0) {
+    if (membershipRows.length === 0) {
       return {
         verified: true,
         userId: user.id,
         contextType: 'INDEPENDENT_HOME',
         memberships: [],
+        contexts: [],
         session: await this.sessions.create(user.id, undefined, []),
       };
     }
 
-    if (memberships.length === 1) {
-      const selected = memberships[0];
+    // Preserve the legacy auth response contract for the guard/admin clients:
+    // only one raw membership receives a session immediately. Multiple role rows
+    // continue through the existing selection-grant path. The resident app uses
+    // the new grouped `contexts` field and can auto-select a sole society context.
+    if (membershipRows.length === 1) {
+      const selected = contexts[0];
       return {
         verified: true,
         userId: user.id,
         contextType: 'SOCIETY',
-        memberships,
-        session: await this.sessions.create(user.id, selected.societyId, selected.roles as AppRole[]),
+        memberships: membershipRows,
+        contexts,
+        session: await this.sessions.create(user.id, membershipRows[0].societyId, [membershipRows[0].role as AppRole]),
       };
     }
 
@@ -74,7 +84,8 @@ export class AuthController {
       verified: true,
       userId: user.id,
       contextType: 'SOCIETY_SELECTION',
-      memberships,
+      memberships: membershipRows,
+      contexts,
       selectionToken: selectionGrant.token,
       selectionExpiresAt: selectionGrant.expiresAt,
     };
@@ -89,10 +100,11 @@ export class AuthController {
   @UseGuards(BearerGuard)
   async contexts(@CurrentUser() userId: string) {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    const memberships = await this.listSocietyContexts(userId);
+    const contexts = await this.listSocietyContexts(userId);
     return {
-      memberships,
-      independentHomeAvailable: memberships.length === 0,
+      memberships: contexts,
+      contexts,
+      independentHomeAvailable: contexts.length === 0,
     };
   }
 
@@ -117,14 +129,26 @@ export class AuthController {
     return { contextType: 'SOCIETY', societyId, role: memberships[0].role, roles, session };
   }
 
-  private async listSocietyContexts(userId: string): Promise<SocietyContext[]> {
+  private async listSocietyContexts(
+    userId: string,
+    suppliedMembershipRows?: Array<{ societyId: string; role: string; society: { name: string; code: string } }>,
+  ): Promise<SocietyContext[]> {
+    const now = new Date();
     const [membershipRows, ownershipRows, occupancyRows] = await Promise.all([
-      this.prisma.societyMembership.findMany({
-        where: { userId, active: true },
-        select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
-      }),
+      suppliedMembershipRows
+        ? Promise.resolve(suppliedMembershipRows)
+        : this.prisma.societyMembership.findMany({
+            where: { userId, active: true },
+            select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
+          }),
       this.prisma.unitOwnership.findMany({
-        where: { userId, active: true },
+        where: {
+          userId,
+          active: true,
+          verified: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
         select: {
           societyId: true,
           unitId: true,
@@ -132,7 +156,12 @@ export class AuthController {
         },
       }),
       this.prisma.unitOccupancy.findMany({
-        where: { userId, active: true },
+        where: {
+          userId,
+          active: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
         select: {
           societyId: true,
           unitId: true,
