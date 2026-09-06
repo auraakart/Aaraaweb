@@ -4,16 +4,24 @@ import { AuthController } from './auth.controller';
 
 const activeUser = { id: '11111111-1111-4111-8111-111111111111', status: 'ACTIVE' };
 
+type PropertyRow = {
+  societyId: string;
+  unitId: string;
+  unit: { number: string; building: { name: string; code: string } };
+};
+
+type MembershipFindArgs = { where?: { societyId?: string } };
+
 function buildController(options?: {
   memberships?: Array<{ societyId: string; role: string; society: { name: string; code: string } }>;
-  ownerships?: Array<any>;
-  occupancies?: Array<any>;
+  ownerships?: PropertyRow[];
+  occupancies?: PropertyRow[];
 }) {
   const membershipRows = options?.memberships ?? [];
   const prisma = {
     user: { findUnique: vi.fn().mockResolvedValue(activeUser) },
     societyMembership: {
-      findMany: vi.fn().mockImplementation(({ where }: any) => {
+      findMany: vi.fn().mockImplementation(({ where }: MembershipFindArgs) => {
         if (where?.societyId) return Promise.resolve(membershipRows.filter((row) => row.societyId === where.societyId).map((row) => ({ role: row.role })));
         return Promise.resolve(membershipRows);
       }),
@@ -65,7 +73,7 @@ describe('AuthController user contexts', () => {
   it('returns one chooser entry per society with both owned and occupied properties', async () => {
     const firstSociety = '22222222-2222-4222-8222-222222222222';
     const secondSociety = '33333333-3333-4333-8333-333333333333';
-    const property = (societyId: string, unitId: string, number: string) => ({
+    const property = (societyId: string, unitId: string, number: string): PropertyRow => ({
       societyId,
       unitId,
       unit: { number, building: { name: 'Tower A', code: 'A' } },
