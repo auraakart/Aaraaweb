@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import 'consumer_booking_screen.dart';
 
 class IndependentServicesScreen extends StatefulWidget {
   const IndependentServicesScreen({
@@ -42,12 +43,8 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       final offeringsRaw = await widget.apiClient.get(offeringsPath);
       if (!mounted) return;
       setState(() {
-        _categories = (categoriesRaw as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
-        _offerings = (offeringsRaw as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+        _categories = (categoriesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _offerings = (offeringsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
     } catch (e) {
       if (!mounted) return;
@@ -55,6 +52,14 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _openBooking(Map<String, dynamic> offering) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConsumerBookingScreen(apiClient: widget.apiClient, offering: offering),
+      ),
+    );
   }
 
   @override
@@ -163,7 +168,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               )
             else
               for (final offering in _offerings) ...[
-                _OfferingCard(offering: offering),
+                _OfferingCard(offering: offering, onTap: () => _openBooking(offering)),
                 const SizedBox(height: 10),
               ],
           ],
@@ -174,8 +179,9 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
 }
 
 class _OfferingCard extends StatelessWidget {
-  const _OfferingCard({required this.offering});
+  const _OfferingCard({required this.offering, required this.onTap});
   final Map<String, dynamic> offering;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +191,7 @@ class _OfferingCard extends StatelessWidget {
     final price = pricePaise / 100;
     return Card(
       child: ListTile(
+        onTap: onTap,
         contentPadding: const EdgeInsets.all(14),
         leading: const CircleAvatar(child: Icon(Icons.handyman_rounded)),
         title: Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -192,7 +199,14 @@ class _OfferingCard extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6),
           child: Text('${category['name'] ?? 'Service'} · ${provider['businessName'] ?? 'Verified provider'}'),
         ),
-        trailing: Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
       ),
     );
   }
