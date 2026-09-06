@@ -26,6 +26,7 @@ class ResidentAuthController extends ChangeNotifier {
 
   bool get isDemoSession => session?.sessionId == 'demo-resident-session';
   bool get isIndependentHome => session?.isIndependentHome ?? false;
+  bool get canSwitchProperty => !isIndependentHome && memberships.length > 1;
 
   Future<void> bootstrap() async {
     error = null;
@@ -37,10 +38,14 @@ class ResidentAuthController extends ChangeNotifier {
         try {
           session = await repository.refresh(stored);
           await sessionStore.write(session!);
+          if (!session!.isIndependentHome) {
+            memberships = await repository.contexts(session!);
+          }
           step = ResidentAuthStep.signedIn;
         } catch (_) {
           await sessionStore.clear();
           session = null;
+          memberships = const [];
           step = ResidentAuthStep.phone;
         }
       }
@@ -102,6 +107,18 @@ class ResidentAuthController extends ChangeNotifier {
     await _run(() async {
       session = await repository.selectSociety(userId: id, societyId: membership.societyId, selectionToken: token);
       await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+    });
+  }
+
+  Future<void> switchSociety(SocietyMembershipOption membership) async {
+    final current = session;
+    if (current == null || current.isIndependentHome || membership.societyId == current.societyId) return;
+    await _run(() async {
+      final next = await repository.switchSociety(current, membership.societyId);
+      session = next;
+      await sessionStore.write(next);
+      memberships = await repository.contexts(next);
       step = ResidentAuthStep.signedIn;
     });
   }
