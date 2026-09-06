@@ -76,6 +76,16 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
     await widget.authController.signOut();
   }
 
+  Future<void> _switchProperty(SocietyMembershipOption membership) async {
+    await _dataController?.stopPushNotifications();
+    await widget.authController.switchSociety(membership);
+    if (widget.authController.error == null) {
+      _boundSessionId = null;
+      _dataController?.dispose();
+      _dataController = null;
+    }
+  }
+
   @override
   void dispose() {
     _dataController?.dispose();
@@ -110,6 +120,9 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           controller: _dataController!,
           onSignOut: _signOut,
           canManageFamilyMembers: session.role == 'OWNER',
+          propertyContexts: widget.authController.memberships,
+          currentSocietyId: session.societyId,
+          onSwitchProperty: _switchProperty,
         );
       },
     );
@@ -122,10 +135,16 @@ class ResidentHomeShell extends StatefulWidget {
     required this.controller,
     required this.onSignOut,
     required this.canManageFamilyMembers,
+    required this.propertyContexts,
+    required this.currentSocietyId,
+    required this.onSwitchProperty,
   });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
+  final List<SocietyMembershipOption> propertyContexts;
+  final String? currentSocietyId;
+  final Future<void> Function(SocietyMembershipOption membership) onSwitchProperty;
 
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
@@ -170,6 +189,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             controller: controller,
             onSignOut: widget.onSignOut,
             canManageFamilyMembers: widget.canManageFamilyMembers,
+            propertyContexts: widget.propertyContexts,
+            currentSocietyId: widget.currentSocietyId,
+            onSwitchProperty: widget.onSwitchProperty,
           ),
         ];
         final pending = controller.firstPendingAccess;
