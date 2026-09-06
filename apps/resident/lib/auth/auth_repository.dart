@@ -11,11 +11,18 @@ class AuthApiException implements Exception {
 }
 
 class PropertySummary {
-  const PropertySummary({required this.unitId, required this.unitNumber, required this.buildingName, required this.buildingCode});
+  const PropertySummary({
+    required this.unitId,
+    required this.unitNumber,
+    required this.buildingName,
+    required this.buildingCode,
+    required this.relationship,
+  });
   final String unitId;
   final String unitNumber;
   final String buildingName;
   final String buildingCode;
+  final String relationship;
 }
 
 class SocietyMembershipOption {
@@ -63,29 +70,7 @@ class AuthRepository {
   Future<OtpVerificationResult> verifyOtp(String challengeId, String code) async {
     final json = await _post('/api/v1/auth/otp/verify', {'challengeId': challengeId, 'code': code}) as Map<String, dynamic>;
     final contextType = json['contextType']?.toString() ?? 'SOCIETY';
-    final memberships = (json['memberships'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map((item) {
-          final society = item['society'] as Map<String, dynamic>? ?? const {};
-          final properties = (item['properties'] as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .map((property) => PropertySummary(
-                    unitId: property['unitId']?.toString() ?? '',
-                    unitNumber: property['unitNumber']?.toString() ?? '',
-                    buildingName: property['buildingName']?.toString() ?? '',
-                    buildingCode: property['buildingCode']?.toString() ?? '',
-                  ))
-              .toList();
-          return SocietyMembershipOption(
-            societyId: item['societyId'].toString(),
-            role: item['role'].toString(),
-            roles: (item['roles'] as List<dynamic>? ?? const []).map((role) => role.toString()).toList(),
-            name: society['name']?.toString() ?? 'Society',
-            code: society['code']?.toString() ?? '',
-            properties: properties,
-          );
-        })
-        .toList();
+    final memberships = _parseMemberships(json['memberships']);
     final sessionJson = json['session'] as Map<String, dynamic>?;
     ResidentSession? session;
     if (sessionJson != null) {
@@ -102,6 +87,11 @@ class AuthRepository {
     );
   }
 
+  Future<List<SocietyMembershipOption>> contexts(ResidentSession session) async {
+    final json = await _authorized('GET', '/api/v1/auth/contexts', session.accessToken) as Map<String, dynamic>;
+    return _parseMemberships(json['memberships']);
+  }
+
   Future<ResidentSession> selectSociety({
     required String userId,
     required String societyId,
@@ -112,6 +102,21 @@ class AuthRepository {
       'societyId': societyId,
       'selectionToken': selectionToken,
     }) as Map<String, dynamic>;
+    return _sessionFromJson(
+      json['session'] as Map<String, dynamic>,
+      societyId: json['societyId'].toString(),
+      role: json['role'].toString(),
+      contextType: json['contextType']?.toString() ?? 'SOCIETY',
+    );
+  }
+
+  Future<ResidentSession> switchSociety(ResidentSession current, String societyId) async {
+    final json = await _authorized(
+      'POST',
+      '/api/v1/auth/society/switch',
+      current.accessToken,
+      {'societyId': societyId},
+    ) as Map<String, dynamic>;
     return _sessionFromJson(
       json['session'] as Map<String, dynamic>,
       societyId: json['societyId'].toString(),
@@ -139,6 +144,33 @@ class AuthRepository {
     await _post('/api/v1/auth/logout', {'sessionId': current.sessionId, 'refreshToken': current.refreshToken});
   }
 
+  List<SocietyMembershipOption> _parseMemberships(dynamic raw) {
+    return (raw as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((item) {
+          final society = item['society'] as Map<String, dynamic>? ?? const {};
+          final properties = (item['properties'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map((property) => PropertySummary(
+                    unitId: property['unitId']?.toString() ?? '',
+                    unitNumber: property['unitNumber']?.toString() ?? '',
+                    buildingName: property['buildingName']?.toString() ?? '',
+                    buildingCode: property['buildingCode']?.toString() ?? '',
+                    relationship: property['relationship']?.toString() ?? '',
+                  ))
+              .toList();
+          return SocietyMembershipOption(
+            societyId: item['societyId'].toString(),
+            role: item['role'].toString(),
+            roles: (item['roles'] as List<dynamic>? ?? const []).map((role) => role.toString()).toList(),
+            name: society['name']?.toString() ?? 'Society',
+            code: society['code']?.toString() ?? '',
+            properties: properties,
+          );
+        })
+        .toList();
+  }
+
   ResidentSession _sessionFromJson(
     Map<String, dynamic> json, {
     required String? societyId,
@@ -155,12 +187,21 @@ class AuthRepository {
     );
   }
 
-  Future<dynamic> _post(String path, Map<String, dynamic> body) async {
+  Future<dynamic> _post(String path, Map<String, dynamic> body) => _send('POST', path, body: body);
+
+  Future<dynamic> _authorized(String method, String path, String accessToken, [Map<String, dynamic>? body]) {
+    return _send(method, path, body: body, accessToken: accessToken);
+  }
+
+  Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body, String? accessToken}) async {
     final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}$path');
-    final request = await _client.postUrl(uri);
-    request.headers.contentType = ContentType.json;
+    final request = await _client.openUrl(method, uri);
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-    request.write(jsonEncode(body));
+    if (accessToken != null) request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
+    if (body != null) {
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
+    }
     final response = await request.close();
     final text = await response.transform(utf8.decoder).join();
     dynamic decoded;
