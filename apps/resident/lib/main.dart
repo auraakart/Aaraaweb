@@ -11,6 +11,7 @@ import 'screens/gate_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -61,7 +62,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 
   void _ensureDataController() {
     final session = widget.authController.session;
-    if (session == null || _boundSessionId == session.sessionId) return;
+    if (session == null || session.isIndependentHome || _boundSessionId == session.sessionId) return;
     _boundSessionId = session.sessionId;
     _dataController?.dispose();
     final ResidentRepository repository = widget.authController.isDemoSession
@@ -73,6 +74,11 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
   Future<void> _signOut() async {
     await _dataController?.stopPushNotifications();
     await widget.authController.signOut();
+  }
+
+  Future<void> _switchProperty(SocietyMembershipOption membership) async {
+    await _dataController?.stopPushNotifications();
+    await widget.authController.switchSociety(membership);
   }
 
   @override
@@ -92,11 +98,27 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           _dataController = null;
           return AuthScreen(controller: widget.authController);
         }
+
+        final session = widget.authController.session!;
+        if (session.isIndependentHome) {
+          _boundSessionId = null;
+          _dataController?.dispose();
+          _dataController = null;
+          return IndependentServicesScreen(
+            apiClient: ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
+            onSignOut: _signOut,
+          );
+        }
+
         _ensureDataController();
         return ResidentHomeShell(
+          key: ValueKey(session.sessionId),
           controller: _dataController!,
           onSignOut: _signOut,
-          canManageFamilyMembers: widget.authController.session?.role == 'OWNER',
+          canManageFamilyMembers: session.role == 'OWNER',
+          propertyContexts: widget.authController.memberships,
+          currentSocietyId: session.societyId,
+          onSwitchProperty: _switchProperty,
         );
       },
     );
@@ -109,10 +131,16 @@ class ResidentHomeShell extends StatefulWidget {
     required this.controller,
     required this.onSignOut,
     required this.canManageFamilyMembers,
+    required this.propertyContexts,
+    required this.currentSocietyId,
+    required this.onSwitchProperty,
   });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
+  final List<SocietyMembershipOption> propertyContexts;
+  final String? currentSocietyId;
+  final Future<void> Function(SocietyMembershipOption membership) onSwitchProperty;
 
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
@@ -157,6 +185,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             controller: controller,
             onSignOut: widget.onSignOut,
             canManageFamilyMembers: widget.canManageFamilyMembers,
+            propertyContexts: widget.propertyContexts,
+            currentSocietyId: widget.currentSocietyId,
+            onSwitchProperty: widget.onSwitchProperty,
           ),
         ];
         final pending = controller.firstPendingAccess;

@@ -25,6 +25,8 @@ class ResidentAuthController extends ChangeNotifier {
   ResidentSession? session;
 
   bool get isDemoSession => session?.sessionId == 'demo-resident-session';
+  bool get isIndependentHome => session?.isIndependentHome ?? false;
+  bool get canSwitchProperty => !isIndependentHome && memberships.length > 1;
 
   Future<void> bootstrap() async {
     error = null;
@@ -36,10 +38,14 @@ class ResidentAuthController extends ChangeNotifier {
         try {
           session = await repository.refresh(stored);
           await sessionStore.write(session!);
+          if (!session!.isIndependentHome) {
+            memberships = await repository.contexts(session!);
+          }
           step = ResidentAuthStep.signedIn;
         } catch (_) {
           await sessionStore.clear();
           session = null;
+          memberships = const [];
           step = ResidentAuthStep.phone;
         }
       }
@@ -61,6 +67,7 @@ class ResidentAuthController extends ChangeNotifier {
       refreshToken: 'demo-local-only',
       societyId: 'demo-society-1',
       role: 'OWNER',
+      contextType: 'SOCIETY',
     );
     step = ResidentAuthStep.signedIn;
     notifyListeners();
@@ -86,7 +93,16 @@ class ResidentAuthController extends ChangeNotifier {
         await sessionStore.write(session!);
         step = ResidentAuthStep.signedIn;
       } else if (memberships.isEmpty) {
-        throw StateError('No active society membership is available for this account');
+        throw StateError('No available Aaraagate access context is available for this account');
+      } else if (memberships.length == 1 && selectionToken != null) {
+        session = await repository.selectSociety(
+          userId: result.userId,
+          societyId: memberships.first.societyId,
+          selectionToken: selectionToken!,
+        );
+        selectionToken = null;
+        await sessionStore.write(session!);
+        step = ResidentAuthStep.signedIn;
       } else {
         step = ResidentAuthStep.society;
       }
@@ -99,7 +115,20 @@ class ResidentAuthController extends ChangeNotifier {
     if (id == null || token == null) return;
     await _run(() async {
       session = await repository.selectSociety(userId: id, societyId: membership.societyId, selectionToken: token);
+      selectionToken = null;
       await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+    });
+  }
+
+  Future<void> switchSociety(SocietyMembershipOption membership) async {
+    final current = session;
+    if (current == null || current.isIndependentHome || membership.societyId == current.societyId) return;
+    await _run(() async {
+      final next = await repository.switchSociety(current, membership.societyId);
+      session = next;
+      await sessionStore.write(next);
+      memberships = await repository.contexts(next);
       step = ResidentAuthStep.signedIn;
     });
   }
