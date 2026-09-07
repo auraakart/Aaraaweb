@@ -33,6 +33,31 @@ type ResolvedLocation = {
   longitude: string | null;
 };
 
+type SocietyServiceAddressRow = {
+  id: string;
+  societyId: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  locality: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  latitude: Prisma.Decimal | null;
+  longitude: Prisma.Decimal | null;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type OfferingServiceAreaRow = {
+  id: string;
+  offeringId: string;
+  postalCode: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class ConsumerServiceLocationService {
   constructor(private readonly prisma: PrismaService) {}
@@ -171,9 +196,15 @@ export class ConsumerServiceLocationService {
         o."durationMinutes",
         c."id" AS "categoryId",
         c."name" AS "categoryName",
+        jsonb_build_object('id', c."id", 'name', c."name") AS "category",
         p."id" AS "providerId",
         p."businessName" AS "providerName",
-        p."description" AS "providerDescription"
+        p."description" AS "providerDescription",
+        jsonb_build_object(
+          'id', p."id",
+          'businessName', p."businessName",
+          'description', p."description"
+        ) AS "provider"
       FROM "ServiceOffering" o
       JOIN "ServiceCategory" c ON c."id" = o."categoryId" AND c."active" = true
       JOIN "ServiceProvider" p
@@ -203,7 +234,7 @@ export class ConsumerServiceLocationService {
     const postalCode = this.normalizePostalCode(input.postalCode);
     const society = await this.prisma.society.findUnique({ where: { id: societyId }, select: { id: true } });
     if (!society) throw new NotFoundException('Society not found');
-    const rows = await this.prisma.$queryRaw(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<SocietyServiceAddressRow[]>(Prisma.sql`
       INSERT INTO "SocietyServiceAddress" (
         "id", "societyId", "addressLine1", "addressLine2", "locality", "city", "state", "postalCode",
         "latitude", "longitude", "active", "createdAt", "updatedAt"
@@ -229,7 +260,7 @@ export class ConsumerServiceLocationService {
   }
 
   listOfferingServiceAreas(offeringId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.$queryRaw<OfferingServiceAreaRow[]>(Prisma.sql`
       SELECT * FROM "ConsumerOfferingServiceArea"
       WHERE "offeringId" = ${offeringId}::uuid
       ORDER BY "postalCode" ASC
@@ -240,7 +271,7 @@ export class ConsumerServiceLocationService {
     const normalized = this.normalizePostalCode(postalCode);
     const offering = await this.prisma.serviceOffering.findUnique({ where: { id: offeringId }, select: { id: true } });
     if (!offering) throw new NotFoundException('Service offering not found');
-    const rows = await this.prisma.$queryRaw(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<OfferingServiceAreaRow[]>(Prisma.sql`
       INSERT INTO "ConsumerOfferingServiceArea" ("id", "offeringId", "postalCode", "active", "createdAt", "updatedAt")
       VALUES (${randomUUID()}::uuid, ${offeringId}::uuid, ${normalized}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT ("offeringId", "postalCode")
@@ -251,7 +282,7 @@ export class ConsumerServiceLocationService {
   }
 
   async setOfferingServiceAreaActive(offeringId: string, areaId: string, active: boolean) {
-    const rows = await this.prisma.$queryRaw(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<OfferingServiceAreaRow[]>(Prisma.sql`
       UPDATE "ConsumerOfferingServiceArea"
       SET "active" = ${active}, "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${areaId}::uuid AND "offeringId" = ${offeringId}::uuid
