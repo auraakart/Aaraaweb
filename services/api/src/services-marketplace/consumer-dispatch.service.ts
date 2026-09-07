@@ -5,6 +5,7 @@ import { PushNotificationService } from '../notifications/push-notification.serv
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ConsumerDispatchStatus = 'ASSIGNED' | 'ACCEPTED' | 'REJECTED' | 'EN_ROUTE' | 'ARRIVED' | 'RELEASED';
+type ConsumerDispatchNotificationStatus = 'ASSIGNED' | 'EN_ROUTE' | 'ARRIVED';
 
 export type CreateConsumerProviderAgentInput = {
   displayName: string;
@@ -52,7 +53,6 @@ type DispatchNotificationRow = {
 };
 
 const ACTIVE_STATUSES: readonly ConsumerDispatchStatus[] = ['ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'];
-const CONSUMER_NOTIFY_STATUSES: readonly ConsumerDispatchStatus[] = ['ASSIGNED', 'EN_ROUTE', 'ARRIVED'];
 
 const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerDispatchStatus, readonly ConsumerDispatchStatus[]>> = {
   ASSIGNED: ['ACCEPTED', 'REJECTED', 'RELEASED'],
@@ -102,7 +102,6 @@ export class ConsumerDispatchService {
         ${input.phone?.trim() || null},
         ${input.externalRef?.trim() || null},
         true,
-        CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
       )
@@ -300,13 +299,13 @@ export class ConsumerDispatchService {
       return rows[0];
     });
 
-    if (CONSUMER_NOTIFY_STATUSES.includes(toStatus)) this.publishDispatchStatus(assignment.id, toStatus);
+    if (toStatus === 'EN_ROUTE' || toStatus === 'ARRIVED') this.publishDispatchStatus(assignment.id, toStatus);
     return assignment;
   }
 
-  private publishDispatchStatus(assignmentId: string, status: ConsumerDispatchStatus) {
+  private publishDispatchStatus(assignmentId: string, status: ConsumerDispatchNotificationStatus) {
     void this.loadDispatchNotification(assignmentId)
-      .then((event) => event && this.push.sendConsumerBookingEvent({ ...event, status: status as 'ASSIGNED' | 'EN_ROUTE' | 'ARRIVED' }))
+      .then((event) => event && this.push.sendConsumerBookingEvent({ ...event, status }))
       .catch((error: unknown) => {
         this.logger.warn(`Consumer dispatch push failed for ${assignmentId}: ${error instanceof Error ? error.message : 'unknown error'}`);
       });
