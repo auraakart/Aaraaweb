@@ -100,12 +100,13 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
         }
 
         final session = widget.authController.session!;
+        final consumerApiClient = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
         if (session.isIndependentHome) {
           _boundSessionId = null;
           _dataController?.dispose();
           _dataController = null;
           return IndependentServicesScreen(
-            apiClient: ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
+            apiClient: consumerApiClient,
             onSignOut: _signOut,
           );
         }
@@ -114,6 +115,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
         return ResidentHomeShell(
           key: ValueKey(session.sessionId),
           controller: _dataController!,
+          consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: session.role == 'OWNER',
           propertyContexts: widget.authController.memberships,
@@ -129,6 +131,7 @@ class ResidentHomeShell extends StatefulWidget {
   const ResidentHomeShell({
     super.key,
     required this.controller,
+    required this.consumerApiClient,
     required this.onSignOut,
     required this.canManageFamilyMembers,
     required this.propertyContexts,
@@ -136,6 +139,7 @@ class ResidentHomeShell extends StatefulWidget {
     required this.onSwitchProperty,
   });
   final ResidentDataController controller;
+  final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
   final List<SocietyMembershipOption> propertyContexts;
@@ -157,6 +161,17 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
 
   void _open(int index) => setState(() => _index = index);
 
+  void _openExternalServices() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => IndependentServicesScreen(
+          apiClient: widget.consumerApiClient,
+          independentMode: false,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -167,7 +182,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           HomeScreen(
             controller: controller,
             onOpenGate: () => _open(1),
-            onOpenServices: () => _open(3),
+            onOpenServices: _openExternalServices,
             onOpenHelpdesk: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)),
             ),
