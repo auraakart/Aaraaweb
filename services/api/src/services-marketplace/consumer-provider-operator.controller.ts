@@ -1,7 +1,7 @@
 import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
-import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import { ConsumerProviderOperatorService, ProviderBookingDecision } from './consumer-provider-operator.service';
 
 const CurrentProviderUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   return ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId;
@@ -31,6 +31,15 @@ class AvailabilityWindowPatchDto {
   @IsOptional() @IsInt() @Min(1) @Max(1440) endMinute?: number;
   @IsOptional() @IsInt() @Min(1) slotCapacity?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+}
+
+class ProviderBookingResponseDto {
+  @IsIn(['ACCEPT', 'DECLINE'])
+  decision!: ProviderBookingDecision;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 @Controller('provider/services')
@@ -105,6 +114,20 @@ export class ConsumerProviderOperatorController {
     @Body() dto: AvailabilityWindowPatchDto,
   ) {
     return this.providers.updateMyAvailabilityWindow(this.requireUser(userId), offeringId, windowId, dto);
+  }
+
+  @Get('bookings')
+  bookings(@CurrentProviderUser() userId: string) {
+    return this.providers.listMyBookings(this.requireUser(userId));
+  }
+
+  @Post('bookings/:bookingId/respond')
+  respondToBooking(
+    @CurrentProviderUser() userId: string,
+    @Param('bookingId') bookingId: string,
+    @Body() dto: ProviderBookingResponseDto,
+  ) {
+    return this.providers.respondToMyBooking(this.requireUser(userId), bookingId, dto.decision, dto.note);
   }
 
   private requireUser(userId?: string) {
