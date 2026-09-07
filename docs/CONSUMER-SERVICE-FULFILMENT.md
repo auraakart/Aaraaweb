@@ -2,118 +2,119 @@
 
 ## Objective
 
-Extend the independent-home consumer booking foundation with a provider/operations fulfilment lifecycle without coupling consumer bookings to society, unit, gate, or society-payment concepts.
+Extend the independent-home consumer booking foundation with a safe platform-operations fulfilment lifecycle without coupling consumer bookings to society, unit, gate, or society-payment concepts.
 
 ## Scope
 
 This milestone covers the lifecycle after an independent-home consumer creates a `ConsumerServiceBooking`.
 
-Initial state flow:
+Supported state flow:
 
 `REQUESTED -> CONFIRMED -> IN_PROGRESS -> COMPLETED`
 
-Cancellation remains allowed only where explicitly permitted by the server-side transition policy.
+Cancellation is permitted only from `REQUESTED` or `CONFIRMED`.
 
 ## Architectural boundary
 
-Consumer fulfilment is platform-scoped.
-
-It must not create, require, or infer:
-
-- `societyId`
-- `unitId`
-- `accessRequestId`
-- society provider approval
-- gate access records
-- society maintenance/payment records
-
-The existing society `ServiceBooking` workflow remains unchanged.
+Consumer fulfilment is platform-scoped. It must not create, require, or infer `societyId`, `unitId`, `accessRequestId`, society provider approval, gate access records, or society maintenance/payment records. The existing society `ServiceBooking` workflow remains unchanged.
 
 ## Actor model
 
-Every state mutation must be authorised from the authenticated principal and validated server-side. The API must never trust a client-supplied actor user id.
+Every fulfilment mutation derives the actor from the authenticated bearer principal. The API never accepts a client-supplied actor user id.
 
-The first implementation may expose fulfilment actions through platform operations/admin capability already present in the services marketplace. Provider self-service identity is not introduced unless an existing provider-auth principal can be reused safely.
+The first implementation is intentionally platform-operations only. It introduces dedicated permissions:
+
+- `PLATFORM_CONSUMER_BOOKING_READ`
+- `PLATFORM_CONSUMER_BOOKING_FULFIL`
+
+Only `SUPER_ADMIN` inherits these permissions today. Society-admin, resident, guard, staff and vendor roles do not receive them. Provider self-service identity remains deferred until a safe provider-auth principal exists.
 
 ## Transition policy
 
-The service layer owns allowed state transitions. Controllers must not update booking status directly.
+The service layer owns allowed state transitions. Controllers never update booking status directly.
 
-Baseline transitions:
+Allowed transitions:
 
 - `REQUESTED -> CONFIRMED`
 - `REQUESTED -> CANCELLED`
 - `CONFIRMED -> IN_PROGRESS`
-- `CONFIRMED -> CANCELLED` where cancellation is still allowed
+- `CONFIRMED -> CANCELLED`
 - `IN_PROGRESS -> COMPLETED`
 
-Terminal states do not transition further in this milestone.
+Terminal states do not transition further.
 
-Invalid or stale transitions must be rejected even when the caller is otherwise authorised.
+Every operations transition executes inside a database transaction, locks the booking row, validates the current state, performs a conditional status update, and appends an event. A stale conditional update is rejected rather than silently overwriting concurrent work.
 
 ## Fulfilment events
 
-Status changes should be recorded as append-only events containing at least:
+`ConsumerServiceBookingEvent` is an append-only audit table containing:
 
 - booking id
-- actor user id
+- authenticated actor user id
 - action
 - from status
 - to status
 - optional note
 - occurred-at timestamp
 
-Event history is audit information and must not be rewritten when catalogue or consumer-home data changes.
+Consumer-initiated cancellation is also recorded as a fulfilment event, so the audit trail does not have an unexplained terminal state.
 
-## API shape
+## Platform API
 
-The exact route names should follow the existing services-platform/admin conventions after code inspection. The implementation must support:
+All routes below require bearer authentication plus the dedicated platform permission:
 
-- operations/provider-facing consumer booking list
-- consumer booking detail
-- confirm
-- start service
-- complete service
-- authorised cancellation
-- fulfilment event history
+- `GET /api/v1/platform/services/consumer-bookings`
+- `GET /api/v1/platform/services/consumer-bookings/:bookingId`
+- `GET /api/v1/platform/services/consumer-bookings/:bookingId/events`
+- `POST /api/v1/platform/services/consumer-bookings/:bookingId/status`
 
-Resident APIs remain user-scoped and may expose the current status/event timeline read-only.
+The status mutation accepts a target status and optional note, but only the server transition policy determines whether the requested transition is legal.
+
+## Resident API and UX
+
+Resident access remains authenticated-user scoped:
+
+- `GET /api/v1/consumer/services/bookings`
+- `GET /api/v1/consumer/services/bookings/:id/events`
+- `POST /api/v1/consumer/services/bookings/:id/cancel`
+
+The event query joins through `ConsumerServiceBooking.userId`, preventing a consumer from reading another consumer's timeline by changing a booking id.
+
+The Resident **My Bookings** screen supports a read-only status timeline. Operations controls are never rendered in the Resident app.
 
 ## Security invariants
 
 - Consumer bookings remain scoped to their consumer owner for resident reads and cancellation.
-- Fulfilment mutations require a separately authorised operations/provider capability.
-- Client-supplied booking status is never persisted directly.
-- State transitions are validated against the current database status in the same mutation path.
-- No consumer fulfilment action grants society access.
+- Fulfilment mutations require a separate platform-only permission.
+- Client-supplied actor ids are never trusted.
+- Client-supplied booking status is never persisted without server transition validation.
+- State transition validation and update occur in one transaction.
+- Consumer fulfilment does not grant society access.
 - No society marketplace, gate, Guard, or Admin access boundary is weakened.
-
-## Concurrency and integrity
-
-Status transitions should be implemented atomically so two actors cannot successfully apply conflicting transitions from the same prior status.
-
-Where raw SQL is used, the `UPDATE` must include the expected current status in its predicate and return no row when the booking changed concurrently.
-
-## Resident UX
-
-The resident booking history should continue to show the immutable booking snapshots created at request time and add clear status progression. A detail/timeline view can be added without exposing operations-only controls.
+- Existing immutable booking snapshots remain the source for historical service/provider/address details.
 
 ## Tests
 
-At minimum cover:
+Coverage includes:
 
-- valid transition sequence
+- valid confirmation and event creation
 - invalid transition rejection
-- stale/concurrent transition rejection
-- terminal state protection
-- consumer cannot invoke operations fulfilment actions
-- unrelated consumer cannot read/cancel another consumer booking
-- existing society marketplace regression
+- terminal-state protection
+- stale/concurrent update rejection
+- unknown booking rejection
+- platform-only permission boundaries
+- consumer event-history ownership scoping
+- cross-user cancellation rejection
+- consumer cancellation event creation
+- existing consumer booking snapshot and price protections
+
+Full repository regression CI remains the merge gate.
 
 ## Deferred
 
 The following remain outside this milestone:
 
+- provider self-service authentication and provider-specific booking queues
 - online payments
 - provider payout/commission settlement
 - geospatial service coverage
