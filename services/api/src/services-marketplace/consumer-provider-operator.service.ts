@@ -1,5 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ProviderVerificationStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -7,6 +7,7 @@ import {
   AvailabilityWindowPatch,
   ConsumerAvailabilityService,
 } from './consumer-availability.service';
+import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
 type ProviderOperatorRow = {
@@ -16,12 +17,15 @@ type ProviderOperatorRow = {
   active: boolean;
 };
 
+export type ProviderBookingDecision = 'ACCEPT' | 'DECLINE';
+
 @Injectable()
 export class ConsumerProviderOperatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: ConsumerAvailabilityService,
     private readonly locations: ConsumerServiceLocationService,
+    private readonly fulfilment: ConsumerFulfilmentService,
   ) {}
 
   async resolveProvider(userId: string) {
@@ -116,6 +120,63 @@ export class ConsumerProviderOperatorService {
   ) {
     await this.assertOfferingOwned(userId, offeringId);
     return this.availability.updateAvailabilityWindow(offeringId, windowId, patch);
+  }
+
+  async listMyBookings(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        b."id",
+        b."offeringId",
+        b."offeringName",
+        b."addressSnapshot",
+        b."status",
+        b."scheduledFrom",
+        b."scheduledUntil",
+        b."servicePricePaise",
+        b."notes",
+        b."createdAt",
+        b."updatedAt"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."providerId" = ${provider.providerId}::uuid
+      ORDER BY
+        CASE WHEN b."status" = 'REQUESTED'::"ServiceBookingStatus" THEN 0 ELSE 1 END,
+        b."scheduledFrom" ASC,
+        b."createdAt" DESC
+    `);
+  }
+
+  async respondToMyBooking(userId: string, bookingId: string, decision: ProviderBookingDecision, note?: string) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
+      SELECT "id", "status"
+      FROM "ConsumerServiceBooking"
+      WHERE "id" = ${bookingId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Provider booking not found');
+    if (booking.status !== ServiceBookingStatus.REQUESTED) {
+      throw new BadRequestException('Only requested bookings can be accepted or declined');
+    }
+
+    if (decision === 'ACCEPT') {
+      return this.fulfilment.transition(
+        userId,
+        bookingId,
+        ServiceBookingStatus.CONFIRMED,
+        note,
+        'PROVIDER_ACCEPTED',
+      );
+    }
+
+    return this.fulfilment.transition(
+      userId,
+      bookingId,
+      ServiceBookingStatus.CANCELLED,
+      note,
+      'PROVIDER_DECLINED',
+    );
   }
 
   private async assertOfferingOwned(userId: string, offeringId: string) {
