@@ -220,7 +220,11 @@ export class ConsumerBookingsService {
         FOR UPDATE
       `);
       const current = currentRows[0];
-      if (!current || ![ServiceBookingStatus.REQUESTED, ServiceBookingStatus.CONFIRMED].includes(current.status)) {
+      const cancellableStatuses: readonly ServiceBookingStatus[] = [
+        ServiceBookingStatus.REQUESTED,
+        ServiceBookingStatus.CONFIRMED,
+      ];
+      if (!current || !cancellableStatuses.includes(current.status)) {
         throw new BadRequestException('Booking cannot be cancelled');
       }
 
