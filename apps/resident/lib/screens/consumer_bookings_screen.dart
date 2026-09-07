@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../widgets/consumer_booking_post_service_panel.dart';
 
 class ConsumerBookingsScreen extends StatefulWidget {
   const ConsumerBookingsScreen({super.key, required this.apiClient});
@@ -55,8 +56,14 @@ class _ConsumerBookingsScreenState extends State<ConsumerBookingsScreen> {
         context: context,
         showDragHandle: true,
         isScrollControlled: true,
-        builder: (context) => _BookingTimelineSheet(booking: booking, events: events, dispatch: dispatch),
+        builder: (context) => _BookingTimelineSheet(
+          booking: booking,
+          events: events,
+          dispatch: dispatch,
+          apiClient: widget.apiClient,
+        ),
       );
+      if (mounted) await _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -219,11 +226,17 @@ class _BookingCard extends StatelessWidget {
 }
 
 class _BookingTimelineSheet extends StatelessWidget {
-  const _BookingTimelineSheet({required this.booking, required this.events, required this.dispatch});
+  const _BookingTimelineSheet({
+    required this.booking,
+    required this.events,
+    required this.dispatch,
+    required this.apiClient,
+  });
 
   final Map<String, dynamic> booking;
   final List<Map<String, dynamic>> events;
   final Map<String, dynamic>? dispatch;
+  final ApiClient apiClient;
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +244,7 @@ class _BookingTimelineSheet extends StatelessWidget {
     final currentStatus = booking['status']?.toString() ?? 'REQUESTED';
     final dispatchStatus = dispatch?['status']?.toString();
     final agentName = dispatch?['agentDisplayName']?.toString();
+    final bookingId = booking['id']?.toString() ?? '';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -254,6 +268,8 @@ class _BookingTimelineSheet extends StatelessWidget {
                   subtitle: Text(_dispatchMessage(dispatchStatus)),
                 ),
               ),
+            if (bookingId.isNotEmpty)
+              ConsumerBookingPostServicePanel(apiClient: apiClient, bookingId: bookingId),
             const SizedBox(height: 18),
             Text('Status timeline', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
