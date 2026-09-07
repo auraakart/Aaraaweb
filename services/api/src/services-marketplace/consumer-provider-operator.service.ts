@@ -2,7 +2,11 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Prisma, ProviderVerificationStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ConsumerAvailabilityService } from './consumer-availability.service';
+import {
+  AvailabilityWindowInput,
+  AvailabilityWindowPatch,
+  ConsumerAvailabilityService,
+} from './consumer-availability.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
 type ProviderOperatorRow = {
@@ -92,6 +96,26 @@ export class ConsumerProviderOperatorService {
   async setMyOfferingAreaActive(userId: string, offeringId: string, areaId: string, active: boolean) {
     await this.assertOfferingOwned(userId, offeringId);
     return this.locations.setOfferingServiceAreaActive(offeringId, areaId, active);
+  }
+
+  async listMyAvailabilityWindows(userId: string, offeringId: string) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.listAvailabilityWindows(offeringId);
+  }
+
+  async createMyAvailabilityWindow(userId: string, offeringId: string, input: AvailabilityWindowInput) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.createAvailabilityWindow(offeringId, input);
+  }
+
+  async updateMyAvailabilityWindow(
+    userId: string,
+    offeringId: string,
+    windowId: string,
+    patch: AvailabilityWindowPatch,
+  ) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.updateAvailabilityWindow(offeringId, windowId, patch);
   }
 
   private async assertOfferingOwned(userId: string, offeringId: string) {
