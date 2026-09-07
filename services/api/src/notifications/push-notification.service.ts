@@ -1,9 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DevicePlatform } from '@prisma/client';
+import { DevicePlatform, Prisma } from '@prisma/client';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ResidentMessageEvent } from './notification-realtime.service';
+
+type ConsumerPushRegistration = { id: string; token: string };
+
+type ConsumerBookingPushEvent = {
+  userId: string;
+  bookingId: string;
+  offeringName: string;
+  providerName: string;
+  status: 'CONFIRMED' | 'CANCELLED';
+};
 
 @Injectable()
 export class PushNotificationService {
@@ -63,6 +74,81 @@ export class PushNotificationService {
       where: { societyId, userId, token: token.trim(), active: true },
       data: { active: false, lastSeenAt: new Date() },
     });
+  }
+
+  async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
+    const normalized = token.trim();
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      INSERT INTO "ConsumerPushDeviceToken" (
+        "id", "userId", "token", "platform", "deviceId", "active", "lastSeenAt", "createdAt", "updatedAt"
+      ) VALUES (
+        ${randomUUID()}::uuid, ${userId}::uuid, ${normalized}, ${platform}::"DevicePlatform",
+        ${deviceId?.trim() || null}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("token") DO UPDATE SET
+        "userId" = EXCLUDED."userId",
+        "platform" = EXCLUDED."platform",
+        "deviceId" = EXCLUDED."deviceId",
+        "active" = true,
+        "lastSeenAt" = CURRENT_TIMESTAMP,
+        "updatedAt" = CURRENT_TIMESTAMP
+      RETURNING "id", "platform", "deviceId", "active", "lastSeenAt"
+    `);
+    return rows[0];
+  }
+
+  async unregisterConsumer(userId: string, token: string) {
+    const count = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "ConsumerPushDeviceToken"
+      SET "active" = false, "lastSeenAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "userId" = ${userId}::uuid AND "token" = ${token.trim()} AND "active" = true
+    `);
+    return { count };
+  }
+
+  async sendConsumerBookingEvent(event: ConsumerBookingPushEvent) {
+    if (!this.firebaseApp) return;
+    const registrations = await this.prisma.$queryRaw<ConsumerPushRegistration[]>(Prisma.sql`
+      SELECT "id", "token"
+      FROM "ConsumerPushDeviceToken"
+      WHERE "userId" = ${event.userId}::uuid AND "active" = true
+    `);
+    if (registrations.length === 0) return;
+
+    const title = event.status === 'CONFIRMED' ? 'Service booking confirmed' : 'Service booking cancelled';
+    const body = event.status === 'CONFIRMED'
+      ? `${event.providerName} confirmed ${event.offeringName}.`
+      : `${event.offeringName} was cancelled.`;
+
+    const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
+      tokens: registrations.map((item) => item.token),
+      notification: { title, body },
+      data: {
+        type: 'CONSUMER_SERVICE_BOOKING_STATUS',
+        bookingId: event.bookingId,
+        status: event.status,
+      },
+      android: { priority: 'high' },
+      apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },
+    });
+
+    const invalidIds: string[] = [];
+    response.responses.forEach((result, index) => {
+      if (result.success) return;
+      const code = result.error?.code;
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+        invalidIds.push(registrations[index].id);
+      } else {
+        this.logger.warn(`FCM delivery failed for consumer booking ${event.bookingId}: ${code ?? 'unknown error'}`);
+      }
+    });
+    if (invalidIds.length > 0) {
+      await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE "ConsumerPushDeviceToken"
+        SET "active" = false, "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" IN (${Prisma.join(invalidIds.map((id) => Prisma.sql`${id}::uuid`))})
+      `);
+    }
   }
 
   async sendResidentEvent(event: ResidentMessageEvent) {

@@ -9,11 +9,14 @@ function setup() {
     $queryRaw: vi.fn(),
     $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
   };
+  const push = { sendConsumerBookingEvent: vi.fn().mockResolvedValue(undefined) };
   return {
     tx,
     prisma,
+    push,
     service: new ConsumerFulfilmentService(
       prisma as unknown as ConstructorParameters<typeof ConsumerFulfilmentService>[0],
+      push as unknown as ConstructorParameters<typeof ConsumerFulfilmentService>[1],
     ),
   };
 }

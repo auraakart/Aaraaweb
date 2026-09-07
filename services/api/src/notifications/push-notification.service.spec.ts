@@ -30,4 +30,26 @@ describe('PushNotificationService', () => {
       data: expect.objectContaining({ active: false }),
     }));
   });
+
+  it('registers a consumer token without requiring society context', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ id: 'consumer-device-1', active: true }]);
+    const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+
+    const result = await service.registerConsumer('11111111-1111-4111-8111-111111111111', ' token-2 ', DevicePlatform.ANDROID);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({ id: 'consumer-device-1', active: true }));
+  });
+
+  it('unregisters consumer push by authenticated user and token', async () => {
+    const executeRaw = vi.fn().mockResolvedValue(1);
+    const prisma = { $executeRaw: executeRaw } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+
+    const result = await service.unregisterConsumer('11111111-1111-4111-8111-111111111111', ' token-2 ');
+
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ count: 1 });
+  });
 });
