@@ -6,6 +6,7 @@ import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
+import { ConsumerPaymentsService } from './consumer-payments.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
@@ -27,6 +28,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerAvailabilityService,
     ConsumerBookingsService,
     ConsumerFulfilmentService,
+    ConsumerPaymentsService,
   ],
   exports: [ServicesMarketplaceService],
 })

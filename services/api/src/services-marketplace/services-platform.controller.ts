@@ -12,7 +12,7 @@ import {
   createParamDecorator,
 } from '@nestjs/common';
 import { ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -20,6 +20,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
+import { ConsumerPaymentStatus, ConsumerPaymentsService } from './consumer-payments.service';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
@@ -105,6 +106,17 @@ class UpdateAvailabilityWindowDto {
   active?: boolean;
 }
 
+class SetConsumerPaymentStatusDto {
+  @IsIn(['PENDING', 'CAPTURED', 'FAILED', 'REFUND_PENDING', 'REFUNDED'])
+  status!: ConsumerPaymentStatus;
+
+  @IsOptional() @IsString() provider?: string;
+  @IsOptional() @IsString() providerOrderId?: string;
+  @IsOptional() @IsString() providerPaymentId?: string;
+  @IsOptional() @IsString() providerEventId?: string;
+  @IsOptional() @IsString() providerReference?: string;
+}
+
 @Controller('platform/services')
 @UseGuards(BearerGuard, PermissionsGuard)
 export class ServicesPlatformController {
@@ -114,6 +126,7 @@ export class ServicesPlatformController {
     private readonly prisma: PrismaService,
     private readonly consumerAvailability: ConsumerAvailabilityService,
     private readonly consumerFulfilment: ConsumerFulfilmentService,
+    private readonly consumerPayments: ConsumerPaymentsService,
   ) {}
 
   @Get('providers')
@@ -235,5 +248,28 @@ export class ServicesPlatformController {
   ) {
     if (!actorUserId) throw new UnauthorizedException('Authentication required');
     return this.consumerFulfilment.transition(actorUserId, bookingId, dto.status, dto.note);
+  }
+
+  @Get('consumer-payments')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_READ)
+  listConsumerPayments() {
+    return this.consumerPayments.listPlatformPayments();
+  }
+
+  @Get('consumer-payments/:paymentId/events')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_READ)
+  listConsumerPaymentEvents(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
+    return this.consumerPayments.listPlatformEvents(paymentId);
+  }
+
+  @Post('consumer-payments/:paymentId/status')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_RECONCILE)
+  setConsumerPaymentStatus(
+    @CurrentPlatformUser() actorUserId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @Body() dto: SetConsumerPaymentStatusDto,
+  ) {
+    if (!actorUserId) throw new UnauthorizedException('Authentication required');
+    return this.consumerPayments.transition(actorUserId, paymentId, dto);
   }
 }
