@@ -44,14 +44,18 @@ class _ConsumerBookingsScreenState extends State<ConsumerBookingsScreen> {
     final id = booking['id']?.toString();
     if (id == null || id.isEmpty) return;
     try {
-      final raw = await widget.apiClient.get('/api/v1/consumer/services/bookings/$id/events');
+      final results = await Future.wait<dynamic>([
+        widget.apiClient.get('/api/v1/consumer/services/bookings/$id/events'),
+        widget.apiClient.get('/api/v1/consumer/services/bookings/$id/dispatch'),
+      ]);
       if (!mounted) return;
-      final events = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final events = (results[0] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final dispatch = results[1] is Map<String, dynamic> ? results[1] as Map<String, dynamic> : null;
       await showModalBottomSheet<void>(
         context: context,
         showDragHandle: true,
         isScrollControlled: true,
-        builder: (context) => _BookingTimelineSheet(booking: booking, events: events),
+        builder: (context) => _BookingTimelineSheet(booking: booking, events: events, dispatch: dispatch),
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -192,7 +196,7 @@ class _BookingCard extends StatelessWidget {
               const SizedBox(height: 6),
               _InfoRow(icon: Icons.currency_rupee_rounded, text: (pricePaise / 100).toStringAsFixed(pricePaise % 100 == 0 ? 0 : 2)),
               const SizedBox(height: 10),
-              Text('Tap for status timeline', style: theme.textTheme.bodySmall),
+              Text('Tap for service and provider status', style: theme.textTheme.bodySmall),
               if (cancellable) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -215,15 +219,18 @@ class _BookingCard extends StatelessWidget {
 }
 
 class _BookingTimelineSheet extends StatelessWidget {
-  const _BookingTimelineSheet({required this.booking, required this.events});
+  const _BookingTimelineSheet({required this.booking, required this.events, required this.dispatch});
 
   final Map<String, dynamic> booking;
   final List<Map<String, dynamic>> events;
+  final Map<String, dynamic>? dispatch;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currentStatus = booking['status']?.toString() ?? 'REQUESTED';
+    final dispatchStatus = dispatch?['status']?.toString();
+    final agentName = dispatch?['agentDisplayName']?.toString();
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -234,6 +241,19 @@ class _BookingTimelineSheet extends StatelessWidget {
             Text(booking['offeringName']?.toString() ?? 'Service', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text('Current status: ${currentStatus.replaceAll('_', ' ')}'),
+            const SizedBox(height: 16),
+            Text('Provider dispatch', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            if (dispatchStatus == null)
+              const Text('A service professional has not been assigned yet.')
+            else
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.engineering_outlined),
+                  title: Text(agentName?.isNotEmpty == true ? agentName! : 'Assigned service professional', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(_dispatchMessage(dispatchStatus)),
+                ),
+              ),
             const SizedBox(height: 18),
             Text('Status timeline', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
@@ -266,6 +286,25 @@ class _BookingTimelineSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _dispatchMessage(String status) {
+    switch (status) {
+      case 'ASSIGNED':
+        return 'A service professional has been assigned.';
+      case 'ACCEPTED':
+        return 'Your assigned professional has accepted the service.';
+      case 'EN_ROUTE':
+        return 'Your service professional is on the way.';
+      case 'ARRIVED':
+        return 'Your service professional has arrived.';
+      case 'REJECTED':
+        return 'The previous assignment was declined. The provider will reassign if required.';
+      case 'RELEASED':
+        return 'The previous assignment has been released.';
+      default:
+        return status.replaceAll('_', ' ');
+    }
   }
 }
 
