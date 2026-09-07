@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookingStatus[]>> = {
@@ -11,11 +12,14 @@ const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookin
   [ServiceBookingStatus.COMPLETED]: [ServiceBookingStatus.IN_PROGRESS],
 };
 
-type BookingStatusRow = { id: string; status: ServiceBookingStatus };
+type BookingStatusRow = { id: string; userId: string; status: ServiceBookingStatus };
 
 @Injectable()
 export class ConsumerFulfilmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push?: PushNotificationService,
+  ) {}
 
   listBookings() {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -61,9 +65,9 @@ export class ConsumerFulfilmentService {
     const allowedFrom = ALLOWED_FROM[toStatus] ?? [];
     if (!allowedFrom.length) throw new BadRequestException('Unsupported fulfilment transition');
 
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<BookingStatusRow[]>(Prisma.sql`
-        SELECT "id", "status"
+        SELECT "id", "userId", "status"
         FROM "ConsumerServiceBooking"
         WHERE "id" = ${bookingId}::uuid
         FOR UPDATE
@@ -82,6 +86,7 @@ export class ConsumerFulfilmentService {
       `);
       if (!updatedRows.length) throw new BadRequestException('Consumer booking changed concurrently; retry the action');
 
+      const action = actionOverride ?? this.actionFor(toStatus);
       const eventId = randomUUID();
       await tx.$queryRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceBookingEvent" (
@@ -90,7 +95,7 @@ export class ConsumerFulfilmentService {
           ${eventId}::uuid,
           ${bookingId}::uuid,
           ${actorUserId}::uuid,
-          ${actionOverride ?? this.actionFor(toStatus)},
+          ${action},
           ${current.status}::"ServiceBookingStatus",
           ${toStatus}::"ServiceBookingStatus",
           ${note ?? null},
@@ -98,8 +103,68 @@ export class ConsumerFulfilmentService {
         )
       `);
 
-      return updatedRows[0];
+      return { booking: updatedRows[0], consumerUserId: current.userId, action };
     });
+
+    if (actorUserId !== outcome.consumerUserId) {
+      await this.notifyConsumer(outcome.consumerUserId, bookingId, toStatus, outcome.action);
+    }
+    return outcome.booking;
+  }
+
+  private async notifyConsumer(userId: string, bookingId: string, status: ServiceBookingStatus, action: string) {
+    if (!this.push) return;
+    const content = this.notificationFor(status, action);
+    if (!content) return;
+    try {
+      await this.push.sendConsumerServiceEvent(userId, {
+        type: content.type,
+        bookingId,
+        status,
+        title: content.title,
+        body: content.body,
+      });
+    } catch {
+      // Push delivery is best-effort and must never roll back a committed booking transition.
+    }
+  }
+
+  private notificationFor(status: ServiceBookingStatus, action: string) {
+    if (action === 'PROVIDER_DECLINED') {
+      return {
+        type: 'CONSUMER_SERVICE_DECLINED',
+        title: 'Service request declined',
+        body: 'Your service provider could not accept this request.',
+      };
+    }
+    switch (status) {
+      case ServiceBookingStatus.CONFIRMED:
+        return {
+          type: 'CONSUMER_SERVICE_CONFIRMED',
+          title: 'Service confirmed',
+          body: 'Your service booking has been confirmed.',
+        };
+      case ServiceBookingStatus.IN_PROGRESS:
+        return {
+          type: 'CONSUMER_SERVICE_STARTED',
+          title: 'Service started',
+          body: 'Your booked service is now in progress.',
+        };
+      case ServiceBookingStatus.COMPLETED:
+        return {
+          type: 'CONSUMER_SERVICE_COMPLETED',
+          title: 'Service completed',
+          body: 'Your service has been marked complete.',
+        };
+      case ServiceBookingStatus.CANCELLED:
+        return {
+          type: 'CONSUMER_SERVICE_CANCELLED',
+          title: 'Service booking cancelled',
+          body: 'Your service booking has been cancelled.',
+        };
+      default:
+        return null;
+    }
   }
 
   private actionFor(status: ServiceBookingStatus) {
