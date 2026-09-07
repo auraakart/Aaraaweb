@@ -38,6 +38,9 @@ class PushRegistrationService {
     final token = _registeredToken;
     if (token != null) {
       try {
+        await repository.api.post('/api/v1/consumer/notifications/devices/unregister', {'token': token});
+      } catch (_) {}
+      try {
         await repository.unregisterPushDevice(token);
       } catch (_) {}
     }
@@ -50,7 +53,17 @@ class PushRegistrationService {
   }
 
   Future<void> _register(String token) async {
-    await repository.registerPushDevice(token: token, platform: _platform());
+    final platform = _platform();
+    await repository.api.post('/api/v1/consumer/notifications/devices/register', {
+      'token': token,
+      'platform': platform,
+    });
+    try {
+      await repository.registerPushDevice(token: token, platform: platform);
+    } catch (_) {
+      // Independent-home sessions intentionally have no society tenant context.
+      // Their consumer push registration above remains authoritative.
+    }
     _registeredToken = token;
   }
 
