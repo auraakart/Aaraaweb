@@ -4,6 +4,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
@@ -18,7 +19,13 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServicesController,
     ConsumerBookingsController,
   ],
-  providers: [PrismaService, ServicesMarketplaceOperationsService, ServicesMarketplaceService, ConsumerBookingsService],
+  providers: [
+    PrismaService,
+    ServicesMarketplaceOperationsService,
+    ServicesMarketplaceService,
+    ConsumerBookingsService,
+    ConsumerFulfilmentService,
+  ],
   exports: [ServicesMarketplaceService],
 })
 export class ServicesMarketplaceModule {}
