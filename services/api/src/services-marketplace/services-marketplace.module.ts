@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform.controller';
 import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerPaymentsService } from './consumer-payments.service';
@@ -19,6 +20,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   controllers: [
     ServicesMarketplaceController,
     ServicesPlatformController,
+    ConsumerDispatchPlatformController,
     ConsumerServicesController,
     ConsumerBookingsController,
   ],
