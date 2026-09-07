@@ -24,4 +24,13 @@ export class ConsumerProviderOperatorPlatformController {
   ) {
     return this.providers.linkOperator(providerId, dto.userId);
   }
+
+  @Post(':providerId/operators/:userId/revoke')
+  @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY)
+  revokeOperator(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.providers.revokeOperator(providerId, userId);
+  }
 }
