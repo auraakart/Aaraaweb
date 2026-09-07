@@ -1,4 +1,4 @@
-import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerDispatchStatus } from './consumer-dispatch.service';
@@ -81,7 +81,7 @@ export class ConsumerProviderOperatorController {
   }
 
   @Patch('areas/:areaId')
-  setArea(@CurrentProviderUser() userId: string, @Param('areaId') areaId: string, @Body() dto: ActiveDto) {
+  setArea(@CurrentProviderUser() userId: string, @Param('areaId', ParseUUIDPipe) areaId: string, @Body() dto: ActiveDto) {
     return this.providers.setMyServiceAreaActive(this.requireUser(userId), areaId, dto.active);
   }
 
@@ -91,34 +91,34 @@ export class ConsumerProviderOperatorController {
   }
 
   @Get('offerings/:offeringId/areas')
-  offeringAreas(@CurrentProviderUser() userId: string, @Param('offeringId') offeringId: string) {
+  offeringAreas(@CurrentProviderUser() userId: string, @Param('offeringId', ParseUUIDPipe) offeringId: string) {
     return this.providers.listMyOfferingAreas(this.requireUser(userId), offeringId);
   }
 
   @Post('offerings/:offeringId/areas')
-  addOfferingArea(@CurrentProviderUser() userId: string, @Param('offeringId') offeringId: string, @Body() dto: PostalCodeDto) {
+  addOfferingArea(@CurrentProviderUser() userId: string, @Param('offeringId', ParseUUIDPipe) offeringId: string, @Body() dto: PostalCodeDto) {
     return this.providers.addMyOfferingArea(this.requireUser(userId), offeringId, dto.postalCode);
   }
 
   @Patch('offerings/:offeringId/areas/:areaId')
   setOfferingArea(
     @CurrentProviderUser() userId: string,
-    @Param('offeringId') offeringId: string,
-    @Param('areaId') areaId: string,
+    @Param('offeringId', ParseUUIDPipe) offeringId: string,
+    @Param('areaId', ParseUUIDPipe) areaId: string,
     @Body() dto: ActiveDto,
   ) {
     return this.providers.setMyOfferingAreaActive(this.requireUser(userId), offeringId, areaId, dto.active);
   }
 
   @Get('offerings/:offeringId/availability-windows')
-  availabilityWindows(@CurrentProviderUser() userId: string, @Param('offeringId') offeringId: string) {
+  availabilityWindows(@CurrentProviderUser() userId: string, @Param('offeringId', ParseUUIDPipe) offeringId: string) {
     return this.providers.listMyAvailabilityWindows(this.requireUser(userId), offeringId);
   }
 
   @Post('offerings/:offeringId/availability-windows')
   createAvailabilityWindow(
     @CurrentProviderUser() userId: string,
-    @Param('offeringId') offeringId: string,
+    @Param('offeringId', ParseUUIDPipe) offeringId: string,
     @Body() dto: AvailabilityWindowDto,
   ) {
     return this.providers.createMyAvailabilityWindow(this.requireUser(userId), offeringId, dto);
@@ -127,8 +127,8 @@ export class ConsumerProviderOperatorController {
   @Patch('offerings/:offeringId/availability-windows/:windowId')
   updateAvailabilityWindow(
     @CurrentProviderUser() userId: string,
-    @Param('offeringId') offeringId: string,
-    @Param('windowId') windowId: string,
+    @Param('offeringId', ParseUUIDPipe) offeringId: string,
+    @Param('windowId', ParseUUIDPipe) windowId: string,
     @Body() dto: AvailabilityWindowPatchDto,
   ) {
     return this.providers.updateMyAvailabilityWindow(this.requireUser(userId), offeringId, windowId, dto);
@@ -142,7 +142,7 @@ export class ConsumerProviderOperatorController {
   @Post('bookings/:bookingId/respond')
   respondToBooking(
     @CurrentProviderUser() userId: string,
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
     @Body() dto: ProviderBookingResponseDto,
   ) {
     return this.providers.respondToMyBooking(this.requireUser(userId), bookingId, dto.decision, dto.note);
@@ -161,35 +161,35 @@ export class ConsumerProviderOperatorController {
   @Patch('agents/:agentId')
   setAgentActive(
     @CurrentProviderUser() userId: string,
-    @Param('agentId') agentId: string,
+    @Param('agentId', ParseUUIDPipe) agentId: string,
     @Body() dto: ActiveDto,
   ) {
     return this.providers.setMyAgentActive(this.requireUser(userId), agentId, dto.active);
   }
 
   @Get('bookings/:bookingId/assignments')
-  bookingAssignments(@CurrentProviderUser() userId: string, @Param('bookingId') bookingId: string) {
+  bookingAssignments(@CurrentProviderUser() userId: string, @Param('bookingId', ParseUUIDPipe) bookingId: string) {
     return this.providers.listMyBookingAssignments(this.requireUser(userId), bookingId);
   }
 
   @Post('bookings/:bookingId/assignments')
   assignBooking(
     @CurrentProviderUser() userId: string,
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
     @Body() dto: AssignProviderAgentDto,
   ) {
     return this.providers.assignMyBooking(this.requireUser(userId), bookingId, dto.agentId);
   }
 
   @Get('assignments/:assignmentId/events')
-  assignmentEvents(@CurrentProviderUser() userId: string, @Param('assignmentId') assignmentId: string) {
+  assignmentEvents(@CurrentProviderUser() userId: string, @Param('assignmentId', ParseUUIDPipe) assignmentId: string) {
     return this.providers.listMyAssignmentEvents(this.requireUser(userId), assignmentId);
   }
 
   @Post('assignments/:assignmentId/status')
   setAssignmentStatus(
     @CurrentProviderUser() userId: string,
-    @Param('assignmentId') assignmentId: string,
+    @Param('assignmentId', ParseUUIDPipe) assignmentId: string,
     @Body() dto: ProviderDispatchStatusDto,
   ) {
     return this.providers.transitionMyAssignment(this.requireUser(userId), assignmentId, dto.status, dto.note);
