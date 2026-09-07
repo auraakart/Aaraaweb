@@ -108,7 +108,9 @@ Coverage includes:
 - consumer cancellation event creation
 - existing consumer booking snapshot and price protections
 
-Full repository regression CI remains the merge gate.
+## Merge gate
+
+The PR remains Draft until the latest head passes API validation, Flutter validation, Admin validation, dependency security, repository structure, backup-restore smoke and Resident Demo APK packaging. A final impact review is required before merge.
 
 ## Deferred
 
