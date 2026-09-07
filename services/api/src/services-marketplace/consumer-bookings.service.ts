@@ -131,6 +131,16 @@ export class ConsumerBookingsService {
     `);
   }
 
+  listBookingEvents(userId: string, bookingId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT e."id", e."action", e."fromStatus", e."toStatus", e."note", e."occurredAt"
+      FROM "ConsumerServiceBookingEvent" e
+      JOIN "ConsumerServiceBooking" b ON b."id" = e."bookingId"
+      WHERE e."bookingId" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+      ORDER BY e."occurredAt" ASC
+    `);
+  }
+
   async createBooking(userId: string, input: ConsumerBookingInput) {
     const now = new Date();
     if (input.scheduledFrom <= now) throw new BadRequestException('Scheduled start must be in the future');
@@ -202,16 +212,48 @@ export class ConsumerBookingsService {
   }
 
   async cancelBooking(userId: string, bookingId: string) {
-    const rows = await this.prisma.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
-      UPDATE "ConsumerServiceBooking"
-      SET "status" = ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", "updatedAt" = CURRENT_TIMESTAMP
-      WHERE
-        "id" = ${bookingId}::uuid
-        AND "userId" = ${userId}::uuid
-        AND "status" IN (${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus", ${ServiceBookingStatus.CONFIRMED}::"ServiceBookingStatus")
-      RETURNING *
-    `);
-    if (!rows.length) throw new BadRequestException('Booking cannot be cancelled');
-    return rows[0];
+    return this.prisma.$transaction(async (tx) => {
+      const currentRows = await tx.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
+        SELECT "id", "status"
+        FROM "ConsumerServiceBooking"
+        WHERE "id" = ${bookingId}::uuid AND "userId" = ${userId}::uuid
+        FOR UPDATE
+      `);
+      const current = currentRows[0];
+      const cancellableStatuses: readonly ServiceBookingStatus[] = [
+        ServiceBookingStatus.REQUESTED,
+        ServiceBookingStatus.CONFIRMED,
+      ];
+      if (!current || !cancellableStatuses.includes(current.status)) {
+        throw new BadRequestException('Booking cannot be cancelled');
+      }
+
+      const rows = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
+        UPDATE "ConsumerServiceBooking"
+        SET "status" = ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", "updatedAt" = CURRENT_TIMESTAMP
+        WHERE
+          "id" = ${bookingId}::uuid
+          AND "userId" = ${userId}::uuid
+          AND "status" = ${current.status}::"ServiceBookingStatus"
+        RETURNING *
+      `);
+      if (!rows.length) throw new BadRequestException('Booking changed concurrently; retry cancellation');
+
+      await tx.$queryRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent" (
+          "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "occurredAt"
+        ) VALUES (
+          ${randomUUID()}::uuid,
+          ${bookingId}::uuid,
+          ${userId}::uuid,
+          'CANCELLED',
+          ${current.status}::"ServiceBookingStatus",
+          ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus",
+          CURRENT_TIMESTAMP
+        )
+      `);
+
+      return rows[0];
+    });
   }
 }

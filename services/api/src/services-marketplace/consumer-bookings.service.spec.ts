@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 
 function setup() {
+  const tx = { $queryRaw: vi.fn() };
   const prisma = {
     $queryRaw: vi.fn(),
+    $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     serviceOffering: { findFirst: vi.fn() },
   };
   return {
+    tx,
     prisma,
     service: new ConsumerBookingsService(
       prisma as unknown as ConstructorParameters<typeof ConsumerBookingsService>[0],
@@ -44,6 +47,20 @@ describe('ConsumerBookingsService', () => {
 
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(sqlValues(prisma.$queryRaw.mock.calls[0][0])).toContain('11111111-1111-1111-1111-111111111111');
+  });
+
+  it('scopes fulfilment event history to the authenticated consumer and booking', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValue([]);
+
+    await service.listBookingEvents(
+      '11111111-1111-1111-1111-111111111111',
+      '66666666-6666-6666-6666-666666666666',
+    );
+
+    const values = sqlValues(prisma.$queryRaw.mock.calls[0][0]);
+    expect(values).toContain('11111111-1111-1111-1111-111111111111');
+    expect(values).toContain('66666666-6666-6666-6666-666666666666');
   });
 
   it('rejects booking against a home that is not owned by the authenticated user', async () => {
@@ -117,16 +134,32 @@ describe('ConsumerBookingsService', () => {
   });
 
   it('does not cancel another users booking', async () => {
-    const { prisma, service } = setup();
-    prisma.$queryRaw.mockResolvedValue([]);
+    const { tx, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([]);
 
     await expect(service.cancelBooking(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
     )).rejects.toThrow('Booking cannot be cancelled');
 
-    const values = sqlValues(prisma.$queryRaw.mock.calls[0][0]);
+    const values = sqlValues(tx.$queryRaw.mock.calls[0][0]);
     expect(values).toContain('11111111-1111-1111-1111-111111111111');
     expect(values).toContain('66666666-6666-6666-6666-666666666666');
+  });
+
+  it('records consumer cancellation as a fulfilment event', async () => {
+    const { tx, service } = setup();
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', status: 'REQUESTED' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', status: 'CANCELLED' }])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.cancelBooking(
+      '11111111-1111-1111-1111-111111111111',
+      '66666666-6666-6666-6666-666666666666',
+    );
+
+    expect(result.status).toBe('CANCELLED');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
   });
 });
