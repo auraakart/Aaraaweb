@@ -1,5 +1,5 @@
 import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsBoolean, IsUUID, Matches } from 'class-validator';
+import { IsBoolean, Matches } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
 
