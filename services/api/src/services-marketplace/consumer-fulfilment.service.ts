@@ -13,6 +13,9 @@ const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookin
 };
 
 type BookingStatusRow = { id: string; status: ServiceBookingStatus };
+type ConsumerBookingNotificationStatus =
+  | typeof ServiceBookingStatus.CONFIRMED
+  | typeof ServiceBookingStatus.CANCELLED;
 
 type NotificationBookingRow = {
   id: string;
@@ -123,7 +126,7 @@ export class ConsumerFulfilmentService {
     return updated;
   }
 
-  private async publishBookingStatus(bookingId: string, status: ServiceBookingStatus.CONFIRMED | ServiceBookingStatus.CANCELLED) {
+  private async publishBookingStatus(bookingId: string, status: ConsumerBookingNotificationStatus) {
     const rows = await this.prisma.$queryRaw<NotificationBookingRow[]>(Prisma.sql`
       SELECT
         b."id",
