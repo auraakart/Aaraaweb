@@ -59,13 +59,45 @@ export class ConsumerProviderOperatorService {
     ]);
     if (!provider) throw new NotFoundException('Service provider not found');
     if (!user) throw new NotFoundException('User not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize operator-link changes for one user so the one-active-provider
+      // invariant has a deterministic API error even under concurrent requests.
+      await tx.$executeRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${userId}::text))
+      `);
+
+      const activeRows = await tx.$queryRaw<Array<{ providerId: string }>>(Prisma.sql`
+        SELECT "providerId"
+        FROM "ConsumerProviderOperator"
+        WHERE "userId" = ${userId}::uuid AND "active" = true
+        LIMIT 1
+      `);
+      if (activeRows[0] && activeRows[0].providerId !== providerId) {
+        throw new BadRequestException('User already has an active provider operator mapping');
+      }
+
+      const rows = await tx.$queryRaw<ProviderOperatorRow[]>(Prisma.sql`
+        INSERT INTO "ConsumerProviderOperator" ("id", "providerId", "userId", "active", "createdAt", "updatedAt")
+        VALUES (${randomUUID()}::uuid, ${providerId}::uuid, ${userId}::uuid, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT ("providerId", "userId")
+        DO UPDATE SET "active" = true, "updatedAt" = CURRENT_TIMESTAMP
+        RETURNING "id", "providerId", "userId", "active"
+      `);
+      return rows[0];
+    });
+  }
+
+  async revokeOperator(providerId: string, userId: string) {
     const rows = await this.prisma.$queryRaw<ProviderOperatorRow[]>(Prisma.sql`
-      INSERT INTO "ConsumerProviderOperator" ("id", "providerId", "userId", "active", "createdAt", "updatedAt")
-      VALUES (${randomUUID()}::uuid, ${providerId}::uuid, ${userId}::uuid, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT ("providerId", "userId")
-      DO UPDATE SET "active" = true, "updatedAt" = CURRENT_TIMESTAMP
+      UPDATE "ConsumerProviderOperator"
+      SET "active" = false, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "providerId" = ${providerId}::uuid
+        AND "userId" = ${userId}::uuid
+        AND "active" = true
       RETURNING "id", "providerId", "userId", "active"
     `);
+    if (!rows[0]) throw new NotFoundException('Active provider operator mapping not found');
     return rows[0];
   }
 
