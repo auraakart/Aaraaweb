@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
@@ -23,6 +24,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     PrismaService,
     ServicesMarketplaceOperationsService,
     ServicesMarketplaceService,
+    ConsumerAvailabilityService,
     ConsumerBookingsService,
     ConsumerFulfilmentService,
   ],
