@@ -28,16 +28,27 @@ function setup() {
   const fulfilment = {
     transition: vi.fn(),
   };
+  const dispatch = {
+    listAgents: vi.fn(),
+    createAgent: vi.fn(),
+    setAgentActive: vi.fn(),
+    listAssignments: vi.fn(),
+    assign: vi.fn(),
+    listAssignmentEvents: vi.fn(),
+    transition: vi.fn(),
+  };
   return {
     prisma,
     availability,
     locations,
     fulfilment,
+    dispatch,
     service: new ConsumerProviderOperatorService(
       prisma as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[0],
       availability as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[1],
       locations as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[2],
       fulfilment as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[3],
+      dispatch as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[4],
     ),
   };
 }
@@ -174,5 +185,56 @@ describe('ConsumerProviderOperatorService', () => {
     )).rejects.toThrow('Provider booking not found');
 
     expect(fulfilment.transition).not.toHaveBeenCalled();
+  });
+
+  it('creates agents only within the authenticated provider scope', async () => {
+    const { prisma, dispatch, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([verifiedProvider]);
+    dispatch.createAgent.mockResolvedValue({ id: 'agent' });
+
+    await service.createMyAgent('33333333-3333-3333-3333-333333333333', {
+      displayName: 'Ravi',
+      phone: '9999999999',
+    });
+
+    expect(dispatch.createAgent).toHaveBeenCalledWith(
+      '22222222-2222-2222-2222-222222222222',
+      { displayName: 'Ravi', phone: '9999999999' },
+    );
+  });
+
+  it('assigns only a confirmed booking owned by the authenticated provider', async () => {
+    const { prisma, dispatch, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([verifiedProvider])
+      .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', status: 'CONFIRMED' }]);
+    dispatch.assign.mockResolvedValue({ id: 'assignment' });
+
+    await service.assignMyBooking(
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      '66666666-6666-6666-6666-666666666666',
+    );
+
+    expect(dispatch.assign).toHaveBeenCalledWith(
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      '66666666-6666-6666-6666-666666666666',
+    );
+  });
+
+  it('blocks dispatch transitions for another providers assignment', async () => {
+    const { prisma, dispatch, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([verifiedProvider])
+      .mockResolvedValueOnce([]);
+
+    await expect(service.transitionMyAssignment(
+      '33333333-3333-3333-3333-333333333333',
+      '77777777-7777-7777-7777-777777777777',
+      'EN_ROUTE',
+    )).rejects.toThrow('Provider assignment not found');
+
+    expect(dispatch.transition).not.toHaveBeenCalled();
   });
 });

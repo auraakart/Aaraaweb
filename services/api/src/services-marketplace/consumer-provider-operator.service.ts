@@ -7,6 +7,11 @@ import {
   AvailabilityWindowPatch,
   ConsumerAvailabilityService,
 } from './consumer-availability.service';
+import {
+  ConsumerDispatchService,
+  ConsumerDispatchStatus,
+  CreateConsumerProviderAgentInput,
+} from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
@@ -26,6 +31,7 @@ export class ConsumerProviderOperatorService {
     private readonly availability: ConsumerAvailabilityService,
     private readonly locations: ConsumerServiceLocationService,
     private readonly fulfilment: ConsumerFulfilmentService,
+    private readonly dispatch: ConsumerDispatchService,
   ) {}
 
   async resolveProvider(userId: string) {
@@ -147,15 +153,7 @@ export class ConsumerProviderOperatorService {
   }
 
   async respondToMyBooking(userId: string, bookingId: string, decision: ProviderBookingDecision, note?: string) {
-    const provider = await this.resolveProvider(userId);
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
-      SELECT "id", "status"
-      FROM "ConsumerServiceBooking"
-      WHERE "id" = ${bookingId}::uuid AND "providerId" = ${provider.providerId}::uuid
-      LIMIT 1
-    `);
-    const booking = rows[0];
-    if (!booking) throw new NotFoundException('Provider booking not found');
+    const booking = await this.assertBookingOwned(userId, bookingId);
     if (booking.status !== ServiceBookingStatus.REQUESTED) {
       throw new BadRequestException('Only requested bookings can be accepted or declined');
     }
@@ -179,6 +177,49 @@ export class ConsumerProviderOperatorService {
     );
   }
 
+  async listMyAgents(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.listAgents(provider.providerId);
+  }
+
+  async createMyAgent(userId: string, input: CreateConsumerProviderAgentInput) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.createAgent(provider.providerId, input);
+  }
+
+  async setMyAgentActive(userId: string, agentId: string, active: boolean) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.setAgentActive(provider.providerId, agentId, active);
+  }
+
+  async listMyBookingAssignments(userId: string, bookingId: string) {
+    await this.assertBookingOwned(userId, bookingId);
+    return this.dispatch.listAssignments(bookingId);
+  }
+
+  async assignMyBooking(userId: string, bookingId: string, agentId: string) {
+    const booking = await this.assertBookingOwned(userId, bookingId);
+    if (booking.status !== ServiceBookingStatus.CONFIRMED) {
+      throw new BadRequestException('Only confirmed provider bookings can be assigned');
+    }
+    return this.dispatch.assign(userId, bookingId, agentId);
+  }
+
+  async listMyAssignmentEvents(userId: string, assignmentId: string) {
+    await this.assertAssignmentOwned(userId, assignmentId);
+    return this.dispatch.listAssignmentEvents(assignmentId);
+  }
+
+  async transitionMyAssignment(
+    userId: string,
+    assignmentId: string,
+    status: ConsumerDispatchStatus,
+    note?: string,
+  ) {
+    await this.assertAssignmentOwned(userId, assignmentId);
+    return this.dispatch.transition(userId, assignmentId, status, note);
+  }
+
   private async assertOfferingOwned(userId: string, offeringId: string) {
     const provider = await this.resolveProvider(userId);
     const offering = await this.prisma.serviceOffering.findFirst({
@@ -186,5 +227,29 @@ export class ConsumerProviderOperatorService {
       select: { id: true },
     });
     if (!offering) throw new NotFoundException('Provider offering not found');
+  }
+
+  private async assertBookingOwned(userId: string, bookingId: string) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
+      SELECT "id", "status"
+      FROM "ConsumerServiceBooking"
+      WHERE "id" = ${bookingId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Provider booking not found');
+    return booking;
+  }
+
+  private async assertAssignmentOwned(userId: string, assignmentId: string) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "ConsumerServiceAssignment"
+      WHERE "id" = ${assignmentId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Provider assignment not found');
   }
 }
