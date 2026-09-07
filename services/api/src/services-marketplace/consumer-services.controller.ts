@@ -1,11 +1,31 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  ExecutionContext,
+  Get,
+  Query,
+  UnauthorizedException,
+  UseGuards,
+  createParamDecorator,
+} from '@nestjs/common';
 import { ProviderVerificationStatus } from '@prisma/client';
-import { IsOptional, IsUUID } from 'class-validator';
-import { BearerGuard } from '../auth/bearer.guard';
+import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConsumerAvailabilityService } from './consumer-availability.service';
+
+const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
+  return ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId;
+});
 
 class ConsumerOfferingsQueryDto {
   @IsOptional() @IsUUID() categoryId?: string;
+}
+
+class ConsumerAvailabilityQueryDto {
+  @IsUUID() homeId!: string;
+  @IsUUID() offeringId!: string;
+  @IsISO8601() scheduledFrom!: string;
+  @IsISO8601() scheduledUntil!: string;
 }
 
 /**
@@ -19,7 +39,10 @@ class ConsumerOfferingsQueryDto {
 @Controller('consumer/services')
 @UseGuards(BearerGuard)
 export class ConsumerServicesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly availability: ConsumerAvailabilityService,
+  ) {}
 
   @Get('categories')
   categories() {
@@ -52,5 +75,20 @@ export class ConsumerServicesController {
       },
       orderBy: [{ category: { sortOrder: 'asc' } }, { name: 'asc' }],
     });
+  }
+
+  @Get('availability')
+  availabilityCheck(
+    @CurrentConsumerUser() userId: string,
+    @Query() query: ConsumerAvailabilityQueryDto,
+  ) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return this.availability.checkAvailability(
+      userId,
+      query.homeId,
+      query.offeringId,
+      new Date(query.scheduledFrom),
+      new Date(query.scheduledUntil),
+    );
   }
 }
