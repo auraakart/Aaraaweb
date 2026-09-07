@@ -18,6 +18,7 @@ import { ConsumerProviderOperatorService } from './consumer-provider-operator.se
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
+import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
@@ -51,6 +52,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderOperatorService,
     ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
+    ConsumerServiceRatingsService,
   ],
   exports: [ServicesMarketplaceService],
 })
