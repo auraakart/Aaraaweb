@@ -16,6 +16,9 @@ function setup() {
     listServiceAreas: vi.fn(),
     addServiceArea: vi.fn(),
     setServiceAreaActive: vi.fn(),
+    listAvailabilityWindows: vi.fn(),
+    createAvailabilityWindow: vi.fn(),
+    updateAvailabilityWindow: vi.fn(),
   };
   const locations = {
     listOfferingServiceAreas: vi.fn(),
@@ -34,6 +37,16 @@ function setup() {
   };
 }
 
+const verifiedProvider = {
+  id: '1',
+  providerId: '22222222-2222-2222-2222-222222222222',
+  userId: '33333333-3333-3333-3333-333333333333',
+  active: true,
+  businessName: 'Provider',
+  verification: 'VERIFIED',
+  providerActive: true,
+};
+
 describe('ConsumerProviderOperatorService', () => {
   it('rejects users without exactly one active provider mapping', async () => {
     const { prisma, service } = setup();
@@ -44,13 +57,13 @@ describe('ConsumerProviderOperatorService', () => {
 
   it('rejects inactive or unverified providers', async () => {
     const { prisma, service } = setup();
-    prisma.$queryRaw.mockResolvedValue([{ id: '1', providerId: '2', userId: '3', active: true, businessName: 'Provider', verification: 'PENDING', providerActive: true }]);
+    prisma.$queryRaw.mockResolvedValue([{ ...verifiedProvider, verification: 'PENDING' }]);
     await expect(service.resolveProvider('33333333-3333-3333-3333-333333333333')).rejects.toThrow('Provider must be active and verified');
   });
 
   it('scopes service-area mutation to the authenticated provider mapping', async () => {
     const { prisma, availability, service } = setup();
-    prisma.$queryRaw.mockResolvedValue([{ id: '1', providerId: '22222222-2222-2222-2222-222222222222', userId: '3', active: true, businessName: 'Provider', verification: 'VERIFIED', providerActive: true }]);
+    prisma.$queryRaw.mockResolvedValue([verifiedProvider]);
     availability.addServiceArea.mockResolvedValue({ id: 'area' });
     await service.addMyServiceArea('33333333-3333-3333-3333-333333333333', '560038');
     expect(availability.addServiceArea).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222', '560038');
@@ -58,9 +71,50 @@ describe('ConsumerProviderOperatorService', () => {
 
   it('cannot manage an offering owned by another provider', async () => {
     const { prisma, locations, service } = setup();
-    prisma.$queryRaw.mockResolvedValue([{ id: '1', providerId: '22222222-2222-2222-2222-222222222222', userId: '3', active: true, businessName: 'Provider', verification: 'VERIFIED', providerActive: true }]);
+    prisma.$queryRaw.mockResolvedValue([verifiedProvider]);
     prisma.serviceOffering.findFirst.mockResolvedValue(null);
     await expect(service.addMyOfferingArea('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444', '560038')).rejects.toThrow('Provider offering not found');
     expect(locations.addOfferingServiceArea).not.toHaveBeenCalled();
+  });
+
+  it('allows availability creation only after proving offering ownership', async () => {
+    const { prisma, availability, service } = setup();
+    prisma.$queryRaw.mockResolvedValue([verifiedProvider]);
+    prisma.serviceOffering.findFirst.mockResolvedValue({ id: '44444444-4444-4444-4444-444444444444' });
+    availability.createAvailabilityWindow.mockResolvedValue({ id: 'window' });
+
+    const input = { dayOfWeek: 1, startMinute: 540, endMinute: 720, slotCapacity: 3, active: true };
+    await service.createMyAvailabilityWindow(
+      '33333333-3333-3333-3333-333333333333',
+      '44444444-4444-4444-4444-444444444444',
+      input,
+    );
+
+    expect(prisma.serviceOffering.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: '44444444-4444-4444-4444-444444444444',
+        providerId: '22222222-2222-2222-2222-222222222222',
+      },
+      select: { id: true },
+    });
+    expect(availability.createAvailabilityWindow).toHaveBeenCalledWith(
+      '44444444-4444-4444-4444-444444444444',
+      input,
+    );
+  });
+
+  it('rejects availability mutation for another providers offering', async () => {
+    const { prisma, availability, service } = setup();
+    prisma.$queryRaw.mockResolvedValue([verifiedProvider]);
+    prisma.serviceOffering.findFirst.mockResolvedValue(null);
+
+    await expect(service.updateMyAvailabilityWindow(
+      '33333333-3333-3333-3333-333333333333',
+      '44444444-4444-4444-4444-444444444444',
+      '55555555-5555-5555-5555-555555555555',
+      { slotCapacity: 4 },
+    )).rejects.toThrow('Provider offering not found');
+
+    expect(availability.updateAvailabilityWindow).not.toHaveBeenCalled();
   });
 });
