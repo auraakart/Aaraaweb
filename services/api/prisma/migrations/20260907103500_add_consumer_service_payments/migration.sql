@@ -35,8 +35,11 @@ CREATE TABLE "ConsumerServicePayment" (
   CONSTRAINT "ConsumerServicePayment_currency_check" CHECK ("currency" = 'INR')
 );
 
-CREATE UNIQUE INDEX "ConsumerServicePayment_user_booking_idempotency_key"
-  ON "ConsumerServicePayment"("userId", "bookingId", "idempotencyKey");
+CREATE UNIQUE INDEX "ConsumerServicePayment_user_idempotency_key"
+  ON "ConsumerServicePayment"("userId", "idempotencyKey");
+CREATE UNIQUE INDEX "ConsumerServicePayment_booking_active_key"
+  ON "ConsumerServicePayment"("bookingId")
+  WHERE "status" IN ('CREATED', 'PENDING', 'CAPTURED', 'REFUND_PENDING');
 CREATE INDEX "ConsumerServicePayment_user_createdAt_idx"
   ON "ConsumerServicePayment"("userId", "createdAt" DESC);
 CREATE INDEX "ConsumerServicePayment_booking_status_idx"
