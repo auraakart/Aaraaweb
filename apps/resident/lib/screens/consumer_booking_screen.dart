@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 
 class ConsumerBookingScreen extends StatefulWidget {
-  const ConsumerBookingScreen({super.key, required this.apiClient, required this.offering});
+  const ConsumerBookingScreen({
+    super.key,
+    required this.apiClient,
+    required this.offering,
+    this.initialLocation,
+  });
 
   final ApiClient apiClient;
   final Map<String, dynamic> offering;
+  final Map<String, dynamic>? initialLocation;
 
   @override
   State<ConsumerBookingScreen> createState() => _ConsumerBookingScreenState();
@@ -18,28 +24,52 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
   bool? _available;
   String? _availabilityMessage;
   String? _error;
-  List<Map<String, dynamic>> _homes = const [];
-  String? _homeId;
+  List<Map<String, dynamic>> _locations = const [];
+  String? _locationKey;
   DateTime? _scheduledFrom;
 
   @override
   void initState() {
     super.initState();
-    _loadHomes();
+    _loadLocations();
   }
 
-  Future<void> _loadHomes() async {
+  String _key(Map<String, dynamic> location) => '${location['type']}:${location['id']}';
+
+  Map<String, dynamic>? get _selectedLocation {
+    final key = _locationKey;
+    if (key == null) return null;
+    for (final location in _locations) {
+      if (_key(location) == key) return location;
+    }
+    return null;
+  }
+
+  Future<void> _loadLocations() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final raw = await widget.apiClient.get('/api/v1/consumer/homes');
+      final raw = await widget.apiClient.get('/api/v1/consumer/services/locations');
       if (!mounted) return;
-      final homes = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final locations = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final initial = widget.initialLocation;
+      String? selected;
+      if (initial != null && initial['id'] != null && initial['type'] != null) {
+        final initialKey = _key(initial);
+        if (locations.any((item) => _key(item) == initialKey && item['serviceAddressConfigured'] != false)) {
+          selected = initialKey;
+        }
+      }
+      selected ??= locations
+          .where((item) => item['serviceAddressConfigured'] != false)
+          .map(_key)
+          .cast<String?>()
+          .firstOrNull;
       setState(() {
-        _homes = homes;
-        if (_homeId == null && homes.isNotEmpty) _homeId = homes.first['id']?.toString();
+        _locations = locations;
+        _locationKey = selected;
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -58,9 +88,10 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     try {
       final created = await widget.apiClient.post('/api/v1/consumer/homes', result) as Map<String, dynamic>;
       if (!mounted) return;
+      final location = <String, dynamic>{...created, 'type': 'HOME', 'serviceAddressConfigured': true};
       setState(() {
-        _homes = [created, ..._homes];
-        _homeId = created['id']?.toString();
+        _locations = [location, ..._locations];
+        _locationKey = _key(location);
         _available = null;
         _availabilityMessage = null;
       });
@@ -96,9 +127,9 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     await _checkAvailability();
   }
 
-  Future<void> _selectHome(String? value) async {
+  Future<void> _selectLocation(String? value) async {
     setState(() {
-      _homeId = value;
+      _locationKey = value;
       _available = null;
       _availabilityMessage = null;
     });
@@ -106,17 +137,18 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
   }
 
   Future<void> _checkAvailability() async {
-    final homeId = _homeId;
+    final location = _selectedLocation;
     final from = _scheduledFrom;
     final offeringId = widget.offering['id']?.toString();
-    if (homeId == null || from == null || offeringId == null) return;
+    if (location == null || from == null || offeringId == null) return;
 
-    final durationMinutes = widget.offering['durationMinutes'] as int? ?? 60;
+    final durationMinutes = (widget.offering['durationMinutes'] as num?)?.toInt() ?? 60;
     final until = from.add(Duration(minutes: durationMinutes > 0 ? durationMinutes : 60));
     setState(() => _checkingAvailability = true);
     try {
       final query = Uri(queryParameters: {
-        'homeId': homeId,
+        'locationType': location['type']?.toString(),
+        'locationId': location['id']?.toString(),
         'offeringId': offeringId,
         'scheduledFrom': from.toUtc().toIso8601String(),
         'scheduledUntil': until.toUtc().toIso8601String(),
@@ -125,14 +157,14 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
       if (!mounted) return;
       final result = raw as Map<String, dynamic>? ?? const {};
       final available = result['available'] == true;
-      final remaining = result['remainingCapacity'] as int?;
+      final remaining = (result['remainingCapacity'] as num?)?.toInt();
       setState(() {
         _available = available;
         _availabilityMessage = available
-            ? (remaining == null ? 'Available for this home and time.' : '$remaining slot${remaining == 1 ? '' : 's'} remaining.')
+            ? (remaining == null ? 'Available at this location and time.' : '$remaining slot${remaining == 1 ? '' : 's'} remaining.')
             : _availabilityReason(result['reason']?.toString());
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _available = false;
@@ -150,28 +182,29 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
       case 'SERVICE_WINDOW_MUST_BE_WITHIN_ONE_DAY':
         return 'The selected service period is outside one service day.';
       default:
-        return 'This service is not available at the selected home and time.';
+        return 'This service is not available at the selected location and time.';
     }
   }
 
   Future<void> _requestBooking() async {
-    final homeId = _homeId;
+    final location = _selectedLocation;
     final from = _scheduledFrom;
     final offeringId = widget.offering['id']?.toString();
-    if (homeId == null || from == null || offeringId == null) {
-      _showError('Select a home and schedule before requesting the service.');
+    if (location == null || from == null || offeringId == null) {
+      _showError('Select a service location and schedule before requesting the service.');
       return;
     }
     if (_available != true) {
       _showError('Confirm an available service time before requesting.');
       return;
     }
-    final durationMinutes = widget.offering['durationMinutes'] as int? ?? 60;
+    final durationMinutes = (widget.offering['durationMinutes'] as num?)?.toInt() ?? 60;
     final until = from.add(Duration(minutes: durationMinutes > 0 ? durationMinutes : 60));
     setState(() => _submitting = true);
     try {
       await widget.apiClient.post('/api/v1/consumer/services/bookings', {
-        'homeId': homeId,
+        'locationType': location['type'],
+        'locationId': location['id'],
         'offeringId': offeringId,
         'scheduledFrom': from.toUtc().toIso8601String(),
         'scheduledUntil': until.toUtc().toIso8601String(),
@@ -200,7 +233,8 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = widget.offering['provider'] as Map<String, dynamic>? ?? const {};
-    final pricePaise = widget.offering['pricePaise'] as int? ?? 0;
+    final providerName = provider['businessName']?.toString() ?? widget.offering['providerName']?.toString() ?? 'Verified provider';
+    final pricePaise = (widget.offering['pricePaise'] as num?)?.toInt() ?? 0;
     return Scaffold(
       appBar: AppBar(title: const Text('Request Service')),
       body: ListView(
@@ -211,31 +245,36 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
               contentPadding: const EdgeInsets.all(16),
               leading: const CircleAvatar(child: Icon(Icons.handyman_rounded)),
               title: Text(widget.offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: Text(provider['businessName']?.toString() ?? 'Verified provider'),
+              subtitle: Text(providerName),
               trailing: Text('₹${(pricePaise / 100).toStringAsFixed(pricePaise % 100 == 0 ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
             ),
           ),
           const SizedBox(height: 18),
           Row(
             children: [
-              Expanded(child: Text('Service address', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-              TextButton.icon(onPressed: _submitting ? null : _addHome, icon: const Icon(Icons.add_home_rounded), label: const Text('Add home')),
+              Expanded(child: Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+              TextButton.icon(onPressed: _submitting ? null : _addHome, icon: const Icon(Icons.add_home_rounded), label: const Text('Add address')),
             ],
           ),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
           else if (_error != null)
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!)))
-          else if (_homes.isEmpty)
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Add your home address to continue.')))
+          else if (_locations.isEmpty)
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Add a service address to continue.')))
           else
-            for (final home in _homes)
+            for (final location in _locations)
               RadioListTile<String>(
-                value: home['id']?.toString() ?? '',
-                groupValue: _homeId,
-                onChanged: _submitting || _checkingAvailability ? null : _selectHome,
-                title: Text(home['label']?.toString() ?? 'Home', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('${home['addressLine1'] ?? ''}, ${home['locality'] ?? ''}, ${home['city'] ?? ''}'),
+                value: _key(location),
+                groupValue: _locationKey,
+                onChanged: _submitting || _checkingAvailability || location['serviceAddressConfigured'] == false ? null : _selectLocation,
+                title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(
+                  location['serviceAddressConfigured'] == false
+                      ? 'Society service address is not configured yet.'
+                      : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}',
+                ),
+                secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
               ),
           const SizedBox(height: 18),
           Text('Schedule', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
@@ -321,7 +360,7 @@ class _AddHomeDialogState extends State<_AddHomeDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add home address'),
+      title: const Text('Add service address'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -342,4 +381,8 @@ class _AddHomeDialogState extends State<_AddHomeDialog> {
       ],
     );
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
