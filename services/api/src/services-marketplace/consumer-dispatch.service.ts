@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ConsumerDispatchStatus = 'ASSIGNED' | 'ACCEPTED' | 'REJECTED' | 'EN_ROUTE' | 'ARRIVED' | 'RELEASED';
@@ -55,7 +56,10 @@ const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerDispatchStatus, readonly Cons
 
 @Injectable()
 export class ConsumerDispatchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push?: PushNotificationService,
+  ) {}
 
   listAgents(providerId: string) {
     return this.prisma.$queryRaw<AgentRow[]>(Prisma.sql`
@@ -167,7 +171,7 @@ export class ConsumerDispatchService {
   }
 
   async assign(actorUserId: string, bookingId: string, agentId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
         SELECT "id", "userId", "providerId", "status"
         FROM "ConsumerServiceBooking"
@@ -235,12 +239,22 @@ export class ConsumerDispatchService {
           CURRENT_TIMESTAMP
         )
       `);
-      return assignment;
+      return { assignment, consumerUserId: booking.userId, agentDisplayName: agent.displayName };
     });
+
+    await this.notifyConsumer(outcome.consumerUserId, {
+      type: 'CONSUMER_SERVICE_AGENT_ASSIGNED',
+      bookingId,
+      assignmentId: outcome.assignment.id,
+      status: 'ASSIGNED',
+      title: 'Service professional assigned',
+      body: `${outcome.agentDisplayName} has been assigned to your service booking.`,
+    });
+    return outcome.assignment;
   }
 
   async transition(actorUserId: string, assignmentId: string, toStatus: ConsumerDispatchStatus, note?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<AssignmentRow[]>(Prisma.sql`
         SELECT * FROM "ConsumerServiceAssignment"
         WHERE "id" = ${assignmentId}::uuid
@@ -251,6 +265,20 @@ export class ConsumerDispatchService {
       if (!ALLOWED_TRANSITIONS[current.status].includes(toStatus)) {
         throw new BadRequestException(`Invalid dispatch transition from ${current.status} to ${toStatus}`);
       }
+
+      const bookingRows = await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+        SELECT "userId" FROM "ConsumerServiceBooking"
+        WHERE "id" = ${current.bookingId}::uuid
+        LIMIT 1
+      `);
+      const booking = bookingRows[0];
+      if (!booking) throw new NotFoundException('Consumer booking not found');
+
+      const agentRows = await tx.$queryRaw<Array<{ displayName: string }>>(Prisma.sql`
+        SELECT "displayName" FROM "ConsumerProviderAgent"
+        WHERE "id" = ${current.agentId}::uuid
+        LIMIT 1
+      `);
 
       const timestampColumn = this.timestampColumn(toStatus);
       const rows = await tx.$queryRaw<AssignmentRow[]>(Prisma.sql`
@@ -278,8 +306,74 @@ export class ConsumerDispatchService {
           CURRENT_TIMESTAMP
         )
       `);
-      return rows[0];
+      return {
+        assignment: rows[0],
+        consumerUserId: booking.userId,
+        agentDisplayName: agentRows[0]?.displayName ?? 'Your service professional',
+      };
     });
+
+    const notification = this.dispatchNotification(toStatus, outcome.agentDisplayName);
+    if (notification) {
+      await this.notifyConsumer(outcome.consumerUserId, {
+        type: notification.type,
+        bookingId: outcome.assignment.bookingId,
+        assignmentId,
+        status: toStatus,
+        title: notification.title,
+        body: notification.body,
+      });
+    }
+    return outcome.assignment;
+  }
+
+  private async notifyConsumer(
+    userId: string,
+    event: Parameters<PushNotificationService['sendConsumerServiceEvent']>[1],
+  ) {
+    if (!this.push) return;
+    try {
+      await this.push.sendConsumerServiceEvent(userId, event);
+    } catch {
+      // Dispatch state is authoritative; push delivery remains best-effort.
+    }
+  }
+
+  private dispatchNotification(status: ConsumerDispatchStatus, agentDisplayName: string) {
+    switch (status) {
+      case 'ACCEPTED':
+        return {
+          type: 'CONSUMER_SERVICE_ASSIGNMENT_ACCEPTED',
+          title: 'Assignment accepted',
+          body: `${agentDisplayName} accepted your service assignment.`,
+        };
+      case 'EN_ROUTE':
+        return {
+          type: 'CONSUMER_SERVICE_AGENT_EN_ROUTE',
+          title: 'Service professional on the way',
+          body: `${agentDisplayName} is on the way to your service location.`,
+        };
+      case 'ARRIVED':
+        return {
+          type: 'CONSUMER_SERVICE_AGENT_ARRIVED',
+          title: 'Service professional arrived',
+          body: `${agentDisplayName} has arrived at your service location.`,
+        };
+      case 'REJECTED':
+        return {
+          type: 'CONSUMER_SERVICE_ASSIGNMENT_REJECTED',
+          title: 'Service assignment being updated',
+          body: 'The previous assignment was declined. Your provider can assign another professional.',
+        };
+      case 'RELEASED':
+        return {
+          type: 'CONSUMER_SERVICE_ASSIGNMENT_RELEASED',
+          title: 'Service assignment updated',
+          body: 'The previous service assignment has been released.',
+        };
+      default:
+        return null;
+    }
   }
 
   private timestampColumn(status: ConsumerDispatchStatus) {
