@@ -91,9 +91,9 @@ describe('ConsumerPaymentsService', () => {
     const result = await service.createIntent(userId, bookingId, 'payment-key-001');
 
     expect(result.grossAmountPaise).toBe(75000);
+    expect(result.currency).toBe('INR');
     const insertValues = sqlValues(tx.$queryRaw.mock.calls[3][0]);
     expect(insertValues).toContain(75000);
-    expect(insertValues).toContain('INR');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
