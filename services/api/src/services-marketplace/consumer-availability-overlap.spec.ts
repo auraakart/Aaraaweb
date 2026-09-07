@@ -27,8 +27,13 @@ describe('ConsumerAvailabilityService overlap concurrency hardening', () => {
       .mockResolvedValueOnce([])
       .mockRejectedValueOnce({ code: 'P2010', meta: { code: '23P01' } });
 
-    await expect(service.createAvailabilityWindow(offeringId, input)).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.createAvailabilityWindow(offeringId, input)).rejects.toThrow('Availability windows for an offering cannot overlap');
+    try {
+      await service.createAvailabilityWindow(offeringId, input);
+      throw new Error('expected overlap conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toBe('Availability windows for an offering cannot overlap');
+    }
   });
 
   it('maps a PostgreSQL exclusion conflict during update to the same public overlap error', async () => {
