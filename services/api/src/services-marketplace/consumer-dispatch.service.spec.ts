@@ -7,11 +7,14 @@ function setup() {
     $queryRaw: vi.fn(),
     $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
   };
+  const push = { sendConsumerBookingEvent: vi.fn().mockResolvedValue(undefined) };
   return {
     tx,
     prisma,
+    push,
     service: new ConsumerDispatchService(
       prisma as unknown as ConstructorParameters<typeof ConsumerDispatchService>[0],
+      push as unknown as ConstructorParameters<typeof ConsumerDispatchService>[1],
     ),
   };
 }
@@ -66,7 +69,7 @@ describe('ConsumerDispatchService', () => {
   });
 
   it('only assigns confirmed bookings and records an append-only assignment event', async () => {
-    const { tx, service } = setup();
+    const { tx, prisma, push, service } = setup();
     const assignment = { id: assignmentId, bookingId, providerId, agentId, status: 'ASSIGNED' };
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED' }])
@@ -74,11 +77,24 @@ describe('ConsumerDispatchService', () => {
       .mockResolvedValueOnce([{ id: agentId, providerId, displayName: 'Ravi', active: true }])
       .mockResolvedValueOnce([assignment]);
     tx.$executeRaw.mockResolvedValue(1);
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      bookingId,
+      userId: consumerUserId,
+      offeringName: 'AC service',
+      providerName: 'CoolCare',
+      agentDisplayName: 'Ravi',
+    }]);
 
     const result = await service.assign(actorUserId, bookingId, agentId);
+    await vi.waitFor(() => expect(push.sendConsumerBookingEvent).toHaveBeenCalledOnce());
 
     expect(result.id).toBe(assignmentId);
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(push.sendConsumerBookingEvent).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId,
+      userId: consumerUserId,
+      status: 'ASSIGNED',
+    }));
   });
 
   it('rejects assignment before booking confirmation', async () => {
@@ -114,5 +130,26 @@ describe('ConsumerDispatchService', () => {
 
     expect(result.status).toBe('ACCEPTED');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies the consumer after an en-route transition commits', async () => {
+    const { tx, prisma, push, service } = setup();
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: assignmentId, bookingId, providerId, agentId, status: 'ACCEPTED' }])
+      .mockResolvedValueOnce([{ id: assignmentId, bookingId, providerId, agentId, status: 'EN_ROUTE' }]);
+    tx.$executeRaw.mockResolvedValue(1);
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      bookingId,
+      userId: consumerUserId,
+      offeringName: 'AC service',
+      providerName: 'CoolCare',
+      agentDisplayName: 'Ravi',
+    }]);
+
+    const result = await service.transition(actorUserId, assignmentId, 'EN_ROUTE');
+    await vi.waitFor(() => expect(push.sendConsumerBookingEvent).toHaveBeenCalledOnce());
+
+    expect(result.status).toBe('EN_ROUTE');
+    expect(push.sendConsumerBookingEvent).toHaveBeenCalledWith(expect.objectContaining({ status: 'EN_ROUTE' }));
   });
 });

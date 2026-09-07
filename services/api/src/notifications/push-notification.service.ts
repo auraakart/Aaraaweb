@@ -8,12 +8,15 @@ import type { ResidentMessageEvent } from './notification-realtime.service';
 
 type ConsumerPushRegistration = { id: string; token: string };
 
+type ConsumerBookingPushStatus = 'CONFIRMED' | 'CANCELLED' | 'ASSIGNED' | 'EN_ROUTE' | 'ARRIVED';
+
 type ConsumerBookingPushEvent = {
   userId: string;
   bookingId: string;
   offeringName: string;
   providerName: string;
-  status: 'CONFIRMED' | 'CANCELLED';
+  agentDisplayName?: string | null;
+  status: ConsumerBookingPushStatus;
 };
 
 @Injectable()
@@ -115,14 +118,10 @@ export class PushNotificationService {
     `);
     if (registrations.length === 0) return;
 
-    const title = event.status === 'CONFIRMED' ? 'Service booking confirmed' : 'Service booking cancelled';
-    const body = event.status === 'CONFIRMED'
-      ? `${event.providerName} confirmed ${event.offeringName}.`
-      : `${event.offeringName} was cancelled.`;
-
+    const content = this.consumerBookingContent(event);
     const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
       tokens: registrations.map((item) => item.token),
-      notification: { title, body },
+      notification: { title: content.title, body: content.body },
       data: {
         type: 'CONSUMER_SERVICE_BOOKING_STATUS',
         bookingId: event.bookingId,
@@ -202,6 +201,21 @@ export class PushNotificationService {
     });
     if (invalidIds.length > 0) {
       await this.prisma.devicePushToken.updateMany({ where: { id: { in: invalidIds } }, data: { active: false } });
+    }
+  }
+
+  private consumerBookingContent(event: ConsumerBookingPushEvent) {
+    switch (event.status) {
+      case 'CONFIRMED':
+        return { title: 'Service booking confirmed', body: `${event.providerName} confirmed ${event.offeringName}.` };
+      case 'CANCELLED':
+        return { title: 'Service booking cancelled', body: `${event.offeringName} was cancelled.` };
+      case 'ASSIGNED':
+        return { title: 'Service professional assigned', body: `${event.agentDisplayName || event.providerName} has been assigned to ${event.offeringName}.` };
+      case 'EN_ROUTE':
+        return { title: 'Service professional on the way', body: `${event.agentDisplayName || 'Your service professional'} is on the way.` };
+      case 'ARRIVED':
+        return { title: 'Service professional arrived', body: `${event.agentDisplayName || 'Your service professional'} has arrived.` };
     }
   }
 

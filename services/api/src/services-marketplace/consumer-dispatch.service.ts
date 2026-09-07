@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ConsumerDispatchStatus = 'ASSIGNED' | 'ACCEPTED' | 'REJECTED' | 'EN_ROUTE' | 'ARRIVED' | 'RELEASED';
+type ConsumerDispatchNotificationStatus = 'ASSIGNED' | 'EN_ROUTE' | 'ARRIVED';
 
 export type CreateConsumerProviderAgentInput = {
   displayName: string;
@@ -42,6 +44,14 @@ type AssignmentRow = {
   releasedAt: Date | null;
 };
 
+type DispatchNotificationRow = {
+  bookingId: string;
+  userId: string;
+  offeringName: string;
+  providerName: string;
+  agentDisplayName: string;
+};
+
 const ACTIVE_STATUSES: readonly ConsumerDispatchStatus[] = ['ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'];
 
 const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerDispatchStatus, readonly ConsumerDispatchStatus[]>> = {
@@ -55,7 +65,12 @@ const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerDispatchStatus, readonly Cons
 
 @Injectable()
 export class ConsumerDispatchService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ConsumerDispatchService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushNotificationService,
+  ) {}
 
   listAgents(providerId: string) {
     return this.prisma.$queryRaw<AgentRow[]>(Prisma.sql`
@@ -167,7 +182,7 @@ export class ConsumerDispatchService {
   }
 
   async assign(actorUserId: string, bookingId: string, agentId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const assignment = await this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
         SELECT "id", "userId", "providerId", "status"
         FROM "ConsumerServiceBooking"
@@ -221,13 +236,13 @@ export class ConsumerDispatchService {
         )
         RETURNING *
       `);
-      const assignment = rows[0];
+      const created = rows[0];
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceAssignmentEvent" (
           "id", "assignmentId", "actorUserId", "type", "fromStatus", "toStatus", "occurredAt"
         ) VALUES (
           ${randomUUID()}::uuid,
-          ${assignment.id}::uuid,
+          ${created.id}::uuid,
           ${actorUserId}::uuid,
           'ASSIGNED',
           NULL,
@@ -235,12 +250,15 @@ export class ConsumerDispatchService {
           CURRENT_TIMESTAMP
         )
       `);
-      return assignment;
+      return created;
     });
+
+    this.publishDispatchStatus(assignment.id, 'ASSIGNED');
+    return assignment;
   }
 
   async transition(actorUserId: string, assignmentId: string, toStatus: ConsumerDispatchStatus, note?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const assignment = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<AssignmentRow[]>(Prisma.sql`
         SELECT * FROM "ConsumerServiceAssignment"
         WHERE "id" = ${assignmentId}::uuid
@@ -280,6 +298,36 @@ export class ConsumerDispatchService {
       `);
       return rows[0];
     });
+
+    if (toStatus === 'EN_ROUTE' || toStatus === 'ARRIVED') this.publishDispatchStatus(assignment.id, toStatus);
+    return assignment;
+  }
+
+  private publishDispatchStatus(assignmentId: string, status: ConsumerDispatchNotificationStatus) {
+    void this.loadDispatchNotification(assignmentId)
+      .then((event) => event && this.push.sendConsumerBookingEvent({ ...event, status }))
+      .catch((error: unknown) => {
+        this.logger.warn(`Consumer dispatch push failed for ${assignmentId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      });
+  }
+
+  private async loadDispatchNotification(assignmentId: string) {
+    const rows = await this.prisma.$queryRaw<DispatchNotificationRow[]>(Prisma.sql`
+      SELECT
+        b."id" AS "bookingId",
+        b."userId",
+        o."name" AS "offeringName",
+        p."businessName" AS "providerName",
+        ag."displayName" AS "agentDisplayName"
+      FROM "ConsumerServiceAssignment" a
+      JOIN "ConsumerServiceBooking" b ON b."id" = a."bookingId"
+      JOIN "ServiceOffering" o ON o."id" = b."offeringId"
+      JOIN "ServiceProvider" p ON p."id" = a."providerId"
+      JOIN "ConsumerProviderAgent" ag ON ag."id" = a."agentId" AND ag."providerId" = a."providerId"
+      WHERE a."id" = ${assignmentId}::uuid
+      LIMIT 1
+    `);
+    return rows[0] ?? null;
   }
 
   private timestampColumn(status: ConsumerDispatchStatus) {
