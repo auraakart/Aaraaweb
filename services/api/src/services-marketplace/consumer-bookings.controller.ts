@@ -1,8 +1,9 @@
 import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPostalCode, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPostalCode, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerPaymentsService } from './consumer-payments.service';
 
 const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   return ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId;
@@ -28,10 +29,17 @@ class ConsumerBookingDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+class ConsumerPaymentIntentDto {
+  @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
+}
+
 @Controller('consumer')
 @UseGuards(BearerGuard)
 export class ConsumerBookingsController {
-  constructor(private readonly bookings: ConsumerBookingsService) {}
+  constructor(
+    private readonly bookings: ConsumerBookingsService,
+    private readonly payments: ConsumerPaymentsService,
+  ) {}
 
   @Get('homes')
   listHomes(@CurrentConsumerUser() userId: string) {
@@ -72,6 +80,25 @@ export class ConsumerBookingsController {
   @Post('services/bookings/:id/cancel')
   cancelBooking(@CurrentConsumerUser() userId: string, @Param('id') bookingId: string) {
     return this.bookings.cancelBooking(this.requireUser(userId), bookingId);
+  }
+
+  @Get('services/payments')
+  listPayments(@CurrentConsumerUser() userId: string) {
+    return this.payments.listMine(this.requireUser(userId));
+  }
+
+  @Get('services/bookings/:id/payments')
+  listBookingPayments(@CurrentConsumerUser() userId: string, @Param('id') bookingId: string) {
+    return this.payments.listForBooking(this.requireUser(userId), bookingId);
+  }
+
+  @Post('services/bookings/:id/payments')
+  createPaymentIntent(
+    @CurrentConsumerUser() userId: string,
+    @Param('id') bookingId: string,
+    @Body() dto: ConsumerPaymentIntentDto,
+  ) {
+    return this.payments.createIntent(this.requireUser(userId), bookingId, dto.idempotencyKey);
   }
 
   private requireUser(userId?: string) {
