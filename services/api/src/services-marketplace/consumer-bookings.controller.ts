@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPostalCode, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerPaymentsService } from './consumer-payments.service';
 
 const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
@@ -39,6 +40,7 @@ export class ConsumerBookingsController {
   constructor(
     private readonly bookings: ConsumerBookingsService,
     private readonly payments: ConsumerPaymentsService,
+    private readonly dispatch: ConsumerDispatchService,
   ) {}
 
   @Get('homes')
@@ -64,6 +66,11 @@ export class ConsumerBookingsController {
   @Get('services/bookings/:id/events')
   listBookingEvents(@CurrentConsumerUser() userId: string, @Param('id') bookingId: string) {
     return this.bookings.listBookingEvents(this.requireUser(userId), bookingId);
+  }
+
+  @Get('services/bookings/:id/dispatch')
+  getBookingDispatch(@CurrentConsumerUser() userId: string, @Param('id') bookingId: string) {
+    return this.dispatch.getConsumerDispatch(this.requireUser(userId), bookingId);
   }
 
   @Post('services/bookings')
