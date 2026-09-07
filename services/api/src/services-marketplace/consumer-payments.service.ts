@@ -3,12 +3,23 @@ import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
+export type ConsumerPaymentStatus = 'CREATED' | 'PENDING' | 'CAPTURED' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED';
+
+export type ConsumerPaymentTransitionInput = {
+  status: ConsumerPaymentStatus;
+  provider?: string;
+  providerOrderId?: string;
+  providerPaymentId?: string;
+  providerEventId?: string;
+  providerReference?: string;
+};
+
 type ConsumerPaymentRow = {
   id: string;
   bookingId: string;
   userId: string;
   idempotencyKey: string;
-  status: 'CREATED' | 'PENDING' | 'CAPTURED' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED';
+  status: ConsumerPaymentStatus;
   currency: string;
   grossAmountPaise: number;
   platformFeePaise: number | null;
@@ -27,6 +38,15 @@ type BookingPaymentSourceRow = {
   userId: string;
   status: ServiceBookingStatus;
   servicePricePaise: number;
+};
+
+const ALLOWED_TRANSITIONS: Readonly<Record<ConsumerPaymentStatus, readonly ConsumerPaymentStatus[]>> = {
+  CREATED: ['PENDING', 'FAILED'],
+  PENDING: ['CAPTURED', 'FAILED'],
+  CAPTURED: ['REFUND_PENDING'],
+  FAILED: [],
+  REFUND_PENDING: ['REFUNDED'],
+  REFUNDED: [],
 };
 
 @Injectable()
@@ -55,6 +75,27 @@ export class ConsumerPaymentsService {
       JOIN "ConsumerServiceBooking" b ON b."id" = p."bookingId" AND b."userId" = p."userId"
       WHERE p."userId" = ${userId}::uuid AND p."bookingId" = ${bookingId}::uuid
       ORDER BY p."createdAt" DESC
+    `);
+  }
+
+  listPlatformPayments() {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT p.*, b."offeringName", b."providerName", b."scheduledFrom", b."scheduledUntil"
+      FROM "ConsumerServicePayment" p
+      JOIN "ConsumerServiceBooking" b ON b."id" = p."bookingId"
+      ORDER BY p."createdAt" DESC
+    `);
+  }
+
+  async listPlatformEvents(paymentId: string) {
+    const payment = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServicePayment" WHERE "id" = ${paymentId}::uuid LIMIT 1
+    `);
+    if (!payment[0]) throw new NotFoundException('Consumer payment not found');
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT * FROM "ConsumerServicePaymentEvent"
+      WHERE "paymentId" = ${paymentId}::uuid
+      ORDER BY "occurredAt" ASC
     `);
   }
 
@@ -149,6 +190,72 @@ export class ConsumerPaymentsService {
       `);
 
       return payment;
+    });
+  }
+
+  async transition(actorUserId: string, paymentId: string, input: ConsumerPaymentTransitionInput) {
+    return this.prisma.$transaction(async (tx) => {
+      if (input.providerEventId) {
+        const duplicate = await tx.$queryRaw<Array<{ paymentId: string }>>(Prisma.sql`
+          SELECT "paymentId" FROM "ConsumerServicePaymentEvent"
+          WHERE "providerEventId" = ${input.providerEventId}
+          LIMIT 1
+        `);
+        if (duplicate[0]) {
+          if (duplicate[0].paymentId !== paymentId) {
+            throw new BadRequestException('Provider event is already linked to another payment');
+          }
+          const current = await tx.$queryRaw<ConsumerPaymentRow[]>(Prisma.sql`
+            SELECT * FROM "ConsumerServicePayment" WHERE "id" = ${paymentId}::uuid LIMIT 1
+          `);
+          return current[0];
+        }
+      }
+
+      const currentRows = await tx.$queryRaw<ConsumerPaymentRow[]>(Prisma.sql`
+        SELECT * FROM "ConsumerServicePayment"
+        WHERE "id" = ${paymentId}::uuid
+        FOR UPDATE
+      `);
+      const current = currentRows[0];
+      if (!current) throw new NotFoundException('Consumer payment not found');
+      if (!ALLOWED_TRANSITIONS[current.status].includes(input.status)) {
+        throw new BadRequestException(`Invalid payment transition from ${current.status} to ${input.status}`);
+      }
+
+      const rows = await tx.$queryRaw<ConsumerPaymentRow[]>(Prisma.sql`
+        UPDATE "ConsumerServicePayment"
+        SET
+          "status" = ${input.status}::"ConsumerServicePaymentStatus",
+          "provider" = COALESCE(${input.provider ?? null}, "provider"),
+          "providerOrderId" = COALESCE(${input.providerOrderId ?? null}, "providerOrderId"),
+          "providerPaymentId" = COALESCE(${input.providerPaymentId ?? null}, "providerPaymentId"),
+          "capturedAt" = CASE WHEN ${input.status} = 'CAPTURED' THEN CURRENT_TIMESTAMP ELSE "capturedAt" END,
+          "refundedAt" = CASE WHEN ${input.status} = 'REFUNDED' THEN CURRENT_TIMESTAMP ELSE "refundedAt" END,
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${paymentId}::uuid AND "status" = ${current.status}::"ConsumerServicePaymentStatus"
+        RETURNING *
+      `);
+      if (!rows[0]) throw new BadRequestException('Payment changed concurrently; retry reconciliation');
+
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServicePaymentEvent" (
+          "id", "paymentId", "actorUserId", "type", "fromStatus", "toStatus",
+          "providerEventId", "providerReference", "occurredAt"
+        ) VALUES (
+          ${randomUUID()}::uuid,
+          ${paymentId}::uuid,
+          ${actorUserId}::uuid,
+          ${`STATUS_${input.status}`},
+          ${current.status}::"ConsumerServicePaymentStatus",
+          ${input.status}::"ConsumerServicePaymentStatus",
+          ${input.providerEventId ?? null},
+          ${input.providerReference ?? null},
+          CURRENT_TIMESTAMP
+        )
+      `);
+
+      return rows[0];
     });
   }
 }
