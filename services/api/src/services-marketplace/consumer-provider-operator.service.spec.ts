@@ -25,14 +25,19 @@ function setup() {
     addOfferingServiceArea: vi.fn(),
     setOfferingServiceAreaActive: vi.fn(),
   };
+  const fulfilment = {
+    transition: vi.fn(),
+  };
   return {
     prisma,
     availability,
     locations,
+    fulfilment,
     service: new ConsumerProviderOperatorService(
       prisma as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[0],
       availability as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[1],
       locations as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[2],
+      fulfilment as unknown as ConstructorParameters<typeof ConsumerProviderOperatorService>[3],
     ),
   };
 }
@@ -116,5 +121,58 @@ describe('ConsumerProviderOperatorService', () => {
     )).rejects.toThrow('Provider offering not found');
 
     expect(availability.updateAvailabilityWindow).not.toHaveBeenCalled();
+  });
+
+  it('scopes booking queue to the authenticated provider', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([verifiedProvider])
+      .mockResolvedValueOnce([{ id: 'booking' }]);
+
+    await service.listMyBookings('33333333-3333-3333-3333-333333333333');
+
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain('22222222-2222-2222-2222-222222222222');
+  });
+
+  it('accepts only a requested booking owned by the authenticated provider', async () => {
+    const { prisma, fulfilment, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([verifiedProvider])
+      .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', status: 'REQUESTED' }]);
+    fulfilment.transition.mockResolvedValue({ id: '55555555-5555-5555-5555-555555555555', status: 'CONFIRMED' });
+
+    await service.respondToMyBooking(
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      'ACCEPT',
+      'Accepted by provider',
+    );
+
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toEqual(expect.arrayContaining([
+      '55555555-5555-5555-5555-555555555555',
+      '22222222-2222-2222-2222-222222222222',
+    ]));
+    expect(fulfilment.transition).toHaveBeenCalledWith(
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      'CONFIRMED',
+      'Accepted by provider',
+      'PROVIDER_ACCEPTED',
+    );
+  });
+
+  it('does not expose another providers booking through the response action', async () => {
+    const { prisma, fulfilment, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([verifiedProvider])
+      .mockResolvedValueOnce([]);
+
+    await expect(service.respondToMyBooking(
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      'DECLINE',
+    )).rejects.toThrow('Provider booking not found');
+
+    expect(fulfilment.transition).not.toHaveBeenCalled();
   });
 });
