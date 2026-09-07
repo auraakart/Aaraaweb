@@ -9,6 +9,9 @@ import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform
 import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerPaymentsService } from './consumer-payments.service';
+import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
+import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
+import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServicesController } from './consumer-services.controller';
@@ -23,9 +26,11 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceController,
     ServicesPlatformController,
     ConsumerDispatchPlatformController,
+    ConsumerProviderOperatorPlatformController,
     ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
     ConsumerBookingsController,
+    ConsumerProviderOperatorController,
   ],
   providers: [
     PrismaService,
@@ -36,6 +41,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerDispatchService,
     ConsumerFulfilmentService,
     ConsumerPaymentsService,
+    ConsumerProviderOperatorService,
     ConsumerServiceLocationService,
   ],
   exports: [ServicesMarketplaceService],
