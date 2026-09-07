@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
 
@@ -24,11 +25,12 @@ export class ConsumerServiceCompletionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agents: ConsumerProviderAgentService,
+    private readonly push?: PushNotificationService,
   ) {}
 
   async startByAgent(userId: string, assignmentId: string) {
     const agent = await this.agents.resolveAgent(userId);
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const assignment = await this.lockOwnedAssignment(tx, assignmentId, agent.agentId, agent.providerId);
       if (assignment.status !== 'ARRIVED') {
         throw new BadRequestException('Service can start only after the assigned agent has arrived');
@@ -59,13 +61,22 @@ export class ConsumerServiceCompletionService {
           CURRENT_TIMESTAMP
         )
       `);
-      return rows[0];
+      return { booking: rows[0], consumerUserId: booking.userId, bookingId: booking.id };
     });
+
+    await this.notifyConsumer(outcome.consumerUserId, {
+      type: 'CONSUMER_SERVICE_STARTED',
+      bookingId: outcome.bookingId,
+      status: ServiceBookingStatus.IN_PROGRESS,
+      title: 'Service started',
+      body: 'Your service professional has started the booked service.',
+    });
+    return outcome.booking;
   }
 
   async requestCompletionByAgent(userId: string, assignmentId: string, note?: string) {
     const agent = await this.agents.resolveAgent(userId);
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const assignment = await this.lockOwnedAssignment(tx, assignmentId, agent.agentId, agent.providerId);
       if (assignment.status !== 'ARRIVED') {
         throw new BadRequestException('Completion can be requested only after arrival');
@@ -84,10 +95,14 @@ export class ConsumerServiceCompletionService {
       `);
       if (existing[0]) {
         return {
-          assignmentId: assignment.id,
-          bookingId: booking.id,
-          status: 'PENDING',
-          requestedAt: existing[0].occurredAt,
+          result: {
+            assignmentId: assignment.id,
+            bookingId: booking.id,
+            status: 'PENDING',
+            requestedAt: existing[0].occurredAt,
+          },
+          consumerUserId: booking.userId,
+          notify: false,
         };
       }
 
@@ -106,8 +121,24 @@ export class ConsumerServiceCompletionService {
           ${requestedAt}
         )
       `);
-      return { assignmentId: assignment.id, bookingId: booking.id, status: 'PENDING', requestedAt };
+      return {
+        result: { assignmentId: assignment.id, bookingId: booking.id, status: 'PENDING', requestedAt },
+        consumerUserId: booking.userId,
+        notify: true,
+      };
     });
+
+    if (outcome.notify) {
+      await this.notifyConsumer(outcome.consumerUserId, {
+        type: 'CONSUMER_SERVICE_COMPLETION_REQUESTED',
+        bookingId: outcome.result.bookingId,
+        assignmentId: outcome.result.assignmentId,
+        status: ServiceBookingStatus.IN_PROGRESS,
+        title: 'Confirm service completion',
+        body: 'Your service professional says the work is complete. Review it and confirm in Aaraagate.',
+      });
+    }
+    return outcome.result;
   }
 
   async getForConsumer(userId: string, bookingId: string) {
@@ -231,6 +262,18 @@ export class ConsumerServiceCompletionService {
 
       return completedRows[0];
     });
+  }
+
+  private async notifyConsumer(
+    userId: string,
+    event: Parameters<PushNotificationService['sendConsumerServiceEvent']>[1],
+  ) {
+    if (!this.push) return;
+    try {
+      await this.push.sendConsumerServiceEvent(userId, event);
+    } catch {
+      // A committed service operation must not fail because a push provider is unavailable.
+    }
   }
 
   private async lockOwnedAssignment(
