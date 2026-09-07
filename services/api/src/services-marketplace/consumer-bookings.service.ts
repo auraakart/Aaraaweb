@@ -17,7 +17,9 @@ export type ConsumerHomeInput = {
 };
 
 export type ConsumerBookingInput = {
-  homeId: string;
+  homeId?: string;
+  locationType?: 'HOME' | 'SOCIETY_UNIT';
+  locationId?: string;
   offeringId: string;
   scheduledFrom: Date;
   scheduledUntil: Date;
@@ -41,10 +43,27 @@ type ConsumerHomeRow = {
   updatedAt: Date;
 };
 
+type BookingLocationRow = {
+  homeId: string | null;
+  societyUnitId: string | null;
+  societyId: string | null;
+  type: 'HOME' | 'SOCIETY_UNIT';
+  label: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  locality: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  latitude: string | null;
+  longitude: string | null;
+};
+
 type ConsumerBookingRow = {
   id: string;
   userId: string;
-  homeId: string;
+  homeId: string | null;
+  societyUnitId: string | null;
   providerId: string;
   offeringId: string;
   offeringName: string;
@@ -80,22 +99,10 @@ export class ConsumerBookingsService {
       INSERT INTO "ConsumerHome" (
         "id", "userId", "label", "addressLine1", "addressLine2", "locality", "city", "state", "postalCode", "latitude", "longitude", "active", "createdAt", "updatedAt"
       ) VALUES (
-        ${id}::uuid,
-        ${userId}::uuid,
-        ${input.label},
-        ${input.addressLine1},
-        ${input.addressLine2 ?? null},
-        ${input.locality},
-        ${input.city},
-        ${input.state},
-        ${input.postalCode},
-        ${input.latitude ?? null},
-        ${input.longitude ?? null},
-        true,
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP
-      )
-      RETURNING *
+        ${id}::uuid, ${userId}::uuid, ${input.label}, ${input.addressLine1}, ${input.addressLine2 ?? null},
+        ${input.locality}, ${input.city}, ${input.state}, ${input.postalCode}, ${input.latitude ?? null}, ${input.longitude ?? null},
+        true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ) RETURNING *
     `);
     return rows[0];
   }
@@ -103,17 +110,9 @@ export class ConsumerBookingsService {
   async updateHome(userId: string, homeId: string, input: ConsumerHomeInput) {
     const rows = await this.prisma.$queryRaw<ConsumerHomeRow[]>(Prisma.sql`
       UPDATE "ConsumerHome"
-      SET
-        "label" = ${input.label},
-        "addressLine1" = ${input.addressLine1},
-        "addressLine2" = ${input.addressLine2 ?? null},
-        "locality" = ${input.locality},
-        "city" = ${input.city},
-        "state" = ${input.state},
-        "postalCode" = ${input.postalCode},
-        "latitude" = ${input.latitude ?? null},
-        "longitude" = ${input.longitude ?? null},
-        "updatedAt" = CURRENT_TIMESTAMP
+      SET "label" = ${input.label}, "addressLine1" = ${input.addressLine1}, "addressLine2" = ${input.addressLine2 ?? null},
+          "locality" = ${input.locality}, "city" = ${input.city}, "state" = ${input.state}, "postalCode" = ${input.postalCode},
+          "latitude" = ${input.latitude ?? null}, "longitude" = ${input.longitude ?? null}, "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${homeId}::uuid AND "userId" = ${userId}::uuid AND "active" = true
       RETURNING *
     `);
@@ -128,7 +127,8 @@ export class ConsumerBookingsService {
         b."addressSnapshot"->>'label' AS "homeLabel",
         b."addressSnapshot"->>'addressLine1' AS "addressLine1",
         b."addressSnapshot"->>'locality' AS "locality",
-        b."addressSnapshot"->>'city' AS "city"
+        b."addressSnapshot"->>'city' AS "city",
+        b."addressSnapshot"->>'locationType' AS "locationType"
       FROM "ConsumerServiceBooking" b
       WHERE b."userId" = ${userId}::uuid
       ORDER BY b."createdAt" DESC
@@ -150,23 +150,21 @@ export class ConsumerBookingsService {
     if (input.scheduledFrom <= now) throw new BadRequestException('Scheduled start must be in the future');
     if (input.scheduledUntil <= input.scheduledFrom) throw new BadRequestException('Scheduled end must be after scheduled start');
 
+    const locationType = input.homeId ? 'HOME' : input.locationType;
+    const locationId = input.homeId ?? input.locationId;
+    if (!locationType || !locationId) throw new BadRequestException('A service delivery location is required');
+    if (input.homeId && (input.locationType || input.locationId)) {
+      throw new BadRequestException('Use either legacy homeId or locationType/locationId, not both');
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      const homeRows = await tx.$queryRaw<ConsumerHomeRow[]>(Prisma.sql`
-        SELECT * FROM "ConsumerHome"
-        WHERE "id" = ${input.homeId}::uuid AND "userId" = ${userId}::uuid AND "active" = true
-        LIMIT 1
-      `);
-      const home = homeRows[0];
-      if (!home) throw new NotFoundException('Active home not found');
+      const location = await this.resolveBookingLocation(tx, userId, locationType, locationId);
 
       const offering = await tx.serviceOffering.findFirst({
         where: {
           id: input.offeringId,
           active: true,
-          provider: {
-            active: true,
-            verification: ProviderVerificationStatus.VERIFIED,
-          },
+          provider: { active: true, verification: ProviderVerificationStatus.VERIFIED },
         },
         select: {
           id: true,
@@ -182,45 +180,37 @@ export class ConsumerBookingsService {
         tx,
         offering.id,
         offering.providerId,
-        home.postalCode,
+        location.postalCode,
         input.scheduledFrom,
         input.scheduledUntil,
       );
 
       const addressSnapshot = JSON.stringify({
-        label: home.label,
-        addressLine1: home.addressLine1,
-        addressLine2: home.addressLine2,
-        locality: home.locality,
-        city: home.city,
-        state: home.state,
-        postalCode: home.postalCode,
-        latitude: home.latitude?.toString() ?? null,
-        longitude: home.longitude?.toString() ?? null,
+        locationType: location.type,
+        societyId: location.societyId,
+        unitId: location.societyUnitId,
+        label: location.label,
+        addressLine1: location.addressLine1,
+        addressLine2: location.addressLine2,
+        locality: location.locality,
+        city: location.city,
+        state: location.state,
+        postalCode: location.postalCode,
+        latitude: location.latitude,
+        longitude: location.longitude,
       });
 
       const id = randomUUID();
       const rows = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceBooking" (
-          "id", "userId", "homeId", "providerId", "offeringId", "offeringName", "providerName", "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "createdAt", "updatedAt"
+          "id", "userId", "homeId", "societyUnitId", "providerId", "offeringId", "offeringName", "providerName",
+          "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "createdAt", "updatedAt"
         ) VALUES (
-          ${id}::uuid,
-          ${userId}::uuid,
-          ${input.homeId}::uuid,
-          ${offering.providerId}::uuid,
-          ${offering.id}::uuid,
-          ${offering.name},
-          ${offering.provider.businessName},
-          ${addressSnapshot}::jsonb,
-          ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",
-          ${input.scheduledFrom},
-          ${input.scheduledUntil},
-          ${offering.pricePaise},
-          ${input.notes ?? null},
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        )
-        RETURNING *
+          ${id}::uuid, ${userId}::uuid, ${location.homeId}::uuid, ${location.societyUnitId}::uuid,
+          ${offering.providerId}::uuid, ${offering.id}::uuid, ${offering.name}, ${offering.provider.businessName},
+          ${addressSnapshot}::jsonb, ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus", ${input.scheduledFrom},
+          ${input.scheduledUntil}, ${offering.pricePaise}, ${input.notes ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ) RETURNING *
       `);
       return rows[0];
     });
@@ -229,26 +219,17 @@ export class ConsumerBookingsService {
   async cancelBooking(userId: string, bookingId: string) {
     return this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
-        SELECT "id", "status"
-        FROM "ConsumerServiceBooking"
-        WHERE "id" = ${bookingId}::uuid AND "userId" = ${userId}::uuid
-        FOR UPDATE
+        SELECT "id", "status" FROM "ConsumerServiceBooking"
+        WHERE "id" = ${bookingId}::uuid AND "userId" = ${userId}::uuid FOR UPDATE
       `);
       const current = currentRows[0];
-      const cancellableStatuses: readonly ServiceBookingStatus[] = [
-        ServiceBookingStatus.REQUESTED,
-        ServiceBookingStatus.CONFIRMED,
-      ];
-      if (!current || !cancellableStatuses.includes(current.status)) {
-        throw new BadRequestException('Booking cannot be cancelled');
-      }
+      const cancellableStatuses: readonly ServiceBookingStatus[] = [ServiceBookingStatus.REQUESTED, ServiceBookingStatus.CONFIRMED];
+      if (!current || !cancellableStatuses.includes(current.status)) throw new BadRequestException('Booking cannot be cancelled');
 
       const rows = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         UPDATE "ConsumerServiceBooking"
         SET "status" = ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", "updatedAt" = CURRENT_TIMESTAMP
-        WHERE
-          "id" = ${bookingId}::uuid
-          AND "userId" = ${userId}::uuid
+        WHERE "id" = ${bookingId}::uuid AND "userId" = ${userId}::uuid
           AND "status" = ${current.status}::"ServiceBookingStatus"
         RETURNING *
       `);
@@ -258,17 +239,53 @@ export class ConsumerBookingsService {
         INSERT INTO "ConsumerServiceBookingEvent" (
           "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "occurredAt"
         ) VALUES (
-          ${randomUUID()}::uuid,
-          ${bookingId}::uuid,
-          ${userId}::uuid,
-          'CANCELLED',
-          ${current.status}::"ServiceBookingStatus",
-          ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus",
-          CURRENT_TIMESTAMP
+          ${randomUUID()}::uuid, ${bookingId}::uuid, ${userId}::uuid, 'CANCELLED',
+          ${current.status}::"ServiceBookingStatus", ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", CURRENT_TIMESTAMP
         )
       `);
-
       return rows[0];
     });
+  }
+
+  private async resolveBookingLocation(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    locationType: 'HOME' | 'SOCIETY_UNIT',
+    locationId: string,
+  ): Promise<BookingLocationRow> {
+    if (locationType === 'HOME') {
+      const rows = await tx.$queryRaw<BookingLocationRow[]>(Prisma.sql`
+        SELECT h."id" AS "homeId", NULL::uuid AS "societyUnitId", NULL::uuid AS "societyId", 'HOME'::text AS "type",
+          h."label", h."addressLine1", h."addressLine2", h."locality", h."city", h."state", h."postalCode",
+          h."latitude"::text AS "latitude", h."longitude"::text AS "longitude"
+        FROM "ConsumerHome" h
+        WHERE h."id" = ${locationId}::uuid AND h."userId" = ${userId}::uuid AND h."active" = true LIMIT 1
+      `);
+      if (!rows[0]) throw new NotFoundException('Active home not found');
+      return rows[0];
+    }
+
+    const rows = await tx.$queryRaw<BookingLocationRow[]>(Prisma.sql`
+      SELECT NULL::uuid AS "homeId", u."id" AS "societyUnitId", s."id" AS "societyId", 'SOCIETY_UNIT'::text AS "type",
+        CONCAT(s."name", ' · ', b."name", ' ', u."number") AS "label",
+        CONCAT(b."name", ' ', u."number", ', ', a."addressLine1") AS "addressLine1",
+        a."addressLine2", a."locality", a."city", a."state", a."postalCode",
+        a."latitude"::text AS "latitude", a."longitude"::text AS "longitude"
+      FROM "Unit" u
+      JOIN "Building" b ON b."id" = u."buildingId"
+      JOIN "Society" s ON s."id" = u."societyId" AND s."status" = 'ACTIVE'::"SocietyStatus"
+      JOIN "SocietyServiceAddress" a ON a."societyId" = s."id" AND a."active" = true
+      WHERE u."id" = ${locationId}::uuid AND (
+        EXISTS (
+          SELECT 1 FROM "UnitOccupancy" o WHERE o."unitId" = u."id" AND o."userId" = ${userId}::uuid AND o."active" = true
+            AND o."effectiveFrom" <= CURRENT_TIMESTAMP AND (o."effectiveTo" IS NULL OR o."effectiveTo" > CURRENT_TIMESTAMP)
+        ) OR EXISTS (
+          SELECT 1 FROM "UnitOwnership" ow WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true
+            AND ow."effectiveFrom" <= CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo" > CURRENT_TIMESTAMP)
+        )
+      ) LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Service-ready society unit not found');
+    return rows[0];
   }
 }
