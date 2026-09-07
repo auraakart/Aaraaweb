@@ -2,17 +2,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 
 function setup() {
-  const tx = { $queryRaw: vi.fn() };
+  const tx = {
+    $queryRaw: vi.fn(),
+    serviceOffering: { findFirst: vi.fn() },
+  };
   const prisma = {
     $queryRaw: vi.fn(),
     $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
-    serviceOffering: { findFirst: vi.fn() },
+  };
+  const availability = {
+    lockAndAssertBookable: vi.fn().mockResolvedValue(undefined),
   };
   return {
     tx,
     prisma,
+    availability,
     service: new ConsumerBookingsService(
       prisma as unknown as ConstructorParameters<typeof ConsumerBookingsService>[0],
+      availability as unknown as ConstructorParameters<typeof ConsumerBookingsService>[1],
     ),
   };
 }
@@ -64,8 +71,8 @@ describe('ConsumerBookingsService', () => {
   });
 
   it('rejects booking against a home that is not owned by the authenticated user', async () => {
-    const { prisma, service } = setup();
-    prisma.$queryRaw.mockResolvedValueOnce([]);
+    const { tx, availability, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([]);
 
     await expect(service.createBooking('11111111-1111-1111-1111-111111111111', {
       homeId: '22222222-2222-2222-2222-222222222222',
@@ -74,15 +81,16 @@ describe('ConsumerBookingsService', () => {
       scheduledUntil: new Date('2030-01-01T11:00:00Z'),
     })).rejects.toThrow('Active home not found');
 
-    expect(prisma.serviceOffering.findFirst).not.toHaveBeenCalled();
-    const values = sqlValues(prisma.$queryRaw.mock.calls[0][0]);
+    expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
+    expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+    const values = sqlValues(tx.$queryRaw.mock.calls[0][0]);
     expect(values).toContain('11111111-1111-1111-1111-111111111111');
     expect(values).toContain('22222222-2222-2222-2222-222222222222');
   });
 
-  it('snapshots price, service identity and address instead of trusting mutable client or catalogue data', async () => {
-    const { prisma, service } = setup();
-    prisma.$queryRaw
+  it('snapshots server catalogue data only after authoritative serviceability validation', async () => {
+    const { tx, availability, service } = setup();
+    tx.$queryRaw
       .mockResolvedValueOnce([home])
       .mockResolvedValueOnce([{
         id: '44444444-4444-4444-4444-444444444444',
@@ -96,7 +104,7 @@ describe('ConsumerBookingsService', () => {
         status: 'REQUESTED',
         servicePricePaise: 75000,
       }]);
-    prisma.serviceOffering.findFirst.mockResolvedValue({
+    tx.serviceOffering.findFirst.mockResolvedValue({
       id: '33333333-3333-3333-3333-333333333333',
       name: 'AC service',
       providerId: '55555555-5555-5555-5555-555555555555',
@@ -104,15 +112,17 @@ describe('ConsumerBookingsService', () => {
       provider: { businessName: 'CoolCare' },
     });
 
+    const scheduledFrom = new Date('2030-01-01T10:00:00Z');
+    const scheduledUntil = new Date('2030-01-01T11:00:00Z');
     const result = await service.createBooking(home.userId, {
       homeId: home.id,
       offeringId: '33333333-3333-3333-3333-333333333333',
-      scheduledFrom: new Date('2030-01-01T10:00:00Z'),
-      scheduledUntil: new Date('2030-01-01T11:00:00Z'),
+      scheduledFrom,
+      scheduledUntil,
     });
 
     expect(result.servicePricePaise).toBe(75000);
-    expect(prisma.serviceOffering.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(tx.serviceOffering.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         id: '33333333-3333-3333-3333-333333333333',
         active: true,
@@ -124,13 +134,43 @@ describe('ConsumerBookingsService', () => {
         provider: { select: { businessName: true } },
       }),
     }));
+    expect(availability.lockAndAssertBookable).toHaveBeenCalledWith(
+      tx,
+      '33333333-3333-3333-3333-333333333333',
+      '55555555-5555-5555-5555-555555555555',
+      '560038',
+      scheduledFrom,
+      scheduledUntil,
+    );
 
-    const values = sqlValues(prisma.$queryRaw.mock.calls[1][0]);
+    const values = sqlValues(tx.$queryRaw.mock.calls[1][0]);
     expect(values).toContain(75000);
     expect(values).toContain('AC service');
     expect(values).toContain('CoolCare');
     const snapshot = values.find((value) => typeof value === 'string' && value.includes('12 Lake Road'));
     expect(snapshot).toEqual(expect.stringContaining('560038'));
+  });
+
+  it('does not insert when serviceability or capacity validation rejects the requested time', async () => {
+    const { tx, availability, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([home]);
+    tx.serviceOffering.findFirst.mockResolvedValue({
+      id: '33333333-3333-3333-3333-333333333333',
+      name: 'AC service',
+      providerId: '55555555-5555-5555-5555-555555555555',
+      pricePaise: 75000,
+      provider: { businessName: 'CoolCare' },
+    });
+    availability.lockAndAssertBookable.mockRejectedValueOnce(new Error('Selected service time is fully booked'));
+
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: new Date('2030-01-01T10:00:00Z'),
+      scheduledUntil: new Date('2030-01-01T11:00:00Z'),
+    })).rejects.toThrow('fully booked');
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('does not cancel another users booking', async () => {
