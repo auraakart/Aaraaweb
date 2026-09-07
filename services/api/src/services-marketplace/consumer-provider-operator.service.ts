@@ -7,6 +7,11 @@ import {
   AvailabilityWindowPatch,
   ConsumerAvailabilityService,
 } from './consumer-availability.service';
+import {
+  ConsumerDispatchService,
+  ConsumerDispatchStatus,
+  CreateConsumerProviderAgentInput,
+} from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
@@ -26,6 +31,7 @@ export class ConsumerProviderOperatorService {
     private readonly availability: ConsumerAvailabilityService,
     private readonly locations: ConsumerServiceLocationService,
     private readonly fulfilment: ConsumerFulfilmentService,
+    private readonly dispatch: ConsumerDispatchService,
   ) {}
 
   async resolveProvider(userId: string) {
@@ -179,6 +185,51 @@ export class ConsumerProviderOperatorService {
     );
   }
 
+  async listMyAgents(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.listAgents(provider.providerId);
+  }
+
+  async createMyAgent(userId: string, input: CreateConsumerProviderAgentInput) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.createAgent(provider.providerId, input);
+  }
+
+  async setMyAgentActive(userId: string, agentId: string, active: boolean) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.setAgentActive(provider.providerId, agentId, active);
+  }
+
+  async listMyBookingAssignments(userId: string, bookingId: string) {
+    await this.assertBookingOwned(userId, bookingId, ServiceBookingStatus.CONFIRMED, false);
+    return this.dispatch.listAssignments(bookingId);
+  }
+
+  async assignMyBooking(userId: string, bookingId: string, agentId: string) {
+    await this.assertBookingOwned(userId, bookingId, ServiceBookingStatus.CONFIRMED, true);
+    return this.dispatch.assign(userId, bookingId, agentId);
+  }
+
+  async transitionMyAssignment(
+    userId: string,
+    assignmentId: string,
+    toStatus: ConsumerDispatchStatus,
+    note?: string,
+  ) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT a."id"
+      FROM "ConsumerServiceAssignment" a
+      JOIN "ConsumerServiceBooking" b ON b."id" = a."bookingId"
+      WHERE a."id" = ${assignmentId}::uuid
+        AND a."providerId" = ${provider.providerId}::uuid
+        AND b."providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Provider assignment not found');
+    return this.dispatch.transition(userId, assignmentId, toStatus, note);
+  }
+
   private async assertOfferingOwned(userId: string, offeringId: string) {
     const provider = await this.resolveProvider(userId);
     const offering = await this.prisma.serviceOffering.findFirst({
@@ -186,5 +237,26 @@ export class ConsumerProviderOperatorService {
       select: { id: true },
     });
     if (!offering) throw new NotFoundException('Provider offering not found');
+  }
+
+  private async assertBookingOwned(
+    userId: string,
+    bookingId: string,
+    requiredStatus: ServiceBookingStatus,
+    enforceStatus: boolean,
+  ) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
+      SELECT "id", "status"
+      FROM "ConsumerServiceBooking"
+      WHERE "id" = ${bookingId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Provider booking not found');
+    if (enforceStatus && booking.status !== requiredStatus) {
+      throw new BadRequestException('Only confirmed bookings can be assigned');
+    }
+    return booking;
   }
 }
