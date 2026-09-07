@@ -1,6 +1,7 @@
 import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { ConsumerDispatchStatus } from './consumer-dispatch.service';
 import { ConsumerProviderOperatorService, ProviderBookingDecision } from './consumer-provider-operator.service';
 
 const CurrentProviderUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
@@ -40,6 +41,23 @@ class ProviderBookingResponseDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+class CreateProviderAgentDto {
+  @IsString() @MaxLength(120) displayName!: string;
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @IsOptional() @IsString() @MaxLength(120) externalRef?: string;
+}
+
+class AssignProviderAgentDto {
+  @IsUUID() agentId!: string;
+}
+
+class ProviderDispatchStatusDto {
+  @IsIn(['ACCEPTED', 'REJECTED', 'EN_ROUTE', 'ARRIVED', 'RELEASED'])
+  status!: ConsumerDispatchStatus;
+
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 
 @Controller('provider/services')
@@ -128,6 +146,53 @@ export class ConsumerProviderOperatorController {
     @Body() dto: ProviderBookingResponseDto,
   ) {
     return this.providers.respondToMyBooking(this.requireUser(userId), bookingId, dto.decision, dto.note);
+  }
+
+  @Get('agents')
+  agents(@CurrentProviderUser() userId: string) {
+    return this.providers.listMyAgents(this.requireUser(userId));
+  }
+
+  @Post('agents')
+  createAgent(@CurrentProviderUser() userId: string, @Body() dto: CreateProviderAgentDto) {
+    return this.providers.createMyAgent(this.requireUser(userId), dto);
+  }
+
+  @Patch('agents/:agentId')
+  setAgentActive(
+    @CurrentProviderUser() userId: string,
+    @Param('agentId') agentId: string,
+    @Body() dto: ActiveDto,
+  ) {
+    return this.providers.setMyAgentActive(this.requireUser(userId), agentId, dto.active);
+  }
+
+  @Get('bookings/:bookingId/assignments')
+  bookingAssignments(@CurrentProviderUser() userId: string, @Param('bookingId') bookingId: string) {
+    return this.providers.listMyBookingAssignments(this.requireUser(userId), bookingId);
+  }
+
+  @Post('bookings/:bookingId/assignments')
+  assignBooking(
+    @CurrentProviderUser() userId: string,
+    @Param('bookingId') bookingId: string,
+    @Body() dto: AssignProviderAgentDto,
+  ) {
+    return this.providers.assignMyBooking(this.requireUser(userId), bookingId, dto.agentId);
+  }
+
+  @Get('assignments/:assignmentId/events')
+  assignmentEvents(@CurrentProviderUser() userId: string, @Param('assignmentId') assignmentId: string) {
+    return this.providers.listMyAssignmentEvents(this.requireUser(userId), assignmentId);
+  }
+
+  @Post('assignments/:assignmentId/status')
+  setAssignmentStatus(
+    @CurrentProviderUser() userId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Body() dto: ProviderDispatchStatusDto,
+  ) {
+    return this.providers.transitionMyAssignment(this.requireUser(userId), assignmentId, dto.status, dto.note);
   }
 
   private requireUser(userId?: string) {
