@@ -15,6 +15,7 @@ import { ConsumerProviderAgentService } from './consumer-provider-agent.service'
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServicesController } from './consumer-services.controller';
@@ -48,6 +49,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerPaymentsService,
     ConsumerProviderAgentService,
     ConsumerProviderOperatorService,
+    ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
   ],
   exports: [ServicesMarketplaceService],
