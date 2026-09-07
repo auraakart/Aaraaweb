@@ -1,6 +1,6 @@
 import { Body, Controller, ExecutionContext, Get, Param, Patch, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPostalCode, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsISO8601, IsIn, IsNotEmpty, IsNumber, IsOptional, IsPostalCode, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 import { ConsumerDispatchService } from './consumer-dispatch.service';
@@ -23,7 +23,9 @@ class ConsumerHomeDto {
 }
 
 class ConsumerBookingDto {
-  @IsUUID() homeId!: string;
+  @IsOptional() @IsUUID() homeId?: string;
+  @IsOptional() @IsIn(['HOME', 'SOCIETY_UNIT']) locationType?: 'HOME' | 'SOCIETY_UNIT';
+  @IsOptional() @IsUUID() locationId?: string;
   @IsUUID() offeringId!: string;
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
@@ -77,6 +79,8 @@ export class ConsumerBookingsController {
   createBooking(@CurrentConsumerUser() userId: string, @Body() dto: ConsumerBookingDto) {
     return this.bookings.createBooking(this.requireUser(userId), {
       homeId: dto.homeId,
+      locationType: dto.locationType,
+      locationId: dto.locationId,
       offeringId: dto.offeringId,
       scheduledFrom: new Date(dto.scheduledFrom),
       scheduledUntil: new Date(dto.scheduledUntil),
