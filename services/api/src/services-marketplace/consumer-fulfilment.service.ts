@@ -24,7 +24,7 @@ export class ConsumerFulfilmentService {
         o."name" AS "currentOfferingName",
         p."businessName" AS "currentProviderName"
       FROM "ConsumerServiceBooking" b
-      JOIN "ConsumerHome" h ON h."id" = b."homeId"
+      LEFT JOIN "ConsumerHome" h ON h."id" = b."homeId"
       JOIN "ServiceOffering" o ON o."id" = b."offeringId"
       JOIN "ServiceProvider" p ON p."id" = b."providerId"
       ORDER BY b."createdAt" DESC
@@ -56,6 +56,7 @@ export class ConsumerFulfilmentService {
     bookingId: string,
     toStatus: ServiceBookingStatus,
     note?: string,
+    actionOverride?: string,
   ) {
     const allowedFrom = ALLOWED_FROM[toStatus] ?? [];
     if (!allowedFrom.length) throw new BadRequestException('Unsupported fulfilment transition');
@@ -89,7 +90,7 @@ export class ConsumerFulfilmentService {
           ${eventId}::uuid,
           ${bookingId}::uuid,
           ${actorUserId}::uuid,
-          ${this.actionFor(toStatus)},
+          ${actionOverride ?? this.actionFor(toStatus)},
           ${current.status}::"ServiceBookingStatus",
           ${toStatus}::"ServiceBookingStatus",
           ${note ?? null},
