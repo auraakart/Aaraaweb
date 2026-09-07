@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   ExecutionContext,
   Get,
@@ -8,10 +9,11 @@ import {
   createParamDecorator,
 } from '@nestjs/common';
 import { ProviderVerificationStatus } from '@prisma/client';
-import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import { IsISO8601, IsIn, IsOptional, IsUUID } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
+import { ConsumerServiceLocationService, ConsumerServiceLocationType } from './consumer-service-location.service';
 
 const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   return ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId;
@@ -19,30 +21,32 @@ const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: Execution
 
 class ConsumerOfferingsQueryDto {
   @IsOptional() @IsUUID() categoryId?: string;
+  @IsOptional() @IsIn(['HOME', 'SOCIETY_UNIT']) locationType?: ConsumerServiceLocationType;
+  @IsOptional() @IsUUID() locationId?: string;
 }
 
 class ConsumerAvailabilityQueryDto {
-  @IsUUID() homeId!: string;
+  @IsOptional() @IsUUID() homeId?: string;
+  @IsOptional() @IsIn(['HOME', 'SOCIETY_UNIT']) locationType?: ConsumerServiceLocationType;
+  @IsOptional() @IsUUID() locationId?: string;
   @IsUUID() offeringId!: string;
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
 }
 
-/**
- * Platform-scoped external-services catalog.
- *
- * This controller intentionally does not use TenantGuard, society entitlements,
- * or society permissions. It is available to any authenticated Aaraagate user,
- * including an independent-home session with no societyId. Society-only APIs
- * remain protected by their existing tenant guards.
- */
 @Controller('consumer/services')
 @UseGuards(BearerGuard)
 export class ConsumerServicesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: ConsumerAvailabilityService,
+    private readonly locations: ConsumerServiceLocationService,
   ) {}
+
+  @Get('locations')
+  listLocations(@CurrentConsumerUser() userId: string) {
+    return this.locations.listLocations(this.requireUser(userId));
+  }
 
   @Get('categories')
   categories() {
@@ -53,42 +57,57 @@ export class ConsumerServicesController {
   }
 
   @Get('offerings')
-  offerings(@Query() query: ConsumerOfferingsQueryDto) {
+  offerings(@CurrentConsumerUser() userId: string, @Query() query: ConsumerOfferingsQueryDto) {
+    const scoped = query.locationType || query.locationId;
+    if (scoped) {
+      if (!query.locationType || !query.locationId) throw new BadRequestException('locationType and locationId are required together');
+      return this.locations.listServiceableOfferings(
+        this.requireUser(userId),
+        query.locationType,
+        query.locationId,
+        query.categoryId,
+      );
+    }
+
     return this.prisma.serviceOffering.findMany({
       where: {
         active: true,
         categoryId: query.categoryId || undefined,
-        provider: {
-          active: true,
-          verification: ProviderVerificationStatus.VERIFIED,
-        },
+        provider: { active: true, verification: ProviderVerificationStatus.VERIFIED },
       },
       include: {
         category: true,
-        provider: {
-          select: {
-            id: true,
-            businessName: true,
-            description: true,
-          },
-        },
+        provider: { select: { id: true, businessName: true, description: true } },
       },
       orderBy: [{ category: { sortOrder: 'asc' } }, { name: 'asc' }],
     });
   }
 
   @Get('availability')
-  availabilityCheck(
-    @CurrentConsumerUser() userId: string,
-    @Query() query: ConsumerAvailabilityQueryDto,
-  ) {
-    if (!userId) throw new UnauthorizedException('Authentication required');
-    return this.availability.checkAvailability(
-      userId,
-      query.homeId,
+  async availabilityCheck(@CurrentConsumerUser() userId: string, @Query() query: ConsumerAvailabilityQueryDto) {
+    const authenticatedUserId = this.requireUser(userId);
+    if (query.homeId) {
+      if (query.locationType || query.locationId) throw new BadRequestException('Use either homeId or locationType/locationId');
+      return this.availability.checkAvailability(
+        authenticatedUserId,
+        query.homeId,
+        query.offeringId,
+        new Date(query.scheduledFrom),
+        new Date(query.scheduledUntil),
+      );
+    }
+    if (!query.locationType || !query.locationId) throw new BadRequestException('A service delivery location is required');
+    const location = await this.locations.resolveLocation(authenticatedUserId, query.locationType, query.locationId);
+    return this.availability.checkAvailabilityForPostalCode(
+      location.postalCode,
       query.offeringId,
       new Date(query.scheduledFrom),
       new Date(query.scheduledUntil),
     );
+  }
+
+  private requireUser(userId?: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return userId;
   }
 }
