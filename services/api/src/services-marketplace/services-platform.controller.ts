@@ -12,12 +12,13 @@ import {
   createParamDecorator,
 } from '@nestjs/common';
 import { ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
@@ -40,6 +41,70 @@ class SetConsumerBookingStatusDto {
   note?: string;
 }
 
+class CreateProviderServiceAreaDto {
+  @Matches(/^[1-9][0-9]{5}$/)
+  postalCode!: string;
+}
+
+class SetProviderServiceAreaActiveDto {
+  @IsBoolean()
+  active!: boolean;
+}
+
+class CreateAvailabilityWindowDto {
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  startMinute!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  endMinute!: number;
+
+  @IsInt()
+  @Min(1)
+  slotCapacity!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+class UpdateAvailabilityWindowDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  startMinute?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  endMinute?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  slotCapacity?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
 @Controller('platform/services')
 @UseGuards(BearerGuard, PermissionsGuard)
 export class ServicesPlatformController {
@@ -47,6 +112,7 @@ export class ServicesPlatformController {
     private readonly marketplace: ServicesMarketplaceService,
     private readonly operations: ServicesMarketplaceOperationsService,
     private readonly prisma: PrismaService,
+    private readonly consumerAvailability: ConsumerAvailabilityService,
     private readonly consumerFulfilment: ConsumerFulfilmentService,
   ) {}
 
@@ -90,6 +156,56 @@ export class ServicesPlatformController {
     @Body() dto: SetProviderVerificationDto,
   ) {
     return this.operations.setPlatformVerification(providerId, dto.verification);
+  }
+
+  @Get('providers/:providerId/service-areas')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  listProviderServiceAreas(@Param('providerId', ParseUUIDPipe) providerId: string) {
+    return this.consumerAvailability.listServiceAreas(providerId);
+  }
+
+  @Post('providers/:providerId/service-areas')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  addProviderServiceArea(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Body() dto: CreateProviderServiceAreaDto,
+  ) {
+    return this.consumerAvailability.addServiceArea(providerId, dto.postalCode);
+  }
+
+  @Patch('providers/:providerId/service-areas/:areaId')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  setProviderServiceAreaActive(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Param('areaId', ParseUUIDPipe) areaId: string,
+    @Body() dto: SetProviderServiceAreaActiveDto,
+  ) {
+    return this.consumerAvailability.setServiceAreaActive(providerId, areaId, dto.active);
+  }
+
+  @Get('offerings/:offeringId/availability-windows')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  listOfferingAvailabilityWindows(@Param('offeringId', ParseUUIDPipe) offeringId: string) {
+    return this.consumerAvailability.listAvailabilityWindows(offeringId);
+  }
+
+  @Post('offerings/:offeringId/availability-windows')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  createOfferingAvailabilityWindow(
+    @Param('offeringId', ParseUUIDPipe) offeringId: string,
+    @Body() dto: CreateAvailabilityWindowDto,
+  ) {
+    return this.consumerAvailability.createAvailabilityWindow(offeringId, dto);
+  }
+
+  @Patch('offerings/:offeringId/availability-windows/:windowId')
+  @RequiresPermissions(AppPermission.PLATFORM_SERVICE_CATALOG_MANAGE)
+  updateOfferingAvailabilityWindow(
+    @Param('offeringId', ParseUUIDPipe) offeringId: string,
+    @Param('windowId', ParseUUIDPipe) windowId: string,
+    @Body() dto: UpdateAvailabilityWindowDto,
+  ) {
+    return this.consumerAvailability.updateAvailabilityWindow(offeringId, windowId, dto);
   }
 
   @Get('consumer-bookings')
