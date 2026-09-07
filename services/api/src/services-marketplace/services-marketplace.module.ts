@@ -9,6 +9,8 @@ import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform
 import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerPaymentsService } from './consumer-payments.service';
+import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
+import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
@@ -21,6 +23,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceController,
     ServicesPlatformController,
     ConsumerDispatchPlatformController,
+    ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
     ConsumerBookingsController,
   ],
@@ -33,6 +36,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerDispatchService,
     ConsumerFulfilmentService,
     ConsumerPaymentsService,
+    ConsumerServiceLocationService,
   ],
   exports: [ServicesMarketplaceService],
 })
