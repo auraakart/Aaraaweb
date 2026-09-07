@@ -86,15 +86,19 @@ export class ConsumerAvailabilityService {
     const offering = await this.prisma.serviceOffering.findUnique({ where: { id: offeringId }, select: { id: true } });
     if (!offering) throw new NotFoundException('Service offering not found');
     if (input.active ?? true) await this.assertNoWindowOverlap(offeringId, input);
-    const rows = await this.prisma.$queryRaw<AvailabilityWindowRow[]>(Prisma.sql`
-      INSERT INTO "ConsumerOfferingAvailabilityWindow" (
-        "id", "offeringId", "dayOfWeek", "startMinute", "endMinute", "slotCapacity", "active", "createdAt", "updatedAt"
-      ) VALUES (
-        ${randomUUID()}::uuid, ${offeringId}::uuid, ${input.dayOfWeek}, ${input.startMinute}, ${input.endMinute},
-        ${input.slotCapacity}, ${input.active ?? true}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      ) RETURNING *
-    `);
-    return rows[0];
+    try {
+      const rows = await this.prisma.$queryRaw<AvailabilityWindowRow[]>(Prisma.sql`
+        INSERT INTO "ConsumerOfferingAvailabilityWindow" (
+          "id", "offeringId", "dayOfWeek", "startMinute", "endMinute", "slotCapacity", "active", "createdAt", "updatedAt"
+        ) VALUES (
+          ${randomUUID()}::uuid, ${offeringId}::uuid, ${input.dayOfWeek}, ${input.startMinute}, ${input.endMinute},
+          ${input.slotCapacity}, ${input.active ?? true}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ) RETURNING *
+      `);
+      return rows[0];
+    } catch (error) {
+      this.rethrowWindowOverlapConstraint(error);
+    }
   }
 
   async updateAvailabilityWindow(offeringId: string, windowId: string, patch: AvailabilityWindowPatch) {
@@ -113,14 +117,18 @@ export class ConsumerAvailabilityService {
     };
     this.validateWindow(next);
     if (next.active ?? true) await this.assertNoWindowOverlap(offeringId, next, windowId);
-    const rows = await this.prisma.$queryRaw<AvailabilityWindowRow[]>(Prisma.sql`
-      UPDATE "ConsumerOfferingAvailabilityWindow"
-      SET "dayOfWeek" = ${next.dayOfWeek}, "startMinute" = ${next.startMinute}, "endMinute" = ${next.endMinute},
-          "slotCapacity" = ${next.slotCapacity}, "active" = ${next.active ?? true}, "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${windowId}::uuid AND "offeringId" = ${offeringId}::uuid
-      RETURNING *
-    `);
-    return rows[0];
+    try {
+      const rows = await this.prisma.$queryRaw<AvailabilityWindowRow[]>(Prisma.sql`
+        UPDATE "ConsumerOfferingAvailabilityWindow"
+        SET "dayOfWeek" = ${next.dayOfWeek}, "startMinute" = ${next.startMinute}, "endMinute" = ${next.endMinute},
+            "slotCapacity" = ${next.slotCapacity}, "active" = ${next.active ?? true}, "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${windowId}::uuid AND "offeringId" = ${offeringId}::uuid
+        RETURNING *
+      `);
+      return rows[0];
+    } catch (error) {
+      this.rethrowWindowOverlapConstraint(error);
+    }
   }
 
   async checkAvailability(userId: string, homeId: string, offeringId: string, scheduledFrom: Date, scheduledUntil: Date) {
@@ -237,6 +245,19 @@ export class ConsumerAvailabilityService {
       LIMIT 1
     `);
     if (rows.length) throw new BadRequestException('Availability windows for an offering cannot overlap');
+  }
+
+  private rethrowWindowOverlapConstraint(error: unknown): never {
+    const databaseError = error as { code?: unknown; meta?: { code?: unknown; message?: unknown } };
+    const postgresCode = databaseError.meta?.code;
+    const message = String(databaseError.meta?.message ?? '');
+    if (
+      (databaseError.code === 'P2010' && postgresCode === '23P01')
+      || message.includes('ConsumerOfferingAvailabilityWindow_no_active_overlap')
+    ) {
+      throw new BadRequestException('Availability windows for an offering cannot overlap');
+    }
+    throw error;
   }
 
   private normalizePostalCode(postalCode: string) {
