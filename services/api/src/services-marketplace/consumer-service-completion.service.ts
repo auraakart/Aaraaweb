@@ -88,8 +88,12 @@ export class ConsumerServiceCompletionService {
         this.logger.warn(`Completion request push failed for ${result.bookingId}: ${error instanceof Error ? error.message : 'unknown error'}`);
       });
     }
-    const { created: _created, ...response } = result;
-    return response;
+    return {
+      assignmentId: result.assignmentId,
+      bookingId: result.bookingId,
+      status: result.status,
+      requestedAt: result.requestedAt,
+    };
   }
 
   async getForConsumer(userId: string, bookingId: string) {
