@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookingStatus[]>> = {
@@ -13,9 +14,21 @@ const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookin
 
 type BookingStatusRow = { id: string; status: ServiceBookingStatus };
 
+type NotificationBookingRow = {
+  id: string;
+  userId: string;
+  offeringName: string;
+  providerName: string;
+};
+
 @Injectable()
 export class ConsumerFulfilmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ConsumerFulfilmentService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushNotificationService,
+  ) {}
 
   listBookings() {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -61,7 +74,7 @@ export class ConsumerFulfilmentService {
     const allowedFrom = ALLOWED_FROM[toStatus] ?? [];
     if (!allowedFrom.length) throw new BadRequestException('Unsupported fulfilment transition');
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<BookingStatusRow[]>(Prisma.sql`
         SELECT "id", "status"
         FROM "ConsumerServiceBooking"
@@ -99,6 +112,38 @@ export class ConsumerFulfilmentService {
       `);
 
       return updatedRows[0];
+    });
+
+    if (toStatus === ServiceBookingStatus.CONFIRMED || toStatus === ServiceBookingStatus.CANCELLED) {
+      void this.publishBookingStatus(bookingId, toStatus).catch((error: unknown) => {
+        this.logger.warn(`Consumer booking push failed for ${bookingId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      });
+    }
+
+    return updated;
+  }
+
+  private async publishBookingStatus(bookingId: string, status: ServiceBookingStatus.CONFIRMED | ServiceBookingStatus.CANCELLED) {
+    const rows = await this.prisma.$queryRaw<NotificationBookingRow[]>(Prisma.sql`
+      SELECT
+        b."id",
+        b."userId",
+        o."name" AS "offeringName",
+        p."businessName" AS "providerName"
+      FROM "ConsumerServiceBooking" b
+      JOIN "ServiceOffering" o ON o."id" = b."offeringId"
+      JOIN "ServiceProvider" p ON p."id" = b."providerId"
+      WHERE b."id" = ${bookingId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) return;
+    await this.push.sendConsumerBookingEvent({
+      userId: booking.userId,
+      bookingId: booking.id,
+      offeringName: booking.offeringName,
+      providerName: booking.providerName,
+      status,
     });
   }
 
