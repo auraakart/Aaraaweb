@@ -9,6 +9,9 @@ import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform
 import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
 import { ConsumerPaymentsService } from './consumer-payments.service';
+import { ConsumerProviderAgentController } from './consumer-provider-agent.controller';
+import { ConsumerProviderAgentPlatformController } from './consumer-provider-agent-platform.controller';
+import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
@@ -26,10 +29,12 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceController,
     ServicesPlatformController,
     ConsumerDispatchPlatformController,
+    ConsumerProviderAgentPlatformController,
     ConsumerProviderOperatorPlatformController,
     ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
     ConsumerBookingsController,
+    ConsumerProviderAgentController,
     ConsumerProviderOperatorController,
   ],
   providers: [
@@ -41,6 +46,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerDispatchService,
     ConsumerFulfilmentService,
     ConsumerPaymentsService,
+    ConsumerProviderAgentService,
     ConsumerProviderOperatorService,
     ConsumerServiceLocationService,
   ],
