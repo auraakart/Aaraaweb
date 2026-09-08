@@ -59,7 +59,6 @@ class ResidentDataController extends ChangeNotifier {
     if (_disposed) return Future.value();
     final inFlight = _loadInFlight;
     if (inFlight != null) return inFlight;
-
     final operation = _load();
     _loadInFlight = operation;
     return operation.whenComplete(() {
@@ -76,14 +75,11 @@ class ResidentDataController extends ChangeNotifier {
     servicesError = null;
     workforceError = null;
     notifyListeners();
-
     await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
     if (_disposed) return;
-
     if (activeUnitId != null && activeHousehold == null && households.isNotEmpty) {
       householdError = 'The selected property is no longer available in this society session.';
     }
-
     loading = false;
     notifyListeners();
     startRealtime();
@@ -114,8 +110,11 @@ class ResidentDataController extends ChangeNotifier {
         realtimeConnected = true;
         final type = event['type']?.toString() ?? '';
         if (type.startsWith('ACCESS_')) {
-          latestAccessEvent = event;
           await _loadAccess();
+          final requestId = event['requestId']?.toString();
+          if (requestId != null && accessRequests.any((request) => request['id']?.toString() == requestId)) {
+            latestAccessEvent = event;
+          }
         } else if (type == 'GENERAL_NOTICE_PUBLISHED') {
           latestNotificationEvent = event;
           await _loadNotices();
@@ -164,8 +163,10 @@ class ResidentDataController extends ChangeNotifier {
     }
     final requestId = data['requestId']?.toString();
     if (requestId == null) return;
-    latestAccessEvent = data;
     await _loadAccess();
+    if (accessRequests.any((request) => request['id']?.toString() == requestId)) {
+      latestAccessEvent = data;
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -185,7 +186,10 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> _loadAccess() async {
     try {
-      accessRequests = await repository.accessRequests();
+      final rows = await repository.accessRequests();
+      accessRequests = _filterByUnit(rows, (item) => item['unitId']);
+      final current = latestAccessEvent?['requestId']?.toString();
+      if (current != null && !accessRequests.any((item) => item['id']?.toString() == current)) latestAccessEvent = null;
     } catch (e) {
       _capture(e, (message) => accessError = message);
     }
@@ -201,11 +205,7 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> _loadServices() async {
     try {
-      final results = await Future.wait([
-        repository.serviceCategories(),
-        repository.serviceOfferings(),
-        repository.bookings(),
-      ]);
+      final results = await Future.wait([repository.serviceCategories(), repository.serviceOfferings(), repository.bookings()]);
       serviceCategories = results[0];
       serviceOfferings = results[1];
       bookings = results[2];
@@ -216,17 +216,24 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> _loadWorkforce() async {
     try {
-      final results = await Future.wait([
-        repository.workforce(),
-        repository.workforceLeaves(),
-        repository.workforceRatings(),
-      ]);
-      workforceAssignments = results[0];
-      workforceLeaves = results[1];
-      workforceRatings = results[2];
+      final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings()]);
+      final assignments = _filterByUnit(results[0], (item) {
+        final household = item['household'];
+        return household is Map ? household['unitId'] : null;
+      });
+      final assignmentIds = assignments.map((item) => item['id']?.toString()).whereType<String>().toSet();
+      workforceAssignments = assignments;
+      workforceLeaves = results[1].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
+      workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
     } catch (e) {
       _capture(e, (message) => workforceError = message);
     }
+  }
+
+  List<Map<String, dynamic>> _filterByUnit(List<Map<String, dynamic>> rows, Object? Function(Map<String, dynamic>) unitOf) {
+    final selected = activeUnitId;
+    if (selected == null) return rows;
+    return rows.where((item) => unitOf(item)?.toString() == selected).toList(growable: false);
   }
 
   bool isWorkforcePresent(String assignmentId) {
@@ -238,12 +245,8 @@ class ResidentDataController extends ChangeNotifier {
     return false;
   }
 
-  Map<String, dynamic>? ratingFor(String assignmentId) =>
-      workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
-
-  List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves
-      .where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false)
-      .toList(growable: false);
+  Map<String, dynamic>? ratingFor(String assignmentId) => workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
+  List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves.where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false).toList(growable: false);
 
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
@@ -251,71 +254,39 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> cancelWorkforceLeave(String leaveId) async {
-    await repository.cancelWorkforceLeave(leaveId);
-    await _loadWorkforce();
-    if (!_disposed) notifyListeners();
-  }
-
-  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
-    await repository.rateWorkforce(assignmentId, score: score, comment: comment);
-    await _loadWorkforce();
-    if (!_disposed) notifyListeners();
-  }
-
-  Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
-    await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
-    await _loadWorkforce();
-    if (!_disposed) notifyListeners();
-  }
-
-  Future<void> deactivateWorkforce(String assignmentId) async {
-    await repository.deactivateWorkforce(assignmentId);
-    await _loadWorkforce();
-    await _loadAccess();
-    if (!_disposed) notifyListeners();
-  }
+  Future<void> cancelWorkforceLeave(String leaveId) async { await repository.cancelWorkforceLeave(leaveId); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async { await repository.rateWorkforce(assignmentId, score: score, comment: comment); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async { await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> deactivateWorkforce(String assignmentId) async { await repository.deactivateWorkforce(assignmentId); await _loadWorkforce(); await _loadAccess(); if (!_disposed) notifyListeners(); }
 
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
     final text = error.toString();
-    if (text.contains('Sign in is required') || text.contains('ApiException(401)')) {
-      authError = 'Sign in is required';
-    } else {
-      assign(text);
-    }
+    if (text.contains('Sign in is required') || text.contains('ApiException(401)')) authError = 'Sign in is required'; else assign(text);
   }
 
   Future<Map<String, dynamic>> approveAccess(String requestId, {Duration? duration}) async {
     final request = accessRequests.where((item) => item['id']?.toString() == requestId).firstOrNull;
-    final type = request?['subjectType']?.toString();
-    final effectiveDuration = duration ?? switch (type) {
-      'CAB' => const Duration(minutes: 15),
-      'DELIVERY' => const Duration(minutes: 30),
-      _ => const Duration(hours: 4),
-    };
+    if (request == null) throw StateError('Access request is outside the active property context');
+    final type = request['subjectType']?.toString();
+    final effectiveDuration = duration ?? switch (type) { 'CAB' => const Duration(minutes: 15), 'DELIVERY' => const Duration(minutes: 30), _ => const Duration(hours: 4) };
     final now = DateTime.now();
     final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration));
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
-    if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') {
-      lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
-    }
+    if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     await _loadAccess();
     if (!_disposed) notifyListeners();
     return result;
   }
 
   Future<void> denyAccess(String requestId) async {
-    await repository.denyAccess(requestId);
-    await _loadAccess();
-    if (!_disposed) notifyListeners();
+    if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
+    await repository.denyAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
   }
-
   Future<void> cancelAccess(String requestId) async {
-    await repository.cancelAccess(requestId);
-    await _loadAccess();
-    if (!_disposed) notifyListeners();
+    if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
+    await repository.cancelAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
   }
 
   Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
@@ -332,11 +303,7 @@ class ResidentDataController extends ChangeNotifier {
     return lastIssuedVisitorPass!;
   }
 
-  void clearIssuedVisitorPass() {
-    if (_disposed) return;
-    lastIssuedVisitorPass = null;
-    notifyListeners();
-  }
+  void clearIssuedVisitorPass() { if (_disposed) return; lastIssuedVisitorPass = null; notifyListeners(); }
 
   @override
   void dispose() {
@@ -350,6 +317,4 @@ class ResidentDataController extends ChangeNotifier {
   }
 }
 
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
-}
+extension _FirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }
