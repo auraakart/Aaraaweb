@@ -1,0 +1,287 @@
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  AvailabilityWindowInput,
+  AvailabilityWindowPatch,
+  ConsumerAvailabilityService,
+} from './consumer-availability.service';
+import {
+  ConsumerDispatchService,
+  ConsumerDispatchStatus,
+  CreateConsumerProviderAgentInput,
+} from './consumer-dispatch.service';
+import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
+import { ConsumerServiceLocationService } from './consumer-service-location.service';
+
+type ProviderOperatorRow = {
+  id: string;
+  providerId: string;
+  userId: string;
+  active: boolean;
+};
+
+export type ProviderBookingDecision = 'ACCEPT' | 'DECLINE';
+
+@Injectable()
+export class ConsumerProviderOperatorService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly availability: ConsumerAvailabilityService,
+    private readonly locations: ConsumerServiceLocationService,
+    private readonly fulfilment: ConsumerFulfilmentService,
+    private readonly dispatch: ConsumerDispatchService,
+  ) {}
+
+  async resolveProvider(userId: string) {
+    const rows = await this.prisma.$queryRaw<Array<ProviderOperatorRow & { businessName: string; verification: ProviderVerificationStatus; providerActive: boolean }>>(Prisma.sql`
+      SELECT po."id", po."providerId", po."userId", po."active",
+             p."businessName", p."verification", p."active" AS "providerActive"
+      FROM "ConsumerProviderOperator" po
+      JOIN "ServiceProvider" p ON p."id" = po."providerId"
+      WHERE po."userId" = ${userId}::uuid AND po."active" = true
+      ORDER BY po."createdAt" ASC
+      LIMIT 2
+    `);
+    if (rows.length !== 1) throw new ForbiddenException('Provider operator access is not available');
+    const row = rows[0];
+    if (!row.providerActive || row.verification !== ProviderVerificationStatus.VERIFIED) {
+      throw new ForbiddenException('Provider must be active and verified');
+    }
+    return row;
+  }
+
+  async linkOperator(providerId: string, userId: string) {
+    const [provider, user] = await Promise.all([
+      this.prisma.serviceProvider.findUnique({ where: { id: providerId }, select: { id: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
+    ]);
+    if (!provider) throw new NotFoundException('Service provider not found');
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize operator-link changes for one user so the one-active-provider
+      // invariant has a deterministic API error even under concurrent requests.
+      await tx.$executeRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${userId}::text))
+      `);
+
+      const activeRows = await tx.$queryRaw<Array<{ providerId: string }>>(Prisma.sql`
+        SELECT "providerId"
+        FROM "ConsumerProviderOperator"
+        WHERE "userId" = ${userId}::uuid AND "active" = true
+        LIMIT 1
+      `);
+      if (activeRows[0] && activeRows[0].providerId !== providerId) {
+        throw new BadRequestException('User already has an active provider operator mapping');
+      }
+
+      const rows = await tx.$queryRaw<ProviderOperatorRow[]>(Prisma.sql`
+        INSERT INTO "ConsumerProviderOperator" ("id", "providerId", "userId", "active", "createdAt", "updatedAt")
+        VALUES (${randomUUID()}::uuid, ${providerId}::uuid, ${userId}::uuid, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT ("providerId", "userId")
+        DO UPDATE SET "active" = true, "updatedAt" = CURRENT_TIMESTAMP
+        RETURNING "id", "providerId", "userId", "active"
+      `);
+      return rows[0];
+    });
+  }
+
+  async revokeOperator(providerId: string, userId: string) {
+    const rows = await this.prisma.$queryRaw<ProviderOperatorRow[]>(Prisma.sql`
+      UPDATE "ConsumerProviderOperator"
+      SET "active" = false, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "providerId" = ${providerId}::uuid
+        AND "userId" = ${userId}::uuid
+        AND "active" = true
+      RETURNING "id", "providerId", "userId", "active"
+    `);
+    if (!rows[0]) throw new NotFoundException('Active provider operator mapping not found');
+    return rows[0];
+  }
+
+  async listMyServiceAreas(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.availability.listServiceAreas(provider.providerId);
+  }
+
+  async addMyServiceArea(userId: string, postalCode: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.availability.addServiceArea(provider.providerId, postalCode);
+  }
+
+  async setMyServiceAreaActive(userId: string, areaId: string, active: boolean) {
+    const provider = await this.resolveProvider(userId);
+    return this.availability.setServiceAreaActive(provider.providerId, areaId, active);
+  }
+
+  async listMyOfferings(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.prisma.serviceOffering.findMany({
+      where: { providerId: provider.providerId },
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      select: { id: true, name: true, description: true, pricePaise: true, durationMinutes: true, active: true, categoryId: true },
+    });
+  }
+
+  async listMyOfferingAreas(userId: string, offeringId: string) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.locations.listOfferingServiceAreas(offeringId);
+  }
+
+  async addMyOfferingArea(userId: string, offeringId: string, postalCode: string) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.locations.addOfferingServiceArea(offeringId, postalCode);
+  }
+
+  async setMyOfferingAreaActive(userId: string, offeringId: string, areaId: string, active: boolean) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.locations.setOfferingServiceAreaActive(offeringId, areaId, active);
+  }
+
+  async listMyAvailabilityWindows(userId: string, offeringId: string) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.listAvailabilityWindows(offeringId);
+  }
+
+  async createMyAvailabilityWindow(userId: string, offeringId: string, input: AvailabilityWindowInput) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.createAvailabilityWindow(offeringId, input);
+  }
+
+  async updateMyAvailabilityWindow(
+    userId: string,
+    offeringId: string,
+    windowId: string,
+    patch: AvailabilityWindowPatch,
+  ) {
+    await this.assertOfferingOwned(userId, offeringId);
+    return this.availability.updateAvailabilityWindow(offeringId, windowId, patch);
+  }
+
+  async listMyBookings(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        b."id",
+        b."offeringId",
+        b."offeringName",
+        b."addressSnapshot",
+        b."status",
+        b."scheduledFrom",
+        b."scheduledUntil",
+        b."servicePricePaise",
+        b."notes",
+        b."createdAt",
+        b."updatedAt"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."providerId" = ${provider.providerId}::uuid
+      ORDER BY
+        CASE WHEN b."status" = 'REQUESTED'::"ServiceBookingStatus" THEN 0 ELSE 1 END,
+        b."scheduledFrom" ASC,
+        b."createdAt" DESC
+    `);
+  }
+
+  async respondToMyBooking(userId: string, bookingId: string, decision: ProviderBookingDecision, note?: string) {
+    const booking = await this.assertBookingOwned(userId, bookingId);
+    if (booking.status !== ServiceBookingStatus.REQUESTED) {
+      throw new BadRequestException('Only requested bookings can be accepted or declined');
+    }
+
+    if (decision === 'ACCEPT') {
+      return this.fulfilment.transition(
+        userId,
+        bookingId,
+        ServiceBookingStatus.CONFIRMED,
+        note,
+        'PROVIDER_ACCEPTED',
+      );
+    }
+
+    return this.fulfilment.transition(
+      userId,
+      bookingId,
+      ServiceBookingStatus.CANCELLED,
+      note,
+      'PROVIDER_DECLINED',
+    );
+  }
+
+  async listMyAgents(userId: string) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.listAgents(provider.providerId);
+  }
+
+  async createMyAgent(userId: string, input: CreateConsumerProviderAgentInput) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.createAgent(provider.providerId, input);
+  }
+
+  async setMyAgentActive(userId: string, agentId: string, active: boolean) {
+    const provider = await this.resolveProvider(userId);
+    return this.dispatch.setAgentActive(provider.providerId, agentId, active);
+  }
+
+  async listMyBookingAssignments(userId: string, bookingId: string) {
+    await this.assertBookingOwned(userId, bookingId);
+    return this.dispatch.listAssignments(bookingId);
+  }
+
+  async assignMyBooking(userId: string, bookingId: string, agentId: string) {
+    const booking = await this.assertBookingOwned(userId, bookingId);
+    if (booking.status !== ServiceBookingStatus.CONFIRMED) {
+      throw new BadRequestException('Only confirmed provider bookings can be assigned');
+    }
+    return this.dispatch.assign(userId, bookingId, agentId);
+  }
+
+  async listMyAssignmentEvents(userId: string, assignmentId: string) {
+    await this.assertAssignmentOwned(userId, assignmentId);
+    return this.dispatch.listAssignmentEvents(assignmentId);
+  }
+
+  async transitionMyAssignment(
+    userId: string,
+    assignmentId: string,
+    status: ConsumerDispatchStatus,
+    note?: string,
+  ) {
+    await this.assertAssignmentOwned(userId, assignmentId);
+    return this.dispatch.transition(userId, assignmentId, status, note);
+  }
+
+  private async assertOfferingOwned(userId: string, offeringId: string) {
+    const provider = await this.resolveProvider(userId);
+    const offering = await this.prisma.serviceOffering.findFirst({
+      where: { id: offeringId, providerId: provider.providerId },
+      select: { id: true },
+    });
+    if (!offering) throw new NotFoundException('Provider offering not found');
+  }
+
+  private async assertBookingOwned(userId: string, bookingId: string) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
+      SELECT "id", "status"
+      FROM "ConsumerServiceBooking"
+      WHERE "id" = ${bookingId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Provider booking not found');
+    return booking;
+  }
+
+  private async assertAssignmentOwned(userId: string, assignmentId: string) {
+    const provider = await this.resolveProvider(userId);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "ConsumerServiceAssignment"
+      WHERE "id" = ${assignmentId}::uuid AND "providerId" = ${provider.providerId}::uuid
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Provider assignment not found');
+  }
+}

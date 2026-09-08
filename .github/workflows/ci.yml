@@ -17,6 +17,7 @@ jobs:
   repository-structure:
     name: Repository structure
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,6 +58,7 @@ jobs:
   api-validation:
     name: API validation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -84,6 +86,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Validate Prisma schema
@@ -104,6 +108,7 @@ jobs:
   admin-validation:
     name: Admin validation
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -115,6 +120,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Test Admin access boundaries
@@ -127,6 +134,7 @@ jobs:
   flutter-validation:
     name: Flutter validation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -158,6 +166,7 @@ jobs:
   dependency-security:
     name: Dependency security
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -169,6 +178,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Audit high and critical npm vulnerabilities

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'consumer_push_registration.dart';
 import 'resident_repository.dart';
 
 class PushRegistrationService {
@@ -38,6 +39,9 @@ class PushRegistrationService {
     final token = _registeredToken;
     if (token != null) {
       try {
+        await repository.unregisterConsumerPushDevice(token);
+      } catch (_) {}
+      try {
         await repository.unregisterPushDevice(token);
       } catch (_) {}
     }
@@ -50,7 +54,13 @@ class PushRegistrationService {
   }
 
   Future<void> _register(String token) async {
-    await repository.registerPushDevice(token: token, platform: _platform());
+    final platform = _platform();
+    await repository.registerConsumerPushDevice(token: token, platform: platform);
+    try {
+      await repository.registerPushDevice(token: token, platform: platform);
+    } catch (_) {
+      // Independent-home sessions intentionally have no society tenant context.
+    }
     _registeredToken = token;
   }
 
