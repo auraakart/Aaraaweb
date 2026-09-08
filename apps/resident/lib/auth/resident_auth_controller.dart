@@ -26,7 +26,14 @@ class ResidentAuthController extends ChangeNotifier {
 
   bool get isDemoSession => session?.sessionId == 'demo-resident-session';
   bool get isIndependentHome => session?.isIndependentHome ?? false;
-  bool get canSwitchProperty => !isIndependentHome && memberships.length > 1;
+  String? get activeUnitId => session?.activeUnitId;
+
+  int get propertyContextCount => memberships.fold<int>(
+        0,
+        (count, membership) => count + (membership.properties.isEmpty ? 1 : membership.properties.length),
+      );
+
+  bool get canSwitchProperty => !isIndependentHome && propertyContextCount > 1;
 
   Future<void> bootstrap() async {
     error = null;
@@ -37,11 +44,14 @@ class ResidentAuthController extends ChangeNotifier {
       } else {
         try {
           session = await repository.refresh(stored);
-          await sessionStore.write(session!);
-          if (!session!.isIndependentHome) {
+          if (session!.isIndependentHome) {
+            memberships = const [];
+            await sessionStore.write(session!);
+            step = ResidentAuthStep.signedIn;
+          } else {
             memberships = await repository.contexts(session!);
+            await _resolveRestoredPropertyContext(stored.activeUnitId);
           }
-          step = ResidentAuthStep.signedIn;
         } catch (_) {
           await sessionStore.clear();
           session = null;
@@ -68,6 +78,7 @@ class ResidentAuthController extends ChangeNotifier {
       societyId: 'demo-society-1',
       role: 'OWNER',
       contextType: 'SOCIETY',
+      activeUnitId: 'demo-unit-1',
     );
     step = ResidentAuthStep.signedIn;
     notifyListeners();
@@ -88,49 +99,105 @@ class ResidentAuthController extends ChangeNotifier {
       userId = result.userId;
       memberships = result.memberships;
       selectionToken = result.selectionToken;
+
       if (result.session != null) {
         session = result.session;
-        await sessionStore.write(session!);
-        step = ResidentAuthStep.signedIn;
-      } else if (memberships.isEmpty) {
+        if (session!.isIndependentHome) {
+          await sessionStore.write(session!);
+          step = ResidentAuthStep.signedIn;
+          return;
+        }
+        await _resolveNewSocietySession();
+        return;
+      }
+
+      if (memberships.isEmpty) {
         throw StateError('No available Aaraagate access context is available for this account');
-      } else if (memberships.length == 1 && selectionToken != null) {
+      }
+
+      // A sole society can be selected server-side immediately. Unit selection is
+      // still explicit when that society contains multiple linked properties.
+      if (memberships.length == 1 && selectionToken != null) {
+        final membership = memberships.first;
         session = await repository.selectSociety(
           userId: result.userId,
-          societyId: memberships.first.societyId,
+          societyId: membership.societyId,
           selectionToken: selectionToken!,
         );
         selectionToken = null;
-        await sessionStore.write(session!);
-        step = ResidentAuthStep.signedIn;
-      } else {
-        step = ResidentAuthStep.society;
+        await _resolveNewSocietySession();
+        return;
       }
+
+      step = ResidentAuthStep.society;
     });
   }
 
-  Future<void> selectSociety(SocietyMembershipOption membership) async {
-    final id = userId;
-    final token = selectionToken;
-    if (id == null || token == null) return;
+  Future<void> selectPropertyContext(
+    SocietyMembershipOption membership,
+    PropertySummary? property,
+  ) async {
+    if (property != null && !membership.properties.any((item) => item.unitId == property.unitId)) {
+      throw StateError('Selected property does not belong to this society context');
+    }
+
     await _run(() async {
-      session = await repository.selectSociety(userId: id, societyId: membership.societyId, selectionToken: token);
-      selectionToken = null;
+      final current = session;
+      ResidentSession next;
+
+      if (current != null && current.societyId == membership.societyId) {
+        next = current;
+      } else if (current != null) {
+        next = await repository.switchSociety(current, membership.societyId);
+      } else {
+        final id = userId;
+        final token = selectionToken;
+        if (id == null || token == null) throw StateError('Property selection session has expired');
+        next = await repository.selectSociety(
+          userId: id,
+          societyId: membership.societyId,
+          selectionToken: token,
+        );
+        selectionToken = null;
+      }
+
+      session = _withProperty(next, property);
       await sessionStore.write(session!);
       step = ResidentAuthStep.signedIn;
     });
   }
 
-  Future<void> switchSociety(SocietyMembershipOption membership) async {
+  Future<void> selectSociety(SocietyMembershipOption membership) {
+    final property = membership.properties.length == 1 ? membership.properties.first : null;
+    return selectPropertyContext(membership, property);
+  }
+
+  Future<void> switchProperty(
+    SocietyMembershipOption membership,
+    PropertySummary? property,
+  ) async {
     final current = session;
-    if (current == null || current.isIndependentHome || membership.societyId == current.societyId) return;
+    if (current == null || current.isIndependentHome) return;
+    if (property != null && !membership.properties.any((item) => item.unitId == property.unitId)) {
+      throw StateError('Selected property does not belong to this society context');
+    }
+    if (membership.societyId == current.societyId && property?.unitId == current.activeUnitId) return;
+
     await _run(() async {
-      final next = await repository.switchSociety(current, membership.societyId);
-      session = next;
-      await sessionStore.write(next);
-      memberships = await repository.contexts(next);
+      var next = current;
+      if (membership.societyId != current.societyId) {
+        next = await repository.switchSociety(current, membership.societyId);
+      }
+      session = _withProperty(next, property);
+      await sessionStore.write(session!);
+      memberships = await repository.contexts(session!);
       step = ResidentAuthStep.signedIn;
     });
+  }
+
+  Future<void> switchSociety(SocietyMembershipOption membership) {
+    final property = membership.properties.length == 1 ? membership.properties.first : null;
+    return switchProperty(membership, property);
   }
 
   Future<void> signOut() async {
@@ -157,6 +224,70 @@ class ResidentAuthController extends ChangeNotifier {
     }
   }
 
+  Future<void> _resolveNewSocietySession() async {
+    final current = session;
+    if (current == null) return;
+    final membership = _membershipFor(current.societyId);
+    if (membership == null || membership.properties.isEmpty) {
+      session = current.copyWith(clearActiveUnit: true);
+      await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+      return;
+    }
+    if (membership.properties.length == 1) {
+      session = _withProperty(current, membership.properties.first);
+      await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+      return;
+    }
+
+    // The society token is already valid, but the app must not guess which unit
+    // the user intends to manage when several properties are linked.
+    session = current.copyWith(clearActiveUnit: true);
+    await sessionStore.write(session!);
+    step = ResidentAuthStep.society;
+  }
+
+  Future<void> _resolveRestoredPropertyContext(String? storedUnitId) async {
+    final current = session;
+    if (current == null) return;
+    final membership = _membershipFor(current.societyId);
+    if (membership == null) throw StateError('Stored society context is no longer available');
+
+    if (membership.properties.isEmpty) {
+      session = current.copyWith(clearActiveUnit: true);
+      await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+      return;
+    }
+
+    final restored = membership.properties.where((item) => item.unitId == storedUnitId).firstOrNull;
+    if (restored != null) {
+      session = _withProperty(current, restored);
+      await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+      return;
+    }
+
+    if (membership.properties.length == 1) {
+      session = _withProperty(current, membership.properties.first);
+      await sessionStore.write(session!);
+      step = ResidentAuthStep.signedIn;
+      return;
+    }
+
+    session = current.copyWith(clearActiveUnit: true);
+    await sessionStore.write(session!);
+    step = ResidentAuthStep.society;
+  }
+
+  SocietyMembershipOption? _membershipFor(String? societyId) =>
+      memberships.where((membership) => membership.societyId == societyId).firstOrNull;
+
+  ResidentSession _withProperty(ResidentSession base, PropertySummary? property) => property == null
+      ? base.copyWith(clearActiveUnit: true)
+      : base.copyWith(activeUnitId: property.unitId);
+
   Future<void> _run(Future<void> Function() action) async {
     busy = true;
     error = null;
@@ -170,4 +301,8 @@ class ResidentAuthController extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
