@@ -4,9 +4,10 @@ import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
 class ResidentDataController extends ChangeNotifier {
-  ResidentDataController(this.repository) : push = PushRegistrationService(repository);
+  ResidentDataController(this.repository, {this.activeUnitId}) : push = PushRegistrationService(repository);
   final ResidentRepository repository;
   final PushRegistrationService push;
+  final String? activeUnitId;
 
   bool loading = false;
   bool realtimeConnected = false;
@@ -34,7 +35,19 @@ class ResidentDataController extends ChangeNotifier {
   Future<void>? _loadInFlight;
   bool _disposed = false;
 
-  String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
+  Map<String, dynamic>? get activeHousehold {
+    final selected = activeUnitId;
+    if (selected != null) {
+      for (final household in households) {
+        if (household['unitId']?.toString() == selected) return household;
+      }
+      return null;
+    }
+    return households.length == 1 ? households.first : null;
+  }
+
+  String? get primaryUnitId => activeHousehold?['unitId']?.toString();
+
   Map<String, dynamic>? get firstPendingAccess {
     for (final request in accessRequests) {
       if (request['status']?.toString() == 'PENDING') return request;
@@ -66,6 +79,10 @@ class ResidentDataController extends ChangeNotifier {
 
     await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
     if (_disposed) return;
+
+    if (activeUnitId != null && activeHousehold == null && households.isNotEmpty) {
+      householdError = 'The selected property is no longer available in this society session.';
+    }
 
     loading = false;
     notifyListeners();
@@ -303,7 +320,7 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
     final unitId = primaryUnitId;
-    if (unitId == null) throw StateError('No household unit is available');
+    if (unitId == null) throw StateError('Select a property before creating a visitor pass');
     final now = DateTime.now();
     final result = await repository.inviteVisitor(unitId: unitId, name: name, phone: phone, purpose: purpose, validFrom: now, validUntil: now.add(duration));
     final rawRequest = result['request'];
