@@ -280,7 +280,8 @@ export class ConsumerBookingsService {
           SELECT 1 FROM "UnitOccupancy" o WHERE o."unitId" = u."id" AND o."userId" = ${userId}::uuid AND o."active" = true
             AND o."effectiveFrom" <= CURRENT_TIMESTAMP AND (o."effectiveTo" IS NULL OR o."effectiveTo" > CURRENT_TIMESTAMP)
         ) OR EXISTS (
-          SELECT 1 FROM "UnitOwnership" ow WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true
+          SELECT 1 FROM "UnitOwnership" ow WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid
+            AND ow."active" = true AND ow."verified" = true
             AND ow."effectiveFrom" <= CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo" > CURRENT_TIMESTAMP)
         )
       ) LIMIT 1
