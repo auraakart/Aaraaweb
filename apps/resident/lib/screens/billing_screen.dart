@@ -29,7 +29,9 @@ class _BillingScreenState extends State<BillingScreen> {
       final selected = widget.activeUnitId;
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
-      final scopedPayments = result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
+      final scopedPayments = selected == null
+          ? result[1]
+          : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your maintenance invoices could not be loaded.');
