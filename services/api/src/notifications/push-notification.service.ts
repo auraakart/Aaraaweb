@@ -108,8 +108,16 @@ export class PushNotificationService {
     const content = 'requestId' in event ? {
       title: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${this.label(event.subjectType)} at the gate` : 'Gate access updated',
       body: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${event.subjectName} is waiting for your approval.` : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`,
-      data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}) },
-    } : { title: event.title, body: event.body, data: { ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}), ...(event.noticeId ? { noticeId: event.noticeId } : {}) } };
+      data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+    } : {
+      title: event.title,
+      body: event.body,
+      data: {
+        ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}),
+        ...(event.noticeId ? { noticeId: event.noticeId } : {}),
+        ...(event.unitId ? { unitId: event.unitId } : {}),
+      },
+    };
     const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
       tokens: registrations.map((item) => item.token), notification: { title: content.title, body: content.body },
       data: { type: event.type, societyId: event.societyId, ...content.data }, android: { priority: 'high' }, apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },

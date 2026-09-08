@@ -115,7 +115,7 @@ class ResidentDataController extends ChangeNotifier {
         } else if (type == 'GENERAL_NOTICE_PUBLISHED') {
           latestNotificationEvent = event;
           await _loadNotices();
-        } else if (type == 'MAINTENANCE_DUE_ISSUED') {
+        } else if (type == 'MAINTENANCE_DUE_ISSUED' && _matchesActiveUnit(event)) {
           latestNotificationEvent = event;
         }
         if (!_disposed) notifyListeners();
@@ -154,7 +154,7 @@ class ResidentDataController extends ChangeNotifier {
       return;
     }
     if (type == 'MAINTENANCE_DUE_ISSUED') {
-      latestNotificationEvent = data;
+      if (_matchesActiveUnit(data)) latestNotificationEvent = data;
       if (!_disposed) notifyListeners();
       return;
     }
@@ -165,6 +165,12 @@ class ResidentDataController extends ChangeNotifier {
       latestAccessEvent = data;
     }
     if (!_disposed) notifyListeners();
+  }
+
+  bool _matchesActiveUnit(Map<String, dynamic> event) {
+    final selected = activeUnitId;
+    if (selected == null) return true;
+    return event['unitId']?.toString() == selected;
   }
 
   Future<void> stopPushNotifications() async {
