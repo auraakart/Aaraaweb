@@ -7,6 +7,7 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { GateAssignmentGuard } from '../gates/gate-assignment.guard';
 import { AccessRealtimeEvent, NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { AccessService } from './access.service';
 import { GateArrivalService } from './gate-arrival.service';
@@ -126,6 +127,7 @@ export class AccessController {
   }
 
   @Post('gate/walk-ins')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   async createWalkIn(@Body() dto: CreateWalkInVisitorDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -135,6 +137,7 @@ export class AccessController {
   }
 
   @Post('gate/arrivals')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   async createGateArrival(@Body() dto: CreateGateArrivalDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -144,6 +147,7 @@ export class AccessController {
   }
 
   @Post('gate/request-status')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   gateRequestStatus(@Body() dto: GateRequestDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -151,6 +155,7 @@ export class AccessController {
   }
 
   @Post('gate/check-in-request')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   async checkInRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -161,6 +166,7 @@ export class AccessController {
   }
 
   @Post('gate/check-out-request')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   async checkOutRequest(@Body() dto: GateRequestDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -198,6 +204,7 @@ export class AccessController {
   }
 
   @Post('gate/verify')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   verify(@Body() dto: GateAccessDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -205,6 +212,7 @@ export class AccessController {
   }
 
   @Post('gate/check-in')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   checkIn(@Body() dto: GateAccessDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
@@ -213,6 +221,7 @@ export class AccessController {
   }
 
   @Post('gate/check-out')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   checkOut(@Body() dto: GateAccessDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
