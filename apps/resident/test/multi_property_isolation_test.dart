@@ -37,7 +37,10 @@ class _MultiPropertyRepository extends ResidentRepository {
   Future<List<Map<String, dynamic>>> serviceOfferings({String? categoryId}) async => const [];
 
   @override
-  Future<List<Map<String, dynamic>>> bookings() async => const [];
+  Future<List<Map<String, dynamic>>> bookings() async => [
+        {'id': 'booking-a', 'unitId': 'unit-a'},
+        {'id': 'booking-b', 'unitId': 'unit-b'},
+      ];
 
   @override
   Future<List<Map<String, dynamic>>> workforce() async => [
@@ -82,6 +85,7 @@ void main() {
     expect(controller.households.map((item) => item['unitId']), ['unit-a']);
     expect(controller.primaryUnitId, 'unit-a');
     expect(controller.accessRequests.map((item) => item['id']), ['access-a']);
+    expect(controller.bookings.map((item) => item['id']), ['booking-a']);
     expect(controller.workforceAssignments.map((item) => item['id']), ['assignment-a']);
     expect(controller.workforceLeaves.map((item) => item['id']), ['leave-a']);
     expect(controller.workforceRatings.map((item) => item['id']), ['rating-a']);

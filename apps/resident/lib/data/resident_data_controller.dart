@@ -221,7 +221,7 @@ class ResidentDataController extends ChangeNotifier {
       final results = await Future.wait([repository.serviceCategories(), repository.serviceOfferings(), repository.bookings()]);
       serviceCategories = results[0];
       serviceOfferings = results[1];
-      bookings = results[2];
+      bookings = _filterByUnit(results[2], (item) => item['unitId']);
     } catch (e) {
       _capture(e, (message) => servicesError = message);
     }
