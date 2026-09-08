@@ -26,8 +26,14 @@ packages/types       Shared TypeScript domain contracts
 packages/api-client  Shared API client contracts
 packages/config      Shared configuration conventions
 infrastructure       Deployment and infrastructure
- docs                 Product and architecture documentation
+docs                 Product and architecture documentation
 ```
+
+## User context model
+
+Authentication is user-centric rather than society-centric. A single user may belong to multiple societies/properties and selects the active property context when required. Users without a society membership may use the independent-home external-services experience, while society-only APIs remain tenant scoped.
+
+See `docs/USER-CONTEXT-MODEL.md` for the security and UX rules.
 
 ## Branching
 

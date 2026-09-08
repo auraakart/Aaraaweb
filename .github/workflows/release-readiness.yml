@@ -37,6 +37,7 @@ jobs:
             CANDIDATE_SHA="${GITHUB_SHA}"
           fi
           git fetch origin main --depth=1
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
           ROLLBACK_SHA="$(git rev-parse origin/main)"
           MIGRATION_COUNT="$(find services/api/prisma/migrations -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
           {
@@ -51,16 +52,24 @@ jobs:
             echo "- Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } > release-evidence/release-evidence.md
           cat release-evidence/release-evidence.md
+          echo "CANDIDATE_SHA=${CANDIDATE_SHA}" >> "$GITHUB_ENV"
+          echo "ROLLBACK_SHA=${ROLLBACK_SHA}" >> "$GITHUB_ENV"
+
+      - name: Enforce immutable migration history
+        run: bash scripts/release-migration-gate.sh "$ROLLBACK_SHA" "$CANDIDATE_SHA" release-evidence
 
       - name: Verify production-readiness controls exist
         run: |
           test -f .github/workflows/backup-restore-smoke.yml
           test -f docs/PRODUCTION-READINESS.md
+          test -f docs/DEPLOYMENT-ROLLBACK-GATES.md
           test -f docs/UAT-PILOT-CHECKLIST.md
           test -f scripts/production-preflight.sh
+          test -f scripts/release-migration-gate.sh
           test -f services/api/src/health/health.controller.ts
           grep -q "process.env.GIT_SHA" services/api/src/health/health.controller.ts
           grep -q "rollback" docs/PRODUCTION-READINESS.md
+          grep -q "expand.*migrate.*contract" docs/DEPLOYMENT-ROLLBACK-GATES.md
 
       - name: Validate production preflight control
         env:
@@ -82,5 +91,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-evidence
-          path: release-evidence/release-evidence.md
+          path: release-evidence/
           retention-days: 30

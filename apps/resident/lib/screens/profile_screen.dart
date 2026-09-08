@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../auth/auth_repository.dart';
 import '../data/resident_data_controller.dart';
 import 'family_members_screen.dart';
 import 'vehicles_screen.dart';
@@ -9,10 +10,16 @@ class ProfileScreen extends StatelessWidget {
     required this.controller,
     required this.onSignOut,
     required this.canManageFamilyMembers,
+    required this.propertyContexts,
+    required this.currentSocietyId,
+    required this.onSwitchProperty,
   });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
+  final List<SocietyMembershipOption> propertyContexts;
+  final String? currentSocietyId;
+  final Future<void> Function(SocietyMembershipOption membership) onSwitchProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +41,18 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Text('Home & profile', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 16),
+            if (propertyContexts.length > 1) ...[
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: const Text('My Properties', style: TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(_currentPropertyLabel()),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _showPropertyPicker(context),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (controller.loading && household == null)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (controller.householdError != null)
@@ -106,7 +125,7 @@ class ProfileScreen extends StatelessWidget {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Sign out?'),
-                      content: const Text('You’ll need to verify your mobile number again to access this society.'),
+                      content: const Text('You’ll need to verify your mobile number again to access Aaraagate.'),
                       actions: [
                         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
                         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sign out')),
@@ -123,6 +142,55 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  String _currentPropertyLabel() {
+    final current = propertyContexts.where((item) => item.societyId == currentSocietyId).firstOrNull;
+    if (current == null) return 'Switch society or property';
+    final property = current.properties.isEmpty ? null : current.properties.first;
+    if (property == null) return current.name;
+    return '${current.name} · ${property.buildingName} ${property.unitNumber}'.trim();
+  }
+
+  Future<void> _showPropertyPicker(BuildContext context) async {
+    final selected = await showModalBottomSheet<SocietyMembershipOption>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          children: [
+            Text('My Properties', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            const Text('Choose the society/property you want to open.'),
+            const SizedBox(height: 14),
+            for (final item in propertyContexts)
+              Card(
+                child: ListTile(
+                  enabled: item.societyId != currentSocietyId,
+                  leading: Icon(item.societyId == currentSocietyId ? Icons.check_circle_rounded : Icons.apartment_rounded),
+                  title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(_propertyContextLabel(item)),
+                  trailing: item.societyId == currentSocietyId ? const Text('Current') : const Icon(Icons.chevron_right_rounded),
+                  onTap: item.societyId == currentSocietyId ? null : () => Navigator.pop(context, item),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) await onSwitchProperty(selected);
+  }
+
+  String _propertyContextLabel(SocietyMembershipOption membership) {
+    final properties = membership.properties
+        .map((property) => '${property.buildingName} ${property.unitNumber} (${property.relationship.toLowerCase()})'.trim())
+        .join(' · ');
+    final roles = (membership.roles.isEmpty ? [membership.role] : membership.roles)
+        .map((role) => role.replaceAll('_', ' ').toLowerCase())
+        .join(', ');
+    return [if (properties.isNotEmpty) properties, roles].join(' · ');
+  }
+
   String _unitLabel(Map<String, dynamic> household) {
     final unit = household['unit'];
     if (unit is Map) {
@@ -137,4 +205,8 @@ class ProfileScreen extends StatelessWidget {
     if (number != null && buildingName != null) return '$buildingName · Unit $number';
     return 'Unit ${household['unitId'] ?? ''}';
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

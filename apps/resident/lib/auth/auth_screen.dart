@@ -49,29 +49,14 @@ class _AuthScreenState extends State<AuthScreen> {
                               colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
                             ),
                             borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.colorScheme.primary.withOpacity(.18),
-                                blurRadius: 28,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
                           ),
                           child: const Icon(Icons.shield_rounded, size: 38, color: Colors.white),
                         ),
                       ),
                       const SizedBox(height: 22),
-                      Text(
-                        'Welcome to Aaraagate',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.4),
-                      ),
+                      Text('Welcome to Aaraagate', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
                       const SizedBox(height: 8),
-                      Text(
-                        'Secure access to your home and community.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                      ),
+                      Text('Secure access to your home, community and services.', textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                       const SizedBox(height: 28),
                       Card(
                         child: Padding(
@@ -79,11 +64,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (controller.step == ResidentAuthStep.loading)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 24),
-                                  child: Center(child: CircularProgressIndicator()),
-                                ),
+                              if (controller.step == ResidentAuthStep.loading) const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: CircularProgressIndicator())),
                               if (controller.step == ResidentAuthStep.phone) _phoneStep(controller),
                               if (controller.step == ResidentAuthStep.otp) _otpStep(controller),
                               if (controller.step == ResidentAuthStep.society) _societyStep(controller),
@@ -91,15 +72,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                 const SizedBox(height: 16),
                                 Container(
                                   padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.errorContainer,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    controller.error!,
-                                    style: TextStyle(color: theme.colorScheme.onErrorContainer),
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
+                                  child: Text(controller.error!, style: TextStyle(color: theme.colorScheme.onErrorContainer), textAlign: TextAlign.center),
                                 ),
                               ],
                             ],
@@ -112,10 +86,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         children: [
                           Icon(Icons.lock_outline_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
                           const SizedBox(width: 6),
-                          Text(
-                            'Society-scoped secure session',
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                          ),
+                          Text('Secure context-scoped session', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                         ],
                       ),
                     ],
@@ -135,44 +106,18 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         Text('Sign in', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 6),
-        Text('Use the mobile number registered with your society.', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Use your Aaraagate mobile number.', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 18),
-        TextField(
-          controller: _phone,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_android_rounded), hintText: '+91 98765 43210'),
-        ),
+        TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_android_rounded), hintText: '+91 98765 43210')),
         const SizedBox(height: 16),
-        FilledButton(
-          onPressed: controller.busy ? null : () => controller.requestOtp(_phone.text),
-          child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Send OTP'),
-        ),
+        FilledButton(onPressed: controller.busy ? null : () => controller.requestOtp(_phone.text), child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Send OTP')),
         const SizedBox(height: 12),
-        const Text('We’ll send a one-time password to verify your registered mobile number.', textAlign: TextAlign.center),
+        const Text('We’ll send a one-time password to verify your mobile number.', textAlign: TextAlign.center),
         if (controller.demoEnabled) ...[
           const SizedBox(height: 24),
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text('DEMO', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
-              ),
-              const Expanded(child: Divider()),
-            ],
-          ),
+          const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('DEMO')), Expanded(child: Divider())]),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: controller.busy ? null : controller.enterDemo,
-            icon: const Icon(Icons.play_circle_outline_rounded),
-            label: const Text('Continue as Demo Resident'),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Explore the app with sample local data. No OTP or live backend is used.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          OutlinedButton.icon(onPressed: controller.busy ? null : controller.enterDemo, icon: const Icon(Icons.play_circle_outline_rounded), label: const Text('Continue as Demo Resident')),
         ],
       ],
     );
@@ -184,20 +129,11 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         Text('Verify mobile', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 6),
-        const Text('Enter the 6-digit OTP sent to your registered number.'),
+        const Text('Enter the 6-digit OTP sent to your number.'),
         const SizedBox(height: 18),
-        TextField(
-          controller: _otp,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.lock_outline_rounded)),
-        ),
+        TextField(controller: _otp, keyboardType: TextInputType.number, maxLength: 6, autofocus: true, decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.lock_outline_rounded))),
         const SizedBox(height: 8),
-        FilledButton(
-          onPressed: controller.busy ? null : () => controller.verifyOtp(_otp.text),
-          child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Verify & continue'),
-        ),
+        FilledButton(onPressed: controller.busy ? null : () => controller.verifyOtp(_otp.text), child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Verify & continue')),
       ],
     );
   }
@@ -206,16 +142,12 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Choose your society', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        Text('My Properties', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 6),
-        const Text('Your session will be scoped to the selected society.'),
+        const Text('Choose the society/property you want to open.'),
         const SizedBox(height: 16),
         for (final membership in controller.memberships)
-          _SocietyTile(
-            membership: membership,
-            busy: controller.busy,
-            onTap: () => controller.selectSociety(membership),
-          ),
+          _SocietyTile(membership: membership, busy: controller.busy, onTap: () => controller.selectSociety(membership)),
       ],
     );
   }
@@ -230,17 +162,17 @@ class _SocietyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final propertyText = membership.properties.isEmpty
+        ? null
+        : membership.properties.map((property) => '${property.buildingName} ${property.unitNumber}'.trim()).join(' · ');
+    final roleText = (membership.roles.isEmpty ? [membership.role] : membership.roles).map((role) => role.replaceAll('_', ' ')).join(', ');
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: busy ? null : onTap,
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          foregroundColor: scheme.onPrimaryContainer,
-          child: const Icon(Icons.apartment_rounded),
-        ),
+        leading: CircleAvatar(backgroundColor: scheme.primaryContainer, foregroundColor: scheme.onPrimaryContainer, child: const Icon(Icons.apartment_rounded)),
         title: Text(membership.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('${membership.code.isEmpty ? 'Community' : membership.code} · ${membership.role.replaceAll('_', ' ')}'),
+        subtitle: Text([if (propertyText != null) propertyText, roleText].join(' · ')),
         trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
