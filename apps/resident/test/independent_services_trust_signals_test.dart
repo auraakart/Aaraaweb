@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeServicesApiClient extends ApiClient {
-  FakeServicesApiClient() : super(baseUrl: 'http://test', accessToken: 'token');
+  FakeServicesApiClient({this.failTrust = false}) : super(baseUrl: 'http://test', accessToken: 'token');
+
+  final bool failTrust;
 
   @override
   Future<dynamic> get(String path) async {
@@ -27,6 +29,7 @@ class FakeServicesApiClient extends ApiClient {
       ];
     }
     if (path == '/api/v1/consumer/services/providers/trust') {
+      if (failTrust) throw StateError('Trust service unavailable');
       return [
         {
           'providerId': '33333333-3333-3333-3333-333333333333',
@@ -68,5 +71,19 @@ void main() {
     expect(find.text('4.8 · 12 ratings'), findsOneWidget);
     expect(find.text('47 completed'), findsOneWidget);
     expect(find.text('Verified'), findsOneWidget);
+  });
+
+  testWidgets('trust metadata failure does not block external service discovery', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IndependentServicesScreen(apiClient: FakeServicesApiClient(failTrust: true)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Deep cleaning'), findsOneWidget);
+    expect(find.text('Verified'), findsOneWidget);
+    expect(find.textContaining('Trust service unavailable'), findsNothing);
+    expect(find.textContaining('ratings'), findsNothing);
   });
 }
