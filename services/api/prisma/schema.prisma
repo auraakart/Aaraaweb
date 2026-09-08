@@ -341,6 +341,24 @@ model Gate {
   @@unique([societyId, code])
 }
 
+/// Physical gate assignment for a security guard or supervisor. The partial
+/// unique index allowing only one active row per society/gate/user is created
+/// by migration because Prisma schema syntax cannot express partial indexes.
+model GateGuardAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  societyId     String    @db.Uuid
+  gateId        String    @db.Uuid
+  userId        String    @db.Uuid
+  effectiveFrom DateTime  @default(now()) @db.Timestamptz(6)
+  effectiveTo   DateTime? @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, gateId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_gate_active_idx")
+  @@index([societyId, userId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_user_active_idx")
+}
+
 model AccessRequest {
   id             String                @id @default(uuid()) @db.Uuid
   societyId      String                @db.Uuid
