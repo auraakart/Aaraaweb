@@ -28,6 +28,10 @@ function sqlValues(call: unknown): unknown[] {
   return (call as { values?: unknown[] }).values ?? [];
 }
 
+function sqlText(call: unknown): string {
+  return ((call as { strings?: readonly string[] }).strings ?? []).join(' ');
+}
+
 const home = {
   id: '22222222-2222-2222-2222-222222222222',
   userId: '11111111-1111-1111-1111-111111111111',
@@ -86,6 +90,23 @@ describe('ConsumerBookingsService', () => {
     const values = sqlValues(tx.$queryRaw.mock.calls[0][0]);
     expect(values).toContain('11111111-1111-1111-1111-111111111111');
     expect(values).toContain('22222222-2222-2222-2222-222222222222');
+  });
+
+  it('requires verified ownership when a society unit is used as a service location', async () => {
+    const { tx, availability, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([]);
+
+    await expect(service.createBooking('11111111-1111-1111-1111-111111111111', {
+      locationType: 'SOCIETY_UNIT',
+      locationId: '22222222-2222-2222-2222-222222222222',
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: new Date('2030-01-01T10:00:00Z'),
+      scheduledUntil: new Date('2030-01-01T11:00:00Z'),
+    })).rejects.toThrow('Service-ready society unit not found');
+
+    expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
+    expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+    expect(sqlText(tx.$queryRaw.mock.calls[0][0])).toContain('ow."verified" = true');
   });
 
   it('snapshots server catalogue data only after authoritative serviceability validation', async () => {
