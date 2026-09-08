@@ -30,6 +30,8 @@ class ResidentDataController extends ChangeNotifier {
   Map<String, dynamic>? latestAccessEvent;
   Map<String, dynamic>? latestNotificationEvent;
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
+  Timer? _reconnectTimer;
+  Future<void>? _loadInFlight;
   bool _disposed = false;
 
   String? get primaryUnitId => households.isEmpty ? null : households.first['unitId']?.toString();
@@ -40,7 +42,19 @@ class ResidentDataController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> load() async {
+  Future<void> load() {
+    if (_disposed) return Future.value();
+    final inFlight = _loadInFlight;
+    if (inFlight != null) return inFlight;
+
+    final operation = _load();
+    _loadInFlight = operation;
+    return operation.whenComplete(() {
+      if (identical(_loadInFlight, operation)) _loadInFlight = null;
+    });
+  }
+
+  Future<void> _load() async {
     loading = true;
     authError = null;
     householdError = null;
@@ -49,7 +63,10 @@ class ResidentDataController extends ChangeNotifier {
     servicesError = null;
     workforceError = null;
     notifyListeners();
+
     await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
+    if (_disposed) return;
+
     loading = false;
     notifyListeners();
     startRealtime();
@@ -70,9 +87,13 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   void startRealtime() {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _accessEvents?.cancel();
     _accessEvents = repository.accessEvents().listen(
       (event) async {
+        if (_disposed) return;
         realtimeConnected = true;
         final type = event['type']?.toString() ?? '';
         if (type.startsWith('ACCESS_')) {
@@ -90,18 +111,28 @@ class ResidentDataController extends ChangeNotifier {
         realtimeConnected = false;
         if (!_disposed) {
           notifyListeners();
-          Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+          _scheduleRealtimeReconnect();
         }
       },
       onDone: () {
         realtimeConnected = false;
-        if (!_disposed) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+        if (!_disposed) _scheduleRealtimeReconnect();
       },
       cancelOnError: true,
     );
   }
 
+  void _scheduleRealtimeReconnect() {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+      _reconnectTimer = null;
+      if (!_disposed) startRealtime();
+    });
+  }
+
   Future<void> _handlePushOpened(Map<String, dynamic> data) async {
+    if (_disposed) return;
     final type = data['type']?.toString() ?? '';
     if (type == 'GENERAL_NOTICE_PUBLISHED') {
       latestNotificationEvent = data;
@@ -200,35 +231,36 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
     await _loadWorkforce();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> cancelWorkforceLeave(String leaveId) async {
     await repository.cancelWorkforceLeave(leaveId);
     await _loadWorkforce();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
     await repository.rateWorkforce(assignmentId, score: score, comment: comment);
     await _loadWorkforce();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
     await _loadWorkforce();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> deactivateWorkforce(String assignmentId) async {
     await repository.deactivateWorkforce(assignmentId);
     await _loadWorkforce();
     await _loadAccess();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   void _capture(Object error, void Function(String message) assign) {
+    if (_disposed) return;
     final text = error.toString();
     if (text.contains('Sign in is required') || text.contains('ApiException(401)')) {
       authError = 'Sign in is required';
@@ -253,20 +285,20 @@ class ResidentDataController extends ChangeNotifier {
       lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     }
     await _loadAccess();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
     return result;
   }
 
   Future<void> denyAccess(String requestId) async {
     await repository.denyAccess(requestId);
     await _loadAccess();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> cancelAccess(String requestId) async {
     await repository.cancelAccess(requestId);
     await _loadAccess();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
@@ -279,11 +311,12 @@ class ResidentDataController extends ChangeNotifier {
     if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
     lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     await _loadAccess();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
     return lastIssuedVisitorPass!;
   }
 
   void clearIssuedVisitorPass() {
+    if (_disposed) return;
     lastIssuedVisitorPass = null;
     notifyListeners();
   }
@@ -291,7 +324,10 @@ class ResidentDataController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _accessEvents?.cancel();
+    _accessEvents = null;
     push.dispose();
     super.dispose();
   }
