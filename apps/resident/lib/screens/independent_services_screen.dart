@@ -54,10 +54,16 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     try {
       final categoriesRaw = await widget.apiClient.get('/api/v1/consumer/services/categories');
       final locationsRaw = await widget.apiClient.get('/api/v1/consumer/services/locations');
-      final trustRaw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
+      List<dynamic> trustRaw = const [];
+      try {
+        final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
+        trustRaw = raw as List<dynamic>? ?? const [];
+      } catch (_) {
+        // Trust metadata is informational and must never block service discovery.
+      }
       final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       final trustByProvider = <String, Map<String, dynamic>>{};
-      for (final trust in (trustRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>()) {
+      for (final trust in trustRaw.whereType<Map<String, dynamic>>()) {
         final providerId = trust['providerId']?.toString();
         if (providerId != null && providerId.isNotEmpty) trustByProvider[providerId] = trust;
       }
