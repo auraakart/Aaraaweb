@@ -52,6 +52,24 @@ describe('NotificationRealtimeService', () => {
     residentTwo.unsubscribe();
   });
 
+  it('releases resident and gate subjects after the last SSE subscriber disconnects', () => {
+    const { service } = createService();
+    const residentOne = service.residentStream('society-1', 'resident-1').subscribe();
+    const residentTwo = service.residentStream('society-1', 'resident-1').subscribe();
+    const gate = service.gateStream('society-1').subscribe();
+
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(1);
+    expect((service as unknown as { societyGateStreams: Map<string, unknown> }).societyGateStreams.size).toBe(1);
+
+    residentOne.unsubscribe();
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(1);
+
+    residentTwo.unsubscribe();
+    gate.unsubscribe();
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(0);
+    expect((service as unknown as { societyGateStreams: Map<string, unknown> }).societyGateStreams.size).toBe(0);
+  });
+
   it('routes gate events to active occupants rather than a non-resident owner', async () => {
     const { service, push, recipients } = createService();
     await service.publishUnitOccupants({

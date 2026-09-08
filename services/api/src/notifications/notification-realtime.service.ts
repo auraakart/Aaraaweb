@@ -1,5 +1,5 @@
 import { Injectable, Logger, MessageEvent } from '@nestjs/common';
-import { Observable, Subject, startWith } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { PushNotificationService } from './push-notification.service';
 import { GateRecipientService } from './gate-recipient.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,6 +34,8 @@ export class NotificationRealtimeService {
   private readonly logger = new Logger(NotificationRealtimeService.name);
   private readonly residentStreams = new Map<string, Subject<MessageEvent>>();
   private readonly societyGateStreams = new Map<string, Subject<MessageEvent>>();
+  private readonly residentSubscribers = new Map<string, number>();
+  private readonly gateSubscribers = new Map<string, number>();
 
   constructor(
     private readonly push: PushNotificationService,
@@ -43,21 +45,11 @@ export class NotificationRealtimeService {
 
   residentStream(societyId: string, userId: string): Observable<MessageEvent> {
     const key = `${societyId}:${userId}`;
-    let stream = this.residentStreams.get(key);
-    if (!stream) {
-      stream = new Subject<MessageEvent>();
-      this.residentStreams.set(key, stream);
-    }
-    return stream.asObservable().pipe(startWith({ data: { type: 'CONNECTED' } }));
+    return this.managedStream(this.residentStreams, this.residentSubscribers, key);
   }
 
   gateStream(societyId: string): Observable<MessageEvent> {
-    let stream = this.societyGateStreams.get(societyId);
-    if (!stream) {
-      stream = new Subject<MessageEvent>();
-      this.societyGateStreams.set(societyId, stream);
-    }
-    return stream.asObservable().pipe(startWith({ data: { type: 'CONNECTED' } }));
+    return this.managedStream(this.societyGateStreams, this.gateSubscribers, societyId);
   }
 
   publishResident(event: ResidentMessageEvent) {
@@ -77,6 +69,38 @@ export class NotificationRealtimeService {
 
   publishGateUpdate(event: AccessRealtimeEvent) {
     this.societyGateStreams.get(event.societyId)?.next({ data: event });
+  }
+
+  private managedStream(
+    streams: Map<string, Subject<MessageEvent>>,
+    subscribers: Map<string, number>,
+    key: string,
+  ): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((observer) => {
+      let stream = streams.get(key);
+      if (!stream) {
+        stream = new Subject<MessageEvent>();
+        streams.set(key, stream);
+      }
+
+      subscribers.set(key, (subscribers.get(key) ?? 0) + 1);
+      observer.next({ data: { type: 'CONNECTED' } });
+      const subscription = stream.subscribe(observer);
+
+      return () => {
+        subscription.unsubscribe();
+        const remaining = (subscribers.get(key) ?? 1) - 1;
+        if (remaining <= 0) {
+          subscribers.delete(key);
+          if (streams.get(key) === stream) {
+            streams.delete(key);
+            stream.complete();
+          }
+          return;
+        }
+        subscribers.set(key, remaining);
+      };
+    });
   }
 
   private async publishMaintenanceWithUnit(event: Extract<ResidentMessageEvent, { type: 'MAINTENANCE_DUE_ISSUED' | 'GENERAL_NOTICE_PUBLISHED' }>) {
