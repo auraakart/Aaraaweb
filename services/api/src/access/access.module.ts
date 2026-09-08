@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { GatesModule } from '../gates/gates.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessController } from './access.controller';
 import { AccessService } from './access.service';
 import { GateArrivalService } from './gate-arrival.service';
 
 @Module({
-  imports: [EntitlementsModule],
+  imports: [EntitlementsModule, GatesModule],
   controllers: [AccessController],
   providers: [PrismaService, AccessService, GateArrivalService],
   exports: [AccessService],

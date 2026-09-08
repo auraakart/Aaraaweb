@@ -10,6 +10,7 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
+import { GateAssignmentGuard } from '../gates/gate-assignment.guard';
 import { AccessRealtimeEvent, NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { WorkforceService } from './workforce.service';
 
@@ -43,15 +44,9 @@ export class WorkforceController {
 
   private event(request: AccessRequest, userId: string, gateId: string): AccessRealtimeEvent {
     return {
-      type: 'ACCESS_STATUS_CHANGED',
-      societyId: request.societyId,
-      userId,
-      gateId,
-      requestId: request.id,
-      subjectType: request.subjectType,
-      subjectName: request.subjectName,
-      status: request.status,
-      createdAt: request.createdAt.toISOString(),
+      type: 'ACCESS_STATUS_CHANGED', societyId: request.societyId, userId, gateId,
+      requestId: request.id, subjectType: request.subjectType, subjectName: request.subjectName,
+      status: request.status, createdAt: request.createdAt.toISOString(),
     };
   }
 
@@ -67,38 +62,26 @@ export class WorkforceController {
   add(@Body() dto: AddWorkerDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.workforce.addWorker(societyId, userId, {
-      householdId: dto.householdId,
-      name: dto.name,
-      phone: dto.phone,
-      role: dto.role,
-      schedule: dto.schedule,
-      startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+      householdId: dto.householdId, name: dto.name, phone: dto.phone, role: dto.role,
+      schedule: dto.schedule, startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });
   }
 
   @Patch('assignments/:assignmentId/deactivate')
   @RequiresPermissions(AppPermission.WORKFORCE_MANAGE_OWN)
-  deactivate(
-    @Param('assignmentId', ParseUUIDPipe) assignmentId: string,
-    @CurrentTenant() societyId: string,
-    @CurrentUser() userId?: string,
-  ) {
+  deactivate(@Param('assignmentId', ParseUUIDPipe) assignmentId: string, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.workforce.deactivateMine(societyId, userId, assignmentId);
   }
 
   @Get('review/pending')
   @RequiresPermissions(AppPermission.WORKFORCE_REVIEW)
-  pending(@CurrentTenant() societyId: string) {
-    return this.workforce.listPending(societyId);
-  }
+  pending(@CurrentTenant() societyId: string) { return this.workforce.listPending(societyId); }
 
   @Get('review/all')
   @RequiresPermissions(AppPermission.WORKFORCE_REVIEW)
-  reviewList(@CurrentTenant() societyId: string) {
-    return this.workforce.listForReview(societyId);
-  }
+  reviewList(@CurrentTenant() societyId: string) { return this.workforce.listForReview(societyId); }
 
   @Patch('review/:assignmentId/approve')
   @RequiresPermissions(AppPermission.WORKFORCE_REVIEW)
@@ -114,23 +97,15 @@ export class WorkforceController {
 
   @Get('gate/eligible')
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  gateEligible(
-    @CurrentTenant() societyId: string,
-    @CurrentUser() actorUserId?: string,
-    @Query('query') query?: string,
-  ) {
+  gateEligible(@CurrentTenant() societyId: string, @CurrentUser() actorUserId?: string, @Query('query') query?: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     return this.workforce.listGateEligible(societyId, query);
   }
 
   @Post('gate/check-in')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  async gateCheckIn(
-    @Body() dto: GateWorkforceDto,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
-    @CurrentTenant() societyId: string,
-    @CurrentUser() actorUserId?: string,
-  ) {
+  async gateCheckIn(@Body() dto: GateWorkforceDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId?: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
     const result = await this.workforce.gateCheckIn(societyId, dto.gateId, dto.assignmentId, actorUserId, idempotencyKey);
@@ -139,13 +114,9 @@ export class WorkforceController {
   }
 
   @Post('gate/check-out')
+  @UseGuards(GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
-  async gateCheckOut(
-    @Body() dto: GateWorkforceDto,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
-    @CurrentTenant() societyId: string,
-    @CurrentUser() actorUserId?: string,
-  ) {
+  async gateCheckOut(@Body() dto: GateWorkforceDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() actorUserId?: string) {
     if (!actorUserId) throw new BadRequestException('Authenticated guard is required');
     if (!idempotencyKey?.trim()) throw new BadRequestException('Idempotency-Key header is required');
     const result = await this.workforce.gateCheckOut(societyId, dto.gateId, dto.assignmentId, actorUserId, idempotencyKey);
