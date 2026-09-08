@@ -77,9 +77,6 @@ class ResidentDataController extends ChangeNotifier {
     notifyListeners();
     await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
     if (_disposed) return;
-    if (activeUnitId != null && activeHousehold == null && households.isNotEmpty) {
-      householdError = 'The selected property is no longer available in this society session.';
-    }
     loading = false;
     notifyListeners();
     startRealtime();
@@ -178,7 +175,17 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> _loadHouseholds() async {
     try {
-      households = await repository.households();
+      final rows = await repository.households();
+      final selected = activeUnitId;
+      if (selected == null) {
+        households = rows;
+        return;
+      }
+      final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
+      households = scoped;
+      if (rows.isNotEmpty && scoped.isEmpty) {
+        householdError = 'The selected property is no longer available in this society session.';
+      }
     } catch (e) {
       _capture(e, (message) => householdError = message);
     }
@@ -256,8 +263,19 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> cancelWorkforceLeave(String leaveId) async { await repository.cancelWorkforceLeave(leaveId); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
   Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async { await repository.rateWorkforce(assignmentId, score: score, comment: comment); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
-  Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async { await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
-  Future<void> deactivateWorkforce(String assignmentId) async { await repository.deactivateWorkforce(assignmentId); await _loadWorkforce(); await _loadAccess(); if (!_disposed) notifyListeners(); }
+  Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
+    if (!households.any((item) => item['id']?.toString() == householdId)) throw StateError('Household is outside the active property context');
+    await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    await _loadWorkforce();
+    if (!_disposed) notifyListeners();
+  }
+  Future<void> deactivateWorkforce(String assignmentId) async {
+    if (!workforceAssignments.any((item) => item['id']?.toString() == assignmentId)) throw StateError('Staff assignment is outside the active property context');
+    await repository.deactivateWorkforce(assignmentId);
+    await _loadWorkforce();
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
+  }
 
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
