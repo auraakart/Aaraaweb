@@ -77,6 +77,7 @@ class PushRegistrationService {
   Future<void> stop() async {
     _generation++;
     _started = false;
+    _startInFlight = null;
     final token = _registeredToken;
     _registeredToken = null;
 
@@ -133,6 +134,7 @@ class PushRegistrationService {
     _disposed = true;
     _generation++;
     _started = false;
+    _startInFlight = null;
     _tokenRefresh?.cancel();
     _opened?.cancel();
     _tokenRefresh = null;
