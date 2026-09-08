@@ -10,14 +10,16 @@ Complete the production-readiness milestone.
 Execution order:
 1. ✅ Establish provider-neutral observability and safe release-identification metadata without exposing secrets or unnecessary personal data.
 2. ✅ Automate backup/restore verification and document provider-level backup/restore evidence required before pilot launch.
-3. **Next:** Define deployment and rollback gates tied to immutable release commits/artifacts and backward-compatible database migration practices.
-4. Execute structured UAT for critical Resident/Admin/Guard workflows and authorization boundaries.
+3. ✅ Define deployment and rollback gates tied to immutable release commits/artifacts and backward-compatible database migration practices.
+4. **Next:** Execute structured UAT for critical Resident/Admin/Guard workflows and authorization boundaries.
 5. Run a limited pilot cohort with operational monitoring, support ownership and explicit exit criteria before broad rollout.
 6. Promote final production-readiness changes through staging and main using the standard release path.
 
 The observability foundation includes health/live/ready release metadata plus request correlation IDs and structured request-completion logs containing only method, path without query string, status, duration and release identifiers. Request bodies, authorization headers and query parameters are deliberately excluded. Hosting/provider selection remains deferred; these controls are provider-neutral.
 
 Backup/restore readiness includes a provider-neutral PostgreSQL logical restore drill, machine-readable run evidence tied to the workflow run and commit SHA, and a hosted-provider evidence template that must be completed after a real staging/production database provider exists. Repository restore evidence does not substitute for a real provider backup/PITR restore exercise.
+
+Deployment/rollback readiness records the exact candidate and rollback SHAs, enforces staging-to-main production promotion, treats applied Prisma migration history as immutable, records migration changes in release evidence, and requires backward-compatible expand/migrate/contract practices for schema evolution. Application rollback prefers redeploying the previous known-good immutable release; database migrations are not automatically reversed.
 
 Maintenance/Billing, Visitor/Guard, Domestic-help/workforce, Society Admin operations, Essential V1 Reports/Audit Views, Resident marketplace booking lifecycle, Resident/Admin/Guard UX consistency and the consolidated security/regression milestone are validated release baselines. The Resident demo APK workflow is established and produces an installable Android artifact after validation. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
@@ -62,6 +64,7 @@ Before a change is considered release-ready, relevant gates must include:
 - Tenant-isolation and permission tests for privileged/tenant-owned operations.
 - Staging smoke validation for production startup and health.
 - Backup/restore verification before pilot and production release.
+- Immutable migration-history validation and recorded release/rollback SHAs before production promotion.
 - Functional smoke/E2E and structured UAT for critical workflows before production promotion.
 
 ## Security control
