@@ -7,6 +7,7 @@ on:
     paths:
       - 'services/api/prisma/**'
       - '.github/workflows/backup-restore-smoke.yml'
+      - 'docs/BACKUP-RESTORE-EVIDENCE.md'
   workflow_dispatch:
 
 permissions:
@@ -89,9 +90,39 @@ jobs:
           pg_restore --no-owner --no-privileges --exit-on-error --dbname="$RESTORE_DATABASE_URL" /tmp/aaraagate-backup.dump
 
       - name: Verify restored schema and data
+        id: verify
         run: |
           restored_value=$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT value FROM backup_restore_probe WHERE id = 'restore-check';")
           test "$restored_value" = "aaraagate-backup-ok"
           migration_count=$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc 'SELECT COUNT(*) FROM "_prisma_migrations";')
           test "$migration_count" -gt 0
-          echo "Backup restore verified with $migration_count Prisma migrations."
+          table_count=$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+          test "$table_count" -gt 1
+          echo "migration_count=$migration_count" >> "$GITHUB_OUTPUT"
+          echo "table_count=$table_count" >> "$GITHUB_OUTPUT"
+          echo "Backup restore verified with $migration_count Prisma migrations and $table_count public tables."
+
+      - name: Write restore evidence summary
+        if: always()
+        run: |
+          mkdir -p /tmp/backup-evidence
+          {
+            echo "workflow=Backup restore smoke"
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "commit=${GITHUB_SHA}"
+            echo "ref=${GITHUB_REF}"
+            echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "migration_count=${{ steps.verify.outputs.migration_count }}"
+            echo "table_count=${{ steps.verify.outputs.table_count }}"
+          } > /tmp/backup-evidence/restore-evidence.txt
+
+      - name: Upload restore evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-restore-evidence-${{ github.run_id }}
+          path: /tmp/backup-evidence/restore-evidence.txt
+          if-no-files-found: error
+          retention-days: 30
