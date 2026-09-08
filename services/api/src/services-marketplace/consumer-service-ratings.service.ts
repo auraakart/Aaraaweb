@@ -15,6 +15,13 @@ type RatingRow = {
   updatedAt: Date;
 };
 
+type ProviderTrustRow = {
+  providerId: string;
+  ratingCount: bigint;
+  averageStars: string | null;
+  completedJobs: bigint;
+};
+
 @Injectable()
 export class ConsumerServiceRatingsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -87,6 +94,39 @@ export class ConsumerServiceRatingsService {
       ratingCount: Number(row?.ratingCount ?? 0),
       averageStars: row?.averageStars ? Number(row.averageStars) : null,
     };
+  }
+
+  async providerTrustSummaries() {
+    const rows = await this.prisma.$queryRaw<ProviderTrustRow[]>(Prisma.sql`
+      SELECT
+        p."id" AS "providerId",
+        COALESCE(r."ratingCount", 0)::bigint AS "ratingCount",
+        r."averageStars",
+        COALESCE(j."completedJobs", 0)::bigint AS "completedJobs"
+      FROM "ServiceProvider" p
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*)::bigint AS "ratingCount",
+          ROUND(AVG(sr."stars")::numeric, 2)::text AS "averageStars"
+        FROM "ConsumerServiceRating" sr
+        WHERE sr."providerId" = p."id"
+      ) r ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::bigint AS "completedJobs"
+        FROM "ConsumerServiceBooking" b
+        WHERE b."providerId" = p."id"
+          AND b."status" = 'COMPLETED'::"ServiceBookingStatus"
+      ) j ON true
+      WHERE p."active" = true
+        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      ORDER BY p."businessName" ASC
+    `);
+    return rows.map((row) => ({
+      providerId: row.providerId,
+      ratingCount: Number(row.ratingCount),
+      averageStars: row.averageStars ? Number(row.averageStars) : null,
+      completedJobs: Number(row.completedJobs),
+    }));
   }
 
   private async assertBookingOwned(userId: string, bookingId: string) {
