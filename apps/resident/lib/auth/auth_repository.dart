@@ -137,6 +137,7 @@ class AuthRepository {
       societyId: current.societyId,
       role: current.role,
       contextType: current.contextType,
+      activeUnitId: current.activeUnitId,
     );
   }
 
