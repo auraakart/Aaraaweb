@@ -1,6 +1,6 @@
 # Aaraagate Development Control
 
-Updated: 2026-09-05
+Updated: 2026-09-08
 
 This repository is the active development baseline for Aaraagate. Changes must remain aligned with the product requirements and requirements traceability documents and should be implemented as complete vertical slices.
 
@@ -8,12 +8,14 @@ This repository is the active development baseline for Aaraagate. Changes must r
 Complete the production-readiness milestone.
 
 Execution order:
-1. Establish provider-neutral observability and safe release-identification metadata without exposing secrets or unnecessary personal data.
-2. Automate backup/restore verification and document provider-level backup/restore evidence required before pilot launch.
+1. ✅ Establish provider-neutral observability and safe release-identification metadata without exposing secrets or unnecessary personal data.
+2. **Next:** Automate backup/restore verification and document provider-level backup/restore evidence required before pilot launch.
 3. Define deployment and rollback gates tied to immutable release commits/artifacts and backward-compatible database migration practices.
 4. Execute structured UAT for critical Resident/Admin/Guard workflows and authorization boundaries.
 5. Run a limited pilot cohort with operational monitoring, support ownership and explicit exit criteria before broad rollout.
 6. Promote final production-readiness changes through staging and main using the standard release path.
+
+The observability foundation includes health/live/ready release metadata plus request correlation IDs and structured request-completion logs containing only method, path without query string, status, duration and release identifiers. Request bodies, authorization headers and query parameters are deliberately excluded. Hosting/provider selection remains deferred; these controls are provider-neutral.
 
 Maintenance/Billing, Visitor/Guard, Domestic-help/workforce, Society Admin operations, Essential V1 Reports/Audit Views, Resident marketplace booking lifecycle, Resident/Admin/Guard UX consistency and the consolidated security/regression milestone are validated release baselines. The Resident demo APK workflow is established and produces an installable Android artifact after validation. Live payment-gateway activation remains environment/configuration dependent rather than a blocker to the gateway-independent product milestone.
 
