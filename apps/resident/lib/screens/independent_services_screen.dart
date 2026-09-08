@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../data/push_registration_service.dart';
+import '../data/resident_repository.dart';
 import 'consumer_booking_screen.dart';
 import 'consumer_bookings_screen.dart';
 
@@ -27,6 +30,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   List<Map<String, dynamic>> _locations = const [];
   String? _selectedCategoryId;
   String? _selectedLocationKey;
+  PushRegistrationService? _push;
 
   Map<String, dynamic>? get _selectedLocation {
     final key = _selectedLocationKey;
@@ -42,7 +46,21 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.independentMode) {
+      _push = PushRegistrationService(ResidentRepository(widget.apiClient));
+      unawaited(_push!.start(onOpened: _handlePushOpened));
+    }
     _load();
+  }
+
+  Future<void> _handlePushOpened(Map<String, dynamic> data) async {
+    if (!mounted || data['type']?.toString() != 'CONSUMER_SERVICE_BOOKING_STATUS') return;
+    await _openMyBookings();
+  }
+
+  Future<void> _signOut() async {
+    await _push?.stop();
+    await widget.onSignOut?.call();
   }
 
   Future<void> _load([String? categoryId]) async {
@@ -135,9 +153,17 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   }
 
   Future<void> _openMyBookings() async {
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ConsumerBookingsScreen(apiClient: widget.apiClient)),
     );
+  }
+
+  @override
+  void dispose() {
+    _push?.dispose();
+    _push = null;
+    super.dispose();
   }
 
   @override
@@ -149,7 +175,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         actions: [
           IconButton(tooltip: 'My bookings', onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded)),
           if (widget.onSignOut != null)
-            IconButton(tooltip: 'Sign out', onPressed: () => widget.onSignOut!(), icon: const Icon(Icons.logout_rounded)),
+            IconButton(tooltip: 'Sign out', onPressed: _signOut, icon: const Icon(Icons.logout_rounded)),
         ],
       ),
       body: RefreshIndicator(
