@@ -1,12 +1,12 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { GateAssignmentGuard } from './gate-assignment.guard';
 import type { GateAssignmentService } from './gate-assignment.service';
 
-function context(auth: unknown, body: Record<string, unknown>) {
+function context(auth: unknown, body: Record<string, unknown>): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => ({ auth, body }) }),
-  } as any;
+  } as unknown as ExecutionContext;
 }
 
 describe('GateAssignmentGuard', () => {
