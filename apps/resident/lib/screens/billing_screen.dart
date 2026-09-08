@@ -4,8 +4,9 @@ import '../data/resident_repository.dart';
 import '../widgets/app_state_card.dart';
 
 class BillingScreen extends StatefulWidget {
-  const BillingScreen({super.key, required this.repository});
+  const BillingScreen({super.key, required this.repository, required this.activeUnitId});
   final ResidentRepository repository;
+  final String? activeUnitId;
 
   @override
   State<BillingScreen> createState() => _BillingScreenState();
@@ -19,23 +20,19 @@ class _BillingScreenState extends State<BillingScreen> {
   String? payingInvoiceId;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
-      final result = await Future.wait([
-        widget.repository.maintenanceInvoices(),
-        widget.repository.maintenancePayments(),
-      ]);
-      if (mounted) setState(() { invoices = result[0]; payments = result[1]; });
+      final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
+      final selected = widget.activeUnitId;
+      final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
+      final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
+      final scopedPayments = result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
+      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; });
     } on ApiException catch (exception) {
-      if (mounted) setState(() => error = exception.statusCode == 403
-          ? 'Maintenance billing is available only to verified owners and current tenants.'
-          : 'Your maintenance invoices could not be loaded.');
+      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your maintenance invoices could not be loaded.');
     } catch (_) {
       if (mounted) setState(() => error = 'Your maintenance invoices could not be loaded.');
     } finally {
@@ -48,15 +45,12 @@ class _BillingScreenState extends State<BillingScreen> {
     try {
       final receipt = await widget.repository.maintenanceReceipt(payment['id'].toString());
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          icon: const Icon(Icons.receipt_long_outlined),
-          title: Text('Receipt ${receipt['receiptNumber']}'),
-          content: Text('${receipt['societyName']}\n${receipt['buildingName']} · ${receipt['unitNumber']}\nInvoice ${receipt['invoiceNumber']}\n${_money((receipt['amountPaise'] as num?)?.toInt() ?? 0)} · ${receipt['status']}'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
-        ),
-      );
+      await showDialog<void>(context: context, builder: (context) => AlertDialog(
+        icon: const Icon(Icons.receipt_long_outlined),
+        title: Text('Receipt ${receipt['receiptNumber']}'),
+        content: Text('${receipt['societyName']}\n${receipt['buildingName']} · ${receipt['unitNumber']}\nInvoice ${receipt['invoiceNumber']}\n${_money((receipt['amountPaise'] as num?)?.toInt() ?? 0)} · ${receipt['status']}'),
+        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+      ));
     } catch (_) {
       if (mounted) setState(() => error = 'The verified receipt could not be loaded. Please retry.');
     }
@@ -64,22 +58,20 @@ class _BillingScreenState extends State<BillingScreen> {
 
   Future<void> _preparePayment(Map<String, dynamic> invoice) async {
     final id = invoice['id'].toString();
+    if (widget.activeUnitId != null && invoice['unitId']?.toString() != widget.activeUnitId) {
+      setState(() => error = 'This invoice is outside the active property context.');
+      return;
+    }
     setState(() { payingInvoiceId = id; error = null; });
     try {
-      final order = await widget.repository.createMaintenancePayment(
-        invoiceId: id,
-        idempotencyKey: 'resident-${DateTime.now().microsecondsSinceEpoch}-$id',
-      );
+      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          icon: const Icon(Icons.verified_user_outlined),
-          title: const Text('Secure payment order ready'),
-          content: Text('Reference ${order['providerOrderId'] ?? order['id']}. No payment is marked successful until the gateway confirms it.'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
-        ),
-      );
+      await showDialog<void>(context: context, builder: (context) => AlertDialog(
+        icon: const Icon(Icons.verified_user_outlined),
+        title: const Text('Secure payment order ready'),
+        content: Text('Reference ${order['providerOrderId'] ?? order['id']}. No payment is marked successful until the gateway confirms it.'),
+        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+      ));
       await _load();
     } catch (_) {
       if (mounted) setState(() => error = 'Payment preparation failed. Nothing was charged; please retry.');
@@ -105,20 +97,18 @@ class _BillingScreenState extends State<BillingScreen> {
             else if (error != null)
               AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: 'Retry', onAction: () { _load(); })
             else if (invoices.isEmpty)
-              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No maintenance invoices are available.')
+              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No maintenance invoices are available for this property.')
             else ...[
               _SummaryCard(outstanding: outstanding),
               const SizedBox(height: 22),
               Text('Outstanding', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              if (outstanding.isEmpty)
-                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding maintenance dues.'),
+              if (outstanding.isEmpty) const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding maintenance dues.'),
               for (final invoice in outstanding) _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id'], onPay: () => _preparePayment(invoice)),
               const SizedBox(height: 22),
               Text('Payment history', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              if (completedPayments.isEmpty)
-                const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.'),
+              if (completedPayments.isEmpty) const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.'),
               for (final payment in completedPayments) _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
             ],
           ],
@@ -133,15 +123,12 @@ class _PaymentCard extends StatelessWidget {
   final Map<String, dynamic> payment;
   final VoidCallback onReceipt;
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    child: ListTile(
-      title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: const TextStyle(fontWeight: FontWeight.w900)),
-      subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
-      isThreeLine: true,
-      trailing: TextButton.icon(onPressed: onReceipt, icon: const Icon(Icons.receipt_long_outlined), label: const Text('Receipt')),
-    ),
-  );
+  Widget build(BuildContext context) => Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(
+    title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: const TextStyle(fontWeight: FontWeight.w900)),
+    subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
+    isThreeLine: true,
+    trailing: TextButton.icon(onPressed: onReceipt, icon: const Icon(Icons.receipt_long_outlined), label: const Text('Receipt')),
+  ));
 }
 
 class _SummaryCard extends StatelessWidget {
@@ -150,7 +137,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = outstanding.fold<int>(0, (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0));
-    return Card(child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [CircleAvatar(radius: 25, child: const Icon(Icons.account_balance_wallet_outlined)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Total outstanding'), const SizedBox(height: 4), Text(_money(total), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)), Text('${outstanding.length} invoice${outstanding.length == 1 ? '' : 's'}')]))])));
+    return Card(child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [const CircleAvatar(radius: 25, child: Icon(Icons.account_balance_wallet_outlined)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Total outstanding'), const SizedBox(height: 4), Text(_money(total), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)), Text('${outstanding.length} invoice${outstanding.length == 1 ? '' : 's'}')]))])));
   }
 }
 
