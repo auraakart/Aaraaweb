@@ -58,17 +58,20 @@ class _ResidentSessionGate extends StatefulWidget {
 
 class _ResidentSessionGateState extends State<_ResidentSessionGate> {
   ResidentDataController? _dataController;
-  String? _boundSessionId;
+  String? _boundContextKey;
 
   void _ensureDataController() {
     final session = widget.authController.session;
-    if (session == null || session.isIndependentHome || _boundSessionId == session.sessionId) return;
-    _boundSessionId = session.sessionId;
+    if (session == null || session.isIndependentHome) return;
+    final contextKey = '${session.sessionId}:${session.societyId ?? ''}:${session.activeUnitId ?? ''}';
+    if (_boundContextKey == contextKey) return;
+
+    _boundContextKey = contextKey;
     _dataController?.dispose();
     final ResidentRepository repository = widget.authController.isDemoSession
         ? DemoResidentRepository()
         : ResidentRepository(ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken));
-    _dataController = ResidentDataController(repository);
+    _dataController = ResidentDataController(repository, activeUnitId: session.activeUnitId);
   }
 
   Future<void> _signOut() async {
@@ -76,9 +79,9 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
     await widget.authController.signOut();
   }
 
-  Future<void> _switchProperty(SocietyMembershipOption membership) async {
+  Future<void> _switchProperty(SocietyMembershipOption membership, PropertySummary? property) async {
     await _dataController?.stopPushNotifications();
-    await widget.authController.switchSociety(membership);
+    await widget.authController.switchProperty(membership, property);
   }
 
   @override
@@ -93,7 +96,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
       animation: widget.authController,
       builder: (context, _) {
         if (widget.authController.step != ResidentAuthStep.signedIn) {
-          _boundSessionId = null;
+          _boundContextKey = null;
           _dataController?.dispose();
           _dataController = null;
           return AuthScreen(controller: widget.authController);
@@ -102,7 +105,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
         final session = widget.authController.session!;
         final consumerApiClient = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
         if (session.isIndependentHome) {
-          _boundSessionId = null;
+          _boundContextKey = null;
           _dataController?.dispose();
           _dataController = null;
           return IndependentServicesScreen(
@@ -113,13 +116,14 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 
         _ensureDataController();
         return ResidentHomeShell(
-          key: ValueKey(session.sessionId),
+          key: ValueKey('${session.sessionId}:${session.activeUnitId ?? ''}'),
           controller: _dataController!,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: session.role == 'OWNER',
           propertyContexts: widget.authController.memberships,
           currentSocietyId: session.societyId,
+          currentUnitId: session.activeUnitId,
           onSwitchProperty: _switchProperty,
         );
       },
@@ -136,6 +140,7 @@ class ResidentHomeShell extends StatefulWidget {
     required this.canManageFamilyMembers,
     required this.propertyContexts,
     required this.currentSocietyId,
+    required this.currentUnitId,
     required this.onSwitchProperty,
   });
   final ResidentDataController controller;
@@ -144,7 +149,8 @@ class ResidentHomeShell extends StatefulWidget {
   final bool canManageFamilyMembers;
   final List<SocietyMembershipOption> propertyContexts;
   final String? currentSocietyId;
-  final Future<void> Function(SocietyMembershipOption membership) onSwitchProperty;
+  final String? currentUnitId;
+  final Future<void> Function(SocietyMembershipOption membership, PropertySummary? property) onSwitchProperty;
 
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
@@ -202,6 +208,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             canManageFamilyMembers: widget.canManageFamilyMembers,
             propertyContexts: widget.propertyContexts,
             currentSocietyId: widget.currentSocietyId,
+            currentUnitId: widget.currentUnitId,
             onSwitchProperty: widget.onSwitchProperty,
           ),
         ];
