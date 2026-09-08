@@ -4,7 +4,7 @@ import '../data/resident_repository.dart';
 import '../widgets/app_state_card.dart';
 
 class BillingScreen extends StatefulWidget {
-  const BillingScreen({super.key, required this.repository, required this.activeUnitId});
+  const BillingScreen({super.key, required this.repository, this.activeUnitId});
   final ResidentRepository repository;
   final String? activeUnitId;
 
