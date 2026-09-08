@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AccessModule } from '../access/access.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { GatesModule } from '../gates/gates.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceController } from './workforce.controller';
@@ -15,7 +16,7 @@ import { WorkforceSuspensionController } from './workforce-suspension.controller
 import { WorkforceSuspensionService } from './workforce-suspension.service';
 
 @Module({
-  imports: [EntitlementsModule, AccessModule, NotificationsModule],
+  imports: [EntitlementsModule, AccessModule, GatesModule, NotificationsModule],
   controllers: [
     WorkforceController,
     WorkforceLeaveController,
