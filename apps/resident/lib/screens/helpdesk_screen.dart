@@ -16,16 +16,15 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   List<Map<String, dynamic>> _tickets = const [];
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
       final tickets = await widget.controller.repository.helpdeskTickets();
-      if (mounted) setState(() => _tickets = tickets);
+      final selected = widget.controller.primaryUnitId;
+      final scoped = selected == null ? tickets : tickets.where((ticket) => ticket['unitId']?.toString() == selected).toList(growable: false);
+      if (mounted) setState(() => _tickets = scoped);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -37,45 +36,15 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Helpdesk')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _newTicket,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New complaint'),
-      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _newTicket, icon: const Icon(Icons.add_rounded), label: const Text('New complaint')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                children: const [
-                  AppStateCard(icon: Icons.sync_rounded, message: 'Loading complaints…', loading: true),
-                ],
-              )
+            ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(20), children: const [AppStateCard(icon: Icons.sync_rounded, message: 'Loading complaints…', loading: true)])
             : _error != null
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      AppStateCard(
-                        icon: Icons.error_outline_rounded,
-                        message: 'Unable to load complaints.',
-                        actionLabel: 'Try again',
-                        onAction: () { _load(); },
-                      ),
-                    ],
-                  )
+                ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(20), children: [AppStateCard(icon: Icons.error_outline_rounded, message: 'Unable to load complaints.', actionLabel: 'Try again', onAction: () { _load(); })])
                 : _tickets.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(24),
-                        children: const [
-                          AppStateCard(
-                            icon: Icons.task_alt_rounded,
-                            message: 'No open complaints. Report a society issue and track every update here.',
-                          ),
-                        ],
-                      )
+                    ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24), children: const [AppStateCard(icon: Icons.task_alt_rounded, message: 'No complaints for this property. Report a society issue and track every update here.')])
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                         itemCount: _tickets.length,
@@ -89,7 +58,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   Future<void> _newTicket() async {
     final unitId = widget.controller.primaryUnitId;
     if (unitId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No household unit is available.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a property before creating a complaint.')));
       return;
     }
     final title = TextEditingController();
@@ -123,13 +92,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
             onPressed: () async {
               if (title.text.trim().length < 3 || description.text.trim().length < 5) return;
               try {
-                await widget.controller.repository.createHelpdeskTicket(
-                  unitId: unitId,
-                  title: title.text,
-                  description: description.text,
-                  category: category.text,
-                  priority: priority,
-                );
+                await widget.controller.repository.createHelpdeskTicket(unitId: unitId, title: title.text, description: description.text, category: category.text, priority: priority);
                 if (context.mounted) Navigator.pop(context, true);
               } catch (e) {
                 if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -140,11 +103,18 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
         ])),
       )),
     );
-    title.dispose(); description.dispose(); category.dispose();
+    title.dispose();
+    description.dispose();
+    category.dispose();
     if (created == true) await _load();
   }
 
   Future<void> _openTicket(Map<String, dynamic> ticket) async {
+    final selected = widget.controller.primaryUnitId;
+    if (selected != null && ticket['unitId']?.toString() != selected) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This complaint belongs to another property.')));
+      return;
+    }
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _TicketDetail(controller: widget.controller, ticket: ticket)));
     await _load();
   }
@@ -154,32 +124,15 @@ class _TicketCard extends StatelessWidget {
   const _TicketCard({required this.ticket, required this.onTap});
   final Map<String, dynamic> ticket;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final status = ticket['status']?.toString() ?? 'OPEN';
     final priority = ticket['priority']?.toString() ?? 'NORMAL';
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(ticket['title']?.toString() ?? 'Complaint', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
-              const Icon(Icons.chevron_right_rounded),
-            ]),
-            const SizedBox(height: 10),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              Chip(label: Text(status.replaceAll('_', ' '))),
-              Chip(label: Text(priority)),
-              if ((ticket['category']?.toString() ?? '').isNotEmpty) Chip(label: Text(ticket['category'].toString())),
-            ]),
-          ]),
-        ),
-      ),
-    );
+    return Card(child: InkWell(borderRadius: BorderRadius.circular(18), onTap: onTap, child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Expanded(child: Text(ticket['title']?.toString() ?? 'Complaint', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), const Icon(Icons.chevron_right_rounded)]),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, children: [Chip(label: Text(status.replaceAll('_', ' '))), Chip(label: Text(priority)), if ((ticket['category']?.toString() ?? '').isNotEmpty) Chip(label: Text(ticket['category'].toString()))]),
+    ]))));
   }
 }
 
@@ -187,7 +140,6 @@ class _TicketDetail extends StatefulWidget {
   const _TicketDetail({required this.controller, required this.ticket});
   final ResidentDataController controller;
   final Map<String, dynamic> ticket;
-
   @override
   State<_TicketDetail> createState() => _TicketDetailState();
 }
@@ -201,11 +153,8 @@ class _TicketDetailState extends State<_TicketDetail> {
   void initState() { super.initState(); load(); }
 
   Future<void> load() async {
-    try {
-      activities = await widget.controller.repository.helpdeskActivities(widget.ticket['id'].toString());
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
+    try { activities = await widget.controller.repository.helpdeskActivities(widget.ticket['id'].toString()); }
+    finally { if (mounted) setState(() => loading = false); }
   }
 
   @override
@@ -227,16 +176,13 @@ class _TicketDetailState extends State<_TicketDetail> {
         else if (activities.isEmpty)
           const AppStateCard(icon: Icons.history_rounded, message: 'No complaint activity yet.')
         else
-          ...activities.map((item) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const CircleAvatar(child: Icon(Icons.history_rounded)),
-            title: Text(item['message']?.toString().isNotEmpty == true ? item['message'].toString() : item['type']?.toString().replaceAll('_', ' ') ?? 'Update'),
-            subtitle: Text([item['actorName'], item['toStatus']].where((v) => v != null && v.toString().isNotEmpty).join(' · ')),
-          )),
+          ...activities.map((item) => ListTile(contentPadding: EdgeInsets.zero, leading: const CircleAvatar(child: Icon(Icons.history_rounded)), title: Text(item['message']?.toString().isNotEmpty == true ? item['message'].toString() : item['type']?.toString().replaceAll('_', ' ') ?? 'Update'), subtitle: Text([item['actorName'], item['toStatus']].where((v) => v != null && v.toString().isNotEmpty).join(' · ')))),
         const Divider(height: 32),
         TextField(controller: comment, decoration: const InputDecoration(labelText: 'Add a comment'), maxLength: 1000, minLines: 2, maxLines: 4),
         FilledButton.icon(
           onPressed: () async {
+            final selected = widget.controller.primaryUnitId;
+            if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
             if (comment.text.trim().isEmpty) return;
             await widget.controller.repository.addHelpdeskComment(widget.ticket['id'].toString(), comment.text);
             comment.clear();

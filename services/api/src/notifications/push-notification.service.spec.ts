@@ -31,13 +31,19 @@ describe('PushNotificationService', () => {
     }));
   });
 
-  it('registers a consumer token without requiring society context', async () => {
+  it('invalidates any stale society binding before claiming a consumer token', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const queryRaw = vi.fn().mockResolvedValue([{ id: 'consumer-device-1', active: true }]);
-    const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
+    const prisma = { devicePushToken: { updateMany }, $queryRaw: queryRaw } as unknown as PrismaService;
     const service = new PushNotificationService(prisma);
 
     const result = await service.registerConsumer('11111111-1111-4111-8111-111111111111', ' token-2 ', DevicePlatform.ANDROID);
 
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { token: 'token-2', active: true },
+      data: expect.objectContaining({ active: false }),
+    }));
+    expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(queryRaw.mock.invocationCallOrder[0]);
     expect(queryRaw).toHaveBeenCalledTimes(1);
     expect(result).toEqual(expect.objectContaining({ id: 'consumer-device-1', active: true }));
   });

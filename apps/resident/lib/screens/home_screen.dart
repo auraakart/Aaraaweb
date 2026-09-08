@@ -25,7 +25,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pending = controller.firstPendingAccess;
-    final household = controller.households.isEmpty ? null : controller.households.first;
+    final household = controller.activeHousehold;
     final householdName = household?['displayName']?.toString() ?? 'Your home';
 
     return SafeArea(

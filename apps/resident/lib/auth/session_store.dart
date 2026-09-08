@@ -8,6 +8,7 @@ class ResidentSession {
     required this.contextType,
     required this.role,
     this.societyId,
+    this.activeUnitId,
   });
 
   final String sessionId;
@@ -16,8 +17,30 @@ class ResidentSession {
   final String contextType;
   final String? societyId;
   final String role;
+  final String? activeUnitId;
 
   bool get isIndependentHome => contextType == 'INDEPENDENT_HOME';
+
+  ResidentSession copyWith({
+    String? sessionId,
+    String? accessToken,
+    String? refreshToken,
+    String? contextType,
+    String? societyId,
+    String? role,
+    String? activeUnitId,
+    bool clearActiveUnit = false,
+  }) {
+    return ResidentSession(
+      sessionId: sessionId ?? this.sessionId,
+      accessToken: accessToken ?? this.accessToken,
+      refreshToken: refreshToken ?? this.refreshToken,
+      contextType: contextType ?? this.contextType,
+      societyId: societyId ?? this.societyId,
+      role: role ?? this.role,
+      activeUnitId: clearActiveUnit ? null : (activeUnitId ?? this.activeUnitId),
+    );
+  }
 }
 
 class SessionStore {
@@ -30,6 +53,7 @@ class SessionStore {
   static const _societyId = 'resident.session.society_id';
   static const _role = 'resident.session.role';
   static const _contextType = 'resident.session.context_type';
+  static const _activeUnitId = 'resident.session.active_unit_id';
 
   Future<ResidentSession?> read() async {
     final values = await Future.wait([
@@ -39,6 +63,7 @@ class SessionStore {
       _storage.read(key: _societyId),
       _storage.read(key: _role),
       _storage.read(key: _contextType),
+      _storage.read(key: _activeUnitId),
     ]);
     if (values[0] == null || values[0]!.isEmpty || values[1] == null || values[1]!.isEmpty || values[2] == null || values[2]!.isEmpty) return null;
     final contextType = values[5]?.isNotEmpty == true ? values[5]! : 'SOCIETY';
@@ -50,6 +75,7 @@ class SessionStore {
       societyId: values[3]?.isEmpty == true ? null : values[3],
       role: values[4] ?? '',
       contextType: contextType,
+      activeUnitId: values[6]?.isEmpty == true ? null : values[6],
     );
   }
 
@@ -61,6 +87,7 @@ class SessionStore {
       _storage.write(key: _societyId, value: session.societyId ?? ''),
       _storage.write(key: _role, value: session.role),
       _storage.write(key: _contextType, value: session.contextType),
+      _storage.write(key: _activeUnitId, value: session.activeUnitId ?? ''),
     ]);
   }
 
@@ -72,6 +99,7 @@ class SessionStore {
       _storage.delete(key: _societyId),
       _storage.delete(key: _role),
       _storage.delete(key: _contextType),
+      _storage.delete(key: _activeUnitId),
     ]);
   }
 }
