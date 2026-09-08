@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { NextFunction, Request, Response } from 'express';
 import { RequestObservabilityMiddleware, resolveRequestId } from './request-observability.middleware';
 
 describe('request observability', () => {
@@ -20,15 +19,15 @@ describe('request observability', () => {
       method: 'GET',
       originalUrl: '/api/v1/residents/me?token=secret-value',
       headers: { authorization: 'Bearer secret', 'x-request-id': 'client-req-1' },
-    } as unknown as Request;
+    };
     const response = {
       statusCode: 200,
       setHeader: vi.fn(),
-      once: vi.fn((event: string, handler: () => void) => {
+      once: vi.fn((event: 'finish', handler: () => void) => {
         if (event === 'finish') finish = handler;
       }),
-    } as unknown as Response;
-    const next = vi.fn() as unknown as NextFunction;
+    };
+    const next = vi.fn();
 
     middleware.use(request, response, next);
     finish?.();
