@@ -69,6 +69,11 @@ export class ConsumerBookingsController {
     return this.bookings.updateHome(this.requireUser(userId), homeId, dto);
   }
 
+  @Get('services/providers/trust')
+  listProviderTrustSignals() {
+    return this.ratings.providerTrustSummaries();
+  }
+
   @Get('services/bookings')
   listBookings(@CurrentConsumerUser() userId: string) {
     return this.bookings.listBookings(this.requireUser(userId));
