@@ -144,35 +144,57 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         Text('My Properties', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 6),
-        const Text('Choose the society/property you want to open.'),
+        const Text('Choose the exact property you want to open.'),
         const SizedBox(height: 16),
         for (final membership in controller.memberships)
-          _SocietyTile(membership: membership, busy: controller.busy, onTap: () => controller.selectSociety(membership)),
+          if (membership.properties.isEmpty)
+            _PropertyTile(
+              membership: membership,
+              busy: controller.busy,
+              onTap: () => controller.selectPropertyContext(membership, null),
+            )
+          else
+            for (final property in membership.properties)
+              _PropertyTile(
+                membership: membership,
+                property: property,
+                busy: controller.busy,
+                onTap: () => controller.selectPropertyContext(membership, property),
+              ),
       ],
     );
   }
 }
 
-class _SocietyTile extends StatelessWidget {
-  const _SocietyTile({required this.membership, required this.busy, required this.onTap});
+class _PropertyTile extends StatelessWidget {
+  const _PropertyTile({
+    required this.membership,
+    required this.busy,
+    required this.onTap,
+    this.property,
+  });
   final SocietyMembershipOption membership;
+  final PropertySummary? property;
   final bool busy;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final propertyText = membership.properties.isEmpty
-        ? null
-        : membership.properties.map((property) => '${property.buildingName} ${property.unitNumber}'.trim()).join(' · ');
-    final roleText = (membership.roles.isEmpty ? [membership.role] : membership.roles).map((role) => role.replaceAll('_', ' ')).join(', ');
+    final roleText = (membership.roles.isEmpty ? [membership.role] : membership.roles)
+        .map((role) => role.replaceAll('_', ' ').toLowerCase())
+        .join(', ');
+    final propertyLabel = property == null
+        ? membership.name
+        : '${membership.name} · ${property!.buildingName} ${property!.unitNumber}'.trim();
+    final relationship = property?.relationship.toLowerCase();
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: busy ? null : onTap,
         leading: CircleAvatar(backgroundColor: scheme.primaryContainer, foregroundColor: scheme.onPrimaryContainer, child: const Icon(Icons.apartment_rounded)),
-        title: Text(membership.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text([if (propertyText != null) propertyText, roleText].join(' · ')),
+        title: Text(propertyLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text([if (relationship != null && relationship.isNotEmpty) relationship, roleText].join(' · ')),
         trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
