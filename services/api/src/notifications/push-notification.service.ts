@@ -55,6 +55,16 @@ export class PushNotificationService {
 
   async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
     const normalized = token.trim();
+
+    // A Firebase token identifies the current app installation. Claiming it for a
+    // consumer session must invalidate any earlier society binding first. Society
+    // sessions immediately re-bind the same token through register(); independent-
+    // home sessions intentionally leave it unbound from every society.
+    await this.prisma.devicePushToken.updateMany({
+      where: { token: normalized, active: true },
+      data: { active: false, lastSeenAt: new Date() },
+    });
+
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       INSERT INTO "ConsumerPushDeviceToken" ("id", "userId", "token", "platform", "deviceId", "active", "lastSeenAt", "createdAt", "updatedAt")
       VALUES (${randomUUID()}::uuid, ${userId}::uuid, ${normalized}, ${platform}::"DevicePlatform", ${deviceId?.trim() || null}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
