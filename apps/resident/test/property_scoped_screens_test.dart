@@ -89,7 +89,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('A Block · 101'), findsOneWidget);
-    expect(find.text('₹1000.00'), findsNWidgets(2));
+    expect(find.text('₹1000.00'), findsNWidgets(3));
     expect(find.text('B Block · 202'), findsNothing);
     expect(find.text('₹2000.00'), findsNothing);
   });
