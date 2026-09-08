@@ -54,7 +54,20 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     try {
       final categoriesRaw = await widget.apiClient.get('/api/v1/consumer/services/categories');
       final locationsRaw = await widget.apiClient.get('/api/v1/consumer/services/locations');
+      List<dynamic> trustRaw = const [];
+      try {
+        final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
+        trustRaw = raw as List<dynamic>? ?? const [];
+      } catch (_) {
+        // Trust metadata is informational and must never block service discovery.
+      }
       final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      final trustByProvider = <String, Map<String, dynamic>>{};
+      for (final trust in trustRaw.whereType<Map<String, dynamic>>()) {
+        final providerId = trust['providerId']?.toString();
+        if (providerId != null && providerId.isNotEmpty) trustByProvider[providerId] = trust;
+      }
+
       String? selectedKey = _selectedLocationKey;
       if (selectedKey == null || !locations.any((item) => _locationKey(item) == selectedKey && item['serviceAddressConfigured'] != false)) {
         for (final location in locations) {
@@ -74,7 +87,17 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
           if (categoryId != null) 'categoryId': categoryId,
         };
         final raw = await widget.apiClient.get('/api/v1/consumer/services/offerings?${Uri(queryParameters: params).query}');
-        offerings = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        offerings = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().map((offering) {
+          final provider = Map<String, dynamic>.from(offering['provider'] as Map? ?? const {});
+          final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
+          final trust = providerId == null ? null : trustByProvider[providerId];
+          if (trust != null) {
+            provider['ratingAverage'] = trust['averageStars'];
+            provider['ratingCount'] = trust['ratingCount'];
+            provider['completedJobs'] = trust['completedJobs'];
+          }
+          return <String, dynamic>{...offering, 'provider': provider};
+        }).toList();
       }
       if (!mounted) return;
       setState(() {
@@ -262,6 +285,9 @@ class _OfferingCard extends StatelessWidget {
     final category = offering['category'] as Map<String, dynamic>? ?? const {};
     final pricePaise = (offering['pricePaise'] as num?)?.toInt() ?? 0;
     final price = pricePaise / 100;
+    final ratingAverage = (provider['ratingAverage'] as num?)?.toDouble();
+    final ratingCount = (provider['ratingCount'] as num?)?.toInt() ?? 0;
+    final completedJobs = (provider['completedJobs'] as num?)?.toInt() ?? 0;
     return Card(
       child: ListTile(
         onTap: onTap,
@@ -270,7 +296,24 @@ class _OfferingCard extends StatelessWidget {
         title: Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: Text('${category['name'] ?? offering['categoryName'] ?? 'Service'} · ${provider['businessName'] ?? offering['providerName'] ?? 'Verified provider'}'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${category['name'] ?? offering['categoryName'] ?? 'Service'} · ${provider['businessName'] ?? offering['providerName'] ?? 'Verified provider'}'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 6,
+                children: [
+                  if (ratingAverage != null && ratingCount > 0)
+                    _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
+                  if (completedJobs > 0)
+                    _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
+                  const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+                ],
+              ),
+            ],
+          ),
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -281,6 +324,24 @@ class _OfferingCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TrustSignal extends StatelessWidget {
+  const _TrustSignal({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 3),
+        Text(text, style: Theme.of(context).textTheme.bodySmall),
+      ],
     );
   }
 }
