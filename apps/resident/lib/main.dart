@@ -16,6 +16,7 @@ import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
+import 'screens/updates_screen.dart';
 import 'screens/workforce_screen.dart';
 import 'theme/aaraagate_theme.dart';
 
@@ -164,6 +165,8 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AmenitiesScreen(repository: widget.controller.repository, unitId: unitId)));
   }
 
+  void _openUpdates() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UpdatesScreen(controller: widget.controller)));
+
   ProfileScreen _profile(ResidentDataController controller) => ProfileScreen(
         controller: controller,
         onSignOut: widget.onSignOut,
@@ -265,6 +268,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
               ],
             ),
             actions: [
+              IconButton(tooltip: 'Updates', onPressed: _openUpdates, icon: const Icon(Icons.notifications_none_rounded)),
               if (_hasMultiplePropertyContexts())
                 TextButton.icon(
                   onPressed: () => _open(profileIndex),
