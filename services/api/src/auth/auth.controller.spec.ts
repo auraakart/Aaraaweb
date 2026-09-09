@@ -10,7 +10,7 @@ type PropertyRow = {
   unit: { number: string; building: { name: string; code: string } };
 };
 
-type MembershipFindArgs = { where?: { societyId?: string } };
+type MembershipFindArgs = { where?: { societyId?: string; society?: { status?: string } } };
 
 function buildController(options?: {
   memberships?: Array<{ societyId: string; role: string; society: { name: string; code: string } }>;
@@ -51,6 +51,19 @@ describe('AuthController user contexts', () => {
 
     expect(result).toMatchObject({ contextType: 'INDEPENDENT_HOME', memberships: [], contexts: [] });
     expect(sessions.create).toHaveBeenCalledWith(activeUser.id, undefined, []);
+  });
+
+  it('queries only active societies when building resident contexts', async () => {
+    const societyId = '22222222-2222-4222-8222-222222222222';
+    const { controller, prisma } = buildController({
+      memberships: [{ societyId, role: 'OWNER', society: { name: 'Green Heights', code: 'GH' } }],
+    });
+
+    await controller.verifyOtp({ challengeId: 'challenge', code: '123456' });
+
+    expect(prisma.societyMembership.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ active: true, society: { status: 'ACTIVE' } }),
+    }));
   });
 
   it('preserves legacy role rows while grouping multiple roles into one resident society context', async () => {
@@ -98,6 +111,20 @@ describe('AuthController user contexts', () => {
     expect(result.contexts[1].properties[0]).toMatchObject({ unitNumber: '703', relationship: 'OCCUPANT' });
     expect(authService.createSocietySelectionGrant).toHaveBeenCalledWith(activeUser.id);
     expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('requires an active society when switching authenticated context', async () => {
+    const societyId = '66666666-6666-4666-8666-666666666666';
+    const { controller, prisma, sessions } = buildController({
+      memberships: [{ societyId, role: 'OWNER', society: { name: 'Green Heights', code: 'GH' } }],
+    });
+
+    await controller.switchSociety(activeUser.id, { societyId });
+
+    expect(prisma.societyMembership.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { userId: activeUser.id, societyId, active: true, society: { status: 'ACTIVE' } },
+    }));
+    expect(sessions.create).toHaveBeenCalledWith(activeUser.id, societyId, ['OWNER']);
   });
 
   it('refuses authenticated switching to a society the user does not belong to', async () => {

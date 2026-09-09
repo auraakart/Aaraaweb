@@ -25,8 +25,19 @@ export class SessionService {
   }
 
   async getPrincipal(accessToken: string): Promise<AuthPrincipal> {
-    const session = await this.prisma.session.findUnique({ where: { accessTokenHash: hash(accessToken) }, include: { user: true } });
-    if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now() || session.user.status !== 'ACTIVE') throw new UnauthorizedException('Session is invalid or expired');
+    const session = await this.prisma.session.findUnique({
+      where: { accessTokenHash: hash(accessToken) },
+      include: { user: true, society: { select: { status: true } } },
+    });
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt.getTime() < Date.now() ||
+      session.user.status !== 'ACTIVE' ||
+      (session.societyId && session.society?.status !== 'ACTIVE')
+    ) {
+      throw new UnauthorizedException('Session is invalid or expired');
+    }
     const memberships = await this.prisma.societyMembership.findMany({ where: { userId: session.userId, societyId: session.societyId ?? undefined, active: true }, select: { role: true } });
     return { userId: session.userId, societyId: session.societyId ?? undefined, roles: memberships.map(m => m.role as AppRole) };
   }

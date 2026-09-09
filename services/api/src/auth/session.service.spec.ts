@@ -39,6 +39,21 @@ describe('SessionService lifecycle security', () => {
     await state.onModuleDestroy();
   });
 
+  it('rejects an otherwise-valid bearer session when its society is suspended', async () => {
+    prisma.session.findUnique.mockResolvedValue({
+      id: 'session-suspended-society',
+      userId: '11111111-1111-4111-8111-111111111111',
+      societyId: '22222222-2222-4222-8222-222222222222',
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { status: 'ACTIVE' },
+      society: { status: 'SUSPENDED' },
+    });
+
+    await expect(service.getPrincipal('access-token')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.societyMembership.findMany).not.toHaveBeenCalled();
+  });
+
   it('rotates a refresh token and rejects reuse of the previous token by revoking the session', async () => {
     const refreshToken = 'old-refresh-token';
     prisma.session.findUnique.mockResolvedValue({
