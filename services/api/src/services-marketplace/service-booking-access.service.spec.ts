@@ -6,7 +6,11 @@ function setup() {
   const tx = {
     unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) },
     unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'ownership-1' }) },
-    accessRequest: { create: vi.fn() },
+    accessRequest: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+    },
     auditEvent: { create: vi.fn() },
   };
   tx.accessRequest.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 'access-1', ...data }));
@@ -71,5 +75,36 @@ describe('ServiceBookingAccessService', () => {
 
     expect(tx.accessRequest.create).not.toHaveBeenCalled();
     expect(tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('revokes an approved service-booking credential and records the cancellation audit', async () => {
+    const { tx, service } = setup();
+    tx.accessRequest.findFirst.mockResolvedValue({ id: 'access-1', status: AccessRequestStatus.APPROVED });
+    tx.accessRequest.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.cancelApproved(tx as never, 'society-1', 'owner-1', 'access-1');
+
+    expect(tx.accessRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 'access-1',
+        societyId: 'society-1',
+        requestedById: 'owner-1',
+        status: AccessRequestStatus.APPROVED,
+      }),
+      data: { status: AccessRequestStatus.CANCELLED, credentialHash: null },
+    }));
+    expect(tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ event: AuditEventType.ACCESS_CANCELLED }),
+    }));
+  });
+
+  it('refuses to cancel access that is already checked in', async () => {
+    const { tx, service } = setup();
+    tx.accessRequest.findFirst.mockResolvedValue({ id: 'access-1', status: AccessRequestStatus.CHECKED_IN });
+
+    await expect(service.cancelApproved(tx as never, 'society-1', 'owner-1', 'access-1'))
+      .rejects.toThrow('checked_in');
+
+    expect(tx.accessRequest.updateMany).not.toHaveBeenCalled();
   });
 });
