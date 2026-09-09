@@ -172,7 +172,7 @@ export class AuthController {
     const propertyMap = new Map<string, PropertyContext[]>();
     const addProperty = (societyId: string, property: PropertyContext) => {
       const rows = propertyMap.get(societyId) ?? [];
-      const duplicate = rows.some((row) => row.unitId === property.unitId && row.relationship === property.relationship);
+      const duplicate = rows.some((row) => row.unitId === property.unitId);
       if (!duplicate) rows.push(property);
       propertyMap.set(societyId, rows);
     };
