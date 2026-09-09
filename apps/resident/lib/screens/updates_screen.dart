@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/service_booking_lifecycle.dart';
 
 class UpdatesScreen extends StatelessWidget {
   const UpdatesScreen({super.key, required this.controller});
@@ -87,10 +88,11 @@ class UpdatesScreen extends StatelessWidget {
         for (final booking in controller.bookings) {
           final offering = booking['offering'];
           final service = offering is Map ? offering['name']?.toString() : null;
+          final status = booking['status']?.toString() ?? 'REQUESTED';
           items.add(_UpdateItem(
             icon: Icons.home_repair_service_outlined,
             title: service?.isNotEmpty == true ? service! : 'Home service',
-            subtitle: 'Booking ${_friendly(booking['status']?.toString() ?? 'updated').toLowerCase()}',
+            subtitle: ServiceBookingLifecycle.labelFor(status),
             when: _date(booking, ['updatedAt', 'createdAt', 'scheduledStart']),
           ));
         }
