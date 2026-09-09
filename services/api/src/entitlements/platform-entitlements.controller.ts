@@ -150,6 +150,28 @@ export class PlatformEntitlementsController {
     @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // Serialize admin deactivations per society so two concurrent requests
+      // cannot both observe more than one admin and remove the final two.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${societyId}))`;
+
+      const society = await tx.society.findUnique({ where: { id: societyId }, select: { status: true } });
+      if (!society) throw new BadRequestException('Society not found');
+
+      const target = await tx.societyMembership.findUnique({
+        where: { userId_societyId_role: { userId, societyId, role: MembershipRole.SOCIETY_ADMIN } },
+        select: { active: true },
+      });
+      if (!target?.active) return { success: true, deactivated: 0 };
+
+      if (society.status === SocietyStatus.ACTIVE) {
+        const activeAdminCount = await tx.societyMembership.count({
+          where: { societyId, role: MembershipRole.SOCIETY_ADMIN, active: true },
+        });
+        if (activeAdminCount <= 1) {
+          throw new BadRequestException('Active society must retain at least one Society Admin');
+        }
+      }
+
       const result = await tx.societyMembership.updateMany({
         where: { userId, societyId, role: MembershipRole.SOCIETY_ADMIN, active: true },
         data: { active: false },
