@@ -2,17 +2,38 @@
 
 import { useEffect, useState } from 'react'
 
+const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
+type StoredSession={role?:string;accessToken?:string}
+type CurrentEntitlements={enabledFeatures?:string[]}
+
 export function AdminShortcuts(){
   const[role,setRole]=useState('')
-  useEffect(()=>{try{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return;const session=JSON.parse(raw) as {role?:string};setRole(session.role??'')}catch{setRole('')}},[])
+  const[advancedReportsEnabled,setAdvancedReportsEnabled]=useState(false)
+  useEffect(()=>{
+    let active=true
+    const load=async()=>{try{
+      const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return
+      const session=JSON.parse(raw) as StoredSession
+      const nextRole=session.role??''
+      if(!active)return
+      setRole(nextRole)
+      if(!session.accessToken||!reportRoles.has(nextRole))return
+      const response=await fetch(`${base}/api/v1/entitlements/current`,{headers:{Accept:'application/json',Authorization:`Bearer ${session.accessToken}`}})
+      if(!response.ok)return
+      const body=await response.json() as CurrentEntitlements
+      if(active)setAdvancedReportsEnabled(body.enabledFeatures?.includes('ADVANCED_REPORTS')??false)
+    }catch{if(active){setRole('');setAdvancedReportsEnabled(false)}}}
+    void load()
+    return()=>{active=false}
+  },[])
   if(!role)return null
   const links:{href:string;label:string}[]=[]
-  if(reportRoles.has(role))links.push({href:'/reports',label:'Reports'})
+  if(reportRoles.has(role)&&advancedReportsEnabled)links.push({href:'/reports',label:'Reports'})
   if(amenityRoles.has(role))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(societySetupRoles.has(role)){
