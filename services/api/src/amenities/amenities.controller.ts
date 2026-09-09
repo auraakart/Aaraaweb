@@ -59,6 +59,19 @@ class CreateAmenityDto {
   @IsOptional() @IsInt() @Min(1) @Max(100) maxConcurrentBookings?: number;
 }
 
+class UpdateAmenityDto {
+  @IsString() @MinLength(2) @MaxLength(120) name!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) location?: string | null;
+  @IsOptional() @IsObject() schedule?: Record<string, unknown>;
+  @IsOptional() @IsObject() bookingRules?: Record<string, unknown>;
+  @IsInt() @Min(0) @Max(10_000_000) feePaise!: number;
+  @IsBoolean() requiresApproval!: boolean;
+  @IsInt() @Min(15) @Max(1440) slotMinutes!: number;
+  @IsInt() @Min(1) @Max(100) maxConcurrentBookings!: number;
+  @IsBoolean() active!: boolean;
+}
+
 class ReviewAmenityBookingDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
@@ -116,6 +129,16 @@ export class AmenitiesController {
   @RequiresPermissions(AppPermission.AMENITY_MANAGE)
   createAmenity(@CurrentTenant() societyId: string, @Body() dto: CreateAmenityDto) {
     return this.amenities.createAmenity(societyId, dto);
+  }
+
+  @Patch('manage/:amenityId')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  updateAmenity(
+    @CurrentTenant() societyId: string,
+    @Param('amenityId', ParseUUIDPipe) amenityId: string,
+    @Body() dto: UpdateAmenityDto,
+  ) {
+    return this.amenities.updateAmenity(societyId, amenityId, dto);
   }
 
   @Get('manage/bookings')
