@@ -7,6 +7,7 @@ import 'data/api_client.dart';
 import 'data/demo_resident_repository.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
+import 'screens/amenities_screen.dart';
 import 'screens/gate_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/helpdesk_screen.dart';
@@ -120,6 +121,14 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
   void initState() { super.initState(); widget.controller.load(); }
   void _open(int index) => setState(() => _index = index);
   void _openExternalServices() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => IndependentServicesScreen(apiClient: widget.consumerApiClient, independentMode: false)));
+  void _openAmenities() {
+    final unitId = widget.controller.primaryUnitId;
+    if (unitId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a property before booking amenities.')));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AmenitiesScreen(repository: widget.controller.repository, unitId: unitId)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +144,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             onOpenHelpdesk: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller))),
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
+            onOpenAmenities: _openAmenities,
           ),
           GateScreen(controller: controller),
           WorkforceScreen(controller: controller),

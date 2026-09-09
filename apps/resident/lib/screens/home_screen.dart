@@ -12,6 +12,7 @@ class HomeScreen extends StatelessWidget {
     required this.onOpenHelpdesk,
     required this.onOpenNotices,
     required this.onOpenBilling,
+    required this.onOpenAmenities,
   });
 
   final ResidentDataController controller;
@@ -20,6 +21,7 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onOpenHelpdesk;
   final VoidCallback onOpenNotices;
   final VoidCallback onOpenBilling;
+  final VoidCallback onOpenAmenities;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +137,7 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.person_add_alt_1_rounded, label: 'Invite guest', onTap: onOpenGate)),
                     SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.home_repair_service_rounded, label: 'Book service', onTap: onOpenServices)),
+                    SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.sports_tennis_rounded, label: 'Amenities', onTap: onOpenAmenities)),
                     SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
                     SizedBox(
                       width: itemWidth,
