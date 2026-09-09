@@ -67,60 +67,11 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   }
 
   Future<void> _addMember() async {
-    final name = TextEditingController();
-    final phone = TextEditingController(text: '+91');
-    bool notifications = true;
-    bool approvals = false;
-    bool primary = false;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add family member'),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 12),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number')),
-              const SizedBox(height: 14),
-              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: notifications, onChanged: (v) => setDialogState(() => notifications = v)),
-              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: approvals, onChanged: (v) => setDialogState(() => approvals = v)),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Primary gate contact'),
-                subtitle: const Text('Only one occupant should be primary.'),
-                value: primary,
-                onChanged: (v) => setDialogState(() {
-                  primary = v;
-                  if (v) notifications = true;
-                }),
-              ),
-              const SizedBox(height: 8),
-              const Text('The member will verify this mobile number with OTP when signing in.', style: TextStyle(fontSize: 12)),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (name.text.trim().isEmpty || phone.text.trim().length < 8) return;
-                Navigator.pop(context, {
-                  'name': name.text.trim(),
-                  'phone': phone.text.trim(),
-                  'gateNotificationEnabled': notifications,
-                  'gateApprovalEnabled': approvals,
-                  'primaryGateContact': primary,
-                });
-              },
-              child: const Text('Add member'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const _AddFamilyMemberDialog(),
     );
-    name.dispose();
-    phone.dispose();
-    if (result == null) return;
+    if (!mounted || result == null) return;
 
     await _run(() async {
       if (_demo) {
@@ -172,7 +123,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         ),
       ),
     );
-    if (result == null) return;
+    if (!mounted || result == null) return;
     await _run(() async {
       if (_demo) {
         if (result['primary'] == true) {
@@ -209,7 +160,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (!mounted || confirmed != true) return;
     await _run(() async {
       if (_demo) {
         _demoMembers.removeWhere((item) => item['id'] == member['id']);
@@ -221,11 +172,12 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   }
 
   Future<void> _run(Future<void> Function() action) async {
+    if (!mounted) return;
     setState(() { _busy = true; _error = null; });
     try {
       await action();
     } catch (e) {
-      _error = e.toString();
+      if (mounted) _error = e.toString();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -274,6 +226,89 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _AddFamilyMemberDialog extends StatefulWidget {
+  const _AddFamilyMemberDialog();
+
+  @override
+  State<_AddFamilyMemberDialog> createState() => _AddFamilyMemberDialogState();
+}
+
+class _AddFamilyMemberDialogState extends State<_AddFamilyMemberDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _notifications = true;
+  bool _approvals = false;
+  bool _primary = false;
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _phoneController = TextEditingController(text: '+91');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    if (name.isEmpty || phone.length < 8) {
+      setState(() => _validationError = 'Enter a name and a valid mobile number.');
+      return;
+    }
+    Navigator.of(context).pop({
+      'name': name,
+      'phone': phone,
+      'gateNotificationEnabled': _notifications,
+      'gateApprovalEnabled': _approvals,
+      'primaryGateContact': _primary,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add family member'),
+      content: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: _nameController, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Name')),
+          const SizedBox(height: 12),
+          TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number')),
+          const SizedBox(height: 14),
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: _notifications, onChanged: (v) => setState(() => _notifications = v)),
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: _approvals, onChanged: (v) => setState(() => _approvals = v)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Primary gate contact'),
+            subtitle: const Text('Only one occupant should be primary.'),
+            value: _primary,
+            onChanged: (v) => setState(() {
+              _primary = v;
+              if (v) _notifications = true;
+            }),
+          ),
+          if (_validationError != null) ...[
+            const SizedBox(height: 8),
+            Text(_validationError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          const SizedBox(height: 8),
+          const Text('The member will verify this mobile number with OTP when signing in.', style: TextStyle(fontSize: 12)),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(onPressed: _submit, child: const Text('Add member')),
+      ],
     );
   }
 }
