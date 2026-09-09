@@ -38,8 +38,18 @@ export class SessionService {
     ) {
       throw new UnauthorizedException('Session is invalid or expired');
     }
-    const memberships = await this.prisma.societyMembership.findMany({ where: { userId: session.userId, societyId: session.societyId ?? undefined, active: true }, select: { role: true } });
-    return { userId: session.userId, societyId: session.societyId ?? undefined, roles: memberships.map(m => m.role as AppRole) };
+
+    // Independent-home sessions are intentionally society-less and must never
+    // inherit roles from any memberships the same user may hold elsewhere.
+    if (!session.societyId) {
+      return { userId: session.userId, societyId: undefined, roles: [] };
+    }
+
+    const memberships = await this.prisma.societyMembership.findMany({
+      where: { userId: session.userId, societyId: session.societyId, active: true },
+      select: { role: true },
+    });
+    return { userId: session.userId, societyId: session.societyId, roles: memberships.map(m => m.role as AppRole) };
   }
 
   async refresh(sessionId: string, refreshToken: string) {
@@ -50,8 +60,18 @@ export class SessionService {
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
-    if (!session || session.revokedAt || session.refreshExpiresAt.getTime() < Date.now() || session.refreshTokenHash !== refreshTokenHash) {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { user: { select: { status: true } }, society: { select: { status: true } } },
+    });
+    if (
+      !session ||
+      session.revokedAt ||
+      session.refreshExpiresAt.getTime() < Date.now() ||
+      session.refreshTokenHash !== refreshTokenHash ||
+      session.user.status !== 'ACTIVE' ||
+      (session.societyId && session.society?.status !== 'ACTIVE')
+    ) {
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
