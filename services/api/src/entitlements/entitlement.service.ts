@@ -6,17 +6,26 @@ import { ProductFeature, ProductTier, TIER_FEATURES } from './entitlement.types'
 export class EntitlementService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async isEnabled(societyId: string, feature: ProductFeature): Promise<boolean> {
+  async current(societyId: string): Promise<{ productTier: ProductTier; enabledFeatures: ProductFeature[] } | null> {
     const society = await this.prisma.society.findFirst({
       where: { id: societyId, status: 'ACTIVE' },
       select: { productTier: true, featureOverrides: true },
     });
-    if (!society) return false;
+    if (!society) return null;
 
+    const productTier = society.productTier as ProductTier;
     const overrides = this.readOverrides(society.featureOverrides);
-    if (typeof overrides[feature] === 'boolean') return overrides[feature];
+    const enabledFeatures = Object.values(ProductFeature).filter((feature) => {
+      if (typeof overrides[feature] === 'boolean') return overrides[feature];
+      return TIER_FEATURES[productTier].includes(feature);
+    });
 
-    return TIER_FEATURES[society.productTier as ProductTier].includes(feature);
+    return { productTier, enabledFeatures };
+  }
+
+  async isEnabled(societyId: string, feature: ProductFeature): Promise<boolean> {
+    const current = await this.current(societyId);
+    return !!current?.enabledFeatures.includes(feature);
   }
 
   private readOverrides(value: unknown): Partial<Record<ProductFeature, boolean>> {
