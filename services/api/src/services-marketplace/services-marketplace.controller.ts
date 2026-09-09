@@ -10,6 +10,7 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
+import { ServiceBookingRatingService } from './service-booking-rating.service';
 import { ServiceBookingTransitionService } from './service-booking-transition.service';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
@@ -77,6 +78,7 @@ export class ServicesMarketplaceController {
     private readonly marketplace: ServicesMarketplaceService,
     private readonly operations: ServicesMarketplaceOperationsService,
     private readonly transitions: ServiceBookingTransitionService,
+    private readonly ratings: ServiceBookingRatingService,
   ) {}
 
   @Get('categories')
@@ -116,7 +118,7 @@ export class ServicesMarketplaceController {
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
   rate(@Param('bookingId', ParseUUIDPipe) bookingId: string, @Body() dto: RateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.marketplace.rate(societyId, userId, bookingId, dto.score, dto.comment);
+    return this.ratings.rateMine(societyId, userId, bookingId, dto.score, dto.comment);
   }
 
   @Post('admin/categories')
