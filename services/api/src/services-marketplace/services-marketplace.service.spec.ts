@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
 function setup() {
-  const prisma = {
+  const prisma: Record<string, unknown> = {
     unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
     serviceOffering: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
@@ -11,7 +11,9 @@ function setup() {
     serviceProviderSociety: { upsert: vi.fn() },
     serviceCategory: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     serviceRating: { create: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
+  (prisma as { $transaction?: unknown }).$transaction = vi.fn().mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
   const entitlements = { isEnabled: vi.fn().mockResolvedValue(true) };
   const access = {
     create: vi.fn().mockResolvedValue({ id: 'access-1' }),
@@ -24,7 +26,18 @@ function setup() {
     setPlatformVerification: vi.fn(),
   };
   return {
-    prisma,
+    prisma: prisma as {
+      unitOccupancy: { findFirst: ReturnType<typeof vi.fn> };
+      unitOwnership: { findFirst: ReturnType<typeof vi.fn> };
+      serviceOffering: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+      serviceBooking: { create: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+      serviceProvider: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+      serviceProviderSociety: { upsert: ReturnType<typeof vi.fn> };
+      serviceCategory: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+      serviceRating: { create: ReturnType<typeof vi.fn> };
+      $queryRaw: ReturnType<typeof vi.fn>;
+      $transaction: ReturnType<typeof vi.fn>;
+    },
     entitlements,
     access,
     operations,
@@ -38,24 +51,57 @@ function setup() {
 }
 
 describe('ServicesMarketplaceService', () => {
-  it('snapshots price and commission when a resident books after availability validation', async () => {
-    const { prisma, operations, service } = setup();
+  it('snapshots price and commission while serializing provider availability validation', async () => {
+    const { prisma, service } = setup();
     prisma.serviceOffering.findFirst.mockResolvedValue({
       id: 'offering-1',
       providerId: 'provider-1',
       pricePaise: 200000,
       provider: { societies: [{ commissionBps: 1250 }] },
     });
+    prisma.serviceBooking.findFirst.mockResolvedValue(null);
     prisma.serviceBooking.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve(data));
 
     const scheduledFrom = new Date('2026-09-02T10:00:00Z');
     const scheduledUntil = new Date('2026-09-02T12:00:00Z');
     const result = await service.book('society-1', 'user-1', 'unit-1', 'offering-1', scheduledFrom, scheduledUntil);
 
-    expect(operations.assertProviderAvailable).toHaveBeenCalledWith('society-1', 'offering-1', scheduledFrom, scheduledUntil);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.serviceBooking.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        societyId: 'society-1',
+        providerId: 'provider-1',
+        scheduledFrom: { lt: scheduledUntil },
+        scheduledUntil: { gt: scheduledFrom },
+      }),
+    }));
     expect(result.servicePricePaise).toBe(200000);
     expect(result.commissionBps).toBe(1250);
     expect(result.commissionPaise).toBe(25000);
+  });
+
+  it('rejects an overlapping booking after acquiring the transaction lock', async () => {
+    const { prisma, service } = setup();
+    prisma.serviceOffering.findFirst.mockResolvedValue({
+      id: 'offering-1',
+      providerId: 'provider-1',
+      pricePaise: 50000,
+      provider: { societies: [{ commissionBps: 1000 }] },
+    });
+    prisma.serviceBooking.findFirst.mockResolvedValue({ id: 'existing-booking' });
+
+    await expect(service.book(
+      'society-1',
+      'user-1',
+      'unit-1',
+      'offering-1',
+      new Date('2026-09-10T10:00:00Z'),
+      new Date('2026-09-10T11:00:00Z'),
+    )).rejects.toThrow('Provider is not available');
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.serviceBooking.create).not.toHaveBeenCalled();
   });
 
   it('allows a verified current owner to book without current occupancy', async () => {
@@ -68,6 +114,7 @@ describe('ServicesMarketplaceService', () => {
       pricePaise: 50000,
       provider: { societies: [{ commissionBps: 1000 }] },
     });
+    prisma.serviceBooking.findFirst.mockResolvedValue(null);
     prisma.serviceBooking.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve(data));
 
     await expect(service.book(
@@ -85,7 +132,7 @@ describe('ServicesMarketplaceService', () => {
   });
 
   it('rejects a user with neither current occupancy nor verified ownership', async () => {
-    const { prisma, operations, service } = setup();
+    const { prisma, service } = setup();
     prisma.unitOccupancy.findFirst.mockResolvedValue(null);
     prisma.unitOwnership.findFirst.mockResolvedValue(null);
 
@@ -98,7 +145,7 @@ describe('ServicesMarketplaceService', () => {
       new Date('2026-09-10T11:00:00Z'),
     )).rejects.toThrow('Unit does not belong to authenticated resident');
 
-    expect(operations.assertProviderAvailable).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('creates and approves a service-provider access request when booking is confirmed', async () => {
