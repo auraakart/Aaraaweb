@@ -63,10 +63,6 @@ export class AuthController {
       };
     }
 
-    // Preserve the legacy auth response contract for the guard/admin clients:
-    // only one raw membership receives a session immediately. Multiple role rows
-    // continue through the existing selection-grant path. The resident app uses
-    // the new grouped `contexts` field and can auto-select a sole society context.
     if (membershipRows.length === 1) {
       return {
         verified: true,
@@ -172,7 +168,7 @@ export class AuthController {
     const propertyMap = new Map<string, PropertyContext[]>();
     const addProperty = (societyId: string, property: PropertyContext) => {
       const rows = propertyMap.get(societyId) ?? [];
-      const duplicate = rows.some((row) => row.unitId === property.unitId && row.relationship === property.relationship);
+      const duplicate = rows.some((row) => row.unitId === property.unitId);
       if (!duplicate) rows.push(property);
       propertyMap.set(societyId, rows);
     };
