@@ -184,19 +184,12 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (!controller.hasActiveProperty) {
-          return _SocietyOnlyShell(
-            controller: controller,
-            profile: _profile(controller),
-            societyName: _currentSocietyName(),
-          );
+          return _SocietyOnlyShell(controller: controller, profile: _profile(controller), societyName: _currentSocietyName());
         }
 
         int? gateIndex;
-        int? staffIndex;
-        int? servicesIndex;
         final pages = <Widget>[];
         final destinations = <NavigationDestination>[];
-
         void add(Widget page, NavigationDestination destination) {
           pages.add(page);
           destinations.add(destination);
@@ -235,22 +228,20 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           add(GateScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'));
         }
         if (showStaff) {
-          staffIndex = pages.length;
           add(WorkforceScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'));
         }
         if (showServices) {
-          servicesIndex = pages.length;
           add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
         }
         add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
 
-        if (_index >= pages.length) _index = 0;
+        final selectedIndex = _index < pages.length ? _index : 0;
         final pending = controller.firstPendingAccess;
         final eventRequestId = controller.latestAccessEvent?['requestId']?.toString();
         final showRealtimeApproval = showGate && pending != null && eventRequestId == pending['id']?.toString();
         return Scaffold(
           body: Stack(children: [
-            IndexedStack(index: _index, children: pages),
+            IndexedStack(index: selectedIndex, children: pages),
             if (showRealtimeApproval)
               SafeArea(child: Padding(padding: const EdgeInsets.all(12), child: Material(elevation: 8, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [const Icon(Icons.notifications_active_rounded), const SizedBox(width: 10), Expanded(child: Text('${pending['subjectName'] ?? 'Someone'} is at the gate', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)))]),
@@ -260,7 +251,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                 Row(children: [Expanded(child: OutlinedButton(onPressed: () => controller.denyAccess(pending['id'].toString()), child: const Text('Deny'))), const SizedBox(width: 10), Expanded(child: FilledButton(onPressed: () => controller.approveAccess(pending['id'].toString()), child: const Text('Allow')))]),
               ]))))),
           ]),
-          bottomNavigationBar: NavigationBar(selectedIndex: _index, onDestinationSelected: _open, destinations: destinations),
+          bottomNavigationBar: NavigationBar(selectedIndex: selectedIndex, onDestinationSelected: _open, destinations: destinations),
         );
       },
     );
