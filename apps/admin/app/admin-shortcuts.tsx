@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
 export function AdminShortcuts(){
   const[role,setRole]=useState('')
@@ -12,6 +13,7 @@ export function AdminShortcuts(){
   if(!role)return null
   const links:{href:string;label:string}[]=[]
   if(reportRoles.has(role))links.push({href:'/reports',label:'Reports'})
+  if(amenityRoles.has(role))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(societySetupRoles.has(role)){
     links.push({href:'/property',label:'Property setup'})
