@@ -73,6 +73,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_ci
     steps:
@@ -104,6 +113,56 @@ jobs:
         run: pnpm --filter @aaraagate/api test
       - name: Build API
         run: pnpm --filter @aaraagate/api build
+      - name: Start production-mode API
+        env:
+          NODE_ENV: production
+          REDIS_URL: redis://localhost:6379
+          PORT: 3000
+          APP_VERSION: ci-runtime-smoke
+          GIT_SHA: ${{ github.sha }}
+          OTP_DELIVERY_PROVIDER: msg91
+          MSG91_AUTH_KEY: ci-placeholder-auth-key
+          MSG91_OTP_TEMPLATE_ID: ci-placeholder-template
+        run: |
+          pnpm --filter @aaraagate/api start > /tmp/aaraagate-ci-api.log 2>&1 &
+          echo $! > /tmp/aaraagate-ci-api.pid
+      - name: Verify production API readiness
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health/ready > /tmp/aaraagate-ci-readiness.json; then
+              node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/aaraagate-ci-readiness.json', 'utf8'));
+          if (
+            h.status !== 'ready' ||
+            h.environment !== 'production' ||
+            h.version !== 'ci-runtime-smoke' ||
+            h.commit !== process.env.EXPECTED_SHA ||
+            h.dependencies?.database !== 'ok' ||
+            h.dependencies?.authState !== 'redis-ok'
+          ) {
+            console.error(h);
+            process.exit(1);
+          }
+          NODE
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Production-mode API did not become ready"
+          cat /tmp/aaraagate-ci-api.log || true
+          exit 1
+      - name: Stop production-mode API
+        if: always()
+        run: |
+          if [ -f /tmp/aaraagate-ci-api.pid ]; then
+            kill $(cat /tmp/aaraagate-ci-api.pid) || true
+          fi
+      - name: Print production API logs on failure
+        if: failure()
+        run: cat /tmp/aaraagate-ci-api.log || true
 
   admin-validation:
     name: Admin validation
