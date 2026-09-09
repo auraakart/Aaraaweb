@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/resident_data_controller.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/visitor_pass_share_message.dart';
 
 class GateScreen extends StatelessWidget {
   const GateScreen({super.key, required this.controller});
@@ -138,6 +140,7 @@ class GateScreen extends StatelessWidget {
     final request = pass['request'];
     final visitor = request is Map ? request['subjectName']?.toString() ?? 'Visitor' : 'Visitor';
     final credential = pass['credential']?.toString() ?? '';
+    final validUntil = request is Map ? DateTime.tryParse(request['validUntil']?.toString() ?? '') : null;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -169,6 +172,18 @@ class GateScreen extends StatelessWidget {
               if (dialogContext.mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Pass copied')));
             },
             child: const Text('Copy pass'),
+          ),
+          TextButton.icon(
+            onPressed: () async {
+              final message = VisitorPassShareMessage.build(
+                visitorName: visitor,
+                credential: credential,
+                validUntil: validUntil,
+              );
+              await Share.share(message, subject: 'Aaraagate visitor pass for $visitor');
+            },
+            icon: const Icon(Icons.share_outlined),
+            label: const Text('Share'),
           ),
           FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Done')),
         ],
