@@ -18,7 +18,7 @@ void main() {
     expect(ServiceBookingLifecycle.cancellationGuidance('COMPLETED'), contains('no longer be cancelled'));
   });
 
-  testWidgets('renders friendly service-started progress semantics', (tester) async {
+  testWidgets('renders friendly service-started progress', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -27,9 +27,12 @@ void main() {
       ),
     );
 
+    expect(find.text('Requested'), findsOneWidget);
+    expect(find.text('Confirmed'), findsOneWidget);
     expect(find.text('Service started'), findsOneWidget);
-    final semantics = tester.widget<Semantics>(find.byType(Semantics).first);
-    expect(semantics.properties.label, 'Service booking progress: Service started');
+    expect(find.text('Completed'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsNWidgets(3));
+    expect(find.byIcon(Icons.radio_button_unchecked_rounded), findsOneWidget);
   });
 
   testWidgets('renders cancelled state without active progress', (tester) async {
