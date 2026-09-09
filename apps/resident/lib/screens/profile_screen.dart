@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_repository.dart';
 import '../data/resident_data_controller.dart';
 import 'family_members_screen.dart';
+import 'privacy_data_screen.dart';
 import 'vehicles_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -125,6 +126,14 @@ class ProfileScreen extends StatelessWidget {
                 leading: Icon(Icons.language_rounded),
                 title: Text('Language'),
                 subtitle: Text('English'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy & data use'),
+                subtitle: const Text('See how current app features use your information'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyDataScreen())),
               ),
               const Divider(height: 1),
               ListTile(
