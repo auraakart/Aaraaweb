@@ -28,7 +28,8 @@ void main() {
     );
 
     expect(find.text('Service started'), findsOneWidget);
-    expect(find.bySemanticsLabel('Service booking progress: Service started'), findsOneWidget);
+    final semantics = tester.widget<Semantics>(find.byType(Semantics).first);
+    expect(semantics.properties.label, 'Service booking progress: Service started');
   });
 
   testWidgets('renders cancelled state without active progress', (tester) async {
