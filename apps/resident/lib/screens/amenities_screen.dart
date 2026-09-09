@@ -213,7 +213,7 @@ class _AmenityCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              CircleAvatar(child: const Icon(Icons.sports_tennis_outlined)),
+              CircleAvatar(backgroundColor: theme.colorScheme.primaryContainer, child: const Icon(Icons.sports_tennis_outlined)),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(amenity['name']?.toString() ?? 'Amenity', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
