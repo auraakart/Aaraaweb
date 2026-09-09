@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AccessRequestStatus, AccessSubjectType, AuditEventType, Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -88,5 +88,35 @@ export class ServiceBookingAccessService {
       },
     });
     return { request, credential: rawCredential };
+  }
+
+  async cancelApproved(tx: Prisma.TransactionClient, societyId: string, userId: string, accessRequestId: string) {
+    const request = await tx.accessRequest.findFirst({
+      where: { id: accessRequestId, societyId, requestedById: userId },
+      select: { id: true, status: true },
+    });
+    if (!request) throw new NotFoundException('Service booking access request not found');
+    if (request.status !== AccessRequestStatus.PENDING && request.status !== AccessRequestStatus.APPROVED) {
+      throw new BadRequestException(`Access request is ${request.status.toLowerCase()}`);
+    }
+
+    const changed = await tx.accessRequest.updateMany({
+      where: {
+        id: request.id,
+        societyId,
+        requestedById: userId,
+        status: request.status,
+      },
+      data: { status: AccessRequestStatus.CANCELLED, credentialHash: null },
+    });
+    if (changed.count !== 1) throw new BadRequestException('Access request changed before cancellation could complete');
+    await tx.auditEvent.create({
+      data: {
+        societyId,
+        actorUserId: userId,
+        accessRequestId: request.id,
+        event: AuditEventType.ACCESS_CANCELLED,
+      },
+    });
   }
 }
