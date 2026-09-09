@@ -105,4 +105,81 @@ describe('AmenitiesService', () => {
       }),
     ).resolves.toEqual(booking);
   });
+
+  it('rejects structural amenity changes while future active bookings exist', async () => {
+    const existing = {
+      id: '33333333-3333-4333-8333-333333333333',
+      societyId: '11111111-1111-4111-8111-111111111111',
+      code: 'POOL',
+      name: 'Pool',
+      description: null,
+      location: null,
+      schedule: {},
+      bookingRules: {},
+      feePaise: 0,
+      currency: 'INR',
+      requiresApproval: false,
+      slotMinutes: 60,
+      maxConcurrentBookings: 1,
+      active: true,
+    };
+    const txQueryRaw = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce([{ count: 1 }]);
+    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+
+    await expect(service.updateAmenity(
+      existing.societyId,
+      existing.id,
+      {
+        name: 'Pool',
+        feePaise: 0,
+        requiresApproval: false,
+        slotMinutes: 90,
+        maxConcurrentBookings: 1,
+        active: true,
+      },
+    )).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('allows non-structural amenity edits without disturbing future bookings', async () => {
+    const existing = {
+      id: '33333333-3333-4333-8333-333333333333',
+      societyId: '11111111-1111-4111-8111-111111111111',
+      code: 'GYM',
+      name: 'Gym',
+      description: null,
+      location: null,
+      schedule: {},
+      bookingRules: {},
+      feePaise: 0,
+      currency: 'INR',
+      requiresApproval: false,
+      slotMinutes: 60,
+      maxConcurrentBookings: 2,
+      active: true,
+    };
+    const updated = { ...existing, name: 'Fitness Centre', feePaise: 10000, active: false };
+    const txQueryRaw = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce([updated]);
+    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+
+    await expect(service.updateAmenity(
+      existing.societyId,
+      existing.id,
+      {
+        name: 'Fitness Centre',
+        feePaise: 10000,
+        requiresApproval: false,
+        slotMinutes: 60,
+        maxConcurrentBookings: 2,
+        active: false,
+      },
+    )).resolves.toEqual(updated);
+
+    expect(txQueryRaw).toHaveBeenCalledTimes(3);
+  });
 });
