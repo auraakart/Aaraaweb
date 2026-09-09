@@ -20,6 +20,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   int _queued = 0;
   bool _busy = false;
   String? _error;
+  String? _syncMessage;
 
   @override
   void initState() {
@@ -58,7 +59,12 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   Future<void> _syncQueue() async {
     final session = widget.controller.session;
     if (session == null) {
-      if (mounted) setState(() => _queued = 0);
+      if (mounted) {
+        setState(() {
+          _queued = 0;
+          _syncMessage = null;
+        });
+      }
       return;
     }
     final all = await _queue.read();
@@ -69,10 +75,17 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         .where((action) => !action.belongsTo(societyId: session.societyId, guardUserId: session.userId))
         .toList(growable: false);
     if (pending.isEmpty) {
-      if (mounted) setState(() => _queued = 0);
+      if (mounted) {
+        setState(() {
+          _queued = 0;
+          _syncMessage = null;
+        });
+      }
       return;
     }
     final remaining = <QueuedWorkforceAction>[];
+    var synced = 0;
+    var rejected = 0;
     for (var index = 0; index < pending.length; index++) {
       final action = pending[index];
       try {
@@ -89,16 +102,41 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
             idempotencyKey: action.idempotencyKey,
           );
         }
+        synced++;
       } on GuardApiException catch (e) {
         if (e.transport) {
           remaining.addAll(pending.sublist(index));
           break;
         }
         remaining.add(action);
+        rejected++;
       }
     }
     await _queue.replace([...otherSessions, ...remaining]);
-    if (mounted) setState(() => _queued = remaining.length);
+    if (!mounted) return;
+    setState(() {
+      _queued = remaining.length;
+      _syncMessage = remaining.isEmpty
+          ? '$synced offline attendance ${synced == 1 ? 'action' : 'actions'} synced.'
+          : rejected > 0
+              ? '$synced synced; $rejected retained for supervisor review.'
+              : 'Connectivity is still unavailable. ${remaining.length} attendance ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
+    });
+  }
+
+  Future<void> _retrySync() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _syncQueue();
+    } on GuardApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   String _idempotencyKey() {
@@ -150,7 +188,10 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
           .where((action) => action.belongsTo(societyId: session.societyId, guardUserId: session.userId))
           .length;
       if (!mounted) return;
-      setState(() => _queued = count);
+      setState(() {
+        _queued = count;
+        _syncMessage = 'Attendance saved securely. Retry when connectivity returns.';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Network unavailable. Attendance saved securely and will sync automatically.')),
       );
@@ -188,6 +229,39 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                       : Badge(label: Text('$_queued'), child: const Icon(Icons.cloud_off_outlined)),
                 ),
               ),
+              if (_queued > 0 || _syncMessage != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(_queued == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined),
+                          title: Text(
+                            _queued == 0 ? 'Offline attendance synced' : '$_queued offline attendance ${_queued == 1 ? 'action' : 'actions'} pending',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text(
+                            _syncMessage ??
+                                (_queued == 0
+                                    ? 'No locally queued attendance actions.'
+                                    : 'Stored securely and kept separate by society and guard session.'),
+                          ),
+                        ),
+                        if (_queued > 0)
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _retrySync,
+                            icon: const Icon(Icons.sync_rounded),
+                            label: const Text('RETRY SAFE SYNC'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _search,
