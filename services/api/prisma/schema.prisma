@@ -156,21 +156,21 @@ model UnitOwnership {
 model UnitOccupancy {
   id                      String       @id @default(uuid()) @db.Uuid
   societyId               String       @db.Uuid
-  unitId                  String       @db.Uuid
-  userId                  String       @db.Uuid
-  relation                UnitRelation
-  effectiveFrom           DateTime     @default(now()) @db.Timestamptz(6)
-  effectiveTo             DateTime?    @db.Timestamptz(6)
-  active                  Boolean      @default(true)
-  primaryGateContact      Boolean      @default(false)
-  gateApprovalEnabled     Boolean      @default(true)
-  gateNotificationEnabled Boolean      @default(true)
-  escalationOrder         Int          @default(100)
-  createdAt               DateTime     @default(now()) @db.Timestamptz(6)
-  updatedAt               DateTime     @updatedAt @db.Timestamptz(6)
-  society                 Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit                    Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitId                   String       @db.Uuid
+  userId                   String       @db.Uuid
+  relation                 UnitRelation
+  effectiveFrom            DateTime     @default(now()) @db.Timestamptz(6)
+  effectiveTo              DateTime?    @db.Timestamptz(6)
+  active                   Boolean      @default(true)
+  primaryGateContact       Boolean      @default(false)
+  gateApprovalEnabled      Boolean      @default(true)
+  gateNotificationEnabled  Boolean      @default(true)
+  escalationOrder          Int          @default(100)
+  createdAt                DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime     @updatedAt @db.Timestamptz(6)
+  society                  Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                     Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user                     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([unitId, userId, active])
   @@index([societyId, unitId, active, gateNotificationEnabled])
@@ -248,20 +248,20 @@ model DomesticWorker {
 }
 
 model WorkforceAssignment {
-  id               String                     @id @default(uuid()) @db.Uuid
-  societyId        String                     @db.Uuid
-  householdId      String                     @db.Uuid
-  workerId         String                     @db.Uuid
-  status           WorkforceAssignmentStatus  @default(PENDING)
-  schedule         Json                       @default("{}")
-  active           Boolean                    @default(true)
+  id               String                    @id @default(uuid()) @db.Uuid
+  societyId        String                    @db.Uuid
+  householdId      String                    @db.Uuid
+  workerId         String                    @db.Uuid
+  status           WorkforceAssignmentStatus @default(PENDING)
+  schedule         Json                      @default("{}")
+  active           Boolean                   @default(true)
   startDate        DateTime?
   endDate          DateTime?
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-  society          Society                    @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  household        Household                  @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  worker           DomesticWorker             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  society          Society                   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household        Household                 @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  worker           DomesticWorker            @relation(fields: [workerId], references: [id], onDelete: Cascade)
   leaves           WorkforceLeave[]
   rating           WorkforceRating?
   suspensionEvents WorkforceSuspensionEvent[]
@@ -360,26 +360,26 @@ model GateGuardAssignment {
 }
 
 model AccessRequest {
-  id             String                @id @default(uuid()) @db.Uuid
-  societyId      String                @db.Uuid
-  unitId         String                @db.Uuid
-  requestedById  String                @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  societyId      String              @db.Uuid
+  unitId         String              @db.Uuid
+  requestedById  String              @db.Uuid
   subjectType    AccessSubjectType
   subjectName    String
   subjectPhone   String?
   purpose        String?
-  status         AccessRequestStatus   @default(PENDING)
+  status         AccessRequestStatus @default(PENDING)
   validFrom      DateTime?
   validUntil     DateTime?
   credentialHash String?
   enteredAt      DateTime?
   exitedAt       DateTime?
-  metadata       Json                  @default("{}")
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  society        Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit           Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  requestedBy    User                  @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  society        Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit           Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  requestedBy    User                @relation(fields: [requestedById], references: [id], onDelete: Cascade)
   serviceBooking ServiceBooking?
   auditEvents    AuditEvent[]
   gateMutations  GateMutationReceipt[]
@@ -436,18 +436,18 @@ model ServiceProviderSociety {
 }
 
 model ServiceOffering {
-  id              String           @id @default(uuid()) @db.Uuid
-  providerId      String           @db.Uuid
-  categoryId      String           @db.Uuid
+  id              String          @id @default(uuid()) @db.Uuid
+  providerId      String          @db.Uuid
+  categoryId      String          @db.Uuid
   name            String
   description     String?
   pricePaise      Int
   durationMinutes Int?
-  active          Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  provider        ServiceProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  category        ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  provider        ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category        ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   bookings        ServiceBooking[]
 
   @@index([categoryId, active])
@@ -661,21 +661,21 @@ model HelpdeskActivity {
 }
 
 model Notice {
-  id          String        @id @default(uuid()) @db.Uuid
-  societyId   String        @db.Uuid
-  createdById String        @db.Uuid
+  id          String         @id @default(uuid()) @db.Uuid
+  societyId   String         @db.Uuid
+  createdById String         @db.Uuid
   title       String
   body        String
   category    String?
   audience    NoticeAudience @default(OWNER_AND_OCCUPANTS)
-  status      String        @default("DRAFT")
-  publishedAt DateTime?     @db.Timestamptz(6)
-  expiresAt   DateTime?     @db.Timestamptz(6)
-  archivedAt  DateTime?     @db.Timestamptz(6)
-  createdAt   DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime      @default(now()) @db.Timestamptz(6)
-  society     Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  createdBy   User          @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  status      String         @default("DRAFT")
+  publishedAt DateTime?      @db.Timestamptz(6)
+  expiresAt   DateTime?      @db.Timestamptz(6)
+  archivedAt  DateTime?      @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @db.Timestamptz(6)
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
   events      NoticeEvent[]
 
   @@index([societyId, status, publishedAt(sort: Desc)], map: "Notice_society_status_published_idx")
@@ -763,26 +763,26 @@ model PaymentEvent {
 }
 
 model SosIncident {
-  id               String             @id @default(uuid()) @db.Uuid
-  societyId        String             @db.Uuid
-  unitId           String             @db.Uuid
-  residentUserId   String             @db.Uuid
-  status           SosStatus          @default(ACTIVE)
+  id               String    @id @default(uuid()) @db.Uuid
+  societyId        String    @db.Uuid
+  unitId           String    @db.Uuid
+  residentUserId   String    @db.Uuid
+  status           SosStatus @default(ACTIVE)
   message          String?
   latitude         Float?
   longitude        Float?
-  acknowledgedById String?            @db.Uuid
-  acknowledgedAt   DateTime?          @db.Timestamp(3)
-  resolvedById     String?            @db.Uuid
-  resolvedAt       DateTime?          @db.Timestamp(3)
-  cancelledAt      DateTime?          @db.Timestamp(3)
-  createdAt        DateTime           @default(now()) @db.Timestamp(3)
-  updatedAt        DateTime           @default(now()) @db.Timestamp(3)
-  society          Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit             Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  resident         User               @relation("SosResident", fields: [residentUserId], references: [id], onDelete: Cascade)
-  acknowledgedBy   User?              @relation("SosAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
-  resolvedBy       User?              @relation("SosResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  acknowledgedById String?   @db.Uuid
+  acknowledgedAt   DateTime? @db.Timestamp(3)
+  resolvedById     String?   @db.Uuid
+  resolvedAt       DateTime? @db.Timestamp(3)
+  cancelledAt      DateTime? @db.Timestamp(3)
+  createdAt        DateTime  @default(now()) @db.Timestamp(3)
+  updatedAt        DateTime  @default(now()) @db.Timestamp(3)
+  society          Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit             Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  resident         User      @relation("SosResident", fields: [residentUserId], references: [id], onDelete: Cascade)
+  acknowledgedBy   User?     @relation("SosAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy       User?     @relation("SosResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   events           SosIncidentEvent[]
 
   @@index([societyId, status, createdAt], map: "SosIncident_societyId_status_createdAt_idx")
@@ -804,6 +804,61 @@ model SosIncidentEvent {
   actor       User        @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([societyId, incidentId, occurredAt], map: "SosIncidentEvent_societyId_incidentId_occurredAt_idx")
+}
+
+/// Prisma representation of the migration-managed amenity catalog. Foreign-key
+/// relations and CHECK constraints remain owned by the foundation migration.
+model Amenity {
+  id                    String    @id @default(uuid()) @db.Uuid
+  societyId             String    @db.Uuid
+  code                  String
+  name                  String
+  description           String?
+  location              String?
+  schedule              Json      @default("{}")
+  bookingRules          Json      @default("{}")
+  feePaise              Int       @default(0)
+  currency              String    @default("INR")
+  requiresApproval      Boolean   @default(false)
+  slotMinutes           Int       @default(60)
+  maxConcurrentBookings Int       @default(1)
+  active                Boolean   @default(true)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, code], map: "Amenity_societyId_code_key")
+  @@index([societyId, active, name], map: "Amenity_societyId_active_name_idx")
+}
+
+/// Booking rows intentionally stay relationless in Prisma so this reconciliation
+/// does not alter existing User/Society/Unit relation graphs. The database
+/// migration owns those foreign keys and the partial active-slot unique index.
+model AmenityBooking {
+  id               String               @id @default(uuid()) @db.Uuid
+  societyId        String               @db.Uuid
+  amenityId        String               @db.Uuid
+  unitId           String               @db.Uuid
+  userId           String               @db.Uuid
+  startsAt         DateTime             @db.Timestamptz(6)
+  endsAt           DateTime             @db.Timestamptz(6)
+  status           AmenityBookingStatus @default(PENDING)
+  feePaise         Int                  @default(0)
+  currency         String               @default("INR")
+  reviewNote       String?
+  reviewedByUserId String?              @db.Uuid
+  createdAt        DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, amenityId, startsAt, endsAt, status], map: "AmenityBooking_society_amenity_window_idx")
+  @@index([societyId, userId, createdAt(sort: Desc)], map: "AmenityBooking_society_user_created_idx")
+  @@index([societyId, unitId, createdAt(sort: Desc)], map: "AmenityBooking_society_unit_created_idx")
+}
+
+enum AmenityBookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
 }
 
 enum UserStatus {
