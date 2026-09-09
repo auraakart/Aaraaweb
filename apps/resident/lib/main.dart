@@ -214,7 +214,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             showBilling: showBilling,
             showAmenities: showAmenities,
             showSos: showSos,
-            onOpenGate: () { if (gateIndex != null) _open(gateIndex!); },
+            onOpenGate: () { if (gateIndex != null) _open(gateIndex); },
             onOpenServices: _openExternalServices,
             onOpenHelpdesk: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller))),
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
