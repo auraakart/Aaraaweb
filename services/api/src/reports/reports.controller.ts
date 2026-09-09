@@ -6,10 +6,14 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
-@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
+@UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
+@RequiresFeature(ProductFeature.ADVANCED_REPORTS)
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
