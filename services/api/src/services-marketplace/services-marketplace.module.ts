@@ -21,6 +21,7 @@ import { ConsumerServiceLocationService } from './consumer-service-location.serv
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServiceBookingAccessService } from './service-booking-access.service';
+import { ServiceBookingTransitionService } from './service-booking-transition.service';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
@@ -43,6 +44,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   providers: [
     PrismaService,
     ServiceBookingAccessService,
+    ServiceBookingTransitionService,
     ServicesMarketplaceOperationsService,
     ServicesMarketplaceService,
     ConsumerAvailabilityService,
