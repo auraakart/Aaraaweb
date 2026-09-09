@@ -4,20 +4,32 @@ import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
 class ResidentDataController extends ChangeNotifier {
-  ResidentDataController(this.repository, {this.activeUnitId}) : push = PushRegistrationService(repository);
+  ResidentDataController(
+    this.repository, {
+    this.activeUnitId,
+    Set<String>? initialEnabledFeatures,
+    this.fetchEntitlements = true,
+  })  : enabledFeatures = {...?initialEnabledFeatures},
+        push = PushRegistrationService(repository);
+
   final ResidentRepository repository;
   final PushRegistrationService push;
   final String? activeUnitId;
+  final bool fetchEntitlements;
+  Set<String> enabledFeatures;
 
   bool loading = false;
   bool realtimeConnected = false;
   bool pushEnabled = false;
+  bool entitlementsLoaded = false;
   String? authError;
+  String? entitlementsError;
   String? householdError;
   String? accessError;
   String? noticesError;
   String? servicesError;
   String? workforceError;
+  String? billingError;
   List<Map<String, dynamic>> households = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> notices = const [];
@@ -27,6 +39,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
+  List<Map<String, dynamic>> maintenanceInvoices = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
   Map<String, dynamic>? latestNotificationEvent;
@@ -35,15 +48,17 @@ class ResidentDataController extends ChangeNotifier {
   Future<void>? _loadInFlight;
   bool _disposed = false;
 
+  bool get hasActiveProperty => activeUnitId != null && activeUnitId!.isNotEmpty;
+  bool hasFeature(String feature) => enabledFeatures.contains(feature);
+  bool get _canLoadAccess => hasFeature('VISITOR_MANAGEMENT') || hasFeature('DELIVERY_MANAGEMENT') || hasFeature('DOMESTIC_HELP') || hasFeature('HOUSEHOLD_SERVICES');
+
   Map<String, dynamic>? get activeHousehold {
     final selected = activeUnitId;
-    if (selected != null) {
-      for (final household in households) {
-        if (household['unitId']?.toString() == selected) return household;
-      }
-      return null;
+    if (selected == null) return null;
+    for (final household in households) {
+      if (household['unitId']?.toString() == selected) return household;
     }
-    return households.length == 1 ? households.first : null;
+    return null;
   }
 
   String? get primaryUnitId => activeHousehold?['unitId']?.toString();
@@ -69,30 +84,128 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> _load() async {
     loading = true;
     authError = null;
+    entitlementsError = null;
     householdError = null;
     accessError = null;
     noticesError = null;
     servicesError = null;
     workforceError = null;
+    billingError = null;
     notifyListeners();
-    await Future.wait([_loadHouseholds(), _loadAccess(), _loadNotices(), _loadServices(), _loadWorkforce()]);
+
+    await _loadEntitlements();
+    if (_disposed) return;
+
+    final tasks = <Future<void>>[];
+    if (hasFeature('NOTICES')) {
+      tasks.add(_loadNotices());
+    } else {
+      notices = const [];
+    }
+
+    if (hasActiveProperty) {
+      tasks.add(_loadHouseholds());
+      if (_canLoadAccess) {
+        tasks.add(_loadAccess());
+      } else {
+        accessRequests = const [];
+        latestAccessEvent = null;
+      }
+      if (hasFeature('HOUSEHOLD_SERVICES')) {
+        tasks.add(_loadServices());
+      } else {
+        serviceCategories = const [];
+        serviceOfferings = const [];
+        bookings = const [];
+      }
+      if (hasFeature('DOMESTIC_HELP')) {
+        tasks.add(_loadWorkforce());
+      } else {
+        workforceAssignments = const [];
+        workforceLeaves = const [];
+        workforceRatings = const [];
+      }
+      if (hasFeature('MAINTENANCE_BILLING')) {
+        tasks.add(_loadMaintenanceInvoices());
+      } else {
+        maintenanceInvoices = const [];
+      }
+    } else {
+      _clearUnitScopedData();
+    }
+
+    await Future.wait(tasks);
     if (_disposed) return;
     loading = false;
     notifyListeners();
-    startRealtime();
+
+    if (hasFeature('NOTICES') || (hasActiveProperty && _canLoadAccess)) {
+      startRealtime();
+    } else {
+      await _accessEvents?.cancel();
+      _accessEvents = null;
+      realtimeConnected = false;
+    }
     pushEnabled = await push.start(onOpened: _handlePushOpened);
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> _loadEntitlements() async {
+    if (!fetchEntitlements) {
+      entitlementsLoaded = true;
+      return;
+    }
+    try {
+      final current = await repository.currentEntitlements();
+      final raw = current['enabledFeatures'];
+      enabledFeatures = raw is List ? raw.map((item) => item.toString()).toSet() : <String>{};
+      entitlementsLoaded = true;
+    } catch (error) {
+      // Fail closed: the UI must not advertise gated modules when entitlement
+      // resolution fails. Core profile/property context remains available.
+      enabledFeatures = <String>{};
+      entitlementsLoaded = true;
+      entitlementsError = 'Available society features could not be verified.';
+      _capture(error, (_) {});
+    }
+  }
+
+  void _clearUnitScopedData() {
+    households = const [];
+    accessRequests = const [];
+    serviceCategories = const [];
+    serviceOfferings = const [];
+    bookings = const [];
+    workforceAssignments = const [];
+    workforceLeaves = const [];
+    workforceRatings = const [];
+    maintenanceInvoices = const [];
+    latestAccessEvent = null;
+    lastIssuedVisitorPass = null;
+  }
+
   Future<void> refreshNotices() async {
     noticesError = null;
-    await _loadNotices();
+    if (!hasFeature('NOTICES')) {
+      notices = const [];
+    } else {
+      await _loadNotices();
+    }
     if (!_disposed) notifyListeners();
   }
 
   Future<void> refreshWorkforce() async {
     workforceError = null;
-    await Future.wait([_loadWorkforce(), _loadAccess()]);
+    if (!hasActiveProperty || !hasFeature('DOMESTIC_HELP')) {
+      workforceAssignments = const [];
+      workforceLeaves = const [];
+      workforceRatings = const [];
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    final tasks = <Future<void>>[_loadWorkforce()];
+    if (_canLoadAccess) tasks.add(_loadAccess());
+    await Future.wait(tasks);
     if (!_disposed) notifyListeners();
   }
 
@@ -106,17 +219,18 @@ class ResidentDataController extends ChangeNotifier {
         if (_disposed) return;
         realtimeConnected = true;
         final type = event['type']?.toString() ?? '';
-        if (type.startsWith('ACCESS_')) {
+        if (type.startsWith('ACCESS_') && hasActiveProperty && _canLoadAccess) {
           await _loadAccess();
           final requestId = event['requestId']?.toString();
           if (requestId != null && accessRequests.any((request) => request['id']?.toString() == requestId)) {
             latestAccessEvent = event;
           }
-        } else if (type == 'GENERAL_NOTICE_PUBLISHED') {
+        } else if (type == 'GENERAL_NOTICE_PUBLISHED' && hasFeature('NOTICES')) {
           latestNotificationEvent = event;
           await _loadNotices();
-        } else if (type == 'MAINTENANCE_DUE_ISSUED' && _matchesActiveUnit(event)) {
+        } else if (type == 'MAINTENANCE_DUE_ISSUED' && hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(event)) {
           latestNotificationEvent = event;
+          await _loadMaintenanceInvoices();
         }
         if (!_disposed) notifyListeners();
       },
@@ -147,17 +261,21 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> _handlePushOpened(Map<String, dynamic> data) async {
     if (_disposed) return;
     final type = data['type']?.toString() ?? '';
-    if (type == 'GENERAL_NOTICE_PUBLISHED') {
+    if (type == 'GENERAL_NOTICE_PUBLISHED' && hasFeature('NOTICES')) {
       latestNotificationEvent = data;
       await _loadNotices();
       if (!_disposed) notifyListeners();
       return;
     }
     if (type == 'MAINTENANCE_DUE_ISSUED') {
-      if (_matchesActiveUnit(data)) latestNotificationEvent = data;
+      if (hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(data)) {
+        latestNotificationEvent = data;
+        await _loadMaintenanceInvoices();
+      }
       if (!_disposed) notifyListeners();
       return;
     }
+    if (!hasActiveProperty || !_canLoadAccess) return;
     final requestId = data['requestId']?.toString();
     if (requestId == null) return;
     await _loadAccess();
@@ -169,7 +287,7 @@ class ResidentDataController extends ChangeNotifier {
 
   bool _matchesActiveUnit(Map<String, dynamic> event) {
     final selected = activeUnitId;
-    if (selected == null) return true;
+    if (selected == null) return false;
     return event['unitId']?.toString() == selected;
   }
 
@@ -180,13 +298,13 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   Future<void> _loadHouseholds() async {
+    final selected = activeUnitId;
+    if (selected == null) {
+      households = const [];
+      return;
+    }
     try {
       final rows = await repository.households();
-      final selected = activeUnitId;
-      if (selected == null) {
-        households = rows;
-        return;
-      }
       final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
       households = scoped;
       if (rows.isNotEmpty && scoped.isEmpty) {
@@ -198,6 +316,11 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   Future<void> _loadAccess() async {
+    if (!hasActiveProperty || !_canLoadAccess) {
+      accessRequests = const [];
+      latestAccessEvent = null;
+      return;
+    }
     try {
       final rows = await repository.accessRequests();
       accessRequests = _filterByUnit(rows, (item) => item['unitId']);
@@ -209,6 +332,10 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   Future<void> _loadNotices() async {
+    if (!hasFeature('NOTICES')) {
+      notices = const [];
+      return;
+    }
     try {
       notices = await repository.notices();
     } catch (e) {
@@ -217,17 +344,29 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   Future<void> _loadServices() async {
+    if (!hasActiveProperty || !hasFeature('HOUSEHOLD_SERVICES')) {
+      serviceCategories = const [];
+      serviceOfferings = const [];
+      bookings = const [];
+      return;
+    }
     try {
       final results = await Future.wait([repository.serviceCategories(), repository.serviceOfferings(), repository.bookings()]);
       serviceCategories = results[0];
       serviceOfferings = results[1];
-      bookings = results[2];
+      bookings = _filterByUnit(results[2], (item) => item['unitId']);
     } catch (e) {
       _capture(e, (message) => servicesError = message);
     }
   }
 
   Future<void> _loadWorkforce() async {
+    if (!hasActiveProperty || !hasFeature('DOMESTIC_HELP')) {
+      workforceAssignments = const [];
+      workforceLeaves = const [];
+      workforceRatings = const [];
+      return;
+    }
     try {
       final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings()]);
       final assignments = _filterByUnit(results[0], (item) {
@@ -243,9 +382,22 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadMaintenanceInvoices() async {
+    if (!hasActiveProperty || !hasFeature('MAINTENANCE_BILLING')) {
+      maintenanceInvoices = const [];
+      return;
+    }
+    try {
+      final rows = await repository.maintenanceInvoices();
+      maintenanceInvoices = _filterByUnit(rows, (item) => item['unitId']);
+    } catch (e) {
+      _capture(e, (message) => billingError = message);
+    }
+  }
+
   List<Map<String, dynamic>> _filterByUnit(List<Map<String, dynamic>> rows, Object? Function(Map<String, dynamic>) unitOf) {
     final selected = activeUnitId;
-    if (selected == null) return rows;
+    if (selected == null) return const [];
     return rows.where((item) => unitOf(item)?.toString() == selected).toList(growable: false);
   }
 

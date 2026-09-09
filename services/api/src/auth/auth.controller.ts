@@ -47,7 +47,7 @@ export class AuthController {
     if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
 
     const membershipRows = await this.prisma.societyMembership.findMany({
-      where: { userId: user.id, active: true },
+      where: { userId: user.id, active: true, society: { status: 'ACTIVE' } },
       select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
     });
     const contexts = await this.listSocietyContexts(user.id, membershipRows);
@@ -119,7 +119,7 @@ export class AuthController {
 
   private async createSocietySession(userId: string, societyId: string) {
     const memberships = await this.prisma.societyMembership.findMany({
-      where: { userId, societyId, active: true },
+      where: { userId, societyId, active: true, society: { status: 'ACTIVE' } },
       select: { role: true },
     });
     if (!memberships.length) throw new UnauthorizedException('User is not an active member of this society');
@@ -137,7 +137,7 @@ export class AuthController {
       suppliedMembershipRows
         ? Promise.resolve(suppliedMembershipRows)
         : this.prisma.societyMembership.findMany({
-            where: { userId, active: true },
+            where: { userId, active: true, society: { status: 'ACTIVE' } },
             select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
           }),
       this.prisma.unitOwnership.findMany({
@@ -172,7 +172,7 @@ export class AuthController {
     const propertyMap = new Map<string, PropertyContext[]>();
     const addProperty = (societyId: string, property: PropertyContext) => {
       const rows = propertyMap.get(societyId) ?? [];
-      const duplicate = rows.some((row) => row.unitId === property.unitId && row.relationship === property.relationship);
+      const duplicate = rows.some((row) => row.unitId === property.unitId);
       if (!duplicate) rows.push(property);
       propertyMap.set(societyId, rows);
     };

@@ -69,4 +69,51 @@ describe('PlatformEntitlementsController', () => {
       create: expect.objectContaining({ role: MembershipRole.SOCIETY_ADMIN, active: true }),
     }));
   });
+
+  it('blocks deactivation of the last active admin in an active society', async () => {
+    const prisma = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      society: { findUnique: vi.fn().mockResolvedValue({ status: SocietyStatus.ACTIVE }) },
+      societyMembership: {
+        findUnique: vi.fn().mockResolvedValue({ active: true }),
+        count: vi.fn().mockResolvedValue(1),
+        updateMany: vi.fn(),
+      },
+      session: { updateMany: vi.fn() },
+      $transaction: vi.fn(),
+    };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    const controller = new PlatformEntitlementsController(prisma as never);
+
+    await expect(controller.deactivateSocietyAdmin(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+    )).rejects.toThrow('Active society must retain at least one Society Admin');
+    expect(prisma.$executeRaw).toHaveBeenCalled();
+    expect(prisma.societyMembership.updateMany).not.toHaveBeenCalled();
+    expect(prisma.session.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('allows admin deactivation when another active admin remains', async () => {
+    const prisma = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      society: { findUnique: vi.fn().mockResolvedValue({ status: SocietyStatus.ACTIVE }) },
+      societyMembership: {
+        findUnique: vi.fn().mockResolvedValue({ active: true }),
+        count: vi.fn().mockResolvedValue(2),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      session: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      $transaction: vi.fn(),
+    };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    const controller = new PlatformEntitlementsController(prisma as never);
+
+    await expect(controller.deactivateSocietyAdmin(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+    )).resolves.toEqual({ success: true, deactivated: 1 });
+    expect(prisma.societyMembership.updateMany).toHaveBeenCalled();
+    expect(prisma.session.updateMany).toHaveBeenCalled();
+  });
 });

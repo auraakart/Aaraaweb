@@ -10,6 +10,8 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
+import { ServiceBookingRatingService } from './service-booking-rating.service';
+import { ServiceBookingTransitionService } from './service-booking-transition.service';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
@@ -75,6 +77,8 @@ export class ServicesMarketplaceController {
   constructor(
     private readonly marketplace: ServicesMarketplaceService,
     private readonly operations: ServicesMarketplaceOperationsService,
+    private readonly transitions: ServiceBookingTransitionService,
+    private readonly ratings: ServiceBookingRatingService,
   ) {}
 
   @Get('categories')
@@ -107,14 +111,14 @@ export class ServicesMarketplaceController {
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
   cancel(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.marketplace.cancelMine(societyId, userId, bookingId);
+    return this.transitions.cancelMine(societyId, userId, bookingId);
   }
 
   @Post('bookings/:bookingId/rating')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
   rate(@Param('bookingId', ParseUUIDPipe) bookingId: string, @Body() dto: RateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.marketplace.rate(societyId, userId, bookingId, dto.score, dto.comment);
+    return this.ratings.rateMine(societyId, userId, bookingId, dto.score, dto.comment);
   }
 
   @Post('admin/categories')
@@ -178,6 +182,6 @@ export class ServicesMarketplaceController {
   @Post('admin/bookings/:bookingId/complete')
   @RequiresPermissions(AppPermission.SERVICES_PROVIDER_MANAGE)
   complete(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentTenant() societyId: string) {
-    return this.marketplace.complete(societyId, bookingId);
+    return this.transitions.complete(societyId, bookingId);
   }
 }

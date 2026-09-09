@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AccessModule } from './access/access.module';
+import { AmenitiesModule } from './amenities/amenities.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
@@ -36,6 +37,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     GatesModule,
     VisitorsModule,
     AccessModule,
+    AmenitiesModule,
     ServicesMarketplaceModule,
     BillingModule,
     ReportsModule,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_repository.dart';
 import '../data/resident_data_controller.dart';
 import 'family_members_screen.dart';
+import 'privacy_data_screen.dart';
 import 'vehicles_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -104,20 +105,36 @@ class ProfileScreen extends StatelessWidget {
                   )),
                 ),
                 const Divider(height: 1),
-                ListTile(leading: const Icon(Icons.contact_emergency_outlined), title: const Text('Emergency contacts'), subtitle: Text('$contacts contacts'), trailing: const Icon(Icons.chevron_right)),
-                const Divider(height: 1),
-                const ListTile(leading: Icon(Icons.tune_rounded), title: Text('Access preferences'), subtitle: Text('Delivery and frequent visitor rules'), trailing: Icon(Icons.chevron_right)),
+                ListTile(
+                  leading: const Icon(Icons.contact_emergency_outlined),
+                  title: const Text('Emergency contacts'),
+                  subtitle: Text('$contacts saved contacts'),
+                ),
               ])),
             ],
             const SizedBox(height: 24),
             Text('Settings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             Card(child: Column(children: [
-              const ListTile(leading: Icon(Icons.notifications_outlined), title: Text('Notifications'), trailing: Icon(Icons.chevron_right)),
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: const Text('Notifications'),
+                subtitle: Text(controller.pushEnabled ? 'Enabled on this device' : 'Not enabled on this device'),
+              ),
               const Divider(height: 1),
-              const ListTile(leading: Icon(Icons.language_rounded), title: Text('Language'), subtitle: Text('English'), trailing: Icon(Icons.chevron_right)),
+              const ListTile(
+                leading: Icon(Icons.language_rounded),
+                title: Text('Language'),
+                subtitle: Text('English'),
+              ),
               const Divider(height: 1),
-              const ListTile(leading: Icon(Icons.shield_outlined), title: Text('Privacy & security'), trailing: Icon(Icons.chevron_right)),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy & data use'),
+                subtitle: const Text('See how current app features use your information'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyDataScreen())),
+              ),
               const Divider(height: 1),
               ListTile(
                 leading: Icon(Icons.logout_rounded, color: theme.colorScheme.error),
