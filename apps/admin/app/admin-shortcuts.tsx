@@ -13,7 +13,7 @@ type CurrentEntitlements={enabledFeatures?:string[]}
 
 export function AdminShortcuts(){
   const[role,setRole]=useState('')
-  const[advancedReportsEnabled,setAdvancedReportsEnabled]=useState(false)
+  const[features,setFeatures]=useState<Set<string>>(new Set())
   useEffect(()=>{
     let active=true
     const load=async()=>{try{
@@ -22,20 +22,20 @@ export function AdminShortcuts(){
       const nextRole=session.role??''
       if(!active)return
       setRole(nextRole)
-      if(!session.accessToken||!reportRoles.has(nextRole))return
+      if(!session.accessToken)return
       const response=await fetch(`${base}/api/v1/entitlements/current`,{headers:{Accept:'application/json',Authorization:`Bearer ${session.accessToken}`}})
       if(!response.ok)return
       const body=await response.json() as CurrentEntitlements
-      if(active)setAdvancedReportsEnabled(body.enabledFeatures?.includes('ADVANCED_REPORTS')??false)
-    }catch{if(active){setRole('');setAdvancedReportsEnabled(false)}}}
+      if(active)setFeatures(new Set(body.enabledFeatures??[]))
+    }catch{if(active){setRole('');setFeatures(new Set())}}}
     void load()
     return()=>{active=false}
   },[])
   if(!role)return null
   const links:{href:string;label:string}[]=[]
-  if(reportRoles.has(role)&&advancedReportsEnabled)links.push({href:'/reports',label:'Reports'})
-  if(amenityRoles.has(role))links.push({href:'/amenities',label:'Amenities'})
-  if(marketplaceRoles.has(role))links.push({href:'/marketplace-control',label:'Marketplace controls'})
+  if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))links.push({href:'/reports',label:'Reports'})
+  if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
+  if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(societySetupRoles.has(role)){
     links.push({href:'/property',label:'Property setup'})
     links.push({href:'/roles',label:'People & roles'})
