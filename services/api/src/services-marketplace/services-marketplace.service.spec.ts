@@ -4,6 +4,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
 function setup() {
   const prisma = {
     unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
+    unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
     serviceOffering: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     serviceBooking: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     serviceProvider: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -55,6 +56,49 @@ describe('ServicesMarketplaceService', () => {
     expect(result.servicePricePaise).toBe(200000);
     expect(result.commissionBps).toBe(1250);
     expect(result.commissionPaise).toBe(25000);
+  });
+
+  it('allows a verified current owner to book without current occupancy', async () => {
+    const { prisma, service } = setup();
+    prisma.unitOccupancy.findFirst.mockResolvedValue(null);
+    prisma.unitOwnership.findFirst.mockResolvedValue({ id: 'ownership-1' });
+    prisma.serviceOffering.findFirst.mockResolvedValue({
+      id: 'offering-1',
+      providerId: 'provider-1',
+      pricePaise: 50000,
+      provider: { societies: [{ commissionBps: 1000 }] },
+    });
+    prisma.serviceBooking.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve(data));
+
+    await expect(service.book(
+      'society-1',
+      'owner-1',
+      'unit-1',
+      'offering-1',
+      new Date('2026-09-10T10:00:00Z'),
+      new Date('2026-09-10T11:00:00Z'),
+    )).resolves.toMatchObject({ residentUserId: 'owner-1', unitId: 'unit-1' });
+
+    expect(prisma.unitOwnership.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ societyId: 'society-1', userId: 'owner-1', unitId: 'unit-1', active: true, verified: true }),
+    }));
+  });
+
+  it('rejects a user with neither current occupancy nor verified ownership', async () => {
+    const { prisma, operations, service } = setup();
+    prisma.unitOccupancy.findFirst.mockResolvedValue(null);
+    prisma.unitOwnership.findFirst.mockResolvedValue(null);
+
+    await expect(service.book(
+      'society-1',
+      'user-1',
+      'unit-1',
+      'offering-1',
+      new Date('2026-09-10T10:00:00Z'),
+      new Date('2026-09-10T11:00:00Z'),
+    )).rejects.toThrow('Unit does not belong to authenticated resident');
+
+    expect(operations.assertProviderAvailable).not.toHaveBeenCalled();
   });
 
   it('creates and approves a service-provider access request when booking is confirmed', async () => {

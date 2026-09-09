@@ -21,8 +21,32 @@ export class ServicesMarketplaceService {
 
   private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
     const now = new Date();
-    const link = await this.prisma.unitOccupancy.findFirst({ where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } });
-    if (!link) throw new ForbiddenException('Unit does not belong to authenticated resident');
+    const [occupancy, ownership] = await Promise.all([
+      this.prisma.unitOccupancy.findFirst({
+        where: {
+          societyId,
+          userId,
+          unitId,
+          active: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        select: { id: true },
+      }),
+      this.prisma.unitOwnership.findFirst({
+        where: {
+          societyId,
+          userId,
+          unitId,
+          active: true,
+          verified: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (!occupancy && !ownership) throw new ForbiddenException('Unit does not belong to authenticated resident');
   }
 
   listCategories() { return this.prisma.serviceCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }); }
