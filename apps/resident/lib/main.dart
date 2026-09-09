@@ -233,13 +233,47 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         if (showServices) {
           add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
         }
+        final profileIndex = pages.length;
         add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
 
+        final membership = _currentMembership();
+        final property = _currentProperty(membership);
+        final household = controller.activeHousehold;
+        final societyName = membership?.name ?? household?['societyName']?.toString() ?? 'Current society';
+        final propertyLabel = property != null
+            ? '${property.buildingName} · ${property.unitNumber}'
+            : '${household?['buildingName'] ?? 'Property'} · ${household?['unitNumber'] ?? widget.currentUnitId ?? ''}'.replaceFirst(RegExp(r' · $'), '');
+        final relationship = property?.relationship ?? household?['occupancyRole']?.toString() ?? '';
+        final relationshipLabel = _relationshipLabel(relationship);
         final selectedIndex = _index < pages.length ? _index : 0;
         final pending = controller.firstPendingAccess;
         final eventRequestId = controller.latestAccessEvent?['requestId']?.toString();
         final showRealtimeApproval = showGate && pending != null && eventRequestId == pending['id']?.toString();
         return Scaffold(
+          appBar: AppBar(
+            titleSpacing: 16,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(societyName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                Text(
+                  relationshipLabel.isEmpty ? propertyLabel : '$propertyLabel · $relationshipLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            actions: [
+              if (_hasMultiplePropertyContexts())
+                TextButton.icon(
+                  onPressed: () => _open(profileIndex),
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text('Switch'),
+                ),
+              const SizedBox(width: 6),
+            ],
+          ),
           body: Stack(children: [
             IndexedStack(index: selectedIndex, children: pages),
             if (showRealtimeApproval)
@@ -255,6 +289,41 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         );
       },
     );
+  }
+
+  SocietyMembershipOption? _currentMembership() {
+    for (final membership in widget.propertyContexts) {
+      if (membership.societyId == widget.currentSocietyId) return membership;
+    }
+    return null;
+  }
+
+  PropertySummary? _currentProperty(SocietyMembershipOption? membership) {
+    if (membership == null) return null;
+    for (final property in membership.properties) {
+      if (property.unitId == widget.currentUnitId) return property;
+    }
+    return null;
+  }
+
+  bool _hasMultiplePropertyContexts() {
+    var count = 0;
+    for (final membership in widget.propertyContexts) {
+      count += membership.properties.isEmpty ? 1 : membership.properties.length;
+      if (count > 1) return true;
+    }
+    return false;
+  }
+
+  String _relationshipLabel(String relationship) {
+    switch (relationship) {
+      case 'OWNER':
+        return 'Owner';
+      case 'OCCUPANT':
+        return 'Resident';
+      default:
+        return relationship.replaceAll('_', ' ').toLowerCase();
+    }
   }
 
   String _currentSocietyName() {
