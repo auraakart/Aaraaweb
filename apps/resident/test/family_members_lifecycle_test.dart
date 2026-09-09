@@ -33,6 +33,12 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Add family member'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('Kavya Sharma'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Kavya Sharma'), findsOneWidget);
     expect(find.text('+91 98765 49999'), findsOneWidget);
   });
