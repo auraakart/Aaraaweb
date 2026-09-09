@@ -20,6 +20,7 @@ import { ConsumerServiceLocationPlatformController } from './consumer-service-lo
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
+import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
 import { ServicesPlatformController } from './services-platform.controller';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
@@ -41,6 +42,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   ],
   providers: [
     PrismaService,
+    ServiceBookingAccessService,
     ServicesMarketplaceOperationsService,
     ServicesMarketplaceService,
     ConsumerAvailabilityService,
