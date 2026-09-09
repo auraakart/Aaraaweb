@@ -16,8 +16,10 @@ void main() {
     controller.step = ResidentAuthStep.phone;
 
     await tester.pumpWidget(MaterialApp(home: AuthScreen(controller: controller)));
-    await tester.tap(find.text('Continue as Demo Resident'));
-    await tester.pump();
+    final demoAction = find.text('Continue as Demo Resident');
+    await tester.ensureVisible(demoAction);
+    await tester.tap(demoAction);
+    await tester.pumpAndSettle();
 
     expect(controller.step, ResidentAuthStep.society);
     expect(controller.memberships, hasLength(2));
