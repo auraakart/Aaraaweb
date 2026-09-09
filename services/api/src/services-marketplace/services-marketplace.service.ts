@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccessSubjectType, Prisma, ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
+import { Prisma, ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class ServicesMarketplaceService {
     private readonly entitlements: EntitlementService,
     private readonly access: AccessService,
     private readonly operations: ServicesMarketplaceOperationsService,
+    private readonly bookingAccess: ServiceBookingAccessService,
   ) {}
 
   private async assertEnabled(societyId: string) {
@@ -234,13 +236,52 @@ export class ServicesMarketplaceService {
 
   async confirm(societyId: string, bookingId: string) {
     await this.assertEnabled(societyId);
-    const booking = await this.prisma.serviceBooking.findFirst({ where: { id: bookingId, societyId }, include: { provider: true, offering: true } });
-    if (!booking) throw new NotFoundException('Service booking not found');
-    if (booking.status !== ServiceBookingStatus.REQUESTED) throw new BadRequestException(`Booking is ${booking.status.toLowerCase()}`);
-    const request = await this.access.create(societyId, booking.residentUserId, booking.unitId, AccessSubjectType.SERVICE_PROVIDER, booking.provider.businessName, booking.provider.phone, booking.offering.name, { bookingId: booking.id, providerId: booking.providerId, offeringId: booking.offeringId });
-    const approved = await this.access.approve(societyId, booking.residentUserId, request.id, booking.scheduledFrom, booking.scheduledUntil);
-    const updated = await this.prisma.serviceBooking.update({ where: { id: booking.id }, data: { status: ServiceBookingStatus.CONFIRMED, accessRequestId: approved.request.id }, include: { offering: true, provider: { select: { id: true, businessName: true, description: true } }, accessRequest: { select: { id: true, status: true, validFrom: true, validUntil: true, enteredAt: true, exitedAt: true } } } });
-    return { booking: updated, accessCredential: approved.credential };
+    return this.prisma.$transaction(async (tx) => {
+      // Lock the booking transition so concurrent confirmations cannot create
+      // multiple access requests or credentials for the same service booking.
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))
+      `);
+      const booking = await tx.serviceBooking.findFirst({
+        where: { id: bookingId, societyId },
+        include: { provider: true, offering: true },
+      });
+      if (!booking) throw new NotFoundException('Service booking not found');
+      if (booking.status !== ServiceBookingStatus.REQUESTED) throw new BadRequestException(`Booking is ${booking.status.toLowerCase()}`);
+
+      const approved = await this.bookingAccess.createApproved(tx, {
+        societyId,
+        userId: booking.residentUserId,
+        unitId: booking.unitId,
+        bookingId: booking.id,
+        providerId: booking.providerId,
+        offeringId: booking.offeringId,
+        providerName: booking.provider.businessName,
+        providerPhone: booking.provider.phone,
+        offeringName: booking.offering.name,
+        validFrom: booking.scheduledFrom,
+        validUntil: booking.scheduledUntil,
+      });
+      const changed = await tx.serviceBooking.updateMany({
+        where: {
+          id: booking.id,
+          societyId,
+          status: ServiceBookingStatus.REQUESTED,
+          accessRequestId: null,
+        },
+        data: { status: ServiceBookingStatus.CONFIRMED, accessRequestId: approved.request.id },
+      });
+      if (changed.count !== 1) throw new BadRequestException('Booking changed before confirmation could complete');
+      const updated = await tx.serviceBooking.findFirstOrThrow({
+        where: { id: booking.id, societyId },
+        include: {
+          offering: true,
+          provider: { select: { id: true, businessName: true, description: true } },
+          accessRequest: { select: { id: true, status: true, validFrom: true, validUntil: true, enteredAt: true, exitedAt: true } },
+        },
+      });
+      return { booking: updated, accessCredential: approved.credential };
+    });
   }
 
   async cancelMine(societyId: string, residentUserId: string, bookingId: string) {

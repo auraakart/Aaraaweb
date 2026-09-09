@@ -6,7 +6,14 @@ function setup() {
     unitOccupancy: { findFirst: vi.fn().mockResolvedValue({ id: 'link-1' }) },
     unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },
     serviceOffering: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
-    serviceBooking: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    serviceBooking: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      findFirstOrThrow: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
     serviceProvider: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     serviceProviderSociety: { upsert: vi.fn() },
     serviceCategory: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
@@ -25,12 +32,22 @@ function setup() {
     enrichOfferings: vi.fn().mockImplementation(async (_societyId: string, offerings: unknown[]) => offerings),
     setPlatformVerification: vi.fn(),
   };
+  const bookingAccess = {
+    createApproved: vi.fn().mockResolvedValue({ request: { id: 'access-1' }, credential: 'raw-pass' }),
+  };
   return {
     prisma: prisma as {
       unitOccupancy: { findFirst: ReturnType<typeof vi.fn> };
       unitOwnership: { findFirst: ReturnType<typeof vi.fn> };
       serviceOffering: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
-      serviceBooking: { create: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+      serviceBooking: {
+        create: ReturnType<typeof vi.fn>;
+        findMany: ReturnType<typeof vi.fn>;
+        findFirst: ReturnType<typeof vi.fn>;
+        findFirstOrThrow: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        updateMany: ReturnType<typeof vi.fn>;
+      };
       serviceProvider: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
       serviceProviderSociety: { upsert: ReturnType<typeof vi.fn> };
       serviceCategory: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
@@ -41,11 +58,13 @@ function setup() {
     entitlements,
     access,
     operations,
+    bookingAccess,
     service: new ServicesMarketplaceService(
       prisma as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[0],
       entitlements as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[1],
       access as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[2],
       operations as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[3],
+      bookingAccess as unknown as ConstructorParameters<typeof ServicesMarketplaceService>[4],
     ),
   };
 }
@@ -148,20 +167,47 @@ describe('ServicesMarketplaceService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('creates and approves a service-provider access request when booking is confirmed', async () => {
-    const { prisma, access, service } = setup();
+  it('confirms a booking and creates its approved access credential atomically', async () => {
+    const { prisma, access, bookingAccess, service } = setup();
     prisma.serviceBooking.findFirst.mockResolvedValue({
-      id: 'booking-1', societyId: 'society-1', unitId: 'unit-1', residentUserId: 'user-1',
-      providerId: 'provider-1', offeringId: 'offering-1', status: 'REQUESTED',
-      scheduledFrom: new Date('2026-09-02T10:00:00Z'), scheduledUntil: new Date('2026-09-02T12:00:00Z'),
+      id: 'booking-1', societyId: 'society-1', unitId: 'unit-1', residentUserId: 'owner-1',
+      providerId: 'provider-1', offeringId: 'offering-1', status: 'REQUESTED', accessRequestId: null,
+      scheduledFrom: new Date('2026-09-10T10:00:00Z'), scheduledUntil: new Date('2026-09-10T12:00:00Z'),
       provider: { businessName: 'Aaraa Plumbing', phone: '9999999999' }, offering: { name: 'Pipe repair' },
     });
-    prisma.serviceBooking.update.mockResolvedValue({ id: 'booking-1', status: 'CONFIRMED', accessRequestId: 'access-1' });
+    prisma.serviceBooking.updateMany.mockResolvedValue({ count: 1 });
+    prisma.serviceBooking.findFirstOrThrow.mockResolvedValue({ id: 'booking-1', status: 'CONFIRMED', accessRequestId: 'access-1' });
 
     const result = await service.confirm('society-1', 'booking-1');
-    expect(access.create).toHaveBeenCalledWith('society-1', 'user-1', 'unit-1', 'SERVICE_PROVIDER', 'Aaraa Plumbing', '9999999999', 'Pipe repair', expect.objectContaining({ bookingId: 'booking-1' }));
-    expect(access.approve).toHaveBeenCalled();
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(bookingAccess.createApproved).toHaveBeenCalledWith(prisma, expect.objectContaining({
+      societyId: 'society-1',
+      userId: 'owner-1',
+      unitId: 'unit-1',
+      bookingId: 'booking-1',
+      providerId: 'provider-1',
+      offeringId: 'offering-1',
+    }));
+    expect(prisma.serviceBooking.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'booking-1', societyId: 'society-1', status: 'REQUESTED', accessRequestId: null }),
+      data: { status: 'CONFIRMED', accessRequestId: 'access-1' },
+    }));
+    expect(access.create).not.toHaveBeenCalled();
+    expect(access.approve).not.toHaveBeenCalled();
     expect(result.accessCredential).toBe('raw-pass');
+  });
+
+  it('does not issue another credential for an already-confirmed booking', async () => {
+    const { prisma, bookingAccess, service } = setup();
+    prisma.serviceBooking.findFirst.mockResolvedValue({ id: 'booking-1', societyId: 'society-1', status: 'CONFIRMED' });
+
+    await expect(service.confirm('society-1', 'booking-1')).rejects.toThrow('Booking is confirmed');
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(bookingAccess.createApproved).not.toHaveBeenCalled();
+    expect(prisma.serviceBooking.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects marketplace use when the society feature is disabled', async () => {
