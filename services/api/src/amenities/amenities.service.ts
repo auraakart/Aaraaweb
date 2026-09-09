@@ -20,6 +20,19 @@ type AmenityRow = {
 
 type CountRow = { count: bigint | number };
 
+type AmenityUpdateInput = {
+  name: string;
+  description?: string | null;
+  location?: string | null;
+  schedule?: Record<string, unknown>;
+  bookingRules?: Record<string, unknown>;
+  feePaise: number;
+  requiresApproval: boolean;
+  slotMinutes: number;
+  maxConcurrentBookings: number;
+  active: boolean;
+};
+
 @Injectable()
 export class AmenitiesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -169,6 +182,57 @@ export class AmenitiesService {
       if (this.isUniqueViolation(error)) throw new ConflictException('Amenity code already exists in this society');
       throw error;
     }
+  }
+
+  async updateAmenity(societyId: string, amenityId: string, input: AmenityUpdateInput) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const existingRows = await tx.$queryRaw<AmenityRow[]>`
+        SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
+               "bookingRules", "feePaise", "currency", "requiresApproval", "slotMinutes",
+               "maxConcurrentBookings", "active"
+        FROM "Amenity"
+        WHERE "id" = ${amenityId}::uuid AND "societyId" = ${societyId}::uuid
+        LIMIT 1
+      `;
+      const existing = existingRows[0];
+      if (!existing) throw new NotFoundException('Amenity not found');
+
+      const structuralChange = existing.slotMinutes !== input.slotMinutes || existing.maxConcurrentBookings !== input.maxConcurrentBookings;
+      if (structuralChange) {
+        const futureRows = await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking"
+          WHERE "societyId" = ${societyId}::uuid
+            AND "amenityId" = ${amenityId}::uuid
+            AND "status" IN ('PENDING', 'CONFIRMED')
+            AND "endsAt" > CURRENT_TIMESTAMP
+        `;
+        if (Number(futureRows[0]?.count ?? 0) > 0) {
+          throw new ConflictException('Slot duration or capacity cannot change while future active bookings exist');
+        }
+      }
+
+      const rows = await tx.$queryRaw<AmenityRow[]>`
+        UPDATE "Amenity"
+        SET "name" = ${input.name.trim()},
+            "description" = ${input.description?.trim() || null},
+            "location" = ${input.location?.trim() || null},
+            "schedule" = ${JSON.stringify(input.schedule ?? existing.schedule ?? {})}::jsonb,
+            "bookingRules" = ${JSON.stringify(input.bookingRules ?? existing.bookingRules ?? {})}::jsonb,
+            "feePaise" = ${input.feePaise},
+            "requiresApproval" = ${input.requiresApproval},
+            "slotMinutes" = ${input.slotMinutes},
+            "maxConcurrentBookings" = ${input.maxConcurrentBookings},
+            "active" = ${input.active},
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${amenityId}::uuid AND "societyId" = ${societyId}::uuid
+        RETURNING "id", "societyId", "code", "name", "description", "location", "schedule",
+                  "bookingRules", "feePaise", "currency", "requiresApproval", "slotMinutes",
+                  "maxConcurrentBookings", "active"
+      `;
+      return rows[0];
+    });
   }
 
   async listBookingsManage(societyId: string, status?: string) {
