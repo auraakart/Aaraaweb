@@ -91,15 +91,8 @@ class ResidentAuthController extends ChangeNotifier {
           PropertySummary(
             unitId: 'demo-unit-1',
             unitNumber: 'A-1204',
-            buildingName: 'Tower A',
-            buildingCode: 'A',
-            relationship: 'OWNER',
-          ),
-          PropertySummary(
-            unitId: 'demo-unit-2',
-            unitNumber: 'B-305',
-            buildingName: 'Tower B',
-            buildingCode: 'B',
+            buildingName: 'Maple Tower',
+            buildingCode: 'MAPLE',
             relationship: 'OWNER',
           ),
         ],
@@ -112,10 +105,10 @@ class ResidentAuthController extends ChangeNotifier {
         code: 'PGA',
         properties: [
           PropertySummary(
-            unitId: 'demo-unit-3',
-            unitNumber: 'C-804',
-            buildingName: 'Cedar Block',
-            buildingCode: 'C',
+            unitId: 'demo-unit-2',
+            unitNumber: 'B-804',
+            buildingName: 'Cedar Tower',
+            buildingCode: 'CEDAR',
             relationship: 'OCCUPANT',
           ),
         ],
