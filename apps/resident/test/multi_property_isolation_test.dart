@@ -17,6 +17,7 @@ class _MultiPropertyRepository extends ResidentRepository {
   int serviceCalls = 0;
   int bookingCalls = 0;
   int workforceCalls = 0;
+  int invoiceCalls = 0;
 
   @override
   Future<Map<String, dynamic>> currentEntitlements() async => {
@@ -98,6 +99,15 @@ class _MultiPropertyRepository extends ResidentRepository {
       ];
 
   @override
+  Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
+    invoiceCalls++;
+    return [
+      {'id': 'invoice-a', 'unitId': 'unit-a', 'amountPaise': 350000},
+      {'id': 'invoice-b', 'unitId': 'unit-b', 'amountPaise': 420000},
+    ];
+  }
+
+  @override
   Stream<Map<String, dynamic>> accessEvents() => events.stream;
 
   @override
@@ -126,6 +136,7 @@ void main() {
     expect(controller.workforceAssignments.map((item) => item['id']), ['assignment-a']);
     expect(controller.workforceLeaves.map((item) => item['id']), ['leave-a']);
     expect(controller.workforceRatings.map((item) => item['id']), ['rating-a']);
+    expect(controller.maintenanceInvoices.map((item) => item['id']), ['invoice-a']);
     expect(controller.notices.map((item) => item['id']), ['notice-society']);
     expect(controller.hasFeature('AMENITIES'), isTrue);
 
@@ -134,13 +145,16 @@ void main() {
     await expectLater(controller.deactivateWorkforce('assignment-b'), throwsStateError);
     expect(repository.deactivateWorkforceCalls, 0);
 
+    final initialInvoiceCalls = repository.invoiceCalls;
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-b', 'unitId': 'unit-b'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent, isNull);
+    expect(repository.invoiceCalls, initialInvoiceCalls);
 
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-a', 'unitId': 'unit-a'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent?['invoiceId'], 'invoice-a');
+    expect(repository.invoiceCalls, initialInvoiceCalls + 1);
 
     repository.events.add({'type': 'GENERAL_NOTICE_PUBLISHED', 'noticeId': 'notice-society'});
     await Future<void>.delayed(Duration.zero);
@@ -162,16 +176,19 @@ void main() {
     expect(controller.accessRequests, isEmpty);
     expect(controller.bookings, isEmpty);
     expect(controller.workforceAssignments, isEmpty);
+    expect(controller.maintenanceInvoices, isEmpty);
     expect(controller.notices.map((item) => item['id']), ['notice-society']);
     expect(repository.householdCalls, 0);
     expect(repository.accessCalls, 0);
     expect(repository.serviceCalls, 0);
     expect(repository.bookingCalls, 0);
     expect(repository.workforceCalls, 0);
+    expect(repository.invoiceCalls, 0);
 
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-a', 'unitId': 'unit-a'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent, isNull);
+    expect(repository.invoiceCalls, 0);
 
     repository.events.add({'type': 'GENERAL_NOTICE_PUBLISHED', 'noticeId': 'notice-society'});
     await Future<void>.delayed(Duration.zero);

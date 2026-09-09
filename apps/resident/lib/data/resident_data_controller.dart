@@ -29,6 +29,7 @@ class ResidentDataController extends ChangeNotifier {
   String? noticesError;
   String? servicesError;
   String? workforceError;
+  String? billingError;
   List<Map<String, dynamic>> households = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> notices = const [];
@@ -38,6 +39,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
+  List<Map<String, dynamic>> maintenanceInvoices = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
   Map<String, dynamic>? latestNotificationEvent;
@@ -88,6 +90,7 @@ class ResidentDataController extends ChangeNotifier {
     noticesError = null;
     servicesError = null;
     workforceError = null;
+    billingError = null;
     notifyListeners();
 
     await _loadEntitlements();
@@ -121,6 +124,11 @@ class ResidentDataController extends ChangeNotifier {
         workforceAssignments = const [];
         workforceLeaves = const [];
         workforceRatings = const [];
+      }
+      if (hasFeature('MAINTENANCE_BILLING')) {
+        tasks.add(_loadMaintenanceInvoices());
+      } else {
+        maintenanceInvoices = const [];
       }
     } else {
       _clearUnitScopedData();
@@ -171,6 +179,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceAssignments = const [];
     workforceLeaves = const [];
     workforceRatings = const [];
+    maintenanceInvoices = const [];
     latestAccessEvent = null;
     lastIssuedVisitorPass = null;
   }
@@ -221,6 +230,7 @@ class ResidentDataController extends ChangeNotifier {
           await _loadNotices();
         } else if (type == 'MAINTENANCE_DUE_ISSUED' && hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(event)) {
           latestNotificationEvent = event;
+          await _loadMaintenanceInvoices();
         }
         if (!_disposed) notifyListeners();
       },
@@ -258,7 +268,10 @@ class ResidentDataController extends ChangeNotifier {
       return;
     }
     if (type == 'MAINTENANCE_DUE_ISSUED') {
-      if (hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(data)) latestNotificationEvent = data;
+      if (hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(data)) {
+        latestNotificationEvent = data;
+        await _loadMaintenanceInvoices();
+      }
       if (!_disposed) notifyListeners();
       return;
     }
@@ -366,6 +379,19 @@ class ResidentDataController extends ChangeNotifier {
       workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
     } catch (e) {
       _capture(e, (message) => workforceError = message);
+    }
+  }
+
+  Future<void> _loadMaintenanceInvoices() async {
+    if (!hasActiveProperty || !hasFeature('MAINTENANCE_BILLING')) {
+      maintenanceInvoices = const [];
+      return;
+    }
+    try {
+      final rows = await repository.maintenanceInvoices();
+      maintenanceInvoices = _filterByUnit(rows, (item) => item['unitId']);
+    } catch (e) {
+      _capture(e, (message) => billingError = message);
     }
   }
 
