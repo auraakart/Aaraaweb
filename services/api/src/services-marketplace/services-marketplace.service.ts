@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccessSubjectType, ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
+import { AccessSubjectType, Prisma, ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { ProductFeature } from '../entitlements/entitlement.types';
@@ -154,13 +154,60 @@ export class ServicesMarketplaceService {
   async book(societyId: string, residentUserId: string, unitId: string, offeringId: string, scheduledFrom: Date, scheduledUntil: Date, notes?: string) {
     await this.assertEnabled(societyId);
     await this.assertResidentUnit(societyId, residentUserId, unitId);
-    await this.operations.assertProviderAvailable(societyId, offeringId, scheduledFrom, scheduledUntil);
-    const offering = await this.prisma.serviceOffering.findFirst({ where: { id: offeringId, active: true, provider: { active: true, verification: ProviderVerificationStatus.VERIFIED, societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } } } }, include: { provider: { include: { societies: { where: { societyId }, take: 1 } } } } });
-    if (!offering) throw new NotFoundException('Service offering is unavailable for this society');
-    const approval = offering.provider.societies[0];
-    if (!approval) throw new NotFoundException('Service provider is not approved for this society');
-    const commissionPaise = Math.round((offering.pricePaise * approval.commissionBps) / 10000);
-    return this.prisma.serviceBooking.create({ data: { societyId, unitId, residentUserId, providerId: offering.providerId, offeringId: offering.id, scheduledFrom, scheduledUntil, servicePricePaise: offering.pricePaise, commissionBps: approval.commissionBps, commissionPaise, notes: notes?.trim() || null }, include: { offering: true, provider: { select: { id: true, businessName: true, description: true } } } });
+    if (scheduledUntil <= scheduledFrom) throw new BadRequestException('Booking time window is invalid');
+
+    return this.prisma.$transaction(async (tx) => {
+      const offering = await tx.serviceOffering.findFirst({
+        where: {
+          id: offeringId,
+          active: true,
+          provider: {
+            active: true,
+            verification: ProviderVerificationStatus.VERIFIED,
+            societies: { some: { societyId, status: ProviderSocietyStatus.APPROVED } },
+          },
+        },
+        include: { provider: { include: { societies: { where: { societyId }, take: 1 } } } },
+      });
+      if (!offering) throw new NotFoundException('Service offering is unavailable for this society');
+      const approval = offering.provider.societies[0];
+      if (!approval) throw new NotFoundException('Service provider is not approved for this society');
+
+      // Serialize booking checks for the same provider within the same society so
+      // concurrent requests cannot both observe an empty slot and double-book it.
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${offering.providerId}))
+      `);
+      const overlap = await tx.serviceBooking.findFirst({
+        where: {
+          societyId,
+          providerId: offering.providerId,
+          status: { in: [ServiceBookingStatus.REQUESTED, ServiceBookingStatus.CONFIRMED, ServiceBookingStatus.IN_PROGRESS] },
+          scheduledFrom: { lt: scheduledUntil },
+          scheduledUntil: { gt: scheduledFrom },
+        },
+        select: { id: true },
+      });
+      if (overlap) throw new BadRequestException('Provider is not available for this time window');
+
+      const commissionPaise = Math.round((offering.pricePaise * approval.commissionBps) / 10000);
+      return tx.serviceBooking.create({
+        data: {
+          societyId,
+          unitId,
+          residentUserId,
+          providerId: offering.providerId,
+          offeringId: offering.id,
+          scheduledFrom,
+          scheduledUntil,
+          servicePricePaise: offering.pricePaise,
+          commissionBps: approval.commissionBps,
+          commissionPaise,
+          notes: notes?.trim() || null,
+        },
+        include: { offering: true, provider: { select: { id: true, businessName: true, description: true } } },
+      });
+    });
   }
 
   listMine(societyId: string, residentUserId: string) {
