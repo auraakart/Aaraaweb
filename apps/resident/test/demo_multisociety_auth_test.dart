@@ -2,6 +2,7 @@ import 'package:aaraagate_resident/auth/auth_repository.dart';
 import 'package:aaraagate_resident/auth/auth_screen.dart';
 import 'package:aaraagate_resident/auth/resident_auth_controller.dart';
 import 'package:aaraagate_resident/auth/session_store.dart';
+import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,5 +30,14 @@ void main() {
     expect(find.textContaining('Palm Grove Apartments · Cedar Tower B-804'), findsOneWidget);
     expect(find.textContaining('owner'), findsOneWidget);
     expect(find.textContaining('occupant'), findsOneWidget);
+
+    final householdUnits = (await DemoResidentRepository().households())
+        .map((household) => household['unitId']?.toString())
+        .whereType<String>()
+        .toSet();
+    final selectableUnits = controller.memberships
+        .expand((membership) => membership.properties)
+        .map((property) => property.unitId);
+    expect(selectableUnits, everyElement(isIn(householdUnits)));
   });
 }
