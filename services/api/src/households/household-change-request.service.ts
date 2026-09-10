@@ -58,7 +58,7 @@ export class HouseholdChangeRequestService {
   async requestVehicleAdd(societyId: string, userId: string, householdId: string, input: {
     plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string;
   }) {
-    await this.assertResidentHousehold(societyId, userId, householdId);
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
     const plateNumber = this.normalizePlate(input.plateNumber);
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
     const active = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber, active: true }, select: { id: true } });
@@ -73,7 +73,7 @@ export class HouseholdChangeRequestService {
   }
 
   async requestVehicleRemove(societyId: string, userId: string, householdId: string, vehicleId: string) {
-    await this.assertResidentHousehold(societyId, userId, householdId);
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
     const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
     if (!vehicle) throw new NotFoundException('Active household vehicle not found');
     return this.appendRequest(societyId, householdId, {
@@ -206,15 +206,21 @@ export class HouseholdChangeRequestService {
     return household;
   }
 
-  private async assertResidentHousehold(societyId: string, userId: string, householdId: string) {
+  private async assertOwnerOrResidentHousehold(societyId: string, userId: string, householdId: string) {
     const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, unitId: true } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const occupancy = await this.prisma.unitOccupancy.findFirst({ where: {
-      societyId, unitId: household.unitId, userId, active: true,
-      effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-    } });
-    if (!occupancy) throw new BadRequestException('Vehicle changes require an active resident relationship with this unit');
+    const [occupancy, ownership] = await Promise.all([
+      this.prisma.unitOccupancy.findFirst({ where: {
+        societyId, unitId: household.unitId, userId, active: true,
+        effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      }, select: { id: true } }),
+      this.prisma.unitOwnership.findFirst({ where: {
+        societyId, unitId: household.unitId, userId, active: true, verified: true,
+        effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      }, select: { id: true } }),
+    ]);
+    if (!occupancy && !ownership) throw new BadRequestException('Vehicle changes require a verified current owner or active resident relationship with this unit');
     return household;
   }
 
@@ -227,7 +233,8 @@ export class HouseholdChangeRequestService {
   private requestsOf(value: Prisma.JsonValue | null | undefined): StoredChangeRequest[] {
     const raw = this.jsonObject(value).householdChangeRequests;
     if (!Array.isArray(raw)) return [];
-    return raw.filter((item): item is unknown as StoredChangeRequest => !!item && typeof item === 'object' && !Array.isArray(item))
+    return raw
+      .filter((item) => !!item && typeof item === 'object' && !Array.isArray(item))
       .map((item) => item as unknown as StoredChangeRequest)
       .filter((item) => typeof item.id === 'string' && typeof item.type === 'string' && typeof item.status === 'string' && typeof item.requestedByUserId === 'string');
   }
