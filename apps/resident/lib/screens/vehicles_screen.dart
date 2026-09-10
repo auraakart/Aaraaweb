@@ -170,7 +170,7 @@ class VehiclesScreen extends StatelessWidget {
           children: [
             Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Vehicle additions and removals require Society Admin approval. Parking bay assignments are also managed by society administration.'),
+            const Text('Vehicle additions and removals require Society Admin approval. Parking bay assignments are managed by society administration and shown below when assigned.'),
             const SizedBox(height: 18),
             if (pending.isNotEmpty) ...[
               Text('Pending society approval', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
