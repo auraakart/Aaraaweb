@@ -7,6 +7,7 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { HouseholdChangeRequestService } from './household-change-request.service';
 import { HouseholdService } from './household.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -48,16 +49,56 @@ class UpdateFamilyMemberDto {
   @IsOptional() @IsBoolean() primaryGateContact?: boolean;
   @IsOptional() @IsInt() @Min(0) escalationOrder?: number;
 }
+class ReviewHouseholdChangeDto {
+  @IsOptional() @IsString() note?: string;
+}
 
 @Controller('households')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class HouseholdsController {
-  constructor(private readonly households: HouseholdService) {}
+  constructor(
+    private readonly households: HouseholdService,
+    private readonly changes: HouseholdChangeRequestService,
+  ) {}
 
   @Get('mine')
   @RequiresPermissions(AppPermission.HOUSEHOLD_READ_OWN)
   listMine(@CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     return this.households.listMine(societyId, userId);
+  }
+
+  @Get('change-requests/mine')
+  @RequiresPermissions(AppPermission.HOUSEHOLD_READ_OWN)
+  listMyChangeRequests(@CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+    return this.changes.listMine(societyId, userId);
+  }
+
+  @Get('change-requests/pending')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  listPendingChangeRequests(@CurrentTenant() societyId: string) {
+    return this.changes.listPending(societyId);
+  }
+
+  @Post('change-requests/:requestId/approve')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  approveChangeRequest(
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: ReviewHouseholdChangeDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string,
+  ) {
+    return this.changes.approve(societyId, userId, requestId, dto.note);
+  }
+
+  @Post('change-requests/:requestId/reject')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  rejectChangeRequest(
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: ReviewHouseholdChangeDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string,
+  ) {
+    return this.changes.reject(societyId, userId, requestId, dto.note);
   }
 
   @Post()
@@ -74,7 +115,7 @@ export class HouseholdsController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
   ) {
-    return this.households.addFamilyMember(societyId, userId, householdId, dto);
+    return this.changes.requestFamilyAdd(societyId, userId, householdId, dto);
   }
 
   @Patch(':householdId/family-members/:occupancyId')
@@ -97,7 +138,7 @@ export class HouseholdsController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string,
   ) {
-    return this.households.deactivateFamilyMember(societyId, userId, householdId, occupancyId);
+    return this.changes.requestFamilyRemove(societyId, userId, householdId, occupancyId);
   }
 
   @Patch(':householdId/access-preferences')
@@ -109,7 +150,7 @@ export class HouseholdsController {
   @Post(':householdId/vehicles')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   addVehicle(@Param('householdId', ParseUUIDPipe) householdId: string, @Body() dto: AddVehicleDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
-    return this.households.addVehicle(societyId, userId, householdId, dto);
+    return this.changes.requestVehicleAdd(societyId, userId, householdId, dto);
   }
 
   @Patch(':householdId/vehicles/:vehicleId/parking-slot')
@@ -126,7 +167,7 @@ export class HouseholdsController {
   @Patch(':householdId/vehicles/:vehicleId/deactivate')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   deactivateVehicle(@Param('householdId', ParseUUIDPipe) householdId: string, @Param('vehicleId', ParseUUIDPipe) vehicleId: string, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
-    return this.households.deactivateVehicle(societyId, userId, householdId, vehicleId);
+    return this.changes.requestVehicleRemove(societyId, userId, householdId, vehicleId);
   }
 
   @Post(':householdId/emergency-contacts')
