@@ -58,10 +58,29 @@ class DemoHouseholdState {
     'demo-household-2': [],
   };
 
+  static final Map<String, List<Map<String, dynamic>>> pendingChanges = {
+    'demo-household-1': [],
+    'demo-household-2': [],
+  };
+
   static List<Map<String, dynamic>> familyFor(String householdId) =>
       familyMembers.putIfAbsent(householdId, () => <Map<String, dynamic>>[]);
   static List<Map<String, dynamic>> vehiclesFor(String householdId) =>
       vehicles.putIfAbsent(householdId, () => <Map<String, dynamic>>[]);
   static List<Map<String, dynamic>> contactsFor(String householdId) =>
       emergencyContacts.putIfAbsent(householdId, () => <Map<String, dynamic>>[]);
+  static List<Map<String, dynamic>> pendingFor(String householdId) =>
+      pendingChanges.putIfAbsent(householdId, () => <Map<String, dynamic>>[]);
+
+  static void addPending(String householdId, String type, Map<String, dynamic> payload, {String? targetId}) {
+    final requests = pendingFor(householdId);
+    requests.add({
+      'id': 'demo-request-${DateTime.now().microsecondsSinceEpoch}',
+      'type': type,
+      'status': 'PENDING',
+      'payload': payload,
+      if (targetId != null) 'targetId': targetId,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+  }
 }
