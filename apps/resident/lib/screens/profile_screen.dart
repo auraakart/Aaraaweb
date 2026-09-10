@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../auth/auth_repository.dart';
+import '../data/demo_household_profile_store.dart';
 import '../data/resident_data_controller.dart';
+import 'emergency_contacts_screen.dart';
 import 'family_members_screen.dart';
 import 'privacy_data_screen.dart';
 import 'vehicles_screen.dart';
@@ -28,12 +30,20 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final household = controller.activeHousehold;
-    final vehicles = household?['vehicles'] is List ? (household!['vehicles'] as List).length : 0;
-    final contacts = household?['emergencyContacts'] is List ? (household!['emergencyContacts'] as List).length : 0;
+    final householdId = household?['id']?.toString();
+    final demo = householdId?.startsWith('demo-') == true;
+    final vehicles = demo && householdId != null
+        ? DemoHouseholdProfileStore.vehicles(householdId).length
+        : (household?['vehicles'] is List ? (household!['vehicles'] as List).length : 0);
+    final contacts = demo && householdId != null
+        ? DemoHouseholdProfileStore.emergencyContacts(householdId).length
+        : (household?['emergencyContacts'] is List ? (household!['emergencyContacts'] as List).length : 0);
     final occupancies = household?['unit'] is Map && (household!['unit'] as Map)['occupancies'] is List
         ? (((household['unit'] as Map)['occupancies']) as List)
         : const [];
-    final residents = occupancies.isNotEmpty ? occupancies.length : (household?['id']?.toString().startsWith('demo-') == true ? 4 : 0);
+    final residents = occupancies.isNotEmpty
+        ? occupancies.length
+        : (demo && householdId != null ? DemoHouseholdProfileStore.familyMembers(householdId).length + 1 : 0);
 
     return SafeArea(
       child: RefreshIndicator(
@@ -109,6 +119,10 @@ class ProfileScreen extends StatelessWidget {
                   leading: const Icon(Icons.contact_emergency_outlined),
                   title: const Text('Emergency contacts'),
                   subtitle: Text('$contacts saved contacts'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => EmergencyContactsScreen(controller: controller, householdId: household['id'].toString()),
+                  )),
                 ),
               ])),
             ],
