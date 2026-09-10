@@ -51,12 +51,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   List<Map<String, dynamic>> get _vehiclePending => _pendingRequests
       .where((item) => item['householdId']?.toString() == widget.householdId &&
-          {'VEHICLE_ADD', 'VEHICLE_REMOVE'}.contains(item['type']?.toString()) &&
+          {'VEHICLE_ADD', 'VEHICLE_UPDATE', 'VEHICLE_REMOVE'}.contains(item['type']?.toString()) &&
           item['status']?.toString() == 'PENDING')
       .toList(growable: false);
 
-  bool _removalPending(String vehicleId) => _vehiclePending.any((request) =>
-      request['type'] == 'VEHICLE_REMOVE' && request['targetId']?.toString() == vehicleId);
+  bool _pendingFor(String vehicleId, String type) => _vehiclePending.any((request) =>
+      request['type'] == type && request['targetId']?.toString() == vehicleId);
 
   Future<void> _refreshPending() async {
     if (!mounted) return;
@@ -77,7 +77,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   Future<void> _add() async {
     final result = await showDialog<_VehicleFormResult>(
       context: context,
-      builder: (_) => const _AddVehicleDialog(),
+      builder: (_) => const _VehicleDialog(),
     );
     if (!mounted || result == null) return;
     await _run(() async {
@@ -102,17 +102,49 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         await widget.controller.load();
       }
       await _refreshPending();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vehicle request sent for society admin approval.')),
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request sent for society admin approval.')));
+    });
+  }
+
+  Future<void> _edit(Map<String, dynamic> vehicle) async {
+    final vehicleId = vehicle['id']?.toString() ?? '';
+    if (vehicleId.isEmpty || _pendingFor(vehicleId, 'VEHICLE_UPDATE') || _pendingFor(vehicleId, 'VEHICLE_REMOVE')) return;
+    final result = await showDialog<_VehicleFormResult>(
+      context: context,
+      builder: (_) => _VehicleDialog(initialVehicle: vehicle),
+    );
+    if (!mounted || result == null) return;
+    await _run(() async {
+      if (_demo) {
+        DemoHouseholdProfileStore.requestVehicleUpdate(
+          householdId: widget.householdId,
+          vehicleId: vehicleId,
+          plateNumber: result.plateNumber,
+          vehicleType: result.vehicleType,
+          make: result.make,
+          model: result.model,
+          color: result.color,
         );
+      } else {
+        await widget.controller.repository.updateVehicle(
+          householdId: widget.householdId,
+          vehicleId: vehicleId,
+          plateNumber: result.plateNumber,
+          vehicleType: result.vehicleType,
+          make: result.make,
+          model: result.model,
+          color: result.color,
+        );
+        await widget.controller.load();
       }
+      await _refreshPending();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle update sent for society admin approval.')));
     });
   }
 
   Future<void> _remove(Map<String, dynamic> vehicle) async {
     final vehicleId = vehicle['id']?.toString() ?? '';
-    if (vehicleId.isEmpty || _removalPending(vehicleId)) return;
+    if (vehicleId.isEmpty || _pendingFor(vehicleId, 'VEHICLE_REMOVE')) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -133,11 +165,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         await widget.controller.load();
       }
       await _refreshPending();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vehicle removal request sent for society admin approval.')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal request sent for society admin approval.')));
     });
   }
 
@@ -176,7 +204,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           children: [
             Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Adding or removing a vehicle requires society admin approval. Parking bay assignments remain society-managed.'),
+            const Text('Adding, editing or removing a vehicle requires society admin approval. Parking bay assignments remain society-managed.'),
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -194,19 +222,24 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
             else
               ...vehicles.map((vehicle) {
                 final vehicleId = vehicle['id']?.toString() ?? '';
-                final removalPending = _removalPending(vehicleId);
+                final updatePending = _pendingFor(vehicleId, 'VEHICLE_UPDATE');
+                final removalPending = _pendingFor(vehicleId, 'VEHICLE_REMOVE');
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
                     title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
                     subtitle: Text([
                       _details(vehicle, parkingSlots[vehicleId]),
+                      if (updatePending) 'Update pending admin approval',
                       if (removalPending) 'Removal pending admin approval',
                     ].where((value) => value.isNotEmpty).join('\n')),
-                    trailing: IconButton(
-                      icon: Icon(removalPending ? Icons.schedule_rounded : Icons.delete_outline_rounded),
-                      tooltip: removalPending ? 'Removal pending approval' : 'Request vehicle removal',
-                      onPressed: removalPending || _busy ? null : () => _remove(vehicle),
+                    trailing: PopupMenuButton<String>(
+                      enabled: !_busy,
+                      onSelected: (value) => value == 'edit' ? _edit(vehicle) : _remove(vehicle),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'edit', enabled: !updatePending && !removalPending, child: Text(updatePending ? 'Update pending approval' : 'Edit vehicle')),
+                        PopupMenuItem(value: 'remove', enabled: !removalPending, child: Text(removalPending ? 'Removal pending approval' : 'Request removal')),
+                      ],
                     ),
                   ),
                 );
@@ -243,40 +276,50 @@ class _PendingVehicleRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final payload = request['payload'] is Map ? request['payload'] as Map : const {};
-    final adding = request['type']?.toString() == 'VEHICLE_ADD';
+    final type = request['type']?.toString();
+    final subtitle = switch (type) {
+      'VEHICLE_ADD' => 'Registration pending admin approval',
+      'VEHICLE_UPDATE' => 'Update pending admin approval',
+      _ => 'Removal pending admin approval',
+    };
     return Card(
       child: ListTile(
         leading: const Icon(Icons.schedule_rounded),
         title: Text(payload['plateNumber']?.toString() ?? 'Vehicle'),
-        subtitle: Text(adding ? 'Registration pending admin approval' : 'Removal pending admin approval'),
+        subtitle: Text(subtitle),
         trailing: const Chip(label: Text('Pending')),
       ),
     );
   }
 }
 
-class _AddVehicleDialog extends StatefulWidget {
-  const _AddVehicleDialog();
+class _VehicleDialog extends StatefulWidget {
+  const _VehicleDialog({this.initialVehicle});
+  final Map<String, dynamic>? initialVehicle;
 
   @override
-  State<_AddVehicleDialog> createState() => _AddVehicleDialogState();
+  State<_VehicleDialog> createState() => _VehicleDialogState();
 }
 
-class _AddVehicleDialogState extends State<_AddVehicleDialog> {
+class _VehicleDialogState extends State<_VehicleDialog> {
   late final TextEditingController _plate;
   late final TextEditingController _make;
   late final TextEditingController _model;
   late final TextEditingController _color;
-  String _type = 'CAR';
+  late String _type;
   String? _error;
+
+  bool get _editing => widget.initialVehicle != null;
 
   @override
   void initState() {
     super.initState();
-    _plate = TextEditingController();
-    _make = TextEditingController();
-    _model = TextEditingController();
-    _color = TextEditingController();
+    final initial = widget.initialVehicle ?? const <String, dynamic>{};
+    _plate = TextEditingController(text: initial['plateNumber']?.toString() ?? '');
+    _make = TextEditingController(text: initial['make']?.toString() ?? '');
+    _model = TextEditingController(text: initial['model']?.toString() ?? '');
+    _color = TextEditingController(text: initial['color']?.toString() ?? '');
+    _type = initial['vehicleType']?.toString() ?? 'CAR';
   }
 
   @override
@@ -305,7 +348,7 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Register vehicle'),
+      title: Text(_editing ? 'Edit vehicle' : 'Register vehicle'),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
@@ -335,7 +378,9 @@ class _AddVehicleDialogState extends State<_AddVehicleDialog> {
             Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 8),
-          const Text('The vehicle becomes active only after society admin approval.', style: TextStyle(fontSize: 12)),
+          Text(_editing
+              ? 'Changes become active only after society admin approval.'
+              : 'The vehicle becomes active only after society admin approval.', style: const TextStyle(fontSize: 12)),
         ]),
       ),
       actions: [
