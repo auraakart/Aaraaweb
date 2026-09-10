@@ -13,7 +13,12 @@ void main() {
       fetchEntitlements: false,
     );
     addTearDown(controller.dispose);
-    await controller.load();
+    controller.households = [
+      {
+        'id': 'demo-household-1',
+        'unit': {'number': 'A-101'},
+      },
+    ];
 
     await tester.pumpWidget(MaterialApp(home: WorkforceScreen(controller: controller)));
     await tester.tap(find.byTooltip('Add household staff'));
