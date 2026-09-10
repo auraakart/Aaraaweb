@@ -165,13 +165,52 @@ export class HouseholdService {
 
   async updatePreferences(societyId: string, userId: string, householdId: string, preferences: Record<string, unknown>) {
     const household = await this.assertOwnHousehold(societyId, userId, householdId);
-    return this.prisma.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
+    return this.prisma.$transaction(async (tx) => {
+      // Preference updates and approval/parking writes share this JSON column.
+      // Serialize them so an older client cannot erase a concurrent server write.
+      await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${household.id}::uuid FOR UPDATE`;
+      const current = await tx.household.findFirst({
+        where: { id: household.id, societyId },
+        select: { id: true, accessPreferences: true },
+      });
+      if (!current) throw new NotFoundException('Household not found');
+
+      const existing = this.jsonObject(current.accessPreferences);
+      const next = { ...preferences } as Prisma.JsonObject;
+      // These keys are managed by dedicated server workflows. Never accept
+      // client replacements for them, but preserve legacy values when present.
+      for (const key of ['householdChangeRequests', 'parkingSlots'] as const) {
+        if (existing[key] !== undefined) next[key] = existing[key];
+        else delete next[key];
+      }
+      return tx.household.update({
+        where: { id: current.id },
+        data: { accessPreferences: next as Prisma.InputJsonValue },
+      });
+    });
   }
 
   async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
     await this.assertOwnHousehold(societyId, userId, householdId);
     const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+    const existing = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber } });
+    if (existing?.active) throw new BadRequestException('This vehicle is already registered in the society');
+    if (existing) {
+      // The database intentionally keeps one plate per society. Reactivate the
+      // historical row instead of violating that unique constraint.
+      return this.prisma.householdVehicle.update({
+        where: { id: existing.id },
+        data: {
+          householdId,
+          vehicleType: input.vehicleType,
+          make: input.make?.trim() || null,
+          model: input.model?.trim() || null,
+          color: input.color?.trim() || null,
+          active: true,
+        },
+      });
+    }
     return this.prisma.householdVehicle.create({
       data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
     });

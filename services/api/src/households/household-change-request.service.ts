@@ -108,15 +108,21 @@ export class HouseholdChangeRequestService {
   async approve(societyId: string, reviewerUserId: string, requestId: string, reviewNote?: string) {
     const located = await this.findRequest(societyId, requestId);
     if (located.request.status !== 'PENDING') throw new BadRequestException('Only pending requests can be approved');
-    await this.replaceRequest(societyId, located.householdId, requestId, (r) => ({ ...r, status: 'PROCESSING' }));
+    await this.replaceRequest(societyId, located.householdId, requestId, 'PENDING', (r) => ({ ...r, status: 'PROCESSING' }));
+    let applied = false;
     try {
       await this.apply(societyId, located.householdId, located.request);
-      return this.replaceRequest(societyId, located.householdId, requestId, (r) => ({
+      applied = true;
+      return this.replaceRequest(societyId, located.householdId, requestId, 'PROCESSING', (r) => ({
         ...r, status: 'APPROVED', reviewedByUserId: reviewerUserId, reviewedAt: new Date().toISOString(),
         ...(reviewNote?.trim() ? { reviewNote: reviewNote.trim() } : {}),
       }));
     } catch (error) {
-      await this.replaceRequest(societyId, located.householdId, requestId, (r) => r.status === 'PROCESSING' ? { ...r, status: 'PENDING' } : r);
+      // A failed business mutation may be retried. Once the mutation succeeds,
+      // retain PROCESSING if final bookkeeping fails to prevent duplicate work.
+      if (!applied) {
+        await this.replaceRequest(societyId, located.householdId, requestId, 'PROCESSING', (r) => ({ ...r, status: 'PENDING' }));
+      }
       throw error;
     }
   }
@@ -124,7 +130,7 @@ export class HouseholdChangeRequestService {
   async reject(societyId: string, reviewerUserId: string, requestId: string, reviewNote?: string) {
     const located = await this.findRequest(societyId, requestId);
     if (located.request.status !== 'PENDING') throw new BadRequestException('Only pending requests can be rejected');
-    return this.replaceRequest(societyId, located.householdId, requestId, (r) => ({
+    return this.replaceRequest(societyId, located.householdId, requestId, 'PENDING', (r) => ({
       ...r, status: 'REJECTED', reviewedByUserId: reviewerUserId, reviewedAt: new Date().toISOString(),
       ...(reviewNote?.trim() ? { reviewNote: reviewNote.trim() } : {}),
     }));
@@ -169,7 +175,13 @@ export class HouseholdChangeRequestService {
     });
   }
 
-  private async replaceRequest(societyId: string, householdId: string, requestId: string, change: (r: StoredChangeRequest) => StoredChangeRequest) {
+  private async replaceRequest(
+    societyId: string,
+    householdId: string,
+    requestId: string,
+    expectedStatus: ChangeStatus,
+    change: (r: StoredChangeRequest) => StoredChangeRequest,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid FOR UPDATE`;
       const household = await tx.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, accessPreferences: true } });
@@ -178,6 +190,9 @@ export class HouseholdChangeRequestService {
       const requests = this.requestsOf(preferences);
       const index = requests.findIndex((r) => r.id === requestId);
       if (index < 0) throw new NotFoundException('Household change request not found');
+      if (requests[index].status !== expectedStatus) {
+        throw new BadRequestException(`Household change request is already ${requests[index].status.toLowerCase()}`);
+      }
       requests[index] = change(requests[index]);
       preferences.householdChangeRequests = requests as unknown as Prisma.JsonArray;
       await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });

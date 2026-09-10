@@ -30,6 +30,10 @@ function service(overrides: Overrides = {}) {
     },
     ...overrides,
   };
+  Object.assign(prisma, {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(async (operation: (tx: typeof prisma) => unknown) => operation(prisma)),
+  });
   return {
     svc: new HouseholdService(prisma as unknown as ConstructorParameters<typeof HouseholdService>[0]),
     prisma,
@@ -92,6 +96,7 @@ describe('HouseholdService', () => {
 
   it('normalizes a vehicle registration before persistence', async () => {
     const { svc, prisma } = service();
+    prisma.householdVehicle.findFirst.mockResolvedValueOnce(null);
     await svc.addVehicle('society-1', 'user-1', 'household-1', {
       plateNumber: 'ka 01-ab-1234',
       vehicleType: VehicleType.CAR,
@@ -99,6 +104,54 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ plateNumber: 'KA01AB1234' }) }),
     );
+  });
+
+  it('reactivates a historical vehicle row instead of violating the society plate constraint', async () => {
+    const { svc, prisma } = service();
+    prisma.householdVehicle.findFirst.mockResolvedValueOnce({ id: 'vehicle-old', active: false });
+
+    await svc.addVehicle('society-1', 'user-1', 'household-1', {
+      plateNumber: 'ka 01-ab-1234',
+      vehicleType: VehicleType.CAR,
+      color: ' Blue ',
+    });
+
+    expect(prisma.householdVehicle.create).not.toHaveBeenCalled();
+    expect(prisma.householdVehicle.update).toHaveBeenCalledWith({
+      where: { id: 'vehicle-old' },
+      data: expect.objectContaining({ householdId: 'household-1', active: true, color: 'Blue' }),
+    });
+  });
+
+  it('preserves workflow-managed JSON keys during legacy preference replacement', async () => {
+    const { svc, prisma } = service();
+    prisma.household.findFirst
+      .mockResolvedValueOnce({ id: 'household-1', societyId: 'society-1', unitId: 'unit-1', accessPreferences: {} })
+      .mockResolvedValueOnce({
+        id: 'household-1',
+        accessPreferences: {
+          delivery: 'door',
+          parkingSlots: { 'vehicle-1': 'B2-18' },
+          householdChangeRequests: [{ id: 'request-1', status: 'PENDING' }],
+        },
+      });
+
+    await svc.updatePreferences('society-1', 'user-1', 'household-1', {
+      delivery: 'gate',
+      parkingSlots: {},
+      householdChangeRequests: [],
+    });
+
+    expect(prisma.household.update).toHaveBeenCalledWith({
+      where: { id: 'household-1' },
+      data: {
+        accessPreferences: {
+          delivery: 'gate',
+          parkingSlots: { 'vehicle-1': 'B2-18' },
+          householdChangeRequests: [{ id: 'request-1', status: 'PENDING' }],
+        },
+      },
+    });
   });
 
   it('stores a society-managed parking label without changing vehicle registration data', async () => {
