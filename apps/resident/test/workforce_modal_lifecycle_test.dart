@@ -23,7 +23,9 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Full name'), 'Lifecycle Test');
     await tester.enterText(find.widgetWithText(TextField, 'Mobile number'), '+91 99999 99999');
 
-    await tester.pageBack();
+    // A modal bottom sheet has no visible app-bar back button. Exercise the
+    // route-pop path used by Android system back instead.
+    expect(await tester.binding.handlePopRoute(), isTrue);
     await tester.pumpAndSettle();
 
     expect(find.text('Add household staff'), findsNothing);
