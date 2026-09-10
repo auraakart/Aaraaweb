@@ -97,7 +97,7 @@ export class HouseholdChangeRequestService {
     });
     const requests = rows.flatMap((h) => this.requestsOf(h.accessPreferences)
       .filter((r) => r.status === 'PENDING')
-      .map((r) => ({ ...r, householdId: h.id, unitId: h.unitId, unitNumber: h.unit.number, buildingName: h.unit.building.name }))
+      .map((r) => ({ ...r, householdId: h.id, unitId: h.unitId, unitNumber: h.unit.number, buildingName: h.unit.building.name })))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const ids = [...new Set(requests.map((r) => r.requestedByUserId))];
     const users = ids.length ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true } }) : [];
