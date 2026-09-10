@@ -228,7 +228,7 @@ export class HouseholdChangeRequestService {
   private async revertClaim(societyId: string, householdId: string, requestId: string) {
     try {
       await this.replaceRequest(societyId, householdId, requestId, (request) => request.status === 'PROCESSING' ? { ...request, status: 'PENDING' } : request);
-    } catch (_) {}
+    } catch {}
   }
 
   private async finishReview(
