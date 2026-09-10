@@ -8,6 +8,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { HouseholdChangeRequestService } from './household-change-request.service';
+import { HouseholdPreferencesService } from './household-preferences.service';
 import { HouseholdService } from './household.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -59,6 +60,7 @@ export class HouseholdsController {
   constructor(
     private readonly households: HouseholdService,
     private readonly changes: HouseholdChangeRequestService,
+    private readonly preferences: HouseholdPreferencesService,
   ) {}
 
   @Get('mine')
@@ -144,7 +146,7 @@ export class HouseholdsController {
   @Patch(':householdId/access-preferences')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
   updatePreferences(@Param('householdId', ParseUUIDPipe) householdId: string, @Body() dto: UpdatePreferencesDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
-    return this.households.updatePreferences(societyId, userId, householdId, dto.preferences);
+    return this.preferences.updateResidentPreferences(societyId, userId, householdId, dto.preferences);
   }
 
   @Post(':householdId/vehicles')
