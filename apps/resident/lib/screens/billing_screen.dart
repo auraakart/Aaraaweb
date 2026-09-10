@@ -47,19 +47,20 @@ class _BillingScreenState extends State<BillingScreen> {
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
+        isScrollControlled: true,
         showDragHandle: true,
         useSafeArea: true,
         builder: (sheetContext) {
           final theme = Theme.of(sheetContext);
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(width: 48, height: 48, decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.receipt_long_outlined, color: theme.colorScheme.onPrimaryContainer)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Payment receipt', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  Text(receipt['receiptNumber']?.toString() ?? '', style: theme.textTheme.bodySmall),
+                  Text('Receipt ${receipt['receiptNumber'] ?? ''}', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text('Server-verified payment', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 ])),
               ]),
               const SizedBox(height: 20),
@@ -89,18 +90,19 @@ class _BillingScreenState extends State<BillingScreen> {
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
+        isScrollControlled: true,
         showDragHandle: true,
         useSafeArea: true,
         builder: (sheetContext) {
           final theme = Theme.of(sheetContext);
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 52, height: 52, decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(18)), child: Icon(Icons.verified_user_outlined, color: theme.colorScheme.onPrimaryContainer)),
               const SizedBox(height: 14),
               Text('Secure payment order ready', textAlign: TextAlign.center, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text('Reference ${order['providerOrderId'] ?? order['id']}. Payment will be marked successful only after gateway confirmation.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.45)),
+              Text('Reference ${order['providerOrderId'] ?? order['id']}. No payment is marked successful until the gateway confirms it.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.45)),
               const SizedBox(height: 20),
               SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
             ]),
@@ -228,7 +230,14 @@ class _InvoiceCard extends StatelessWidget {
           Text(description, style: theme.textTheme.bodyMedium),
         ],
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : onPay, icon: busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.lock_outline_rounded), label: Text(busy ? 'Preparing payment…' : 'Pay securely'))),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: busy ? null : onPay,
+            icon: Icon(busy ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded),
+            label: Text(busy ? 'Preparing payment…' : 'Pay securely'),
+          ),
+        ),
       ]),
     );
   }
