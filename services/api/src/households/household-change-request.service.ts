@@ -163,7 +163,7 @@ export class HouseholdChangeRequestService {
       const requests = this.requestsOf(preferences);
       if (requests.some(duplicate)) throw new BadRequestException('A matching request is already pending society approval');
       const request: StoredChangeRequest = { ...input, id: randomUUID(), status: 'PENDING', createdAt: new Date().toISOString() };
-      preferences.householdChangeRequests = [...requests, request] as unknown as Prisma.InputJsonValue;
+      preferences.householdChangeRequests = [...requests, request] as unknown as Prisma.JsonArray;
       await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
       return { ...request, householdId };
     });
@@ -179,7 +179,7 @@ export class HouseholdChangeRequestService {
       const index = requests.findIndex((r) => r.id === requestId);
       if (index < 0) throw new NotFoundException('Household change request not found');
       requests[index] = change(requests[index]);
-      preferences.householdChangeRequests = requests as unknown as Prisma.InputJsonValue;
+      preferences.householdChangeRequests = requests as unknown as Prisma.JsonArray;
       await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
       return { ...requests[index], householdId };
     });
