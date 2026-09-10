@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('vehicle registry shows society-managed parking as read-only', (tester) async {
+  testWidgets('vehicle registry keeps society-managed parking read-only', (tester) async {
     final controller = ResidentDataController(
       ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test-token')),
     );
     controller.households = [
       {
-        'id': 'demo-household-1',
+        'id': 'test-household-1',
         'accessPreferences': {
           'parkingSlots': {'vehicle-1': 'B2-18'},
         },
@@ -37,11 +37,11 @@ void main() {
     ];
 
     await tester.pumpWidget(
-      MaterialApp(home: VehiclesScreen(controller: controller, householdId: 'demo-household-1')),
+      MaterialApp(home: VehiclesScreen(controller: controller, householdId: 'test-household-1')),
     );
 
     expect(find.text('Vehicles & parking'), findsOneWidget);
-    expect(find.textContaining('Parking bay assignments are managed by society administration'), findsOneWidget);
+    expect(find.textContaining('Parking bay assignments remain society-managed'), findsOneWidget);
     expect(find.text('KA01AB1234'), findsOneWidget);
     expect(find.text('Car · Maruti Suzuki · Baleno · Blue · Parking: B2-18'), findsOneWidget);
     expect(find.text('KA02CD5678'), findsOneWidget);
