@@ -19,8 +19,6 @@ class AaraagateTokens {
 }
 
 class AaraagateTheme {
-  // Product palette derived from the supplied corporate logo. The company
-  // identity itself is intentionally not rendered in the Aaraagate UI.
   static const Color brand = Color(0xFF0EABBE);
   static const Color brandDeep = Color(0xFF05879A);
   static const Color canvas = Color(0xFFF5FBFC);
@@ -117,12 +115,12 @@ class AaraagateTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withValues(alpha: .08),
+        shadowColor: Colors.black.withOpacity(.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
         ),
@@ -221,7 +219,7 @@ class AaraagateTheme {
           ),
         ),
       ),
-      dialogTheme: DialogThemeData(
+      dialogTheme: DialogTheme(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
