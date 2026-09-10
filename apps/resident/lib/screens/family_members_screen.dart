@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/demo_household_state.dart';
+import '../data/demo_resident_repository.dart';
 import '../data/resident_data_controller.dart';
 
 class FamilyMembersScreen extends StatefulWidget {
@@ -20,33 +22,14 @@ class FamilyMembersScreen extends StatefulWidget {
 class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   bool _busy = false;
   String? _error;
-  late final bool _demo = widget.householdId.startsWith('demo-');
-  final List<Map<String, dynamic>> _demoMembers = [
-    {
-      'id': 'demo-family-1',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': true,
-      'gateNotificationEnabled': true,
-      'user': {'name': 'Priya Sharma', 'phone': '+91 98765 41001', 'status': 'ACTIVE'},
-    },
-    {
-      'id': 'demo-family-2',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': false,
-      'gateNotificationEnabled': true,
-      'user': {'name': 'Arjun Sharma', 'phone': '+91 98765 41002', 'status': 'ACTIVE'},
-    },
-    {
-      'id': 'demo-family-3',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': false,
-      'gateNotificationEnabled': false,
-      'user': {'name': 'Meera Sharma', 'phone': '+91 98765 41003', 'status': 'ACTIVE'},
-    },
-  ];
+  late final bool _demo = widget.controller.repository is DemoResidentRepository;
+
+  List<Map<String, dynamic>> get _demoMembers => DemoHouseholdState.familyFor(widget.householdId);
+  List<Map<String, dynamic>> get _pending => _demo
+      ? DemoHouseholdState.pendingFor(widget.householdId)
+          .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('FAMILY_MEMBER_') == true)
+          .toList(growable: false)
+      : const [];
 
   Map<String, dynamic>? get _household {
     for (final item in widget.controller.households) {
@@ -67,75 +50,20 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   }
 
   Future<void> _addMember() async {
-    final name = TextEditingController();
-    final phone = TextEditingController(text: '+91');
-    bool notifications = true;
-    bool approvals = false;
-    bool primary = false;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add family member'),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 12),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number')),
-              const SizedBox(height: 14),
-              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: notifications, onChanged: (v) => setDialogState(() => notifications = v)),
-              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: approvals, onChanged: (v) => setDialogState(() => approvals = v)),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Primary gate contact'),
-                subtitle: const Text('Only one occupant should be primary.'),
-                value: primary,
-                onChanged: (v) => setDialogState(() {
-                  primary = v;
-                  if (v) notifications = true;
-                }),
-              ),
-              const SizedBox(height: 8),
-              const Text('The member will verify this mobile number with OTP when signing in.', style: TextStyle(fontSize: 12)),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (name.text.trim().isEmpty || phone.text.trim().length < 8) return;
-                Navigator.pop(context, {
-                  'name': name.text.trim(),
-                  'phone': phone.text.trim(),
-                  'gateNotificationEnabled': notifications,
-                  'gateApprovalEnabled': approvals,
-                  'primaryGateContact': primary,
-                });
-              },
-              child: const Text('Add member'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const _AddFamilyMemberDialog(),
     );
-    name.dispose();
-    phone.dispose();
-    if (result == null) return;
+    if (!mounted || result == null) return;
 
     await _run(() async {
       if (_demo) {
-        if (result['primaryGateContact'] == true) {
-          for (final member in _demoMembers) {
-            member['primaryGateContact'] = false;
-          }
-        }
-        _demoMembers.add({
-          'id': 'demo-family-${_demoMembers.length + 1}',
-          'relation': 'FAMILY_MEMBER',
+        DemoHouseholdState.addPending(widget.householdId, 'FAMILY_MEMBER_ADD', {
+          'name': result['name'],
+          'phone': result['phone'],
           'primaryGateContact': result['primaryGateContact'],
           'gateApprovalEnabled': result['gateApprovalEnabled'],
           'gateNotificationEnabled': result['gateNotificationEnabled'],
-          'user': {'name': result['name'], 'phone': result['phone'], 'status': 'ACTIVE'},
         });
         return;
       }
@@ -149,6 +77,9 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
       );
       await widget.controller.load();
     });
+    if (mounted && _error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Family member request submitted for society approval.')));
+    }
   }
 
   Future<void> _editMember(Map<String, dynamic> member) async {
@@ -172,7 +103,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         ),
       ),
     );
-    if (result == null) return;
+    if (!mounted || result == null) return;
     await _run(() async {
       if (_demo) {
         if (result['primary'] == true) {
@@ -202,30 +133,37 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove family member?'),
-        content: Text('${user['name'] ?? 'This member'} will lose active household and gate access for this flat.'),
+        content: Text('${user['name'] ?? 'This member'} will be removed only after society approval.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Submit removal')),
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (!mounted || confirmed != true) return;
     await _run(() async {
       if (_demo) {
-        _demoMembers.removeWhere((item) => item['id'] == member['id']);
+        DemoHouseholdState.addPending(widget.householdId, 'FAMILY_MEMBER_REMOVE', {
+          'name': user['name'],
+          'phone': user['phone'],
+        }, targetId: member['id']?.toString());
         return;
       }
       await widget.controller.repository.deactivateFamilyMember(householdId: widget.householdId, occupancyId: member['id'].toString());
       await widget.controller.load();
     });
+    if (mounted && _error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removal request submitted for society approval.')));
+    }
   }
 
   Future<void> _run(Future<void> Function() action) async {
+    if (!mounted) return;
     setState(() { _busy = true; _error = null; });
     try {
       await action();
     } catch (e) {
-      _error = e.toString();
+      if (mounted) _error = e.toString();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -235,6 +173,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final members = _members;
+    final pending = _pending;
     return Scaffold(
       appBar: AppBar(title: const Text('Family members')),
       floatingActionButton: widget.canManage
@@ -249,7 +188,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(Icons.verified_user_outlined, color: theme.colorScheme.primary),
                 const SizedBox(width: 12),
-                const Expanded(child: Text('Family members are linked to this flat. Gate notifications and visitor-approval rights can be controlled separately for each person.')),
+                const Expanded(child: Text('Adding or removing a family member requires Society Admin approval. Gate permissions for an already-approved member can be managed separately.')),
               ]),
             ),
           ),
@@ -263,8 +202,14 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
           ],
           const SizedBox(height: 16),
           if (_busy) const LinearProgressIndicator(),
+          if (pending.isNotEmpty) ...[
+            Text('Pending society approval', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            for (final request in pending) _PendingFamilyRequestCard(request: request),
+            const SizedBox(height: 12),
+          ],
           if (members.isEmpty)
-            const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No family members are linked yet.'))))
+            const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No approved family members are linked yet.'))))
           else
             for (final member in members) _MemberCard(
               member: member,
@@ -274,6 +219,108 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _PendingFamilyRequestCard extends StatelessWidget {
+  const _PendingFamilyRequestCard({required this.request});
+  final Map<String, dynamic> request;
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = request['payload'] is Map ? request['payload'] as Map : const {};
+    final adding = request['type'] == 'FAMILY_MEMBER_ADD';
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.schedule_rounded),
+        title: Text(payload['name']?.toString() ?? (adding ? 'New family member' : 'Family member removal')),
+        subtitle: Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval'),
+        trailing: const Chip(label: Text('Pending')),
+      ),
+    );
+  }
+}
+
+class _AddFamilyMemberDialog extends StatefulWidget {
+  const _AddFamilyMemberDialog();
+
+  @override
+  State<_AddFamilyMemberDialog> createState() => _AddFamilyMemberDialogState();
+}
+
+class _AddFamilyMemberDialogState extends State<_AddFamilyMemberDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _notifications = true;
+  bool _approvals = false;
+  bool _primary = false;
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _phoneController = TextEditingController(text: '+91');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    if (name.isEmpty || phone.length < 8) {
+      setState(() => _validationError = 'Enter a name and a valid mobile number.');
+      return;
+    }
+    Navigator.of(context).pop({
+      'name': name,
+      'phone': phone,
+      'gateNotificationEnabled': _notifications,
+      'gateApprovalEnabled': _approvals,
+      'primaryGateContact': _primary,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add family member'),
+      content: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: _nameController, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Name')),
+          const SizedBox(height: 12),
+          TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number')),
+          const SizedBox(height: 14),
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: _notifications, onChanged: (v) => setState(() => _notifications = v)),
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: _approvals, onChanged: (v) => setState(() => _approvals = v)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Primary gate contact'),
+            subtitle: const Text('Only one occupant should be primary.'),
+            value: _primary,
+            onChanged: (v) => setState(() {
+              _primary = v;
+              if (v) _notifications = true;
+            }),
+          ),
+          if (_validationError != null) ...[
+            const SizedBox(height: 8),
+            Text(_validationError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          const SizedBox(height: 8),
+          const Text('The request goes to Society Admin. After approval, the member can verify this mobile number with OTP when signing in.', style: TextStyle(fontSize: 12)),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(onPressed: _submit, child: const Text('Submit for approval')),
+      ],
     );
   }
 }
@@ -311,7 +358,7 @@ class _MemberCard extends StatelessWidget {
               onSelected: (value) => value == 'edit' ? onEdit() : onRemove(),
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'edit', child: Text('Gate permissions')),
-                PopupMenuItem(value: 'remove', child: Text('Remove member')),
+                PopupMenuItem(value: 'remove', child: Text('Request removal')),
               ],
             ),
           ]),

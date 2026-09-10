@@ -78,18 +78,43 @@ class ResidentAuthController extends ChangeNotifier {
     error = null;
     challengeId = null;
     userId = 'demo-resident';
-    selectionToken = null;
-    memberships = const [];
-    session = const ResidentSession(
-      sessionId: 'demo-resident-session',
-      accessToken: 'demo-local-only',
-      refreshToken: 'demo-local-only',
-      societyId: 'demo-society-1',
-      role: 'OWNER',
-      contextType: 'SOCIETY',
-      activeUnitId: 'demo-unit-1',
-    );
-    step = ResidentAuthStep.signedIn;
+    selectionToken = 'demo-local-selection';
+    session = null;
+    memberships = const [
+      SocietyMembershipOption(
+        societyId: 'demo-society-1',
+        role: 'OWNER',
+        roles: ['OWNER', 'RESIDENT'],
+        name: 'Lakeview Residency',
+        code: 'LVR',
+        properties: [
+          PropertySummary(
+            unitId: 'demo-unit-1',
+            unitNumber: 'A-1204',
+            buildingName: 'Maple Tower',
+            buildingCode: 'MAPLE',
+            relationship: 'OWNER',
+          ),
+        ],
+      ),
+      SocietyMembershipOption(
+        societyId: 'demo-society-2',
+        role: 'RESIDENT',
+        roles: ['RESIDENT'],
+        name: 'Palm Grove Apartments',
+        code: 'PGA',
+        properties: [
+          PropertySummary(
+            unitId: 'demo-unit-2',
+            unitNumber: 'B-804',
+            buildingName: 'Cedar Tower',
+            buildingCode: 'CEDAR',
+            relationship: 'OCCUPANT',
+          ),
+        ],
+      ),
+    ];
+    step = ResidentAuthStep.society;
     _notify();
   }
 
@@ -156,6 +181,15 @@ class ResidentAuthController extends ChangeNotifier {
     }
 
     await _run(() async {
+      if (_isDemoIdentity) {
+        session = _demoSessionFor(membership, property);
+        selectionToken = null;
+        await sessionStore.write(session!);
+        if (_disposed) return;
+        step = ResidentAuthStep.signedIn;
+        return;
+      }
+
       final current = session;
       ResidentSession next;
 
@@ -200,6 +234,14 @@ class ResidentAuthController extends ChangeNotifier {
     if (membership.societyId == current.societyId && property?.unitId == current.activeUnitId) return;
 
     await _run(() async {
+      if (isDemoSession) {
+        session = _demoSessionFor(membership, property);
+        await sessionStore.write(session!);
+        if (_disposed) return;
+        step = ResidentAuthStep.signedIn;
+        return;
+      }
+
       var next = current;
       if (membership.societyId != current.societyId) {
         next = await repository.switchSociety(current, membership.societyId);
@@ -312,6 +354,18 @@ class ResidentAuthController extends ChangeNotifier {
 
   SocietyMembershipOption? _membershipFor(String? societyId) =>
       memberships.where((membership) => membership.societyId == societyId).firstOrNull;
+
+  bool get _isDemoIdentity => demoEnabled && userId == 'demo-resident';
+
+  ResidentSession _demoSessionFor(SocietyMembershipOption membership, PropertySummary? property) => ResidentSession(
+        sessionId: 'demo-resident-session',
+        accessToken: 'demo-local-only',
+        refreshToken: 'demo-local-only',
+        societyId: membership.societyId,
+        role: membership.role,
+        contextType: 'SOCIETY',
+        activeUnitId: property?.unitId,
+      );
 
   ResidentSession _withProperty(ResidentSession base, PropertySummary? property) => property == null
       ? base.copyWith(clearActiveUnit: true)
