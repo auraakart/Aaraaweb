@@ -24,6 +24,12 @@ class VehiclesScreen extends StatelessWidget {
     return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
   }
 
+  List<Map<String, dynamic>> get _pending => _demo
+      ? DemoHouseholdState.pendingFor(householdId)
+          .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('VEHICLE_') == true)
+          .toList(growable: false)
+      : const [];
+
   Map<String, String> get _parkingSlots {
     final preferences = _household?['accessPreferences'];
     if (preferences is! Map) return const {};
@@ -70,11 +76,13 @@ class VehiclesScreen extends StatelessWidget {
               TextField(controller: model, decoration: const InputDecoration(labelText: 'Model (optional)', hintText: 'Baleno')),
               const SizedBox(height: 12),
               TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
+              const SizedBox(height: 12),
+              const Text('The vehicle becomes active only after Society Admin approval.', style: TextStyle(fontSize: 12)),
             ]),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Register')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Submit for approval')),
           ],
         ),
       ),
@@ -90,8 +98,7 @@ class VehiclesScreen extends StatelessWidget {
     if (submit != true || plateNumber.isEmpty || !context.mounted) return;
     try {
       if (_demo) {
-        DemoHouseholdState.vehiclesFor(householdId).add({
-          'id': 'demo-vehicle-${DateTime.now().microsecondsSinceEpoch}',
+        DemoHouseholdState.addPending(householdId, 'VEHICLE_ADD', {
           'plateNumber': plateNumber.toUpperCase().replaceAll(RegExp(r'[\s-]+'), ''),
           'vehicleType': type,
           'make': makeValue,
@@ -109,7 +116,7 @@ class VehiclesScreen extends StatelessWidget {
         );
         await controller.load();
       }
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle registered')));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request submitted for society approval.')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -120,22 +127,24 @@ class VehiclesScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remove vehicle?'),
-        content: Text('${vehicle['plateNumber'] ?? 'This vehicle'} will no longer be active for this household.'),
+        content: Text('${vehicle['plateNumber'] ?? 'This vehicle'} will remain active until Society Admin approves the removal.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remove')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Submit removal')),
         ],
       ),
     );
     if (confirmed != true || !context.mounted) return;
     try {
       if (_demo) {
-        DemoHouseholdState.vehiclesFor(householdId).removeWhere((item) => item['id'] == vehicle['id']);
+        DemoHouseholdState.addPending(householdId, 'VEHICLE_REMOVE', {
+          'plateNumber': vehicle['plateNumber'],
+        }, targetId: vehicle['id']?.toString());
       } else {
         await controller.repository.deactivateVehicle(householdId: householdId, vehicleId: vehicle['id'].toString());
         await controller.load();
       }
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removed')));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal submitted for society approval.')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -144,6 +153,7 @@ class VehiclesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vehicles = _vehicles;
+    final pending = _pending;
     final parkingSlots = _parkingSlots;
     return Scaffold(
       appBar: AppBar(title: const Text('Vehicles & parking', style: TextStyle(fontWeight: FontWeight.w900))),
@@ -160,10 +170,16 @@ class VehiclesScreen extends StatelessWidget {
           children: [
             Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Register your vehicles here. Parking bay assignments are managed by society administration and shown below when assigned.'),
+            const Text('Vehicle additions and removals require Society Admin approval. Parking bay assignments are also managed by society administration.'),
             const SizedBox(height: 18),
+            if (pending.isNotEmpty) ...[
+              Text('Pending society approval', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              for (final request in pending) _PendingVehicleRequestCard(request: request),
+              const SizedBox(height: 12),
+            ],
             if (vehicles.isEmpty)
-              const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No active vehicles registered for this household.')))
+              const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No approved active vehicles registered for this household.')))
             else
               ...vehicles.map((vehicle) {
                 final vehicleId = vehicle['id']?.toString() ?? '';
@@ -172,7 +188,7 @@ class VehiclesScreen extends StatelessWidget {
                     leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
                     title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
                     subtitle: Text(_details(vehicle, parkingSlots[vehicleId])),
-                    trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
+                    trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Request vehicle removal', onPressed: () => _remove(context, vehicle)),
                   ),
                 );
               }),
@@ -199,4 +215,23 @@ class VehiclesScreen extends StatelessWidget {
         'OTHER' => 'Other',
         _ => '',
       };
+}
+
+class _PendingVehicleRequestCard extends StatelessWidget {
+  const _PendingVehicleRequestCard({required this.request});
+  final Map<String, dynamic> request;
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = request['payload'] is Map ? request['payload'] as Map : const {};
+    final adding = request['type'] == 'VEHICLE_ADD';
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.schedule_rounded),
+        title: Text(payload['plateNumber']?.toString() ?? 'Vehicle change'),
+        subtitle: Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval'),
+        trailing: const Chip(label: Text('Pending')),
+      ),
+    );
+  }
 }
