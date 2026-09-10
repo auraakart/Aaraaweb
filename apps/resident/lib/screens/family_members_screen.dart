@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/demo_household_state.dart';
 import '../data/resident_data_controller.dart';
 
 class FamilyMembersScreen extends StatefulWidget {
@@ -21,32 +22,8 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   bool _busy = false;
   String? _error;
   late final bool _demo = widget.householdId.startsWith('demo-');
-  final List<Map<String, dynamic>> _demoMembers = [
-    {
-      'id': 'demo-family-1',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': true,
-      'gateNotificationEnabled': true,
-      'user': {'name': 'Priya Sharma', 'phone': '+91 98765 41001', 'status': 'ACTIVE'},
-    },
-    {
-      'id': 'demo-family-2',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': false,
-      'gateNotificationEnabled': true,
-      'user': {'name': 'Arjun Sharma', 'phone': '+91 98765 41002', 'status': 'ACTIVE'},
-    },
-    {
-      'id': 'demo-family-3',
-      'relation': 'FAMILY_MEMBER',
-      'primaryGateContact': false,
-      'gateApprovalEnabled': false,
-      'gateNotificationEnabled': false,
-      'user': {'name': 'Meera Sharma', 'phone': '+91 98765 41003', 'status': 'ACTIVE'},
-    },
-  ];
+
+  List<Map<String, dynamic>> get _demoMembers => DemoHouseholdState.familyFor(widget.householdId);
 
   Map<String, dynamic>? get _household {
     for (final item in widget.controller.households) {
@@ -81,7 +58,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
           }
         }
         _demoMembers.add({
-          'id': 'demo-family-${_demoMembers.length + 1}',
+          'id': 'demo-family-${DateTime.now().microsecondsSinceEpoch}',
           'relation': 'FAMILY_MEMBER',
           'primaryGateContact': result['primaryGateContact'],
           'gateApprovalEnabled': result['gateApprovalEnabled'],
