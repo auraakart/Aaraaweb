@@ -8,13 +8,20 @@ export class HouseholdService {
 
   async listMine(societyId: string, userId: string) {
     const now = new Date();
-    const links = await this.prisma.unitOccupancy.findMany({
-      where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-      select: { unitId: true },
-    });
-    if (!links.length) return [];
+    const [occupancies, ownerships] = await Promise.all([
+      this.prisma.unitOccupancy.findMany({
+        where: { societyId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { unitId: true },
+      }),
+      this.prisma.unitOwnership.findMany({
+        where: { societyId, userId, active: true, verified: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { unitId: true },
+      }),
+    ]);
+    const unitIds = [...new Set([...occupancies, ...ownerships].map((link) => link.unitId))];
+    if (!unitIds.length) return [];
     return this.prisma.household.findMany({
-      where: { societyId, unitId: { in: links.map((link) => link.unitId) } },
+      where: { societyId, unitId: { in: unitIds } },
       include: {
         unit: {
           include: {
@@ -38,7 +45,7 @@ export class HouseholdService {
   }
 
   async create(societyId: string, userId: string, unitId: string, displayName?: string) {
-    await this.assertResidentUnit(societyId, userId, unitId);
+    await this.assertOwnerOrResidentUnit(societyId, userId, unitId);
     const existing = await this.prisma.household.findUnique({ where: { unitId } });
     if (existing) throw new BadRequestException('A household already exists for this unit');
     return this.prisma.household.create({ data: { societyId, unitId, displayName: displayName?.trim() || null } });
@@ -170,10 +177,39 @@ export class HouseholdService {
 
   async addVehicle(societyId: string, userId: string, householdId: string, input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
     await this.assertOwnHousehold(societyId, userId, householdId);
-    const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
+    const plateNumber = this.normalizePlate(input.plateNumber);
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
     return this.prisma.householdVehicle.create({
       data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
+    });
+  }
+
+  async updateVehicle(
+    societyId: string,
+    userId: string,
+    householdId: string,
+    vehicleId: string,
+    input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string },
+  ) {
+    await this.assertOwnHousehold(societyId, userId, householdId);
+    const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
+    if (!vehicle) throw new NotFoundException('Active household vehicle not found');
+    const plateNumber = this.normalizePlate(input.plateNumber);
+    if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+    const duplicate = await this.prisma.householdVehicle.findFirst({
+      where: { societyId, plateNumber, active: true, id: { not: vehicle.id } },
+      select: { id: true },
+    });
+    if (duplicate) throw new BadRequestException('This vehicle is already registered in the society');
+    return this.prisma.householdVehicle.update({
+      where: { id: vehicle.id },
+      data: {
+        plateNumber,
+        vehicleType: input.vehicleType,
+        make: input.make?.trim() || null,
+        model: input.model?.trim() || null,
+        color: input.color?.trim() || null,
+      },
     });
   }
 
@@ -235,19 +271,29 @@ export class HouseholdService {
     return Object.fromEntries(Object.entries(value as Prisma.JsonObject).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   }
 
-  private async assertResidentUnit(societyId: string, userId: string, unitId: string) {
+  private normalizePlate(value: string) {
+    return value.trim().toUpperCase().replace(/[\s-]+/g, '');
+  }
+
+  private async assertOwnerOrResidentUnit(societyId: string, userId: string, unitId: string) {
     const now = new Date();
-    const link = await this.prisma.unitOccupancy.findFirst({
-      where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-    });
-    if (!link) throw new BadRequestException('Unit does not belong to the authenticated resident');
-    return link;
+    const [occupancy, ownership] = await Promise.all([
+      this.prisma.unitOccupancy.findFirst({
+        where: { societyId, userId, unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+      this.prisma.unitOwnership.findFirst({
+        where: { societyId, userId, unitId, active: true, verified: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+    ]);
+    if (!occupancy && !ownership) throw new BadRequestException('Unit is outside the authenticated owner or resident context');
   }
 
   private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {
     const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
-    await this.assertResidentUnit(societyId, userId, household.unitId);
+    await this.assertOwnerOrResidentUnit(societyId, userId, household.unitId);
     return household;
   }
 
