@@ -36,6 +36,21 @@ class ResidentAuthController extends ChangeNotifier {
 
   bool get canSwitchProperty => !isIndependentHome && propertyContextCount > 1;
 
+  PropertySummary? get activeProperty {
+    final current = session;
+    if (current == null || current.isIndependentHome || current.societyId == null || current.activeUnitId == null) return null;
+    final membership = _membershipFor(current.societyId);
+    if (membership == null) return null;
+    return membership.properties.where((property) => property.unitId == current.activeUnitId).firstOrNull;
+  }
+
+  String? get activePropertyRelationship {
+    final relationship = activeProperty?.relationship.trim();
+    return relationship == null || relationship.isEmpty ? null : relationship.toUpperCase();
+  }
+
+  bool get isActivePropertyOwner => activePropertyRelationship == 'OWNER';
+
   Future<void> bootstrap() async {
     if (_disposed) return;
     error = null;
@@ -140,9 +155,17 @@ class ResidentAuthController extends ChangeNotifier {
       if (result.session != null) {
         session = result.session;
         if (session!.isIndependentHome) {
+          memberships = const [];
           await sessionStore.write(session!);
           if (_disposed) return;
           step = ResidentAuthStep.signedIn;
+          return;
+        }
+        if (propertyContextCount > 1) {
+          session = session!.copyWith(clearActiveUnit: true);
+          await sessionStore.write(session!);
+          if (_disposed) return;
+          step = ResidentAuthStep.society;
           return;
         }
         await _resolveNewSocietySession();
