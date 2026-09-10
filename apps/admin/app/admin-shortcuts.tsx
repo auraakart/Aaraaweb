@@ -37,6 +37,7 @@ export function AdminShortcuts(){
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(societySetupRoles.has(role)){
+    links.push({href:'/household-approvals',label:'Household approvals'})
     links.push({href:'/property',label:'Property setup'})
     links.push({href:'/roles',label:'People & roles'})
     links.push({href:'/parking',label:'Parking'})
@@ -45,5 +46,5 @@ export function AdminShortcuts(){
     links.push({href:'/platform/providers',label:'Provider verification'})
     links.push({href:'/platform',label:'Platform'})
   }
-  return <nav aria-label="Admin shortcuts" style={{position:'fixed',right:24,bottom:24,zIndex:20,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end',maxWidth:680}}>{links.map((link,index)=><a key={link.href} href={link.href} style={{padding:'11px 14px',borderRadius:12,background:index===links.length-1&&role==='SUPER_ADMIN'?'#05879A':'#111827',color:'white',textDecoration:'none',fontWeight:700,boxShadow:'0 8px 24px rgba(0,0,0,.16)'}}>{link.label}</a>)}</nav>
+  return <nav aria-label="Admin shortcuts" style={{position:'fixed',right:24,bottom:24,zIndex:20,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end',maxWidth:760}}>{links.map((link,index)=><a key={link.href} href={link.href} style={{padding:'11px 14px',borderRadius:12,background:index===links.length-1&&role==='SUPER_ADMIN'?'#05879A':'#111827',color:'white',textDecoration:'none',fontWeight:700,boxShadow:'0 8px 24px rgba(0,0,0,.16)'}}>{link.label}</a>)}</nav>
 }
