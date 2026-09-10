@@ -69,67 +69,125 @@ class WorkforceScreen extends StatelessWidget {
   }
 
   Future<void> _openAddSheet(BuildContext context) async {
-    final name = TextEditingController();
-    final phone = TextEditingController(text: '+91');
-    var householdId = controller.households.first['id']?.toString() ?? '';
-    var role = 'MAID';
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: householdId,
-                decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
-                items: controller.households.map((household) {
-                  final id = household['id']?.toString() ?? '';
-                  final unit = household['unit'] is Map ? Map<String, dynamic>.from(household['unit'] as Map) : const <String, dynamic>{};
-                  return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
-                }).where((item) => item.value?.isNotEmpty == true).toList(),
-                onChanged: (value) => setState(() => householdId = value ?? ''),
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: role,
-                decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-                items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER'].map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value)))).toList(),
-                onChanged: (value) => setState(() => role = value ?? 'OTHER'),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () async {
-                  if (householdId.isEmpty || name.text.trim().isEmpty || phone.text.trim().length < 8) {
-                    ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Enter a household, name and valid mobile number.')));
-                    return;
-                  }
-                  try {
-                    await controller.addWorkforce(householdId: householdId, name: name.text, phone: phone.text, role: role);
-                    if (sheetContext.mounted) Navigator.pop(sheetContext, true);
-                  } catch (error) {
-                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
-                  }
-                },
-                child: const Text('SUBMIT FOR REVIEW'),
-              ),
-            ],
+      builder: (_) => _AddWorkforceSheet(controller: controller),
+    );
+    if (submitted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment submitted for society review.')));
+    }
+  }
+}
+
+class _AddWorkforceSheet extends StatefulWidget {
+  const _AddWorkforceSheet({required this.controller});
+  final ResidentDataController controller;
+
+  @override
+  State<_AddWorkforceSheet> createState() => _AddWorkforceSheetState();
+}
+
+class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
+  final _name = TextEditingController();
+  final _phone = TextEditingController(text: '+91');
+  late String _householdId;
+  String _role = 'MAID';
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _householdId = widget.controller.households.isEmpty
+        ? ''
+        : widget.controller.households.first['id']?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    if (_householdId.isEmpty || _name.text.trim().isEmpty || _phone.text.trim().length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a household, name and valid mobile number.')));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.controller.addWorkforce(
+        householdId: _householdId,
+        name: _name.text,
+        phone: _phone.text,
+        role: _role,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _householdId,
+            decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
+            items: widget.controller.households.map((household) {
+              final id = household['id']?.toString() ?? '';
+              final unit = household['unit'] is Map
+                  ? Map<String, dynamic>.from(household['unit'] as Map)
+                  : const <String, dynamic>{};
+              return DropdownMenuItem(value: id, child: Text(unit['number']?.toString() ?? 'Household'));
+            }).where((item) => item.value?.isNotEmpty == true).toList(),
+            onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
           ),
-        ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _name,
+            enabled: !_busy,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _phone,
+            enabled: !_busy,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _role,
+            decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+            items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
+                .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
+                .toList(),
+            onChanged: _busy ? null : (value) => setState(() => _role = value ?? 'OTHER'),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('SUBMIT FOR REVIEW'),
+          ),
+        ],
       ),
     );
-    name.dispose();
-    phone.dispose();
-    if (submitted == true && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment submitted for society review.')));
   }
 }
 
@@ -235,108 +293,25 @@ class _StaffCard extends StatelessWidget {
   }
 
   Future<void> _openLeaveSheet(BuildContext context, String assignmentId) async {
-    var startsOn = DateTime.now();
-    var endsOn = DateTime.now();
-    final reason = TextEditingController();
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Add staff leave', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 16),
-              _DateButton(
-                label: 'Starts',
-                value: startsOn,
-                onPressed: () async {
-                  final picked = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: startsOn);
-                  if (picked != null) setState(() { startsOn = picked; if (endsOn.isBefore(startsOn)) endsOn = picked; });
-                },
-              ),
-              const SizedBox(height: 10),
-              _DateButton(
-                label: 'Ends',
-                value: endsOn,
-                onPressed: () async {
-                  final picked = await showDatePicker(context: context, firstDate: startsOn, lastDate: startsOn.add(const Duration(days: 89)), initialDate: endsOn.isBefore(startsOn) ? startsOn : endsOn);
-                  if (picked != null) setState(() => endsOn = picked);
-                },
-              ),
-              const SizedBox(height: 12),
-              TextField(controller: reason, maxLength: 300, decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: () async {
-                  try {
-                    await controller.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason.text);
-                    if (sheetContext.mounted) Navigator.pop(sheetContext, true);
-                  } catch (error) {
-                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
-                  }
-                },
-                child: const Text('SAVE LEAVE'),
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (_) => _WorkforceLeaveSheet(controller: controller, assignmentId: assignmentId),
     );
-    reason.dispose();
-    if (submitted == true && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave saved.')));
+    if (submitted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave saved.')));
+    }
   }
 
   Future<void> _openRatingSheet(BuildContext context, String assignmentId, Map<String, dynamic>? current) async {
-    var score = int.tryParse(current?['score']?.toString() ?? '') ?? 5;
-    final comment = TextEditingController(text: current?['comment']?.toString() ?? '');
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Rate household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final value = index + 1;
-                  return IconButton(
-                    onPressed: () => setState(() => score = value),
-                    iconSize: 34,
-                    icon: Icon(value <= score ? Icons.star_rounded : Icons.star_border_rounded),
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
-              TextField(controller: comment, maxLength: 300, maxLines: 3, decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: () async {
-                  try {
-                    await controller.rateWorkforce(assignmentId, score: score, comment: comment.text);
-                    if (sheetContext.mounted) Navigator.pop(sheetContext, true);
-                  } catch (error) {
-                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
-                  }
-                },
-                child: const Text('SAVE RATING'),
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (_) => _WorkforceRatingSheet(controller: controller, assignmentId: assignmentId, current: current),
     );
-    comment.dispose();
-    if (submitted == true && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rating saved.')));
+    if (submitted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rating saved.')));
+    }
   }
 
   Future<void> _confirmCancelLeave(BuildContext context, String leaveId) async {
@@ -393,6 +368,196 @@ class _StaffCard extends StatelessWidget {
       .where((part) => part.isNotEmpty)
       .map((part) => '${part[0]}${part.substring(1).toLowerCase()}')
       .join(' ');
+}
+
+class _WorkforceLeaveSheet extends StatefulWidget {
+  const _WorkforceLeaveSheet({required this.controller, required this.assignmentId});
+  final ResidentDataController controller;
+  final String assignmentId;
+
+  @override
+  State<_WorkforceLeaveSheet> createState() => _WorkforceLeaveSheetState();
+}
+
+class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
+  final _reason = TextEditingController();
+  DateTime _startsOn = DateTime.now();
+  DateTime _endsOn = DateTime.now();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.controller.createWorkforceLeave(
+        assignmentId: widget.assignmentId,
+        startsOn: _startsOn,
+        endsOn: _endsOn,
+        reason: _reason.text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Add staff leave', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          _DateButton(
+            label: 'Starts',
+            value: _startsOn,
+            onPressed: _busy
+                ? null
+                : () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      initialDate: _startsOn,
+                    );
+                    if (picked != null && mounted) {
+                      setState(() {
+                        _startsOn = picked;
+                        if (_endsOn.isBefore(_startsOn)) _endsOn = picked;
+                      });
+                    }
+                  },
+          ),
+          const SizedBox(height: 10),
+          _DateButton(
+            label: 'Ends',
+            value: _endsOn,
+            onPressed: _busy
+                ? null
+                : () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: _startsOn,
+                      lastDate: _startsOn.add(const Duration(days: 89)),
+                      initialDate: _endsOn.isBefore(_startsOn) ? _startsOn : _endsOn,
+                    );
+                    if (picked != null && mounted) setState(() => _endsOn = picked);
+                  },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _reason,
+            enabled: !_busy,
+            maxLength: 300,
+            decoration: const InputDecoration(labelText: 'Reason (optional)', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _busy ? null : _save,
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('SAVE LEAVE'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkforceRatingSheet extends StatefulWidget {
+  const _WorkforceRatingSheet({required this.controller, required this.assignmentId, required this.current});
+  final ResidentDataController controller;
+  final String assignmentId;
+  final Map<String, dynamic>? current;
+
+  @override
+  State<_WorkforceRatingSheet> createState() => _WorkforceRatingSheetState();
+}
+
+class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
+  late final TextEditingController _comment;
+  late int _score;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _score = int.tryParse(widget.current?['score']?.toString() ?? '') ?? 5;
+    _comment = TextEditingController(text: widget.current?['comment']?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.controller.rateWorkforce(widget.assignmentId, score: _score, comment: _comment.text);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Rate household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (index) {
+              final value = index + 1;
+              return IconButton(
+                onPressed: _busy ? null : () => setState(() => _score = value),
+                iconSize: 34,
+                icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _comment,
+            enabled: !_busy,
+            maxLength: 300,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Comment (optional)', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _busy ? null : _save,
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('SAVE RATING'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PresencePill extends StatelessWidget {
@@ -459,7 +624,7 @@ class _DateButton extends StatelessWidget {
   const _DateButton({required this.label, required this.value, required this.onPressed});
   final String label;
   final DateTime value;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(

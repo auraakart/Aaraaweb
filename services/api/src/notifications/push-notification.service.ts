@@ -55,6 +55,16 @@ export class PushNotificationService {
 
   async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
     const normalized = token.trim();
+
+    // A Firebase token identifies the current app installation. Claiming it for a
+    // consumer session must invalidate any earlier society binding first. Society
+    // sessions immediately re-bind the same token through register(); independent-
+    // home sessions intentionally leave it unbound from every society.
+    await this.prisma.devicePushToken.updateMany({
+      where: { token: normalized, active: true },
+      data: { active: false, lastSeenAt: new Date() },
+    });
+
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       INSERT INTO "ConsumerPushDeviceToken" ("id", "userId", "token", "platform", "deviceId", "active", "lastSeenAt", "createdAt", "updatedAt")
       VALUES (${randomUUID()}::uuid, ${userId}::uuid, ${normalized}, ${platform}::"DevicePlatform", ${deviceId?.trim() || null}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -108,8 +118,16 @@ export class PushNotificationService {
     const content = 'requestId' in event ? {
       title: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${this.label(event.subjectType)} at the gate` : 'Gate access updated',
       body: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${event.subjectName} is waiting for your approval.` : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`,
-      data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}) },
-    } : { title: event.title, body: event.body, data: { ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}), ...(event.noticeId ? { noticeId: event.noticeId } : {}) } };
+      data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+    } : {
+      title: event.title,
+      body: event.body,
+      data: {
+        ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}),
+        ...(event.noticeId ? { noticeId: event.noticeId } : {}),
+        ...(event.unitId ? { unitId: event.unitId } : {}),
+      },
+    };
     const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
       tokens: registrations.map((item) => item.token), notification: { title: content.title, body: content.body },
       data: { type: event.type, societyId: event.societyId, ...content.data }, android: { priority: 'high' }, apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },

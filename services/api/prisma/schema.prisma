@@ -38,6 +38,8 @@ model User {
   sosEvents                 SosIncidentEvent[]
   invoicesCreated           MaintenanceInvoice[]       @relation("InvoiceCreator")
   paymentEvents             PaymentEvent[]             @relation("PaymentEventActor")
+  householdChangesRequested HouseholdChangeRequest[]   @relation("HouseholdChangeRequester")
+  householdChangesReviewed  HouseholdChangeRequest[]   @relation("HouseholdChangeReviewer")
 }
 
 model Society {
@@ -81,6 +83,7 @@ model Society {
   maintenanceInvoices  MaintenanceInvoice[]
   payments             Payment[]
   paymentEvents        PaymentEvent[]
+  householdChanges     HouseholdChangeRequest[]
 }
 
 model SocietyMembership {
@@ -178,20 +181,44 @@ model UnitOccupancy {
 }
 
 model Household {
-  id                   String                @id @default(uuid()) @db.Uuid
-  societyId            String                @db.Uuid
-  unitId               String                @unique @db.Uuid
+  id                   String                   @id @default(uuid()) @db.Uuid
+  societyId            String                   @db.Uuid
+  unitId               String                   @unique @db.Uuid
   displayName          String?
-  accessPreferences    Json                  @default("{}")
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  society              Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  unit                 Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  accessPreferences    Json                     @default("{}")
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  society              Society                  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                 Unit                     @relation(fields: [unitId], references: [id], onDelete: Cascade)
   vehicles             HouseholdVehicle[]
   emergencyContacts    EmergencyContact[]
   workforceAssignments WorkforceAssignment[]
+  changeRequests       HouseholdChangeRequest[]
 
   @@index([societyId])
+}
+
+model HouseholdChangeRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  societyId         String    @db.Uuid
+  householdId       String    @db.Uuid
+  requestedByUserId String    @db.Uuid
+  type              String
+  status            String
+  targetId          String?   @db.Uuid
+  payload           Json      @default("{}")
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  reviewedByUserId  String?   @db.Uuid
+  reviewedAt        DateTime? @db.Timestamptz(6)
+  reviewNote        String?
+  society           Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household         Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  requestedBy       User      @relation("HouseholdChangeRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  reviewedBy        User?     @relation("HouseholdChangeReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([societyId, status, createdAt], map: "HouseholdChangeRequest_society_status_created_idx")
+  @@index([societyId, requestedByUserId, createdAt(sort: Desc)], map: "HouseholdChangeRequest_society_requester_created_idx")
+  @@index([householdId, status], map: "HouseholdChangeRequest_household_status_idx")
 }
 
 model HouseholdVehicle {
@@ -339,6 +366,24 @@ model Gate {
   gateMutations GateMutationReceipt[]
 
   @@unique([societyId, code])
+}
+
+/// Physical gate assignment for a security guard or supervisor. The partial
+/// unique index allowing only one active row per society/gate/user is created
+/// by migration because Prisma schema syntax cannot express partial indexes.
+model GateGuardAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  societyId     String    @db.Uuid
+  gateId        String    @db.Uuid
+  userId        String    @db.Uuid
+  effectiveFrom DateTime  @default(now()) @db.Timestamptz(6)
+  effectiveTo   DateTime? @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, gateId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_gate_active_idx")
+  @@index([societyId, userId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_user_active_idx")
 }
 
 model AccessRequest {
@@ -643,21 +688,21 @@ model HelpdeskActivity {
 }
 
 model Notice {
-  id          String        @id @default(uuid()) @db.Uuid
-  societyId   String        @db.Uuid
-  createdById String        @db.Uuid
+  id          String         @id @default(uuid()) @db.Uuid
+  societyId   String         @db.Uuid
+  createdById String         @db.Uuid
   title       String
   body        String
   category    String?
   audience    NoticeAudience @default(OWNER_AND_OCCUPANTS)
-  status      String        @default("DRAFT")
-  publishedAt DateTime?     @db.Timestamptz(6)
-  expiresAt   DateTime?     @db.Timestamptz(6)
-  archivedAt  DateTime?     @db.Timestamptz(6)
-  createdAt   DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime      @default(now()) @db.Timestamptz(6)
-  society     Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  createdBy   User          @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  status      String         @default("DRAFT")
+  publishedAt DateTime?      @db.Timestamptz(6)
+  expiresAt   DateTime?      @db.Timestamptz(6)
+  archivedAt  DateTime?      @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @db.Timestamptz(6)
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
   events      NoticeEvent[]
 
   @@index([societyId, status, publishedAt(sort: Desc)], map: "Notice_society_status_published_idx")
@@ -786,6 +831,61 @@ model SosIncidentEvent {
   actor       User        @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([societyId, incidentId, occurredAt], map: "SosIncidentEvent_societyId_incidentId_occurredAt_idx")
+}
+
+/// Prisma representation of the migration-managed amenity catalog. Foreign-key
+/// relations and CHECK constraints remain owned by the foundation migration.
+model Amenity {
+  id                    String   @id @default(uuid()) @db.Uuid
+  societyId             String   @db.Uuid
+  code                  String
+  name                  String
+  description           String?
+  location              String?
+  schedule              Json     @default("{}")
+  bookingRules          Json     @default("{}")
+  feePaise              Int      @default(0)
+  currency              String   @default("INR")
+  requiresApproval      Boolean  @default(false)
+  slotMinutes           Int      @default(60)
+  maxConcurrentBookings Int      @default(1)
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, code], map: "Amenity_societyId_code_key")
+  @@index([societyId, active, name], map: "Amenity_societyId_active_name_idx")
+}
+
+/// Booking rows intentionally stay relationless in Prisma so this reconciliation
+/// does not alter existing User/Society/Unit relation graphs. The database
+/// migration owns those foreign keys and the partial active-slot unique index.
+model AmenityBooking {
+  id               String               @id @default(uuid()) @db.Uuid
+  societyId        String               @db.Uuid
+  amenityId        String               @db.Uuid
+  unitId           String               @db.Uuid
+  userId           String               @db.Uuid
+  startsAt         DateTime             @db.Timestamptz(6)
+  endsAt           DateTime             @db.Timestamptz(6)
+  status           AmenityBookingStatus @default(PENDING)
+  feePaise         Int                  @default(0)
+  currency         String               @default("INR")
+  reviewNote       String?
+  reviewedByUserId String?              @db.Uuid
+  createdAt        DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, amenityId, startsAt, endsAt, status], map: "AmenityBooking_society_amenity_window_idx")
+  @@index([societyId, userId, createdAt(sort: Desc)], map: "AmenityBooking_society_user_created_idx")
+  @@index([societyId, unitId, createdAt(sort: Desc)], map: "AmenityBooking_society_unit_created_idx")
+}
+
+enum AmenityBookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
 }
 
 enum UserStatus {

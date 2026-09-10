@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { NotificationRealtimeService } from './notification-realtime.service';
 import type { PushNotificationService } from './push-notification.service';
 import type { GateRecipientService } from './gate-recipient.service';
+import type { PrismaService } from '../prisma/prisma.service';
 
 function createService() {
   const push = {
@@ -14,7 +15,12 @@ function createService() {
       { userId: 'tenant-1', gateApprovalEnabled: true },
     ]),
   } as unknown as GateRecipientService;
-  return { service: new NotificationRealtimeService(push, recipients), push, recipients };
+  const prisma = {
+    maintenanceInvoice: {
+      findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1' }),
+    },
+  } as unknown as PrismaService;
+  return { service: new NotificationRealtimeService(push, recipients, prisma), push, recipients, prisma };
 }
 
 describe('NotificationRealtimeService', () => {
@@ -44,6 +50,24 @@ describe('NotificationRealtimeService', () => {
     expect(residentTwoReceived).toBe(false);
     expect(push.sendResidentEvent).toHaveBeenCalledWith(event);
     residentTwo.unsubscribe();
+  });
+
+  it('releases resident and gate subjects after the last SSE subscriber disconnects', () => {
+    const { service } = createService();
+    const residentOne = service.residentStream('society-1', 'resident-1').subscribe();
+    const residentTwo = service.residentStream('society-1', 'resident-1').subscribe();
+    const gate = service.gateStream('society-1').subscribe();
+
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(1);
+    expect((service as unknown as { societyGateStreams: Map<string, unknown> }).societyGateStreams.size).toBe(1);
+
+    residentOne.unsubscribe();
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(1);
+
+    residentTwo.unsubscribe();
+    gate.unsubscribe();
+    expect((service as unknown as { residentStreams: Map<string, unknown> }).residentStreams.size).toBe(0);
+    expect((service as unknown as { societyGateStreams: Map<string, unknown> }).societyGateStreams.size).toBe(0);
   });
 
   it('routes gate events to active occupants rather than a non-resident owner', async () => {
@@ -85,14 +109,23 @@ describe('NotificationRealtimeService', () => {
     expect(message.data).toMatchObject({ requestId: 'request-1', gateId: 'gate-1', status: 'APPROVED' });
   });
 
-  it('delivers a billing due event to the selected owner or tenant stream', async () => {
-    const { service, push } = createService();
+  it('resolves billing due notifications to the authoritative invoice unit before delivery', async () => {
+    const { service, push, prisma } = createService();
     const event = {
       type: 'MAINTENANCE_DUE_ISSUED' as const,
       societyId: 'society-1', userId: 'tenant-1', invoiceId: 'invoice-1',
       title: 'Maintenance payment due', body: 'Payment is due.', createdAt: new Date().toISOString(),
     };
     service.publishResident(event);
-    expect(push.sendResidentEvent).toHaveBeenCalledWith(event);
+
+    await vi.waitFor(() => {
+      expect(push.sendResidentEvent).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'MAINTENANCE_DUE_ISSUED', invoiceId: 'invoice-1', unitId: 'unit-1',
+      }));
+    });
+    expect(prisma.maintenanceInvoice.findFirst).toHaveBeenCalledWith({
+      where: { id: 'invoice-1', societyId: 'society-1' },
+      select: { unitId: true },
+    });
   });
 });

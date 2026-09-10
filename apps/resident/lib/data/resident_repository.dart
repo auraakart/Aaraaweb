@@ -55,6 +55,11 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> currentEntitlements() async {
+    final value = await api.get('/api/v1/entitlements/current');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Stream<Map<String, dynamic>> accessEvents() => api.sse('/api/v1/notifications/resident-stream');
 
   Future<void> registerPushDevice({required String token, required String platform, String? deviceId}) =>

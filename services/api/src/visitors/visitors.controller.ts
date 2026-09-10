@@ -10,6 +10,7 @@ import { FeatureGuard } from '../entitlements/feature.guard';
 import { RequiresFeature } from '../entitlements/feature.decorator';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { GateAccessGuard } from '../gates/gate-access.guard';
+import { GateAssignmentGuard } from '../gates/gate-assignment.guard';
 import { VisitorService } from './visitor.service';
 import { VisitorVerificationService } from './visitor-verification.service';
 
@@ -69,17 +70,17 @@ export class VisitorsController {
   }
 
   @Post('verify')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(GateAccessGuard, GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_VISITOR_VERIFY)
   verify(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.verify(societyId, dto.gateId, dto.credential, actorUserId); }
 
   @Post('check-in')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(GateAccessGuard, GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_VISITOR_CHECK_IN_OUT)
   checkIn(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.checkIn(societyId, dto.gateId, dto.credential, actorUserId); }
 
   @Post('check-out')
-  @UseGuards(GateAccessGuard)
+  @UseGuards(GateAccessGuard, GateAssignmentGuard)
   @RequiresPermissions(AppPermission.GATE_VISITOR_CHECK_IN_OUT)
   checkOut(@Body() dto: GateCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() actorUserId: string) { return this.verification.checkOut(societyId, dto.gateId, dto.credential, actorUserId); }
 }
