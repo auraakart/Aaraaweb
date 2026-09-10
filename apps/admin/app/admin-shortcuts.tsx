@@ -36,8 +36,8 @@ export function AdminShortcuts(){
   if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))links.push({href:'/reports',label:'Reports'})
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
+  if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
   if(societySetupRoles.has(role)){
-    links.push({href:'/household-approvals',label:'Household approvals'})
     links.push({href:'/property',label:'Property setup'})
     links.push({href:'/roles',label:'People & roles'})
     links.push({href:'/parking',label:'Parking'})
