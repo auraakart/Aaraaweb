@@ -12,7 +12,7 @@ export class HouseholdPreferencesService {
     householdId: string,
     incoming: Record<string, unknown>,
   ) {
-    await this.assertResidentHousehold(societyId, userId, householdId);
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid FOR UPDATE`;
       const household = await tx.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, accessPreferences: true } });
@@ -29,14 +29,21 @@ export class HouseholdPreferencesService {
     });
   }
 
-  private async assertResidentHousehold(societyId: string, userId: string, householdId: string) {
+  private async assertOwnerOrResidentHousehold(societyId: string, userId: string, householdId: string) {
     const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId }, select: { unitId: true } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
-      where: { societyId, unitId: household.unitId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-    });
-    if (!occupancy) throw new BadRequestException('Household is outside the authenticated resident context');
+    const [occupancy, ownership] = await Promise.all([
+      this.prisma.unitOccupancy.findFirst({
+        where: { societyId, unitId: household.unitId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+      this.prisma.unitOwnership.findFirst({
+        where: { societyId, unitId: household.unitId, userId, active: true, verified: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+    ]);
+    if (!occupancy && !ownership) throw new BadRequestException('Household is outside the authenticated owner or resident context');
   }
 
   private jsonObject(value: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
