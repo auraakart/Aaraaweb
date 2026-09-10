@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { HouseholdService } from './household.service';
 
-type ChangeType = 'FAMILY_MEMBER_ADD' | 'FAMILY_MEMBER_REMOVE' | 'VEHICLE_ADD' | 'VEHICLE_REMOVE';
+type ChangeType = 'FAMILY_MEMBER_ADD' | 'FAMILY_MEMBER_REMOVE' | 'VEHICLE_ADD' | 'VEHICLE_UPDATE' | 'VEHICLE_REMOVE';
 type ChangeStatus = 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
 
 type StoredChangeRequest = {
@@ -75,24 +75,38 @@ export class HouseholdChangeRequestService {
     householdId: string,
     input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string },
   ) {
-    await this.assertResidentHousehold(societyId, userId, householdId);
-    const plateNumber = this.normalizePlate(input.plateNumber);
-    if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    const active = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber, active: true } });
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
+    const payload = this.vehiclePayload(input);
+    const active = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber: payload.plateNumber as string, active: true } });
     if (active) throw new BadRequestException('This vehicle is already registered in the society');
     return this.appendRequest(societyId, householdId, {
-      type: 'VEHICLE_ADD', requestedByUserId: userId, payload: {
-        plateNumber,
-        vehicleType: input.vehicleType,
-        make: input.make?.trim() || null,
-        model: input.model?.trim() || null,
-        color: input.color?.trim() || null,
-      },
-    }, (existing) => existing.type === 'VEHICLE_ADD' && existing.status === 'PENDING' && existing.payload.plateNumber === plateNumber);
+      type: 'VEHICLE_ADD', requestedByUserId: userId, payload,
+    }, (existing) => existing.type === 'VEHICLE_ADD' && existing.status === 'PENDING' && existing.payload.plateNumber === payload.plateNumber);
+  }
+
+  async requestVehicleUpdate(
+    societyId: string,
+    userId: string,
+    householdId: string,
+    vehicleId: string,
+    input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string },
+  ) {
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
+    const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
+    if (!vehicle) throw new NotFoundException('Active household vehicle not found');
+    const payload = this.vehiclePayload(input);
+    const duplicate = await this.prisma.householdVehicle.findFirst({
+      where: { societyId, plateNumber: payload.plateNumber as string, active: true, id: { not: vehicle.id } },
+      select: { id: true },
+    });
+    if (duplicate) throw new BadRequestException('This vehicle is already registered in the society');
+    return this.appendRequest(societyId, householdId, {
+      type: 'VEHICLE_UPDATE', requestedByUserId: userId, targetId: vehicleId, payload,
+    }, (existing) => existing.type === 'VEHICLE_UPDATE' && existing.status === 'PENDING' && existing.targetId === vehicleId);
   }
 
   async requestVehicleRemove(societyId: string, userId: string, householdId: string, vehicleId: string) {
-    await this.assertResidentHousehold(societyId, userId, householdId);
+    await this.assertOwnerOrResidentHousehold(societyId, userId, householdId);
     const vehicle = await this.prisma.householdVehicle.findFirst({ where: { id: vehicleId, householdId, societyId, active: true } });
     if (!vehicle) throw new NotFoundException('Active household vehicle not found');
     return this.appendRequest(societyId, householdId, {
@@ -178,13 +192,11 @@ export class HouseholdChangeRequestService {
         await this.households.deactivateFamilyMember(societyId, requester, householdId, request.targetId);
         return;
       case 'VEHICLE_ADD':
-        await this.households.addVehicle(societyId, requester, householdId, {
-          plateNumber: String(request.payload.plateNumber ?? ''),
-          vehicleType: request.payload.vehicleType as VehicleType,
-          make: this.optionalText(request.payload.make),
-          model: this.optionalText(request.payload.model),
-          color: this.optionalText(request.payload.color),
-        });
+        await this.households.addVehicle(societyId, requester, householdId, this.vehicleInput(request.payload));
+        return;
+      case 'VEHICLE_UPDATE':
+        if (!request.targetId) throw new BadRequestException('Vehicle target is missing');
+        await this.households.updateVehicle(societyId, requester, householdId, request.targetId, this.vehicleInput(request.payload));
         return;
       case 'VEHICLE_REMOVE':
         if (!request.targetId) throw new BadRequestException('Vehicle target is missing');
@@ -290,15 +302,44 @@ export class HouseholdChangeRequestService {
     return household;
   }
 
-  private async assertResidentHousehold(societyId: string, userId: string, householdId: string) {
+  private async assertOwnerOrResidentHousehold(societyId: string, userId: string, householdId: string) {
     const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, unitId: true } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
-      where: { societyId, unitId: household.unitId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
-    });
-    if (!occupancy) throw new BadRequestException('Household is outside the authenticated resident context');
+    const [occupancy, ownership] = await Promise.all([
+      this.prisma.unitOccupancy.findFirst({
+        where: { societyId, unitId: household.unitId, userId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+      this.prisma.unitOwnership.findFirst({
+        where: { societyId, unitId: household.unitId, userId, active: true, verified: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+        select: { id: true },
+      }),
+    ]);
+    if (!occupancy && !ownership) throw new BadRequestException('Household is outside the authenticated owner or resident context');
     return household;
+  }
+
+  private vehiclePayload(input: { plateNumber: string; vehicleType: VehicleType; make?: string; model?: string; color?: string }) {
+    const plateNumber = this.normalizePlate(input.plateNumber);
+    if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
+    return {
+      plateNumber,
+      vehicleType: input.vehicleType,
+      make: input.make?.trim() || null,
+      model: input.model?.trim() || null,
+      color: input.color?.trim() || null,
+    };
+  }
+
+  private vehicleInput(payload: Record<string, unknown>) {
+    return {
+      plateNumber: String(payload.plateNumber ?? ''),
+      vehicleType: payload.vehicleType as VehicleType,
+      make: this.optionalText(payload.make),
+      model: this.optionalText(payload.model),
+      color: this.optionalText(payload.color),
+    };
   }
 
   private requestsOf(value: Prisma.JsonValue | Prisma.JsonObject | null | undefined): StoredChangeRequest[] {
@@ -319,7 +360,7 @@ export class HouseholdChangeRequestService {
         ...(item.reviewedAt ? { reviewedAt: String(item.reviewedAt) } : {}),
         ...(item.reviewNote ? { reviewNote: String(item.reviewNote) } : {}),
       }))
-      .filter((item) => item.id && item.requestedByUserId && ['FAMILY_MEMBER_ADD', 'FAMILY_MEMBER_REMOVE', 'VEHICLE_ADD', 'VEHICLE_REMOVE'].includes(item.type));
+      .filter((item) => item.id && item.requestedByUserId && ['FAMILY_MEMBER_ADD', 'FAMILY_MEMBER_REMOVE', 'VEHICLE_ADD', 'VEHICLE_UPDATE', 'VEHICLE_REMOVE'].includes(item.type));
   }
 
   private jsonObject(value: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
