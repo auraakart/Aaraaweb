@@ -210,7 +210,7 @@ class _InvoiceCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final due = DateTime.tryParse(invoice['dueDate']?.toString() ?? '');
-    final overdue = due != null && due.isBefore(DateTime.now());
+    final overdue = due != null && _isOverdueDate(due, DateTime.now());
     final description = invoice['description']?.toString() ?? '';
 
     return Container(
@@ -279,6 +279,12 @@ class _PaymentCard extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _isOverdueDate(DateTime due, DateTime now) {
+  final dueDay = DateUtils.dateOnly(due);
+  final today = DateUtils.dateOnly(now);
+  return dueDay.isBefore(today);
 }
 
 String _money(int paise) => '₹${(paise / 100).toStringAsFixed(2)}';
