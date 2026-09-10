@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('adding a demo family member closes the dialog without framework lifecycle errors', (tester) async {
+  testWidgets('adding a demo family member closes the dialog and creates a pending approval without lifecycle errors', (tester) async {
     final controller = ResidentDataController(
       DemoResidentRepository(),
       activeUnitId: 'demo-unit-1',
@@ -28,18 +28,13 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Kavya Sharma');
     await tester.enterText(find.widgetWithText(TextField, 'Mobile number'), '+91 98765 49999');
-    await tester.tap(find.widgetWithText(FilledButton, 'Add member'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit for approval'));
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     expect(find.text('Add family member'), findsNothing);
-
-    await tester.scrollUntilVisible(
-      find.text('Kavya Sharma'),
-      180,
-      scrollable: find.byType(Scrollable).first,
-    );
+    expect(find.text('Pending society approval'), findsOneWidget);
     expect(find.text('Kavya Sharma'), findsOneWidget);
-    expect(find.text('+91 98765 49999'), findsOneWidget);
+    expect(find.text('Addition pending Society Admin approval'), findsOneWidget);
   });
 }
