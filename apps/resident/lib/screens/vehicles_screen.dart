@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/demo_household_state.dart';
+import '../data/demo_resident_repository.dart';
 import '../data/resident_data_controller.dart';
 import '../data/vehicle_actions.dart';
 
@@ -9,7 +10,7 @@ class VehiclesScreen extends StatelessWidget {
   final ResidentDataController controller;
   final String householdId;
 
-  bool get _demo => householdId.startsWith('demo-');
+  bool get _demo => controller.repository is DemoResidentRepository;
 
   Map<String, dynamic>? get _household {
     final households = controller.households.where((item) => item['id']?.toString() == householdId);
