@@ -288,7 +288,7 @@ class _BookingSheetState extends State<_BookingSheet> {
             Text(widget.amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 6),
             Text(
-              '${widget.slotMinutes} min · ${_feeLabel(widget.amenity['feePaise'])} · ${approval ? 'Approval required' : 'Instant confirmation'}',
+              '${widget.slotMinutes} min · ${_feeLabel(widget.amenity['feePaise'])} · ${approval ? 'Approval required' : 'Server confirmation'}',
               style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
@@ -371,13 +371,13 @@ class _BookingSheetState extends State<_BookingSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(approval ? Icons.schedule_send_outlined : Icons.bolt_rounded, color: scheme.primary),
+                  Icon(approval ? Icons.schedule_send_outlined : Icons.verified_user_outlined, color: scheme.primary),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       approval
                           ? 'Your society will review this booking after you submit it.'
-                          : 'The server will confirm this booking immediately if the slot is still available.',
+                          : 'Your selected time is only a request until the server confirms that capacity is still available.',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
@@ -392,7 +392,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                     ? null
                     : () => Navigator.pop(context, _BookingSelection(startsAt)),
                 icon: const Icon(Icons.event_available_rounded),
-                label: Text(approval ? 'Request booking' : 'Confirm booking'),
+                label: Text(approval ? 'Request booking' : 'Check & book'),
               ),
             ),
           ],
@@ -465,7 +465,7 @@ class _AmenityCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusPill(label: approval ? 'Approval' : 'Instant'),
+                _StatusPill(label: approval ? 'Approval' : 'Server check'),
               ],
             ),
             if (description.isNotEmpty) ...[
