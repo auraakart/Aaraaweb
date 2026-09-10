@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/demo_household_state.dart';
 import '../data/resident_data_controller.dart';
 import '../data/vehicle_actions.dart';
 
@@ -8,12 +9,15 @@ class VehiclesScreen extends StatelessWidget {
   final ResidentDataController controller;
   final String householdId;
 
+  bool get _demo => householdId.startsWith('demo-');
+
   Map<String, dynamic>? get _household {
     final households = controller.households.where((item) => item['id']?.toString() == householdId);
     return households.isEmpty ? null : households.first;
   }
 
   List<Map<String, dynamic>> get _vehicles {
+    if (_demo) return DemoHouseholdState.vehiclesFor(householdId);
     final raw = _household?['vehicles'];
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
@@ -74,17 +78,36 @@ class VehiclesScreen extends StatelessWidget {
         ),
       ),
     );
-    if (submit != true || plate.text.trim().isEmpty || !context.mounted) return;
+    final plateNumber = plate.text.trim();
+    final makeValue = make.text.trim();
+    final modelValue = model.text.trim();
+    final colorValue = color.text.trim();
+    plate.dispose();
+    make.dispose();
+    model.dispose();
+    color.dispose();
+    if (submit != true || plateNumber.isEmpty || !context.mounted) return;
     try {
-      await controller.repository.addVehicle(
-        householdId: householdId,
-        plateNumber: plate.text,
-        vehicleType: type,
-        make: make.text,
-        model: model.text,
-        color: color.text,
-      );
-      await controller.load();
+      if (_demo) {
+        DemoHouseholdState.vehiclesFor(householdId).add({
+          'id': 'demo-vehicle-${DateTime.now().microsecondsSinceEpoch}',
+          'plateNumber': plateNumber.toUpperCase().replaceAll(RegExp(r'[\s-]+'), ''),
+          'vehicleType': type,
+          'make': makeValue,
+          'model': modelValue,
+          'color': colorValue,
+        });
+      } else {
+        await controller.repository.addVehicle(
+          householdId: householdId,
+          plateNumber: plateNumber,
+          vehicleType: type,
+          make: makeValue,
+          model: modelValue,
+          color: colorValue,
+        );
+        await controller.load();
+      }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle registered')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -105,8 +128,12 @@ class VehiclesScreen extends StatelessWidget {
     );
     if (confirmed != true || !context.mounted) return;
     try {
-      await controller.repository.deactivateVehicle(householdId: householdId, vehicleId: vehicle['id'].toString());
-      await controller.load();
+      if (_demo) {
+        DemoHouseholdState.vehiclesFor(householdId).removeWhere((item) => item['id'] == vehicle['id']);
+      } else {
+        await controller.repository.deactivateVehicle(householdId: householdId, vehicleId: vehicle['id'].toString());
+        await controller.load();
+      }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removed')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -117,11 +144,10 @@ class VehiclesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final vehicles = _vehicles;
     final parkingSlots = _parkingSlots;
-    final demo = householdId.startsWith('demo-');
     return Scaffold(
       appBar: AppBar(title: const Text('Vehicles & parking', style: TextStyle(fontWeight: FontWeight.w900))),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: demo ? null : () => _add(context),
+        onPressed: () => _add(context),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add vehicle'),
       ),
@@ -145,9 +171,7 @@ class VehiclesScreen extends StatelessWidget {
                     leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
                     title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
                     subtitle: Text(_details(vehicle, parkingSlots[vehicleId])),
-                    trailing: demo
-                        ? null
-                        : IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
+                    trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Remove vehicle', onPressed: () => _remove(context, vehicle)),
                   ),
                 );
               }),
