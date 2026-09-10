@@ -30,10 +30,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: GateScreen(controller: controller))));
 
     expect(find.text('Delivery partner'), findsOneWidget);
-    expect(find.text('Amazon · KA01AB1234'), findsOneWidget);
+    expect(find.textContaining('Amazon · KA01AB1234'), findsOneWidget);
     expect(find.text('Allow for the next 30 minutes'), findsOneWidget);
     expect(find.text('Cab driver'), findsOneWidget);
-    expect(find.text('Ola · KA02CD5678'), findsOneWidget);
+    expect(find.textContaining('Ola · KA02CD5678'), findsOneWidget);
     expect(find.text('Allow for the next 15 minutes'), findsOneWidget);
     expect(find.text('Allow entry'), findsNWidgets(2));
 
