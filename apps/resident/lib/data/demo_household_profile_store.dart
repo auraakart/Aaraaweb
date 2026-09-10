@@ -117,13 +117,29 @@ class DemoHouseholdProfileStore {
     final request = _pending(
       householdId: householdId,
       type: 'VEHICLE_ADD',
-      payload: {
-        'plateNumber': plateNumber.trim().toUpperCase().replaceAll(RegExp(r'[\s-]+'), ''),
-        'vehicleType': vehicleType,
-        if (make?.trim().isNotEmpty == true) 'make': make!.trim(),
-        if (model?.trim().isNotEmpty == true) 'model': model!.trim(),
-        if (color?.trim().isNotEmpty == true) 'color': color!.trim(),
-      },
+      payload: _vehiclePayload(plateNumber: plateNumber, vehicleType: vehicleType, make: make, model: model, color: color),
+    );
+    pendingRequests(householdId).add(request);
+    return request;
+  }
+
+  static Map<String, dynamic> requestVehicleUpdate({
+    required String householdId,
+    required String vehicleId,
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) {
+    if (hasPending(householdId, 'VEHICLE_UPDATE', targetId: vehicleId)) {
+      throw StateError('A vehicle edit request is already pending society approval');
+    }
+    final request = _pending(
+      householdId: householdId,
+      type: 'VEHICLE_UPDATE',
+      targetId: vehicleId,
+      payload: _vehiclePayload(plateNumber: plateNumber, vehicleType: vehicleType, make: make, model: model, color: color),
     );
     pendingRequests(householdId).add(request);
     return request;
@@ -166,6 +182,20 @@ class DemoHouseholdProfileStore {
   static bool hasPending(String householdId, String type, {String? targetId}) =>
       pendingRequests(householdId).any((item) =>
           item['status'] == 'PENDING' && item['type'] == type && (targetId == null || item['targetId']?.toString() == targetId));
+
+  static Map<String, dynamic> _vehiclePayload({
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) => {
+        'plateNumber': plateNumber.trim().toUpperCase().replaceAll(RegExp(r'[\s-]+'), ''),
+        'vehicleType': vehicleType,
+        if (make?.trim().isNotEmpty == true) 'make': make!.trim(),
+        if (model?.trim().isNotEmpty == true) 'model': model!.trim(),
+        if (color?.trim().isNotEmpty == true) 'color': color!.trim(),
+      };
 
   static Map<String, dynamic> _pending({
     required String householdId,
