@@ -117,12 +117,12 @@ class AaraagateTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withOpacity(.08),
+        shadowColor: Colors.black.withValues(alpha: .08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
         ),
@@ -221,7 +221,7 @@ class AaraagateTheme {
           ),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
