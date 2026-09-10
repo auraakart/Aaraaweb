@@ -28,10 +28,10 @@ function service(overrides: Overrides = {}) {
       findFirst: vi.fn().mockResolvedValue({ id: 'contact-1', active: true }),
       update: vi.fn().mockResolvedValue({ id: 'contact-1', active: false }),
     },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     ...overrides,
   };
   Object.assign(prisma, {
-    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (operation: (tx: typeof prisma) => unknown) => operation(prisma)),
   });
   return {
@@ -104,6 +104,7 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ plateNumber: 'KA01AB1234' }) }),
     );
+    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
   });
 
   it('reactivates a historical vehicle row instead of violating the society plate constraint', async () => {

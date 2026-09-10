@@ -20,6 +20,20 @@ type StoredChangeRequest = {
   reviewNote?: string;
 };
 
+type IndexedChangeRequest = {
+  id: string;
+  householdId: string;
+  type: string;
+  status: string;
+  requestedByUserId: string;
+  targetId: string | null;
+  payload: Prisma.JsonValue;
+  createdAt: Date;
+  reviewedByUserId: string | null;
+  reviewedAt: Date | null;
+  reviewNote: string | null;
+};
+
 @Injectable()
 export class HouseholdChangeRequestService {
   constructor(private readonly prisma: PrismaService, private readonly households: HouseholdService) {}
@@ -69,7 +83,8 @@ export class HouseholdChangeRequestService {
         plateNumber, vehicleType: input.vehicleType,
         make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null,
       },
-    }, (r) => r.type === 'VEHICLE_ADD' && r.status === 'PENDING' && r.payload.plateNumber === plateNumber);
+    }, (r) => r.type === 'VEHICLE_ADD' && ['PENDING', 'PROCESSING'].includes(r.status) && r.payload.plateNumber === plateNumber,
+    { societyId }, `vehicle:${societyId}:${plateNumber}`);
   }
 
   async requestVehicleRemove(societyId: string, userId: string, householdId: string, vehicleId: string) {
@@ -83,26 +98,42 @@ export class HouseholdChangeRequestService {
 
   async listMine(societyId: string, userId: string) {
     const mine = await this.households.listMine(societyId, userId);
-    return mine.flatMap((household) => this.requestsOf(household.accessPreferences)
+    const units = new Map(mine.map((household) => [household.id, household.unitId]));
+    const indexed = mine.length ? await this.prisma.householdChangeRequest.findMany({
+      where: { societyId, requestedByUserId: userId, householdId: { in: [...units.keys()] } },
+      orderBy: { createdAt: 'desc' },
+    }) : [];
+    const merged = new Map(indexed.map((request) => {
+      const stored = this.fromIndexed(request);
+      return [stored.id, { ...stored, householdId: request.householdId, unitId: units.get(request.householdId) }];
+    }));
+    // Retain a scoped fallback for records that predate or were rejected by the
+    // backfill. This never scans households outside the user's active context.
+    for (const request of mine.flatMap((household) => this.requestsOf(household.accessPreferences)
       .filter((r) => r.requestedByUserId === userId)
-      .map((r) => ({ ...r, householdId: household.id, unitId: household.unitId })))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .map((r) => ({ ...r, householdId: household.id, unitId: household.unitId })))) {
+      if (!merged.has(request.id)) merged.set(request.id, request);
+    }
+    return [...merged.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async listPending(societyId: string) {
-    const rows = await this.prisma.household.findMany({
-      where: { societyId },
-      select: { id: true, unitId: true, accessPreferences: true, unit: { select: { number: true, building: { select: { name: true } } } } },
+    const requests = await this.prisma.householdChangeRequest.findMany({
+      where: { societyId, status: 'PENDING' },
+      include: {
+        household: { select: { unitId: true, unit: { select: { number: true, building: { select: { name: true } } } } } },
+        requestedBy: { select: { id: true, name: true, phone: true } },
+      },
       orderBy: { createdAt: 'asc' },
     });
-    const requests = rows.flatMap((h) => this.requestsOf(h.accessPreferences)
-      .filter((r) => r.status === 'PENDING')
-      .map((r) => ({ ...r, householdId: h.id, unitId: h.unitId, unitNumber: h.unit.number, buildingName: h.unit.building.name })))
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const ids = [...new Set(requests.map((r) => r.requestedByUserId))];
-    const users = ids.length ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true } }) : [];
-    const byId = new Map(users.map((u) => [u.id, u]));
-    return requests.map((r) => ({ ...r, requester: byId.get(r.requestedByUserId) ?? null }));
+    return requests.map((request) => ({
+      ...this.fromIndexed(request),
+      householdId: request.householdId,
+      unitId: request.household.unitId,
+      unitNumber: request.household.unit.number,
+      buildingName: request.household.unit.building.name,
+      requester: request.requestedBy,
+    }));
   }
 
   async approve(societyId: string, reviewerUserId: string, requestId: string, reviewNote?: string) {
@@ -160,16 +191,34 @@ export class HouseholdChangeRequestService {
     }
   }
 
-  private async appendRequest(societyId: string, householdId: string, input: Omit<StoredChangeRequest, 'id' | 'status' | 'createdAt'>, duplicate: (r: StoredChangeRequest) => boolean) {
+  private async appendRequest(
+    societyId: string,
+    householdId: string,
+    input: Omit<StoredChangeRequest, 'id' | 'status' | 'createdAt'>,
+    duplicate: (r: StoredChangeRequest) => boolean,
+    pendingScope: Prisma.HouseholdChangeRequestWhereInput = { householdId },
+    advisoryLockKey?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "Household" WHERE "id" = ${householdId}::uuid FOR UPDATE`;
+      // Vehicle registration is unique across a society, so requests from two
+      // different households need a shared transaction lock before deduping.
+      if (advisoryLockKey) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${advisoryLockKey}, 0))`;
+      }
       const household = await tx.household.findFirst({ where: { id: householdId, societyId }, select: { id: true, accessPreferences: true } });
       if (!household) throw new NotFoundException('Household not found');
       const preferences = this.jsonObject(household.accessPreferences);
-      const requests = this.requestsOf(preferences);
-      if (requests.some(duplicate)) throw new BadRequestException('A matching request is already pending society approval');
+      const legacyRequests = this.requestsOf(preferences);
+      const indexedRequests = await tx.householdChangeRequest.findMany({
+        where: { ...pendingScope, status: { in: ['PENDING', 'PROCESSING'] } },
+      });
+      const pending = new Map(indexedRequests.map((request) => [request.id, this.fromIndexed(request)]));
+      for (const request of legacyRequests.filter((item) => ['PENDING', 'PROCESSING'].includes(item.status))) pending.set(request.id, request);
+      if ([...pending.values()].some(duplicate)) throw new BadRequestException('A matching request is already pending society approval');
       const request: StoredChangeRequest = { ...input, id: randomUUID(), status: 'PENDING', createdAt: new Date().toISOString() };
-      preferences.householdChangeRequests = [...requests, request] as unknown as Prisma.JsonArray;
+      await tx.householdChangeRequest.create({ data: this.toIndexedData(societyId, householdId, request) });
+      preferences.householdChangeRequests = [...legacyRequests, request] as unknown as Prisma.JsonArray;
       await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
       return { ...request, householdId };
     });
@@ -188,19 +237,31 @@ export class HouseholdChangeRequestService {
       if (!household) throw new NotFoundException('Household not found');
       const preferences = this.jsonObject(household.accessPreferences);
       const requests = this.requestsOf(preferences);
-      const index = requests.findIndex((r) => r.id === requestId);
-      if (index < 0) throw new NotFoundException('Household change request not found');
-      if (requests[index].status !== expectedStatus) {
-        throw new BadRequestException(`Household change request is already ${requests[index].status.toLowerCase()}`);
+      const legacyIndex = requests.findIndex((r) => r.id === requestId);
+      const indexed = await tx.householdChangeRequest.findFirst({ where: { id: requestId, societyId, householdId } });
+      const current = indexed ? this.fromIndexed(indexed) : requests[legacyIndex];
+      if (!current) throw new NotFoundException('Household change request not found');
+      if (current.status !== expectedStatus) {
+        throw new BadRequestException(`Household change request is already ${current.status.toLowerCase()}`);
       }
-      requests[index] = change(requests[index]);
+      const next = change(current);
+      if (indexed) {
+        await tx.householdChangeRequest.update({ where: { id: requestId }, data: this.toIndexedUpdate(next) });
+      } else {
+        await tx.householdChangeRequest.create({ data: this.toIndexedData(societyId, householdId, next) });
+      }
+      if (legacyIndex >= 0) requests[legacyIndex] = next;
+      else requests.push(next);
       preferences.householdChangeRequests = requests as unknown as Prisma.JsonArray;
       await tx.household.update({ where: { id: household.id }, data: { accessPreferences: preferences as Prisma.InputJsonValue } });
-      return { ...requests[index], householdId };
+      return { ...next, householdId };
     });
   }
 
   private async findRequest(societyId: string, requestId: string) {
+    const indexed = await this.prisma.householdChangeRequest.findFirst({ where: { id: requestId, societyId } });
+    if (indexed) return { householdId: indexed.householdId, request: this.fromIndexed(indexed) };
+    // Compatibility fallback for malformed legacy entries skipped by migration.
     const rows = await this.prisma.household.findMany({ where: { societyId }, select: { id: true, accessPreferences: true } });
     for (const h of rows) {
       const request = this.requestsOf(h.accessPreferences).find((r) => r.id === requestId);
@@ -241,6 +302,36 @@ export class HouseholdChangeRequestService {
 
   private normalizePlate(value: string) { return value.trim().toUpperCase().replace(/[\s-]+/g, ''); }
   private optionalText(value: unknown) { const text = typeof value === 'string' ? value.trim() : ''; return text || undefined; }
+  private fromIndexed(value: IndexedChangeRequest): StoredChangeRequest {
+    return {
+      id: value.id,
+      type: value.type as ChangeType,
+      status: value.status as ChangeStatus,
+      requestedByUserId: value.requestedByUserId,
+      ...(value.targetId ? { targetId: value.targetId } : {}),
+      payload: this.jsonObject(value.payload),
+      createdAt: value.createdAt.toISOString(),
+      ...(value.reviewedByUserId ? { reviewedByUserId: value.reviewedByUserId } : {}),
+      ...(value.reviewedAt ? { reviewedAt: value.reviewedAt.toISOString() } : {}),
+      ...(value.reviewNote ? { reviewNote: value.reviewNote } : {}),
+    };
+  }
+  private toIndexedData(societyId: string, householdId: string, value: StoredChangeRequest) {
+    return {
+      id: value.id, societyId, householdId, requestedByUserId: value.requestedByUserId,
+      type: value.type, status: value.status, targetId: value.targetId,
+      payload: value.payload as Prisma.InputJsonValue, createdAt: new Date(value.createdAt),
+      reviewedByUserId: value.reviewedByUserId, reviewedAt: value.reviewedAt ? new Date(value.reviewedAt) : null,
+      reviewNote: value.reviewNote,
+    };
+  }
+  private toIndexedUpdate(value: StoredChangeRequest) {
+    return {
+      status: value.status, reviewedByUserId: value.reviewedByUserId ?? null,
+      reviewedAt: value.reviewedAt ? new Date(value.reviewedAt) : null,
+      reviewNote: value.reviewNote ?? null,
+    };
+  }
   private jsonObject(value: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     return { ...(value as Prisma.JsonObject) };

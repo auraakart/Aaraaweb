@@ -194,25 +194,31 @@ export class HouseholdService {
     await this.assertOwnHousehold(societyId, userId, householdId);
     const plateNumber = input.plateNumber.trim().toUpperCase().replace(/[\s-]+/g, '');
     if (!plateNumber) throw new BadRequestException('Vehicle registration number is required');
-    const existing = await this.prisma.householdVehicle.findFirst({ where: { societyId, plateNumber } });
-    if (existing?.active) throw new BadRequestException('This vehicle is already registered in the society');
-    if (existing) {
-      // The database intentionally keeps one plate per society. Reactivate the
-      // historical row instead of violating that unique constraint.
-      return this.prisma.householdVehicle.update({
-        where: { id: existing.id },
-        data: {
-          householdId,
-          vehicleType: input.vehicleType,
-          make: input.make?.trim() || null,
-          model: input.model?.trim() || null,
-          color: input.color?.trim() || null,
-          active: true,
-        },
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize direct writes and approval-driven writes for the society-wide
+      // plate invariant. This also prevents two inactive-row reactivations from
+      // racing after both callers observe the same stale state.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`vehicle:${societyId}:${plateNumber}`}, 0))`;
+      const existing = await tx.householdVehicle.findFirst({ where: { societyId, plateNumber } });
+      if (existing?.active) throw new BadRequestException('This vehicle is already registered in the society');
+      if (existing) {
+        // The database intentionally keeps one plate per society. Reactivate the
+        // historical row instead of violating that unique constraint.
+        return tx.householdVehicle.update({
+          where: { id: existing.id },
+          data: {
+            householdId,
+            vehicleType: input.vehicleType,
+            make: input.make?.trim() || null,
+            model: input.model?.trim() || null,
+            color: input.color?.trim() || null,
+            active: true,
+          },
+        });
+      }
+      return tx.householdVehicle.create({
+        data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
       });
-    }
-    return this.prisma.householdVehicle.create({
-      data: { societyId, householdId, plateNumber, vehicleType: input.vehicleType, make: input.make?.trim() || null, model: input.model?.trim() || null, color: input.color?.trim() || null },
     });
   }
 
