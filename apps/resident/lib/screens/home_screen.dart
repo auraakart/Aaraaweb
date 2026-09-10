@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import 'sos_screen.dart';
 
@@ -50,7 +51,12 @@ class HomeScreen extends StatelessWidget {
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(
+            AaraagateTokens.space5,
+            AaraagateTokens.space3,
+            AaraagateTokens.space5,
+            28,
+          ),
           children: [
             _HomeHero(
               householdName: householdName,
@@ -59,93 +65,99 @@ class HomeScreen extends StatelessWidget {
               onOpenNotices: onOpenNotices,
             ),
             if (controller.entitlementsError != null) ...[
-              const SizedBox(height: 16),
-              AppStateCard(icon: Icons.sync_problem_outlined, message: controller.entitlementsError!, actionLabel: 'Retry', onAction: controller.load),
+              const SizedBox(height: AaraagateTokens.space4),
+              AppStateCard(
+                icon: Icons.sync_problem_outlined,
+                message: controller.entitlementsError!,
+                actionLabel: 'Retry',
+                onAction: controller.load,
+              ),
             ],
             if (showGate) ...[
-              const SizedBox(height: 24),
-              Text('Needs your attention', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              _SectionHeading(
+                title: 'Needs your attention',
+                supportingText: pending == null ? null : 'A gate response is waiting for you',
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
               if (controller.loading && controller.accessRequests.isEmpty)
-                const AppStateCard(icon: Icons.sync_rounded, message: 'Checking gate activity…', loading: true)
+                const AppStateCard(
+                  icon: Icons.sync_rounded,
+                  message: 'Checking gate activity…',
+                  loading: true,
+                )
               else if (controller.accessError != null)
-                AppStateCard(icon: Icons.error_outline_rounded, message: 'Access requests could not be loaded.', actionLabel: 'Retry', onAction: controller.load)
+                AppStateCard(
+                  icon: Icons.error_outline_rounded,
+                  message: 'Access requests could not be loaded.',
+                  actionLabel: 'Retry',
+                  onAction: controller.load,
+                )
               else if (pending == null)
-                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'Nothing needs approval right now.')
+                const _AllClearCard()
               else
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          CircleAvatar(backgroundColor: theme.colorScheme.primaryContainer, child: Icon(Icons.person_pin_circle_outlined, color: theme.colorScheme.onPrimaryContainer)),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text('${pending['subjectName'] ?? 'Visitor'} is waiting', style: const TextStyle(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 3),
-                            Text('${pending['subjectType'] ?? 'VISITOR'}${pending['purpose'] == null ? '' : ' · ${pending['purpose']}'}'),
-                          ])),
-                          const Text('Now', style: TextStyle(fontWeight: FontWeight.w700)),
-                        ]),
-                        const SizedBox(height: 16),
-                        Row(children: [
-                          Expanded(child: OutlinedButton(onPressed: () => controller.denyAccess(pending['id'].toString()), child: const Text('Deny'))),
-                          const SizedBox(width: 10),
-                          Expanded(child: FilledButton(onPressed: () => controller.approveAccess(pending['id'].toString()), child: const Text('Allow'))),
-                        ]),
-                      ],
-                    ),
-                  ),
+                _PendingAccessCard(
+                  pending: pending,
+                  onDeny: () => controller.denyAccess(pending['id'].toString()),
+                  onAllow: () => controller.approveAccess(pending['id'].toString()),
                 ),
-            ],
-            if (showNotices && controller.notices.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: ListTile(
-                  onTap: onOpenNotices,
-                  leading: CircleAvatar(backgroundColor: theme.colorScheme.primaryContainer, foregroundColor: theme.colorScheme.onPrimaryContainer, child: const Icon(Icons.campaign_outlined)),
-                  title: Text(controller.notices.first['title']?.toString() ?? 'Society notice', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: const Text('Latest society update'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                ),
-              ),
-            ],
-            if (showBilling) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  onTap: onOpenBilling,
-                  leading: CircleAvatar(backgroundColor: theme.colorScheme.primaryContainer, foregroundColor: theme.colorScheme.onPrimaryContainer, child: const Icon(Icons.receipt_long_outlined)),
-                  title: const Text('Maintenance & payments', style: TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: const Text('Dues and payments for your unit'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                ),
-              ),
             ],
             if (hasQuickActions) ...[
-              const SizedBox(height: 24),
-              Text('Quick actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              const _SectionHeading(title: 'Quick actions'),
+              const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final itemWidth = (constraints.maxWidth - 10) / 2;
+                  final itemWidth = (constraints.maxWidth - AaraagateTokens.space3) / 2;
                   return Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: AaraagateTokens.space3,
+                    runSpacing: AaraagateTokens.space3,
                     children: [
-                      if (showGate) SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.person_add_alt_1_rounded, label: 'Invite guest', onTap: onOpenGate)),
-                      if (showServices) SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.home_repair_service_rounded, label: 'Book service', onTap: onOpenServices)),
-                      if (showAmenities) SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.sports_tennis_rounded, label: 'Amenities', onTap: onOpenAmenities)),
-                      if (showHelpdesk) SizedBox(width: itemWidth, child: _QuickAction(icon: Icons.support_agent_rounded, label: 'Helpdesk', onTap: onOpenHelpdesk)),
+                      if (showGate)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _QuickAction(
+                            icon: Icons.person_add_alt_1_rounded,
+                            label: 'Invite guest',
+                            onTap: onOpenGate,
+                          ),
+                        ),
+                      if (showServices)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _QuickAction(
+                            icon: Icons.home_repair_service_rounded,
+                            label: 'Book service',
+                            onTap: onOpenServices,
+                          ),
+                        ),
+                      if (showAmenities)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _QuickAction(
+                            icon: Icons.sports_tennis_rounded,
+                            label: 'Amenities',
+                            onTap: onOpenAmenities,
+                          ),
+                        ),
+                      if (showHelpdesk)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _QuickAction(
+                            icon: Icons.support_agent_rounded,
+                            label: 'Helpdesk',
+                            onTap: onOpenHelpdesk,
+                          ),
+                        ),
                       if (showSos)
                         SizedBox(
                           width: itemWidth,
                           child: _QuickAction(
                             icon: Icons.sos_rounded,
                             label: 'SOS',
-                            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SosScreen(controller: controller))),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => SosScreen(controller: controller)),
+                            ),
                             urgent: true,
                           ),
                         ),
@@ -154,15 +166,57 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ],
+            if (showNotices || showBilling) ...[
+              const SizedBox(height: AaraagateTokens.space6),
+              const _SectionHeading(title: 'For your home'),
+              const SizedBox(height: AaraagateTokens.space3),
+              if (showNotices && controller.notices.isNotEmpty)
+                _HomeSummaryRow(
+                  icon: Icons.campaign_outlined,
+                  title: controller.notices.first['title']?.toString() ?? 'Society notice',
+                  subtitle: 'Latest society update',
+                  onTap: onOpenNotices,
+                ),
+              if (showNotices && controller.notices.isNotEmpty && showBilling)
+                const SizedBox(height: AaraagateTokens.space2),
+              if (showBilling)
+                _HomeSummaryRow(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Maintenance & payments',
+                  subtitle: 'Dues and payment history for your unit',
+                  onTap: onOpenBilling,
+                ),
+            ],
             if (showGate) ...[
-              const SizedBox(height: 24),
-              Text('Today', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              const _SectionHeading(title: 'Today'),
+              const SizedBox(height: AaraagateTokens.space3),
               if (controller.accessRequests.isEmpty)
-                const AppStateCard(icon: Icons.shield_outlined, message: 'No access activity yet. New entries will appear here.')
+                const AppStateCard(
+                  icon: Icons.shield_outlined,
+                  message: 'No access activity yet. New entries will appear here.',
+                )
               else
-                for (final item in controller.accessRequests.take(3))
-                  _TimelineTile(icon: _iconFor(item['subjectType']?.toString()), title: item['subjectName']?.toString() ?? 'Access request', subtitle: '${item['subjectType'] ?? 'ACCESS'} · ${item['status'] ?? ''}', time: ''),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < controller.accessRequests.take(3).length; i++) ...[
+                        _TimelineTile(
+                          icon: _iconFor(controller.accessRequests[i]['subjectType']?.toString()),
+                          title: controller.accessRequests[i]['subjectName']?.toString() ?? 'Access request',
+                          subtitle: '${controller.accessRequests[i]['subjectType'] ?? 'ACCESS'} · ${controller.accessRequests[i]['status'] ?? ''}',
+                          time: '',
+                        ),
+                        if (i < controller.accessRequests.take(3).length - 1)
+                          Divider(height: 1, indent: 64, color: theme.colorScheme.outlineVariant),
+                      ],
+                    ],
+                  ),
+                ),
             ],
           ],
         ),
@@ -172,17 +226,28 @@ class HomeScreen extends StatelessWidget {
 
   static IconData _iconFor(String? type) {
     switch (type) {
-      case 'DELIVERY': return Icons.local_shipping_outlined;
-      case 'DOMESTIC_HELP': return Icons.cleaning_services_outlined;
-      case 'CAB': return Icons.local_taxi_outlined;
-      case 'SERVICE_PROVIDER': return Icons.home_repair_service_outlined;
-      default: return Icons.person_outline_rounded;
+      case 'DELIVERY':
+        return Icons.local_shipping_outlined;
+      case 'DOMESTIC_HELP':
+        return Icons.cleaning_services_outlined;
+      case 'CAB':
+        return Icons.local_taxi_outlined;
+      case 'SERVICE_PROVIDER':
+        return Icons.home_repair_service_outlined;
+      default:
+        return Icons.person_outline_rounded;
     }
   }
 }
 
 class _HomeHero extends StatelessWidget {
-  const _HomeHero({required this.householdName, required this.noticeCount, required this.showNotices, required this.onOpenNotices});
+  const _HomeHero({
+    required this.householdName,
+    required this.noticeCount,
+    required this.showNotices,
+    required this.onOpenNotices,
+  });
+
   final String householdName;
   final int noticeCount;
   final bool showNotices;
@@ -193,29 +258,211 @@ class _HomeHero extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AaraagateTokens.space5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [scheme.primaryContainer, Colors.white]),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: scheme.outline.withOpacity(.55)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [scheme.primaryContainer.withOpacity(.78), scheme.surface],
+        ),
+        borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
       ),
-      child: Row(children: [
-        Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.home_rounded, color: Colors.white)),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Welcome home', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 3),
-          Text(householdName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
-        ])),
-        if (showNotices)
-          Badge(isLabelVisible: noticeCount > 0, label: Text(noticeCount.toString()), child: IconButton.filledTonal(onPressed: onOpenNotices, icon: const Icon(Icons.notifications_none_rounded))),
-      ]),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+            ),
+            child: Icon(Icons.home_rounded, color: scheme.onPrimary),
+          ),
+          const SizedBox(width: AaraagateTokens.space4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome home',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(householdName, style: theme.textTheme.titleLarge),
+              ],
+            ),
+          ),
+          if (showNotices)
+            Semantics(
+              button: true,
+              label: noticeCount > 0 ? '$noticeCount society notices' : 'Society notices',
+              child: Badge(
+                isLabelVisible: noticeCount > 0,
+                label: Text(noticeCount.toString()),
+                child: IconButton.filledTonal(
+                  tooltip: 'Notices',
+                  onPressed: onOpenNotices,
+                  icon: const Icon(Icons.notifications_none_rounded),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, this.supportingText});
+
+  final String title;
+  final String? supportingText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleMedium),
+        if (supportingText != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            supportingText!,
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PendingAccessCard extends StatelessWidget {
+  const _PendingAccessCard({
+    required this.pending,
+    required this.onDeny,
+    required this.onAllow,
+  });
+
+  final Map<String, dynamic> pending;
+  final VoidCallback onDeny;
+  final VoidCallback onAllow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final name = pending['subjectName']?.toString() ?? 'Visitor';
+    final type = _displayLabel(pending['subjectType']?.toString() ?? 'VISITOR');
+    final purpose = pending['purpose']?.toString();
+
+    return Semantics(
+      container: true,
+      label: '$name is waiting at the gate',
+      child: Card(
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(.08),
+        child: Padding(
+          padding: const EdgeInsets.all(AaraagateTokens.space5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+                    ),
+                    child: Icon(Icons.person_pin_circle_outlined, color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: AaraagateTokens.space4),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 2),
+                        Text(
+                          purpose == null || purpose.isEmpty ? type : '$type · $purpose',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Now',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AaraagateTokens.space5),
+              Row(
+                children: [
+                  Expanded(child: OutlinedButton(onPressed: onDeny, child: const Text('Deny'))),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onAllow,
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Allow'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AllClearCard extends StatelessWidget {
+  const _AllClearCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AaraagateTokens.space4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle_rounded, color: scheme.primary),
+          const SizedBox(width: AaraagateTokens.space3),
+          const Expanded(child: Text('All clear — nothing needs approval right now.')),
+        ],
+      ),
     );
   }
 }
 
 class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.label, required this.onTap, this.urgent = false});
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.urgent = false,
+  });
+
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -224,22 +471,126 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final background = urgent ? scheme.errorContainer : scheme.surface;
+    final background = urgent ? scheme.errorContainer.withOpacity(.65) : scheme.surface;
     final foreground = urgent ? scheme.error : scheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(18), border: Border.all(color: urgent ? scheme.error.withOpacity(.18) : scheme.outline.withOpacity(.55))),
-        child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 46), child: Row(children: [Icon(icon, color: foreground), const SizedBox(width: 10), Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)))])),
+
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 72),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AaraagateTokens.space4,
+                horizontal: AaraagateTokens.space4,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: foreground.withOpacity(.10),
+                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                    ),
+                    child: Icon(icon, color: foreground, size: 21),
+                  ),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeSummaryRow extends StatelessWidget {
+  const _HomeSummaryRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 72),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                  ),
+                  child: Icon(icon, color: scheme.primary),
+                ),
+                const SizedBox(width: AaraagateTokens.space3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AaraagateTokens.space2),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 class _TimelineTile extends StatelessWidget {
-  const _TimelineTile({required this.icon, required this.title, required this.subtitle, required this.time});
+  const _TimelineTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.time,
+  });
+
   final IconData icon;
   final String title;
   final String subtitle;
@@ -247,9 +598,34 @@ class _TimelineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Card(child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7), leading: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, child: Icon(icon)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle), trailing: time.isEmpty ? null : Text(time, style: Theme.of(context).textTheme.labelMedium))),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return ListTile(
+      minTileHeight: 64,
+      contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: 4),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        ),
+        child: Icon(icon, size: 20, color: scheme.primary),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(_displayLabel(subtitle), maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: time.isEmpty ? null : Text(time, style: theme.textTheme.labelMedium),
     );
   }
+}
+
+String _displayLabel(String value) {
+  return value
+      .split(' · ')
+      .map((part) => part
+          .toLowerCase()
+          .split('_')
+          .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+          .join(' '))
+      .join(' · ');
 }

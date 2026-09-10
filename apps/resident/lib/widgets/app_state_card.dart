@@ -19,19 +19,51 @@ class AppStateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+    final scheme = theme.colorScheme;
+
+    return Semantics(
+      container: true,
+      liveRegion: loading,
+      label: message,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Column(
           children: [
             if (loading)
-              const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 3))
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  color: scheme.primary,
+                ),
+              )
             else
-              Icon(icon, size: 34, color: theme.colorScheme.primary),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, size: 26, color: scheme.onPrimaryContainer),
+              ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],

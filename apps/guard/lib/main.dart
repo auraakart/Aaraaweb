@@ -30,6 +30,8 @@ class AaraagateGuardApp extends StatelessWidget {
       title: 'Aaraagate Guard',
       debugShowCheckedModeBanner: false,
       theme: AaraagateGuardTheme.light(),
+      darkTheme: AaraagateGuardTheme.dark(),
+      themeMode: ThemeMode.system,
       home: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {

@@ -50,38 +50,23 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
 
   Future<void> _book(Map<String, dynamic> amenity) async {
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
-    final now = DateTime.now();
-    final initialDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
-    final date = await showDatePicker(
+    final selection = await showModalBottomSheet<_BookingSelection>(
       context: context,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 180)),
-      initialDate: initialDate,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => _BookingSheet(
+        amenity: amenity,
+        slotMinutes: slotMinutes,
+      ),
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 10, minute: 0));
-    if (time == null || !mounted) return;
+    if (selection == null || !mounted) return;
 
-    final startsAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final startsAt = selection.startsAt;
     final endsAt = startsAt.add(Duration(minutes: slotMinutes));
     if (!startsAt.isAfter(DateTime.now())) {
       _showMessage('Choose a future time slot.');
       return;
     }
-
-    final approvalText = amenity['requiresApproval'] == true ? 'This request will be sent for approval.' : 'This slot will be confirmed immediately if available.';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Book ${amenity['name'] ?? 'amenity'}?'),
-        content: Text('${_formatDateTime(startsAt)} · $slotMinutes min\n${_feeLabel(amenity['feePaise'])}\n\n$approvalText'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Back')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Book')),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
 
     setState(() => _submitting = true);
     try {
@@ -92,7 +77,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         endsAt: endsAt,
       );
       if (!mounted) return;
-      _showMessage(created['status']?.toString() == 'PENDING' ? 'Booking request sent for approval.' : 'Amenity booked.');
+      _showMessage(created['status']?.toString() == 'PENDING'
+          ? 'Booking request sent for approval.'
+          : 'Amenity booked.');
       await _load();
     } catch (error) {
       if (mounted) _showMessage(_friendlyError(error));
@@ -102,16 +89,42 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   }
 
   Future<void> _cancel(Map<String, dynamic> booking) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel booking?'),
-        content: Text('${booking['amenityName'] ?? 'Amenity'} · ${_formatApiDate(booking['startsAt'])}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Cancel booking')),
-        ],
-      ),
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cancel booking?', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text('${booking['amenityName'] ?? 'Amenity'} · ${_formatApiDate(booking['startsAt'])}'),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      child: const Text('Keep booking'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      child: const Text('Cancel booking'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
     if (confirmed != true || !mounted) return;
 
@@ -131,6 +144,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final upcoming = [..._bookings]
+      ..sort((a, b) => (a['startsAt']?.toString() ?? '').compareTo(b['startsAt']?.toString() ?? ''));
+
     return Scaffold(
       appBar: AppBar(title: const Text('Amenities')),
       body: RefreshIndicator(
@@ -139,10 +155,13 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            Text('Book society facilities', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text('Book society facilities', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 6),
-            const Text('Availability and bookings are for your currently selected property.'),
-            const SizedBox(height: 20),
+            Text(
+              'Choose a facility and time for your currently selected property.',
+              style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
             if (_loading && _amenities.isEmpty)
               const AppStateCard(icon: Icons.event_available_outlined, message: 'Loading amenities…', loading: true)
             else if (_error != null)
@@ -150,20 +169,20 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             else if (_amenities.isEmpty)
               const AppStateCard(icon: Icons.weekend_outlined, message: 'No bookable amenities are available right now.')
             else ...[
-              Text('Available', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 10),
+              _SectionHeading(title: 'Available facilities', count: _amenities.length),
+              const SizedBox(height: 12),
               for (final amenity in _amenities) ...[
                 _AmenityCard(amenity: amenity, busy: _submitting, onBook: () => _book(amenity)),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
               ],
             ],
-            const SizedBox(height: 22),
-            Text('Your bookings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
-            if (!_loading && _bookings.isEmpty)
+            const SizedBox(height: 20),
+            _SectionHeading(title: 'Your bookings', count: upcoming.length),
+            const SizedBox(height: 12),
+            if (!_loading && upcoming.isEmpty)
               const AppStateCard(icon: Icons.calendar_month_outlined, message: 'You have no amenity bookings for this property.')
             else
-              for (final booking in _bookings) ...[
+              for (final booking in upcoming) ...[
                 _BookingCard(
                   booking: booking,
                   busy: _submitting,
@@ -195,6 +214,211 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   }
 }
 
+class _BookingSelection {
+  const _BookingSelection(this.startsAt);
+  final DateTime startsAt;
+}
+
+class _BookingSheet extends StatefulWidget {
+  const _BookingSheet({required this.amenity, required this.slotMinutes});
+
+  final Map<String, dynamic> amenity;
+  final int slotMinutes;
+
+  @override
+  State<_BookingSheet> createState() => _BookingSheetState();
+}
+
+class _BookingSheetState extends State<_BookingSheet> {
+  late DateTime _date;
+  TimeOfDay? _time;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _date = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+  }
+
+  DateTime? get _startsAt {
+    final time = _time;
+    if (time == null) return null;
+    return DateTime(_date.year, _date.month, _date.day, time.hour, time.minute);
+  }
+
+  Future<void> _pickMoreDates() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 180)),
+      initialDate: _date,
+    );
+    if (date != null && mounted) setState(() => _date = date);
+  }
+
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _time ?? const TimeOfDay(hour: 10, minute: 0),
+    );
+    if (time != null && mounted) setState(() => _time = time);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final now = DateTime.now();
+    final quickDates = List<DateTime>.generate(7, (index) {
+      final day = DateTime(now.year, now.month, now.day).add(Duration(days: index + 1));
+      return day;
+    });
+    final approval = widget.amenity['requiresApproval'] == true;
+    final startsAt = _startsAt;
+    final invalidPast = startsAt != null && !startsAt.isAfter(now);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 6),
+            Text(
+              '${widget.slotMinutes} min · ${_feeLabel(widget.amenity['feePaise'])} · ${approval ? 'Approval required' : 'Server confirmation'}',
+              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+            Text('Choose date', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 68,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: quickDates.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final date = quickDates[index];
+                  final selected = _sameDay(date, _date);
+                  return ChoiceChip(
+                    selected: selected,
+                    onSelected: (_) => setState(() => _date = date),
+                    label: SizedBox(
+                      width: 46,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(_weekday(date), style: theme.textTheme.labelSmall),
+                          const SizedBox(height: 2),
+                          Text('${date.day}', style: theme.textTheme.titleMedium),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _pickMoreDates,
+                icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                label: Text(_isQuickDate(_date, quickDates) ? 'Choose another date' : _shortDate(_date)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Choose time', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: _pickTime,
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule_rounded, color: scheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _time == null ? 'Select start time' : _time!.format(context),
+                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
+              ),
+            ),
+            if (invalidPast) ...[
+              const SizedBox(height: 8),
+              Text('Choose a future time.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
+            ],
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(approval ? Icons.schedule_send_outlined : Icons.verified_user_outlined, color: scheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      approval
+                          ? 'Your society will review this booking after you submit it.'
+                          : 'Your selected time is only a request until the server confirms that capacity is still available.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: startsAt == null || invalidPast
+                    ? null
+                    : () => Navigator.pop(context, _BookingSelection(startsAt)),
+                icon: const Icon(Icons.event_available_rounded),
+                label: Text(approval ? 'Request booking' : 'Check & book'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, required this.count});
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+        Text('$count', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ],
+    );
+  }
+}
+
 class _AmenityCard extends StatelessWidget {
   const _AmenityCard({required this.amenity, required this.busy, required this.onBook});
   final Map<String, dynamic> amenity;
@@ -204,35 +428,67 @@ class _AmenityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final approval = amenity['requiresApproval'] == true;
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
+    final description = amenity['description']?.toString() ?? '';
+
     return Card(
+      color: scheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              CircleAvatar(backgroundColor: theme.colorScheme.primaryContainer, child: const Icon(Icons.sports_tennis_outlined)),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(amenity['name']?.toString() ?? 'Amenity', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                if (amenity['location'] != null) Text(amenity['location'].toString()),
-              ])),
-              Chip(label: Text(approval ? 'Approval' : 'Instant')),
-            ]),
-            if ((amenity['description']?.toString() ?? '').isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(amenity['description'].toString()),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.sports_tennis_rounded, color: scheme.onPrimaryContainer),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
+                      if (amenity['location'] != null) ...[
+                        const SizedBox(height: 3),
+                        Text(amenity['location'].toString(), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                      ],
+                    ],
+                  ),
+                ),
+                _StatusPill(label: approval ? 'Approval' : 'Server check'),
+              ],
+            ),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
             ],
-            const SizedBox(height: 12),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              _InfoChip(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
-              _InfoChip(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
-              _InfoChip(icon: Icons.groups_2_outlined, label: '${_asInt(amenity['maxConcurrentBookings'], fallback: 1)} per slot'),
-            ]),
             const SizedBox(height: 14),
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : onBook, icon: const Icon(Icons.event_available_outlined), label: const Text('Choose a slot'))),
+            Row(
+              children: [
+                _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
+                const SizedBox(width: 16),
+                _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy ? null : onBook,
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: const Text('Choose date & time'),
+              ),
+            ),
           ],
         ),
       ),
@@ -248,28 +504,100 @@ class _BookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final status = booking['status']?.toString() ?? 'PENDING';
+    final statusLabel = status.replaceAll('_', ' ').toLowerCase();
+
     return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-        leading: const CircleAvatar(child: Icon(Icons.calendar_today_outlined)),
-        title: Text(booking['amenityName']?.toString() ?? 'Amenity', style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('${_formatApiDate(booking['startsAt'])}\n${_feeLabel(booking['feePaise'])} · ${status.replaceAll('_', ' ')}'),
-        isThreeLine: true,
-        trailing: onCancel == null ? null : TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.calendar_today_outlined, color: scheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(booking['amenityName']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 3),
+                  Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            if (onCancel != null)
+              TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.label});
   final IconData icon;
   final String label;
 
   @override
-  Widget build(BuildContext context) => Chip(avatar: Icon(icon, size: 17), label: Text(label));
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 5),
+        Text(label, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
 }
+
+bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+bool _isQuickDate(DateTime date, List<DateTime> quickDates) => quickDates.any((item) => _sameDay(item, date));
+
+String _weekday(DateTime date) {
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return names[date.weekday - 1];
+}
+
+String _shortDate(DateTime date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${date.day} ${months[date.month - 1]}';
+}
+
+String _titleCase(String value) => value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}';
 
 int _asInt(dynamic value, {required int fallback}) {
   if (value is int) return value;
