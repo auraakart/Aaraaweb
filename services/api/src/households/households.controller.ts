@@ -20,7 +20,7 @@ class CreateHouseholdDto {
   @IsOptional() @IsString() displayName?: string;
 }
 class UpdatePreferencesDto { @IsObject() preferences!: Record<string, unknown>; }
-class AddVehicleDto {
+class VehicleDetailsDto {
   @IsString() @IsNotEmpty() plateNumber!: string;
   @IsEnum(VehicleType) vehicleType!: VehicleType;
   @IsOptional() @IsString() make?: string;
@@ -151,8 +151,20 @@ export class HouseholdsController {
 
   @Post(':householdId/vehicles')
   @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
-  addVehicle(@Param('householdId', ParseUUIDPipe) householdId: string, @Body() dto: AddVehicleDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  addVehicle(@Param('householdId', ParseUUIDPipe) householdId: string, @Body() dto: VehicleDetailsDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     return this.changes.requestVehicleAdd(societyId, userId, householdId, dto);
+  }
+
+  @Patch(':householdId/vehicles/:vehicleId')
+  @RequiresPermissions(AppPermission.HOUSEHOLD_MANAGE_OWN)
+  updateVehicle(
+    @Param('householdId', ParseUUIDPipe) householdId: string,
+    @Param('vehicleId', ParseUUIDPipe) vehicleId: string,
+    @Body() dto: VehicleDetailsDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string,
+  ) {
+    return this.changes.requestVehicleUpdate(societyId, userId, householdId, vehicleId, dto);
   }
 
   @Patch(':householdId/vehicles/:vehicleId/parking-slot')
