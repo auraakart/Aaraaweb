@@ -12,12 +12,16 @@ import { ConsumerPaymentsService } from './consumer-payments.service';
 import { ConsumerProviderAgentController } from './consumer-provider-agent.controller';
 import { ConsumerProviderAgentPlatformController } from './consumer-provider-agent-platform.controller';
 import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
+import { ConsumerProviderExperienceController } from './consumer-provider-experience.controller';
+import { ConsumerProviderExperienceService } from './consumer-provider-experience.service';
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
+import { ConsumerServiceMemoryController } from './consumer-service-memory.controller';
+import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServiceBookingAccessService } from './service-booking-access.service';
@@ -38,7 +42,9 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderOperatorPlatformController,
     ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
+    ConsumerServiceMemoryController,
     ConsumerBookingsController,
+    ConsumerProviderExperienceController,
     ConsumerProviderAgentController,
     ConsumerProviderOperatorController,
   ],
@@ -55,9 +61,11 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerFulfilmentService,
     ConsumerPaymentsService,
     ConsumerProviderAgentService,
+    ConsumerProviderExperienceService,
     ConsumerProviderOperatorService,
     ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
+    ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
   ],
   exports: [ServicesMarketplaceService],
