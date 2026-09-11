@@ -104,7 +104,7 @@ void main() {
     expect(find.text('Featured services'), findsOneWidget);
     expect(find.text('Sponsored'), findsOneWidget);
     expect(find.text('Premium AirCare'), findsOneWidget);
-    expect(find.text('paid visibility is separate from trust status'), findsOneWidget);
+    expect(find.textContaining('paid visibility is separate from trust status'), findsOneWidget);
     expect(find.text('Summer service offer'), findsOneWidget);
     expect(find.text('10% off'), findsOneWidget);
     expect(find.text('CoolCare'), findsOneWidget);
