@@ -72,10 +72,22 @@ export class ConsumerServiceMemoryService {
         b."scheduledFrom",
         b."scheduledUntil",
         b."servicePricePaise",
-        b."updatedAt" AS "completedAt",
+        COALESCE(completed_event."completedAt", b."updatedAt") AS "completedAt",
+        r."stars" AS "ratingStars",
+        r."comment" AS "ratingComment",
         current_o."currentOffering",
         (current_o."currentOffering" IS NOT NULL) AS "canRebook"
       FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceRating" r
+        ON r."bookingId" = b."id" AND r."userId" = ${userId}::uuid
+      LEFT JOIN LATERAL (
+        SELECT e."occurredAt" AS "completedAt"
+        FROM "ConsumerServiceBookingEvent" e
+        WHERE e."bookingId" = b."id"
+          AND e."toStatus" = 'COMPLETED'::"ServiceBookingStatus"
+        ORDER BY e."occurredAt" DESC
+        LIMIT 1
+      ) completed_event ON true
       LEFT JOIN LATERAL (
         SELECT jsonb_build_object(
           'id', o."id",
@@ -122,7 +134,7 @@ export class ConsumerServiceMemoryService {
           (${homeId}::uuid IS NOT NULL AND b."homeId" = ${homeId}::uuid AND b."userId" = ${userId}::uuid)
           OR (${societyUnitId}::uuid IS NOT NULL AND b."societyUnitId" = ${societyUnitId}::uuid)
         )
-      ORDER BY b."updatedAt" DESC
+      ORDER BY COALESCE(completed_event."completedAt", b."updatedAt") DESC
       LIMIT 100
     `);
   }
