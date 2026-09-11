@@ -51,7 +51,10 @@ jobs:
         run: |
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
           rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
+          # Repository CI remains on Flutter 3.24 while packaging uses 3.32.8.
+          # Flutter 3.32 moved ThemeData card/dialog fields to *ThemeData classes.
           sed -i 's/cardTheme: CardTheme(/cardTheme: CardThemeData(/' apps/resident/lib/theme/aaraagate_theme.dart
+          sed -i 's/dialogTheme: DialogTheme(/dialogTheme: DialogThemeData(/' apps/resident/lib/theme/aaraagate_theme.dart
           APP_GRADLE=$(find apps/resident/android/app -maxdepth 1 -type f \( -name 'build.gradle' -o -name 'build.gradle.kts' \) -print -quit)
           test -n "$APP_GRADLE"
           sed -i -E 's/compileSdk(Version)?[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/compileSdk = 36/' "$APP_GRADLE"

@@ -44,6 +44,7 @@ class ProfileScreen extends StatelessWidget {
     final residents = occupancies.isNotEmpty
         ? occupancies.length
         : (demo && householdId != null ? 1 + DemoHouseholdState.familyFor(householdId).length : 0);
+    final canManageSelectedProperty = canManageFamilyMembers && _activePropertyIsOwned();
 
     return SafeArea(
       child: RefreshIndicator(
@@ -100,7 +101,7 @@ class ProfileScreen extends StatelessWidget {
                     builder: (_) => FamilyMembersScreen(
                       controller: controller,
                       householdId: household['id'].toString(),
-                      canManage: canManageFamilyMembers,
+                      canManage: canManageSelectedProperty,
                     ),
                   )),
                 ),
@@ -179,6 +180,14 @@ class ProfileScreen extends StatelessWidget {
         0,
         (count, membership) => count + (membership.properties.isEmpty ? 1 : membership.properties.length),
       );
+
+  PropertySummary? _activeProperty() {
+    final membership = propertyContexts.where((item) => item.societyId == currentSocietyId).firstOrNull;
+    if (membership == null) return null;
+    return membership.properties.where((item) => item.unitId == currentUnitId).firstOrNull;
+  }
+
+  bool _activePropertyIsOwned() => _activeProperty()?.relationship.trim().toUpperCase() == 'OWNER';
 
   String _currentPropertyLabel() {
     final current = propertyContexts.where((item) => item.societyId == currentSocietyId).firstOrNull;

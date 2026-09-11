@@ -25,34 +25,24 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
               children: [
                 Center(
                   child: Container(
-                    width: 82,
-                    height: 82,
+                    width: 76,
+                    height: 76,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-                      ),
+                      color: scheme.primaryContainer,
                       borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withOpacity(.2),
-                          blurRadius: 28,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
                     ),
-                    child: const Icon(Icons.shield_rounded, size: 44, color: Colors.white),
+                    child: Icon(Icons.shield_rounded, size: 40, color: scheme.onPrimaryContainer),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -63,12 +53,14 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Aaraagate Guard',
+                  c.needsSocietySelection ? 'Choose the society you are assigned to today.' : 'Sign in with your registered security-staff mobile number.',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant, height: 1.4),
                 ),
                 const SizedBox(height: 28),
-                Card(
+                Material(
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(24),
                   child: Padding(
                     padding: const EdgeInsets.all(22),
                     child: Column(
@@ -77,39 +69,47 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                         if (c.needsSocietySelection) ...[
                           Text('Choose society', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                           const SizedBox(height: 6),
-                          const Text('Select the society for this security shift.'),
-                          const SizedBox(height: 16),
+                          Text('Your access remains limited to the selected society.', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          const SizedBox(height: 18),
                           for (final membership in c.memberships)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: FilledButton.tonal(
+                              child: FilledButton.tonalIcon(
                                 onPressed: c.busy ? null : () => c.selectSociety(membership['societyId'].toString()),
                                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(60)),
-                                child: Text(_societyLabel(membership), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                                icon: const Icon(Icons.apartment_rounded),
+                                label: Text(_societyLabel(membership), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                               ),
                             ),
                         ] else ...[
                           Text('Guard sign in', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 6),
-                          const Text('Use your registered security-staff mobile number.'),
                           const SizedBox(height: 18),
                           TextField(
                             controller: phone,
                             keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.done,
+                            autofillHints: const [AutofillHints.telephoneNumber],
                             decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_outlined)),
+                            onSubmitted: c.busy ? null : (_) => c.requestOtp(phone.text),
                           ),
                           const SizedBox(height: 14),
-                          FilledButton(
+                          FilledButton.icon(
                             onPressed: c.busy ? null : () => c.requestOtp(phone.text),
-                            child: Text(c.challengeId == null ? 'GET OTP' : 'RESEND OTP', style: const TextStyle(fontWeight: FontWeight.w900)),
+                            icon: const Icon(Icons.sms_outlined),
+                            label: Text(c.challengeId == null ? 'GET OTP' : 'RESEND OTP', style: const TextStyle(fontWeight: FontWeight.w900)),
                           ),
                           if (c.challengeId != null) ...[
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 22),
+                            Text('Enter verification code', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 10),
                             TextField(
                               controller: otp,
                               keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
+                              autofillHints: const [AutofillHints.oneTimeCode],
                               maxLength: 6,
                               decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.password_rounded), counterText: ''),
+                              onSubmitted: c.busy ? null : (_) => c.verifyOtp(otp.text),
                             ),
                             const SizedBox(height: 12),
                             FilledButton.icon(
@@ -132,16 +132,16 @@ class _GuardLoginScreenState extends State<GuardLoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.verified_user_outlined, size: 17, color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Secure society-scoped access',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ],
+                Semantics(
+                  label: 'Secure society-scoped access',
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.verified_user_outlined, size: 17, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Text('Secure society-scoped access', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
                 ),
               ],
             ),

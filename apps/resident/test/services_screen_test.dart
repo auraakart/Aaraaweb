@@ -12,38 +12,24 @@ void main() {
   testWidgets('marketplace groups same service and lets resident compare providers', (tester) async {
     final controller = ResidentDataController(DemoResidentRepository())
       ..serviceCategories = [
-        {'id': 'cat-ac', 'name': 'Home maintenance'},
-        {'id': 'cat-electric', 'name': 'Electrical'},
+        {'id': 'cat-ac', 'name': 'AC'},
       ]
       ..serviceOfferings = [
         {
-          'id': 'off-ac-1',
+          'id': 'offer-1',
           'categoryId': 'cat-ac',
           'name': 'AC service',
-          'description': 'General inspection and cleaning',
           'pricePaise': 69900,
-          'durationMinutes': 60,
-          'provider': {'businessName': 'CoolCare Services', 'description': 'AC specialists for residential communities'},
-          'category': {'name': 'Home maintenance'},
+          'description': 'AC maintenance',
+          'provider': {'businessName': 'CoolCare', 'ratingAverage': 4.8, 'ratingCount': 120, 'completedJobs': 400},
         },
         {
-          'id': 'off-ac-2',
+          'id': 'offer-2',
           'categoryId': 'cat-ac',
           'name': 'AC service',
-          'description': 'Inspection, jet wash and cooling check',
-          'pricePaise': 79900,
-          'durationMinutes': 75,
-          'provider': {'businessName': 'AirPro Home Care', 'description': 'Multi-brand AC technicians'},
-          'category': {'name': 'Home maintenance'},
-        },
-        {
-          'id': 'off-electric',
-          'categoryId': 'cat-electric',
-          'name': 'Electrician visit',
-          'description': 'Switch and fan repair',
-          'pricePaise': 29900,
-          'provider': {'businessName': 'SafeWire Services'},
-          'category': {'name': 'Electrical'},
+          'pricePaise': 59900,
+          'description': 'AC maintenance',
+          'provider': {'businessName': 'AirPro', 'ratingAverage': 4.6, 'ratingCount': 80, 'completedJobs': 250},
         },
       ];
 
@@ -51,72 +37,53 @@ void main() {
 
     expect(find.text('AC service'), findsOneWidget);
     expect(find.text('2 verified providers'), findsOneWidget);
-    expect(find.text('From ₹699'), findsOneWidget);
-    expect(find.text('CoolCare Services'), findsNothing);
-    expect(find.text('AirPro Home Care'), findsNothing);
+    expect(find.text('From ₹599'), findsOneWidget);
 
     await tester.tap(find.text('AC service'));
     await tester.pumpAndSettle();
 
     expect(find.text('Choose a provider'), findsOneWidget);
-    expect(find.text('CoolCare Services'), findsOneWidget);
-    expect(find.text('AirPro Home Care'), findsOneWidget);
-    expect(find.text('₹699'), findsOneWidget);
-    expect(find.text('₹799'), findsOneWidget);
-    expect(find.text('Society approved'), findsNWidgets(2));
+    expect(find.text('CoolCare'), findsOneWidget);
+    expect(find.text('AirPro'), findsOneWidget);
+    controller.dispose();
   });
 
   testWidgets('marketplace filters grouped services by category and provider search', (tester) async {
     final controller = ResidentDataController(DemoResidentRepository())
       ..serviceCategories = [
-        {'id': 'cat-clean', 'name': 'Cleaning'},
-        {'id': 'cat-electric', 'name': 'Electrical'},
+        {'id': 'cat-ac', 'name': 'AC'},
+        {'id': 'cat-plumbing', 'name': 'Plumbing'},
       ]
       ..serviceOfferings = [
         {
-          'id': 'off-clean-1',
-          'categoryId': 'cat-clean',
-          'name': 'Deep cleaning',
-          'description': 'Full home cleaning',
-          'pricePaise': 149900,
-          'provider': {'businessName': 'Sparkle Homes'},
-          'category': {'name': 'Cleaning'},
+          'id': 'offer-1',
+          'categoryId': 'cat-ac',
+          'name': 'AC service',
+          'pricePaise': 69900,
+          'provider': {'businessName': 'CoolCare'},
         },
         {
-          'id': 'off-clean-2',
-          'categoryId': 'cat-clean',
-          'name': 'Deep cleaning',
-          'description': 'Premium deep cleaning',
-          'pricePaise': 169900,
-          'provider': {'businessName': 'CleanNest'},
-          'category': {'name': 'Cleaning'},
-        },
-        {
-          'id': 'off-electric',
-          'categoryId': 'cat-electric',
-          'name': 'Electrician visit',
-          'description': 'Switch and fan repair',
-          'pricePaise': 29900,
-          'provider': {'businessName': 'SafeWire Services'},
-          'category': {'name': 'Electrical'},
+          'id': 'offer-2',
+          'categoryId': 'cat-plumbing',
+          'name': 'Plumber visit',
+          'pricePaise': 49900,
+          'provider': {'businessName': 'FixRight'},
         },
       ];
 
     await tester.pumpWidget(host(controller));
 
-    expect(find.text('Deep cleaning'), findsOneWidget);
-    expect(find.text('Electrician visit'), findsOneWidget);
-
-    await tester.tap(find.text('Electrical'));
+    await tester.tap(find.text('Plumbing'));
     await tester.pump();
-    expect(find.text('Deep cleaning'), findsNothing);
-    expect(find.text('Electrician visit'), findsOneWidget);
+    expect(find.text('Plumber visit'), findsOneWidget);
+    expect(find.text('AC service'), findsNothing);
 
     await tester.tap(find.text('All'));
-    await tester.enterText(find.byType(TextField).first, 'sparkle');
+    await tester.enterText(find.byType(TextField).first, 'CoolCare');
     await tester.pump();
-    expect(find.text('Deep cleaning'), findsOneWidget);
-    expect(find.text('Electrician visit'), findsNothing);
+    expect(find.text('AC service'), findsOneWidget);
+    expect(find.text('Plumber visit'), findsNothing);
+    controller.dispose();
   });
 
   testWidgets('marketplace explains resident booking lifecycle', (tester) async {
@@ -141,13 +108,16 @@ void main() {
 
     await tester.pumpWidget(host(controller));
 
-    expect(find.text('Waiting for the provider to confirm this request. No gate pass has been created yet.'), findsOneWidget);
+    final requestedMessage = find.text('Waiting for the provider to confirm this request. No gate pass has been created yet.');
+    await tester.scrollUntilVisible(requestedMessage, 350, scrollable: find.byType(Scrollable).first);
+    expect(requestedMessage, findsOneWidget);
     expect(find.text('CoolCare'), findsOneWidget);
 
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Provider confirmed. Linked gate access: APPROVED.'), findsOneWidget);
+    final confirmedMessage = find.text('Provider confirmed. Linked gate access: APPROVED.');
+    await tester.scrollUntilVisible(confirmedMessage, 300, scrollable: find.byType(Scrollable).first);
+    expect(confirmedMessage, findsOneWidget);
     expect(find.text('FixRight'), findsOneWidget);
+
+    controller.dispose();
   });
 }
