@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../widgets/consumer_booking_post_service_panel.dart';
 
 class ServiceHistoryScreen extends StatefulWidget {
   const ServiceHistoryScreen({
@@ -51,6 +52,51 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
     }
   }
 
+  Future<void> _rateService(String bookingId) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.45,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => ListView(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Rate completed service',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            ConsumerBookingPostServicePanel(
+              apiClient: widget.apiClient,
+              bookingId: bookingId,
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -90,6 +136,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
                   item: item,
                   fallbackOffering: widget.offeringsById[item['offeringId']?.toString()],
                   onRebook: widget.onRebook,
+                  onRate: () => _rateService(item['id'].toString()),
                 ),
                 const SizedBox(height: 10),
               ],
@@ -101,10 +148,16 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.item, required this.fallbackOffering, required this.onRebook});
+  const _HistoryCard({
+    required this.item,
+    required this.fallbackOffering,
+    required this.onRebook,
+    required this.onRate,
+  });
   final Map<String, dynamic> item;
   final Map<String, dynamic>? fallbackOffering;
   final Future<void> Function(Map<String, dynamic> offering) onRebook;
+  final Future<void> Function() onRate;
 
   @override
   Widget build(BuildContext context) {
@@ -163,14 +216,28 @@ class _HistoryCard extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 12),
-            if (canRebook)
-              FilledButton.icon(
-                onPressed: () => onRebook(currentOffering),
-                icon: const Icon(Icons.replay_rounded),
-                label: const Text('Rebook'),
-              )
-            else
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                if (rating == null)
+                  OutlinedButton.icon(
+                    onPressed: onRate,
+                    icon: const Icon(Icons.star_outline_rounded),
+                    label: const Text('Rate service'),
+                  ),
+                if (canRebook)
+                  FilledButton.icon(
+                    onPressed: () => onRebook(currentOffering),
+                    icon: const Icon(Icons.replay_rounded),
+                    label: const Text('Rebook'),
+                  ),
+              ],
+            ),
+            if (!canRebook) ...[
+              const SizedBox(height: 8),
               Text('This service is not currently available for rebooking.', style: Theme.of(context).textTheme.bodySmall),
+            ],
           ],
         ),
       ),
