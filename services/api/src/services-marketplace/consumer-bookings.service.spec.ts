@@ -28,6 +28,10 @@ function sqlValues(call: unknown): unknown[] {
   return (call as { values?: unknown[] }).values ?? [];
 }
 
+function sqlText(call: unknown): string {
+  return ((call as { strings?: readonly string[] }).strings ?? []).join('?');
+}
+
 const home = {
   id: '22222222-2222-2222-2222-222222222222',
   userId: '11111111-1111-1111-1111-111111111111',
@@ -54,6 +58,26 @@ describe('ConsumerBookingsService', () => {
 
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(sqlValues(prisma.$queryRaw.mock.calls[0][0])).toContain('11111111-1111-1111-1111-111111111111');
+  });
+
+  it('returns only completed service history for the authenticated consumer', async () => {
+    const { prisma, service } = setup();
+    const completed = {
+      id: '77777777-7777-4777-8777-777777777777',
+      offeringName: 'AC service',
+      providerName: 'CoolCare',
+      completedAt: new Date('2026-09-10T11:00:00Z'),
+      ratingStars: 5,
+    };
+    prisma.$queryRaw.mockResolvedValue([completed]);
+
+    const result = await service.listServiceHistory('11111111-1111-1111-1111-111111111111');
+
+    expect(result).toEqual([completed]);
+    const query = prisma.$queryRaw.mock.calls[0][0];
+    expect(sqlValues(query)).toContain('11111111-1111-1111-1111-111111111111');
+    expect(sqlText(query)).toContain('b."status" = \'COMPLETED\'::"ServiceBookingStatus"');
+    expect(sqlText(query)).toContain('"ConsumerServiceRating"');
   });
 
   it('scopes fulfilment event history to the authenticated consumer and booking', async () => {
