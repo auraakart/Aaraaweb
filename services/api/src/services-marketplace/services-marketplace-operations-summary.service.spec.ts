@@ -76,4 +76,47 @@ describe('ServicesMarketplaceOperationsSummaryService', () => {
     expect(sql).not.toContain("'COMPLETED'");
     expect(sql).not.toContain("'CANCELLED'");
   });
+
+  it('derives provider responsiveness only from explicit provider decision events', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([
+      {
+        providerId: '22222222-2222-4222-8222-222222222222',
+        providerName: 'Trusted Home Care',
+        requests30d: 10,
+        providerResponses30d: 8,
+        providerAccepted30d: 7,
+        providerDeclined30d: 1,
+        averageResponseMinutes30d: 42,
+        openRequestedNow: 2,
+      },
+    ]);
+    const service = new ServicesMarketplaceOperationsSummaryService({ $queryRaw: queryRaw } as never);
+
+    await expect(service.getProviderResponsiveness()).resolves.toEqual({
+      windowDays: 30,
+      providers: [
+        {
+          providerId: '22222222-2222-4222-8222-222222222222',
+          providerName: 'Trusted Home Care',
+          requests30d: 10,
+          providerResponses30d: 8,
+          providerAccepted30d: 7,
+          providerDeclined30d: 1,
+          averageResponseMinutes30d: 42,
+          openRequestedNow: 2,
+          providerResponseRate30d: 0.8,
+        },
+      ],
+    });
+
+    const statement = queryRaw.mock.calls[0]?.[0] as { strings?: string[] } | undefined;
+    const sql = statement?.strings?.join(' ') ?? '';
+    expect(sql).toContain('ConsumerServiceBookingEvent');
+    expect(sql).toContain("'PROVIDER_ACCEPTED'");
+    expect(sql).toContain("'PROVIDER_DECLINED'");
+    expect(sql).toContain("INTERVAL '30 days'");
+    expect(sql).toContain('averageResponseMinutes30d');
+    expect(sql).toContain('openRequestedNow');
+    expect(sql).toContain('LIMIT 50');
+  });
 });
