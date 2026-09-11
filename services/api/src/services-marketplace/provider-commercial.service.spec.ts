@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { PrismaService } from '../prisma/prisma.service';
 import { ProviderCommercialService } from './provider-commercial.service';
 
 describe('ProviderCommercialService', () => {
@@ -8,8 +9,11 @@ describe('ProviderCommercialService', () => {
       serviceProvider: { findUnique: vi.fn() },
       $executeRaw: vi.fn(),
       $queryRaw: vi.fn(),
-    } as any;
-    return { prisma, service: new ProviderCommercialService(prisma) };
+    };
+    return {
+      prisma,
+      service: new ProviderCommercialService(prisma as unknown as PrismaService),
+    };
   }
 
   it('rejects paid subscription tiers without a valid time window', async () => {
