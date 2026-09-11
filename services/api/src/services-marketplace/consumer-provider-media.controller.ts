@@ -60,7 +60,7 @@ export class ConsumerProviderMediaController {
     return items.map((item) => this.forProvider(item));
   }
 
-  @Post('uploads')
+  @Post(['uploads', 'upload-intent'])
   async createUploadIntent(
     @CurrentProviderMediaUser() userId: string,
     @Body() dto: CreateProviderMediaUploadDto,
@@ -91,7 +91,7 @@ export class ConsumerProviderMediaController {
 
   private forProvider<T extends ProviderMediaResponse>(item: T): T {
     if (item.status === 'APPROVED') return item;
-    return { ...item, publicUrl: null };
+    return { ...item, publicUrl: null } as T;
   }
 
   private requireUser(userId?: string) {
