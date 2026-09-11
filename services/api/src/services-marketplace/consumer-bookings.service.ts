@@ -135,6 +135,48 @@ export class ConsumerBookingsService {
     `);
   }
 
+  listServiceHistory(userId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        b."id",
+        b."providerId",
+        b."offeringId",
+        b."offeringName",
+        b."providerName",
+        b."servicePricePaise",
+        b."scheduledFrom",
+        b."scheduledUntil",
+        b."addressSnapshot"->>'locationType' AS "locationType",
+        b."addressSnapshot"->>'label' AS "locationLabel",
+        b."addressSnapshot"->>'locality' AS "locality",
+        b."addressSnapshot"->>'city' AS "city",
+        b."addressSnapshot"->>'postalCode' AS "postalCode",
+        (
+          SELECT e."occurredAt"
+          FROM "ConsumerServiceBookingEvent" e
+          WHERE e."bookingId" = b."id"
+            AND e."toStatus" = 'COMPLETED'::"ServiceBookingStatus"
+          ORDER BY e."occurredAt" DESC
+          LIMIT 1
+        ) AS "completedAt",
+        r."stars" AS "ratingStars",
+        r."comment" AS "ratingComment"
+      FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceRating" r
+        ON r."bookingId" = b."id" AND r."userId" = b."userId"
+      WHERE b."userId" = ${userId}::uuid
+        AND b."status" = 'COMPLETED'::"ServiceBookingStatus"
+      ORDER BY COALESCE((
+        SELECT e."occurredAt"
+        FROM "ConsumerServiceBookingEvent" e
+        WHERE e."bookingId" = b."id"
+          AND e."toStatus" = 'COMPLETED'::"ServiceBookingStatus"
+        ORDER BY e."occurredAt" DESC
+        LIMIT 1
+      ), b."updatedAt") DESC
+    `);
+  }
+
   listBookingEvents(userId: string, bookingId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT e."id", e."action", e."fromStatus", e."toStatus", e."note", e."occurredAt"
