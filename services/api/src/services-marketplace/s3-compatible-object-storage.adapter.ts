@@ -84,10 +84,34 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
     if (response.status === 404) return null;
     if (!response.ok) throw new ServiceUnavailableException(`Object storage HEAD failed (${response.status})`);
     const length = response.headers.get('content-length');
+    const parsedLength = length === null ? null : Number(length);
     return {
       contentType: response.headers.get('content-type'),
-      contentLengthBytes: length === null ? null : Number(length),
+      contentLengthBytes: parsedLength !== null && Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null,
     };
+  }
+
+  async getObjectBytes(storageKey: string, maxBytes: number): Promise<Uint8Array | null> {
+    if (!Number.isInteger(maxBytes) || maxBytes <= 0) {
+      throw new Error('maxBytes must be a positive integer');
+    }
+    const response = await fetch(this.presign('GET', storageKey, 60), { method: 'GET' });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new ServiceUnavailableException(`Object storage GET failed (${response.status})`);
+
+    const lengthHeader = response.headers.get('content-length');
+    if (lengthHeader !== null) {
+      const length = Number(lengthHeader);
+      if (!Number.isFinite(length) || length < 0 || length > maxBytes) {
+        throw new ServiceUnavailableException('Object storage GET exceeded the configured scan size limit');
+      }
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) {
+      throw new ServiceUnavailableException('Object storage GET exceeded the configured scan size limit');
+    }
+    return bytes;
   }
 
   async deleteObject(storageKey: string): Promise<void> {
@@ -97,7 +121,7 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
     }
   }
 
-  private presign(method: 'PUT' | 'HEAD' | 'DELETE', storageKey: string, expiresSeconds: number): string {
+  private presign(method: 'PUT' | 'HEAD' | 'GET' | 'DELETE', storageKey: string, expiresSeconds: number): string {
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
     const date = amzDate.slice(0, 8);

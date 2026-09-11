@@ -21,6 +21,7 @@ export interface ObjectStoragePort {
     contentLengthBytes: number;
   }): Promise<ObjectStorageUploadIntent>;
   headObject(storageKey: string): Promise<ObjectStorageObjectMetadata | null>;
+  getObjectBytes(storageKey: string, maxBytes: number): Promise<Uint8Array | null>;
   deleteObject(storageKey: string): Promise<void>;
 }
 
@@ -38,6 +39,10 @@ export class UnconfiguredObjectStorageAdapter implements ObjectStoragePort {
   }
 
   headObject(): Promise<ObjectStorageObjectMetadata | null> {
+    return Promise.reject(this.unavailable());
+  }
+
+  getObjectBytes(): Promise<Uint8Array | null> {
     return Promise.reject(this.unavailable());
   }
 

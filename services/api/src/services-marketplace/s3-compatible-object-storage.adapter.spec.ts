@@ -100,6 +100,37 @@ describe('S3CompatibleObjectStorageAdapter', () => {
     expect(new URL(url).searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('reads object bytes through signed GET and enforces the scan size cap', async () => {
+    configure();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'content-length': '3' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'content-length': '999' },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const adapter = createObjectStorageAdapterFromEnv();
+
+    await expect(adapter.getObjectBytes('providers/p1/media/logo.png', 10)).resolves.toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('GET');
+    expect(new URL(url).searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
+
+    await expect(adapter.getObjectBytes('providers/p1/media/large.png', 10)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
   it('treats missing objects as absent and fails closed on storage errors', async () => {
     configure();
     const fetchMock = vi
