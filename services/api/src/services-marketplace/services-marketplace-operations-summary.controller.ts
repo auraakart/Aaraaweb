@@ -20,4 +20,9 @@ export class ServicesMarketplaceOperationsSummaryController {
   getAttentionQueue() {
     return this.summary.getAttentionQueue();
   }
+
+  @Get('provider-responsiveness')
+  getProviderResponsiveness() {
+    return this.summary.getProviderResponsiveness();
+  }
 }
