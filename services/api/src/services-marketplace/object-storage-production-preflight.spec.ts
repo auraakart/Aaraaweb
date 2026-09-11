@@ -42,18 +42,32 @@ const validS3 = {
   OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS: '300',
 };
 
+const validClamAv = {
+  MEDIA_SAFETY_SCANNER_DRIVER: 'clamav',
+  CLAMAV_HOST: 'clamav.internal',
+  CLAMAV_PORT: '3310',
+  CLAMAV_TIMEOUT_MS: '10000',
+};
+
 describe('production object-storage preflight', () => {
   it('passes with storage intentionally disabled and fail-closed', () => {
-    const result = run({ OBJECT_STORAGE_DRIVER: undefined });
+    const result = run({ OBJECT_STORAGE_DRIVER: undefined, MEDIA_SAFETY_SCANNER_DRIVER: undefined });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('provider-media storage remains fail-closed');
   });
 
-  it('blocks otherwise-valid S3 activation until a runtime malware scanner exists', () => {
+  it('passes when S3 storage and ClamAV scanning are both configured', () => {
+    const result = run({ ...validS3, ...validClamAv });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('provider-media storage, and ClamAV scanning are configured');
+    expect(result.stdout).not.toContain('test-secret-key');
+  });
+
+  it('blocks S3 activation when the malware scanner is not configured', () => {
     const result = run(validS3);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
-      'Provider-media object storage must remain disabled in production until a runtime malware-scanner adapter is configured',
+      'MEDIA_SAFETY_SCANNER_DRIVER=clamav is required when provider-media object storage is enabled',
     );
     expect(result.stderr).not.toContain('test-secret-key');
   });
@@ -61,6 +75,7 @@ describe('production object-storage preflight', () => {
   it('fails when S3 configuration is incomplete without leaking secret values', () => {
     const result = run({
       ...validS3,
+      ...validClamAv,
       OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: undefined,
     });
     expect(result.status).toBe(1);
@@ -71,9 +86,22 @@ describe('production object-storage preflight', () => {
   it('rejects insecure production storage endpoints', () => {
     const result = run({
       ...validS3,
+      ...validClamAv,
       OBJECT_STORAGE_S3_ENDPOINT: 'http://storage.example.com',
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('OBJECT_STORAGE_S3_ENDPOINT must use HTTPS in production');
+  });
+
+  it('rejects invalid ClamAV port and timeout values', () => {
+    const result = run({
+      ...validS3,
+      ...validClamAv,
+      CLAMAV_PORT: '70000',
+      CLAMAV_TIMEOUT_MS: '500',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('CLAMAV_PORT must be between 1 and 65535');
+    expect(result.stderr).toContain('CLAMAV_TIMEOUT_MS must be between 1000 and 30000');
   });
 });
