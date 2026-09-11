@@ -23,10 +23,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ProviderStorefrontSheet(
-            offering: offering,
-            onBook: () => booked = true,
-          ),
+          body: ProviderStorefrontSheet(offering: offering, onBook: () => booked = true),
         ),
       ),
     );
@@ -41,5 +38,43 @@ void main() {
     await tester.tap(find.text('Request / book service'));
     await tester.pump();
     expect(booked, isTrue);
+  });
+
+  testWidgets('provider storefront separates premium from sponsored and shows approved offers', (tester) async {
+    final offering = <String, dynamic>{
+      'name': 'AC service',
+      'pricePaise': 59900,
+      'category': {'name': 'AC & Appliances'},
+      'provider': {'businessName': 'CoolCare'},
+    };
+    final experience = <String, dynamic>{
+      'provider': {'businessName': 'CoolCare', 'description': 'AC specialists', 'qualityTier': 'PREMIUM'},
+      'qualityTier': 'PREMIUM',
+      'promotion': {'label': 'Featured placement'},
+      'media': <Map<String, dynamic>>[],
+      'offers': [
+        {
+          'title': 'Resident special',
+          'discountType': 'PERCENT',
+          'discountValue': 1500,
+          'description': 'Valid on AC service',
+          'terms': 'One use per household',
+        },
+      ],
+    };
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProviderStorefrontSheet(offering: offering, experience: experience, onBook: () {}),
+        ),
+      ),
+    );
+
+    expect(find.text('Premium'), findsOneWidget);
+    expect(find.text('Sponsored'), findsOneWidget);
+    expect(find.text('Resident special'), findsOneWidget);
+    expect(find.text('15% off'), findsOneWidget);
+    expect(find.textContaining('does not change this provider'), findsOneWidget);
   });
 }
