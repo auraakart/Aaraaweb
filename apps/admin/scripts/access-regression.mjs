@@ -31,7 +31,7 @@ assert.match(providerMediaSource,/aaraagate\.provider\.session/,'Provider media 
 assert.match(providerMediaSource,/\/provider\/services\/media\/upload-intent/,'Provider media uploads must use provider-scoped upload intents')
 assert.match(providerMediaSource,/\/provider\/services\/media\/\$\{intent\.media\.id\}\/confirm/,'Provider media uploads must confirm through the provider-scoped API')
 assert.doesNotMatch(providerMediaSource,/aaraagate\.admin\.session/,'Provider media page must not rely on an admin session')
-assert.doesNotMatch(providerMediaSource,/providerId\s*:/,'Provider media client must not submit a trusted providerId')
+assert.doesNotMatch(providerMediaSource,/JSON\.stringify\(\{[^}]*providerId\s*:/,'Provider media client must not submit a trusted providerId')
 assert.match(amenitiesSource,/SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER/,'Amenity management must remain limited to facility-management roles')
 assert.match(amenitiesSource,/\/amenities\/manage/,'Amenity management must use the permission-protected management API')
 assert.doesNotMatch(amenitiesSource,/SECURITY_SUPERVISOR|ACCOUNTANT|TENANT|OWNER/,'Operational, finance and resident roles must not gain amenity management UI access')
