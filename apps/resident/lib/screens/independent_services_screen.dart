@@ -25,6 +25,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   List<Map<String, dynamic>> _categories = const [];
   List<Map<String, dynamic>> _offerings = const [];
   List<Map<String, dynamic>> _locations = const [];
+  List<Map<String, dynamic>> _recentProviders = const [];
   Set<String> _favoriteProviderIds = const {};
   String? _selectedCategoryId;
   String? _selectedLocationKey;
@@ -60,6 +61,21 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     }).toList();
   }
 
+  List<Map<String, dynamic>> get _recentProviderOfferings {
+    final firstOfferingByProvider = <String, Map<String, dynamic>>{};
+    for (final offering in _offerings) {
+      final provider = offering['provider'] as Map<String, dynamic>? ?? const {};
+      final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
+      if (providerId != null && providerId.isNotEmpty) {
+        firstOfferingByProvider.putIfAbsent(providerId, () => offering);
+      }
+    }
+    return _recentProviders
+        .map((provider) => firstOfferingByProvider[provider['providerId']?.toString()])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
   String _locationKey(Map<String, dynamic> location) => '${location['type']}:${location['id']}';
 
   @override
@@ -93,6 +109,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       final locationsRaw = await widget.apiClient.get('/api/v1/consumer/services/locations');
       List<dynamic> trustRaw = const [];
       List<dynamic> favoritesRaw = const [];
+      List<dynamic> recentProvidersRaw = const [];
       try {
         final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
         trustRaw = raw as List<dynamic>? ?? const [];
@@ -105,6 +122,12 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       } catch (_) {
         // Favourites are optional and must never block service discovery.
       }
+      try {
+        final raw = await widget.apiClient.get('/api/v1/consumer/services/recent-providers');
+        recentProvidersRaw = raw as List<dynamic>? ?? const [];
+      } catch (_) {
+        // Recent-provider memory is optional and must never block discovery.
+      }
       final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       final trustByProvider = <String, Map<String, dynamic>>{};
       for (final trust in trustRaw.whereType<Map<String, dynamic>>()) {
@@ -116,6 +139,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
           .map((item) => item['providerId']?.toString())
           .whereType<String>()
           .toSet();
+      final recentProviders = recentProvidersRaw.whereType<Map<String, dynamic>>().toList();
 
       String? selectedKey = _selectedLocationKey;
       if (selectedKey == null || !locations.any((item) => _locationKey(item) == selectedKey && item['serviceAddressConfigured'] != false)) {
@@ -154,6 +178,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         _locations = locations;
         _selectedLocationKey = selectedKey;
         _offerings = offerings;
+        _recentProviders = recentProviders;
         _favoriteProviderIds = favoriteIds;
       });
     } catch (e) {
@@ -254,6 +279,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final visibleOfferings = _visibleOfferings;
+    final recentProviderOfferings = _recentProviderOfferings;
     return Scaffold(
       appBar: AppBar(
         title: const Text('External Services'),
@@ -392,6 +418,25 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                 OutlinedButton(onPressed: () { _searchController.clear(); setState(() => _query = ''); }, child: const Text('Clear search')),
               ])))
             else ...[
+              if (_query.trim().isEmpty && recentProviderOfferings.isNotEmpty) ...[
+                Text('Used recently', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final offering in recentProviderOfferings)
+                      ActionChip(
+                        avatar: const Icon(Icons.history_rounded, size: 18),
+                        label: Text(
+                          ((offering['provider'] as Map<String, dynamic>?)?['businessName'] ?? offering['providerName'] ?? 'Provider').toString(),
+                        ),
+                        onPressed: () => _openProviderStorefront(offering),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+              ],
               Text(_query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 10),
               for (final offering in visibleOfferings) ...[
