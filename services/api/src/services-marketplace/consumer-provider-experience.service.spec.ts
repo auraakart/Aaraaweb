@@ -18,7 +18,7 @@ describe('ConsumerProviderExperienceService', () => {
     };
   };
 
-  it('returns only the provider experience resolved after serviceability checks', async () => {
+  it('returns quality and sponsored placement as separate provider signals', async () => {
     const { prisma, locations, service } = setup();
     prisma.$queryRaw
       .mockResolvedValueOnce([{ id: 'provider-1', businessName: 'Care Services', description: 'Home care' }])
@@ -37,15 +37,34 @@ describe('ConsumerProviderExperienceService', () => {
           endsAt: new Date('2026-09-30T00:00:00Z'),
           terms: null,
         },
-      ]);
+      ])
+      .mockResolvedValueOnce([{ qualityTier: 'PREMIUM' }])
+      .mockResolvedValueOnce([{ label: 'Sponsored' }]);
 
     const result = await service.getForLocation('user-1', 'provider-1', 'HOME', 'home-1');
 
     expect(locations.resolveLocation).toHaveBeenCalledWith('user-1', 'HOME', 'home-1');
     expect(result.provider.businessName).toBe('Care Services');
+    expect(result.provider.qualityTier).toBe('PREMIUM');
     expect(result.media).toHaveLength(1);
     expect(result.offers).toHaveLength(1);
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(result.promotion).toEqual({ label: 'Sponsored' });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(5);
+  });
+
+  it('defaults quality to standard and keeps promotion absent when none is approved', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: 'provider-1', businessName: 'Care Services', description: null }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.getForLocation('user-1', 'provider-1', 'HOME', 'home-1');
+
+    expect(result.provider.qualityTier).toBe('STANDARD');
+    expect(result.promotion).toBeNull();
   });
 
   it('does not expose media or offers when the provider is not serviceable', async () => {
