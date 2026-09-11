@@ -30,6 +30,8 @@ import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
 import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
+import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
+import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
 import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
@@ -56,6 +58,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderAgentController,
     ConsumerProviderOperatorController,
     ConsumerProviderMediaController,
+    ProviderOfferingContinuityController,
   ],
   providers: [
     PrismaService,
@@ -77,6 +80,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
     ProviderMediaService,
+    ProviderOfferingContinuityService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
     {
       provide: MEDIA_SAFETY_SCANNER,

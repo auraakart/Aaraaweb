@@ -53,7 +53,22 @@ class ProviderStorefrontSheet extends StatelessWidget {
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
+    final continuityPolicies = (experience?['continuityPolicies'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
     final promotion = Map<String, dynamic>.from(experience?['promotion'] as Map? ?? const {});
+
+    Map<String, dynamic>? continuityPolicy;
+    final offeringId = offering['id']?.toString();
+    if (offeringId != null) {
+      for (final policy in continuityPolicies) {
+        if (policy['offeringId']?.toString() == offeringId) {
+          continuityPolicy = policy;
+          break;
+        }
+      }
+    }
 
     final businessName = provider['businessName']?.toString() ?? offering['providerName']?.toString() ?? 'Verified provider';
     final description = provider['description']?.toString().trim();
@@ -64,6 +79,8 @@ class ProviderStorefrontSheet extends StatelessWidget {
     final pricePaise = (offering['pricePaise'] as num?)?.toInt() ?? 0;
     final price = pricePaise / 100;
     final durationMinutes = (offering['durationMinutes'] as num?)?.toInt();
+    final warrantyDays = (continuityPolicy?['warrantyDays'] as num?)?.toInt();
+    final revisitPolicy = continuityPolicy?['revisitPolicy']?.toString().trim();
     final logo = media.cast<Map<String, dynamic>?>().firstWhere(
           (item) => item?['kind'] == 'LOGO' && item?['publicUrl']?.toString().isNotEmpty == true,
           orElse: () => null,
@@ -178,6 +195,7 @@ class ProviderStorefrontSheet extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.handyman_rounded),
                       const SizedBox(width: 12),
@@ -194,14 +212,38 @@ class ProviderStorefrontSheet extends StatelessWidget {
                               const SizedBox(height: 3),
                               Text('Approx. $durationMinutes minutes', style: theme.textTheme.bodySmall),
                             ],
+                            if (warrantyDays != null) ...[
+                              const SizedBox(height: 6),
+                              Row(children: [
+                                const Icon(Icons.verified_user_outlined, size: 16),
+                                const SizedBox(width: 5),
+                                Expanded(child: Text('$warrantyDays-day service warranty', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))),
+                              ]),
+                            ],
+                            if (revisitPolicy != null && revisitPolicy.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.replay_rounded, size: 16)),
+                                const SizedBox(width: 5),
+                                Expanded(child: Text(revisitPolicy, style: theme.textTheme.bodySmall)),
+                              ]),
+                            ],
                           ],
                         ),
                       ),
+                      const SizedBox(width: 10),
                       Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
                     ],
                   ),
                 ),
               ),
+              if (warrantyDays != null || (revisitPolicy != null && revisitPolicy.isNotEmpty)) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Warranty and revisit terms are published by the provider for this service. Confirm eligibility and exclusions when booking.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
                 promotion.isNotEmpty
