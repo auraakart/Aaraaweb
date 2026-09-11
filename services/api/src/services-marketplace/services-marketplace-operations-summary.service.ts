@@ -24,6 +24,17 @@ type OperationsAttentionRow = {
   attentionAgeMinutes: number;
 };
 
+type ProviderResponsivenessRow = {
+  providerId: string;
+  providerName: string;
+  requests30d: number;
+  providerResponses30d: number;
+  providerAccepted30d: number;
+  providerDeclined30d: number;
+  averageResponseMinutes30d: number;
+  openRequestedNow: number;
+};
+
 @Injectable()
 export class ServicesMarketplaceOperationsSummaryService {
   constructor(private readonly prisma: PrismaService) {}
@@ -127,6 +138,49 @@ export class ServicesMarketplaceOperationsSummaryService {
         inProgressOverrunMinutes: 60,
       },
       items: rows,
+    };
+  }
+
+  async getProviderResponsiveness() {
+    const rows = await this.prisma.$queryRaw<ProviderResponsivenessRow[]>(Prisma.sql`
+      WITH recent_bookings AS (
+        SELECT "id", "providerId", "status", "createdAt"
+        FROM "ConsumerServiceBooking"
+        WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+      ),
+      first_provider_response AS (
+        SELECT DISTINCT ON (e."bookingId")
+          e."bookingId",
+          e."action",
+          e."occurredAt"
+        FROM "ConsumerServiceBookingEvent" e
+        JOIN recent_bookings rb ON rb."id" = e."bookingId"
+        WHERE e."action" IN ('PROVIDER_ACCEPTED', 'PROVIDER_DECLINED')
+        ORDER BY e."bookingId", e."occurredAt" ASC
+      )
+      SELECT
+        p."id" AS "providerId",
+        p."businessName" AS "providerName",
+        COUNT(rb."id")::int AS "requests30d",
+        COUNT(fr."bookingId")::int AS "providerResponses30d",
+        COUNT(*) FILTER (WHERE fr."action" = 'PROVIDER_ACCEPTED')::int AS "providerAccepted30d",
+        COUNT(*) FILTER (WHERE fr."action" = 'PROVIDER_DECLINED')::int AS "providerDeclined30d",
+        COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (fr."occurredAt" - rb."createdAt")) / 60))::int, 0) AS "averageResponseMinutes30d",
+        COUNT(*) FILTER (WHERE rb."status" = 'REQUESTED')::int AS "openRequestedNow"
+      FROM recent_bookings rb
+      JOIN "ServiceProvider" p ON p."id" = rb."providerId"
+      LEFT JOIN first_provider_response fr ON fr."bookingId" = rb."id"
+      GROUP BY p."id", p."businessName"
+      ORDER BY "openRequestedNow" DESC, "requests30d" DESC, p."businessName" ASC
+      LIMIT 50
+    `);
+
+    return {
+      windowDays: 30,
+      providers: rows.map((row) => ({
+        ...row,
+        providerResponseRate30d: row.requests30d > 0 ? row.providerResponses30d / row.requests30d : 0,
+      })),
     };
   }
 }
