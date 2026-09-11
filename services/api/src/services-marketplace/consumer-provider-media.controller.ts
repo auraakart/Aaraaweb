@@ -43,30 +43,42 @@ class CreateProviderMediaUploadDto {
   altText?: string;
 }
 
+type ProviderMediaResponse = {
+  status?: string;
+  publicUrl?: string | null;
+  [key: string]: unknown;
+};
+
 @Controller('provider/services/media')
 @UseGuards(BearerGuard)
 export class ConsumerProviderMediaController {
   constructor(private readonly media: ProviderMediaService) {}
 
   @Get()
-  list(@CurrentProviderMediaUser() userId: string) {
-    return this.media.listMyMedia(this.requireUser(userId));
+  async list(@CurrentProviderMediaUser() userId: string) {
+    const items = await this.media.listMyMedia(this.requireUser(userId));
+    return items.map((item) => this.forProvider(item));
   }
 
   @Post('uploads')
-  createUploadIntent(
+  async createUploadIntent(
     @CurrentProviderMediaUser() userId: string,
     @Body() dto: CreateProviderMediaUploadDto,
   ) {
-    return this.media.createMyUploadIntent(this.requireUser(userId), dto);
+    const result = await this.media.createMyUploadIntent(this.requireUser(userId), dto);
+    const { storageKey: _storageKey, publicUrl: _publicUrl, ...upload } = result.upload;
+    void _storageKey;
+    void _publicUrl;
+    return { media: this.forProvider(result.media), upload };
   }
 
   @Post(':mediaId/confirm')
-  confirmUpload(
+  async confirmUpload(
     @CurrentProviderMediaUser() userId: string,
     @Param('mediaId', ParseUUIDPipe) mediaId: string,
   ) {
-    return this.media.confirmMyUpload(this.requireUser(userId), mediaId);
+    const item = await this.media.confirmMyUpload(this.requireUser(userId), mediaId);
+    return this.forProvider(item);
   }
 
   @Delete(':mediaId')
@@ -75,6 +87,11 @@ export class ConsumerProviderMediaController {
     @Param('mediaId', ParseUUIDPipe) mediaId: string,
   ) {
     return this.media.removeMyMedia(this.requireUser(userId), mediaId);
+  }
+
+  private forProvider<T extends ProviderMediaResponse>(item: T): T {
+    if (item.status === 'APPROVED') return item;
+    return { ...item, publicUrl: null };
   }
 
   private requireUser(userId?: string) {
