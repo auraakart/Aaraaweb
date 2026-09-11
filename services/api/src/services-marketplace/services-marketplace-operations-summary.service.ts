@@ -6,6 +6,8 @@ type OperationsSummaryRow = {
   bookings30d: bigint;
   completed30d: bigint;
   cancelled30d: bigint;
+  homeBookings30d: bigint;
+  societyUnitBookings30d: bigint;
   activeVerifiedProviders: bigint;
   activeCommercialPlacements: bigint;
   repeatCustomers90d: bigint;
@@ -42,7 +44,7 @@ export class ServicesMarketplaceOperationsSummaryService {
   async getSummary() {
     const rows = await this.prisma.$queryRaw<OperationsSummaryRow[]>(Prisma.sql`
       WITH recent_bookings AS (
-        SELECT "userId", "status"
+        SELECT "userId", "status", "homeId", "societyUnitId"
         FROM "ConsumerServiceBooking"
         WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '30 days'
       ),
@@ -58,6 +60,8 @@ export class ServicesMarketplaceOperationsSummaryService {
         (SELECT COUNT(*) FROM recent_bookings) AS "bookings30d",
         (SELECT COUNT(*) FROM recent_bookings WHERE "status" = 'COMPLETED') AS "completed30d",
         (SELECT COUNT(*) FROM recent_bookings WHERE "status" = 'CANCELLED') AS "cancelled30d",
+        (SELECT COUNT(*) FROM recent_bookings WHERE "homeId" IS NOT NULL) AS "homeBookings30d",
+        (SELECT COUNT(*) FROM recent_bookings WHERE "societyUnitId" IS NOT NULL) AS "societyUnitBookings30d",
         (
           SELECT COUNT(*)
           FROM "ServiceProvider"
@@ -78,6 +82,8 @@ export class ServicesMarketplaceOperationsSummaryService {
     const bookings30d = Number(row?.bookings30d ?? 0n);
     const completed30d = Number(row?.completed30d ?? 0n);
     const cancelled30d = Number(row?.cancelled30d ?? 0n);
+    const homeBookings30d = Number(row?.homeBookings30d ?? 0n);
+    const societyUnitBookings30d = Number(row?.societyUnitBookings30d ?? 0n);
 
     return {
       windowDays: 30,
@@ -86,6 +92,10 @@ export class ServicesMarketplaceOperationsSummaryService {
       cancelled30d,
       completionRate30d: bookings30d > 0 ? completed30d / bookings30d : 0,
       cancellationRate30d: bookings30d > 0 ? cancelled30d / bookings30d : 0,
+      homeBookings30d,
+      societyUnitBookings30d,
+      homeBookingShare30d: bookings30d > 0 ? homeBookings30d / bookings30d : 0,
+      societyUnitBookingShare30d: bookings30d > 0 ? societyUnitBookings30d / bookings30d : 0,
       activeVerifiedProviders: Number(row?.activeVerifiedProviders ?? 0n),
       activeCommercialPlacements: Number(row?.activeCommercialPlacements ?? 0n),
       repeatCustomers90d: Number(row?.repeatCustomers90d ?? 0n),
