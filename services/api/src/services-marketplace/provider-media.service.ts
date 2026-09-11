@@ -8,11 +8,16 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import {
+  MEDIA_SAFETY_SCANNER,
+  MediaSafetyScannerPort,
+} from './media-safety-scanner.port';
 import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 
 export type ProviderMediaKind = 'LOGO' | 'GALLERY';
 export type ProviderMediaStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REMOVED';
 export type ProviderMediaReviewDecision = 'APPROVED' | 'REJECTED';
+export type ProviderMediaMalwareScanStatus = 'PENDING' | 'CLEAN' | 'INFECTED' | 'ERROR';
 
 const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
 const MAX_GALLERY_ITEMS = 8;
@@ -34,6 +39,10 @@ type ProviderMediaRow = {
   contentLengthBytes: number | null;
   originalFileName: string | null;
   uploadedAt: Date | null;
+  malwareScanStatus: ProviderMediaMalwareScanStatus;
+  malwareScannedAt: Date | null;
+  malwareScanEngine: string | null;
+  malwareScanReference: string | null;
   reviewedAt: Date | null;
   reviewNote: string | null;
   createdAt: Date;
@@ -42,20 +51,26 @@ type ProviderMediaRow = {
 
 type ProviderMediaPrivateRow = ProviderMediaRow & { storageKey: string };
 
+const MEDIA_PUBLIC_COLUMNS = Prisma.sql`
+  "id", "providerId", "kind", "publicUrl", "altText", "sortOrder", "status",
+  "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
+  "malwareScanStatus", "malwareScannedAt", "malwareScanEngine", "malwareScanReference",
+  "reviewedAt", "reviewNote", "createdAt", "updatedAt"
+`;
+
 @Injectable()
 export class ProviderMediaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly providerOperators: ConsumerProviderOperatorService,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStoragePort,
+    @Inject(MEDIA_SAFETY_SCANNER) private readonly scanner: MediaSafetyScannerPort,
   ) {}
 
   async listMyMedia(userId: string) {
     const provider = await this.providerOperators.resolveProvider(userId);
     return this.prisma.$queryRaw<ProviderMediaRow[]>(Prisma.sql`
-      SELECT "id", "providerId", "kind", "publicUrl", "altText", "sortOrder", "status",
-             "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
-             "reviewedAt", "reviewNote", "createdAt", "updatedAt"
+      SELECT ${MEDIA_PUBLIC_COLUMNS}
       FROM "ServiceProviderMedia"
       WHERE "providerId" = ${provider.providerId}::uuid
         AND "status" <> 'REMOVED'::"ProviderMediaStatus"
@@ -111,9 +126,7 @@ export class ProviderMediaService {
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
       )
-      RETURNING "id", "providerId", "kind", "publicUrl", "altText", "sortOrder", "status",
-                "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
-                "reviewedAt", "reviewNote", "createdAt", "updatedAt"
+      RETURNING ${MEDIA_PUBLIC_COLUMNS}
     `);
 
     return { media: rows[0], upload };
@@ -123,7 +136,7 @@ export class ProviderMediaService {
     const provider = await this.providerOperators.resolveProvider(userId);
     const media = await this.getPrivateMedia(provider.providerId, mediaId);
     if (media.status !== 'PENDING') throw new BadRequestException('Only pending media can be confirmed');
-    if (media.uploadedAt) return this.toPublicRow(media);
+    if (media.uploadedAt && media.malwareScanStatus === 'CLEAN') return this.toPublicRow(media);
     if (!media.contentType || !media.contentLengthBytes) {
       throw new BadRequestException('Media upload metadata is incomplete');
     }
@@ -137,15 +150,43 @@ export class ProviderMediaService {
       throw new BadRequestException('Uploaded object does not match the declared media metadata');
     }
 
+    let scan;
+    try {
+      scan = await this.scanner.scanObject({
+        storageKey: media.storageKey,
+        contentType: media.contentType,
+        contentLengthBytes: media.contentLengthBytes,
+      });
+    } catch (error) {
+      await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE "ServiceProviderMedia"
+        SET "malwareScanStatus" = 'ERROR',
+            "malwareScannedAt" = CURRENT_TIMESTAMP,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${mediaId}::uuid
+          AND "providerId" = ${provider.providerId}::uuid
+          AND "status" = 'PENDING'::"ProviderMediaStatus"
+      `);
+      throw error;
+    }
+
+    if (scan.status === 'INFECTED') {
+      await this.quarantineInfectedUpload(media, scan.engine, scan.reference);
+      throw new BadRequestException('Uploaded media failed the safety scan and was removed');
+    }
+
     const rows = await this.prisma.$queryRaw<ProviderMediaRow[]>(Prisma.sql`
       UPDATE "ServiceProviderMedia"
-      SET "uploadedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+      SET "uploadedAt" = CURRENT_TIMESTAMP,
+          "malwareScanStatus" = 'CLEAN',
+          "malwareScannedAt" = CURRENT_TIMESTAMP,
+          "malwareScanEngine" = ${this.cleanOptional(scan.engine ?? undefined, 120)},
+          "malwareScanReference" = ${this.cleanOptional(scan.reference ?? undefined, 240)},
+          "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${mediaId}::uuid
         AND "providerId" = ${provider.providerId}::uuid
         AND "status" = 'PENDING'::"ProviderMediaStatus"
-      RETURNING "id", "providerId", "kind", "publicUrl", "altText", "sortOrder", "status",
-                "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
-                "reviewedAt", "reviewNote", "createdAt", "updatedAt"
+      RETURNING ${MEDIA_PUBLIC_COLUMNS}
     `);
     if (!rows[0]) throw new NotFoundException('Provider media not found');
     return rows[0];
@@ -173,12 +214,14 @@ export class ProviderMediaService {
     return this.prisma.$queryRaw<Array<ProviderMediaRow & { providerName: string }>>(Prisma.sql`
       SELECT m."id", m."providerId", m."kind", m."publicUrl", m."altText", m."sortOrder", m."status",
              m."contentType", m."contentLengthBytes", m."originalFileName", m."uploadedAt",
+             m."malwareScanStatus", m."malwareScannedAt", m."malwareScanEngine", m."malwareScanReference",
              m."reviewedAt", m."reviewNote", m."createdAt", m."updatedAt",
              p."businessName" AS "providerName"
       FROM "ServiceProviderMedia" m
       JOIN "ServiceProvider" p ON p."id" = m."providerId"
       WHERE m."status" = ${status}::"ProviderMediaStatus"
         AND m."uploadedAt" IS NOT NULL
+        AND m."malwareScanStatus" = 'CLEAN'
       ORDER BY m."createdAt" ASC
     `);
   }
@@ -190,8 +233,8 @@ export class ProviderMediaService {
     note?: string,
   ) {
     const existing = await this.getPrivateMediaById(mediaId);
-    if (existing.status !== 'PENDING' || !existing.uploadedAt) {
-      throw new BadRequestException('Only uploaded pending media can be reviewed');
+    if (existing.status !== 'PENDING' || !existing.uploadedAt || existing.malwareScanStatus !== 'CLEAN') {
+      throw new BadRequestException('Only uploaded, safety-cleared pending media can be reviewed');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -215,9 +258,8 @@ export class ProviderMediaService {
         WHERE "id" = ${mediaId}::uuid
           AND "status" = 'PENDING'::"ProviderMediaStatus"
           AND "uploadedAt" IS NOT NULL
-        RETURNING "id", "providerId", "kind", "publicUrl", "altText", "sortOrder", "status",
-                  "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
-                  "reviewedAt", "reviewNote", "createdAt", "updatedAt"
+          AND "malwareScanStatus" = 'CLEAN'
+        RETURNING ${MEDIA_PUBLIC_COLUMNS}
       `);
       if (!rows[0]) throw new NotFoundException('Pending provider media not found');
       return rows[0];
@@ -243,6 +285,7 @@ export class ProviderMediaService {
     const rows = await this.prisma.$queryRaw<ProviderMediaPrivateRow[]>(Prisma.sql`
       SELECT "id", "providerId", "kind", "storageKey", "publicUrl", "altText", "sortOrder", "status",
              "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
+             "malwareScanStatus", "malwareScannedAt", "malwareScanEngine", "malwareScanReference",
              "reviewedAt", "reviewNote", "createdAt", "updatedAt"
       FROM "ServiceProviderMedia"
       WHERE "id" = ${mediaId}::uuid AND "providerId" = ${providerId}::uuid
@@ -256,6 +299,7 @@ export class ProviderMediaService {
     const rows = await this.prisma.$queryRaw<ProviderMediaPrivateRow[]>(Prisma.sql`
       SELECT "id", "providerId", "kind", "storageKey", "publicUrl", "altText", "sortOrder", "status",
              "contentType", "contentLengthBytes", "originalFileName", "uploadedAt",
+             "malwareScanStatus", "malwareScannedAt", "malwareScanEngine", "malwareScanReference",
              "reviewedAt", "reviewNote", "createdAt", "updatedAt"
       FROM "ServiceProviderMedia"
       WHERE "id" = ${mediaId}::uuid
@@ -283,28 +327,39 @@ export class ProviderMediaService {
     }
   }
 
+  private async quarantineInfectedUpload(
+    media: ProviderMediaPrivateRow,
+    engine?: string | null,
+    reference?: string | null,
+  ) {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "ServiceProviderMedia"
+      SET "status" = 'REMOVED'::"ProviderMediaStatus",
+          "uploadedAt" = CURRENT_TIMESTAMP,
+          "malwareScanStatus" = 'INFECTED',
+          "malwareScannedAt" = CURRENT_TIMESTAMP,
+          "malwareScanEngine" = ${this.cleanOptional(engine ?? undefined, 120)},
+          "malwareScanReference" = ${this.cleanOptional(reference ?? undefined, 240)},
+          "reviewNote" = 'Media safety scan rejected the uploaded object',
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${media.id}::uuid
+        AND "status" = 'PENDING'::"ProviderMediaStatus"
+    `);
+    try {
+      await this.storage.deleteObject(media.storageKey);
+    } catch {
+      // The media is application-invisible; physical cleanup can be retried operationally.
+    }
+  }
+
   private cleanOptional(value: string | undefined, maxLength: number) {
     const clean = value?.trim();
     return clean ? clean.slice(0, maxLength) : null;
   }
 
   private toPublicRow(media: ProviderMediaPrivateRow): ProviderMediaRow {
-    return {
-      id: media.id,
-      providerId: media.providerId,
-      kind: media.kind,
-      publicUrl: media.publicUrl,
-      altText: media.altText,
-      sortOrder: media.sortOrder,
-      status: media.status,
-      contentType: media.contentType,
-      contentLengthBytes: media.contentLengthBytes,
-      originalFileName: media.originalFileName,
-      uploadedAt: media.uploadedAt,
-      reviewedAt: media.reviewedAt,
-      reviewNote: media.reviewNote,
-      createdAt: media.createdAt,
-      updatedAt: media.updatedAt,
-    };
+    const { storageKey: _storageKey, ...row } = media;
+    void _storageKey;
+    return row;
   }
 }

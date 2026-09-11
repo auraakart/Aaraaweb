@@ -31,6 +31,17 @@ function run(extra: Record<string, string | undefined> = {}) {
   return spawnSync('bash', [script], { env, encoding: 'utf8' });
 }
 
+const validS3 = {
+  OBJECT_STORAGE_DRIVER: 's3',
+  OBJECT_STORAGE_S3_ENDPOINT: 'https://storage.example.com',
+  OBJECT_STORAGE_S3_BUCKET: 'provider-media',
+  OBJECT_STORAGE_S3_REGION: 'auto',
+  OBJECT_STORAGE_S3_ACCESS_KEY_ID: 'test-access-key',
+  OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: 'test-secret-key',
+  OBJECT_STORAGE_PUBLIC_BASE_URL: 'https://media.example.com',
+  OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS: '300',
+};
+
 describe('production object-storage preflight', () => {
   it('passes with storage intentionally disabled and fail-closed', () => {
     const result = run({ OBJECT_STORAGE_DRIVER: undefined });
@@ -38,31 +49,19 @@ describe('production object-storage preflight', () => {
     expect(result.stdout).toContain('provider-media storage remains fail-closed');
   });
 
-  it('passes with complete HTTPS S3-compatible configuration', () => {
-    const result = run({
-      OBJECT_STORAGE_DRIVER: 's3',
-      OBJECT_STORAGE_S3_ENDPOINT: 'https://storage.example.com',
-      OBJECT_STORAGE_S3_BUCKET: 'provider-media',
-      OBJECT_STORAGE_S3_REGION: 'auto',
-      OBJECT_STORAGE_S3_ACCESS_KEY_ID: 'test-access-key',
-      OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: 'test-secret-key',
-      OBJECT_STORAGE_PUBLIC_BASE_URL: 'https://media.example.com',
-      OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS: '300',
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('S3-compatible provider-media storage');
-    expect(result.stdout).not.toContain('test-secret-key');
+  it('blocks otherwise-valid S3 activation until a runtime malware scanner exists', () => {
+    const result = run(validS3);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Provider-media object storage must remain disabled in production until a runtime malware-scanner adapter is configured',
+    );
+    expect(result.stderr).not.toContain('test-secret-key');
   });
 
   it('fails when S3 configuration is incomplete without leaking secret values', () => {
     const result = run({
-      OBJECT_STORAGE_DRIVER: 's3',
-      OBJECT_STORAGE_S3_ENDPOINT: 'https://storage.example.com',
-      OBJECT_STORAGE_S3_BUCKET: 'provider-media',
-      OBJECT_STORAGE_S3_REGION: 'auto',
-      OBJECT_STORAGE_S3_ACCESS_KEY_ID: 'test-access-key',
+      ...validS3,
       OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: undefined,
-      OBJECT_STORAGE_PUBLIC_BASE_URL: 'https://media.example.com',
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('OBJECT_STORAGE_S3_SECRET_ACCESS_KEY is required');
@@ -71,13 +70,8 @@ describe('production object-storage preflight', () => {
 
   it('rejects insecure production storage endpoints', () => {
     const result = run({
-      OBJECT_STORAGE_DRIVER: 's3',
+      ...validS3,
       OBJECT_STORAGE_S3_ENDPOINT: 'http://storage.example.com',
-      OBJECT_STORAGE_S3_BUCKET: 'provider-media',
-      OBJECT_STORAGE_S3_REGION: 'auto',
-      OBJECT_STORAGE_S3_ACCESS_KEY_ID: 'test-access-key',
-      OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: 'test-secret-key',
-      OBJECT_STORAGE_PUBLIC_BASE_URL: 'https://media.example.com',
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('OBJECT_STORAGE_S3_ENDPOINT must use HTTPS in production');
