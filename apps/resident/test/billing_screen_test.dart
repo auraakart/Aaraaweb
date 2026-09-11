@@ -41,6 +41,21 @@ class _BillingRepository extends ResidentRepository {
   }
 }
 
+class _DueTodayBillingRepository extends _BillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
+    final today = DateTime.now();
+    final dueDate = '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    return [
+      {
+        'id': 'invoice-today', 'invoiceNumber': 'TODAY-A101', 'billingPeriod': '2026-09',
+        'amountPaise': 125000, 'dueDate': dueDate, 'status': 'ISSUED',
+        'buildingName': 'A Block', 'unitNumber': '101',
+      },
+    ];
+  }
+}
+
 void main() {
   testWidgets('owner can review dues and prepare a secure payment order', (tester) async {
     final repository = _BillingRepository();
@@ -55,6 +70,14 @@ void main() {
     expect(repository.paymentCalls, 1);
     expect(find.text('Secure payment order ready'), findsOneWidget);
     expect(find.textContaining('No payment is marked successful'), findsOneWidget);
+  });
+
+  testWidgets('invoice due today remains due rather than overdue', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: _DueTodayBillingRepository())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DUE'), findsOneWidget);
+    expect(find.text('OVERDUE'), findsNothing);
   });
 
   testWidgets('ineligible resident payment access fails closed with a clear message', (tester) async {

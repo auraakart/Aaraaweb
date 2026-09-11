@@ -20,21 +20,53 @@ class GuardStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: error ? scheme.errorContainer : null,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final background = error ? scheme.errorContainer : scheme.surfaceContainerLow;
+    final foreground = error ? scheme.onErrorContainer : scheme.onSurface;
+    final iconBackground = error ? scheme.errorContainer : scheme.primaryContainer;
+    final iconForeground = error ? scheme.onErrorContainer : scheme.onPrimaryContainer;
+
+    return Semantics(
+      container: true,
+      liveRegion: loading || error,
+      label: loading ? 'Processing. $message' : message,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Column(
           children: [
-            if (loading)
-              const LinearProgressIndicator()
-            else
-              Icon(icon, size: 32, color: error ? scheme.error : scheme.primary),
-            const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: iconBackground,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: loading
+                  ? SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 3, color: scheme.primary),
+                    )
+                  : Icon(icon, size: 28, color: iconForeground),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],

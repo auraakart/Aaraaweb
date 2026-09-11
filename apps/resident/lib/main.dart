@@ -46,8 +46,16 @@ class AaraagateResidentApp extends StatelessWidget {
   const AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController});
   final String apiBaseUrl;
   final ResidentAuthController authController;
+
   @override
-  Widget build(BuildContext context) => MaterialApp(title: 'Aaraagate', debugShowCheckedModeBanner: false, theme: AaraagateTheme.light(), home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController));
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'Aaraagate',
+        debugShowCheckedModeBanner: false,
+        theme: AaraagateTheme.light(),
+        darkTheme: AaraagateTheme.dark(),
+        themeMode: ThemeMode.system,
+        home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController),
+      );
 }
 
 class _ResidentSessionGate extends StatefulWidget {
@@ -365,36 +373,26 @@ class _SocietyOnlyShellState extends State<_SocietyOnlyShell> {
               children: [
                 Text(widget.societyName, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
-                const Text('Society access'),
-                const SizedBox(height: 20),
+                Text('Your society membership is active, but no property is currently linked to this session.', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: 18),
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(18),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Icon(Icons.apartment_rounded, size: 36),
-                      const SizedBox(height: 12),
-                      const Text('No residential property is linked', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 6),
-                      const Text('Unit-specific features such as Gate, Staff, Billing, Amenities and household actions stay hidden until a property is linked and selected.'),
-                      if (controller.entitlementsError != null) ...[
-                        const SizedBox(height: 12),
-                        Text(controller.entitlementsError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      const Row(children: [Icon(Icons.apartment_outlined), SizedBox(width: 10), Expanded(child: Text('Society-level access', style: TextStyle(fontWeight: FontWeight.w900)))]),
+                      const SizedBox(height: 8),
+                      const Text('Property-bound features stay hidden until an eligible unit is selected. This prevents data from another home being shown accidentally.'),
+                      if (canReadNotices) ...[
+                        const SizedBox(height: 14),
+                        FilledButton.tonalIcon(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
+                          icon: const Icon(Icons.campaign_outlined),
+                          label: const Text('View society notices'),
+                        ),
                       ],
                     ]),
                   ),
                 ),
-                if (canReadNotices) ...[
-                  const SizedBox(height: 18),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.campaign_outlined),
-                      title: const Text('Society notices', style: TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(controller.notices.isEmpty ? 'No active notices.' : '${controller.notices.length} active notice${controller.notices.length == 1 ? '' : 's'}'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
