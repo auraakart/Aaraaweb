@@ -14,6 +14,7 @@ import { ConsumerProviderAgentPlatformController } from './consumer-provider-age
 import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
 import { ConsumerProviderExperienceController } from './consumer-provider-experience.controller';
 import { ConsumerProviderExperienceService } from './consumer-provider-experience.service';
+import { ConsumerProviderMediaController } from './consumer-provider-media.controller';
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
@@ -24,6 +25,9 @@ import { ConsumerServiceMemoryController } from './consumer-service-memory.contr
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
+import { OBJECT_STORAGE, UnconfiguredObjectStorageAdapter } from './object-storage.port';
+import { ProviderMediaPlatformController } from './provider-media-platform.controller';
+import { ProviderMediaService } from './provider-media.service';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
 import { ServiceBookingTransitionService } from './service-booking-transition.service';
@@ -37,6 +41,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   controllers: [
     ServicesMarketplaceController,
     ServicesPlatformController,
+    ProviderMediaPlatformController,
     ConsumerDispatchPlatformController,
     ConsumerProviderAgentPlatformController,
     ConsumerProviderOperatorPlatformController,
@@ -47,6 +52,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderExperienceController,
     ConsumerProviderAgentController,
     ConsumerProviderOperatorController,
+    ConsumerProviderMediaController,
   ],
   providers: [
     PrismaService,
@@ -67,6 +73,8 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceLocationService,
     ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
+    ProviderMediaService,
+    { provide: OBJECT_STORAGE, useClass: UnconfiguredObjectStorageAdapter },
   ],
   exports: [ServicesMarketplaceService],
 })
