@@ -73,34 +73,50 @@ export class ConsumerServiceMemoryService {
         b."scheduledUntil",
         b."servicePricePaise",
         b."updatedAt" AS "completedAt",
-        EXISTS (
-          SELECT 1
-          FROM "ServiceOffering" o
-          JOIN "ServiceProvider" p
-            ON p."id" = o."providerId"
-           AND p."active" = true
-           AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
-          JOIN "ConsumerProviderServiceArea" pa
-            ON pa."providerId" = p."id"
-           AND pa."postalCode" = ${location.postalCode}
-           AND pa."active" = true
-          WHERE o."id" = b."offeringId"
-            AND o."providerId" = b."providerId"
-            AND o."active" = true
-            AND (
-              NOT EXISTS (
-                SELECT 1 FROM "ConsumerOfferingServiceArea" osa
-                WHERE osa."offeringId" = o."id"
-              )
-              OR EXISTS (
-                SELECT 1 FROM "ConsumerOfferingServiceArea" osa
-                WHERE osa."offeringId" = o."id"
-                  AND osa."postalCode" = ${location.postalCode}
-                  AND osa."active" = true
-              )
-            )
-        ) AS "canRebook"
+        current_o."currentOffering",
+        (current_o."currentOffering" IS NOT NULL) AS "canRebook"
       FROM "ConsumerServiceBooking" b
+      LEFT JOIN LATERAL (
+        SELECT jsonb_build_object(
+          'id', o."id",
+          'providerId', o."providerId",
+          'name', o."name",
+          'description', o."description",
+          'pricePaise', o."pricePaise",
+          'durationMinutes', o."durationMinutes",
+          'providerName', p."businessName",
+          'provider', jsonb_build_object(
+            'id', p."id",
+            'businessName', p."businessName",
+            'description', p."description"
+          )
+        ) AS "currentOffering"
+        FROM "ServiceOffering" o
+        JOIN "ServiceProvider" p
+          ON p."id" = o."providerId"
+         AND p."active" = true
+         AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+        JOIN "ConsumerProviderServiceArea" pa
+          ON pa."providerId" = p."id"
+         AND pa."postalCode" = ${location.postalCode}
+         AND pa."active" = true
+        WHERE o."id" = b."offeringId"
+          AND o."providerId" = b."providerId"
+          AND o."active" = true
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM "ConsumerOfferingServiceArea" osa
+              WHERE osa."offeringId" = o."id"
+            )
+            OR EXISTS (
+              SELECT 1 FROM "ConsumerOfferingServiceArea" osa
+              WHERE osa."offeringId" = o."id"
+                AND osa."postalCode" = ${location.postalCode}
+                AND osa."active" = true
+            )
+          )
+        LIMIT 1
+      ) current_o ON true
       WHERE b."status" = 'COMPLETED'::"ServiceBookingStatus"
         AND (
           (${homeId}::uuid IS NOT NULL AND b."homeId" = ${homeId}::uuid AND b."userId" = ${userId}::uuid)
