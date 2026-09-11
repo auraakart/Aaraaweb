@@ -31,6 +31,8 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   String? _selectedCategoryId;
   String? _selectedLocationKey;
   PushRegistrationService? _push;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
 
   Map<String, dynamic>? get _selectedLocation {
     final key = _selectedLocationKey;
@@ -39,6 +41,25 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       if (_locationKey(location) == key) return location;
     }
     return null;
+  }
+
+  List<Map<String, dynamic>> get _visibleOfferings {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _offerings;
+    return _offerings.where((offering) {
+      final provider = offering['provider'] as Map<String, dynamic>? ?? const {};
+      final category = offering['category'] as Map<String, dynamic>? ?? const {};
+      final searchable = [
+        offering['name'],
+        offering['description'],
+        offering['categoryName'],
+        offering['providerName'],
+        category['name'],
+        provider['businessName'],
+        provider['description'],
+      ].whereType<Object>().map((value) => value.toString().toLowerCase()).join(' ');
+      return searchable.contains(query);
+    }).toList();
   }
 
   String _locationKey(Map<String, dynamic> location) => '${location['type']}:${location['id']}';
@@ -161,6 +182,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _push?.dispose();
     _push = null;
     super.dispose();
@@ -169,6 +191,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final visibleOfferings = _visibleOfferings;
     return Scaffold(
       appBar: AppBar(
         title: const Text('External Services'),
@@ -206,8 +229,8 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.independentMode
-                                ? 'Choose an address to see only providers that serve your area.'
-                                : 'Your society apartment and saved home addresses can be used as delivery locations.',
+                                ? 'Tell us what you need, then choose from trusted providers serving your address.'
+                                : 'Tell us what you need and compare trusted providers serving your selected property.',
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),
@@ -224,6 +247,28 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                labelText: 'What do you need help with?',
+                hintText: 'Try “AC repair”, “plumber” or “cleaning”',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            const SizedBox(height: 18),
             Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
             if (_locations.isEmpty && !_loading)
@@ -288,11 +333,38 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Choose or add a service location to find providers serving your area.')))
             else if (_offerings.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No verified providers currently serve this location for the selected category.')))
-            else
-              for (final offering in _offerings) ...[
+            else if (visibleOfferings.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.search_off_rounded),
+                      const SizedBox(height: 8),
+                      Text('No services match “${_query.trim()}”.', textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        child: const Text('Clear search'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else ...[
+              Text(
+                _query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              for (final offering in visibleOfferings) ...[
                 _OfferingCard(offering: offering, onTap: () => _openBooking(offering)),
                 const SizedBox(height: 10),
               ],
+            ],
           ],
         ),
       ),
