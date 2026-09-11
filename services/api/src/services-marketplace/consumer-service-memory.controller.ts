@@ -43,6 +43,11 @@ export class ConsumerServiceMemoryController {
     return this.memory.listFavorites(this.requireUser(userId));
   }
 
+  @Get('recent-providers')
+  listRecentProviders(@CurrentConsumerUser() userId: string) {
+    return this.memory.listRecentProviders(this.requireUser(userId));
+  }
+
   @Put('favorites/:providerId')
   setFavorite(
     @CurrentConsumerUser() userId: string,
