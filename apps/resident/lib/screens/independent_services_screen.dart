@@ -6,6 +6,7 @@ import '../data/resident_repository.dart';
 import 'consumer_booking_screen.dart';
 import 'consumer_bookings_screen.dart';
 import 'provider_storefront_sheet.dart';
+import 'service_history_screen.dart';
 
 class IndependentServicesScreen extends StatefulWidget {
   const IndependentServicesScreen({super.key, required this.apiClient, this.onSignOut, this.independentMode = true});
@@ -24,6 +25,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   List<Map<String, dynamic>> _categories = const [];
   List<Map<String, dynamic>> _offerings = const [];
   List<Map<String, dynamic>> _locations = const [];
+  Set<String> _favoriteProviderIds = const {};
   String? _selectedCategoryId;
   String? _selectedLocationKey;
   PushRegistrationService? _push;
@@ -90,11 +92,18 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       final categoriesRaw = await widget.apiClient.get('/api/v1/consumer/services/categories');
       final locationsRaw = await widget.apiClient.get('/api/v1/consumer/services/locations');
       List<dynamic> trustRaw = const [];
+      List<dynamic> favoritesRaw = const [];
       try {
         final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
         trustRaw = raw as List<dynamic>? ?? const [];
       } catch (_) {
         // Trust metadata is informational and must never block discovery.
+      }
+      try {
+        final raw = await widget.apiClient.get('/api/v1/consumer/services/favorites');
+        favoritesRaw = raw as List<dynamic>? ?? const [];
+      } catch (_) {
+        // Favourites are optional and must never block service discovery.
       }
       final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       final trustByProvider = <String, Map<String, dynamic>>{};
@@ -102,6 +111,11 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         final providerId = trust['providerId']?.toString();
         if (providerId != null && providerId.isNotEmpty) trustByProvider[providerId] = trust;
       }
+      final favoriteIds = favoritesRaw
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['providerId']?.toString())
+          .whereType<String>()
+          .toSet();
 
       String? selectedKey = _selectedLocationKey;
       if (selectedKey == null || !locations.any((item) => _locationKey(item) == selectedKey && item['serviceAddressConfigured'] != false)) {
@@ -140,6 +154,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         _locations = locations;
         _selectedLocationKey = selectedKey;
         _offerings = offerings;
+        _favoriteProviderIds = favoriteIds;
       });
     } catch (e) {
       if (!mounted) return;
@@ -161,6 +176,20 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ConsumerBookingScreen(apiClient: widget.apiClient, offering: offering, initialLocation: location),
     ));
+  }
+
+  Future<void> _setFavorite(String providerId, bool active) async {
+    await widget.apiClient.put('/api/v1/consumer/services/favorites/$providerId', {'active': active});
+    if (!mounted) return;
+    setState(() {
+      final next = Set<String>.from(_favoriteProviderIds);
+      if (active) {
+        next.add(providerId);
+      } else {
+        next.remove(providerId);
+      }
+      _favoriteProviderIds = next;
+    });
   }
 
   Future<void> _openProviderStorefront(Map<String, dynamic> offering) async {
@@ -185,8 +214,27 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       context,
       offering: offering,
       experience: experience,
+      isFavorite: providerId != null && _favoriteProviderIds.contains(providerId),
+      onFavoriteChanged: providerId == null ? null : (active) => _setFavorite(providerId, active),
       onBook: () => unawaited(_openBooking(offering)),
     );
+  }
+
+  Future<void> _openServiceHistory() async {
+    final location = _selectedLocation;
+    if (location == null || !mounted) return;
+    final offeringsById = <String, Map<String, dynamic>>{
+      for (final offering in _offerings)
+        if (offering['id'] != null) offering['id'].toString(): offering,
+    };
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ServiceHistoryScreen(
+        apiClient: widget.apiClient,
+        location: location,
+        offeringsById: offeringsById,
+        onRebook: _openBooking,
+      ),
+    ));
   }
 
   Future<void> _openMyBookings() async {
@@ -210,6 +258,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       appBar: AppBar(
         title: const Text('External Services'),
         actions: [
+          IconButton(tooltip: 'Service history', onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded)),
           IconButton(tooltip: 'My bookings', onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded)),
           if (widget.onSignOut != null) IconButton(tooltip: 'Sign out', onPressed: _signOut, icon: const Icon(Icons.logout_rounded)),
         ],
@@ -244,7 +293,14 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),
-                          OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My External Bookings')),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
+                              OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -339,7 +395,12 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               Text(_query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 10),
               for (final offering in visibleOfferings) ...[
-                _OfferingCard(offering: offering, onTap: () => _openBooking(offering), onProviderTap: () => _openProviderStorefront(offering)),
+                _OfferingCard(
+                  offering: offering,
+                  isFavorite: _favoriteProviderIds.contains(offering['providerId']?.toString() ?? (offering['provider'] as Map?)?['id']?.toString()),
+                  onTap: () => _openBooking(offering),
+                  onProviderTap: () => _openProviderStorefront(offering),
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -351,10 +412,11 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
 }
 
 class _OfferingCard extends StatelessWidget {
-  const _OfferingCard({required this.offering, required this.onTap, required this.onProviderTap});
+  const _OfferingCard({required this.offering, required this.onTap, required this.onProviderTap, required this.isFavorite});
   final Map<String, dynamic> offering;
   final VoidCallback onTap;
   final VoidCallback onProviderTap;
+  final bool isFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +441,10 @@ class _OfferingCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Row(children: [
+                    Expanded(child: Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800))),
+                    if (isFavorite) const Icon(Icons.favorite_rounded, size: 18),
+                  ]),
                   const SizedBox(height: 4),
                   TextButton.icon(
                     onPressed: onProviderTap,
