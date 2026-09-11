@@ -10,7 +10,7 @@ Aaraagate provider media uses the vendor-neutral `ObjectStoragePort`. The S3-com
 - `OBJECT_STORAGE_S3_REGION` — signing region. Use the provider's documented region value; providers such as R2 may use `auto`.
 - `OBJECT_STORAGE_S3_ACCESS_KEY_ID` — access key ID for server-side signing.
 - `OBJECT_STORAGE_S3_SECRET_ACCESS_KEY` — secret access key. Never expose this to browser/mobile clients or logs.
-- `OBJECT_STORAGE_PUBLIC_BASE_URL` — public/CDN delivery base used for approved media URLs. This is intentionally separate from the private upload/control endpoint.
+- `OBJECT_STORAGE_PUBLIC_BASE_URL` — delivery base reserved for approved media. This is intentionally separate from the private upload/control endpoint.
 
 Optional:
 
@@ -21,21 +21,33 @@ Optional:
 - Storage keys remain server-generated under the provider namespace.
 - Browser/provider clients receive only short-lived signed PUT URLs and required upload headers.
 - Secret keys are used only inside the API process and are never included in upload intents.
-- Upload confirmation still performs a signed HEAD request and verifies actual MIME type and byte length before media remains eligible for moderation.
+- Upload confirmation performs a signed HEAD request and verifies actual MIME type and byte length before safety scanning.
+- Every uploaded object starts with `malwareScanStatus=PENDING`.
+- Only a `CLEAN` safety-scan result makes media eligible for platform moderation.
+- `INFECTED` media is marked removed immediately and physical object deletion is attempted.
+- Scanner errors fail closed; affected media remains ineligible for moderation or resident display.
+- Platform moderation also requires `malwareScanStatus=CLEAN`, so approval cannot bypass the scan gate.
 - Delete operations are signed server-side.
-- Storage HTTP errors fail closed through the existing provider-media service behavior.
-- `OBJECT_STORAGE_PUBLIC_BASE_URL` should point to a delivery surface that does not expose unapproved objects. Production deployment should use private/quarantine storage or an equivalent policy until moderation and malware scanning are complete.
+- Storage HTTP errors fail closed through the provider-media service behavior.
+- `OBJECT_STORAGE_PUBLIC_BASE_URL` must point to a delivery surface that does not expose `PENDING`, `REJECTED`, `REMOVED`, scan-pending, scan-error, or infected objects.
+
+## Scanner boundary
+
+The repository now defines a vendor-neutral `MediaSafetyScannerPort`, but deliberately does not ship a fake/no-op production scanner. The default scanner implementation fails closed. Production preflight therefore blocks `OBJECT_STORAGE_DRIVER=s3` until a real runtime scanner adapter is implemented and validated.
+
+This keeps scanner-provider selection reversible. A future adapter may use ClamAV, an ICAP service, a managed malware-scanning API, or another approved implementation, but it must return only authoritative `CLEAN` or `INFECTED` results to the marketplace service.
 
 ## Compatibility
 
-The adapter signs path-style S3 requests with AWS Signature Version 4 and does not depend on a specific storage vendor or SDK. Validate endpoint/path-style support with the chosen provider before enabling production uploads.
+The object-storage adapter signs path-style S3 requests with AWS Signature Version 4 and does not depend on a specific storage vendor or SDK. Validate endpoint/path-style support with the chosen provider before enabling production uploads.
 
 ## Production enablement gate
 
 Do not enable `OBJECT_STORAGE_DRIVER=s3` in production until all of the following are true:
 
-1. Bucket/CORS rules allow only the intended signed PUT workflow.
-2. Public delivery does not expose `PENDING`, `REJECTED`, or `REMOVED` objects.
-3. Credentials are stored in the deployment secret manager, not source control.
-4. Upload, HEAD verification, moderation, and deletion have passed staging smoke tests against the selected provider.
-5. Malware scanning/quarantine policy is implemented before broad public self-service upload rollout.
+1. A real `MediaSafetyScannerPort` adapter is implemented and staging-validated.
+2. Bucket/CORS rules allow only the intended signed PUT workflow.
+3. Public delivery cannot expose unapproved or non-clean objects.
+4. Credentials are stored in the deployment secret manager, not source control.
+5. Upload, HEAD verification, malware scanning, moderation, and deletion have passed staging smoke tests against the selected provider.
+6. Scanner failure behavior and infected-object cleanup have been exercised in staging.

@@ -25,6 +25,7 @@ import { ConsumerServiceMemoryController } from './consumer-service-memory.contr
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
+import { MEDIA_SAFETY_SCANNER, UnconfiguredMediaSafetyScanner } from './media-safety-scanner.port';
 import { OBJECT_STORAGE } from './object-storage.port';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
@@ -76,6 +77,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceRatingsService,
     ProviderMediaService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
+    { provide: MEDIA_SAFETY_SCANNER, useClass: UnconfiguredMediaSafetyScanner },
   ],
   exports: [ServicesMarketplaceService],
 })

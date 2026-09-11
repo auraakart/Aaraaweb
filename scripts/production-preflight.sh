@@ -127,6 +127,8 @@ if [[ "$storage_driver" == "s3" ]]; then
       fail "OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS must be between 60 and 900"
     fi
   fi
+
+  fail "Provider-media object storage must remain disabled in production until a runtime malware-scanner adapter is configured"
 fi
 
 if (( failures > 0 )); then
@@ -134,8 +136,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-if [[ "$storage_driver" == "s3" ]]; then
-  printf 'Production preflight passed: core services and S3-compatible provider-media storage are configured.\n'
-else
-  printf 'Production preflight passed: core services are configured; provider-media storage remains fail-closed.\n'
-fi
+printf 'Production preflight passed: core services are configured; provider-media storage remains fail-closed.\n'
