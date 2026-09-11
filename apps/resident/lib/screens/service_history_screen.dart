@@ -114,6 +114,8 @@ class _HistoryCard extends StatelessWidget {
         : fallbackOffering;
     final canRebook = item['canRebook'] == true && currentOffering != null;
     final paise = (item['servicePricePaise'] as num?)?.toInt();
+    final rating = (item['ratingStars'] as num?)?.toInt();
+    final ratingComment = item['ratingComment']?.toString().trim();
     final completedAt = DateTime.tryParse(item['completedAt']?.toString() ?? '');
     final dateText = completedAt == null
         ? null
@@ -136,6 +138,29 @@ class _HistoryCard extends StatelessWidget {
                   if (paise != null) Text('₹${(paise / 100).toStringAsFixed(paise % 100 == 0 ? 0 : 2)}'),
                 ],
               ),
+            ],
+            if (rating != null) ...[
+              const SizedBox(height: 10),
+              Semantics(
+                label: 'Your rating $rating out of 5',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var index = 1; index <= 5; index++)
+                      Icon(
+                        index <= rating ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    const SizedBox(width: 8),
+                    Text('Your rating', style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              if (ratingComment != null && ratingComment.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('“$ratingComment”', style: Theme.of(context).textTheme.bodyMedium),
+              ],
             ],
             const SizedBox(height: 12),
             if (canRebook)
