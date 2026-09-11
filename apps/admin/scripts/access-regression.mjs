@@ -37,6 +37,7 @@ assert.match(commercialControlsSource,/paid visibility.*never change provider ve
 assert.doesNotMatch(commercialControlsSource,/SOCIETY_ADMIN|FACILITY_MANAGER|SECURITY_SUPERVISOR/,'Non-platform roles must not gain commercial controls')
 assert.match(operationsSource,/session\?\.role!=='SUPER_ADMIN'/,'External Services operations dashboard must fail closed for non-Super Admin sessions')
 assert.match(operationsSource,/\/platform\/services\/operations\/summary/,'External Services operations dashboard must use the platform-only summary API')
+assert.match(operationsSource,/\/platform\/services\/operations\/attention/,'External Services operations dashboard must use the platform-only attention API')
 assert.match(operationsSource,/read-only/i,'External Services operations dashboard must disclose its read-only boundary')
 assert.doesNotMatch(operationsSource,/method:\s*['"](?:POST|PATCH|PUT|DELETE)['"]/,'External Services operations dashboard must remain read-only')
 assert.match(providerMediaSource,/aaraagate\.provider\.session/,'Provider media page must use the provider session namespace')

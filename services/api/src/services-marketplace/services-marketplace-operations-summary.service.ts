@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 type OperationsSummaryRow = {
@@ -9,6 +9,19 @@ type OperationsSummaryRow = {
   activeVerifiedProviders: bigint;
   activeCommercialPlacements: bigint;
   repeatCustomers90d: bigint;
+};
+
+type OperationsAttentionRow = {
+  bookingId: string;
+  status: ServiceBookingStatus;
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  offeringName: string;
+  providerName: string;
+  reason: 'REQUEST_AWAITING_CONFIRMATION' | 'CONFIRMED_NOT_STARTED' | 'IN_PROGRESS_OVERRUN';
+  attentionAgeMinutes: number;
 };
 
 @Injectable()
@@ -65,6 +78,55 @@ export class ServicesMarketplaceOperationsSummaryService {
       activeVerifiedProviders: Number(row?.activeVerifiedProviders ?? 0n),
       activeCommercialPlacements: Number(row?.activeCommercialPlacements ?? 0n),
       repeatCustomers90d: Number(row?.repeatCustomers90d ?? 0n),
+    };
+  }
+
+  async getAttentionQueue() {
+    const rows = await this.prisma.$queryRaw<OperationsAttentionRow[]>(Prisma.sql`
+      SELECT
+        b."id" AS "bookingId",
+        b."status",
+        b."scheduledStart",
+        b."scheduledEnd",
+        b."createdAt",
+        b."updatedAt",
+        o."name" AS "offeringName",
+        p."businessName" AS "providerName",
+        CASE
+          WHEN b."status" = 'REQUESTED' THEN 'REQUEST_AWAITING_CONFIRMATION'
+          WHEN b."status" = 'CONFIRMED' THEN 'CONFIRMED_NOT_STARTED'
+          ELSE 'IN_PROGRESS_OVERRUN'
+        END AS "reason",
+        CASE
+          WHEN b."status" = 'REQUESTED' THEN FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - b."createdAt")) / 60)::int
+          WHEN b."status" = 'CONFIRMED' THEN FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - b."scheduledStart")) / 60)::int
+          ELSE FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - b."scheduledEnd")) / 60)::int
+        END AS "attentionAgeMinutes"
+      FROM "ConsumerServiceBooking" b
+      JOIN "ServiceOffering" o ON o."id" = b."offeringId"
+      JOIN "ServiceProvider" p ON p."id" = b."providerId"
+      WHERE
+        (b."status" = 'REQUESTED' AND b."createdAt" <= CURRENT_TIMESTAMP - INTERVAL '2 hours')
+        OR (b."status" = 'CONFIRMED' AND b."scheduledStart" <= CURRENT_TIMESTAMP - INTERVAL '30 minutes')
+        OR (b."status" = 'IN_PROGRESS' AND b."scheduledEnd" <= CURRENT_TIMESTAMP - INTERVAL '60 minutes')
+      ORDER BY
+        CASE b."status"
+          WHEN 'IN_PROGRESS' THEN 1
+          WHEN 'CONFIRMED' THEN 2
+          ELSE 3
+        END,
+        "attentionAgeMinutes" DESC,
+        b."createdAt" ASC
+      LIMIT 50
+    `);
+
+    return {
+      thresholds: {
+        requestConfirmationMinutes: 120,
+        confirmedStartGraceMinutes: 30,
+        inProgressOverrunMinutes: 60,
+      },
+      items: rows,
     };
   }
 }
