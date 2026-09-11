@@ -25,9 +25,10 @@ import { ConsumerServiceMemoryController } from './consumer-service-memory.contr
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
-import { OBJECT_STORAGE, UnconfiguredObjectStorageAdapter } from './object-storage.port';
+import { OBJECT_STORAGE } from './object-storage.port';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
+import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
 import { ServiceBookingTransitionService } from './service-booking-transition.service';
@@ -74,7 +75,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
     ProviderMediaService,
-    { provide: OBJECT_STORAGE, useClass: UnconfiguredObjectStorageAdapter },
+    { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
   ],
   exports: [ServicesMarketplaceService],
 })
