@@ -92,6 +92,30 @@ export class ConsumerProviderExperienceService {
       LIMIT 10
     `);
 
-    return { provider, media, offers };
+    const trustRows = await this.prisma.$queryRaw<Array<{ qualityTier: 'STANDARD' | 'TRUSTED' | 'PREMIUM' }>>(Prisma.sql`
+      SELECT "qualityTier"::text AS "qualityTier"
+      FROM "ServiceProviderTrustProfile"
+      WHERE "providerId" = ${providerId}::uuid
+      LIMIT 1
+    `);
+    const qualityTier = trustRows[0]?.qualityTier ?? 'STANDARD';
+
+    const promotions = await this.prisma.$queryRaw<Array<{ label: string }>>(Prisma.sql`
+      SELECT "label"
+      FROM "ServiceProviderPromotion"
+      WHERE "providerId" = ${providerId}::uuid
+        AND "status" = 'APPROVED'::"ProviderPromotionStatus"
+        AND "startsAt" <= CURRENT_TIMESTAMP
+        AND "endsAt" > CURRENT_TIMESTAMP
+      ORDER BY "endsAt" ASC
+      LIMIT 1
+    `);
+
+    return {
+      provider: { ...provider, qualityTier },
+      media,
+      offers,
+      promotion: promotions[0] ?? null,
+    };
   }
 }
