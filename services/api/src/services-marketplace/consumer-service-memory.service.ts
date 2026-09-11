@@ -28,6 +28,35 @@ export class ConsumerServiceMemoryService {
     `);
   }
 
+  listRecentProviders(userId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        b."providerId",
+        p."businessName",
+        p."description",
+        MAX(COALESCE(completed_event."completedAt", b."updatedAt")) AS "lastCompletedAt",
+        COUNT(*)::int AS "completedBookings"
+      FROM "ConsumerServiceBooking" b
+      JOIN "ServiceProvider" p
+        ON p."id" = b."providerId"
+       AND p."active" = true
+       AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      LEFT JOIN LATERAL (
+        SELECT e."occurredAt" AS "completedAt"
+        FROM "ConsumerServiceBookingEvent" e
+        WHERE e."bookingId" = b."id"
+          AND e."toStatus" = 'COMPLETED'::"ServiceBookingStatus"
+        ORDER BY e."occurredAt" DESC
+        LIMIT 1
+      ) completed_event ON true
+      WHERE b."userId" = ${userId}::uuid
+        AND b."status" = 'COMPLETED'::"ServiceBookingStatus"
+      GROUP BY b."providerId", p."businessName", p."description"
+      ORDER BY "lastCompletedAt" DESC, p."businessName" ASC
+      LIMIT 8
+    `);
+  }
+
   async setFavorite(userId: string, providerId: string, active: boolean) {
     const providers = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
