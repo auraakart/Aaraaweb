@@ -42,6 +42,29 @@ describe('ConsumerServiceMemoryService', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it('derives recent providers from the current user completed bookings only', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        providerId: '22222222-2222-4222-8222-222222222222',
+        businessName: 'Care Services',
+        lastCompletedAt: new Date('2026-09-10T10:00:00.000Z'),
+        completedBookings: 2,
+      },
+    ]);
+
+    const result = await service.listRecentProviders('33333333-3333-4333-8333-333333333333');
+
+    expect(result).toHaveLength(1);
+    const query = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(query).toContain('"ConsumerServiceBooking"');
+    expect(query).toContain('"ServiceProvider"');
+    expect(query).toContain('b."userId"');
+    expect(query).toContain("'COMPLETED'::\"ServiceBookingStatus\"");
+    expect(query).toContain("'VERIFIED'::\"ProviderVerificationStatus\"");
+    expect(query).toContain('LIMIT 8');
+  });
+
   it('derives location-scoped history after authorization resolution', async () => {
     const { prisma, locations, service } = setup();
     prisma.$queryRaw.mockResolvedValueOnce([
