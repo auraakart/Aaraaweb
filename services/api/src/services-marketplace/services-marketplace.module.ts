@@ -43,6 +43,8 @@ import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
 import { ServiceBookingTransitionService } from './service-booking-transition.service';
 import { ServicesMarketplaceController } from './services-marketplace.controller';
+import { ServicesMarketplaceOperationsSummaryController } from './services-marketplace-operations-summary.controller';
+import { ServicesMarketplaceOperationsSummaryService } from './services-marketplace-operations-summary.service';
 import { ServicesPlatformController } from './services-platform.controller';
 import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
 import { ServicesMarketplaceService } from './services-marketplace.service';
@@ -52,6 +54,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   controllers: [
     ServicesMarketplaceController,
     ServicesPlatformController,
+    ServicesMarketplaceOperationsSummaryController,
     ProviderCommercialPlatformController,
     ProviderMediaPlatformController,
     ConsumerDispatchPlatformController,
@@ -75,6 +78,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServiceBookingRatingService,
     ServiceBookingTransitionService,
     ServicesMarketplaceOperationsService,
+    ServicesMarketplaceOperationsSummaryService,
     ServicesMarketplaceService,
     ConsumerAvailabilityService,
     ConsumerBookingsService,
