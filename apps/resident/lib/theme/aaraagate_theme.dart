@@ -202,12 +202,21 @@ class AaraagateTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainer,
+        selectedColor: scheme.primaryContainer,
+        checkmarkColor: scheme.onPrimaryContainer,
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(999),
         ),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: TextStyle(
+          color: scheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
