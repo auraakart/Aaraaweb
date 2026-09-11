@@ -38,6 +38,8 @@ assert.doesNotMatch(commercialControlsSource,/SOCIETY_ADMIN|FACILITY_MANAGER|SEC
 assert.match(operationsSource,/session\?\.role!=='SUPER_ADMIN'/,'External Services operations dashboard must fail closed for non-Super Admin sessions')
 assert.match(operationsSource,/\/platform\/services\/operations\/summary/,'External Services operations dashboard must use the platform-only summary API')
 assert.match(operationsSource,/\/platform\/services\/operations\/attention/,'External Services operations dashboard must use the platform-only attention API')
+assert.match(operationsSource,/\/platform\/services\/operations\/provider-responsiveness/,'External Services operations dashboard must use the platform-only provider responsiveness API')
+assert.match(operationsSource,/diagnostic only/i,'Provider responsiveness must be disclosed as diagnostic-only')
 assert.match(operationsSource,/read-only/i,'External Services operations dashboard must disclose its read-only boundary')
 assert.doesNotMatch(operationsSource,/method:\s*['"](?:POST|PATCH|PUT|DELETE)['"]/,'External Services operations dashboard must remain read-only')
 assert.match(providerMediaSource,/aaraagate\.provider\.session/,'Provider media page must use the provider session namespace')
