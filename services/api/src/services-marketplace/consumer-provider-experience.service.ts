@@ -92,6 +92,21 @@ export class ConsumerProviderExperienceService {
       LIMIT 10
     `);
 
+    const continuityPolicies = await this.prisma.$queryRaw<Array<{
+      offeringId: string;
+      warrantyDays: number | null;
+      revisitPolicy: string | null;
+    }>>(Prisma.sql`
+      SELECT cp."offeringId", cp."warrantyDays", cp."revisitPolicy"
+      FROM "ServiceOfferingContinuityPolicy" cp
+      JOIN "ServiceOffering" o
+        ON o."id" = cp."offeringId"
+       AND o."providerId" = ${providerId}::uuid
+       AND o."active" = true
+      WHERE cp."warrantyDays" IS NOT NULL OR cp."revisitPolicy" IS NOT NULL
+      ORDER BY o."name" ASC
+    `);
+
     const trustRows = await this.prisma.$queryRaw<Array<{ qualityTier: 'STANDARD' | 'TRUSTED' | 'PREMIUM' }>>(Prisma.sql`
       SELECT "qualityTier"::text AS "qualityTier"
       FROM "ServiceProviderTrustProfile"
@@ -115,6 +130,7 @@ export class ConsumerProviderExperienceService {
       provider: { ...provider, qualityTier },
       media,
       offers,
+      continuityPolicies,
       promotion: promotions[0] ?? null,
     };
   }
