@@ -86,9 +86,56 @@ NODE
   fi
 fi
 
+storage_driver="${OBJECT_STORAGE_DRIVER:-}"
+if [[ -n "$storage_driver" && "$storage_driver" != "s3" ]]; then
+  fail "OBJECT_STORAGE_DRIVER must be s3 when configured"
+fi
+
+if [[ "$storage_driver" == "s3" ]]; then
+  for name in \
+    OBJECT_STORAGE_S3_ENDPOINT \
+    OBJECT_STORAGE_S3_BUCKET \
+    OBJECT_STORAGE_S3_REGION \
+    OBJECT_STORAGE_S3_ACCESS_KEY_ID \
+    OBJECT_STORAGE_S3_SECRET_ACCESS_KEY \
+    OBJECT_STORAGE_PUBLIC_BASE_URL; do
+    require_var "$name"
+  done
+
+  if [[ -n "${OBJECT_STORAGE_S3_ENDPOINT:-}" ]]; then
+    if [[ ! "${OBJECT_STORAGE_S3_ENDPOINT}" =~ ^https:// ]]; then
+      fail "OBJECT_STORAGE_S3_ENDPOINT must use HTTPS in production"
+    fi
+    if [[ "${OBJECT_STORAGE_S3_ENDPOINT}" =~ (localhost|127\.0\.0\.1) ]]; then
+      fail "OBJECT_STORAGE_S3_ENDPOINT must not point to a local development host"
+    fi
+  fi
+
+  if [[ -n "${OBJECT_STORAGE_PUBLIC_BASE_URL:-}" ]]; then
+    if [[ ! "${OBJECT_STORAGE_PUBLIC_BASE_URL}" =~ ^https:// ]]; then
+      fail "OBJECT_STORAGE_PUBLIC_BASE_URL must use HTTPS in production"
+    fi
+    if [[ "${OBJECT_STORAGE_PUBLIC_BASE_URL}" =~ (localhost|127\.0\.0\.1) ]]; then
+      fail "OBJECT_STORAGE_PUBLIC_BASE_URL must not point to a local development host"
+    fi
+  fi
+
+  if [[ -n "${OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS:-}" ]]; then
+    if [[ ! "${OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS}" =~ ^[0-9]+$ ]]; then
+      fail "OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS must be an integer between 60 and 900"
+    elif (( OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS < 60 || OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS > 900 )); then
+      fail "OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS must be between 60 and 900"
+    fi
+  fi
+fi
+
 if (( failures > 0 )); then
   printf 'Production preflight failed with %d configuration error(s).\n' "$failures" >&2
   exit 1
 fi
 
-printf 'Production preflight passed: release metadata, database, Redis, OTP, FCM, payment webhook, CORS, and Admin API URL are configured.\n'
+if [[ "$storage_driver" == "s3" ]]; then
+  printf 'Production preflight passed: core services and S3-compatible provider-media storage are configured.\n'
+else
+  printf 'Production preflight passed: core services are configured; provider-media storage remains fail-closed.\n'
+fi
