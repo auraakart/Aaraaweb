@@ -20,6 +20,8 @@ import { ConsumerProviderOperatorService } from './consumer-provider-operator.se
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
+import { ConsumerServiceMemoryController } from './consumer-service-memory.controller';
+import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
 import { ServiceBookingAccessService } from './service-booking-access.service';
@@ -40,6 +42,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderOperatorPlatformController,
     ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
+    ConsumerServiceMemoryController,
     ConsumerBookingsController,
     ConsumerProviderExperienceController,
     ConsumerProviderAgentController,
@@ -62,6 +65,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderOperatorService,
     ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
+    ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
   ],
   exports: [ServicesMarketplaceService],
