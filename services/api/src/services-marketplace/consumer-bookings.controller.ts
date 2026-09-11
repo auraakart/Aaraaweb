@@ -79,11 +79,6 @@ export class ConsumerBookingsController {
     return this.bookings.listBookings(this.requireUser(userId));
   }
 
-  @Get('services/history')
-  listServiceHistory(@CurrentConsumerUser() userId: string) {
-    return this.bookings.listServiceHistory(this.requireUser(userId));
-  }
-
   @Get('services/bookings/:id/events')
   listBookingEvents(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
     return this.bookings.listBookingEvents(this.requireUser(userId), bookingId);
