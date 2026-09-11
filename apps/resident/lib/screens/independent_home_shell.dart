@@ -127,7 +127,7 @@ class _IndependentHistoryTabState extends State<_IndependentHistoryTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(appBar: AppBar(title: Text('Service History')), body: Center(child: CircularProgressIndicator()));
+      return Scaffold(appBar: AppBar(title: const Text('Service History')), body: const Center(child: CircularProgressIndicator()));
     }
     if (_error != null) {
       return Scaffold(
@@ -148,9 +148,9 @@ class _IndependentHistoryTabState extends State<_IndependentHistoryTab> {
     }
     final location = _location;
     if (location == null) {
-      return const Scaffold(
-        appBar: AppBar(title: Text('Service History')),
-        body: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Add or configure a home service address to view history.'))),
+      return Scaffold(
+        appBar: AppBar(title: const Text('Service History')),
+        body: const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Add or configure a home service address to view history.'))),
       );
     }
     return ServiceHistoryScreen(
