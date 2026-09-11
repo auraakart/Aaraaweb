@@ -27,7 +27,8 @@ describe('ServicesMarketplaceOperationsSummaryService', () => {
       repeatCustomers90d: 3,
     });
 
-    const sql = String(queryRaw.mock.calls[0]?.[0]);
+    const statement = queryRaw.mock.calls[0]?.[0] as { strings?: string[] } | undefined;
+    const sql = statement?.strings?.join(' ') ?? '';
     expect(sql).toContain('ConsumerServiceBooking');
     expect(sql).toContain('ServiceProvider');
     expect(sql).toContain('ConsumerProviderCommercialProfile');
