@@ -359,6 +359,7 @@ export class ProviderMediaService {
 
   private toPublicRow(media: ProviderMediaPrivateRow): ProviderMediaRow {
     const { storageKey: _storageKey, ...row } = media;
+    void _storageKey;
     return row;
   }
 }
