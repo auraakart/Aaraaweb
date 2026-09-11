@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
@@ -117,5 +117,23 @@ describe('ProviderMediaService', () => {
 
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
     expect(storage.deleteObject).toHaveBeenCalledWith('providers/provider/media/image.webp');
+  });
+
+  it('fails closed when object storage is unavailable and does not create a media row', async () => {
+    const { prisma, service, storage } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ count: 0n }]);
+    storage.createUploadIntent.mockRejectedValue(
+      new ServiceUnavailableException('Provider media storage is not configured'),
+    );
+
+    await expect(
+      service.createMyUploadIntent(userId, {
+        kind: 'LOGO',
+        contentType: 'image/png',
+        contentLengthBytes: 512,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });
