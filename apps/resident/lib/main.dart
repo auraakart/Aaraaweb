@@ -12,6 +12,7 @@ import 'screens/billing_screen.dart';
 import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/independent_home_shell.dart';
 import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
@@ -120,7 +121,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           _boundContextKey = null;
           _dataController?.dispose();
           _dataController = null;
-          return IndependentServicesScreen(apiClient: consumerApiClient, onSignOut: _signOut);
+          return IndependentHomeShell(apiClient: consumerApiClient, onSignOut: _signOut);
         }
         _ensureDataController();
         return ResidentHomeShell(
