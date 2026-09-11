@@ -8,12 +8,7 @@ import 'consumer_bookings_screen.dart';
 import 'provider_storefront_sheet.dart';
 
 class IndependentServicesScreen extends StatefulWidget {
-  const IndependentServicesScreen({
-    super.key,
-    required this.apiClient,
-    this.onSignOut,
-    this.independentMode = true,
-  });
+  const IndependentServicesScreen({super.key, required this.apiClient, this.onSignOut, this.independentMode = true});
 
   final ApiClient apiClient;
   final Future<void> Function()? onSignOut;
@@ -99,7 +94,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
         trustRaw = raw as List<dynamic>? ?? const [];
       } catch (_) {
-        // Trust metadata is informational and must never block service discovery.
+        // Trust metadata is informational and must never block discovery.
       }
       final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       final trustByProvider = <String, Map<String, dynamic>>{};
@@ -163,30 +158,40 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   Future<void> _openBooking(Map<String, dynamic> offering) async {
     final location = _selectedLocation;
     if (location == null) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ConsumerBookingScreen(
-          apiClient: widget.apiClient,
-          offering: offering,
-          initialLocation: location,
-        ),
-      ),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ConsumerBookingScreen(apiClient: widget.apiClient, offering: offering, initialLocation: location),
+    ));
   }
 
-  Future<void> _openProviderStorefront(Map<String, dynamic> offering) {
-    return ProviderStorefrontSheet.show(
+  Future<void> _openProviderStorefront(Map<String, dynamic> offering) async {
+    final location = _selectedLocation;
+    final provider = offering['provider'] as Map<String, dynamic>? ?? const {};
+    final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
+    Map<String, dynamic>? experience;
+    if (location != null && providerId != null && providerId.isNotEmpty) {
+      try {
+        final params = Uri(queryParameters: {
+          'locationType': location['type'].toString(),
+          'locationId': location['id'].toString(),
+        }).query;
+        final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/$providerId/experience?$params');
+        if (raw is Map) experience = Map<String, dynamic>.from(raw);
+      } catch (_) {
+        // Rich storefront content is optional; core verified provider info remains usable.
+      }
+    }
+    if (!mounted) return;
+    await ProviderStorefrontSheet.show(
       context,
       offering: offering,
+      experience: experience,
       onBook: () => unawaited(_openBooking(offering)),
     );
   }
 
   Future<void> _openMyBookings() async {
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ConsumerBookingsScreen(apiClient: widget.apiClient)),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsumerBookingsScreen(apiClient: widget.apiClient)));
   }
 
   @override
@@ -206,8 +211,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         title: const Text('External Services'),
         actions: [
           IconButton(tooltip: 'My bookings', onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded)),
-          if (widget.onSignOut != null)
-            IconButton(tooltip: 'Sign out', onPressed: _signOut, icon: const Icon(Icons.logout_rounded)),
+          if (widget.onSignOut != null) IconButton(tooltip: 'Sign out', onPressed: _signOut, icon: const Icon(Icons.logout_rounded)),
         ],
       ),
       body: RefreshIndicator(
@@ -231,10 +235,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            widget.independentMode ? 'Services for your home' : 'External services near you',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                          ),
+                          Text(widget.independentMode ? 'Services for your home' : 'External services near you', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
                           Text(
                             widget.independentMode
@@ -243,11 +244,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: _openMyBookings,
-                            icon: const Icon(Icons.event_note_rounded),
-                            label: const Text('My External Bookings'),
-                          ),
+                          OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My External Bookings')),
                         ],
                       ),
                     ),
@@ -289,11 +286,9 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                   groupValue: _selectedLocationKey,
                   onChanged: _loading || location['serviceAddressConfigured'] == false ? null : _selectLocation,
                   title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(
-                    location['serviceAddressConfigured'] == false
-                        ? 'Society service address is not configured yet.'
-                        : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}',
-                  ),
+                  subtitle: Text(location['serviceAddressConfigured'] == false
+                      ? 'Society service address is not configured yet.'
+                      : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}'),
                   secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
                 ),
             const SizedBox(height: 16),
@@ -304,10 +299,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(label: const Text('All'), selected: _selectedCategoryId == null, onSelected: (_) => _load()),
-                  ),
+                  Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: const Text('All'), selected: _selectedCategoryId == null, onSelected: (_) => _load())),
                   for (final category in _categories)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -324,57 +316,30 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 36), child: Center(child: CircularProgressIndicator()))
             else if (_error != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.cloud_off_rounded),
-                      const SizedBox(height: 8),
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      FilledButton(onPressed: () => _load(_selectedCategoryId), child: const Text('Retry')),
-                    ],
-                  ),
-                ),
-              )
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+                const Icon(Icons.cloud_off_rounded),
+                const SizedBox(height: 8),
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: () => _load(_selectedCategoryId), child: const Text('Retry')),
+              ])))
             else if (_selectedLocation == null)
               const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Choose or add a service location to find providers serving your area.')))
             else if (_offerings.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No verified providers currently serve this location for the selected category.')))
             else if (visibleOfferings.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.search_off_rounded),
-                      const SizedBox(height: 8),
-                      Text('No services match “${_query.trim()}”.', textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                        child: const Text('Clear search'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
+              Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
+                const Icon(Icons.search_off_rounded),
+                const SizedBox(height: 8),
+                Text('No services match “${_query.trim()}”.', textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton(onPressed: () { _searchController.clear(); setState(() => _query = ''); }, child: const Text('Clear search')),
+              ])))
             else ...[
-              Text(
-                _query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-              ),
+              Text(_query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 10),
               for (final offering in visibleOfferings) ...[
-                _OfferingCard(
-                  offering: offering,
-                  onTap: () => _openBooking(offering),
-                  onProviderTap: () => _openProviderStorefront(offering),
-                ),
+                _OfferingCard(offering: offering, onTap: () => _openBooking(offering), onProviderTap: () => _openProviderStorefront(offering)),
                 const SizedBox(height: 10),
               ],
             ],
@@ -413,40 +378,28 @@ class _OfferingCard extends StatelessWidget {
               const CircleAvatar(child: Icon(Icons.handyman_rounded)),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    TextButton.icon(
-                      onPressed: onProviderTap,
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 34), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      icon: const Icon(Icons.storefront_rounded, size: 16),
-                      label: Text('$providerName · ${category['name'] ?? offering['categoryName'] ?? 'Service'}'),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 6,
-                      children: [
-                        if (ratingAverage != null && ratingCount > 0)
-                          _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
-                        if (completedJobs > 0)
-                          _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
-                        const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
-                      ],
-                    ),
-                  ],
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: onProviderTap,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 34), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    icon: const Icon(Icons.storefront_rounded, size: 16),
+                    label: Text('$providerName · ${category['name'] ?? offering['categoryName'] ?? 'Service'}'),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 10, runSpacing: 6, children: [
+                    if (ratingAverage != null && ratingCount > 0) _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
+                    if (completedJobs > 0) _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
+                    const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+                  ]),
+                ]),
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const Icon(Icons.chevron_right_rounded),
-                ],
-              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                const Icon(Icons.chevron_right_rounded),
+              ]),
             ],
           ),
         ),
@@ -462,13 +415,10 @@ class _TrustSignal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 15),
-        const SizedBox(width: 3),
-        Text(text, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 15),
+      const SizedBox(width: 3),
+      Text(text, style: Theme.of(context).textTheme.bodySmall),
+    ]);
   }
 }
