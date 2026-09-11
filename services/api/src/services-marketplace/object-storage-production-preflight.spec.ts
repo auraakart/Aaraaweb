@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const script = resolve(process.cwd(), '../../scripts/production-preflight.sh');
-const baseline = {
+const baseline: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: 'production',
   APP_VERSION: 'test-preflight',
@@ -24,11 +24,11 @@ const baseline = {
 };
 
 function run(extra: Record<string, string | undefined> = {}) {
-  const env = { ...baseline, ...extra };
+  const env: NodeJS.ProcessEnv = { ...baseline, ...extra };
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete env[key];
   }
-  return spawnSync('bash', [script], { env: env as NodeJS.ProcessEnv, encoding: 'utf8' });
+  return spawnSync('bash', [script], { env, encoding: 'utf8' });
 }
 
 describe('production object-storage preflight', () => {
