@@ -6,17 +6,23 @@ class ProviderStorefrontSheet extends StatelessWidget {
     required this.offering,
     required this.onBook,
     this.experience,
+    this.isFavorite = false,
+    this.onFavoriteChanged,
   });
 
   final Map<String, dynamic> offering;
   final Map<String, dynamic>? experience;
   final VoidCallback onBook;
+  final bool isFavorite;
+  final Future<void> Function(bool active)? onFavoriteChanged;
 
   static Future<void> show(
     BuildContext context, {
     required Map<String, dynamic> offering,
     required VoidCallback onBook,
     Map<String, dynamic>? experience,
+    bool isFavorite = false,
+    Future<void> Function(bool active)? onFavoriteChanged,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -26,6 +32,8 @@ class ProviderStorefrontSheet extends StatelessWidget {
         offering: offering,
         experience: experience,
         onBook: onBook,
+        isFavorite: isFavorite,
+        onFavoriteChanged: onFavoriteChanged,
       ),
     );
   }
@@ -82,6 +90,17 @@ class ProviderStorefrontSheet extends StatelessWidget {
                           children: [
                             Expanded(child: Text(businessName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
                             if (promotion.isNotEmpty) const _Badge(icon: Icons.campaign_rounded, label: 'Sponsored'),
+                            if (onFavoriteChanged != null) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                tooltip: isFavorite ? 'Remove from favourites' : 'Add to favourites',
+                                onPressed: () async {
+                                  await onFavoriteChanged!(!isFavorite);
+                                  if (context.mounted) Navigator.of(context).pop();
+                                },
+                                icon: Icon(isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 4),
