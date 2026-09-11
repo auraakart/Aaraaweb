@@ -87,8 +87,14 @@ NODE
 fi
 
 storage_driver="${OBJECT_STORAGE_DRIVER:-}"
+scanner_driver="${MEDIA_SAFETY_SCANNER_DRIVER:-}"
+
 if [[ -n "$storage_driver" && "$storage_driver" != "s3" ]]; then
   fail "OBJECT_STORAGE_DRIVER must be s3 when configured"
+fi
+
+if [[ -n "$scanner_driver" && "$scanner_driver" != "clamav" ]]; then
+  fail "MEDIA_SAFETY_SCANNER_DRIVER must be clamav when configured"
 fi
 
 if [[ "$storage_driver" == "s3" ]]; then
@@ -128,7 +134,27 @@ if [[ "$storage_driver" == "s3" ]]; then
     fi
   fi
 
-  fail "Provider-media object storage must remain disabled in production until a runtime malware-scanner adapter is configured"
+  if [[ "$scanner_driver" != "clamav" ]]; then
+    fail "MEDIA_SAFETY_SCANNER_DRIVER=clamav is required when provider-media object storage is enabled"
+  else
+    require_var CLAMAV_HOST
+
+    if [[ -n "${CLAMAV_PORT:-}" ]]; then
+      if [[ ! "${CLAMAV_PORT}" =~ ^[0-9]+$ ]]; then
+        fail "CLAMAV_PORT must be an integer between 1 and 65535"
+      elif (( CLAMAV_PORT < 1 || CLAMAV_PORT > 65535 )); then
+        fail "CLAMAV_PORT must be between 1 and 65535"
+      fi
+    fi
+
+    if [[ -n "${CLAMAV_TIMEOUT_MS:-}" ]]; then
+      if [[ ! "${CLAMAV_TIMEOUT_MS}" =~ ^[0-9]+$ ]]; then
+        fail "CLAMAV_TIMEOUT_MS must be an integer between 1000 and 30000"
+      elif (( CLAMAV_TIMEOUT_MS < 1000 || CLAMAV_TIMEOUT_MS > 30000 )); then
+        fail "CLAMAV_TIMEOUT_MS must be between 1000 and 30000"
+      fi
+    fi
+  fi
 fi
 
 if (( failures > 0 )); then
@@ -136,4 +162,8 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-printf 'Production preflight passed: core services are configured; provider-media storage remains fail-closed.\n'
+if [[ "$storage_driver" == "s3" ]]; then
+  printf 'Production preflight passed: core services, provider-media storage, and ClamAV scanning are configured.\n'
+else
+  printf 'Production preflight passed: core services are configured; provider-media storage remains fail-closed.\n'
+fi
