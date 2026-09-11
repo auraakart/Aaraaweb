@@ -1,12 +1,13 @@
+import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 
 describe('ConsumerServiceMemoryService', () => {
   const setup = () => {
-    const prismaMock = { $queryRaw: jest.fn() };
+    const prismaMock = { $queryRaw: vi.fn() };
     const locationsMock = {
-      resolveLocation: jest.fn().mockResolvedValue({
+      resolveLocation: vi.fn().mockResolvedValue({
         homeId: '11111111-1111-4111-8111-111111111111',
         societyUnitId: null,
         postalCode: '600115',
