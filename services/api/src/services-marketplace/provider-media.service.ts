@@ -289,7 +289,22 @@ export class ProviderMediaService {
   }
 
   private toPublicRow(media: ProviderMediaPrivateRow): ProviderMediaRow {
-    const { storageKey: _storageKey, ...row } = media;
-    return row;
+    return {
+      id: media.id,
+      providerId: media.providerId,
+      kind: media.kind,
+      publicUrl: media.publicUrl,
+      altText: media.altText,
+      sortOrder: media.sortOrder,
+      status: media.status,
+      contentType: media.contentType,
+      contentLengthBytes: media.contentLengthBytes,
+      originalFileName: media.originalFileName,
+      uploadedAt: media.uploadedAt,
+      reviewedAt: media.reviewedAt,
+      reviewNote: media.reviewNote,
+      createdAt: media.createdAt,
+      updatedAt: media.updatedAt,
+    };
   }
 }
