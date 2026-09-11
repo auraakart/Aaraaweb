@@ -55,6 +55,23 @@ class IndependentShellApiClient extends ApiClient {
         },
       ];
     }
+    if (path.startsWith('/api/v1/consumer/services/commercial-placements?')) {
+      return [
+        {
+          'id': '66666666-6666-6666-6666-666666666666',
+          'name': 'Deep AC service',
+          'pricePaise': 149900,
+          'durationMinutes': 90,
+          'categoryId': '77777777-7777-7777-7777-777777777777',
+          'categoryName': 'AC & Appliances',
+          'providerId': '88888888-8888-8888-8888-888888888888',
+          'providerName': 'Premium AirCare',
+          'providerDescription': 'Home AC specialists',
+          'commercialPlacement': 'SPONSORED',
+          'subscriptionTier': 'PREMIUM',
+        },
+      ];
+    }
     if (path == '/api/v1/consumer/services/bookings') return const [];
     if (path.startsWith('/api/v1/consumer/services/history?')) return const [];
     throw StateError('Unexpected GET $path');
@@ -62,7 +79,7 @@ class IndependentShellApiClient extends ApiClient {
 }
 
 void main() {
-  testWidgets('independent-home shell exposes service-only navigation and authorized offers', (tester) async {
+  testWidgets('independent-home shell exposes service-only navigation and clearly labeled paid placements', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: IndependentHomeShell(
@@ -84,6 +101,10 @@ void main() {
     await tester.tap(find.text('Offers'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Featured services'), findsOneWidget);
+    expect(find.text('Sponsored'), findsOneWidget);
+    expect(find.text('Premium AirCare'), findsOneWidget);
+    expect(find.text('paid visibility is separate from trust status'), findsOneWidget);
     expect(find.text('Summer service offer'), findsOneWidget);
     expect(find.text('10% off'), findsOneWidget);
     expect(find.text('CoolCare'), findsOneWidget);
