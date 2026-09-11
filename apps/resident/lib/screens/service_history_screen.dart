@@ -68,14 +68,27 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
             if (_loading)
               const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
             else if (_error != null)
-              Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!)))
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.cloud_off_rounded),
+                      const SizedBox(height: 8),
+                      Text(_error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      FilledButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                ),
+              )
             else if (_history.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No completed external services yet.')))
             else
               for (final item in _history) ...[
                 _HistoryCard(
                   item: item,
-                  offering: widget.offeringsById[item['offeringId']?.toString()],
+                  fallbackOffering: widget.offeringsById[item['offeringId']?.toString()],
                   onRebook: widget.onRebook,
                 ),
                 const SizedBox(height: 10),
@@ -88,17 +101,23 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.item, required this.offering, required this.onRebook});
+  const _HistoryCard({required this.item, required this.fallbackOffering, required this.onRebook});
   final Map<String, dynamic> item;
-  final Map<String, dynamic>? offering;
+  final Map<String, dynamic>? fallbackOffering;
   final Future<void> Function(Map<String, dynamic> offering) onRebook;
 
   @override
   Widget build(BuildContext context) {
-    final canRebook = item['canRebook'] == true && offering != null;
+    final rawCurrentOffering = item['currentOffering'];
+    final currentOffering = rawCurrentOffering is Map
+        ? Map<String, dynamic>.from(rawCurrentOffering)
+        : fallbackOffering;
+    final canRebook = item['canRebook'] == true && currentOffering != null;
     final paise = (item['servicePricePaise'] as num?)?.toInt();
     final completedAt = DateTime.tryParse(item['completedAt']?.toString() ?? '');
-    final dateText = completedAt == null ? null : '${completedAt.day.toString().padLeft(2, '0')}/${completedAt.month.toString().padLeft(2, '0')}/${completedAt.year}';
+    final dateText = completedAt == null
+        ? null
+        : '${completedAt.day.toString().padLeft(2, '0')}/${completedAt.month.toString().padLeft(2, '0')}/${completedAt.year}';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -121,7 +140,7 @@ class _HistoryCard extends StatelessWidget {
             const SizedBox(height: 12),
             if (canRebook)
               FilledButton.icon(
-                onPressed: () => onRebook(offering!),
+                onPressed: () => onRebook(currentOffering),
                 icon: const Icon(Icons.replay_rounded),
                 label: const Text('Rebook'),
               )
