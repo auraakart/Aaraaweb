@@ -1,13 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerProviderExperienceService } from './consumer-provider-experience.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
 describe('ConsumerProviderExperienceService', () => {
   const setup = () => {
-    const prismaMock = { $queryRaw: jest.fn() };
+    const prismaMock = { $queryRaw: vi.fn() };
     const locationsMock = {
-      resolveLocation: jest.fn().mockResolvedValue({ postalCode: '600115' }),
+      resolveLocation: vi.fn().mockResolvedValue({ postalCode: '600115' }),
     };
     const prisma = prismaMock as unknown as PrismaService;
     const locations = locationsMock as unknown as ConsumerServiceLocationService;
