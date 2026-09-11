@@ -1,13 +1,21 @@
 import { NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerProviderExperienceService } from './consumer-provider-experience.service';
+import { ConsumerServiceLocationService } from './consumer-service-location.service';
 
 describe('ConsumerProviderExperienceService', () => {
   const setup = () => {
-    const prisma = { $queryRaw: jest.fn() } as any;
-    const locations = {
+    const prismaMock = { $queryRaw: jest.fn() };
+    const locationsMock = {
       resolveLocation: jest.fn().mockResolvedValue({ postalCode: '600115' }),
-    } as any;
-    return { prisma, locations, service: new ConsumerProviderExperienceService(prisma, locations) };
+    };
+    const prisma = prismaMock as unknown as PrismaService;
+    const locations = locationsMock as unknown as ConsumerServiceLocationService;
+    return {
+      prisma: prismaMock,
+      locations: locationsMock,
+      service: new ConsumerProviderExperienceService(prisma, locations),
+    };
   };
 
   it('returns only the provider experience resolved after serviceability checks', async () => {
