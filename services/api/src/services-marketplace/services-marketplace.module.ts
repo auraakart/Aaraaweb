@@ -6,6 +6,8 @@ import { createMediaSafetyScannerFromEnv } from './clamav-media-safety-scanner.a
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerCommercialDiscoveryController } from './consumer-commercial-discovery.controller';
+import { ConsumerCommercialDiscoveryService } from './consumer-commercial-discovery.service';
 import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform.controller';
 import { ConsumerDispatchService } from './consumer-dispatch.service';
 import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
@@ -30,6 +32,8 @@ import { ConsumerServiceRatingsService } from './consumer-service-ratings.servic
 import { ConsumerServicesController } from './consumer-services.controller';
 import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
 import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
+import { ProviderCommercialPlatformController } from './provider-commercial-platform.controller';
+import { ProviderCommercialService } from './provider-commercial.service';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
 import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
@@ -48,12 +52,14 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   controllers: [
     ServicesMarketplaceController,
     ServicesPlatformController,
+    ProviderCommercialPlatformController,
     ProviderMediaPlatformController,
     ConsumerDispatchPlatformController,
     ConsumerProviderAgentPlatformController,
     ConsumerProviderOperatorPlatformController,
     ConsumerServiceLocationPlatformController,
     ConsumerServicesController,
+    ConsumerCommercialDiscoveryController,
     ConsumerServiceMemoryController,
     ConsumerBookingsController,
     ConsumerOffersController,
@@ -72,6 +78,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceService,
     ConsumerAvailabilityService,
     ConsumerBookingsService,
+    ConsumerCommercialDiscoveryService,
     ConsumerDispatchService,
     ConsumerFulfilmentService,
     ConsumerOffersService,
@@ -83,6 +90,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceLocationService,
     ConsumerServiceMemoryService,
     ConsumerServiceRatingsService,
+    ProviderCommercialService,
     ProviderMediaService,
     ProviderOfferingContinuityService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
