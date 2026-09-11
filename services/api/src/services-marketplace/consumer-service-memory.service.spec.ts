@@ -3,6 +3,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 
+function sqlText(call: unknown): string {
+  return ((call as { strings?: readonly string[] }).strings ?? []).join('?');
+}
+
 describe('ConsumerServiceMemoryService', () => {
   const setup = () => {
     const prismaMock = { $queryRaw: vi.fn() };
@@ -45,6 +49,8 @@ describe('ConsumerServiceMemoryService', () => {
         id: 'booking-1',
         offeringName: 'AC service',
         providerName: 'Care Services',
+        ratingStars: 5,
+        ratingComment: 'Very good service',
         canRebook: true,
       },
     ]);
@@ -61,5 +67,11 @@ describe('ConsumerServiceMemoryService', () => {
       '11111111-1111-4111-8111-111111111111',
     );
     expect(result).toHaveLength(1);
+    const query = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(query).toContain('"ConsumerServiceRating"');
+    expect(query).toContain('"ratingStars"');
+    expect(query).toContain('"ratingComment"');
+    expect(query).toContain('"ConsumerServiceBookingEvent"');
+    expect(query).toContain("'COMPLETED'::\"ServiceBookingStatus\"");
   });
 });
