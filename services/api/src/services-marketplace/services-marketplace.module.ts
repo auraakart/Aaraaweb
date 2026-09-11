@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { createMediaSafetyScannerFromEnv } from './clamav-media-safety-scanner.adapter';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
@@ -25,8 +26,8 @@ import { ConsumerServiceMemoryController } from './consumer-service-memory.contr
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
-import { MEDIA_SAFETY_SCANNER, UnconfiguredMediaSafetyScanner } from './media-safety-scanner.port';
-import { OBJECT_STORAGE } from './object-storage.port';
+import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
+import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
 import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
@@ -77,7 +78,11 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServiceRatingsService,
     ProviderMediaService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
-    { provide: MEDIA_SAFETY_SCANNER, useClass: UnconfiguredMediaSafetyScanner },
+    {
+      provide: MEDIA_SAFETY_SCANNER,
+      inject: [OBJECT_STORAGE],
+      useFactory: (storage: ObjectStoragePort) => createMediaSafetyScannerFromEnv(storage),
+    },
   ],
   exports: [ServicesMarketplaceService],
 })
