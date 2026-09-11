@@ -5,6 +5,7 @@ import '../data/push_registration_service.dart';
 import '../data/resident_repository.dart';
 import 'consumer_booking_screen.dart';
 import 'consumer_bookings_screen.dart';
+import 'provider_storefront_sheet.dart';
 
 class IndependentServicesScreen extends StatefulWidget {
   const IndependentServicesScreen({
@@ -170,6 +171,14 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
           initialLocation: location,
         ),
       ),
+    );
+  }
+
+  Future<void> _openProviderStorefront(Map<String, dynamic> offering) {
+    return ProviderStorefrontSheet.show(
+      context,
+      offering: offering,
+      onBook: () => unawaited(_openBooking(offering)),
     );
   }
 
@@ -361,7 +370,11 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               ),
               const SizedBox(height: 10),
               for (final offering in visibleOfferings) ...[
-                _OfferingCard(offering: offering, onTap: () => _openBooking(offering)),
+                _OfferingCard(
+                  offering: offering,
+                  onTap: () => _openBooking(offering),
+                  onProviderTap: () => _openProviderStorefront(offering),
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -373,9 +386,10 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
 }
 
 class _OfferingCard extends StatelessWidget {
-  const _OfferingCard({required this.offering, required this.onTap});
+  const _OfferingCard({required this.offering, required this.onTap, required this.onProviderTap});
   final Map<String, dynamic> offering;
   final VoidCallback onTap;
+  final VoidCallback onProviderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -386,40 +400,55 @@ class _OfferingCard extends StatelessWidget {
     final ratingAverage = (provider['ratingAverage'] as num?)?.toDouble();
     final ratingCount = (provider['ratingCount'] as num?)?.toInt() ?? 0;
     final completedJobs = (provider['completedJobs'] as num?)?.toInt() ?? 0;
+    final providerName = provider['businessName'] ?? offering['providerName'] ?? 'Verified provider';
     return Card(
-      child: ListTile(
+      child: InkWell(
         onTap: onTap,
-        contentPadding: const EdgeInsets.all(14),
-        leading: const CircleAvatar(child: Icon(Icons.handyman_rounded)),
-        title: Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${category['name'] ?? offering['categoryName'] ?? 'Service'} · ${provider['businessName'] ?? offering['providerName'] ?? 'Verified provider'}'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 6,
+              const CircleAvatar(child: Icon(Icons.handyman_rounded)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: onProviderTap,
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 34), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      icon: const Icon(Icons.storefront_rounded, size: 16),
+                      label: Text('$providerName · ${category['name'] ?? offering['categoryName'] ?? 'Service'}'),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      children: [
+                        if (ratingAverage != null && ratingCount > 0)
+                          _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
+                        if (completedJobs > 0)
+                          _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
+                        const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (ratingAverage != null && ratingCount > 0)
-                    _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
-                  if (completedJobs > 0)
-                    _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
-                  const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+                  Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  const Icon(Icons.chevron_right_rounded),
                 ],
               ),
             ],
           ),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
-            const Icon(Icons.chevron_right_rounded),
-          ],
         ),
       ),
     );
