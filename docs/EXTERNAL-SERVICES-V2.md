@@ -100,6 +100,27 @@ Provider-uploaded media must not be made public without platform controls. Minim
 - authorization on upload/update/delete
 - no public exposure of private storage keys
 
+### Media operations foundation
+
+The operational media slice uses a vendor-neutral object-storage port. The marketplace owns authorization, validation, moderation state and audit metadata; the storage adapter owns signed upload intent creation, object metadata inspection and physical deletion.
+
+Provider media rules:
+
+- storage keys are generated server-side under the provider namespace
+- providers cannot submit arbitrary storage keys or public URLs
+- JPEG, PNG and WebP are allowed; SVG is rejected
+- declared object size is limited to 5 MB
+- one active/pending logo and up to eight active/pending gallery images are allowed
+- upload confirmation must verify actual content type and byte length through the storage adapter
+- mismatched uploads are marked removed and physical cleanup is attempted
+- only uploaded `PENDING` media can be approved or rejected
+- resident storefront queries remain restricted to `APPROVED` media
+- storage keys are never returned by provider or moderation listing APIs
+
+The admin moderation surface is intentionally platform-only (`SUPER_ADMIN` UI plus `PLATFORM_SERVICE_CATALOG_MANAGE` API permission). Society admins can continue to manage society-provider relationships but cannot approve provider media globally.
+
+Until a concrete object-storage adapter is configured, upload-intent creation fails closed. This avoids silently accepting insecure direct URLs or creating database records that cannot be verified against stored objects.
+
 ## UX hierarchy
 
 External Services home should prioritize:
