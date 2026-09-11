@@ -15,4 +15,9 @@ export class ServicesMarketplaceOperationsSummaryController {
   getSummary() {
     return this.summary.getSummary();
   }
+
+  @Get('attention')
+  getAttentionQueue() {
+    return this.summary.getAttentionQueue();
+  }
 }
