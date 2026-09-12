@@ -64,6 +64,8 @@ export enum AppPermission {
   DOCUMENTS_MANAGE = 'DOCUMENTS_MANAGE',
   PRIVACY_OPERATIONS_READ = 'PRIVACY_OPERATIONS_READ',
   PRIVACY_OPERATIONS_MANAGE = 'PRIVACY_OPERATIONS_MANAGE',
+  OCCUPANCY_LIFECYCLE_READ = 'OCCUPANCY_LIFECYCLE_READ',
+  OCCUPANCY_LIFECYCLE_MANAGE = 'OCCUPANCY_LIFECYCLE_MANAGE',
 }
 
 export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]>> = {
@@ -95,6 +97,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.DOCUMENTS_READ,
     AppPermission.DOCUMENTS_MANAGE,
     AppPermission.PRIVACY_OPERATIONS_READ,
+    AppPermission.OCCUPANCY_LIFECYCLE_READ,
+    AppPermission.OCCUPANCY_LIFECYCLE_MANAGE,
   ],
   [AppRole.COMMITTEE_MEMBER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -112,6 +116,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.FACILITIES_READ,
     AppPermission.SOCIETY_VENDORS_READ,
     AppPermission.DOCUMENTS_READ,
+    AppPermission.OCCUPANCY_LIFECYCLE_READ,
   ],
   [AppRole.FACILITY_MANAGER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -130,6 +135,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOCIETY_VENDORS_READ,
     AppPermission.SOCIETY_VENDORS_MANAGE,
     AppPermission.DOCUMENTS_READ,
+    AppPermission.OCCUPANCY_LIFECYCLE_READ,
+    AppPermission.OCCUPANCY_LIFECYCLE_MANAGE,
   ],
   [AppRole.ACCOUNTANT]: [
     AppPermission.REPORTS_READ,
