@@ -1,6 +1,6 @@
 # Aaraagate Architecture Decision Log
 
-Updated: 2026-09-01
+Updated: 2026-09-12
 
 ## ADR-001 — Multi-tenant SaaS
 Society is the primary operational tenant boundary. Every tenant-owned record and request must be scoped to a society identifier and authorized server-side. Cross-society access fails closed.
@@ -43,3 +43,24 @@ Component and technology choices are evaluated for active maintenance, security 
 
 ## ADR-014 — Household Services as a commercial platform domain
 Household Services is not only a directory. The platform foundation supports categories, providers, society availability, offerings, bookings and ratings, allowing future commission/subscription monetization while deferring a dedicated provider app if necessary.
+
+## ADR-015 — V2 keeps resident UX consumer-first
+Aaraagate V2 adds substantial society ERP capability without turning the Resident app into an accounting/procurement console. Finance administration, governance administration, facility operations, procurement and privacy operations are web-first Admin/Operations workflows. Resident surfaces expose only the actions/status needed by that household/persona.
+
+## ADR-016 — Consumer External Services and society vendors are separate domains
+External Services marketplace providers serve residents/independent-home consumers. Society vendors/contractors serve the association through contracts/AMCs/procurement. A legal entity may participate in both, but authorization, contract, pricing, operational and reporting records remain separate.
+
+## ADR-017 — Payment transaction truth and accounting truth are separate
+Payment providers/gateways determine external transaction state. The society ledger records accounting consequences. Reconciliation links the two but never collapses them into a single mutable record. Accounting corrections use auditable reversal/adjustment semantics rather than destructive history rewriting.
+
+## ADR-018 — State/bye-law-dependent behavior is policy-driven
+Aaraagate does not encode one national legal procedure for every Indian society. Tenancy documentation, governance evidence, amenity rules, late-fee policy, parking rules, communication acknowledgements and other variable procedures are configurable and auditable at society/policy scope. Product copy avoids unsupported claims of legal validity.
+
+## ADR-019 — V2 sensitive domains use explicit capabilities before implementation
+Finance, governance, facilities, society vendors, documents and privacy operations receive explicit permissions before their APIs are added. This prevents new modules from inheriting broad Society Admin access by convenience and establishes segregation-of-duties tests as an architectural gate.
+
+## ADR-020 — Privacy operations are workflow-driven, not blanket deletion
+Aaraagate will represent privacy/data-principal requests as auditable cases with identity/scope checks, decision history and retention conflict handling. Destructive automation must fail safely when accounting, security, legal/dispute or configured retention obligations require preservation.
+
+## ADR-021 — V2 remains a modular monolith initially
+Accounting, governance, facilities, vendors, documents, privacy and parcel operations are introduced as bounded NestJS modules inside the existing API. Services are extracted only if scale, independent failure domains, security/regulatory separation or operational evidence justifies the added distributed-systems cost.
