@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -24,11 +24,11 @@ class CreateChargeRuleDto {
   @IsUUID() receivableAccountId!: string;
   @IsUUID() incomeAccountId!: string;
   @IsOptional() @IsUUID() fundId?: string;
-  @IsOptional() @IsInt() @Min(1) dueDay?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(28) dueDay?: number;
   @IsIn(['NONE', 'FIXED', 'PERCENTAGE']) lateFeeMode!: string;
   @IsOptional() @IsInt() @Min(1) lateFeeFixedPaise?: number;
-  @IsOptional() @IsInt() @Min(1) lateFeeBasisPoints?: number;
-  @IsInt() @Min(0) graceDays!: number;
+  @IsOptional() @IsInt() @Min(1) @Max(10000) lateFeeBasisPoints?: number;
+  @IsInt() @Min(0) @Max(365) graceDays!: number;
   @IsDateString() effectiveFrom!: string;
   @IsOptional() @IsDateString() effectiveUntil?: string;
 }
