@@ -1,7 +1,7 @@
 -- Aaraagate V2 accounting foundation.
 -- Payment gateway transactions remain separate from accounting journals.
--- Posted financial history is intended to be corrected by reversal/adjustment,
--- never by destructive mutation of the original economic event.
+-- Posted financial history is corrected by reversal/adjustment, never by
+-- destructive mutation of the original economic event.
 
 CREATE TYPE "LedgerAccountType" AS ENUM ('ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE');
 CREATE TYPE "AccountingPeriodStatus" AS ENUM ('OPEN', 'CLOSED');
@@ -183,54 +183,138 @@ ALTER TABLE "JournalLine"
   ADD CONSTRAINT "JournalLine_unit_fkey"
   FOREIGN KEY ("unitId") REFERENCES "Unit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Closed accounting periods are immutable at the posting boundary. The API also
--- re-checks this under the same transaction that posts the journal.
-CREATE OR REPLACE FUNCTION "aaraagate_prevent_closed_period_reopen"()
+-- Once a period is closed its material properties cannot be changed or reopened.
+CREATE OR REPLACE FUNCTION "aaraagate_protect_closed_period"()
 RETURNS trigger AS $$
 BEGIN
-  IF OLD."status" = 'CLOSED' AND NEW."status" <> 'CLOSED' THEN
-    RAISE EXCEPTION 'Closed accounting period cannot be reopened';
+  IF OLD."status" = 'CLOSED' THEN
+    IF NEW."id" IS DISTINCT FROM OLD."id"
+       OR NEW."societyId" IS DISTINCT FROM OLD."societyId"
+       OR NEW."code" IS DISTINCT FROM OLD."code"
+       OR NEW."name" IS DISTINCT FROM OLD."name"
+       OR NEW."startsOn" IS DISTINCT FROM OLD."startsOn"
+       OR NEW."endsOn" IS DISTINCT FROM OLD."endsOn"
+       OR NEW."status" IS DISTINCT FROM OLD."status"
+       OR NEW."closedAt" IS DISTINCT FROM OLD."closedAt"
+       OR NEW."closedByUserId" IS DISTINCT FROM OLD."closedByUserId"
+    THEN
+      RAISE EXCEPTION 'Closed accounting period is immutable';
+    END IF;
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER "AccountingPeriod_prevent_reopen"
+CREATE TRIGGER "AccountingPeriod_protect_closed"
 BEFORE UPDATE ON "AccountingPeriod"
-FOR EACH ROW EXECUTE FUNCTION "aaraagate_prevent_closed_period_reopen"();
+FOR EACH ROW EXECUTE FUNCTION "aaraagate_protect_closed_period"();
 
--- Prevent destructive edits/deletes to posted/reversed journal headers. A posted
--- journal may only transition once to REVERSED; correcting economics requires a
--- new reversing/adjusting journal entry.
+-- A journal must begin as DRAFT. Posting is a separate transaction after lines
+-- have been written; this prevents bypassing balance/period validation on INSERT.
+CREATE OR REPLACE FUNCTION "aaraagate_require_draft_journal_insert"()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW."status" <> 'DRAFT' THEN
+    RAISE EXCEPTION 'Journal entries must be created as DRAFT before posting';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "JournalEntry_require_draft_insert"
+BEFORE INSERT ON "JournalEntry"
+FOR EACH ROW EXECUTE FUNCTION "aaraagate_require_draft_journal_insert"();
+
+-- Validate balanced double-entry and open-period membership at the exact posting
+-- boundary. The API repeats these checks in its posting transaction for a clear
+-- client error, while this trigger remains the last integrity line of defence.
+CREATE OR REPLACE FUNCTION "aaraagate_validate_journal_posting"()
+RETURNS trigger AS $$
+DECLARE
+  period_status "AccountingPeriodStatus";
+  period_start DATE;
+  period_end DATE;
+  line_count BIGINT;
+  total_debit NUMERIC;
+  total_credit NUMERIC;
+BEGIN
+  IF OLD."status" = 'DRAFT' AND NEW."status" = 'POSTED' THEN
+    SELECT "status", "startsOn", "endsOn"
+      INTO period_status, period_start, period_end
+    FROM "AccountingPeriod"
+    WHERE "id" = NEW."periodId" AND "societyId" = NEW."societyId"
+    FOR UPDATE;
+
+    IF period_status IS NULL THEN
+      RAISE EXCEPTION 'Accounting period not found for journal society';
+    END IF;
+    IF period_status <> 'OPEN' THEN
+      RAISE EXCEPTION 'Cannot post journal to a closed accounting period';
+    END IF;
+    IF NEW."entryDate" < period_start OR NEW."entryDate" > period_end THEN
+      RAISE EXCEPTION 'Journal date is outside its accounting period';
+    END IF;
+
+    SELECT COUNT(*), COALESCE(SUM("debitPaise"), 0), COALESCE(SUM("creditPaise"), 0)
+      INTO line_count, total_debit, total_credit
+    FROM "JournalLine"
+    WHERE "entryId" = NEW."id" AND "societyId" = NEW."societyId";
+
+    IF line_count < 2 THEN
+      RAISE EXCEPTION 'Posted journal requires at least two lines';
+    END IF;
+    IF total_debit <= 0 OR total_debit <> total_credit THEN
+      RAISE EXCEPTION 'Journal is not balanced';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "JournalEntry_validate_posting"
+BEFORE UPDATE ON "JournalEntry"
+FOR EACH ROW EXECUTE FUNCTION "aaraagate_validate_journal_posting"();
+
+-- Posted/reversed journal headers are immutable. A posted journal may only
+-- transition once to REVERSED. Economic corrections use a separate reversing or
+-- adjusting journal entry rather than modifying the historical posting.
 CREATE OR REPLACE FUNCTION "aaraagate_protect_posted_journal"()
 RETURNS trigger AS $$
 BEGIN
-  IF TG_OP = 'DELETE' AND OLD."status" IN ('POSTED', 'REVERSED') THEN
-    RAISE EXCEPTION 'Posted accounting journal cannot be deleted';
+  IF TG_OP = 'DELETE' THEN
+    IF OLD."status" IN ('POSTED', 'REVERSED') THEN
+      RAISE EXCEPTION 'Posted accounting journal cannot be deleted';
+    END IF;
+    RETURN OLD;
   END IF;
 
-  IF TG_OP = 'UPDATE' AND OLD."status" IN ('POSTED', 'REVERSED') THEN
+  IF OLD."status" IN ('POSTED', 'REVERSED') THEN
     IF OLD."status" = 'POSTED'
        AND NEW."status" = 'REVERSED'
        AND NEW."reversedAt" IS NOT NULL
-       AND NEW."id" = OLD."id"
-       AND NEW."societyId" = OLD."societyId"
-       AND NEW."periodId" = OLD."periodId"
-       AND NEW."entryNumber" = OLD."entryNumber"
-       AND NEW."entryDate" = OLD."entryDate"
-       AND NEW."description" = OLD."description"
-       AND NEW."currency" = OLD."currency"
-       AND NEW."createdByUserId" = OLD."createdByUserId"
-       AND NEW."postedByUserId" = OLD."postedByUserId"
-       AND NEW."postedAt" = OLD."postedAt"
-       AND NEW."createdAt" = OLD."createdAt"
+       AND NEW."id" IS NOT DISTINCT FROM OLD."id"
+       AND NEW."societyId" IS NOT DISTINCT FROM OLD."societyId"
+       AND NEW."periodId" IS NOT DISTINCT FROM OLD."periodId"
+       AND NEW."entryNumber" IS NOT DISTINCT FROM OLD."entryNumber"
+       AND NEW."entryDate" IS NOT DISTINCT FROM OLD."entryDate"
+       AND NEW."description" IS NOT DISTINCT FROM OLD."description"
+       AND NEW."sourceType" IS NOT DISTINCT FROM OLD."sourceType"
+       AND NEW."sourceId" IS NOT DISTINCT FROM OLD."sourceId"
+       AND NEW."externalReference" IS NOT DISTINCT FROM OLD."externalReference"
+       AND NEW."currency" IS NOT DISTINCT FROM OLD."currency"
+       AND NEW."createdByUserId" IS NOT DISTINCT FROM OLD."createdByUserId"
+       AND NEW."postedByUserId" IS NOT DISTINCT FROM OLD."postedByUserId"
+       AND NEW."postedAt" IS NOT DISTINCT FROM OLD."postedAt"
+       AND NEW."reversalOfEntryId" IS NOT DISTINCT FROM OLD."reversalOfEntryId"
+       AND NEW."createdAt" IS NOT DISTINCT FROM OLD."createdAt"
     THEN
       RETURN NEW;
     END IF;
     RAISE EXCEPTION 'Posted accounting journal is immutable; use reversal/adjustment';
   END IF;
 
-  RETURN COALESCE(NEW, OLD);
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -248,12 +332,21 @@ DECLARE
   target_entry UUID;
   journal_status "JournalEntryStatus";
 BEGIN
-  target_entry := CASE WHEN TG_OP = 'DELETE' THEN OLD."entryId" ELSE NEW."entryId" END;
+  IF TG_OP = 'DELETE' THEN
+    target_entry := OLD."entryId";
+  ELSE
+    target_entry := NEW."entryId";
+  END IF;
+
   SELECT "status" INTO journal_status FROM "JournalEntry" WHERE "id" = target_entry;
   IF journal_status IN ('POSTED', 'REVERSED') THEN
     RAISE EXCEPTION 'Posted accounting journal lines are immutable';
   END IF;
-  RETURN COALESCE(NEW, OLD);
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
