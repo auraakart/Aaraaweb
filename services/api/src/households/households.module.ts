@@ -8,10 +8,12 @@ import { HouseholdChangeRequestsController } from './household-change-requests.c
 import { OccupancyLifecycleController } from './occupancy-lifecycle.controller';
 import { OccupancyLifecycleRunner } from './occupancy-lifecycle.runner';
 import { OccupancyLifecycleService } from './occupancy-lifecycle.service';
+import { OccupancyLifecycleSelfController } from './occupancy-lifecycle-self.controller';
+import { OccupancyLifecycleSelfService } from './occupancy-lifecycle-self.service';
 
 @Module({
-  controllers: [HouseholdsController, ParkingAdminController, HouseholdChangeRequestsController, OccupancyLifecycleController],
-  providers: [PrismaService, HouseholdService, HouseholdChangeRequestService, OccupancyLifecycleService, OccupancyLifecycleRunner],
+  controllers: [HouseholdsController, ParkingAdminController, HouseholdChangeRequestsController, OccupancyLifecycleController, OccupancyLifecycleSelfController],
+  providers: [PrismaService, HouseholdService, HouseholdChangeRequestService, OccupancyLifecycleService, OccupancyLifecycleSelfService, OccupancyLifecycleRunner],
   exports: [HouseholdService, HouseholdChangeRequestService, OccupancyLifecycleService],
 })
 export class HouseholdsModule {}
