@@ -1,14 +1,27 @@
-import 'reflect-metadata';
-import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
+import { describe, expect, it } from 'vitest';
 import { AppPermission } from '../auth/permission.types';
-import { FEATURE_KEY } from '../entitlements/feature.decorator';
+import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { ProductFeature } from '../entitlements/entitlement.types';
+import { REQUIRED_FEATURE_KEY } from '../entitlements/feature.decorator';
 import { FinanceOperationsController } from './finance-operations.controller';
 
-describe('FinanceOperationsController authorization',()=>{
-  const read=['listExpenses','listPayables','listBudgets','budgetVsActual','fundUtilization','exportSnapshot'] as const;
-  const manage=['createExpense','approveExpense','postExpense','settlePayable','createBudget','approveBudget','lockBudget'] as const;
-  it('requires accounting entitlement',()=>expect(Reflect.getMetadata(FEATURE_KEY,FinanceOperationsController)).toBe(ProductFeature.SOCIETY_ACCOUNTING));
-  for(const method of read)it(`${method} requires FINANCE_READ`,()=>expect(Reflect.getMetadata(PERMISSIONS_KEY,FinanceOperationsController.prototype[method])).toEqual([AppPermission.FINANCE_READ]));
-  for(const method of manage)it(`${method} requires FINANCE_MANAGE`,()=>expect(Reflect.getMetadata(PERMISSIONS_KEY,FinanceOperationsController.prototype[method])).toEqual([AppPermission.FINANCE_MANAGE]));
+describe('FinanceOperationsController authorization', () => {
+  const read = ['listExpenses', 'listPayables', 'listBudgets', 'budgetVsActual', 'fundUtilization', 'exportSnapshot'] as const;
+  const manage = ['createExpense', 'approveExpense', 'postExpense', 'settlePayable', 'createBudget', 'approveBudget', 'lockBudget'] as const;
+
+  it('requires accounting entitlement', () => {
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, FinanceOperationsController)).toBe(ProductFeature.SOCIETY_ACCOUNTING);
+  });
+
+  for (const method of read) {
+    it(`${method} requires FINANCE_READ`, () => {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, FinanceOperationsController.prototype[method])).toEqual([AppPermission.FINANCE_READ]);
+    });
+  }
+
+  for (const method of manage) {
+    it(`${method} requires FINANCE_MANAGE`, () => {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, FinanceOperationsController.prototype[method])).toEqual([AppPermission.FINANCE_MANAGE]);
+    });
+  }
 });
