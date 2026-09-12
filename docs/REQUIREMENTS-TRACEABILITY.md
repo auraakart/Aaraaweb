@@ -1,75 +1,91 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-09
+Updated: 2026-09-12
 
-`PRODUCT_REQUIREMENTS.md` remains the product-scope source of truth. This document records implementation/acceptance state. `DEVELOPMENT-CONTROL.md` remains the execution-order source of truth.
+`PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records implementation/acceptance state.
 
-## Current implementation baseline
+## V1 implementation baseline
 | Area | Status | Current acceptance state |
 |---|---|---|
 | Foundation / monorepo | Validated | Modular API, Flutter Resident/Guard, Next.js Admin, strict CI |
-| Design system | Validated V1 baseline | Logo-inspired teal/cyan Aaraagate theme; corporate name excluded from product UI by CI guard |
-| Authentication/session | Hardened V1 | OTP abstraction, Redis-backed production auth state, token rotation/replay protection, session revocation, suspended-society/inactive-user refresh rejection |
-| Tenancy / RBAC / SoD | Hardened | Society fail-closed isolation, permission gates, relationship roles separated from operational roles, tenant admins cannot grant platform roles, independent-home sessions do not inherit society roles |
-| Platform administration | Validated V1 | Super Admin society lifecycle, plans/feature overrides, Society Admin provisioning/deactivation and final-active-admin protection |
-| Society structure | Validated V1 baseline | Society → Building/Block → Floor → Unit → household with Admin creation/setup surface; existing unit IDs remain preserved by migrations |
-| SaaS entitlements | Validated V1 | Tier/feature resolution, per-society overrides, current-entitlement API and entitlement-aware Resident/Admin navigation |
-| Visitor / gate | Validated V1 / hardened | Occupant-based approval/routing, QR/OTP, native pass sharing, guard assignment enforcement, audit and idempotent offline recovery |
-| Delivery / cab | Validated V1 | Dedicated access semantics and short-window operational flows |
-| Household / owner / tenant | Validated V1 | Legal ownership and physical occupancy independent; stale relationships revoke authority; property context remains explicit |
-| Vehicles / parking | Validated V1 | Resident registration/deactivation; parking read-only to resident; Admin assignment/change/clear UI and API |
-| Workforce / domestic help | Validated V1 | Assignment, schedules, leave, rating, suspension and gate integration; durable offline attendance queue and retry/status UX |
-| Notices | Validated V1 | OWNER_ONLY / OWNER_AND_OCCUPANTS with current relationship filtering |
-| Helpdesk / SOS | Validated V1 | Tenant-scoped resident and operations lifecycles |
-| Marketplace | Validated V1 / hardened | Multiple-provider choice, platform verification, society lifecycle, provider reputation, booking conflict prevention, atomic booking transitions/rating retries, offering lifecycle and provider dispatch operations |
-| Billing / payments | Validated V1 | Owner/current-tenant dues, payer privacy, signed reconciliation and audit; payment-method-specific/UPI UX deferred until gateway contract exposes it |
-| Reports / audit | Validated V1 | Operational summaries, finance redaction for non-finance report readers and advanced-report entitlement enforcement |
-| Notifications / updates | Validated V1 baseline | Occupant-based gate notifications, push/in-app routing and domain-backed Resident Updates timeline; persisted read/unread inbox semantics are not yet defined |
-| Privacy UX | Validated V1 disclosure | Resident privacy/data-use screen describes current processing without unsupported retention, rights-automation or regulatory-compliance claims |
-| Health / runtime readiness | Validated V1 | Liveness independent; readiness validates PostgreSQL and auth state; production auth state requires Redis/Valkey via `REDIS_URL` |
-| CI / release controls | Hardened | Frozen lockfile installs, API/Admin/Flutter validation, dependency audit, staging smoke and backup/restore drill |
-| Hosted production evidence | Pending external setup | Real provider deployment, managed backups/PITR, hosted restore, monitoring, secrets and production integrations still require hosted evidence |
+| Authentication/session | Hardened | OTP abstraction, Redis-backed production auth state, rotation/revocation and suspended/inactive checks |
+| Tenancy / RBAC | Hardened | Society isolation, typed permissions, platform/tenant boundary, owner/occupant separation, independent-home isolation |
+| Society structure | Validated | Society → Building/Block → Floor → Unit → household |
+| SaaS entitlements | Validated | Tier/feature resolution, overrides and client/server enforcement |
+| Visitor / gate / delivery / cab | Validated / hardened | Occupant routing, QR/OTP, guard assignment, audit, idempotent offline recovery |
+| Household / owner / tenant | Validated | Ownership and occupancy independent; stale relationships revoke authority |
+| Vehicles / parking baseline | Validated | Resident vehicles and Admin parking assignment baseline |
+| Workforce / domestic help | Validated | Assignment, leave, rating, suspension and gate integration |
+| Notices | Validated | Owner-only / owner+occupant audience logic |
+| Helpdesk / SOS | Validated baseline | Tenant-scoped resident and operations lifecycles |
+| Amenities | Validated baseline | Booking baseline and entitlement controls |
+| External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
+| Billing / payments | Validated baseline | Dues, eligible owner/tenant payment, signed reconciliation and audit |
+| Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit |
+| Privacy UX | Validated disclosure baseline | Current data-use disclosure without unsupported compliance claims |
+| CI / release controls | Hardened | API/Admin/Flutter validation, dependency audit, staging smoke and backup/restore drill |
+| Hosted production evidence | Pending external setup | Hosted infrastructure/provider/Play evidence remains operational work |
 
-## Security findings closed in this remediation
-- Society-scoped role administration explicitly forbids `SUPER_ADMIN`, `SOCIETY_ADMIN`, vendor and relationship-role grants.
-- Operational role deactivation revokes active sessions for the affected user/society.
-- Tenant resident creation no longer overwrites an existing user's global canonical name.
-- Platform-only society/entitlement and provider-verification operations are separated from society-management permissions.
-- Physical gate execution requires an active guard-to-gate assignment and is not inherited by Super Admin.
-- Independent-home sessions remain outside society-role inheritance.
-- Marketplace owner/occupant authorization, confirmation, terminal transitions and rating retries are concurrency-safe and idempotent where required.
+## V2 requirement traceability
+Status values: **Started**, **Planned P0**, **Planned P1**, **Planned P2**, **Conditional**.
 
-## Current release direction
-The active milestone is **Commercial V1 consolidated release validation**. The repository-level V1 implementation gaps identified in the prior audit are now closed or reclassified as non-blocking UX enhancements. No additional feature expansion should enter this candidate unless it fixes a blocker or regression.
+| Requirement | Priority | Status | Initial implementation evidence / acceptance target |
+|---|---|---|---|
+| V2-RBAC Administrative segregation of duties | P0 | **Started** | V2 domain permissions added to `permission.types.ts`; negative SoD unit tests added. Controllers/services must consume permissions as each domain ships. |
+| V2-FIN Full society accounting | P0 | Planned P0 | Ledger/journal/fund/bank/budget/payable model; immutable adjustments; finance authorization and reports. |
+| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | Planned P0 | Workflow around existing `UnitOwnership`/`UnitOccupancy`; configurable documents/approvals; atomic authority revocation. |
+| V2-GOV Society governance | P0/P1 | Planned P0 | Committee tenure, meetings, minutes, resolutions/action items and configurable governance evidence. |
+| V2-EMR Emergency/incident operations | P0/P1 | Planned P0 | Categorized incidents, control-room escalation, broadcast/ack, timeline/evidence/closure and fallback delivery semantics. |
+| V2-PRV Privacy/data lifecycle | P0 | Planned P0 | Auditable privacy request cases, retention checks, processor/vendor hooks and personal-data incident workflow. |
+| V2-PAY Payment exception hardening | P0 | Planned P0 | Debited-unconfirmed, duplicate, reversal/refund and dispute workflows; accounting allocation separate from gateway state. |
+| V2-FAC Assets/AMCs/work orders | P1 | Planned P1 | Asset register, preventive maintenance, AMC/warranty, work orders, inspections/evidence/cost/escalation. |
+| V2-VND Society vendors/procurement | P1 | Planned P1 | Separate bounded context from External Services; vendor/contracts/quotes/optional PR-PO/invoice/SLA. |
+| V2-DOC Document repository | P1 | Planned P1 | Classified document metadata + server-authorized object access and domain associations. |
+| V2-HLP Helpdesk SLA/escalation | P1 | Planned P1 | Severity/priority/SLA, assignment/escalation, internal/public notes, reopen, satisfaction and analytics. |
+| V2-COM Communication governance | P1 | Planned P1 | Targeting, schedule/expiry, attachments, optional acknowledgement and metrics without unsupported legal-delivery claims. |
+| V2-AMN Amenity policy engine | P1 | Planned P1 | Capacity/quotas/windows/cooling-off/guests/pricing/deposit/refund/blackout/approval rules. |
+| V2-PRC Parcel desk | P1 | Planned P1 | Leave-at-gate custody, collection acknowledgement/OTP, escalation, history and overstay linkage. |
+| V2-PRK Advanced parking | P1/P2 | Planned P2 | Allocations, visitor/temporary parking, additional-vehicle policy, credentials, violations and EV readiness. |
+| V2-UTL Meter/utilities | P2 | Planned P2 | Optional meter/readings/tariffs/history/billing integration. |
+| V2 digital statutory election | Conditional | Conditional | Implement only after target-society legal/bye-law policy confirms the permitted workflow; polls/surveys may ship independently. |
 
-Required sequence:
-1. merge the remaining validated V1 polish/documentation changes to `develop`;
-2. reconcile the small staging-only release-history delta without force-reset/rebase;
-3. promote the exact consolidated candidate to `staging`;
-4. run full protected CI, staging smoke and backup/restore evidence on the exact candidate;
-5. execute updated security/UAT acceptance, including platform-role boundary, property setup, parking, marketplace provider lifecycle, multi-property/independent-home behavior and real-device Guard flows;
-6. collect hosted staging/production dependency evidence separately;
-7. protected `staging → main` promotion with independent approval;
-8. verify post-main CI and reconcile release history to `develop`.
+## V2 foundation acceptance state
+Current branch: `feat/aaraagate-v2-foundation-20260912`.
 
-## Non-blocking / explicitly deferred work
-- Regional-language Guard UI is intentionally excluded from the current scope.
-- UPI-first Resident UI waits for an explicit gateway payment-method/intent contract.
-- Persisted notification read/unread state waits for an inbox persistence/retention contract.
-- Advanced amenity scheduling/rules/payment integration remains post-V1; the entitlement-controlled amenity baseline already exists.
-- Recurring visitors, parcel-at-gate, move-in/move-out, masked communication, advanced parking and hardware/ANPR integrations remain post-V1 unless pilot/UAT elevates them.
+Completed in this first slice:
+- V2 product specification promoted from deferred comments into approved requirement domains.
+- Phased V2 implementation roadmap created.
+- Architecture expanded with Finance, Governance, Occupancy Lifecycle, Facilities, Society Vendors, Documents, Privacy, Emergency and Parcel bounded contexts.
+- Explicit code permissions introduced for finance/governance/facilities/vendors/documents/privacy operations.
+- Segregation-of-duties tests prevent Committee/Facility/Security/resident roles from inheriting inappropriate financial or administrative mutation rights.
+- Society Admin receives finance read, not finance mutation, as the initial V2 baseline.
+- Privacy mutation remains platform-only until a scoped privacy workflow defines safe delegation.
+
+## Cross-cutting V2 acceptance requirements
+Every V2 domain must prove:
+1. society/resource scoping and cross-tenant negative tests;
+2. capability authorization and segregation of duties;
+3. feature entitlement where commercially gated;
+4. repeatable clean + supported upgrade-path migrations;
+5. audited privileged mutations;
+6. safe PII/payment logging;
+7. loading/empty/error/denied UI states;
+8. failure/concurrency/idempotency behavior where relevant;
+9. requirement/document updates;
+10. full milestone-boundary regression and staging validation before production promotion.
+
+Additional finance requirements:
+- payment-gateway transaction truth is separate from accounting truth;
+- financial corrections preserve audit history;
+- applicable tax behavior is configurable rather than universally assumed.
+
+Additional governance/legal-policy requirements:
+- state/bye-law-dependent behavior is configurable;
+- product/UI documentation avoids unsupported legal validity claims.
+
+Additional privacy requirements:
+- request decisions are auditable;
+- destructive operations fail safely when retention/legal/security/accounting conflicts exist.
 
 ## Production truth
-A green repository release does not mean the product is live. Commercial production still requires:
-- hosted API/Admin deployment from the approved `main` SHA;
-- production PostgreSQL and Redis/Valkey;
-- MSG91 OTP credentials;
-- Firebase/FCM credentials;
-- payment gateway/webhook credentials;
-- production CORS/domains/TLS;
-- managed backup retention/PITR and an isolated restore exercise;
-- monitoring/logging/alert ownership;
-- production preflight evidence and rollback target.
-
-## Definition of done
-A feature is production-ready only when requirement mapping, tenant/permission/entitlement controls, data validation, privacy/audit implications, UX states, targeted tests, full CI and staging validation appropriate to risk are complete. Cross-cutting authorization, payment or data-migration changes also require explicit regression/UAT evidence before `main`.
+A green V2 repository release does not mean the product is operationally live. Production still requires hosted API/Admin, production PostgreSQL/Redis, provider credentials, domains/TLS, managed backup/PITR and restore evidence, monitoring/alert ownership, signed Android/Play evidence and real-society pilot acceptance.

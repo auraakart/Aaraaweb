@@ -48,6 +48,22 @@ export enum AppPermission {
   BILLING_MANAGE = 'BILLING_MANAGE',
   PAYMENT_CREATE_OWN = 'PAYMENT_CREATE_OWN',
   PAYMENT_RECONCILE = 'PAYMENT_RECONCILE',
+
+  // Aaraagate v2 society-operations boundaries. These permissions are intentionally
+  // introduced before the domain modules so new finance/governance/facility APIs
+  // cannot fall back to broad SOCIETY_ADMIN role checks.
+  FINANCE_READ = 'FINANCE_READ',
+  FINANCE_MANAGE = 'FINANCE_MANAGE',
+  GOVERNANCE_READ = 'GOVERNANCE_READ',
+  GOVERNANCE_MANAGE = 'GOVERNANCE_MANAGE',
+  FACILITIES_READ = 'FACILITIES_READ',
+  FACILITIES_MANAGE = 'FACILITIES_MANAGE',
+  SOCIETY_VENDORS_READ = 'SOCIETY_VENDORS_READ',
+  SOCIETY_VENDORS_MANAGE = 'SOCIETY_VENDORS_MANAGE',
+  DOCUMENTS_READ = 'DOCUMENTS_READ',
+  DOCUMENTS_MANAGE = 'DOCUMENTS_MANAGE',
+  PRIVACY_OPERATIONS_READ = 'PRIVACY_OPERATIONS_READ',
+  PRIVACY_OPERATIONS_MANAGE = 'PRIVACY_OPERATIONS_MANAGE',
 }
 
 export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]>> = {
@@ -69,6 +85,16 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SERVICES_PROVIDER_MANAGE,
     AppPermission.BILLING_MANAGE,
     AppPermission.PAYMENT_RECONCILE,
+    AppPermission.FINANCE_READ,
+    AppPermission.GOVERNANCE_READ,
+    AppPermission.GOVERNANCE_MANAGE,
+    AppPermission.FACILITIES_READ,
+    AppPermission.FACILITIES_MANAGE,
+    AppPermission.SOCIETY_VENDORS_READ,
+    AppPermission.SOCIETY_VENDORS_MANAGE,
+    AppPermission.DOCUMENTS_READ,
+    AppPermission.DOCUMENTS_MANAGE,
+    AppPermission.PRIVACY_OPERATIONS_READ,
   ],
   [AppRole.COMMITTEE_MEMBER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -80,6 +106,12 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.AMENITY_READ,
     AppPermission.REPORTS_READ,
     AppPermission.AUDIT_READ,
+    AppPermission.FINANCE_READ,
+    AppPermission.GOVERNANCE_READ,
+    AppPermission.GOVERNANCE_MANAGE,
+    AppPermission.FACILITIES_READ,
+    AppPermission.SOCIETY_VENDORS_READ,
+    AppPermission.DOCUMENTS_READ,
   ],
   [AppRole.FACILITY_MANAGER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -93,8 +125,20 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.AMENITY_MANAGE,
     AppPermission.REPORTS_READ,
     AppPermission.SERVICES_PROVIDER_MANAGE,
+    AppPermission.FACILITIES_READ,
+    AppPermission.FACILITIES_MANAGE,
+    AppPermission.SOCIETY_VENDORS_READ,
+    AppPermission.SOCIETY_VENDORS_MANAGE,
+    AppPermission.DOCUMENTS_READ,
   ],
-  [AppRole.ACCOUNTANT]: [AppPermission.REPORTS_READ, AppPermission.BILLING_MANAGE, AppPermission.PAYMENT_RECONCILE],
+  [AppRole.ACCOUNTANT]: [
+    AppPermission.REPORTS_READ,
+    AppPermission.BILLING_MANAGE,
+    AppPermission.PAYMENT_RECONCILE,
+    AppPermission.FINANCE_READ,
+    AppPermission.FINANCE_MANAGE,
+    AppPermission.DOCUMENTS_READ,
+  ],
   [AppRole.OWNER]: [
     AppPermission.PROPERTY_PROFILE_READ,
     AppPermission.PROPERTY_PROFILE_MANAGE,

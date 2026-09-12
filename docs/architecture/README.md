@@ -1,85 +1,164 @@
 # Aaraagate Architecture Baseline
 
-Updated: 2026-09-01
+Updated: 2026-09-12  
+Architecture generation: V2
 
 ## Product model
-Aaraagate is a multi-tenant Society Operating System for gated communities, designed as a long-lived SaaS platform with society-level operational isolation and configurable product entitlements.
+Aaraagate is a multi-tenant residential-community operating system for Indian gated communities, designed as a long-lived SaaS platform with society-level operational isolation, configurable product entitlements and policy-driven behavior where state law, association structure or bye-laws differ.
+
+V2 retains the validated V1 gate/resident/services architecture and adds accounting, governance, occupancy lifecycle, facilities, society vendors/procurement, documents, privacy operations, deeper emergency handling and operational controls.
 
 ## Applications
-- `apps/admin`: Next.js administration application for society management and platform operations.
-- `apps/resident`: Flutter resident mobile application.
-- `apps/guard`: Flutter security/gate mobile application.
-- `apps/web`: existing web surface retained where applicable; new admin functionality should follow the current admin architecture rather than create duplicate product logic.
+- `apps/admin`: Next.js Admin/Operations application for society management, accounting, governance, facilities, procurement, privacy operations and platform administration.
+- `apps/resident`: Flutter consumer application. Keep the primary experience centered on Home, Gate, Payments, Services, Community/Helpdesk and Amenities.
+- `apps/guard`: Flutter security/gate application optimized for constrained gate workflows and intermittent connectivity.
+- `apps/web`: existing web surface retained where applicable; new operational administration follows the current Admin architecture instead of duplicating domain logic.
+
+Complex ERP-style functions must not be pushed into the Resident app merely because the backend supports them.
 
 ## Backend
 - `services/api`: NestJS + TypeScript modular monolith.
 - REST API under `/api/v1`.
-- Authorization, tenancy, entitlement enforcement, validation and audit logic are centralized at the API/domain layer.
+- Authorization, tenancy, entitlement enforcement, validation and audit logic are centralized at API/domain boundaries.
+- Keep the modular monolith until scale, independent failure domains, regulatory/security boundaries or operational evidence justify service extraction.
 
-## Data
-- PostgreSQL is the system of record.
-- Redis may be introduced for cache, rate limiting, distributed coordination, temporary tokens and background jobs when justified; it is not required merely to satisfy architecture diagrams.
-- S3-compatible object storage is preferred for photos and documents.
-- Database changes use Prisma migrations and must be repeatable on a clean environment before promotion.
+## Data and infrastructure
+- PostgreSQL is the transactional system of record.
+- Redis/Valkey is used where justified for auth state, rate limiting, background coordination, cache and short-lived workflow state.
+- S3-compatible object storage is preferred for provider media, society documents and evidence.
+- Document/object access must be authorized at request/download time; a private or hard-to-guess URL is not an authorization boundary.
+- Prisma migrations are repeatable on a clean environment and validated on the supported upgrade path before promotion.
+- Money is stored in integer minor units with explicit currency where a domain may evolve beyond INR assumptions.
 
-## Core domains
-Auth, societies, memberships, buildings, units, households, residents, visitors, visitor passes, gates, unified access requests, domestic help, vehicles, deliveries, staff, vendors, household services, notices, complaints, maintenance, payments, notifications, reports, feature entitlements and audit logs.
+## Tenant and relationship model
+Society is the primary operational tenant boundary. Every society-owned domain record is society-scoped where applicable and all reads/writes authorize the target society.
 
-## Tenancy
-Society is the primary operational tenant boundary. Every tenant-owned domain record must be scoped to a society identifier where applicable, and authorization must be enforced server-side for both reads and writes.
+User identity is separate from society membership. Roles/permissions are evaluated within scope. Multi-society users explicitly select an authorized context; the client-provided context never grants authority by itself.
 
-User identity is separate from society membership. Roles and permissions are evaluated within membership/scope. A future organization/property-manager layer may own or administer multiple societies, but access remains explicitly delegated per society and does not weaken society-level isolation.
+Independent-home users are not given synthetic society membership. They may use External Services through the independent-home authorization path while society-only modules remain unavailable.
 
-## Authorization
-Use least-privilege RBAC plus capability permissions and resource scope. Business services should authorize permissions and ownership/scope rather than rely only on role-name conditionals.
+### Ownership and occupancy
+- `UnitOwnership` models time-bound legal/property relationship.
+- `UnitOccupancy` models time-bound physical household relationship and gate-contact preferences.
+- Routine gate routing resolves active occupancy records; ownership is never used as a proxy for residence.
+- Move-out disables occupant authority and reconciles derived membership/session access atomically.
+- V2 introduces an explicit tenancy/move workflow around these primitives instead of replacing them.
+
+## Authorization and segregation of duties
+Use least-privilege RBAC plus capability permissions and resource scope. Business services authorize permissions and ownership/scope rather than role-name checks.
+
+V2 establishes explicit domain capabilities before domain implementation:
+- finance read/manage;
+- governance read/manage;
+- facilities read/manage;
+- society-vendor read/manage;
+- document read/manage;
+- privacy-operations read/manage.
+
+Society Admin is an operational coordinator, not an automatic universal financial mutation role. Accountant/Treasurer, Committee and Facility responsibilities remain deliberately separated. Future maker-checker/approval workflows build on these capabilities rather than bypassing them.
 
 Commercially gated features also require server-side entitlement checks. UI hiding is neither an authorization nor entitlement boundary.
 
-### Ownership and occupancy
-- `UnitOwnership` models the time-bound legal/property relationship.
-- `UnitOccupancy` models the time-bound physical household relationship and contains gate-contact preferences.
-- The legacy combined resident table is removed after ownership/occupancy reconciliation.
-- Resource authorization evaluates society, unit, active relationship window, capability and record ownership. Role membership alone is insufficient.
-- Routine gate routing resolves active `UnitOccupancy` records ordered by primary contact and escalation order. It never infers recipients from `UnitOwnership`.
-- Move-out disables notification and approval flags atomically with occupancy termination.
-- Move-out and ownership transfer reconcile relationship-derived roles and revoke society sessions when no active membership remains.
-- API projections minimize fields by audience; UI hiding is not used as a privacy boundary.
+## Bounded contexts
 
-## Security
-- OTP rate limiting and provider abstraction
-- Access/refresh sessions with expiry, rotation and revocation
-- Society-scoped persistence filters
-- Validation and sanitized errors
-- Transactional/conditional mutations for concurrency-sensitive access flows
-- Audit logging for privileged and gate-critical actions
-- Secure file handling
-- Secrets outside source control
-- Separate development/staging/production environments
-- Minimal PII exposure to guards and operational roles
-- High/critical dependency vulnerability gate
-- Backups, restore testing, observability and incident-ready logging before production
+### Existing V1 contexts retained
+Auth, societies, memberships, property hierarchy, ownership/occupancy, households, visitors, access/gates, workforce, vehicles, notices, helpdesk, SOS, amenities, maintenance billing, payments, notifications, reports, entitlements, audit, External Services marketplace/providers/bookings/ratings/dispatch.
+
+### V2 Finance / Accounting
+Responsibilities:
+- chart/account/fund primitives;
+- unit/party ledger;
+- charge/billing accounting linkage;
+- journal/adjustment/reversal semantics;
+- receivables/payables;
+- bank reconciliation;
+- budgets/funds;
+- financial statements/exports/period close.
+
+Architecture rules:
+- payment-gateway transaction state is not the ledger;
+- reconciliation links payment events to accounting allocations;
+- accounting history is corrected with auditable adjusting/reversing entries, not destructive mutation;
+- GST/TDS behavior is configuration-driven where applicable.
+
+### V2 Occupancy Lifecycle
+Orchestrates tenancy onboarding/move-in/move-out over the existing ownership/occupancy models. It owns workflow status, required configurable documents, approvals/slots/charges references and coordinated revocation/migration of unit-bound access.
+
+### V2 Governance
+Owns committee roster/tenure, meetings, agendas, minutes, resolutions and action items. Polls/surveys may live here. Statutory election behavior remains policy-gated and is not assumed valid for every society.
+
+### V2 Facilities
+Owns common assets, preventive maintenance, inspections, AMC/warranty metadata, work orders, evidence, service history and critical maintenance escalation.
+
+### V2 Society Vendors / Procurement
+Owns society-appointed vendor master, contracts, quotations, optional purchase workflow, SLA/expiry and invoice references. It is separate from the consumer **External Services Marketplace** bounded context.
+
+An entity may be both a marketplace provider and a society contractor, but authorization, contracts, pricing, operational records and reporting remain separate.
+
+### V2 Documents
+Owns metadata, classification, retention reference, association with finance/governance/facility/vendor records and authorized access to object storage. Documents do not become visible merely because a user can guess an object identifier.
+
+### V2 Privacy Operations
+Owns privacy/data-principal request cases, purpose/data-category inventory references, retention/legal-hold checks, processor/vendor records and personal-data incident workflow. It must not perform silent destructive deletion that conflicts with accounting, security, dispute or required retention policies.
+
+### V2 Emergency / Incident Operations
+Extends SOS into categorized incidents, control-room escalation, emergency broadcast/acknowledgement, assignments, timeline/evidence and closure. Critical escalation must not rely exclusively on ordinary push notification delivery or active property-screen state.
+
+### V2 Parcel Desk
+Owns leave-at-gate custody, parcel state, resident collection acknowledgement/OTP where enabled, uncollected escalation and courier history. Gate access remains in the Access context; parcel custody remains in Parcel Desk.
+
+## Policy/configuration architecture
+Aaraagate must not hard-code one national interpretation of society bye-laws or state procedures.
+
+Introduce a society-policy/configuration layer for rules such as:
+- tenancy document/approval requirements;
+- move-in/out slots and charges;
+- amenity booking rules;
+- late-payment interest/waiver policy;
+- governance quorum/evidence settings;
+- communication acknowledgement requirements;
+- parcel handling;
+- parking/vehicle rules;
+- applicable finance/tax configuration.
+
+Policy changes are audited and versionable where historical interpretation matters.
+
+## Audit architecture
+Privileged V2 actions must produce auditable actor/action/resource/society metadata without logging sensitive payloads unnecessarily. Audit coverage includes financial posting/adjustment, governance resolutions, role/permission changes, facility critical actions, vendor approvals, document classification/access where appropriate and privacy-case decisions.
+
+## Security and privacy
+- OTP rate limiting/provider abstraction.
+- Access/refresh sessions with expiry, rotation and revocation.
+- Society-scoped persistence filters.
+- Validation and sanitized errors.
+- Transactional/conditional mutations for concurrency-sensitive flows.
+- Minimal PII exposure by audience.
+- Secure file handling and server-authorized object access.
+- Secrets outside source control.
+- Separate development/staging/production environments.
+- Dependency vulnerability gates.
+- Backups/restore testing/observability and incident-ready logging.
+- Aaraagate does not store raw customer card credentials; gateway/tokenized payment mechanisms are used through supported providers.
+- Privacy automation is designed for auditable requests and safe retention conflict handling rather than unsupported blanket deletion claims.
 
 ## Offline gate architecture
-Guard workflows use durable local queueing plus idempotency keys/receipts and safe server synchronization. Offline replay must not create duplicate entry/exit transitions.
+Guard workflows use durable local queueing plus idempotency keys/receipts and safe server synchronization. Offline replay must not create duplicate state transitions. V2 operational ERP workflows are not made offline-capable merely for consistency with Guard; offline support is domain-specific.
 
 ## SaaS entitlements
-Societies may be assigned tiers such as Starter, Professional, Premium or Enterprise, with controlled feature overrides. The entitlement model is part of the platform architecture so commercial packaging does not require code forks.
+Societies may use Starter/Professional/Premium/Enterprise-style tiers with controlled overrides. V2 modules should be independently entitlement-ready where commercially useful, without code forks.
 
-## Household services
-Household Services is a platform domain supporting service categories, verified providers, provider-to-society availability, offerings, bookings and ratings. This enables marketplace monetization later without requiring a dedicated provider app in the first release.
-
-## Delivery strategy
-Start as a modular monolith. Extract services only when scale, security or operational boundaries justify it. Prefer portable infrastructure and clear upgrade paths over premature distributed complexity.
+## External Services architecture
+External Services remains a platform domain supporting consumer-facing categories, provider verification, society/home availability, media, offers, commercial placement/tier, offerings, bookings, ratings and dispatch. Commercial placement is never treated as verification/trust.
 
 ## Release architecture
-- `develop`: active integration branch; full CI gate.
-- `staging`: release-validation branch; production-style migration/build/startup and critical workflow smoke/E2E/UAT.
+- `develop`: active integration; full CI gate.
+- `staging`: exact-candidate release validation, migration/build/startup/smoke/UAT.
 - `main`: stable production-release branch.
 
 Promotion path:
-`develop` → green CI → `staging` → green staging validation + UAT/security approval → `main` → production.
+`feature/hotfix → develop → staging → main`.
 
-Branch protection and required status checks must be enabled before commercial production. Successful compilation alone is not sufficient for release approval.
+V2 is intentionally delivered as bounded migrations/PRs; an all-at-once accounting+governance+facility schema change is prohibited.
 
 ## Technology selection principle
-Choose actively maintained, proven components with strong security posture, testability, scalability and documented upgrade paths. Avoid short-term hacks and unnecessary vendor lock-in, especially where they could compromise tenancy, authorization, portability or long-term maintainability.
+Choose actively maintained, proven components with strong security posture, testability, scalability and documented upgrade paths. Avoid short-term hacks and unnecessary vendor lock-in, especially where they compromise tenancy, authorization, accounting integrity, privacy safety or long-term maintainability.
