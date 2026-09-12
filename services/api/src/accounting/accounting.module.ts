@@ -3,6 +3,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountingController } from './accounting.controller';
 import { AccountingService } from './accounting.service';
+import { ConfiguredHttpPaymentGatewayAdapter } from './configured-http-payment-gateway.adapter';
 import { FinanceOperationsController } from './finance-operations.controller';
 import { FinanceOperationsService } from './finance-operations.service';
 import { LateFeesController } from './late-fees.controller';
@@ -10,6 +11,7 @@ import { LateFeesService } from './late-fees.service';
 import { PaymentExceptionsController } from './payment-exceptions.controller';
 import { PaymentExceptionsService } from './payment-exceptions.service';
 import { PaymentReconciliationController } from './payment-reconciliation.controller';
+import { PaymentReconciliationRunner } from './payment-reconciliation.runner';
 import { PaymentReconciliationService } from './payment-reconciliation.service';
 import { ReceivablesController } from './receivables.controller';
 import { ReceivablesService } from './receivables.service';
@@ -19,7 +21,7 @@ import { SettlementService } from './settlement.service';
 @Module({
   imports: [EntitlementsModule],
   controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController, PaymentReconciliationController],
-  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PrismaService],
+  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, PrismaService],
   exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService],
 })
 export class AccountingModule {}
