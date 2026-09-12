@@ -90,85 +90,25 @@ class GateScreen extends StatelessWidget {
   }
 
   Future<void> _invite(BuildContext context) async {
-    final formKey = GlobalKey<FormState>();
-    final name = TextEditingController();
-    final phone = TextEditingController();
-    final purpose = TextEditingController();
-
-    final submit = await showModalBottomSheet<bool>(
+    final input = await showModalBottomSheet<_GuestInviteInput>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        return Padding(
-          padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Invite a guest', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text('Create a secure pass you can share instantly.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: name,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.name],
-                  decoration: const InputDecoration(labelText: 'Guest name', prefixIcon: Icon(Icons.person_outline_rounded)),
-                  validator: (value) => (value?.trim().isEmpty ?? true) ? 'Enter the guest name' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: phone,
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.telephoneNumber],
-                  decoration: const InputDecoration(labelText: 'Phone (optional)', prefixIcon: Icon(Icons.phone_outlined)),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: purpose,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Purpose (optional)', prefixIcon: Icon(Icons.notes_rounded)),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      if (formKey.currentState?.validate() ?? false) Navigator.pop(sheetContext, true);
-                    },
-                    icon: const Icon(Icons.qr_code_2_rounded),
-                    label: const Text('Create visitor pass'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (_) => const _GuestInviteSheet(),
     );
 
     try {
-      if (submit != true || !context.mounted) return;
+      if (input == null || !context.mounted) return;
       final pass = await controller.createGuest(
-        name: name.text.trim(),
-        phone: phone.text.trim().isEmpty ? null : phone.text.trim(),
-        purpose: purpose.text.trim().isEmpty ? null : purpose.text.trim(),
+        name: input.name,
+        phone: input.phone,
+        purpose: input.purpose,
       );
       if (!context.mounted) return;
       await _showPass(context, pass);
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      name.dispose();
-      phone.dispose();
-      purpose.dispose();
     }
   }
 
@@ -272,6 +212,101 @@ class GateScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _GuestInviteInput {
+  const _GuestInviteInput({required this.name, this.phone, this.purpose});
+
+  final String name;
+  final String? phone;
+  final String? purpose;
+}
+
+class _GuestInviteSheet extends StatefulWidget {
+  const _GuestInviteSheet();
+
+  @override
+  State<_GuestInviteSheet> createState() => _GuestInviteSheetState();
+}
+
+class _GuestInviteSheetState extends State<_GuestInviteSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _purpose = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _purpose.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    Navigator.pop(
+      context,
+      _GuestInviteInput(
+        name: _name.text.trim(),
+        phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        purpose: _purpose.text.trim().isEmpty ? null : _purpose.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Invite a guest', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text('Create a secure pass you can share instantly.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.name],
+              decoration: const InputDecoration(labelText: 'Guest name', prefixIcon: Icon(Icons.person_outline_rounded)),
+              validator: (value) => (value?.trim().isEmpty ?? true) ? 'Enter the guest name' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              decoration: const InputDecoration(labelText: 'Phone (optional)', prefixIcon: Icon(Icons.phone_outlined)),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _purpose,
+              textCapitalization: TextCapitalization.sentences,
+              onFieldSubmitted: (_) => _submit(),
+              decoration: const InputDecoration(labelText: 'Purpose (optional)', prefixIcon: Icon(Icons.notes_rounded)),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.qr_code_2_rounded),
+                label: const Text('Create visitor pass'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
