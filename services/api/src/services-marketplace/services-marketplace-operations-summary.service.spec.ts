@@ -10,6 +10,8 @@ describe('ServicesMarketplaceOperationsSummaryService', () => {
         cancelled30d: 2n,
         homeBookings30d: 4n,
         societyUnitBookings30d: 6n,
+        ratedCompleted30d: 5n,
+        averageStars30d: '4.40',
         activeVerifiedProviders: 4n,
         activeCommercialPlacements: 1n,
         repeatCustomers90d: 3n,
@@ -28,6 +30,9 @@ describe('ServicesMarketplaceOperationsSummaryService', () => {
       societyUnitBookings30d: 6,
       homeBookingShare30d: 0.4,
       societyUnitBookingShare30d: 0.6,
+      ratedCompleted30d: 5,
+      feedbackCoverageRate30d: 5 / 7,
+      averageStars30d: 4.4,
       activeVerifiedProviders: 4,
       activeCommercialPlacements: 1,
       repeatCustomers90d: 3,
@@ -36,10 +41,13 @@ describe('ServicesMarketplaceOperationsSummaryService', () => {
     const statement = queryRaw.mock.calls[0]?.[0] as { strings?: string[] } | undefined;
     const sql = statement?.strings?.join(' ') ?? '';
     expect(sql).toContain('ConsumerServiceBooking');
+    expect(sql).toContain('ConsumerServiceRating');
     expect(sql).toContain('ServiceProvider');
     expect(sql).toContain('ConsumerProviderCommercialProfile');
     expect(sql).toContain('homeId');
     expect(sql).toContain('societyUnitId');
+    expect(sql).toContain('ratedCompleted30d');
+    expect(sql).toContain('averageStars30d');
     expect(sql).toContain("INTERVAL '30 days'");
     expect(sql).toContain("INTERVAL '90 days'");
     expect(sql).toContain("'COMPLETED'");
