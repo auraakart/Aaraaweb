@@ -11,6 +11,116 @@ class ServicesScreen extends StatefulWidget {
   State<ServicesScreen> createState() => _ServicesScreenState();
 }
 
+class _ServiceBookingInput {
+  const _ServiceBookingInput({required this.notes});
+  final String notes;
+}
+
+class _ServiceBookingDialog extends StatefulWidget {
+  const _ServiceBookingDialog({required this.serviceName, required this.providerName, required this.price, required this.scheduled});
+
+  final String serviceName;
+  final String providerName;
+  final String price;
+  final String scheduled;
+
+  @override
+  State<_ServiceBookingDialog> createState() => _ServiceBookingDialogState();
+}
+
+class _ServiceBookingDialogState extends State<_ServiceBookingDialog> {
+  final _notes = TextEditingController();
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Book ${widget.serviceName}'),
+        scrollable: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Provider: ${widget.providerName}'),
+            const SizedBox(height: 6),
+            Text('Price: ${widget.price}'),
+            const SizedBox(height: 6),
+            Text('Scheduled: ${widget.scheduled}'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notes,
+              maxLength: 300,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Notes for the provider (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, _ServiceBookingInput(notes: _notes.text)), child: const Text('Request booking')),
+        ],
+      );
+}
+
+class _ServiceRatingInput {
+  const _ServiceRatingInput({required this.score, required this.comment});
+  final int score;
+  final String comment;
+}
+
+class _ServiceRatingDialog extends StatefulWidget {
+  const _ServiceRatingDialog();
+
+  @override
+  State<_ServiceRatingDialog> createState() => _ServiceRatingDialogState();
+}
+
+class _ServiceRatingDialogState extends State<_ServiceRatingDialog> {
+  final _comment = TextEditingController();
+  int _score = 5;
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Rate this service'),
+        scrollable: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              children: [
+                for (var value = 1; value <= 5; value++)
+                  IconButton(
+                    tooltip: '$value star${value == 1 ? '' : 's'}',
+                    onPressed: () => setState(() => _score = value),
+                    icon: Icon(value <= _score ? Icons.star_rounded : Icons.star_border_rounded),
+                  ),
+              ],
+            ),
+            TextField(
+              controller: _comment,
+              maxLength: 500,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Feedback (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Later')),
+          FilledButton(onPressed: () => Navigator.pop(context, _ServiceRatingInput(score: _score, comment: _comment.text)), child: const Text('Submit rating')),
+        ],
+      );
+}
+
 class _ServicesScreenState extends State<ServicesScreen> {
   bool _busy = false;
   String _query = '';
@@ -186,39 +296,16 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 10, minute: 0));
     if (time == null || !mounted) return;
 
-    final notes = TextEditingController();
-    final confirmed = await showDialog<bool>(
+    final input = await showDialog<_ServiceBookingInput>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Book ${offering['name']?.toString() ?? 'service'}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Provider: ${_providerName(offering)}'),
-            const SizedBox(height: 6),
-            Text('Price: ${_price(offering['pricePaise'])}'),
-            const SizedBox(height: 6),
-            Text('Scheduled: ${date.day}/${date.month}/${date.year} · ${time.format(context)}'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notes,
-              maxLength: 300,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes for the provider (optional)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Request booking')),
-        ],
+      builder: (_) => _ServiceBookingDialog(
+        serviceName: offering['name']?.toString() ?? 'service',
+        providerName: _providerName(offering),
+        price: _price(offering['pricePaise']),
+        scheduled: '${date.day}/${date.month}/${date.year} · ${time.format(context)}',
       ),
     );
-    if (confirmed != true || !mounted) {
-      notes.dispose();
-      return;
-    }
+    if (input == null || !mounted) return;
 
     final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     final duration = (offering['durationMinutes'] as num?)?.toInt() ?? 60;
@@ -229,12 +316,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
         offeringId: offeringId,
         scheduledFrom: start,
         scheduledUntil: end,
-        notes: notes.text,
+        notes: input.notes,
       );
       await controller.load();
       _message('Booking request submitted. The provider must confirm it before gate access is created.');
     });
-    notes.dispose();
   }
 
   Future<void> _cancel(Map<String, dynamic> booking) async {
@@ -262,51 +348,16 @@ class _ServicesScreenState extends State<ServicesScreen> {
   Future<void> _rate(Map<String, dynamic> booking) async {
     final id = booking['id']?.toString();
     if (id == null || id.isEmpty) return;
-    var score = 5;
-    final comment = TextEditingController();
-    final submitted = await showDialog<bool>(
+    final input = await showDialog<_ServiceRatingInput>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Rate this service'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Wrap(
-                children: [
-                  for (var value = 1; value <= 5; value++)
-                    IconButton(
-                      tooltip: '$value star${value == 1 ? '' : 's'}',
-                      onPressed: () => setDialogState(() => score = value),
-                      icon: Icon(value <= score ? Icons.star_rounded : Icons.star_border_rounded),
-                    ),
-                ],
-              ),
-              TextField(
-                controller: comment,
-                maxLength: 500,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Feedback (optional)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Later')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Submit rating')),
-          ],
-        ),
-      ),
+      builder: (_) => const _ServiceRatingDialog(),
     );
-    if (submitted != true || !mounted) {
-      comment.dispose();
-      return;
-    }
+    if (input == null || !mounted) return;
     await _run(() async {
-      await controller.repository.rateServiceBooking(id, score: score, comment: comment.text);
+      await controller.repository.rateServiceBooking(id, score: input.score, comment: input.comment);
       await controller.load();
       _message('Thanks for your feedback.');
     });
-    comment.dispose();
   }
 
   Future<void> _run(Future<void> Function() action) async {
