@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { describe, expect, it } from 'vitest';
 import { AppPermission } from '../auth/permission.types';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { GovernanceController } from './governance.controller';
