@@ -38,6 +38,7 @@ export function AdminShortcuts(){
   if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING')){
     links.push({href:'/finance',label:'Finance'})
     links.push({href:'/finance/operations',label:'Finance ops'})
+    links.push({href:'/finance/reconciliation',label:'Reconciliation'})
   }
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
