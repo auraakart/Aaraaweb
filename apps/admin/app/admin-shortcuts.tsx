@@ -6,6 +6,7 @@ const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:300
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
 const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
+const occupancyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
@@ -40,6 +41,7 @@ export function AdminShortcuts(){
     links.push({href:'/finance/operations',label:'Finance ops'})
     links.push({href:'/finance/reconciliation',label:'Reconciliation'})
   }
+  if(occupancyRoles.has(role))links.push({href:'/occupancy-lifecycle',label:'Move-in / move-out'})
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
