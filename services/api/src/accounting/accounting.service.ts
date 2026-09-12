@@ -44,21 +44,20 @@ export class AccountingService {
     const startsOn = new Date(`${input.startsOn}T00:00:00.000Z`);
     const endsOn = new Date(`${input.endsOn}T00:00:00.000Z`);
     if (startsOn > endsOn) throw new BadRequestException('Accounting period start must be on or before end');
-    const overlap = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT "id" FROM "AccountingPeriod" WHERE "societyId" = ${societyId}::uuid
-      AND daterange("startsOn", "endsOn", '[]') && daterange(${input.startsOn}::date, ${input.endsOn}::date, '[]') LIMIT 1
-    `);
-    if (overlap.length) throw new ConflictException('Accounting period overlaps an existing period');
-    try {
-      const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${societyId}))`);
+      const overlap = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "AccountingPeriod" WHERE "societyId" = ${societyId}::uuid
+        AND daterange("startsOn", "endsOn", '[]') && daterange(${input.startsOn}::date, ${input.endsOn}::date, '[]') LIMIT 1
+      `);
+      if (overlap.length) throw new ConflictException('Accounting period overlaps an existing period');
+      const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         INSERT INTO "AccountingPeriod" ("societyId", "code", "name", "startsOn", "endsOn")
         VALUES (${societyId}::uuid, ${input.code.trim().toUpperCase()}, ${input.name.trim()}, ${input.startsOn}::date, ${input.endsOn}::date)
         RETURNING "id", "code", "name", "startsOn", "endsOn", "status"
       `);
       return rows[0];
-    } catch (error) {
-      this.rethrowKnownDatabaseError(error, 'Accounting period could not be created');
-    }
+    }).catch((error) => this.rethrowKnownDatabaseError(error, 'Accounting period could not be created'));
   }
 
   listJournals(societyId: string) {
@@ -133,8 +132,8 @@ export class AccountingService {
       `);
       if (!periodRows.length || periodRows[0].status !== 'OPEN') throw new ConflictException('Reversal date requires an open accounting period');
       const reversalRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        INSERT INTO "JournalEntry" ("societyId", "periodId", "entryNumber", "entryDate", "description", "status", "sourceType", "sourceId", "createdByUserId", "postedByUserId", "postedAt", "reversalOfEntryId")
-        VALUES (${societyId}::uuid, ${periodRows[0].id}::uuid, ${input.entryNumber.trim().toUpperCase()}, ${input.entryDate}::date, ${`Reversal: ${input.reason.trim()}`}, 'POSTED', 'JOURNAL_REVERSAL', ${journalId}, ${userId}::uuid, ${userId}::uuid, CURRENT_TIMESTAMP, ${journalId}::uuid)
+        INSERT INTO "JournalEntry" ("societyId", "periodId", "entryNumber", "entryDate", "description", "sourceType", "sourceId", "createdByUserId", "reversalOfEntryId")
+        VALUES (${societyId}::uuid, ${periodRows[0].id}::uuid, ${input.entryNumber.trim().toUpperCase()}, ${input.entryDate}::date, ${`Reversal: ${input.reason.trim()}`}, 'JOURNAL_REVERSAL', ${journalId}, ${userId}::uuid, ${journalId}::uuid)
         RETURNING "id"
       `);
       const reversalId = reversalRows[0].id;
@@ -142,6 +141,10 @@ export class AccountingService {
         INSERT INTO "JournalLine" ("societyId", "entryId", "accountId", "fundId", "unitId", "description", "debitPaise", "creditPaise")
         SELECT "societyId", ${reversalId}::uuid, "accountId", "fundId", "unitId", "description", "creditPaise", "debitPaise"
         FROM "JournalLine" WHERE "entryId" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "JournalEntry" SET "status" = 'POSTED', "postedByUserId" = ${userId}::uuid, "postedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${reversalId}::uuid AND "societyId" = ${societyId}::uuid AND "status" = 'DRAFT'
       `);
       await tx.$executeRaw(Prisma.sql`UPDATE "JournalEntry" SET "status" = 'REVERSED', "reversedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid`);
       return this.getJournal(tx, societyId, reversalId);
