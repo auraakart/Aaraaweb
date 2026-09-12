@@ -116,7 +116,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('CAB'), 300);
     await tester.tap(find.text('CAB'));
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
