@@ -69,8 +69,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Choose a provider'), findsOneWidget);
-    expect(find.text('CoolCare'), findsOneWidget);
     expect(find.text('AirPro'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('CoolCare'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('CoolCare'), findsOneWidget);
     controller.dispose();
   });
 
