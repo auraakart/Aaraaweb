@@ -72,17 +72,17 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
   }
 
   Future<void> _requestTenantMoveIn(String unitId) async {
-    final targetUserId = await _textDialog('Tenant account ID', 'Enter the tenant Aaraagate user ID supplied during onboarding.');
-    if (targetUserId == null || targetUserId.trim().isEmpty) return;
+    final tenantPhone = await _textDialog('Tenant mobile number', 'Enter the tenant mobile number used for Aaraagate sign-in.');
+    if (tenantPhone == null || tenantPhone.trim().isEmpty) return;
     final effectiveAt = await _pickEffectiveAt('Move-in date');
     if (effectiveAt == null) return;
     final reason = await _reasonDialog('Move-in note (optional)');
     if (reason == null) return;
     setState(() { submitting = true; error = null; });
     try {
-      await widget.api.post('/api/v1/occupancy-lifecycle/self/owner-move-ins', {
+      await widget.api.post('/api/v1/occupancy-lifecycle/self/tenant-move-ins', {
         'unitId': unitId,
-        'userId': targetUserId.trim(),
+        'tenantPhone': tenantPhone.trim(),
         'effectiveAt': effectiveAt.toUtc().toIso8601String(),
         if (reason.trim().isNotEmpty) 'reason': reason.trim(),
       });
@@ -153,7 +153,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
                   ListTile(
                     leading: const Icon(Icons.person_add_alt_1_rounded),
                     title: const Text('Request tenant move-in'),
-                    subtitle: const Text('For a verified property you own'),
+                    subtitle: const Text('Use the tenant mobile number registered with Aaraagate'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     enabled: !submitting,
                     onTap: () => _requestTenantMoveIn(unitId),
