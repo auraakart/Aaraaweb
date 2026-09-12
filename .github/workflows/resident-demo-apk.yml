@@ -8,7 +8,7 @@ on:
       - '.github/workflows/resident-demo-apk.yml'
       - 'scripts/enrich-resident-demo-fixture.py'
   push:
-    branches: [develop]
+    branches: [develop, main]
     paths:
       - 'apps/resident/**'
       - '.github/workflows/resident-demo-apk.yml'
