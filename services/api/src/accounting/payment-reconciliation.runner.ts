@@ -54,14 +54,14 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
       WHERE "status" IN ('REQUESTED','UNKNOWN') AND ("nextAttemptAt" IS NULL OR "nextAttemptAt"<=CURRENT_TIMESTAMP)
       ORDER BY COALESCE("nextAttemptAt","requestedAt"),"requestedAt" FOR UPDATE SKIP LOCKED LIMIT ${limit}
     `);
-    for(const row of rows){const nextAttempt=row.attemptCount+1;const delay=Math.min(3600,Math.pow(2,Math.max(0,nextAttempt-1))*60);await tx.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "attemptCount"=${nextAttempt},"lastAttemptAt"=CURRENT_TIMESTAMP,"nextAttemptAt"=CURRENT_TIMESTAMP+(${delay}||' seconds')::interval,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${row.id}::uuid AND "societyId"=${row.societyId}::uuid`);row.attemptCount=nextAttempt;}
+    for(const row of rows){const nextAttempt=row.attemptCount+1;const delay=Math.min(3600,Math.pow(2,Math.max(0,nextAttempt-1))*60);await tx.$executeRaw(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "attemptCount"=${nextAttempt},"lastAttemptAt"=CURRENT_TIMESTAMP,"nextAttemptAt"=CURRENT_TIMESTAMP+make_interval(secs=>${delay}),"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${row.id}::uuid AND "societyId"=${row.societyId}::uuid`);row.attemptCount=nextAttempt;}
     return rows;
   });}
 
-  private claimCases(limit:number){return this.prisma.$transaction(async tx=>tx.$queryRaw<DueCase[]>(Prisma.sql`
+  private claimCases(limit:number){const staleSeconds=Math.floor(this.intervalMs/1000);return this.prisma.$transaction(async tx=>tx.$queryRaw<DueCase[]>(Prisma.sql`
     WITH due AS (
       SELECT "id" FROM "PaymentReconciliationCase"
-      WHERE "status" IN ('PENDING','MISMATCH','ACTION_REQUIRED') AND ("lastCheckedAt" IS NULL OR "lastCheckedAt"<CURRENT_TIMESTAMP-(${Math.floor(this.intervalMs/1000)}||' seconds')::interval)
+      WHERE "status" IN ('PENDING','MISMATCH','ACTION_REQUIRED') AND ("lastCheckedAt" IS NULL OR "lastCheckedAt"<CURRENT_TIMESTAMP-make_interval(secs=>${staleSeconds}))
       ORDER BY COALESCE("lastCheckedAt","createdAt") FOR UPDATE SKIP LOCKED LIMIT ${limit}
     )
     UPDATE "PaymentReconciliationCase" c SET "lastCheckedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP FROM due WHERE c."id"=due."id"
