@@ -35,6 +35,8 @@ export class SettlementService {
   listPaymentAllocations(societyId: string, paymentId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT a."id", a."receivableId", a."paymentId", a."amountPaise"::text AS "amountPaise",
+             COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r WHERE r."societyId"=a."societyId" AND r."allocationId"=a."id"),0)::text AS "reversedPaise",
+             (a."amountPaise"-COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r WHERE r."societyId"=a."societyId" AND r."allocationId"=a."id"),0))::text AS "reversiblePaise",
              a."idempotencyKey", a."allocatedByUserId", a."allocatedAt"
       FROM "ReceivableAllocation" a
       WHERE a."societyId" = ${societyId}::uuid AND a."paymentId" = ${paymentId}::uuid
@@ -43,21 +45,28 @@ export class SettlementService {
   }
 
   async paymentAvailability(societyId: string, paymentId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ amountPaise: bigint; status: string; allocatedPaise: bigint }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<Array<{ amountPaise: bigint; status: string; grossAllocatedPaise: bigint; reversedPaise: bigint; refundedPaise: bigint }>>(Prisma.sql`
       SELECT p."amountPaise", p."status",
-             COALESCE(SUM(a."amountPaise"), 0)::bigint AS "allocatedPaise"
+             COALESCE((SELECT SUM(a."amountPaise") FROM "ReceivableAllocation" a WHERE a."paymentId"=p."id" AND a."societyId"=p."societyId"),0)::bigint AS "grossAllocatedPaise",
+             COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r JOIN "ReceivableAllocation" a ON a."id"=r."allocationId" AND a."societyId"=r."societyId" WHERE a."paymentId"=p."id" AND a."societyId"=p."societyId"),0)::bigint AS "reversedPaise",
+             COALESCE((SELECT SUM(rf."amountPaise") FROM "PaymentRefund" rf WHERE rf."paymentId"=p."id" AND rf."societyId"=p."societyId"),0)::bigint AS "refundedPaise"
       FROM "Payment" p
-      LEFT JOIN "ReceivableAllocation" a ON a."paymentId" = p."id" AND a."societyId" = p."societyId"
       WHERE p."societyId" = ${societyId}::uuid AND p."id" = ${paymentId}::uuid
-      GROUP BY p."id"
     `);
     if (!rows.length) throw new NotFoundException('Payment not found');
     const row = rows[0];
+    const netAllocated=row.grossAllocatedPaise-row.reversedPaise;
+    const available=row.amountPaise-netAllocated-row.refundedPaise;
     return {
+      paymentId,
       status: row.status,
       amountPaise: row.amountPaise.toString(),
-      allocatedPaise: row.allocatedPaise.toString(),
-      availablePaise: (row.amountPaise - row.allocatedPaise).toString(),
+      allocatedPaise: netAllocated.toString(),
+      grossAllocatedPaise: row.grossAllocatedPaise.toString(),
+      reversedPaise: row.reversedPaise.toString(),
+      refundedPaise: row.refundedPaise.toString(),
+      unallocatedPaise: available.toString(),
+      availablePaise: available.toString(),
     };
   }
 
