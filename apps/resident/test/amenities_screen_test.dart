@@ -37,7 +37,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Choose a slot'));
+    await tester.tap(find.text('Choose date & time'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Select start time'));
     await tester.pumpAndSettle();
