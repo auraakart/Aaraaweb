@@ -35,7 +35,10 @@ export function AdminShortcuts(){
   if(!role)return null
   const links:{href:string;label:string}[]=[]
   if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))links.push({href:'/reports',label:'Reports'})
-  if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING'))links.push({href:'/finance',label:'Finance'})
+  if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING')){
+    links.push({href:'/finance',label:'Finance'})
+    links.push({href:'/finance/operations',label:'Finance ops'})
+  }
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
