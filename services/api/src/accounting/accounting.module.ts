@@ -9,6 +9,8 @@ import { LateFeesController } from './late-fees.controller';
 import { LateFeesService } from './late-fees.service';
 import { PaymentExceptionsController } from './payment-exceptions.controller';
 import { PaymentExceptionsService } from './payment-exceptions.service';
+import { PaymentReconciliationController } from './payment-reconciliation.controller';
+import { PaymentReconciliationService } from './payment-reconciliation.service';
 import { ReceivablesController } from './receivables.controller';
 import { ReceivablesService } from './receivables.service';
 import { SettlementController } from './settlement.controller';
@@ -16,8 +18,8 @@ import { SettlementService } from './settlement.service';
 
 @Module({
   imports: [EntitlementsModule],
-  controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController],
-  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PrismaService],
-  exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService],
+  controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController, PaymentReconciliationController],
+  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PrismaService],
+  exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService],
 })
 export class AccountingModule {}
