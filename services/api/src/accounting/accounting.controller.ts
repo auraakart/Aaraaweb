@@ -7,6 +7,9 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
 import { AccountingService } from './accounting.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -55,7 +58,8 @@ class ReverseJournalDto {
 }
 
 @Controller('accounting')
-@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
+@UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
+@RequiresFeature(ProductFeature.SOCIETY_ACCOUNTING)
 export class AccountingController {
   constructor(private readonly accounting: AccountingService) {}
 
