@@ -7,6 +7,8 @@ import { FinanceOperationsController } from './finance-operations.controller';
 import { FinanceOperationsService } from './finance-operations.service';
 import { LateFeesController } from './late-fees.controller';
 import { LateFeesService } from './late-fees.service';
+import { PaymentExceptionsController } from './payment-exceptions.controller';
+import { PaymentExceptionsService } from './payment-exceptions.service';
 import { ReceivablesController } from './receivables.controller';
 import { ReceivablesService } from './receivables.service';
 import { SettlementController } from './settlement.controller';
@@ -14,8 +16,8 @@ import { SettlementService } from './settlement.service';
 
 @Module({
   imports: [EntitlementsModule],
-  controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController],
-  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PrismaService],
-  exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService],
+  controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController],
+  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PrismaService],
+  exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService],
 })
 export class AccountingModule {}
