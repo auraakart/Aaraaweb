@@ -65,12 +65,17 @@ jobs:
       - name: Enrich showcase fixture during packaging only
         run: python scripts/enrich-resident-demo-fixture.py
 
-      - name: Verify multi-provider fixture
+      - name: Verify rich marketplace fixture
         run: |
           grep -q "CoolCare Services" apps/resident/lib/data/demo_resident_repository.dart
           grep -q "AirPro Home Care" apps/resident/lib/data/demo_resident_repository.dart
-          grep -q "'pricePaise': 59900" apps/resident/lib/data/demo_resident_repository.dart
           grep -q "'ratingAverage': 4.8" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "'imageUrl':" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "'offerTitle':" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "'placementType': 'SPONSORED'" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "'membershipTier': 'PREMIUM'" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "Sponsored · paid placement" apps/resident/lib/screens/services_screen.dart
+          grep -q "Premium provider" apps/resident/lib/screens/services_screen.dart
 
       - name: Get dependencies
         working-directory: apps/resident
