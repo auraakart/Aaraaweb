@@ -5,6 +5,7 @@ import { AmenitiesModule } from './amenities/amenities.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
+import { GovernanceModule } from './governance/governance.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
 import { NoticesModule } from './notices/notices.module';
 import { SosModule } from './sos/sos.module';
@@ -42,6 +43,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     ServicesMarketplaceModule,
     BillingModule,
     AccountingModule,
+    GovernanceModule,
     ReportsModule,
   ],
   controllers: [HealthController],
