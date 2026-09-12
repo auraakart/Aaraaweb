@@ -8,6 +8,8 @@ type OperationsSummaryRow = {
   cancelled30d: bigint;
   homeBookings30d: bigint;
   societyUnitBookings30d: bigint;
+  ratedCompleted30d: bigint;
+  averageStars30d: string | null;
   activeVerifiedProviders: bigint;
   activeCommercialPlacements: bigint;
   repeatCustomers90d: bigint;
@@ -44,7 +46,7 @@ export class ServicesMarketplaceOperationsSummaryService {
   async getSummary() {
     const rows = await this.prisma.$queryRaw<OperationsSummaryRow[]>(Prisma.sql`
       WITH recent_bookings AS (
-        SELECT "userId", "status", "homeId", "societyUnitId"
+        SELECT "id", "userId", "status", "homeId", "societyUnitId"
         FROM "ConsumerServiceBooking"
         WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '30 days'
       ),
@@ -55,6 +57,14 @@ export class ServicesMarketplaceOperationsSummaryService {
           AND "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '90 days'
         GROUP BY "userId"
         HAVING COUNT(*) >= 2
+      ),
+      feedback AS (
+        SELECT
+          COUNT(r."id")::bigint AS "ratedCompleted30d",
+          ROUND(AVG(r."stars")::numeric, 2)::text AS "averageStars30d"
+        FROM recent_bookings rb
+        JOIN "ConsumerServiceRating" r ON r."bookingId" = rb."id"
+        WHERE rb."status" = 'COMPLETED'
       )
       SELECT
         (SELECT COUNT(*) FROM recent_bookings) AS "bookings30d",
@@ -62,6 +72,8 @@ export class ServicesMarketplaceOperationsSummaryService {
         (SELECT COUNT(*) FROM recent_bookings WHERE "status" = 'CANCELLED') AS "cancelled30d",
         (SELECT COUNT(*) FROM recent_bookings WHERE "homeId" IS NOT NULL) AS "homeBookings30d",
         (SELECT COUNT(*) FROM recent_bookings WHERE "societyUnitId" IS NOT NULL) AS "societyUnitBookings30d",
+        (SELECT "ratedCompleted30d" FROM feedback) AS "ratedCompleted30d",
+        (SELECT "averageStars30d" FROM feedback) AS "averageStars30d",
         (
           SELECT COUNT(*)
           FROM "ServiceProvider"
@@ -84,6 +96,7 @@ export class ServicesMarketplaceOperationsSummaryService {
     const cancelled30d = Number(row?.cancelled30d ?? 0n);
     const homeBookings30d = Number(row?.homeBookings30d ?? 0n);
     const societyUnitBookings30d = Number(row?.societyUnitBookings30d ?? 0n);
+    const ratedCompleted30d = Number(row?.ratedCompleted30d ?? 0n);
 
     return {
       windowDays: 30,
@@ -96,6 +109,9 @@ export class ServicesMarketplaceOperationsSummaryService {
       societyUnitBookings30d,
       homeBookingShare30d: bookings30d > 0 ? homeBookings30d / bookings30d : 0,
       societyUnitBookingShare30d: bookings30d > 0 ? societyUnitBookings30d / bookings30d : 0,
+      ratedCompleted30d,
+      feedbackCoverageRate30d: completed30d > 0 ? ratedCompleted30d / completed30d : 0,
+      averageStars30d: row?.averageStars30d ? Number(row.averageStars30d) : null,
       activeVerifiedProviders: Number(row?.activeVerifiedProviders ?? 0n),
       activeCommercialPlacements: Number(row?.activeCommercialPlacements ?? 0n),
       repeatCustomers90d: Number(row?.repeatCustomers90d ?? 0n),
