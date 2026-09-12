@@ -21,6 +21,9 @@ class DocumentDto{@IsString() @MaxLength(80) kind!:string;@IsString() @MaxLength
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
 export class OccupancyLifecycleController{
   constructor(private readonly lifecycle:OccupancyLifecycleService){}
+  @Get('self/context') selfContext(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){return this.lifecycle.selfContext(societyId,this.user(userId));}
+  @Get('self') listMine(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){return this.lifecycle.listMine(societyId,this.user(userId));}
+  @Get('self/:id') getMine(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){return this.lifecycle.getMine(societyId,this.user(userId),id);}
   @Get() @RequiresPermissions(AppPermission.OCCUPANCY_LIFECYCLE_READ) list(@CurrentTenant() societyId:string){return this.lifecycle.list(societyId);}
   @Get(':id') @RequiresPermissions(AppPermission.OCCUPANCY_LIFECYCLE_READ) get(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.lifecycle.get(societyId,id);}
   @Post('move-ins') @RequiresPermissions(AppPermission.OCCUPANCY_LIFECYCLE_MANAGE) moveIn(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:MoveInDto){return this.lifecycle.requestMoveIn(societyId,this.user(userId),{...dto,effectiveAt:this.date(dto.effectiveAt)});}
