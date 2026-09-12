@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { UnitRelation } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OccupancyLifecycleService } from './occupancy-lifecycle.service';
 
@@ -14,7 +15,7 @@ export class OccupancyLifecycleSelfService {
     const tenant=await this.prisma.user.findUnique({where:{phone},select:{id:true}});
     if(!tenant)throw new BadRequestException('Tenant must register with this mobile number before move-in can be requested');
     if(tenant.id===ownerUserId)throw new BadRequestException('Use the owner move-in flow for your own occupancy');
-    return this.lifecycle.requestOwnerMoveIn(societyId,ownerUserId,{unitId:input.unitId,userId:tenant.id,relation:'TENANT' as never,effectiveAt:input.effectiveAt,reason:input.reason});
+    return this.lifecycle.requestOwnerMoveIn(societyId,ownerUserId,{unitId:input.unitId,userId:tenant.id,relation:UnitRelation.TENANT,effectiveAt:input.effectiveAt,reason:input.reason});
   }
 
   private normalizePhone(phone:string){return phone.trim().replace(/[\s()-]+/g,'');}
