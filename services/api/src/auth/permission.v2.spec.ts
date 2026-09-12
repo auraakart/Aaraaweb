@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { AppRole } from './auth.types';
 import { AppPermission, hasPermission } from './permission.types';
 
