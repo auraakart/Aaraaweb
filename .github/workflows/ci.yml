@@ -35,10 +35,14 @@ jobs:
           test -d packages/config
           test -f scripts/production-preflight.sh
           test -f scripts/check-product-branding.sh
+          test -f scripts/check-flutter-release-compatibility.sh
           bash -n scripts/production-preflight.sh
           bash -n scripts/check-product-branding.sh
+          bash -n scripts/check-flutter-release-compatibility.sh
       - name: Enforce Aaraagate product branding boundary
         run: bash scripts/check-product-branding.sh
+      - name: Check Flutter release compatibility patch
+        run: bash scripts/check-flutter-release-compatibility.sh
       - name: Exercise production preflight control
         env:
           NODE_ENV: production

@@ -1,8 +1,34 @@
+import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
+import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/services_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _ServiceApi extends ApiClient {
+  _ServiceApi() : super(baseUrl: 'http://test', accessToken: 'token');
+  final posts = <Map<String, dynamic>>[];
+
+  @override
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
+    posts.add({'path': path, 'body': body});
+    return <String, dynamic>{};
+  }
+}
+
+class _NoReloadController extends ResidentDataController {
+  _NoReloadController(ResidentRepository repository)
+      : super(
+          repository,
+          activeUnitId: 'unit-1',
+          initialEnabledFeatures: {'HOUSEHOLD_SERVICES'},
+          fetchEntitlements: false,
+        );
+
+  @override
+  Future<void> load() async {}
+}
 
 void main() {
   Widget host(ResidentDataController controller) => MaterialApp(
@@ -118,6 +144,39 @@ void main() {
     expect(confirmedMessage, findsOneWidget);
     expect(find.text('FixRight'), findsOneWidget);
 
+    controller.dispose();
+  });
+
+  testWidgets('rating dialog submits route-owned score and feedback without lifecycle errors', (tester) async {
+    final api = _ServiceApi();
+    final controller = _NoReloadController(ResidentRepository(api))
+      ..households = [
+        {'unitId': 'unit-1'},
+      ]
+      ..bookings = [
+        {
+          'id': 'booking-1',
+          'status': 'COMPLETED',
+          'scheduledFrom': '2026-09-06T10:00:00Z',
+          'offering': {'name': 'AC service'},
+          'provider': {'businessName': 'CoolCare'},
+        },
+      ];
+
+    await tester.pumpWidget(host(controller));
+    await tester.scrollUntilVisible(find.text('Rate service'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Rate service'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('3 stars'));
+    await tester.enterText(find.widgetWithText(TextField, 'Feedback (optional)'), 'Professional and punctual');
+    await tester.tap(find.text('Submit rating'));
+    await tester.pumpAndSettle();
+
+    expect(api.posts.single['path'], '/api/v1/services-marketplace/bookings/booking-1/rating');
+    expect(api.posts.single['body'], {'score': 3, 'comment': 'Professional and punctual'});
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
     controller.dispose();
   });
 }
