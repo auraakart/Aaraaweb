@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
+const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
@@ -34,6 +35,7 @@ export function AdminShortcuts(){
   if(!role)return null
   const links:{href:string;label:string}[]=[]
   if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))links.push({href:'/reports',label:'Reports'})
+  if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING'))links.push({href:'/finance',label:'Finance'})
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
