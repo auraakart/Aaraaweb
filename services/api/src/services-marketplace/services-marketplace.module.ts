@@ -23,6 +23,8 @@ import { ConsumerProviderMediaController } from './consumer-provider-media.contr
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import { ConsumerRebookingController } from './consumer-rebooking.controller';
+import { ConsumerRebookingService } from './consumer-rebooking.service';
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
@@ -33,11 +35,14 @@ import { ConsumerServicesController } from './consumer-services.controller';
 import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
 import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 import { ProviderCommercialPlatformController } from './provider-commercial-platform.controller';
+import { ProviderCommercialSelfServiceController } from './provider-commercial-self-service.controller';
 import { ProviderCommercialService } from './provider-commercial.service';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
 import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
 import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
+import { ProviderTrustReviewController } from './provider-trust-review.controller';
+import { ProviderTrustReviewService } from './provider-trust-review.service';
 import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
@@ -56,7 +61,9 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesPlatformController,
     ServicesMarketplaceOperationsSummaryController,
     ProviderCommercialPlatformController,
+    ProviderCommercialSelfServiceController,
     ProviderMediaPlatformController,
+    ProviderTrustReviewController,
     ConsumerDispatchPlatformController,
     ConsumerProviderAgentPlatformController,
     ConsumerProviderOperatorPlatformController,
@@ -64,6 +71,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServicesController,
     ConsumerCommercialDiscoveryController,
     ConsumerServiceMemoryController,
+    ConsumerRebookingController,
     ConsumerBookingsController,
     ConsumerOffersController,
     ConsumerProviderExperienceController,
@@ -90,6 +98,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderAgentService,
     ConsumerProviderExperienceService,
     ConsumerProviderOperatorService,
+    ConsumerRebookingService,
     ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
     ConsumerServiceMemoryService,
@@ -97,6 +106,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ProviderCommercialService,
     ProviderMediaService,
     ProviderOfferingContinuityService,
+    ProviderTrustReviewService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
     {
       provide: MEDIA_SAFETY_SCANNER,

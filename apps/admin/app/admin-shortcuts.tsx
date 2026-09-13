@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react'
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
+const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
+const governanceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
+const occupancyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
+const facilitiesRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
@@ -34,6 +38,23 @@ export function AdminShortcuts(){
   if(!role)return null
   const links:{href:string;label:string}[]=[]
   if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))links.push({href:'/reports',label:'Reports'})
+  if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING')){
+    links.push({href:'/finance',label:'Finance'})
+    links.push({href:'/finance/operations',label:'Finance ops'})
+    links.push({href:'/finance/reconciliation',label:'Reconciliation'})
+  }
+  if(governanceRoles.has(role)){
+    links.push({href:'/governance',label:'Governance'})
+    links.push({href:'/governance/polls',label:'Community polls'})
+  }
+  if(occupancyRoles.has(role))links.push({href:'/occupancy-lifecycle',label:'Move-in / move-out'})
+  if(facilitiesRoles.has(role)){
+    links.push({href:'/facilities',label:'Facilities ops'})
+    links.push({href:'/facilities/health',label:'Facilities health'})
+    links.push({href:'/facilities/preventive',label:'Preventive maintenance'})
+    links.push({href:'/facilities/contracts',label:'AMC & evidence'})
+    links.push({href:'/facilities/alerts',label:'Facilities alerts'})
+  }
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
@@ -44,6 +65,7 @@ export function AdminShortcuts(){
   }
   if(role==='SUPER_ADMIN'){
     links.push({href:'/platform/providers',label:'Provider verification'})
+    links.push({href:'/platform/provider-trust',label:'Provider trust'})
     links.push({href:'/marketplace-control/commercial',label:'Commercial controls'})
     links.push({href:'/marketplace-control/operations',label:'Services operations'})
     links.push({href:'/platform',label:'Platform'})

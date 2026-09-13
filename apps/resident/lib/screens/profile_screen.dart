@@ -4,6 +4,7 @@ import '../data/demo_household_state.dart';
 import '../data/resident_data_controller.dart';
 import 'emergency_contacts_screen.dart';
 import 'family_members_screen.dart';
+import 'occupancy_lifecycle_screen.dart';
 import 'privacy_data_screen.dart';
 import 'vehicles_screen.dart';
 
@@ -103,6 +104,16 @@ class ProfileScreen extends StatelessWidget {
                       householdId: household['id'].toString(),
                       canManage: canManageSelectedProperty,
                     ),
+                  )),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.move_up_rounded),
+                  title: const Text('Move-in & move-out'),
+                  subtitle: const Text('Request a move and track society readiness'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: demo ? null : () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => OccupancyLifecycleScreen(api: controller.repository.api, activeUnitId: currentUnitId),
                   )),
                 ),
                 const Divider(height: 1),

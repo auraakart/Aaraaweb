@@ -104,11 +104,21 @@ export class ConsumerServiceMemoryService {
         COALESCE(completed_event."completedAt", b."updatedAt") AS "completedAt",
         r."stars" AS "ratingStars",
         r."comment" AS "ratingComment",
+        ws."warrantyDays",
+        ws."revisitPolicy",
+        ws."warrantyStartedAt",
+        ws."warrantyUntil",
+        CASE
+          WHEN ws."warrantyUntil" IS NULL THEN false
+          ELSE ws."warrantyUntil" >= CURRENT_TIMESTAMP
+        END AS "warrantyActive",
         current_o."currentOffering",
         (current_o."currentOffering" IS NOT NULL) AS "canRebook"
       FROM "ConsumerServiceBooking" b
       LEFT JOIN "ConsumerServiceRating" r
         ON r."bookingId" = b."id" AND r."userId" = ${userId}::uuid
+      LEFT JOIN "ConsumerServiceWarrantySnapshot" ws
+        ON ws."bookingId" = b."id"
       LEFT JOIN LATERAL (
         SELECT e."occurredAt" AS "completedAt"
         FROM "ConsumerServiceBookingEvent" e
