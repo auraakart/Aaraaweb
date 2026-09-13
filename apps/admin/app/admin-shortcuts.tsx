@@ -51,6 +51,7 @@ export function AdminShortcuts(){
   if(facilitiesRoles.has(role)){
     links.push({href:'/facilities',label:'Facilities ops'})
     links.push({href:'/facilities/preventive',label:'Preventive maintenance'})
+    links.push({href:'/facilities/contracts',label:'AMC & evidence'})
   }
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
