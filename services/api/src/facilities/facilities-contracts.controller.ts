@@ -38,6 +38,10 @@ class EvidenceDto{
 export class FacilitiesContractsController{
   constructor(private readonly prisma:PrismaService){}
 
+  @Get('providers')
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  providers(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT p."id",p."businessName" FROM "ServiceProviderSociety" s JOIN "ServiceProvider" p ON p."id"=s."providerId" WHERE s."societyId"=${societyId}::uuid AND s."status"='APPROVED' AND p."active"=TRUE AND p."verification"='VERIFIED' ORDER BY p."businessName" ASC`);}
+
   @Get()
   @RequiresPermissions(AppPermission.FACILITIES_READ)
   list(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT c.*,p."businessName" AS "providerName",a."code" AS "assetCode",a."name" AS "assetName" FROM "FacilityServiceContract" c JOIN "ServiceProvider" p ON p."id"=c."providerId" LEFT JOIN "FacilityAsset" a ON a."id"=c."assetId" WHERE c."societyId"=${societyId}::uuid ORDER BY c."endsAt" ASC`);}
@@ -47,7 +51,7 @@ export class FacilitiesContractsController{
   async create(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateContractDto){
     const actor=this.user(userId),starts=new Date(dto.startsAt),ends=new Date(dto.endsAt);
     if(ends<starts)throw new BadRequestException('Contract end cannot precede start');
-    const provider=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "ServiceProvider" WHERE "id"=${dto.providerId}::uuid LIMIT 1`);if(!provider.length)throw new BadRequestException('Service provider not found');
+    const provider=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT p."id" FROM "ServiceProviderSociety" s JOIN "ServiceProvider" p ON p."id"=s."providerId" WHERE s."societyId"=${societyId}::uuid AND s."providerId"=${dto.providerId}::uuid AND s."status"='APPROVED' AND p."active"=TRUE AND p."verification"='VERIFIED' LIMIT 1`);if(!provider.length)throw new BadRequestException('Approved service provider not found for this society');
     if(dto.assetId){const a=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityAsset" WHERE "id"=${dto.assetId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!a.length)throw new BadRequestException('Facility asset not found');}
     if(dto.maintenancePlanId){const p=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityMaintenancePlan" WHERE "id"=${dto.maintenancePlanId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!p.length)throw new BadRequestException('Maintenance plan not found');}
     const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "FacilityServiceContract" ("societyId","providerId","assetId","maintenancePlanId","contractType","contractNumber","title","startsAt","endsAt","amountPaise","currency","notes","createdByUserId") VALUES (${societyId}::uuid,${dto.providerId}::uuid,${dto.assetId??null}::uuid,${dto.maintenancePlanId??null}::uuid,${dto.contractType},${dto.contractNumber?.trim()||null},${dto.title.trim()},${starts},${ends},${dto.amountPaise??null},${dto.currency?.trim().toUpperCase()||'INR'},${dto.notes?.trim()||null},${actor}::uuid) RETURNING *`);return rows[0];
