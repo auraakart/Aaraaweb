@@ -22,6 +22,41 @@ type ProviderTrustRow = {
   completedJobs: bigint;
 };
 
+export type EarnedProviderQualityTier = 'STANDARD' | 'TRUSTED' | 'PREMIUM';
+
+const TRUSTED_MIN_COMPLETED_JOBS = 15;
+const TRUSTED_MIN_RATINGS = 5;
+const TRUSTED_MIN_AVERAGE_STARS = 4.2;
+const PREMIUM_MIN_COMPLETED_JOBS = 50;
+const PREMIUM_MIN_RATINGS = 20;
+const PREMIUM_MIN_AVERAGE_STARS = 4.6;
+
+export function deriveEarnedProviderQualityTier(
+  completedJobs: number,
+  ratingCount: number,
+  averageStars: number | null,
+): EarnedProviderQualityTier {
+  if (
+    completedJobs >= PREMIUM_MIN_COMPLETED_JOBS
+    && ratingCount >= PREMIUM_MIN_RATINGS
+    && averageStars !== null
+    && averageStars >= PREMIUM_MIN_AVERAGE_STARS
+  ) {
+    return 'PREMIUM';
+  }
+
+  if (
+    completedJobs >= TRUSTED_MIN_COMPLETED_JOBS
+    && ratingCount >= TRUSTED_MIN_RATINGS
+    && averageStars !== null
+    && averageStars >= TRUSTED_MIN_AVERAGE_STARS
+  ) {
+    return 'TRUSTED';
+  }
+
+  return 'STANDARD';
+}
+
 @Injectable()
 export class ConsumerServiceRatingsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -121,12 +156,18 @@ export class ConsumerServiceRatingsService {
         AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
       ORDER BY p."businessName" ASC
     `);
-    return rows.map((row) => ({
-      providerId: row.providerId,
-      ratingCount: Number(row.ratingCount),
-      averageStars: row.averageStars ? Number(row.averageStars) : null,
-      completedJobs: Number(row.completedJobs),
-    }));
+    return rows.map((row) => {
+      const ratingCount = Number(row.ratingCount);
+      const averageStars = row.averageStars ? Number(row.averageStars) : null;
+      const completedJobs = Number(row.completedJobs);
+      return {
+        providerId: row.providerId,
+        ratingCount,
+        averageStars,
+        completedJobs,
+        earnedQualityTier: deriveEarnedProviderQualityTier(completedJobs, ratingCount, averageStars),
+      };
+    });
   }
 
   private async assertBookingOwned(userId: string, bookingId: string) {

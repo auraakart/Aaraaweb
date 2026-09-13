@@ -38,6 +38,8 @@ import { ProviderMediaPlatformController } from './provider-media-platform.contr
 import { ProviderMediaService } from './provider-media.service';
 import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
 import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
+import { ProviderTrustReviewController } from './provider-trust-review.controller';
+import { ProviderTrustReviewService } from './provider-trust-review.service';
 import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
@@ -57,6 +59,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceOperationsSummaryController,
     ProviderCommercialPlatformController,
     ProviderMediaPlatformController,
+    ProviderTrustReviewController,
     ConsumerDispatchPlatformController,
     ConsumerProviderAgentPlatformController,
     ConsumerProviderOperatorPlatformController,
@@ -97,6 +100,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ProviderCommercialService,
     ProviderMediaService,
     ProviderOfferingContinuityService,
+    ProviderTrustReviewService,
     { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
     {
       provide: MEDIA_SAFETY_SCANNER,
