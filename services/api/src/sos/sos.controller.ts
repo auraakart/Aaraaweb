@@ -77,6 +77,17 @@ export class SosController {
     return this.sos.acknowledge(societyId, this.requireUser(userId), incidentId, dto.note);
   }
 
+  @Patch('manage/:incidentId/escalate')
+  @RequiresPermissions(AppPermission.SOS_RESPOND)
+  escalate(
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @Body() dto: SosActionDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.sos.escalate(societyId, this.requireUser(userId), incidentId, dto.note);
+  }
+
   @Patch('manage/:incidentId/resolve')
   @RequiresPermissions(AppPermission.SOS_RESPOND)
   resolve(
