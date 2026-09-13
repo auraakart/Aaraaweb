@@ -65,6 +65,7 @@ export function AdminShortcuts(){
   }
   if(role==='SUPER_ADMIN'){
     links.push({href:'/platform/providers',label:'Provider verification'})
+    links.push({href:'/platform/provider-trust',label:'Provider trust'})
     links.push({href:'/marketplace-control/commercial',label:'Commercial controls'})
     links.push({href:'/marketplace-control/operations',label:'Services operations'})
     links.push({href:'/platform',label:'Platform'})
