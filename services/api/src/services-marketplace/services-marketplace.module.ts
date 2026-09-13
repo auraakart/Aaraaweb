@@ -35,6 +35,7 @@ import { ConsumerServicesController } from './consumer-services.controller';
 import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
 import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 import { ProviderCommercialPlatformController } from './provider-commercial-platform.controller';
+import { ProviderCommercialSelfServiceController } from './provider-commercial-self-service.controller';
 import { ProviderCommercialService } from './provider-commercial.service';
 import { ProviderMediaPlatformController } from './provider-media-platform.controller';
 import { ProviderMediaService } from './provider-media.service';
@@ -60,6 +61,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesPlatformController,
     ServicesMarketplaceOperationsSummaryController,
     ProviderCommercialPlatformController,
+    ProviderCommercialSelfServiceController,
     ProviderMediaPlatformController,
     ProviderTrustReviewController,
     ConsumerDispatchPlatformController,
