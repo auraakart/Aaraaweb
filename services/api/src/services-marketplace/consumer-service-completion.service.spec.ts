@@ -35,7 +35,7 @@ describe('ConsumerServiceCompletionService', () => {
     const { tx, service } = setup();
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'ARRIVED' }])
-      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', status: 'CONFIRMED' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', offeringId: '99999999-9999-4999-8999-999999999999', status: 'CONFIRMED' }])
       .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', status: 'IN_PROGRESS' }]);
     await service.startByAgent('33333333-3333-3333-3333-333333333333', '55555555-5555-5555-5555-555555555555');
     expect(sqlValues(tx.$queryRaw.mock.calls[0][0])).toEqual(expect.arrayContaining(['55555555-5555-5555-5555-555555555555','22222222-2222-2222-2222-222222222222','44444444-4444-4444-4444-444444444444']));
@@ -47,7 +47,7 @@ describe('ConsumerServiceCompletionService', () => {
     const occurredAt = new Date('2026-09-07T12:00:00Z');
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'ARRIVED' }])
-      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', status: 'IN_PROGRESS' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', offeringId: '99999999-9999-4999-8999-999999999999', status: 'IN_PROGRESS' }])
       .mockResolvedValueOnce([{ occurredAt }]);
     const result = await service.requestCompletionByAgent('33333333-3333-3333-3333-333333333333','55555555-5555-5555-5555-555555555555');
     expect(result).toEqual({ assignmentId: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', status: 'PENDING', requestedAt: occurredAt });
@@ -59,7 +59,7 @@ describe('ConsumerServiceCompletionService', () => {
     const { tx, prisma, push, service } = setup();
     tx.$queryRaw
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'ARRIVED' }])
-      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', status: 'IN_PROGRESS' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', offeringId: '99999999-9999-4999-8999-999999999999', status: 'IN_PROGRESS' }])
       .mockResolvedValueOnce([]);
     tx.$executeRaw.mockResolvedValue(1);
     prisma.$queryRaw.mockResolvedValueOnce([{ userId: '77777777-7777-7777-7777-777777777777', bookingId: '66666666-6666-6666-6666-666666666666', offeringName: 'AC service', providerName: 'CoolCare', agentDisplayName: 'Ravi' }]);
@@ -67,22 +67,28 @@ describe('ConsumerServiceCompletionService', () => {
     await vi.waitFor(() => expect(push.sendConsumerBookingEvent).toHaveBeenCalledWith(expect.objectContaining({ userId: '77777777-7777-7777-7777-777777777777', bookingId: '66666666-6666-6666-6666-666666666666', status: 'COMPLETION_REQUESTED' })));
   });
 
-  it('customer confirmation atomically completes booking and releases arrived assignment', async () => {
+  it('customer confirmation atomically completes booking, releases assignment, and snapshots warranty terms', async () => {
     const { tx, service } = setup();
+    const offeringId = '99999999-9999-4999-8999-999999999999';
     tx.$queryRaw
-      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', status: 'IN_PROGRESS' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', offeringId, status: 'IN_PROGRESS' }])
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'ARRIVED' }])
       .mockResolvedValueOnce([{ id: '88888888-8888-8888-8888-888888888888' }])
       .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', status: 'COMPLETED' }])
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'RELEASED' }]);
+    tx.$executeRaw.mockResolvedValue(1);
     await service.confirmByConsumer('77777777-7777-7777-7777-777777777777', '66666666-6666-6666-6666-666666666666');
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(sqlValues(tx.$executeRaw.mock.calls[2][0])).toEqual(expect.arrayContaining([
+      '66666666-6666-6666-6666-666666666666',
+      offeringId,
+    ]));
   });
 
   it('does not let a customer confirm before the provider agent requests completion', async () => {
     const { tx, service } = setup();
     tx.$queryRaw
-      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', status: 'IN_PROGRESS' }])
+      .mockResolvedValueOnce([{ id: '66666666-6666-6666-6666-666666666666', userId: '77777777-7777-7777-7777-777777777777', providerId: '44444444-4444-4444-4444-444444444444', offeringId: '99999999-9999-4999-8999-999999999999', status: 'IN_PROGRESS' }])
       .mockResolvedValueOnce([{ id: '55555555-5555-5555-5555-555555555555', bookingId: '66666666-6666-6666-6666-666666666666', providerId: '44444444-4444-4444-4444-444444444444', agentId: '22222222-2222-2222-2222-222222222222', status: 'ARRIVED' }])
       .mockResolvedValueOnce([]);
     await expect(service.confirmByConsumer('77777777-7777-7777-7777-777777777777','66666666-6666-6666-6666-666666666666')).rejects.toThrow('Provider agent has not requested completion');
