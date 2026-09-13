@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsNumber, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -15,8 +15,13 @@ const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext)
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
 );
 
+const SOS_CATEGORIES = ['MEDICAL', 'FIRE', 'SECURITY', 'LIFT', 'OTHER'] as const;
+const SOS_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM'] as const;
+
 class TriggerSosDto {
   @IsUUID() unitId!: string;
+  @IsOptional() @IsIn(SOS_CATEGORIES) category?: (typeof SOS_CATEGORIES)[number];
+  @IsOptional() @IsIn(SOS_SEVERITIES) severity?: (typeof SOS_SEVERITIES)[number];
   @IsOptional() @IsString() @MaxLength(500) message?: string;
   @IsOptional() @IsNumber() latitude?: number;
   @IsOptional() @IsNumber() longitude?: number;
