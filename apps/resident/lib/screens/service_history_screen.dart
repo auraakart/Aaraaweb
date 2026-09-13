@@ -24,6 +24,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _history = const [];
+  final Set<String> _rebooking = <String>{};
 
   @override
   void initState() {
@@ -97,6 +98,58 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
     if (mounted) await _load();
   }
 
+  Future<void> _rebookService(Map<String, dynamic> item, Map<String, dynamic> offering) async {
+    final bookingId = item['id']?.toString();
+    if (bookingId == null || bookingId.isEmpty || !mounted) return;
+
+    final now = DateTime.now();
+    final initialDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final selectedDate = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 1, now.month, now.day),
+      initialDate: initialDate,
+      helpText: 'Choose service date',
+    );
+    if (selectedDate == null || !mounted) return;
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 10, minute: 0),
+      helpText: 'Choose service time',
+    );
+    if (selectedTime == null || !mounted) return;
+
+    final durationMinutes = (offering['durationMinutes'] as num?)?.toInt() ?? 60;
+    final scheduledFrom = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+    final scheduledUntil = scheduledFrom.add(Duration(minutes: durationMinutes > 0 ? durationMinutes : 60));
+    if (!scheduledFrom.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Choose a future date and time.')));
+      return;
+    }
+
+    setState(() => _rebooking.add(bookingId));
+    try {
+      await widget.apiClient.post('/api/v1/consumer/services/history/$bookingId/rebook', {
+        'scheduledFrom': scheduledFrom.toUtc().toIso8601String(),
+        'scheduledUntil': scheduledUntil.toUtc().toIso8601String(),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service rebooked using current availability and pricing.')));
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _rebooking.remove(bookingId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -135,7 +188,9 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
                 _HistoryCard(
                   item: item,
                   fallbackOffering: widget.offeringsById[item['offeringId']?.toString()],
-                  onRebook: widget.onRebook,
+                  rebooking: _rebooking.contains(item['id']?.toString()),
+                  onRebook: (offering) => _rebookService(item, offering),
+                  onLegacyRebook: widget.onRebook,
                   onRate: () => _rateService(item['id'].toString()),
                 ),
                 const SizedBox(height: 10),
@@ -151,12 +206,16 @@ class _HistoryCard extends StatelessWidget {
   const _HistoryCard({
     required this.item,
     required this.fallbackOffering,
+    required this.rebooking,
     required this.onRebook,
+    required this.onLegacyRebook,
     required this.onRate,
   });
   final Map<String, dynamic> item;
   final Map<String, dynamic>? fallbackOffering;
+  final bool rebooking;
   final Future<void> Function(Map<String, dynamic> offering) onRebook;
+  final Future<void> Function(Map<String, dynamic> offering) onLegacyRebook;
   final Future<void> Function() onRate;
 
   @override
@@ -166,6 +225,8 @@ class _HistoryCard extends StatelessWidget {
         ? Map<String, dynamic>.from(rawCurrentOffering)
         : fallbackOffering;
     final canRebook = item['canRebook'] == true && currentOffering != null;
+    final bookingId = item['id']?.toString();
+    final canSafeRebook = canRebook && bookingId != null && bookingId.isNotEmpty;
     final paise = (item['servicePricePaise'] as num?)?.toInt();
     final rating = (item['ratingStars'] as num?)?.toInt();
     final ratingComment = item['ratingComment']?.toString().trim();
@@ -228,9 +289,13 @@ class _HistoryCard extends StatelessWidget {
                   ),
                 if (canRebook)
                   FilledButton.icon(
-                    onPressed: () => onRebook(currentOffering),
-                    icon: const Icon(Icons.replay_rounded),
-                    label: const Text('Rebook'),
+                    onPressed: rebooking
+                        ? null
+                        : () => canSafeRebook ? onRebook(currentOffering) : onLegacyRebook(currentOffering),
+                    icon: rebooking
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.replay_rounded),
+                    label: Text(rebooking ? 'Rebooking…' : 'Rebook'),
                   ),
               ],
             ),
