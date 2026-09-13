@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, ROLE_PERMISSIONS } from '../auth/permission.types';
@@ -39,14 +40,14 @@ describe('V2.1C governance security closure',()=>{
   });
 
   it('preserves the database one-response and option-to-poll integrity boundaries',()=>{
-    const sql=readFileSync(new URL('../../prisma/migrations/20260913053000_governance_poll_participation/migration.sql',import.meta.url),'utf8');
+    const sql=readFileSync(resolve(process.cwd(),'prisma/migrations/20260913053000_governance_poll_participation/migration.sql'),'utf8');
     expect(sql).toContain('UNIQUE ("pollId", "userId")');
     expect(sql).toContain('FOREIGN KEY ("optionId", "pollId") REFERENCES "GovernancePollOption"("id", "pollId")');
     expect(sql).toContain('FOREIGN KEY ("userId") REFERENCES "User"("id")');
   });
 
   it('preserves the non-statutory poll boundary in persistence',()=>{
-    const sql=readFileSync(new URL('../../prisma/migrations/20260913050500_governance_documents_polls/migration.sql',import.meta.url),'utf8');
+    const sql=readFileSync(resolve(process.cwd(),'prisma/migrations/20260913050500_governance_documents_polls/migration.sql'),'utf8');
     expect(sql).toContain('CHECK ("statutoryUseProhibited" = TRUE)');
     expect(sql).toContain("CHECK (\"pollType\" IN ('ADVISORY','SURVEY'))");
   });
