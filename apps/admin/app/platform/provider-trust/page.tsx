@@ -1,0 +1,29 @@
+'use client'
+
+import { useCallback,useEffect,useMemo,useState } from 'react'
+
+type Session={accessToken:string;role:string}
+type Tier='STANDARD'|'TRUSTED'|'PREMIUM'
+type Recommendation={providerId:string;businessName:string;ratingCount:number;averageStars:number|null;completedJobs:number;earnedQualityTier:Tier;currentQualityTier:Tier;qualityNote:string|null;reviewedByUserId:string|null;reviewedAt:string|null;reviewNeeded:boolean}
+const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
+function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
+
+export default function ProviderTrustPage(){
+  const[s,setS]=useState<Session|null>(null),[items,setItems]=useState<Recommendation[]>([]),[query,setQuery]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(''),[loading,setLoading]=useState(true)
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{setItems(await api<Recommendation[]>(x,'/platform/services/provider-trust/recommendations'))}catch(e){setError(e instanceof Error?e.message:'Trust recommendations could not be loaded')}finally{setLoading(false)}},[])
+  useEffect(()=>{const x=session();setS(x);if(x?.role==='SUPER_ADMIN')void load(x);else setLoading(false)},[load])
+  const visible=useMemo(()=>{const q=query.trim().toLowerCase();return items.filter(x=>!q||[x.businessName,x.earnedQualityTier,x.currentQualityTier].join(' ').toLowerCase().includes(q))},[items,query])
+  const review=async(x:Recommendation,tier:Tier)=>{if(!s)return;const note=prompt(`Review ${x.businessName} as ${tier}. Enter evidence/review note:`)?.trim();if(!note)return;setBusy(x.providerId);setError('');try{await api(s,`/platform/services/provider-trust/providers/${x.providerId}`,{method:'PATCH',body:JSON.stringify({qualityTier:tier,note})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Trust review could not be saved')}finally{setBusy('')}}
+  if(loading)return <main style={{padding:32}}>Loading provider trust…</main>
+  if(!s||s.role!=='SUPER_ADMIN')return <main style={{padding:32}}><h1>Platform access required</h1><a href="/">Return to Admin</a></main>
+  return <main style={{maxWidth:1180,margin:'0 auto',padding:'28px 22px 80px'}}><header style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small>SUPER ADMIN · EXTERNAL SERVICES</small><h1 style={{margin:'4px 0'}}>Provider trust review</h1><p style={{margin:0}}>Earned recommendations are evidence only. Public quality tiers change only after explicit review.</p></div><div style={{display:'flex',gap:12}}><a href="/platform/providers">Provider verification</a><a href="/">Admin console</a></div></header>{error&&<div style={errorBox}>{error}</div>}<section style={panel}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><input aria-label="Search trust recommendations" placeholder="Search provider or tier" value={query} onChange={e=>setQuery(e.target.value)} style={{...input,minWidth:280}}/><div><b>{items.filter(x=>x.reviewNeeded).length}</b> review needed · <b>{items.length}</b> verified providers</div></div><div style={{display:'grid',gap:12,marginTop:18}}>{visible.length===0?<p>No matching providers.</p>:visible.map(x=><article key={x.providerId} style={card}><div style={{flex:'1 1 520px'}}><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><b style={{fontSize:17}}>{x.businessName}</b>{x.reviewNeeded&&<span style={warning}>Review needed</span>}</div><p style={{margin:'8px 0'}}>Earned <b>{x.earnedQualityTier}</b> · reviewed/public <b>{x.currentQualityTier}</b></p><small>{x.completedJobs} completed jobs · {x.ratingCount} ratings · average {x.averageStars?.toFixed(2)??'—'}</small>{x.qualityNote&&<div style={{marginTop:8}}><small>Last review: {x.qualityNote}{x.reviewedAt?` · ${new Date(x.reviewedAt).toLocaleString('en-IN')}`:''}</small></div>}</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{(['STANDARD','TRUSTED','PREMIUM'] as Tier[]).map(t=><button key={t} disabled={!!busy||x.currentQualityTier===t} onClick={()=>void review(x,t)} style={t===x.earnedQualityTier?primary:button}>{t}</button>)}</div></article>)}</div></section><section style={noteBox}><b>Trust boundary</b><p style={{marginBottom:0}}>Featured/Sponsored placement is commercial and never changes this earned/reviewed trust state. Verification also remains a separate platform decision.</p></section></main>
+}
+const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}
+const card:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:15,border:'1px solid #e5e7eb',borderRadius:12,flexWrap:'wrap'}
+const input:React.CSSProperties={padding:11,border:'1px solid #cbd5e1',borderRadius:10}
+const button:React.CSSProperties={padding:'9px 12px',borderRadius:10,border:'1px solid #cbd5e1',background:'white',fontWeight:700}
+const primary:React.CSSProperties={...button,background:'#05879A',color:'white',borderColor:'#05879A'}
+const warning:React.CSSProperties={padding:'4px 8px',borderRadius:999,background:'#fff7ed',color:'#9a3412',fontSize:12,fontWeight:700}
+const errorBox:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #ef4444',borderRadius:10}
+const noteBox:React.CSSProperties={marginTop:18,padding:16,borderRadius:14,background:'#f8fafc'}
