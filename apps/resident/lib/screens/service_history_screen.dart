@@ -230,10 +230,18 @@ class _HistoryCard extends StatelessWidget {
     final paise = (item['servicePricePaise'] as num?)?.toInt();
     final rating = (item['ratingStars'] as num?)?.toInt();
     final ratingComment = item['ratingComment']?.toString().trim();
+    final warrantyDays = (item['warrantyDays'] as num?)?.toInt();
+    final revisitPolicy = item['revisitPolicy']?.toString().trim();
+    final warrantyUntil = DateTime.tryParse(item['warrantyUntil']?.toString() ?? '')?.toLocal();
+    final warrantyActive = item['warrantyActive'] == true;
+    final hasWarrantyTerms = warrantyDays != null || (revisitPolicy != null && revisitPolicy.isNotEmpty);
     final completedAt = DateTime.tryParse(item['completedAt']?.toString() ?? '');
     final dateText = completedAt == null
         ? null
         : '${completedAt.day.toString().padLeft(2, '0')}/${completedAt.month.toString().padLeft(2, '0')}/${completedAt.year}';
+    final warrantyDateText = warrantyUntil == null
+        ? null
+        : '${warrantyUntil.day.toString().padLeft(2, '0')}/${warrantyUntil.month.toString().padLeft(2, '0')}/${warrantyUntil.year}';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -251,6 +259,48 @@ class _HistoryCard extends StatelessWidget {
                   if (dateText != null) Text(dateText),
                   if (paise != null) Text('₹${(paise / 100).toStringAsFixed(paise % 100 == 0 ? 0 : 2)}'),
                 ],
+              ),
+            ],
+            if (hasWarrantyTerms) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: warrantyActive
+                      ? Theme.of(context).colorScheme.secondaryContainer
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(warrantyActive ? Icons.verified_user_rounded : Icons.history_toggle_off_rounded, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            warrantyActive
+                                ? 'Warranty active${warrantyDateText == null ? '' : ' until $warrantyDateText'}'
+                                : warrantyDateText == null
+                                    ? 'Service warranty terms captured at completion'
+                                    : 'Warranty expired on $warrantyDateText',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (warrantyDays != null) ...[
+                      const SizedBox(height: 6),
+                      Text('$warrantyDays-day warranty captured when this service was completed.'),
+                    ],
+                    if (revisitPolicy != null && revisitPolicy.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(revisitPolicy),
+                    ],
+                  ],
+                ),
               ),
             ],
             if (rating != null) ...[
