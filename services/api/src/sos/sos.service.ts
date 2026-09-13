@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 type SosStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED';
+type SosCategory = 'MEDICAL' | 'FIRE' | 'SECURITY' | 'LIFT' | 'OTHER';
+type SosSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM';
 
 type SosIncidentRow = {
   id: string;
@@ -10,6 +12,8 @@ type SosIncidentRow = {
   unitId: string;
   residentUserId: string;
   status: SosStatus;
+  category: SosCategory;
+  severity: SosSeverity;
   message: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -29,7 +33,14 @@ export class SosService {
   async trigger(
     societyId: string,
     residentUserId: string,
-    input: { unitId: string; message?: string; latitude?: number; longitude?: number },
+    input: {
+      unitId: string;
+      category?: SosCategory;
+      severity?: SosSeverity;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    },
   ) {
     await this.assertResidentUnit(societyId, residentUserId, input.unitId);
     if (input.latitude !== undefined && (input.latitude < -90 || input.latitude > 90)) {
@@ -38,18 +49,38 @@ export class SosService {
     if (input.longitude !== undefined && (input.longitude < -180 || input.longitude > 180)) {
       throw new BadRequestException('Longitude must be between -180 and 180');
     }
+    const category = input.category ?? 'OTHER';
+    const severity = input.severity ?? 'HIGH';
     const message = input.message?.trim() || null;
 
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
-        INSERT INTO "SosIncident" ("societyId", "unitId", "residentUserId", "message", "latitude", "longitude")
-        VALUES (${societyId}::uuid, ${input.unitId}::uuid, ${residentUserId}::uuid, ${message}, ${input.latitude ?? null}, ${input.longitude ?? null})
+        INSERT INTO "SosIncident" (
+          "societyId", "unitId", "residentUserId", "category", "severity", "message", "latitude", "longitude"
+        )
+        VALUES (
+          ${societyId}::uuid,
+          ${input.unitId}::uuid,
+          ${residentUserId}::uuid,
+          ${category},
+          ${severity},
+          ${message},
+          ${input.latitude ?? null},
+          ${input.longitude ?? null}
+        )
         RETURNING *
       `);
       const incident = rows[0];
       await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "toStatus")
-        VALUES (${societyId}::uuid, ${incident.id}::uuid, ${residentUserId}::uuid, 'TRIGGERED', 'ACTIVE')
+        INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "toStatus", "note")
+        VALUES (
+          ${societyId}::uuid,
+          ${incident.id}::uuid,
+          ${residentUserId}::uuid,
+          'TRIGGERED',
+          'ACTIVE',
+          ${`category=${category};severity=${severity}`}
+        )
       `);
       return incident;
     });
@@ -75,6 +106,7 @@ export class SosService {
       WHERE si."societyId" = ${societyId}::uuid
       ORDER BY
         CASE si."status" WHEN 'ACTIVE' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,
+        CASE si."severity" WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
         si."createdAt" DESC
       LIMIT 250
     `);
