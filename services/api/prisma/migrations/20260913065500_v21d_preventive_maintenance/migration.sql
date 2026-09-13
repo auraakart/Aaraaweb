@@ -24,4 +24,7 @@ CREATE TABLE "FacilityMaintenancePlan" (
   CONSTRAINT "FacilityMaintenancePlan_priority_check" CHECK ("priority" IN ('LOW','MEDIUM','HIGH','CRITICAL'))
 );
 CREATE INDEX "FacilityMaintenancePlan_society_due_idx" ON "FacilityMaintenancePlan"("societyId","active","nextDueAt");
-CREATE UNIQUE INDEX "FacilityWorkOrder_maintenance_plan_due_key" ON "FacilityWorkOrder"(("description")) WHERE "workType"='PREVENTIVE' AND "description" LIKE 'maintenance-plan:%';
+
+ALTER TABLE "FacilityWorkOrder" ADD COLUMN "maintenancePlanId" UUID;
+ALTER TABLE "FacilityWorkOrder" ADD CONSTRAINT "FacilityWorkOrder_maintenancePlanId_fkey" FOREIGN KEY ("maintenancePlanId") REFERENCES "FacilityMaintenancePlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE UNIQUE INDEX "FacilityWorkOrder_plan_schedule_key" ON "FacilityWorkOrder"("maintenancePlanId","scheduledAt") WHERE "maintenancePlanId" IS NOT NULL;
