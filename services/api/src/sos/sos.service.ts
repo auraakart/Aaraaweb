@@ -98,13 +98,27 @@ export class SosService {
 
   listManage(societyId: string) {
     return this.prisma.$queryRaw<SosIncidentRow[]>(Prisma.sql`
-      SELECT si.*, u."number" AS "unitNumber", b."name" AS "buildingName", r."name" AS "residentName", r."phone" AS "residentPhone"
+      SELECT
+        si.*,
+        u."number" AS "unitNumber",
+        b."name" AS "buildingName",
+        r."name" AS "residentName",
+        r."phone" AS "residentPhone",
+        escalation."escalatedAt"
       FROM "SosIncident" si
       JOIN "Unit" u ON u."id" = si."unitId"
       JOIN "Building" b ON b."id" = u."buildingId"
       JOIN "User" r ON r."id" = si."residentUserId"
+      LEFT JOIN LATERAL (
+        SELECT MAX(se."occurredAt") AS "escalatedAt"
+        FROM "SosIncidentEvent" se
+        WHERE se."societyId" = si."societyId"
+          AND se."incidentId" = si."id"
+          AND se."action" = 'ESCALATED'
+      ) escalation ON true
       WHERE si."societyId" = ${societyId}::uuid
       ORDER BY
+        CASE WHEN escalation."escalatedAt" IS NOT NULL AND si."status" IN ('ACTIVE', 'ACKNOWLEDGED') THEN 0 ELSE 1 END,
         CASE si."status" WHEN 'ACTIVE' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,
         CASE si."severity" WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
         si."createdAt" DESC
@@ -126,6 +140,31 @@ export class SosService {
     if (current.status === 'ACKNOWLEDGED') return current;
     if (current.status !== 'ACTIVE') throw new BadRequestException('Only active SOS incidents can be acknowledged');
     return this.transition(societyId, actorUserId, current, 'ACKNOWLEDGED', 'ACKNOWLEDGED', note);
+  }
+
+  async escalate(societyId: string, actorUserId: string, incidentId: string, note?: string) {
+    const current = await this.findIncident(societyId, incidentId);
+    if (!current) throw new NotFoundException('SOS incident not found');
+    if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
+      throw new BadRequestException('Only active or acknowledged SOS incidents can be escalated');
+    }
+    const cleanNote = note?.trim() || null;
+    const events = await this.prisma.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
+      INSERT INTO "SosIncidentEvent" (
+        "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
+      )
+      VALUES (
+        ${societyId}::uuid,
+        ${incidentId}::uuid,
+        ${actorUserId}::uuid,
+        'ESCALATED',
+        ${current.status}::"SosStatus",
+        ${current.status}::"SosStatus",
+        ${cleanNote}
+      )
+      RETURNING "occurredAt"
+    `);
+    return { ...current, escalatedAt: events[0]?.occurredAt ?? null };
   }
 
   async resolve(societyId: string, actorUserId: string, incidentId: string, note?: string) {
