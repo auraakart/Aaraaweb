@@ -23,6 +23,8 @@ import { ConsumerProviderMediaController } from './consumer-provider-media.contr
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import { ConsumerRebookingController } from './consumer-rebooking.controller';
+import { ConsumerRebookingService } from './consumer-rebooking.service';
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
 import { ConsumerServiceLocationService } from './consumer-service-location.service';
@@ -67,6 +69,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerServicesController,
     ConsumerCommercialDiscoveryController,
     ConsumerServiceMemoryController,
+    ConsumerRebookingController,
     ConsumerBookingsController,
     ConsumerOffersController,
     ConsumerProviderExperienceController,
@@ -93,6 +96,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderAgentService,
     ConsumerProviderExperienceService,
     ConsumerProviderOperatorService,
+    ConsumerRebookingService,
     ConsumerServiceCompletionService,
     ConsumerServiceLocationService,
     ConsumerServiceMemoryService,
