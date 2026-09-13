@@ -28,13 +28,13 @@ export class ProcurementAccountingLinkController {
   constructor(private readonly links: ProcurementAccountingLinkService) {}
 
   @Get('links')
-  @RequiresPermissions(AppPermission.SOCIETY_VENDORS_READ, AppPermission.FINANCE_READ)
+  @RequiresPermissions(AppPermission.FINANCE_READ)
   list(@CurrentTenant() societyId: string) {
     return this.links.listLinks(societyId);
   }
 
   @Post('purchase-orders/:purchaseOrderId/expense-draft')
-  @RequiresPermissions(AppPermission.SOCIETY_VENDORS_MANAGE, AppPermission.FINANCE_MANAGE)
+  @RequiresPermissions(AppPermission.FINANCE_MANAGE)
   createExpense(
     @CurrentTenant() societyId: string,
     @CurrentUser() userId: string | undefined,
