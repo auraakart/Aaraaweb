@@ -1,0 +1,55 @@
+CREATE TABLE "FacilityServiceContract" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "societyId" UUID NOT NULL,
+  "providerId" UUID NOT NULL,
+  "assetId" UUID,
+  "maintenancePlanId" UUID,
+  "contractType" VARCHAR(32) NOT NULL DEFAULT 'AMC',
+  "contractNumber" VARCHAR(120),
+  "title" VARCHAR(240) NOT NULL,
+  "startsAt" TIMESTAMP(3) NOT NULL,
+  "endsAt" TIMESTAMP(3) NOT NULL,
+  "amountPaise" BIGINT,
+  "currency" VARCHAR(8) NOT NULL DEFAULT 'INR',
+  "status" VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+  "notes" TEXT,
+  "createdByUserId" UUID NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "FacilityServiceContract_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "FacilityServiceContract_societyId_fkey" FOREIGN KEY ("societyId") REFERENCES "Society"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityServiceContract_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "ServiceProvider"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityServiceContract_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "FacilityAsset"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityServiceContract_maintenancePlanId_fkey" FOREIGN KEY ("maintenancePlanId") REFERENCES "FacilityMaintenancePlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityServiceContract_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityServiceContract_type_check" CHECK ("contractType" IN ('AMC','WARRANTY','SERVICE_AGREEMENT')),
+  CONSTRAINT "FacilityServiceContract_status_check" CHECK ("status" IN ('ACTIVE','EXPIRED','TERMINATED')),
+  CONSTRAINT "FacilityServiceContract_dates_check" CHECK ("endsAt" >= "startsAt"),
+  CONSTRAINT "FacilityServiceContract_amount_check" CHECK ("amountPaise" IS NULL OR "amountPaise" >= 0)
+);
+CREATE INDEX "FacilityServiceContract_society_status_end_idx" ON "FacilityServiceContract"("societyId","status","endsAt");
+CREATE INDEX "FacilityServiceContract_provider_idx" ON "FacilityServiceContract"("providerId","endsAt");
+
+CREATE TABLE "FacilityEvidenceReference" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "societyId" UUID NOT NULL,
+  "assetId" UUID,
+  "workOrderId" UUID,
+  "serviceContractId" UUID,
+  "kind" VARCHAR(48) NOT NULL,
+  "fileReference" TEXT NOT NULL,
+  "note" TEXT,
+  "verifiedAt" TIMESTAMP(3),
+  "verifiedByUserId" UUID,
+  "createdByUserId" UUID NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "FacilityEvidenceReference_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "FacilityEvidenceReference_societyId_fkey" FOREIGN KEY ("societyId") REFERENCES "Society"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "FacilityAsset"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "FacilityWorkOrder"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_serviceContractId_fkey" FOREIGN KEY ("serviceContractId") REFERENCES "FacilityServiceContract"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_verifiedByUserId_fkey" FOREIGN KEY ("verifiedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "FacilityEvidenceReference_parent_check" CHECK ("assetId" IS NOT NULL OR "workOrderId" IS NOT NULL OR "serviceContractId" IS NOT NULL)
+);
+CREATE INDEX "FacilityEvidenceReference_society_contract_idx" ON "FacilityEvidenceReference"("societyId","serviceContractId","createdAt" DESC);
