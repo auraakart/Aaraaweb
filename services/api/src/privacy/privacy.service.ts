@@ -54,7 +54,7 @@ export class PrivacyService {
       dueAt?: string;
     },
   ) {
-    await this.assertActiveSocietyMember(societyId, input.subjectUserId, 'Privacy request subject');
+    await this.assertSocietySubjectRelationship(societyId, input.subjectUserId);
     if (input.assignedToUserId) {
       await this.assertActiveSocietyMember(societyId, input.assignedToUserId, 'Privacy case assignee');
     }
@@ -123,6 +123,7 @@ export class PrivacyService {
         WHERE "id" = ${caseId}::uuid
           AND "societyId" = ${societyId}::uuid
           AND "status" = ${current.status}
+          AND "legalHold" = ${current.legalHold}
         RETURNING *
       `);
       const updated = rows[0];
@@ -166,6 +167,8 @@ export class PrivacyService {
             "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${caseId}::uuid
           AND "societyId" = ${societyId}::uuid
+          AND "status" = ${current.status}
+          AND "legalHold" = ${current.legalHold}
         RETURNING *
       `);
       const updated = rows[0];
@@ -208,6 +211,29 @@ export class PrivacyService {
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  private async assertSocietySubjectRelationship(societyId: string, userId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+      SELECT relationship."userId"
+      FROM (
+        SELECT sm."userId"
+        FROM "SocietyMembership" sm
+        WHERE sm."societyId" = ${societyId}::uuid AND sm."userId" = ${userId}::uuid
+        UNION ALL
+        SELECT uo."userId"
+        FROM "UnitOwnership" uo
+        WHERE uo."societyId" = ${societyId}::uuid AND uo."userId" = ${userId}::uuid
+        UNION ALL
+        SELECT occ."userId"
+        FROM "UnitOccupancy" occ
+        WHERE occ."societyId" = ${societyId}::uuid AND occ."userId" = ${userId}::uuid
+      ) relationship
+      LIMIT 1
+    `);
+    if (!rows[0]) {
+      throw new BadRequestException('Privacy request subject has no current or historical relationship with this society');
+    }
   }
 
   private async assertActiveSocietyMember(societyId: string, userId: string, label: string) {
