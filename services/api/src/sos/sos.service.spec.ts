@@ -103,4 +103,36 @@ describe('SosService relationship authorization', () => {
     expect(sql).toContain("se.\"action\" = 'ESCALATED'");
     expect(sql).toContain('"escalatedAt" IS NOT NULL');
   });
+
+  it('derives active emergency contacts from the incident household within the same society', async () => {
+    const prisma = {
+      $queryRaw: vi
+        .fn()
+        .mockResolvedValueOnce([{ id: 'incident-1', unitId: 'unit-1', societyId: 'society-1', status: 'ACTIVE' }])
+        .mockResolvedValueOnce([
+          { contactId: 'contact-1', name: 'Parent', phone: '9000000000', relation: 'Father', priority: 1 },
+        ]),
+    };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    const result = await service.escalationTargets('society-1', 'incident-1');
+
+    expect(result).toHaveLength(1);
+    const query = prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('"Household"');
+    expect(sql).toContain('"EmergencyContact"');
+    expect(sql).toContain('ec."active" = true');
+    expect(sql).toContain('ORDER BY ec."priority" ASC');
+    expect(query.values).toContain('society-1');
+    expect(query.values).toContain('unit-1');
+  });
+
+  it('does not expose emergency contacts for an incident outside the current society', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    await expect(service.escalationTargets('society-1', 'incident-elsewhere')).rejects.toThrow('SOS incident not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
 });
