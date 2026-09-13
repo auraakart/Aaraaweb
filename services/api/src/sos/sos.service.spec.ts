@@ -60,4 +60,47 @@ describe('SosService relationship authorization', () => {
     expect(insert.values).toContain('OTHER');
     expect(insert.values).toContain('HIGH');
   });
+
+  it('records escalation as an append-only incident event without changing incident status', async () => {
+    const escalatedAt = new Date('2026-09-13T17:45:00Z');
+    const prisma = {
+      $queryRaw: vi
+        .fn()
+        .mockResolvedValueOnce([{ id: 'incident-1', status: 'ACKNOWLEDGED', societyId: 'society-1' }])
+        .mockResolvedValueOnce([{ occurredAt: escalatedAt }]),
+    };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    const result = await service.escalate('society-1', 'responder-1', 'incident-1', 'Escalate to control room');
+
+    const insert = prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
+    expect(insert.strings.join(' ')).toContain("'ESCALATED'");
+    expect(insert.values).toContain('ACKNOWLEDGED');
+    expect(insert.values).toContain('Escalate to control room');
+    expect(result).toMatchObject({ id: 'incident-1', status: 'ACKNOWLEDGED', escalatedAt });
+  });
+
+  it('does not allow a resolved incident to be escalated', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1', status: 'RESOLVED', societyId: 'society-1' }]),
+    };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    await expect(service.escalate('society-1', 'responder-1', 'incident-1')).rejects.toThrow(
+      'Only active or acknowledged SOS incidents can be escalated',
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('prioritizes escalated active incidents in the responder queue', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    await service.listManage('society-1');
+
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain("se.\"action\" = 'ESCALATED'");
+    expect(sql).toContain('"escalatedAt" IS NOT NULL');
+  });
 });
