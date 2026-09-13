@@ -20,6 +20,7 @@ import { VisitorsModule } from './visitors/visitors.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { BillingModule } from './billing/billing.module';
+import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
@@ -46,6 +47,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     BillingModule,
     AccountingModule,
     GovernanceModule,
+    PrivacyModule,
     ReportsModule,
   ],
   controllers: [HealthController],
