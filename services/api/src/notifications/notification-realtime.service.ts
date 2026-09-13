@@ -17,8 +17,8 @@ export type AccessRealtimeEvent = {
   createdAt: string;
 };
 
-export type ResidentMessageEvent = AccessRealtimeEvent | {
-  type: 'MAINTENANCE_DUE_ISSUED' | 'GENERAL_NOTICE_PUBLISHED';
+type MaintenanceDueEvent = {
+  type: 'MAINTENANCE_DUE_ISSUED';
   societyId: string;
   userId: string;
   unitId?: string;
@@ -26,8 +26,32 @@ export type ResidentMessageEvent = AccessRealtimeEvent | {
   body: string;
   createdAt: string;
   invoiceId?: string;
+};
+
+type GeneralNoticeEvent = {
+  type: 'GENERAL_NOTICE_PUBLISHED';
+  societyId: string;
+  userId: string;
+  unitId?: string;
+  title: string;
+  body: string;
+  createdAt: string;
   noticeId?: string;
 };
+
+type EmergencyBroadcastEvent = {
+  type: 'EMERGENCY_BROADCAST';
+  societyId: string;
+  userId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  broadcastId: string;
+  incidentId?: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+};
+
+export type ResidentMessageEvent = AccessRealtimeEvent | MaintenanceDueEvent | GeneralNoticeEvent | EmergencyBroadcastEvent;
 
 @Injectable()
 export class NotificationRealtimeService {
@@ -103,7 +127,7 @@ export class NotificationRealtimeService {
     });
   }
 
-  private async publishMaintenanceWithUnit(event: Extract<ResidentMessageEvent, { type: 'MAINTENANCE_DUE_ISSUED' | 'GENERAL_NOTICE_PUBLISHED' }>) {
+  private async publishMaintenanceWithUnit(event: MaintenanceDueEvent) {
     try {
       const invoice = await this.prisma?.maintenanceInvoice.findFirst({
         where: { id: event.invoiceId!, societyId: event.societyId },
