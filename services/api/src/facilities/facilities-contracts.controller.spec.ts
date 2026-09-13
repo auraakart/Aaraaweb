@@ -5,7 +5,8 @@ import { AppPermission } from '../auth/permission.types';
 import { FacilitiesContractsController } from './facilities-contracts.controller';
 
 describe('FacilitiesContractsController permissions',()=>{
-  it('requires facilities read for contract and evidence listing',()=>{
+  it('requires facilities read for provider, contract and evidence listing',()=>{
+    expect(Reflect.getMetadata(PERMISSIONS_KEY,FacilitiesContractsController.prototype.providers)).toEqual([AppPermission.FACILITIES_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY,FacilitiesContractsController.prototype.list)).toEqual([AppPermission.FACILITIES_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY,FacilitiesContractsController.prototype.evidence)).toEqual([AppPermission.FACILITIES_READ]);
   });
