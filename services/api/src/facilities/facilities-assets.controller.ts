@@ -26,21 +26,26 @@ export class FacilitiesAssetsController {
     @Param('id',new ParseUUIDPipe()) id:string,
     @Body() dto:AssetStatusDto,
   ) {
-    const rows=await this.prisma.$queryRaw<Array<{status:string}>>(Prisma.sql`
-      SELECT "status" FROM "FacilityAsset"
-      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
-      FOR UPDATE
-    `);
-    if(!rows.length)throw new BadRequestException('Facility asset not found');
-    const current=rows[0].status;
-    if(current==='RETIRED'&&dto.status!=='RETIRED')throw new BadRequestException('Retired facility assets cannot be reactivated');
-    if(current===dto.status)return this.prisma.$queryRaw(Prisma.sql`SELECT * FROM "FacilityAsset" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
-    const updated=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      UPDATE "FacilityAsset"
-      SET "status"=${dto.status},"updatedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
-      RETURNING *
-    `);
-    return updated[0];
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<Array<{status:string}>>(Prisma.sql`
+        SELECT "status" FROM "FacilityAsset"
+        WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if(!rows.length)throw new BadRequestException('Facility asset not found');
+      const current=rows[0].status;
+      if(current==='RETIRED'&&dto.status!=='RETIRED')throw new BadRequestException('Retired facility assets cannot be reactivated');
+      if(current===dto.status){
+        const existing=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT * FROM "FacilityAsset" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
+        return existing[0];
+      }
+      const updated=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        UPDATE "FacilityAsset"
+        SET "status"=${dto.status},"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
+        RETURNING *
+      `);
+      return updated[0];
+    });
   }
 }
