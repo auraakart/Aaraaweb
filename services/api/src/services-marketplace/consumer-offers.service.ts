@@ -13,11 +13,14 @@ type ConsumerOfferRow = {
   categoryName: string | null;
   title: string;
   description: string | null;
-  discountType: 'PERCENT' | 'FLAT';
+  discountType: 'PERCENT' | 'FLAT' | 'FIXED_PRICE' | 'BUNDLE';
   discountValue: number;
+  bundleLabel: string | null;
   startsAt: Date;
   endsAt: Date;
   terms: string | null;
+  targetSocietyId: string | null;
+  targetPostalCode: string | null;
 };
 
 @Injectable()
@@ -27,7 +30,12 @@ export class ConsumerOffersService {
     private readonly locations: ConsumerServiceLocationService,
   ) {}
 
-  async listForLocation(userId: string, locationType: ConsumerServiceLocationType, locationId: string) {
+  async listForLocation(
+    userId: string,
+    locationType: ConsumerServiceLocationType,
+    locationId: string,
+    categoryId?: string,
+  ) {
     const location = await this.locations.resolveLocation(userId, locationType, locationId);
 
     return this.prisma.$queryRaw<ConsumerOfferRow[]>(Prisma.sql`
@@ -43,9 +51,12 @@ export class ConsumerOffersService {
         so."description",
         so."discountType"::text AS "discountType",
         so."discountValue",
+        so."bundleLabel",
         so."startsAt",
         so."endsAt",
-        so."terms"
+        so."terms",
+        so."societyId" AS "targetSocietyId",
+        so."postalCode" AS "targetPostalCode"
       FROM "ServiceOffer" so
       JOIN "ServiceProvider" p
         ON p."id" = so."providerId"
@@ -56,11 +67,14 @@ export class ConsumerOffersService {
        AND o."providerId" = p."id"
        AND o."active" = true
       LEFT JOIN "ServiceCategory" c
-        ON c."id" = o."categoryId"
+        ON c."id" = COALESCE(so."categoryId", o."categoryId")
        AND c."active" = true
       WHERE so."status" = 'APPROVED'::"ServiceOfferStatus"
         AND so."startsAt" <= CURRENT_TIMESTAMP
         AND so."endsAt" > CURRENT_TIMESTAMP
+        AND (so."postalCode" IS NULL OR so."postalCode" = ${location.postalCode})
+        AND (so."societyId" IS NULL OR so."societyId" = ${location.societyId ?? null}::uuid)
+        AND (${categoryId ?? null}::uuid IS NULL OR c."id" = ${categoryId ?? null}::uuid)
         AND EXISTS (
           SELECT 1
           FROM "ConsumerProviderServiceArea" pa
@@ -87,6 +101,7 @@ export class ConsumerOffersService {
             )
           )
         )
+        AND (so."categoryId" IS NULL OR c."id" IS NOT NULL)
       ORDER BY so."endsAt" ASC, so."createdAt" DESC
       LIMIT 50
     `);

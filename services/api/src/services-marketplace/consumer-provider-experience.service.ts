@@ -55,10 +55,12 @@ export class ConsumerProviderExperienceService {
     const offers = await this.prisma.$queryRaw<Array<{
       id: string;
       offeringId: string | null;
+      categoryId: string | null;
       title: string;
       description: string | null;
-      discountType: 'PERCENT' | 'FLAT';
+      discountType: 'PERCENT' | 'FLAT' | 'FIXED_PRICE' | 'BUNDLE';
       discountValue: number;
+      bundleLabel: string | null;
       startsAt: Date;
       endsAt: Date;
       terms: string | null;
@@ -66,26 +68,32 @@ export class ConsumerProviderExperienceService {
       SELECT
         so."id",
         so."offeringId",
+        COALESCE(so."categoryId", o."categoryId") AS "categoryId",
         so."title",
         so."description",
         so."discountType"::text AS "discountType",
         so."discountValue",
+        so."bundleLabel",
         so."startsAt",
         so."endsAt",
         so."terms"
       FROM "ServiceOffer" so
+      LEFT JOIN "ServiceOffering" o
+        ON o."id" = so."offeringId"
+       AND o."providerId" = ${providerId}::uuid
+       AND o."active" = true
       WHERE so."providerId" = ${providerId}::uuid
         AND so."status" = 'APPROVED'::"ServiceOfferStatus"
         AND so."startsAt" <= CURRENT_TIMESTAMP
         AND so."endsAt" > CURRENT_TIMESTAMP
+        AND (so."postalCode" IS NULL OR so."postalCode" = ${location.postalCode})
+        AND (so."societyId" IS NULL OR so."societyId" = ${location.societyId ?? null}::uuid)
+        AND (so."offeringId" IS NULL OR o."id" IS NOT NULL)
         AND (
-          so."offeringId" IS NULL
+          so."categoryId" IS NULL
           OR EXISTS (
-            SELECT 1
-            FROM "ServiceOffering" o
-            WHERE o."id" = so."offeringId"
-              AND o."providerId" = ${providerId}::uuid
-              AND o."active" = true
+            SELECT 1 FROM "ServiceCategory" c
+            WHERE c."id" = so."categoryId" AND c."active" = true
           )
         )
       ORDER BY so."endsAt" ASC, so."createdAt" DESC
