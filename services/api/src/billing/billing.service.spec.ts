@@ -98,15 +98,18 @@ describe('BillingService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('scopes payment history and receipts to current ownership', async () => {
+  it('keeps tenant payment history payer-own while verified owners retain property visibility', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
     const service = new BillingService(prisma as unknown as PrismaService);
     await service.listPaymentsMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
     await expect(service.getReceipt('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333')).rejects.toThrow('Receipt not found');
     for (const [query] of prisma.$queryRaw.mock.calls) {
       const sql = (query as { strings: readonly string[] }).strings.join(' ');
+      expect(sql).toContain('p."payerUserId"');
       expect(sql).toContain('"UnitOwnership"');
       expect(sql).toContain('uo."userId"');
+      expect(sql).toContain('uo."verified" = true');
+      expect(sql).not.toContain('"UnitOccupancy"');
       expect(sql).not.toContain('"UnitResident"');
     }
   });
