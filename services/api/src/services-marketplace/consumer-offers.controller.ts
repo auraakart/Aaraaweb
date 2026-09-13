@@ -8,7 +8,7 @@ import {
   UseGuards,
   createParamDecorator,
 } from '@nestjs/common';
-import { IsIn, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsUUID } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerOffersService } from './consumer-offers.service';
 import { ConsumerServiceLocationType } from './consumer-service-location.service';
@@ -23,6 +23,10 @@ class ConsumerOffersQueryDto {
 
   @IsUUID()
   locationId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 }
 
 @Controller('consumer/services/offers')
@@ -39,6 +43,6 @@ export class ConsumerOffersController {
     if (!query.locationType || !query.locationId) {
       throw new BadRequestException('locationType and locationId are required');
     }
-    return this.offers.listForLocation(userId, query.locationType, query.locationId);
+    return this.offers.listForLocation(userId, query.locationType, query.locationId, query.categoryId);
   }
 }
