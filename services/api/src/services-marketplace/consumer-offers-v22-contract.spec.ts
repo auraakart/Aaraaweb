@@ -6,13 +6,15 @@ const read = (relativePath: string) => readFileSync(join(__dirname, relativePath
 
 describe('External Services V2.2 offer contract', () => {
   it('supports the planned structured offer types and contextual targets', () => {
-    const migration = read('../../prisma/migrations/20260913082000_v22a_offer_contract_hardening/migration.sql');
-    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'FIXED_PRICE'");
-    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'BUNDLE'");
-    expect(migration).toContain('ADD COLUMN "categoryId" uuid');
-    expect(migration).toContain('ADD COLUMN "societyId" uuid');
-    expect(migration).toContain('ADD COLUMN "postalCode" varchar(16)');
-    expect(migration).toContain('"ServiceOffer_bundle_label_check"');
+    const enumMigration = read('../../prisma/migrations/20260913082000_v22a_offer_contract_hardening/migration.sql');
+    const targetingMigration = read('../../prisma/migrations/20260913082100_v22a_offer_targeting_columns/migration.sql');
+
+    expect(enumMigration).toContain("ADD VALUE IF NOT EXISTS 'FIXED_PRICE'");
+    expect(enumMigration).toContain("ADD VALUE IF NOT EXISTS 'BUNDLE'");
+    expect(targetingMigration).toContain('ADD COLUMN "categoryId" uuid');
+    expect(targetingMigration).toContain('ADD COLUMN "societyId" uuid');
+    expect(targetingMigration).toContain('ADD COLUMN "postalCode" varchar(16)');
+    expect(targetingMigration).toContain('"ServiceOffer_bundle_label_check"');
   });
 
   it('keeps offer discovery scoped to the already-authorized delivery location', () => {
