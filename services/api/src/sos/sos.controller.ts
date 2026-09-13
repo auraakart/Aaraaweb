@@ -88,6 +88,15 @@ export class SosController {
     return this.sos.escalate(societyId, this.requireUser(userId), incidentId, dto.note);
   }
 
+  @Get('manage/:incidentId/escalation-targets')
+  @RequiresPermissions(AppPermission.SOS_RESPOND)
+  escalationTargets(
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @CurrentTenant() societyId: string,
+  ) {
+    return this.sos.escalationTargets(societyId, incidentId);
+  }
+
   @Patch('manage/:incidentId/resolve')
   @RequiresPermissions(AppPermission.SOS_RESPOND)
   resolve(

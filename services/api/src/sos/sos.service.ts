@@ -167,6 +167,30 @@ export class SosService {
     return { ...current, escalatedAt: events[0]?.occurredAt ?? null };
   }
 
+  async escalationTargets(societyId: string, incidentId: string) {
+    const current = await this.findIncident(societyId, incidentId);
+    if (!current) throw new NotFoundException('SOS incident not found');
+    return this.prisma.$queryRaw<
+      Array<{ contactId: string; name: string; phone: string; relation: string | null; priority: number }>
+    >(Prisma.sql`
+      SELECT
+        ec."id" AS "contactId",
+        ec."name",
+        ec."phone",
+        ec."relation",
+        ec."priority"
+      FROM "Household" h
+      JOIN "EmergencyContact" ec
+        ON ec."householdId" = h."id"
+       AND ec."societyId" = h."societyId"
+      WHERE h."societyId" = ${societyId}::uuid
+        AND h."unitId" = ${current.unitId}::uuid
+        AND ec."active" = true
+      ORDER BY ec."priority" ASC, ec."createdAt" ASC
+      LIMIT 10
+    `);
+  }
+
   async resolve(societyId: string, actorUserId: string, incidentId: string, note?: string) {
     const current = await this.findIncident(societyId, incidentId);
     if (!current) throw new NotFoundException('SOS incident not found');
