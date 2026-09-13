@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PrivacyService } from './privacy.service';
 
 describe('PrivacyService', () => {
-  it('rejects a privacy subject outside the current society', async () => {
+  it('rejects a privacy subject with no current or historical society relationship', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
     const service = new PrivacyService(prisma as unknown as PrismaService);
 
@@ -13,12 +13,16 @@ describe('PrivacyService', () => {
         requestType: 'ACCESS',
         requestSummary: 'Provide my stored data',
       }),
-    ).rejects.toThrow('Privacy request subject must be an active member of the current society');
+    ).rejects.toThrow('Privacy request subject has no current or historical relationship with this society');
 
-    const membershipQuery = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
-    expect(membershipQuery.strings.join(' ')).toContain('"SocietyMembership"');
-    expect(membershipQuery.values).toContain('society-1');
-    expect(membershipQuery.values).toContain('user-elsewhere');
+    const relationshipQuery = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    const sql = relationshipQuery.strings.join(' ');
+    expect(sql).toContain('"SocietyMembership"');
+    expect(sql).toContain('"UnitOwnership"');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).not.toContain('"active" = true');
+    expect(relationshipQuery.values).toContain('society-1');
+    expect(relationshipQuery.values).toContain('user-elsewhere');
   });
 
   it('creates a case and append-only creation evidence after society validation', async () => {
@@ -27,7 +31,7 @@ describe('PrivacyService', () => {
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: 'membership-1' }]),
+      $queryRaw: vi.fn().mockResolvedValue([{ userId: 'user-1' }]),
       $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const service = new PrivacyService(prisma as unknown as PrismaService);
