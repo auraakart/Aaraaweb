@@ -50,6 +50,7 @@ export function AdminShortcuts(){
   if(occupancyRoles.has(role))links.push({href:'/occupancy-lifecycle',label:'Move-in / move-out'})
   if(facilitiesRoles.has(role)){
     links.push({href:'/facilities',label:'Facilities ops'})
+    links.push({href:'/facilities/health',label:'Facilities health'})
     links.push({href:'/facilities/preventive',label:'Preventive maintenance'})
     links.push({href:'/facilities/contracts',label:'AMC & evidence'})
     links.push({href:'/facilities/alerts',label:'Facilities alerts'})
