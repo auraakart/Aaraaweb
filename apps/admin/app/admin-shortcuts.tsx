@@ -48,7 +48,10 @@ export function AdminShortcuts(){
     links.push({href:'/governance/polls',label:'Community polls'})
   }
   if(occupancyRoles.has(role))links.push({href:'/occupancy-lifecycle',label:'Move-in / move-out'})
-  if(facilitiesRoles.has(role))links.push({href:'/facilities',label:'Facilities ops'})
+  if(facilitiesRoles.has(role)){
+    links.push({href:'/facilities',label:'Facilities ops'})
+    links.push({href:'/facilities/preventive',label:'Preventive maintenance'})
+  }
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
