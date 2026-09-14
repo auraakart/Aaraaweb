@@ -1,8 +1,8 @@
 import { Injectable, Logger, MessageEvent } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
-import { PushNotificationService } from './push-notification.service';
 import { GateRecipientService } from './gate-recipient.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ResidentPushOutboxService } from './resident-push-outbox.service';
 
 export type AccessRealtimeEvent = {
   type: 'ACCESS_APPROVAL_REQUESTED' | 'ACCESS_APPROVAL_DECIDED' | 'ACCESS_STATUS_CHANGED';
@@ -73,7 +73,7 @@ export class NotificationRealtimeService {
   private readonly gateSubscribers = new Map<string, number>();
 
   constructor(
-    private readonly push: PushNotificationService,
+    private readonly outbox: ResidentPushOutboxService,
     private readonly gateRecipients: GateRecipientService,
     private readonly prisma?: PrismaService,
   ) {}
@@ -156,8 +156,8 @@ export class NotificationRealtimeService {
 
   private deliverResident(event: ResidentMessageEvent) {
     this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({ data: event });
-    void this.push.sendResidentEvent(event).catch((error: unknown) => {
-      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
+    void this.outbox.enqueue(event).catch((error: unknown) => {
+      this.logger.warn(`Push enqueue failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
     });
   }
 }
