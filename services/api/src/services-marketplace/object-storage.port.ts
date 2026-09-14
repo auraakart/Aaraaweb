@@ -5,7 +5,7 @@ export type ObjectStorageUploadIntent = {
   uploadUrl: string;
   method: 'PUT';
   headers: Record<string, string>;
-  publicUrl: string;
+  publicUrl: string | null;
   expiresAt: string;
 };
 
@@ -34,6 +34,7 @@ export interface ObjectStoragePort {
 }
 
 export const OBJECT_STORAGE = Symbol('OBJECT_STORAGE');
+export const PRIVATE_OBJECT_STORAGE = Symbol('PRIVATE_OBJECT_STORAGE');
 
 export class UnconfiguredObjectStorageAdapter implements ObjectStoragePort {
   private unavailable(): never {
