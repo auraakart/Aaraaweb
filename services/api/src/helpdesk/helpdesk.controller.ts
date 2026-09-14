@@ -15,6 +15,11 @@ const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext)
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
 );
 
+const STATUS_REASON_CODES = [
+  'FIXED', 'WORKAROUND', 'DUPLICATE', 'NOT_REPRODUCIBLE', 'REQUEST_WITHDRAWN', 'OTHER',
+  'RESOLVED_CONFIRMED', 'RESIDENT_CONFIRMED', 'INVALID_REQUEST',
+] as const;
+
 class CreateHelpdeskTicketDto {
   @IsUUID() unitId!: string;
   @IsString() @MinLength(3) @MaxLength(120) title!: string;
@@ -27,9 +32,18 @@ class AddHelpdeskCommentDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
 }
 
+class AddInternalNoteDto {
+  @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+}
+
+class ReopenHelpdeskTicketDto {
+  @IsString() @MinLength(3) @MaxLength(1000) note!: string;
+}
+
 class UpdateHelpdeskStatusDto {
   @IsIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']) status!: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   @IsOptional() @IsString() @MaxLength(1000) note?: string;
+  @IsOptional() @IsIn(STATUS_REASON_CODES) reasonCode?: typeof STATUS_REASON_CODES[number];
 }
 
 @Controller('helpdesk')
@@ -94,6 +108,17 @@ export class HelpdeskController {
     return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, true);
   }
 
+  @Post('review/:ticketId/internal-notes')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  internalNote(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AddInternalNoteDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.addInternalNote(societyId, this.requireUser(userId), ticketId, dto.message);
+  }
+
   @Patch('review/:ticketId/status')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   status(
@@ -102,7 +127,18 @@ export class HelpdeskController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId?: string,
   ) {
-    return this.helpdesk.updateStatus(societyId, this.requireUser(userId), ticketId, dto.status, dto.note);
+    return this.helpdesk.updateStatus(societyId, this.requireUser(userId), ticketId, dto.status, dto.note, dto.reasonCode);
+  }
+
+  @Post('review/:ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reopen(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopen(societyId, this.requireUser(userId), ticketId, dto.note);
   }
 
   private requireUser(userId?: string) {
