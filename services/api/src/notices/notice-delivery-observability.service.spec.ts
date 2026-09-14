@@ -29,11 +29,12 @@ describe('NoticeDeliveryObservabilityService', () => {
           totalRecipients: 10n,
           readRecipients: 7n,
           acknowledgedRecipients: 5n,
+          trackedRecipients: 9n,
           pendingHandoff: 1n,
           inFlightHandoff: 1n,
-          successfulHandoff: 7n,
+          successfulHandoff: 6n,
           retryingHandoff: 1n,
-          attemptedRecipients: 9n,
+          attemptedRecipients: 8n,
           totalAttempts: 12n,
         }]),
     };
@@ -42,11 +43,13 @@ describe('NoticeDeliveryObservabilityService', () => {
     await expect(service.summary(societyId, noticeId)).resolves.toMatchObject({
       recipientSnapshot: { total: 10 },
       pushHandoff: {
+        trackedRecipients: 9,
+        untrackedRecipients: 1,
         pending: 1,
         inFlight: 1,
-        successful: 7,
+        successful: 6,
         retrying: 1,
-        attemptedRecipients: 9,
+        attemptedRecipients: 8,
         totalAttempts: 12,
       },
       engagement: {
@@ -63,7 +66,7 @@ describe('NoticeDeliveryObservabilityService', () => {
     expect(aggregateSql).toContain('nd."status"=\'DISPATCHED\'');
   });
 
-  it('does not imply pending acknowledgement for notices that do not require it', async () => {
+  it('does not classify untracked immediate-delivery recipients as failed', async () => {
     const prisma = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{
@@ -77,18 +80,22 @@ describe('NoticeDeliveryObservabilityService', () => {
           totalRecipients: 3n,
           readRecipients: 1n,
           acknowledgedRecipients: 0n,
+          trackedRecipients: 0n,
           pendingHandoff: 0n,
           inFlightHandoff: 0n,
-          successfulHandoff: 3n,
+          successfulHandoff: 0n,
           retryingHandoff: 0n,
-          attemptedRecipients: 3n,
-          totalAttempts: 3n,
+          attemptedRecipients: 0n,
+          totalAttempts: 0n,
         }]),
     };
     const service = new NoticeDeliveryObservabilityService(prisma as unknown as PrismaService);
 
     const result = await service.summary(societyId, noticeId);
+    expect(result.pushHandoff.untrackedRecipients).toBe(3);
+    expect(result.pushHandoff.retrying).toBe(0);
     expect(result.engagement.pendingAcknowledgement).toBe(0);
+    expect(result.semantics.coverage).toContain('must not be classified as failed');
     expect(result.semantics.legalService).toContain('must not be represented as legally effective service');
   });
 });
