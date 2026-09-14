@@ -1,14 +1,14 @@
 import { firstValueFrom, skip, take } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationRealtimeService } from './notification-realtime.service';
-import type { PushNotificationService } from './push-notification.service';
+import type { ResidentPushOutboxService } from './resident-push-outbox.service';
 import type { GateRecipientService } from './gate-recipient.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
 function createService() {
-  const push = {
-    sendResidentEvent: vi.fn().mockResolvedValue(undefined),
-  } as unknown as PushNotificationService;
+  const outbox = {
+    enqueue: vi.fn().mockResolvedValue({ queued: true, duplicate: false }),
+  } as unknown as ResidentPushOutboxService;
   const recipients = {
     notificationRecipients: vi.fn().mockResolvedValue([
       { userId: 'resident-1', gateApprovalEnabled: true },
@@ -20,12 +20,12 @@ function createService() {
       findFirst: vi.fn().mockResolvedValue({ unitId: 'unit-1' }),
     },
   } as unknown as PrismaService;
-  return { service: new NotificationRealtimeService(push, recipients, prisma), push, recipients, prisma };
+  return { service: new NotificationRealtimeService(outbox, recipients, prisma), outbox, recipients, prisma };
 }
 
 describe('NotificationRealtimeService', () => {
-  it('delivers a resident approval event only to the targeted resident stream and dispatches push', async () => {
-    const { service, push } = createService();
+  it('delivers a resident approval event only to the targeted resident stream and enqueues push durably', async () => {
+    const { service, outbox } = createService();
     const residentOne = firstValueFrom(service.residentStream('society-1', 'resident-1').pipe(skip(1), take(1)));
     let residentTwoReceived = false;
     const residentTwo = service.residentStream('society-1', 'resident-2').pipe(skip(1)).subscribe(() => {
@@ -48,7 +48,7 @@ describe('NotificationRealtimeService', () => {
     const message = await residentOne;
     expect(message.data).toMatchObject({ requestId: 'request-1', userId: 'resident-1', status: 'PENDING' });
     expect(residentTwoReceived).toBe(false);
-    expect(push.sendResidentEvent).toHaveBeenCalledWith(event);
+    expect(outbox.enqueue).toHaveBeenCalledWith(event);
     residentTwo.unsubscribe();
   });
 
@@ -71,7 +71,7 @@ describe('NotificationRealtimeService', () => {
   });
 
   it('routes gate events to active occupants rather than a non-resident owner', async () => {
-    const { service, push, recipients } = createService();
+    const { service, outbox, recipients } = createService();
     await service.publishUnitOccupants({
       type: 'ACCESS_APPROVAL_REQUESTED',
       societyId: 'society-1',
@@ -84,9 +84,9 @@ describe('NotificationRealtimeService', () => {
     });
 
     expect(recipients.notificationRecipients).toHaveBeenCalledWith('society-1', 'unit-1');
-    expect(push.sendResidentEvent).toHaveBeenCalledTimes(2);
-    expect(push.sendResidentEvent).toHaveBeenCalledWith(expect.objectContaining({ userId: 'tenant-1' }));
-    expect(push.sendResidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'owner-non-resident' }));
+    expect(outbox.enqueue).toHaveBeenCalledTimes(2);
+    expect(outbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({ userId: 'tenant-1' }));
+    expect(outbox.enqueue).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'owner-non-resident' }));
   });
 
   it('broadcasts resident decisions to the society gate stream', async () => {
@@ -109,8 +109,8 @@ describe('NotificationRealtimeService', () => {
     expect(message.data).toMatchObject({ requestId: 'request-1', gateId: 'gate-1', status: 'APPROVED' });
   });
 
-  it('resolves billing due notifications to the authoritative invoice unit before delivery', async () => {
-    const { service, push, prisma } = createService();
+  it('resolves billing due notifications to the authoritative invoice unit before enqueue', async () => {
+    const { service, outbox, prisma } = createService();
     const event = {
       type: 'MAINTENANCE_DUE_ISSUED' as const,
       societyId: 'society-1', userId: 'tenant-1', invoiceId: 'invoice-1',
@@ -119,7 +119,7 @@ describe('NotificationRealtimeService', () => {
     service.publishResident(event);
 
     await vi.waitFor(() => {
-      expect(push.sendResidentEvent).toHaveBeenCalledWith(expect.objectContaining({
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({
         type: 'MAINTENANCE_DUE_ISSUED', invoiceId: 'invoice-1', unitId: 'unit-1',
       }));
     });
