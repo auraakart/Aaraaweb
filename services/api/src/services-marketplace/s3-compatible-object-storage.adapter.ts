@@ -14,7 +14,7 @@ type S3CompatibleConfig = {
   region: string;
   accessKeyId: string;
   secretAccessKey: string;
-  publicBaseUrl: string;
+  publicBaseUrl: string | null;
   presignTtlSeconds: number;
 };
 
@@ -28,30 +28,42 @@ const trimSlash = (value: string) => value.replace(/\/+$/, '');
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required when OBJECT_STORAGE_DRIVER=s3`);
+  if (!value) throw new Error(`${name} is required when the S3 object-storage driver is enabled`);
   return value;
 }
 
-export function s3CompatibleConfigFromEnv(): S3CompatibleConfig {
-  const endpoint = required('OBJECT_STORAGE_S3_ENDPOINT');
-  const endpointUrl = new URL(endpoint);
-  if (!['http:', 'https:'].includes(endpointUrl.protocol)) throw new Error('OBJECT_STORAGE_S3_ENDPOINT must use http or https');
-
-  const ttlRaw = process.env.OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS?.trim();
-  const ttl = ttlRaw ? Number(ttlRaw) : 300;
+function ttlFromEnv(name: string): number {
+  const raw = process.env[name]?.trim();
+  const ttl = raw ? Number(raw) : 300;
   if (!Number.isInteger(ttl) || ttl < 60 || ttl > 900) {
-    throw new Error('OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS must be an integer between 60 and 900');
+    throw new Error(`${name} must be an integer between 60 and 900`);
   }
+  return ttl;
+}
 
+function readS3Config(prefix: 'OBJECT_STORAGE' | 'PRIVATE_OBJECT_STORAGE', requirePublicUrl: boolean): S3CompatibleConfig {
+  const endpointName = `${prefix}_S3_ENDPOINT`;
+  const endpoint = required(endpointName);
+  const endpointUrl = new URL(endpoint);
+  if (!['http:', 'https:'].includes(endpointUrl.protocol)) throw new Error(`${endpointName} must use http or https`);
+  const publicBaseUrl = requirePublicUrl ? trimSlash(required(`${prefix}_PUBLIC_BASE_URL`)) : null;
   return {
     endpoint: trimSlash(endpoint),
-    bucket: required('OBJECT_STORAGE_S3_BUCKET'),
-    region: required('OBJECT_STORAGE_S3_REGION'),
-    accessKeyId: required('OBJECT_STORAGE_S3_ACCESS_KEY_ID'),
-    secretAccessKey: required('OBJECT_STORAGE_S3_SECRET_ACCESS_KEY'),
-    publicBaseUrl: trimSlash(required('OBJECT_STORAGE_PUBLIC_BASE_URL')),
-    presignTtlSeconds: ttl,
+    bucket: required(`${prefix}_S3_BUCKET`),
+    region: required(`${prefix}_S3_REGION`),
+    accessKeyId: required(`${prefix}_S3_ACCESS_KEY_ID`),
+    secretAccessKey: required(`${prefix}_S3_SECRET_ACCESS_KEY`),
+    publicBaseUrl,
+    presignTtlSeconds: ttlFromEnv(`${prefix}_S3_PRESIGN_TTL_SECONDS`),
   };
+}
+
+export function s3CompatibleConfigFromEnv(): S3CompatibleConfig {
+  return readS3Config('OBJECT_STORAGE', true);
+}
+
+export function privateS3CompatibleConfigFromEnv(): S3CompatibleConfig {
+  return readS3Config('PRIVATE_OBJECT_STORAGE', false);
 }
 
 export function createObjectStorageAdapterFromEnv(): ObjectStoragePort {
@@ -59,6 +71,13 @@ export function createObjectStorageAdapterFromEnv(): ObjectStoragePort {
   if (!driver) return new UnconfiguredObjectStorageAdapter();
   if (driver !== 's3') throw new Error(`Unsupported OBJECT_STORAGE_DRIVER: ${driver}`);
   return new S3CompatibleObjectStorageAdapter(s3CompatibleConfigFromEnv());
+}
+
+export function createPrivateObjectStorageAdapterFromEnv(): ObjectStoragePort {
+  const driver = process.env.PRIVATE_OBJECT_STORAGE_DRIVER?.trim().toLowerCase();
+  if (!driver) return new UnconfiguredObjectStorageAdapter();
+  if (driver !== 's3') throw new Error(`Unsupported PRIVATE_OBJECT_STORAGE_DRIVER: ${driver}`);
+  return new S3CompatibleObjectStorageAdapter(privateS3CompatibleConfigFromEnv());
 }
 
 export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
@@ -75,7 +94,7 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
       uploadUrl: this.presign('PUT', input.storageKey, this.config.presignTtlSeconds),
       method: 'PUT',
       headers: { 'Content-Type': input.contentType },
-      publicUrl: `${this.config.publicBaseUrl}/${encodeKey(input.storageKey)}`,
+      publicUrl: this.config.publicBaseUrl ? `${this.config.publicBaseUrl}/${encodeKey(input.storageKey)}` : null,
       expiresAt,
     };
   }
@@ -103,13 +122,10 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
   }
 
   async getObjectBytes(storageKey: string, maxBytes: number): Promise<Uint8Array | null> {
-    if (!Number.isInteger(maxBytes) || maxBytes <= 0) {
-      throw new Error('maxBytes must be a positive integer');
-    }
+    if (!Number.isInteger(maxBytes) || maxBytes <= 0) throw new Error('maxBytes must be a positive integer');
     const response = await fetch(this.presign('GET', storageKey, 60), { method: 'GET' });
     if (response.status === 404) return null;
     if (!response.ok) throw new ServiceUnavailableException(`Object storage GET failed (${response.status})`);
-
     const lengthHeader = response.headers.get('content-length');
     if (lengthHeader !== null) {
       const length = Number(lengthHeader);
@@ -117,11 +133,8 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
         throw new ServiceUnavailableException('Object storage GET exceeded the configured scan size limit');
       }
     }
-
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maxBytes) {
-      throw new ServiceUnavailableException('Object storage GET exceeded the configured scan size limit');
-    }
+    if (bytes.byteLength > maxBytes) throw new ServiceUnavailableException('Object storage GET exceeded the configured scan size limit');
     return bytes;
   }
 
