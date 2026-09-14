@@ -54,7 +54,7 @@ CREATE INDEX "ParkingPermit_slot_idx"
 ALTER TABLE "ParkingEvent" ADD COLUMN "permitId" UUID;
 ALTER TABLE "ParkingEvent"
   ADD CONSTRAINT "ParkingEvent_permitId_fkey" FOREIGN KEY ("permitId") REFERENCES "ParkingPermit"("id") ON DELETE SET NULL;
-DROP CONSTRAINT IF EXISTS "ParkingEvent_action_check";
+ALTER TABLE "ParkingEvent" DROP CONSTRAINT IF EXISTS "ParkingEvent_action_check";
 ALTER TABLE "ParkingEvent" ADD CONSTRAINT "ParkingEvent_action_check"
   CHECK ("action" IN ('SLOT_CREATED','SLOT_UPDATED','ALLOCATED','RELEASED','PERMIT_CREATED','PERMIT_CANCELLED','PERMIT_COMPLETED'));
 
