@@ -36,10 +36,12 @@ export class ProcurementAccountingLinkService {
         SELECT po."id",po."requestId",po."vendorId",po."poNumber",po."amountPaise",v."name" AS "vendorName"
         FROM "PurchaseOrder" po
         JOIN "SocietyVendor" v ON v."id"=po."vendorId" AND v."societyId"=po."societyId"
-        WHERE po."id"=${purchaseOrderId}::uuid AND po."societyId"=${societyId}::uuid
+        WHERE po."id"=${purchaseOrderId}::uuid
+          AND po."societyId"=${societyId}::uuid
+          AND po."status"='ISSUED'
         FOR UPDATE
       `);
-      if (!po) throw new NotFoundException('Purchase order not found');
+      if (!po) throw new NotFoundException('Issued purchase order not found');
 
       const existing = await tx.$queryRaw<Array<{ expenseId: string }>>(Prisma.sql`
         SELECT "expenseId" FROM "ProcurementExpenseLink"
