@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -12,7 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 class CreateAssetDto{@IsString() @MinLength(1) @MaxLength(80) code!:string;@IsString() @MinLength(1) @MaxLength(240) name!:string;@IsString() @MinLength(1) @MaxLength(120) category!:string;@IsOptional() @IsString() @MaxLength(240) location?:string;@IsOptional() @IsString() @MaxLength(160) manufacturer?:string;@IsOptional() @IsString() @MaxLength(160) model?:string;@IsOptional() @IsString() @MaxLength(160) serialNumber?:string;@IsOptional() @IsISO8601() installedAt?:string;@IsOptional() @IsISO8601() warrantyEndsAt?:string;@IsOptional() @IsString() @MaxLength(5000) notes?:string;}
 class CreateWorkOrderDto{@IsOptional() @IsUUID() assetId?:string;@IsIn(['CORRECTIVE','PREVENTIVE','INSPECTION']) workType!:'CORRECTIVE'|'PREVENTIVE'|'INSPECTION';@IsIn(['LOW','MEDIUM','HIGH','CRITICAL']) priority!:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';@IsString() @MinLength(1) @MaxLength(240) title!:string;@IsOptional() @IsString() @MaxLength(5000) description?:string;@IsOptional() @IsISO8601() scheduledAt?:string;@IsOptional() @IsISO8601() dueAt?:string;@IsOptional() @IsUUID() assignedUserId?:string;}
-class WorkOrderStatusDto{@IsIn(['IN_PROGRESS','COMPLETED','CANCELLED']) status!:'IN_PROGRESS'|'COMPLETED'|'CANCELLED';@IsOptional() @IsString() @MaxLength(5000) completionNote?:string;}
+class WorkOrderStatusDto{@IsIn(['IN_PROGRESS','COMPLETED','CANCELLED']) status!:'IN_PROGRESS'|'COMPLETED'|'CANCELLED';@ValidateIf((o:WorkOrderStatusDto)=>o.status==='COMPLETED'||o.completionNote!==undefined) @IsString() @MinLength(5) @MaxLength(5000) completionNote?:string;}
 
 @Controller('facilities')
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
