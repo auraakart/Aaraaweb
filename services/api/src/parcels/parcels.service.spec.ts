@@ -56,6 +56,7 @@ describe('ParcelsService', () => {
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"pickupCodeHash"');
     expect(query.strings.join(' ')).toContain('"recipientUserId"');
+    expect(query.strings.join(' ')).toContain('make_interval(mins =>');
     expect(query.values).not.toContain(result.code);
   });
 
@@ -89,8 +90,7 @@ describe('ParcelsService', () => {
     const sql = query.strings.join(' ');
     expect(sql).toContain("p.\"status\"='RECEIVED'");
     expect(sql).toContain('u."number" AS "unitNumber"');
-    expect(sql).toContain("INTERVAL '");
-    expect(sql).toContain("hours'");
+    expect(sql).toContain('make_interval(hours =>');
     expect(query.values).toContain(24);
   });
 });
