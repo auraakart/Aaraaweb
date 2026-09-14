@@ -6,11 +6,17 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { DocumentsStorageService } from './documents-storage.service';
 import { DocumentsService } from './documents.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
 );
+
+class DocumentUploadIntentDto {
+  @IsString() @MaxLength(120) contentType!: string;
+  @IsInt() @Min(1) @Max(5 * 1024 * 1024) contentLengthBytes!: number;
+}
 
 class CreateDocumentDto {
   @IsOptional() @IsUUID() unitId?: string;
@@ -21,19 +27,33 @@ class CreateDocumentDto {
   @IsString() @MaxLength(500) storageKey!: string;
   @IsString() @MaxLength(255) fileName!: string;
   @IsString() @MaxLength(120) mimeType!: string;
-  @IsInt() @Min(0) @Max(2147483647) sizeBytes!: number;
+  @IsInt() @Min(1) @Max(5 * 1024 * 1024) sizeBytes!: number;
   @IsOptional() @IsInt() @Min(1) version?: number;
 }
 
 @Controller('documents')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly storage: DocumentsStorageService,
+  ) {}
 
   @Get('published')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   published(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.documents.listPublishedForUser(societyId, this.requireUser(userId));
+  }
+
+  @Get('published/:documentId/download-intent')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  async publishedDownload(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ) {
+    const document = await this.documents.getPublishedDocumentForUser(societyId, this.requireUser(userId), documentId);
+    return this.storage.createDownloadIntent(societyId, document.storageKey);
   }
 
   @Get('management')
@@ -42,10 +62,32 @@ export class DocumentsController {
     return this.documents.listManagement(societyId);
   }
 
+  @Post('management/upload-intent')
+  @RequiresPermissions(AppPermission.DOCUMENTS_MANAGE)
+  uploadIntent(@CurrentTenant() societyId: string, @Body() dto: DocumentUploadIntentDto) {
+    return this.storage.createUploadIntent(societyId, dto);
+  }
+
   @Post('management')
   @RequiresPermissions(AppPermission.DOCUMENTS_MANAGE)
-  create(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Body() dto: CreateDocumentDto) {
+  async create(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Body() dto: CreateDocumentDto,
+  ) {
+    await this.storage.verifyAndScanUpload(societyId, {
+      storageKey: dto.storageKey,
+      contentType: dto.mimeType,
+      contentLengthBytes: dto.sizeBytes,
+    });
     return this.documents.createDraft(societyId, this.requireUser(userId), dto);
+  }
+
+  @Get('management/:documentId/download-intent')
+  @RequiresPermissions(AppPermission.DOCUMENTS_READ)
+  async managementDownload(@CurrentTenant() societyId: string, @Param('documentId', ParseUUIDPipe) documentId: string) {
+    const document = await this.documents.getManagementDocument(societyId, documentId);
+    return this.storage.createDownloadIntent(societyId, document.storageKey);
   }
 
   @Patch('management/:documentId/publish')
