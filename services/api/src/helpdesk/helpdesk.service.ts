@@ -4,6 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 type TicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+type ResolutionCode = 'FIXED' | 'WORKAROUND' | 'DUPLICATE' | 'NOT_REPRODUCIBLE' | 'REQUEST_WITHDRAWN' | 'OTHER';
+type ClosureCode = 'RESOLVED_CONFIRMED' | 'RESIDENT_CONFIRMED' | 'DUPLICATE' | 'INVALID_REQUEST' | 'REQUEST_WITHDRAWN' | 'OTHER';
+
+const RESOLUTION_CODES = new Set<ResolutionCode>(['FIXED', 'WORKAROUND', 'DUPLICATE', 'NOT_REPRODUCIBLE', 'REQUEST_WITHDRAWN', 'OTHER']);
+const CLOSURE_CODES = new Set<ClosureCode>(['RESOLVED_CONFIRMED', 'RESIDENT_CONFIRMED', 'DUPLICATE', 'INVALID_REQUEST', 'REQUEST_WITHDRAWN', 'OTHER']);
 
 type TicketRow = {
   id: string;
@@ -16,6 +21,8 @@ type TicketRow = {
   priority: TicketPriority;
   status: TicketStatus;
   assignedToId: string | null;
+  resolutionCode?: ResolutionCode | null;
+  closureCode?: ClosureCode | null;
   resolvedAt: Date | null;
   closedAt: Date | null;
   createdAt: Date;
@@ -107,13 +114,13 @@ export class HelpdeskService {
   async activitiesMine(societyId: string, userId: string, ticketId: string) {
     const ticket = await this.findOwnedTicket(societyId, userId, ticketId);
     if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
-    return this.activitiesForTicket(societyId, ticketId);
+    return this.activitiesForTicket(societyId, ticketId, false);
   }
 
   async activitiesReview(societyId: string, ticketId: string) {
     const ticket = await this.findTicket(societyId, ticketId);
     if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
-    return this.activitiesForTicket(societyId, ticketId);
+    return this.activitiesForTicket(societyId, ticketId, true);
   }
 
   async addComment(societyId: string, userId: string, ticketId: string, message: string, reviewer = false) {
@@ -130,12 +137,25 @@ export class HelpdeskService {
     return { ok: true };
   }
 
+  async addInternalNote(societyId: string, actorUserId: string, ticketId: string, message: string) {
+    const normalized = message.trim();
+    if (normalized.length < 1 || normalized.length > 1000) throw new BadRequestException('Internal note must be between 1 and 1000 characters');
+    const ticket = await this.findTicket(societyId, ticketId);
+    if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message")
+      VALUES (${societyId}::uuid, ${ticketId}::uuid, ${actorUserId}::uuid, 'INTERNAL_NOTE', ${normalized})
+    `);
+    return { ok: true };
+  }
+
   async updateStatus(
     societyId: string,
     actorUserId: string,
     ticketId: string,
     toStatus: TicketStatus,
     note?: string,
+    reasonCode?: string,
   ) {
     const current = await this.findTicket(societyId, ticketId);
     if (!current) throw new NotFoundException('Helpdesk ticket not found');
@@ -146,10 +166,23 @@ export class HelpdeskService {
     const normalizedNote = note?.trim() || null;
     if (normalizedNote && normalizedNote.length > 1000) throw new BadRequestException('Status note must be 1000 characters or fewer');
 
+    let resolutionCode: ResolutionCode | null = current.resolutionCode ?? null;
+    let closureCode: ClosureCode | null = current.closureCode ?? null;
+    if (toStatus === 'RESOLVED') {
+      if (!reasonCode || !RESOLUTION_CODES.has(reasonCode as ResolutionCode)) throw new BadRequestException('A valid resolution code is required');
+      resolutionCode = reasonCode as ResolutionCode;
+      closureCode = null;
+    } else if (toStatus === 'CLOSED') {
+      if (!reasonCode || !CLOSURE_CODES.has(reasonCode as ClosureCode)) throw new BadRequestException('A valid closure code is required');
+      closureCode = reasonCode as ClosureCode;
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         UPDATE "HelpdeskTicket"
         SET "status" = ${toStatus},
+            "resolutionCode" = ${resolutionCode},
+            "closureCode" = ${closureCode},
             "resolvedAt" = CASE WHEN ${toStatus} = 'RESOLVED' THEN CURRENT_TIMESTAMP ELSE "resolvedAt" END,
             "closedAt" = CASE WHEN ${toStatus} = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE "closedAt" END,
             "updatedAt" = CURRENT_TIMESTAMP
@@ -172,13 +205,41 @@ export class HelpdeskService {
     });
   }
 
-  private activitiesForTicket(societyId: string, ticketId: string) {
+  async reopen(societyId: string, actorUserId: string, ticketId: string, note: string) {
+    const normalized = note.trim();
+    if (normalized.length < 3 || normalized.length > 1000) throw new BadRequestException('Reopen reason must be between 3 and 1000 characters');
+    return this.prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT * FROM "HelpdeskTicket"
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if (!current) throw new NotFoundException('Helpdesk ticket not found');
+      if (!['RESOLVED','CLOSED'].includes(current.status)) throw new BadRequestException('Only resolved or closed tickets can be reopened');
+      const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        UPDATE "HelpdeskTicket"
+        SET "status"='IN_PROGRESS', "resolvedAt"=NULL, "closedAt"=NULL,
+            "resolutionCode"=NULL, "closureCode"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid AND "status"=${current.status}
+        RETURNING *
+      `);
+      if (!updated) throw new BadRequestException('Helpdesk ticket changed; refresh and retry');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message","fromStatus","toStatus")
+        VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'REOPENED',${normalized},${current.status},'IN_PROGRESS')
+      `);
+      return updated;
+    });
+  }
+
+  private activitiesForTicket(societyId: string, ticketId: string, includeInternal: boolean) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ha.*, actor."name" AS "actorName"
       FROM "HelpdeskActivity" ha
       JOIN "User" actor ON actor."id" = ha."actorUserId"
       WHERE ha."societyId" = ${societyId}::uuid
         AND ha."ticketId" = ${ticketId}::uuid
+        AND (${includeInternal} OR ha."type" <> 'INTERNAL_NOTE')
       ORDER BY ha."occurredAt" ASC
     `);
   }
@@ -216,7 +277,7 @@ export class HelpdeskService {
     const transitions: Record<TicketStatus, readonly TicketStatus[]> = {
       OPEN: ['IN_PROGRESS', 'RESOLVED', 'CLOSED'],
       IN_PROGRESS: ['OPEN', 'RESOLVED', 'CLOSED'],
-      RESOLVED: ['IN_PROGRESS', 'CLOSED'],
+      RESOLVED: ['CLOSED'],
       CLOSED: [],
     };
     return transitions[from].includes(to);
