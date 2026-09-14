@@ -95,8 +95,55 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
           RETURNING "ticketId"
         `);
 
+        const escalated = await tx.$queryRaw<Array<{ ticketId: string }>>(Prisma.sql`
+          WITH candidates AS (
+            SELECT ht."id", ht."societyId", ht."slaState", p."escalationTargetUserId"
+            FROM "HelpdeskTicket" ht
+            JOIN "HelpdeskSlaPolicy" p
+              ON p."societyId"=ht."societyId"
+             AND p."priority"=ht."priority"
+             AND p."active"=true
+             AND p."automaticEscalationEnabled"=true
+             AND p."escalationTargetUserId" IS NOT NULL
+            JOIN "SocietyMembership" sm
+              ON sm."societyId"=p."societyId"
+             AND sm."userId"=p."escalationTargetUserId"
+             AND sm."active"=true
+            WHERE ht."status" NOT IN ('RESOLVED','CLOSED')
+              AND ht."escalationLevel"=0
+              AND ht."slaState" IN ('RESPONSE_BREACHED','RESOLUTION_BREACHED')
+              AND (
+                (ht."slaState"='RESOLUTION_BREACHED' AND ht."resolutionDueAt" IS NOT NULL
+                  AND CURRENT_TIMESTAMP >= ht."resolutionDueAt" + make_interval(mins => p."escalationAfterMinutes"))
+                OR
+                (ht."slaState"='RESPONSE_BREACHED' AND ht."firstResponseDueAt" IS NOT NULL
+                  AND CURRENT_TIMESTAMP >= ht."firstResponseDueAt" + make_interval(mins => p."escalationAfterMinutes"))
+              )
+            FOR UPDATE OF ht SKIP LOCKED
+          ),
+          escalated AS (
+            UPDATE "HelpdeskTicket" ht
+            SET "escalationLevel"=1,
+                "escalatedToId"=c."escalationTargetUserId",
+                "lastEscalatedAt"=CURRENT_TIMESTAMP,
+                "updatedAt"=CURRENT_TIMESTAMP
+            FROM candidates c
+            WHERE ht."id"=c."id" AND ht."societyId"=c."societyId" AND ht."escalationLevel"=0
+            RETURNING ht."id" AS "ticketId", ht."societyId", ht."slaState", ht."escalatedToId"
+          )
+          INSERT INTO "HelpdeskSlaEvent" (
+            "societyId","ticketId","actorUserId","actorSource","eventType","fromState","toState",
+            "escalationLevel","escalatedToId","note"
+          )
+          SELECT e."societyId",e."ticketId",NULL,'AUTOMATION','ESCALATED',e."slaState",e."slaState",1,e."escalatedToId",
+            'First SLA escalation routed by scheduled automation'
+          FROM escalated e
+          RETURNING "ticketId"
+        `);
+
         if (changed.length > 0) this.logger.log(`Scheduled SLA sweep updated ${changed.length} ticket(s)`);
-        return { skipped: false, processed: changed.length };
+        if (escalated.length > 0) this.logger.log(`Scheduled SLA sweep escalated ${escalated.length} ticket(s)`);
+        return { skipped: false, processed: changed.length, escalated: escalated.length };
       });
     } catch (error) {
       this.logger.error('Scheduled SLA sweep failed', error instanceof Error ? error.stack : String(error));

@@ -21,6 +21,8 @@ class UpsertSlaPolicyDto {
   @IsInt() @Min(1) @Max(525600) resolutionMinutes!: number;
   @IsInt() @Min(1) @Max(525600) escalationAfterMinutes!: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsUUID() escalationTargetUserId?: string | null;
+  @IsOptional() @IsBoolean() automaticEscalationEnabled?: boolean;
 }
 class EscalateTicketDto {
   @IsUUID() escalatedToId!: string;
