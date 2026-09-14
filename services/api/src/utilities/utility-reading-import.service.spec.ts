@@ -1,13 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import { describe, expect, test, vi } from 'vitest';
 import type { PrismaService } from '../prisma/prisma.service';
 import { UtilityReadingImportService } from './utility-reading-import.service';
 
-type QueryRawMock = jest.Mock<Promise<unknown>, unknown[]>;
-type ExecuteRawMock = jest.Mock<Promise<number>, unknown[]>;
-
 type TransactionClientMock = {
-  $queryRaw: QueryRawMock;
-  $executeRaw: ExecuteRawMock;
+  $queryRaw: ReturnType<typeof vi.fn>;
+  $executeRaw: ReturnType<typeof vi.fn>;
 };
 
 function asPrismaService(value: Partial<PrismaService>): PrismaService {
@@ -17,7 +15,7 @@ function asPrismaService(value: Partial<PrismaService>): PrismaService {
 describe('UtilityReadingImportService', () => {
   test('preview rejects duplicate timestamps in the same batch', async () => {
     const prisma = asPrismaService({
-      $queryRaw: jest.fn().mockResolvedValue([{ id: '11111111-1111-1111-1111-111111111111', code: 'ELEC-A101', active: true }]) as PrismaService['$queryRaw'],
+      $queryRaw: vi.fn().mockResolvedValue([{ id: '11111111-1111-1111-1111-111111111111', code: 'ELEC-A101', active: true }]) as PrismaService['$queryRaw'],
     });
     const service = new UtilityReadingImportService(prisma);
 
@@ -31,7 +29,7 @@ describe('UtilityReadingImportService', () => {
   });
 
   test('preview requires an explanation for RESET rows', async () => {
-    const prisma = asPrismaService({ $queryRaw: jest.fn() as PrismaService['$queryRaw'] });
+    const prisma = asPrismaService({ $queryRaw: vi.fn() as PrismaService['$queryRaw'] });
     const service = new UtilityReadingImportService(prisma);
 
     const result = await service.preview('22222222-2222-2222-2222-222222222222', [
@@ -44,11 +42,11 @@ describe('UtilityReadingImportService', () => {
 
   test('commit fails atomically when validation reports an invalid row', async () => {
     const tx: TransactionClientMock = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
-      $executeRaw: jest.fn().mockResolvedValue(0),
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      $executeRaw: vi.fn().mockResolvedValue(0),
     };
     const prisma = asPrismaService({
-      $transaction: jest.fn(async (callback: (client: TransactionClientMock) => unknown) => callback(tx)) as PrismaService['$transaction'],
+      $transaction: vi.fn(async (callback: (client: TransactionClientMock) => unknown) => callback(tx)) as PrismaService['$transaction'],
     });
     const service = new UtilityReadingImportService(prisma);
 
