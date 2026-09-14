@@ -27,6 +27,7 @@ import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
+import { UtilitiesModule } from './utilities/utilities.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
 
@@ -50,6 +51,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     AccessModule,
     AmenitiesModule,
     FacilitiesModule,
+    UtilitiesModule,
     VendorsModule,
     DocumentsModule,
     ServicesMarketplaceModule,
