@@ -4,6 +4,7 @@ import { AccountingModule } from './accounting/accounting.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
+import { DocumentsModule } from './documents/documents.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
@@ -45,6 +46,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     AmenitiesModule,
     FacilitiesModule,
     VendorsModule,
+    DocumentsModule,
     ServicesMarketplaceModule,
     BillingModule,
     AccountingModule,
