@@ -7,8 +7,8 @@ describe('SosRoutingService', () => {
   it('rejects a responder without SOS response permission', async () => {
     const prisma = {
       societyMembership: { findMany: vi.fn().mockResolvedValue([{ role: AppRole.ACCOUNTANT }]) },
-    } as never;
-    const service = new SosRoutingService(prisma);
+    };
+    const service = new SosRoutingService(prisma as never);
 
     await expect(service.upsertPolicy(
       '11111111-1111-4111-8111-111111111111',
@@ -25,8 +25,8 @@ describe('SosRoutingService', () => {
     const prisma = {
       societyMembership: { findMany: vi.fn().mockResolvedValue([{ role: AppRole.SECURITY_SUPERVISOR }]) },
       $queryRaw: vi.fn().mockResolvedValue([{ id: 'policy', severity: 'CRITICAL' }]),
-    } as never;
-    const service = new SosRoutingService(prisma);
+    };
+    const service = new SosRoutingService(prisma as never);
 
     await expect(service.upsertPolicy(
       '11111111-1111-4111-8111-111111111111',
@@ -44,8 +44,8 @@ describe('SosRoutingService', () => {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: 'incident' }])
         .mockResolvedValueOnce([]),
-    } as never;
-    const service = new SosRoutingService(prisma);
+    };
+    const service = new SosRoutingService(prisma as never);
 
     await service.history(
       '11111111-1111-4111-8111-111111111111',
@@ -53,7 +53,7 @@ describe('SosRoutingService', () => {
     );
 
     const sql = (prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(sql).toContain("actorSource");
+    expect(sql).toContain('actorSource');
     expect(sql).toContain('Aaraagate automation');
     expect(sql).toContain('LEFT JOIN');
   });
