@@ -79,8 +79,10 @@ describe('ParkingPermitService', () => {
     const cancelSql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(cancelSql).toContain('"status"=\'CANCELLED\'');
     expect(cancelSql).toContain('"societyId"');
-    const eventSql = (tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(eventSql).toContain("'PERMIT_CANCELLED'");
+    const eventQuery = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(eventQuery.strings.join(' ')).toContain('INSERT INTO "ParkingEvent"');
+    expect(eventQuery.values).toContain('PERMIT_CANCELLED');
+    expect(eventQuery.values).toContain('Visit cancelled');
   });
 
   it('maps database overlap races to a conflict', async () => {
