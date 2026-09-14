@@ -27,19 +27,21 @@ class _BillingScreenState extends State<BillingScreen> {
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
-      final result = await Future.wait([
-        widget.repository.maintenanceInvoices(),
-        widget.repository.maintenancePayments(),
-        widget.repository.issuedUtilityCharges(),
-      ]);
+      final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
+      List<Map<String, dynamic>> utilityResult = const [];
+      try {
+        utilityResult = await widget.repository.issuedUtilityCharges();
+      } catch (_) {
+        utilityResult = const [];
+      }
       final selected = widget.activeUnitId;
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
-      final scopedUtilityCharges = selected == null ? result[2] : result[2].where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
+      final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
       if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; });
     } on ApiException catch (exception) {
-      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
+      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
     } catch (_) {
       if (mounted) setState(() => error = 'Your billing details could not be loaded.');
     } finally {
