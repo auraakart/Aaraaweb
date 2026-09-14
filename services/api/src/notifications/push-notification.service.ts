@@ -56,10 +56,6 @@ export class PushNotificationService {
   async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
     const normalized = token.trim();
 
-    // A Firebase token identifies the current app installation. Claiming it for a
-    // consumer session must invalidate any earlier society binding first. Society
-    // sessions immediately re-bind the same token through register(); independent-
-    // home sessions intentionally leave it unbound from every society.
     await this.prisma.devicePushToken.updateMany({
       where: { token: normalized, active: true },
       data: { active: false, lastSeenAt: new Date() },
@@ -130,7 +126,7 @@ export class PushNotificationService {
     if (invalidIds.length > 0) await this.prisma.devicePushToken.updateMany({ where: { id: { in: invalidIds } }, data: { active: false } });
   }
 
-  private residentPushContent(event: ResidentMessageEvent) {
+  private residentPushContent(event: ResidentMessageEvent): { title: string; body: string; data: Record<string, string> } {
     switch (event.type) {
       case 'ACCESS_APPROVAL_REQUESTED':
       case 'ACCESS_APPROVAL_DECIDED':
@@ -151,6 +147,12 @@ export class PushNotificationService {
           title: event.title,
           body: event.body,
           data: { ...(event.noticeId ? { noticeId: event.noticeId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+        };
+      case 'PARCEL_RECEIVED':
+        return {
+          title: event.title,
+          body: event.body,
+          data: { parcelId: event.parcelId, unitId: event.unitId },
         };
       case 'EMERGENCY_BROADCAST':
         return {
