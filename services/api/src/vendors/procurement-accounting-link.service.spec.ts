@@ -9,13 +9,15 @@ describe('ProcurementAccountingLinkService', () => {
     return { tx, prisma, service: new ProcurementAccountingLinkService(prisma as never) };
   }
 
-  it('rejects an unknown purchase order before creating accounting state', async () => {
+  it('requires an issued purchase order before creating accounting state', async () => {
     const { tx, service } = setup();
     tx.$queryRaw.mockResolvedValueOnce([]);
     await expect(service.createExpenseDraftFromPurchaseOrder('society-1','actor-1','11111111-1111-1111-1111-111111111111',{
       expenseNumber:'EXP-1',expenseDate:'2026-09-14',expenseAccountId:'22222222-2222-2222-2222-222222222222'
     })).rejects.toBeInstanceOf(NotFoundException);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const sql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sql).toContain('po."status"=\'ISSUED\'');
   });
 
   it('rejects duplicate accounting linkage for the same PO', async () => {
