@@ -78,6 +78,14 @@ export class NoticeSchedulingService {
       }
 
       await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "NoticeDispatch" ("societyId", "noticeId", "userId")
+        SELECT nr."societyId", nr."noticeId", nr."userId"
+        FROM "NoticeRecipient" nr
+        WHERE nr."societyId"=${societyId}::uuid AND nr."noticeId"=${noticeId}::uuid
+        ON CONFLICT ("noticeId", "userId") DO NOTHING
+      `);
+
+      await tx.$executeRaw(Prisma.sql`
         INSERT INTO "NoticeEvent" ("societyId", "noticeId", "actorUserId", "action", "fromStatus", "toStatus")
         VALUES (${societyId}::uuid, ${noticeId}::uuid, ${actorUserId}::uuid, 'PUBLISHED', 'DRAFT', 'PUBLISHED')
       `);

@@ -88,12 +88,18 @@ export class NotificationRealtimeService {
   }
 
   publishResident(event: ResidentMessageEvent) {
+    void this.dispatchResident(event).catch((error: unknown) => {
+      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
+    });
+  }
+
+  async dispatchResident(event: ResidentMessageEvent) {
     if (!event.userId) return;
     if (event.type === 'MAINTENANCE_DUE_ISSUED' && !event.unitId && event.invoiceId && this.prisma) {
-      void this.publishMaintenanceWithUnit(event);
+      await this.publishMaintenanceWithUnit(event);
       return;
     }
-    this.deliverResident(event);
+    await this.deliverResident(event);
   }
 
   async publishUnitOccupants(event: AccessRealtimeEvent) {
@@ -148,16 +154,15 @@ export class NotificationRealtimeService {
         this.logger.warn(`Maintenance notification dropped because invoice ${event.invoiceId} was not found in society ${event.societyId}`);
         return;
       }
-      this.deliverResident({ ...event, unitId: invoice.unitId });
+      await this.deliverResident({ ...event, unitId: invoice.unitId });
     } catch (error) {
       this.logger.warn(`Maintenance notification enrichment failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      throw error;
     }
   }
 
-  private deliverResident(event: ResidentMessageEvent) {
+  private async deliverResident(event: ResidentMessageEvent) {
     this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({ data: event });
-    void this.push.sendResidentEvent(event).catch((error: unknown) => {
-      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
-    });
+    await this.push.sendResidentEvent(event);
   }
 }
