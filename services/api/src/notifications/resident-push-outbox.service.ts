@@ -2,7 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } fro
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ResidentMessageEvent } from './notification-realtime.service';
-import { PushNotificationService } from './push-notification.service';
+import { ReliableResidentPushService } from './reliable-resident-push.service';
 
 type OutboxRow = {
   id: string;
@@ -25,7 +25,7 @@ export class ResidentPushOutboxService implements OnApplicationBootstrap, OnAppl
   private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(private readonly prisma: PrismaService, private readonly push: PushNotificationService) {}
+  constructor(private readonly prisma: PrismaService, private readonly push: ReliableResidentPushService) {}
 
   onApplicationBootstrap() {
     if (process.env.NOTIFICATION_OUTBOX_DISABLED === 'true') {
@@ -116,7 +116,7 @@ export class ResidentPushOutboxService implements OnApplicationBootstrap, OnAppl
 
     const targetIds = this.parseTargetIds(row.targetRegistrationIds);
     try {
-      const result = await this.push.sendResidentEvent(event, targetIds);
+      const result = await this.push.sendResidentOutboxEvent(event, targetIds);
       if (result.retryRegistrationIds.length === 0) {
         await this.prisma.$executeRaw(Prisma.sql`
           UPDATE "ResidentPushOutbox"
