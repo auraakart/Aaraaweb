@@ -90,19 +90,19 @@ export class UtilitiesController {
   }
 
   @Get('tariffs')
-  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  @RequiresPermissions(AppPermission.FINANCE_READ)
   listTariffs(@CurrentTenant() societyId: string) {
     return this.utilities.listTariffPlans(societyId);
   }
 
   @Post('tariffs')
-  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
   createTariff(@Body() dto: CreateUtilityTariffPlanDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.utilities.createTariffPlan(societyId, this.requireUser(userId), dto);
   }
 
   @Post('tariffs/:planId/activate')
-  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
   activateTariff(
     @Param('planId', ParseUUIDPipe) planId: string,
     @CurrentTenant() societyId: string,
@@ -112,7 +112,7 @@ export class UtilitiesController {
   }
 
   @Post('tariffs/:planId/retire')
-  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  @RequiresPermissions(AppPermission.BILLING_MANAGE)
   retireTariff(
     @Param('planId', ParseUUIDPipe) planId: string,
     @Body() dto: RetireUtilityTariffDto,
@@ -123,7 +123,7 @@ export class UtilitiesController {
   }
 
   @Get('tariff-history')
-  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  @RequiresPermissions(AppPermission.FINANCE_READ)
   tariffHistory(@CurrentTenant() societyId: string) {
     return this.utilities.tariffHistory(societyId);
   }
