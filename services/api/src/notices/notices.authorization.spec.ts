@@ -16,8 +16,16 @@ describe('NoticesController authorization', () => {
     ]);
   });
 
-  it('requires NOTICE_MANAGE for society operations', () => {
-    for (const handler of ['listManage', 'create', 'publish', 'archive', 'history'] as const) {
+  it('requires NOTICE_MANAGE for society operations and observability', () => {
+    for (const handler of [
+      'listManage',
+      'create',
+      'publish',
+      'archive',
+      'acknowledgementSummary',
+      'deliverySummary',
+      'history',
+    ] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, NoticesController.prototype[handler])).toEqual([
         AppPermission.NOTICE_MANAGE,
       ]);
