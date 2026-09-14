@@ -14,6 +14,7 @@ type DeliveryAggregate = {
   totalRecipients: bigint;
   readRecipients: bigint;
   acknowledgedRecipients: bigint;
+  trackedRecipients: bigint;
   pendingHandoff: bigint;
   inFlightHandoff: bigint;
   successfulHandoff: bigint;
@@ -41,6 +42,7 @@ export class NoticeDeliveryObservabilityService {
         COUNT(DISTINCT nr."userId")::bigint AS "totalRecipients",
         COUNT(DISTINCT nr."userId") FILTER (WHERE nr."readAt" IS NOT NULL)::bigint AS "readRecipients",
         COUNT(DISTINCT nr."userId") FILTER (WHERE nr."acknowledgedAt" IS NOT NULL)::bigint AS "acknowledgedRecipients",
+        COUNT(DISTINCT nd."userId")::bigint AS "trackedRecipients",
         COUNT(DISTINCT nd."userId") FILTER (WHERE nd."status"='PENDING' AND nd."attemptCount"=0)::bigint AS "pendingHandoff",
         COUNT(DISTINCT nd."userId") FILTER (WHERE nd."status"='IN_FLIGHT')::bigint AS "inFlightHandoff",
         COUNT(DISTINCT nd."userId") FILTER (WHERE nd."status"='DISPATCHED')::bigint AS "successfulHandoff",
@@ -58,6 +60,7 @@ export class NoticeDeliveryObservabilityService {
       totalRecipients: 0n,
       readRecipients: 0n,
       acknowledgedRecipients: 0n,
+      trackedRecipients: 0n,
       pendingHandoff: 0n,
       inFlightHandoff: 0n,
       successfulHandoff: 0n,
@@ -69,6 +72,7 @@ export class NoticeDeliveryObservabilityService {
     const totalRecipients = Number(row.totalRecipients);
     const readRecipients = Number(row.readRecipients);
     const acknowledgedRecipients = Number(row.acknowledgedRecipients);
+    const trackedRecipients = Number(row.trackedRecipients);
 
     return {
       noticeId,
@@ -80,6 +84,8 @@ export class NoticeDeliveryObservabilityService {
         total: totalRecipients,
       },
       pushHandoff: {
+        trackedRecipients,
+        untrackedRecipients: Math.max(0, totalRecipients - trackedRecipients),
         pending: Number(row.pendingHandoff),
         inFlight: Number(row.inFlightHandoff),
         successful: Number(row.successfulHandoff),
@@ -96,6 +102,7 @@ export class NoticeDeliveryObservabilityService {
           : 0,
       },
       semantics: {
+        coverage: 'Tracked handoff metrics are available only for recipients using the durable notice-dispatch path. Untracked recipients have no durable push-handoff evidence and must not be classified as failed.',
         pushHandoff: 'Successful means handed to the configured push provider pipeline; it is not proof that a device displayed or a person read the notice.',
         read: 'Read is an in-app acknowledgement recorded when the assigned recipient opens the notice.',
         legalService: 'These metrics must not be represented as legally effective service without a separate valid policy or legal basis.',
