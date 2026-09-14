@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 CREATE TABLE "ParkingPermit" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "societyId" UUID NOT NULL,
@@ -34,6 +36,13 @@ CREATE TABLE "ParkingPermit" (
     OR ("status" = 'COMPLETED' AND "completedAt" IS NOT NULL)
   )
 );
+
+ALTER TABLE "ParkingPermit"
+  ADD CONSTRAINT "ParkingPermit_active_slot_window_excl"
+  EXCLUDE USING gist (
+    "slotId" WITH =,
+    tstzrange("startsAt", "endsAt", '[)') WITH &&
+  ) WHERE ("status" = 'ACTIVE');
 
 CREATE INDEX "ParkingPermit_society_window_idx"
   ON "ParkingPermit"("societyId", "status", "startsAt", "endsAt");
@@ -81,16 +90,6 @@ BEGIN
 
   IF NEW."startsAt" < pass_from OR NEW."endsAt" > pass_until THEN
     RAISE EXCEPTION 'Parking permit window must be contained within visitor pass validity';
-  END IF;
-
-  IF NEW."status"='ACTIVE' AND EXISTS (
-    SELECT 1 FROM "ParkingPermit" pp
-    WHERE pp."slotId"=NEW."slotId"
-      AND pp."status"='ACTIVE'
-      AND pp."id"<>NEW."id"
-      AND tstzrange(pp."startsAt", pp."endsAt", '[)') && tstzrange(NEW."startsAt", NEW."endsAt", '[)')
-  ) THEN
-    RAISE EXCEPTION 'Parking slot already has an overlapping active permit';
   END IF;
 
   RETURN NEW;
