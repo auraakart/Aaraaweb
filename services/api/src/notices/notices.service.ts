@@ -39,17 +39,26 @@ export class NoticesService {
         AND n."publishedAt" <= CURRENT_TIMESTAMP
         AND (n."expiresAt" IS NULL OR n."expiresAt" > CURRENT_TIMESTAMP)
         AND (
-          EXISTS (
-            SELECT 1 FROM "UnitOwnership" uo
-            WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${userId}::uuid
-              AND uo."verified"=true AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
-              AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
-          ) OR (n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS (
-            SELECT 1 FROM "UnitOccupancy" ur
-            WHERE ur."societyId"=${societyId}::uuid AND ur."userId"=${userId}::uuid
-              AND ur."active"=true AND ur."effectiveFrom"<=CURRENT_TIMESTAMP
-              AND (ur."effectiveTo" IS NULL OR ur."effectiveTo">CURRENT_TIMESTAMP)
-          ))
+          (
+            n."targetBuildingId" IS NULL AND n."targetUnitId" IS NULL
+            AND (
+              EXISTS (
+                SELECT 1 FROM "UnitOwnership" uo
+                WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${userId}::uuid
+                  AND uo."verified"=true AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+                  AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+              ) OR (n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS (
+                SELECT 1 FROM "UnitOccupancy" ur
+                WHERE ur."societyId"=${societyId}::uuid AND ur."userId"=${userId}::uuid
+                  AND ur."active"=true AND ur."effectiveFrom"<=CURRENT_TIMESTAMP
+                  AND (ur."effectiveTo" IS NULL OR ur."effectiveTo">CURRENT_TIMESTAMP)
+              ))
+            )
+          )
+          OR (
+            (n."targetBuildingId" IS NOT NULL OR n."targetUnitId" IS NOT NULL)
+            AND nr."userId" IS NOT NULL
+          )
         )
       ORDER BY
         CASE n."importance" WHEN 'CRITICAL' THEN 0 WHEN 'IMPORTANT' THEN 1 ELSE 2 END,
