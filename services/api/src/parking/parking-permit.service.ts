@@ -18,14 +18,9 @@ export class ParkingPermitService {
 
   list(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT pp.*,
-        ps."code" AS "slotCode",
-        ps."slotType",
-        v."name" AS "visitorName",
-        v."phone" AS "visitorPhone",
-        v."unitId",
-        u."number" AS "unitNumber",
-        b."name" AS "buildingName"
+      SELECT pp.*, ps."code" AS "slotCode", ps."slotType",
+        v."name" AS "visitorName", v."phone" AS "visitorPhone", v."unitId",
+        u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "ParkingPermit" pp
       JOIN "ParkingSlot" ps ON ps."id"=pp."slotId" AND ps."societyId"=pp."societyId"
       JOIN "Visitor" v ON v."id"=pp."visitorId" AND v."societyId"=pp."societyId"
@@ -33,6 +28,24 @@ export class ParkingPermitService {
       JOIN "Building" b ON b."id"=u."buildingId"
       WHERE pp."societyId"=${societyId}::uuid
       ORDER BY (pp."status"='ACTIVE') DESC, pp."startsAt" ASC, pp."createdAt" DESC
+      LIMIT 500
+    `);
+  }
+
+  eligibleVisitors(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT v."id" AS "visitorId", v."name" AS "visitorName", v."phone" AS "visitorPhone",
+        v."unitId", u."number" AS "unitNumber", b."name" AS "buildingName",
+        vp."id" AS "visitorPassId", vp."validFrom", vp."validUntil"
+      FROM "VisitorPass" vp
+      JOIN "Visitor" v ON v."id"=vp."visitorId" AND v."societyId"=vp."societyId"
+      JOIN "Unit" u ON u."id"=v."unitId" AND u."societyId"=vp."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId"
+      WHERE vp."societyId"=${societyId}::uuid
+        AND vp."status"='ACTIVE'
+        AND v."status"='APPROVED'
+        AND vp."validUntil" > CURRENT_TIMESTAMP
+      ORDER BY vp."validFrom" ASC, v."name" ASC
       LIMIT 500
     `);
   }
@@ -55,37 +68,22 @@ export class ParkingPermitService {
           FROM "ParkingSlot" ps
           JOIN "Visitor" v ON v."id"=${input.visitorId}::uuid AND v."societyId"=ps."societyId"
           JOIN "VisitorPass" vp ON vp."id"=${input.visitorPassId}::uuid
-            AND vp."visitorId"=v."id"
-            AND vp."societyId"=ps."societyId"
-          WHERE ps."id"=${input.slotId}::uuid
-            AND ps."societyId"=${societyId}::uuid
-            AND ps."active"=true
-            AND ps."slotType" IN ('VISITOR','TEMPORARY','ACCESSIBLE')
-            AND v."status"='APPROVED'
-            AND vp."status"='ACTIVE'
-            AND ${startsAt} >= vp."validFrom"
-            AND ${endsAt} <= vp."validUntil"
+            AND vp."visitorId"=v."id" AND vp."societyId"=ps."societyId"
+          WHERE ps."id"=${input.slotId}::uuid AND ps."societyId"=${societyId}::uuid
+            AND ps."active"=true AND ps."slotType" IN ('VISITOR','TEMPORARY','ACCESSIBLE')
+            AND v."status"='APPROVED' AND vp."status"='ACTIVE'
+            AND ${startsAt} >= vp."validFrom" AND ${endsAt} <= vp."validUntil"
           FOR UPDATE OF ps, vp
         `);
         if (!context[0]) throw new NotFoundException('Eligible visitor pass and parking slot combination not found');
-
         const overlap = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT "id" FROM "ParkingPermit"
-          WHERE "slotId"=${input.slotId}::uuid
-            AND "status"='ACTIVE'
-            AND tstzrange("startsAt","endsAt",'[)') && tstzrange(${startsAt},${endsAt},'[)')
-          LIMIT 1
+          SELECT "id" FROM "ParkingPermit" WHERE "slotId"=${input.slotId}::uuid AND "status"='ACTIVE'
+            AND tstzrange("startsAt","endsAt",'[)') && tstzrange(${startsAt},${endsAt},'[)') LIMIT 1
         `);
         if (overlap[0]) throw new ConflictException('Parking slot already has an overlapping active permit');
-
         const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          INSERT INTO "ParkingPermit" (
-            "societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId","note"
-          ) VALUES (
-            ${societyId}::uuid,${input.slotId}::uuid,${input.visitorId}::uuid,${input.visitorPassId}::uuid,
-            ${plateNumber},${startsAt},${endsAt},${actorUserId}::uuid,${note}
-          )
-          RETURNING *
+          INSERT INTO "ParkingPermit" ("societyId","slotId","visitorId","visitorPassId","plateNumber","startsAt","endsAt","createdByUserId","note")
+          VALUES (${societyId}::uuid,${input.slotId}::uuid,${input.visitorId}::uuid,${input.visitorPassId}::uuid,${plateNumber},${startsAt},${endsAt},${actorUserId}::uuid,${note}) RETURNING *
         `);
         const permit = rows[0];
         await tx.$executeRaw(Prisma.sql`
@@ -104,48 +102,23 @@ export class ParkingPermitService {
   async cancel(societyId: string, actorUserId: string, permitId: string, noteInput?: string) {
     return this.close(societyId, actorUserId, permitId, 'CANCELLED', 'PERMIT_CANCELLED', noteInput);
   }
-
   async complete(societyId: string, actorUserId: string, permitId: string, noteInput?: string) {
     return this.close(societyId, actorUserId, permitId, 'COMPLETED', 'PERMIT_COMPLETED', noteInput);
   }
-
-  private async close(
-    societyId: string,
-    actorUserId: string,
-    permitId: string,
-    status: 'CANCELLED' | 'COMPLETED',
-    action: 'PERMIT_CANCELLED' | 'PERMIT_COMPLETED',
-    noteInput?: string,
-  ) {
+  private async close(societyId: string, actorUserId: string, permitId: string, status: 'CANCELLED'|'COMPLETED', action: 'PERMIT_CANCELLED'|'PERMIT_COMPLETED', noteInput?: string) {
     const note = noteInput?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Parking permit note is too long');
-
     return this.prisma.$transaction(async (tx) => {
       const rows = status === 'CANCELLED'
-        ? await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`
-            UPDATE "ParkingPermit"
-            SET "status"='CANCELLED',"cancelledAt"=CURRENT_TIMESTAMP,"cancelledByUserId"=${actorUserId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
-            WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
-            RETURNING "id","slotId"
-          `)
-        : await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`
-            UPDATE "ParkingPermit"
-            SET "status"='COMPLETED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
-            WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
-            RETURNING "id","slotId"
-          `);
+        ? await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`UPDATE "ParkingPermit" SET "status"='CANCELLED',"cancelledAt"=CURRENT_TIMESTAMP,"cancelledByUserId"=${actorUserId}::uuid,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE' RETURNING "id","slotId"`)
+        : await tx.$queryRaw<Array<{ id: string; slotId: string }>>(Prisma.sql`UPDATE "ParkingPermit" SET "status"='COMPLETED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${permitId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE' RETURNING "id","slotId"`);
       const permit = rows[0];
       if (!permit) throw new NotFoundException('Active parking permit not found');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "ParkingEvent" ("societyId","slotId","permitId","actorUserId","action","note")
-        VALUES (${societyId}::uuid,${permit.slotId}::uuid,${permit.id}::uuid,${actorUserId}::uuid,${action},${note})
-      `);
+      await tx.$executeRaw(Prisma.sql`INSERT INTO "ParkingEvent" ("societyId","slotId","permitId","actorUserId","action","note") VALUES (${societyId}::uuid,${permit.slotId}::uuid,${permit.id}::uuid,${actorUserId}::uuid,${action},${note})`);
       return permit;
     });
   }
-
   private isOverlapError(error: unknown) {
-    return typeof error === 'object' && error !== null && 'message' in error
-      && String((error as { message?: unknown }).message).includes('overlapping active permit');
+    return typeof error === 'object' && error !== null && 'message' in error && String((error as { message?: unknown }).message).includes('overlapping active permit');
   }
 }
