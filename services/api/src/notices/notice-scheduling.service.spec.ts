@@ -28,7 +28,7 @@ describe('NoticeSchedulingService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('schedules a draft and snapshots owners and occupants transactionally', async () => {
+  it('schedules a draft, snapshots recipients and queues durable dispatch transactionally', async () => {
     const publishAt = new Date(Date.now() + 60 * 60 * 1000);
     const scheduled = { id: noticeId, status: 'PUBLISHED', publishedAt: publishAt };
     const tx = {
@@ -41,6 +41,9 @@ describe('NoticeSchedulingService', () => {
     const service = new NoticeSchedulingService(prisma as unknown as PrismaService);
 
     await expect(service.schedule(societyId, actorId, noticeId, publishAt.toISOString())).resolves.toEqual(scheduled);
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
+    const dispatchSql = (tx.$executeRaw.mock.calls[2][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(dispatchSql).toContain('"NoticeDispatch"');
+    expect(dispatchSql).toContain('"NoticeRecipient"');
   });
 });
