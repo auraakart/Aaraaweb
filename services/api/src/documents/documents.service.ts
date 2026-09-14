@@ -27,15 +27,18 @@ export class DocumentsService {
 
   async listPublishedForUser(societyId: string, userId: string) {
     const ownership = await this.prisma.$queryRaw<{ unitId: string }[]>(Prisma.sql`
-      SELECT DISTINCT po."unitId"
-      FROM "PropertyOwnership" po
-      JOIN "Unit" u ON u."id" = po."unitId"
-      WHERE po."societyId" = ${societyId}::uuid
-        AND po."userId" = ${userId}::uuid
-        AND po."active" = true
+      SELECT DISTINCT uo."unitId"
+      FROM "UnitOwnership" uo
+      JOIN "Unit" u ON u."id" = uo."unitId"
+      WHERE uo."societyId" = ${societyId}::uuid
+        AND uo."userId" = ${userId}::uuid
+        AND uo."active" = true
+        AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+        AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         AND u."societyId" = ${societyId}::uuid
     `);
     const ownedUnits = ownership.map((row) => row.unitId);
+    const owner = ownedUnits.length > 0;
 
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT * FROM "SocietyDocument"
@@ -43,7 +46,7 @@ export class DocumentsService {
         AND "status" = 'PUBLISHED'
         AND (
           "audience" = 'ALL_MEMBERS'
-          OR ("audience" = 'OWNERS_ONLY' AND ${ownedUnits.length > 0})
+          OR ("audience" = 'OWNERS_ONLY' AND ${owner})
           OR ("audience" = 'PROPERTY_OWNER_ONLY' AND "unitId" IN (${Prisma.join(ownedUnits.length ? ownedUnits.map((id) => Prisma.sql`${id}::uuid`) : [Prisma.sql`NULL::uuid`])}))
         )
       ORDER BY "publishedAt" DESC NULLS LAST, "createdAt" DESC
@@ -67,8 +70,13 @@ export class DocumentsService {
     },
   ) {
     const title = input.title.trim();
+    const storageKey = input.storageKey.trim();
+    const fileName = input.fileName.trim();
+    const mimeType = input.mimeType.trim();
     if (title.length < 2 || title.length > 180) throw new BadRequestException('Document title must be between 2 and 180 characters');
+    if (!storageKey || !fileName || !mimeType) throw new BadRequestException('Document storage metadata is required');
     if (input.sizeBytes < 0) throw new BadRequestException('Document size must be non-negative');
+    if ((input.version ?? 1) < 1) throw new BadRequestException('Document version must be positive');
     if (input.audience === 'PROPERTY_OWNER_ONLY' && !input.unitId) throw new BadRequestException('Property-owner-only document requires unitId');
     if (input.audience !== 'PROPERTY_OWNER_ONLY' && input.unitId) throw new BadRequestException('unitId is only valid for property-owner-only documents');
 
@@ -78,25 +86,26 @@ export class DocumentsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<any[]>(Prisma.sql`
+      const rows = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
         INSERT INTO "SocietyDocument" (
           "societyId", "unitId", "category", "audience", "title", "description",
           "storageKey", "fileName", "mimeType", "sizeBytes", "version", "uploadedByUserId"
         ) VALUES (
           ${societyId}::uuid, ${input.unitId ?? null}::uuid, ${input.category}, ${input.audience}, ${title}, ${input.description?.trim() || null},
-          ${input.storageKey.trim()}, ${input.fileName.trim()}, ${input.mimeType.trim()}, ${input.sizeBytes}, ${input.version ?? 1}, ${actorUserId}::uuid
+          ${storageKey}, ${fileName}, ${mimeType}, ${input.sizeBytes}, ${input.version ?? 1}, ${actorUserId}::uuid
         ) RETURNING *
       `);
-      const document = rows[0];
+      const document = rows[0] as { id: string } | undefined;
+      if (!document) throw new BadRequestException('Document creation failed');
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "SocietyDocumentEvent" ("societyId","documentId","actorUserId","eventType","toStatus")
         VALUES (${societyId}::uuid, ${document.id}::uuid, ${actorUserId}::uuid, 'CREATED', 'DRAFT')
       `);
-      return document;
+      return rows[0];
     });
   }
 
-  async publish(societyId: string, actorUserId: string, documentId: string) {
+  publish(societyId: string, actorUserId: string, documentId: string) {
     return this.transition(societyId, actorUserId, documentId, 'DRAFT', 'PUBLISHED', 'PUBLISHED');
   }
 
@@ -104,11 +113,12 @@ export class DocumentsService {
     const current = await this.findDocument(societyId, documentId);
     if (!current) throw new NotFoundException('Document not found');
     if (current.status === 'ARCHIVED') return current;
-    if (current.status !== 'DRAFT' && current.status !== 'PUBLISHED') throw new BadRequestException('Document cannot be archived');
     return this.transition(societyId, actorUserId, documentId, current.status, 'ARCHIVED', 'ARCHIVED');
   }
 
-  history(societyId: string, documentId: string) {
+  async history(societyId: string, documentId: string) {
+    const current = await this.findDocument(societyId, documentId);
+    if (!current) throw new NotFoundException('Document not found');
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT e.*, u."name" AS "actorName"
       FROM "SocietyDocumentEvent" e
@@ -120,7 +130,7 @@ export class DocumentsService {
 
   private async transition(societyId: string, actorUserId: string, documentId: string, fromStatus: DocumentStatus, toStatus: DocumentStatus, eventType: string) {
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<any[]>(Prisma.sql`
+      const rows = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
         UPDATE "SocietyDocument"
         SET "status" = ${toStatus},
             "publishedByUserId" = CASE WHEN ${toStatus} = 'PUBLISHED' THEN ${actorUserId}::uuid ELSE "publishedByUserId" END,
