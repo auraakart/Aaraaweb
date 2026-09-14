@@ -43,4 +43,44 @@ describe('HelpdeskSlaService', () => {
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
     )).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('computes resolved-after-deadline tickets as resolution breached', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{
+          id:'ticket', status:'RESOLVED', slaState:'ON_TRACK', firstRespondedAt:new Date(), firstResponseDueAt:new Date(),
+          resolutionDueAt:new Date('2026-09-14T08:00:00Z'), resolvedAt:new Date('2026-09-14T09:00:00Z'),
+        }])
+        .mockResolvedValueOnce([{ state:'RESOLUTION_BREACHED' }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
+    const service = new HelpdeskSlaService(prisma);
+
+    await expect(service.evaluate(
+      '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
+    )).resolves.toMatchObject({ slaState:'RESOLUTION_BREACHED', changed:true });
+
+    const sql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sql).toContain("ELSE 'RESOLUTION_BREACHED'");
+  });
+
+  it('reapplied policy preserves the computed overdue state in audit evidence', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id:'ticket', priority:'HIGH', createdAt:new Date(), status:'OPEN', slaState:'UNTRACKED' }])
+        .mockResolvedValueOnce([{ firstResponseMinutes:30, resolutionMinutes:60 }])
+        .mockResolvedValueOnce([{ id:'ticket', slaState:'RESOLUTION_BREACHED' }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
+    const service = new HelpdeskSlaService(prisma);
+
+    await expect(service.applyPolicy(
+      '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
+    )).resolves.toMatchObject({ slaState:'RESOLUTION_BREACHED' });
+
+    const eventSql = (tx.$executeRaw.mock.calls[0][0] as { values?: readonly unknown[] }).values ?? [];
+    expect(eventSql).toContain('RESOLUTION_BREACHED');
+  });
 });
