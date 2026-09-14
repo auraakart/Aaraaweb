@@ -9,6 +9,13 @@ export type ObjectStorageUploadIntent = {
   expiresAt: string;
 };
 
+export type ObjectStorageDownloadIntent = {
+  storageKey: string;
+  downloadUrl: string;
+  method: 'GET';
+  expiresAt: string;
+};
+
 export type ObjectStorageObjectMetadata = {
   contentType: string | null;
   contentLengthBytes: number | null;
@@ -20,6 +27,7 @@ export interface ObjectStoragePort {
     contentType: string;
     contentLengthBytes: number;
   }): Promise<ObjectStorageUploadIntent>;
+  createDownloadIntent(storageKey: string): Promise<ObjectStorageDownloadIntent>;
   headObject(storageKey: string): Promise<ObjectStorageObjectMetadata | null>;
   getObjectBytes(storageKey: string, maxBytes: number): Promise<Uint8Array | null>;
   deleteObject(storageKey: string): Promise<void>;
@@ -30,11 +38,15 @@ export const OBJECT_STORAGE = Symbol('OBJECT_STORAGE');
 export class UnconfiguredObjectStorageAdapter implements ObjectStoragePort {
   private unavailable(): never {
     throw new ServiceUnavailableException(
-      'Provider media storage is not configured. Configure an object-storage adapter before enabling uploads.',
+      'Object storage is not configured. Configure an object-storage adapter before enabling file operations.',
     );
   }
 
   createUploadIntent(): Promise<ObjectStorageUploadIntent> {
+    return Promise.reject(this.unavailable());
+  }
+
+  createDownloadIntent(): Promise<ObjectStorageDownloadIntent> {
     return Promise.reject(this.unavailable());
   }
 
