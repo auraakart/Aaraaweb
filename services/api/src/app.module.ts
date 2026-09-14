@@ -25,6 +25,7 @@ import { BillingModule } from './billing/billing.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
 import { VendorsModule } from './vendors/vendors.module';
+import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
 
@@ -55,6 +56,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     GovernanceModule,
     PrivacyModule,
     ReportsModule,
+    ScheduledWorkModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService, RequestObservabilityMiddleware],
