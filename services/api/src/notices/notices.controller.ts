@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -21,6 +21,8 @@ class CreateNoticeDto {
   @IsOptional() @IsString() @MaxLength(80) category?: string;
   @IsOptional() @IsDateString() expiresAt?: string;
   @IsOptional() @IsIn(['OWNER_ONLY', 'OWNER_AND_OCCUPANTS']) audience?: 'OWNER_ONLY' | 'OWNER_AND_OCCUPANTS';
+  @IsOptional() @IsIn(['NORMAL', 'IMPORTANT', 'CRITICAL']) importance?: 'NORMAL' | 'IMPORTANT' | 'CRITICAL';
+  @IsOptional() @IsBoolean() requiresAcknowledgement?: boolean;
 }
 
 class PublishNoticeDto {
@@ -37,6 +39,26 @@ export class NoticesController {
   @RequiresPermissions(AppPermission.NOTICE_READ)
   listPublished(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.notices.listPublished(societyId, this.requireUser(userId));
+  }
+
+  @Patch(':noticeId/read')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  markRead(
+    @Param('noticeId', ParseUUIDPipe) noticeId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.notices.markRead(societyId, this.requireUser(userId), noticeId);
+  }
+
+  @Patch(':noticeId/acknowledge')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  acknowledge(
+    @Param('noticeId', ParseUUIDPipe) noticeId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.notices.acknowledge(societyId, this.requireUser(userId), noticeId);
   }
 
   @Get('manage')
@@ -70,6 +92,12 @@ export class NoticesController {
     @CurrentUser() userId?: string,
   ) {
     return this.notices.archive(societyId, this.requireUser(userId), noticeId);
+  }
+
+  @Get('manage/:noticeId/acknowledgements')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  acknowledgementSummary(@Param('noticeId', ParseUUIDPipe) noticeId: string, @CurrentTenant() societyId: string) {
+    return this.notices.acknowledgementSummary(societyId, noticeId);
   }
 
   @Get('manage/:noticeId/history')
