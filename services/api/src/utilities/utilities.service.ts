@@ -156,7 +156,7 @@ export class UtilitiesService {
             WHERE "societyId"=${societyId}::uuid AND "meterId"=${input.meterId}::uuid AND "readingAt" > ${readingAt}
             ORDER BY "readingAt" ASC LIMIT 1
           `);
-          if (previous[0]?.readingKind !== 'RESET' && previous[0] && input.value < Number(previous[0].value)) {
+          if (previous[0] && input.value < Number(previous[0].value)) {
             throw new ConflictException('Reading is lower than the previous reading; record a RESET reading for meter replacement or reset');
           }
           if (next[0]?.readingKind !== 'RESET' && next[0] && input.value > Number(next[0].value)) {
