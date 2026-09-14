@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 const MIN_SWEEP_INTERVAL_MS = 15_000;
 const MAX_SWEEP_INTERVAL_MS = 3_600_000;
-const HELP_DESK_SWEEP_LOCK_KEY = 762_349_210;
+const SCHEDULED_SWEEP_LOCK_KEY = 762_349_210;
 
 export function resolveScheduledSweepIntervalMs(raw = process.env.SCHEDULED_SWEEP_INTERVAL_MS) {
   if (!raw) return DEFAULT_SWEEP_INTERVAL_MS;
@@ -47,7 +47,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const [lock] = await tx.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`
-          SELECT pg_try_advisory_xact_lock(${HELP_DESK_SWEEP_LOCK_KEY}) AS locked
+          SELECT pg_try_advisory_xact_lock(${SCHEDULED_SWEEP_LOCK_KEY}) AS locked
         `);
         if (!lock?.locked) return { skipped: true, reason: 'cluster-lock-held' };
 
@@ -141,12 +141,44 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
           RETURNING "ticketId"
         `);
 
+        const sosEscalated = await tx.$queryRaw<Array<{ incidentId: string }>>(Prisma.sql`
+          WITH candidates AS (
+            SELECT si."id", si."societyId", si."status"
+            FROM "SosIncident" si
+            JOIN "SocietyMembership" sm
+              ON sm."societyId"=si."societyId"
+             AND sm."userId"=si."assignedResponderUserId"
+             AND sm."active"=true
+            WHERE si."status"='ACTIVE'
+              AND si."assignedResponderUserId" IS NOT NULL
+              AND si."acknowledgeDueAt" IS NOT NULL
+              AND si."acknowledgeDueAt" <= CURRENT_TIMESTAMP
+              AND si."autoEscalatedAt" IS NULL
+            FOR UPDATE OF si SKIP LOCKED
+          ),
+          updated AS (
+            UPDATE "SosIncident" si
+            SET "autoEscalatedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+            FROM candidates c
+            WHERE si."id"=c."id" AND si."societyId"=c."societyId" AND si."autoEscalatedAt" IS NULL
+            RETURNING si."id" AS "incidentId",si."societyId",si."status"
+          )
+          INSERT INTO "SosIncidentEvent" (
+            "societyId","incidentId","actorUserId","actorSource","action","fromStatus","toStatus","note"
+          )
+          SELECT u."societyId",u."incidentId",NULL,'AUTOMATION','ESCALATED',u."status",u."status",
+            'SOS acknowledgement deadline exceeded; escalated by scheduled automation'
+          FROM updated u
+          RETURNING "incidentId"
+        `);
+
         if (changed.length > 0) this.logger.log(`Scheduled SLA sweep updated ${changed.length} ticket(s)`);
         if (escalated.length > 0) this.logger.log(`Scheduled SLA sweep escalated ${escalated.length} ticket(s)`);
-        return { skipped: false, processed: changed.length, escalated: escalated.length };
+        if (sosEscalated.length > 0) this.logger.log(`Scheduled SOS sweep escalated ${sosEscalated.length} incident(s)`);
+        return { skipped: false, processed: changed.length, escalated: escalated.length, sosEscalated: sosEscalated.length };
       });
     } catch (error) {
-      this.logger.error('Scheduled SLA sweep failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error('Scheduled operational sweep failed', error instanceof Error ? error.stack : String(error));
       return { skipped: true, reason: 'error' };
     } finally {
       this.running = false;

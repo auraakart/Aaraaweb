@@ -9,6 +9,7 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
+import { SosRoutingService } from './sos-routing.service';
 import { SosService } from './sos.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -39,7 +40,7 @@ class ResolveSosDto {
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.SOS)
 export class SosController {
-  constructor(private readonly sos: SosService) {}
+  constructor(private readonly sos: SosService, private readonly routing: SosRoutingService) {}
 
   @Post()
   @RequiresPermissions(AppPermission.SOS_TRIGGER)
@@ -115,7 +116,7 @@ export class SosController {
   @Get('manage/:incidentId/history')
   @RequiresPermissions(AppPermission.SOS_RESPOND)
   history(@Param('incidentId', ParseUUIDPipe) incidentId: string, @CurrentTenant() societyId: string) {
-    return this.sos.history(societyId, incidentId);
+    return this.routing.history(societyId, incidentId);
   }
 
   private requireUser(userId?: string) {
