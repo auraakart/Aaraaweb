@@ -10,6 +10,7 @@ import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
 import { NoticesModule } from './notices/notices.module';
+import { ParcelsModule } from './parcels/parcels.module';
 import { SosModule } from './sos/sos.module';
 import { HouseholdsModule } from './households/households.module';
 import { ResidentsModule } from './residents/residents.module';
@@ -39,6 +40,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     WorkforceModule,
     HelpdeskModule,
     NoticesModule,
+    ParcelsModule,
     SosModule,
     GatesModule,
     VisitorsModule,
