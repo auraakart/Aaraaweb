@@ -18,10 +18,10 @@ describe('DocumentsStorageService', () => {
     expect(result).not.toHaveProperty('publicUrl');
   });
 
-  it('rejects a cross-society storage key before download signing', async () => {
+  it('rejects a cross-society storage key before download signing', () => {
     const storage = { createDownloadIntent: vi.fn() };
     const service = new DocumentsStorageService(storage as never, {} as never);
-    await expect(service.createDownloadIntent(societyId, 'societies/other/documents/file.pdf')).rejects.toBeInstanceOf(BadRequestException);
+    expect(() => service.createDownloadIntent(societyId, 'societies/other/documents/file.pdf')).toThrow(BadRequestException);
     expect(storage.createDownloadIntent).not.toHaveBeenCalled();
   });
 
