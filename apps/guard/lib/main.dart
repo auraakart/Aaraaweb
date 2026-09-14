@@ -5,6 +5,7 @@ import 'data/offline_action_queue.dart';
 import 'guard_controller.dart';
 import 'screens/guard_login_screen.dart';
 import 'screens/guard_operations_screen.dart';
+import 'screens/guard_parcels_screen.dart';
 import 'screens/guard_workforce_screen.dart';
 import 'theme/aaraagate_guard_theme.dart';
 
@@ -45,15 +46,30 @@ class AaraagateGuardApp extends StatelessWidget {
               Positioned(
                 right: 18,
                 bottom: 24,
-                child: FloatingActionButton.extended(
-                  heroTag: 'workforce',
-                  onPressed: controller.gateId == null
-                      ? null
-                      : () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => GuardWorkforceScreen(controller: controller)),
-                          ),
-                  icon: const Icon(Icons.badge_outlined),
-                  label: const Text('STAFF', style: TextStyle(fontWeight: FontWeight.w900)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FloatingActionButton.extended(
+                      heroTag: 'parcels',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => GuardParcelsScreen(controller: controller)),
+                      ),
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const Text('PARCELS', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                    const SizedBox(height: 10),
+                    FloatingActionButton.extended(
+                      heroTag: 'workforce',
+                      onPressed: controller.gateId == null
+                          ? null
+                          : () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => GuardWorkforceScreen(controller: controller)),
+                              ),
+                      icon: const Icon(Icons.badge_outlined),
+                      label: const Text('STAFF', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ],
                 ),
               ),
             ],
