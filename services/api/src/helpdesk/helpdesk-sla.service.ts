@@ -165,9 +165,11 @@ export class HelpdeskSlaService {
 
   history(societyId: string, ticketId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT e.*, actor."name" AS "actorName", target."name" AS "escalatedToName"
+      SELECT e.*,
+        CASE WHEN e."actorSource"='AUTOMATION' THEN 'Aaraagate automation' ELSE COALESCE(actor."name", 'Unknown user') END AS "actorName",
+        target."name" AS "escalatedToName"
       FROM "HelpdeskSlaEvent" e
-      JOIN "User" actor ON actor."id"=e."actorUserId"
+      LEFT JOIN "User" actor ON actor."id"=e."actorUserId"
       LEFT JOIN "User" target ON target."id"=e."escalatedToId"
       WHERE e."societyId"=${societyId}::uuid AND e."ticketId"=${ticketId}::uuid
       ORDER BY e."createdAt" ASC
