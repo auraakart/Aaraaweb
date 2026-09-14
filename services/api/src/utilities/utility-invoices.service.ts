@@ -110,7 +110,7 @@ export class UtilityInvoicesService {
       const due = typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString().slice(0, 10);
       for (const { userId } of recipients) {
         this.realtime.publishResident({
-          type: 'UTILITY_DUE_ISSUED',
+          type: 'MAINTENANCE_DUE_ISSUED',
           societyId,
           userId,
           invoiceId: invoice.id,
