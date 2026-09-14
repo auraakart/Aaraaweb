@@ -40,19 +40,19 @@ export class UtilitiesController {
   constructor(private readonly utilities: UtilitiesService) {}
 
   @Get('meters')
-  @RequiresPermissions(AppPermission.UTILITY_READ)
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
   listMeters(@CurrentTenant() societyId: string) {
     return this.utilities.listMeters(societyId);
   }
 
   @Post('meters')
-  @RequiresPermissions(AppPermission.UTILITY_MANAGE)
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   createMeter(@Body() dto: CreateUtilityMeterDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.utilities.createMeter(societyId, this.requireUser(userId), dto);
   }
 
   @Patch('meters/:meterId/deactivate')
-  @RequiresPermissions(AppPermission.UTILITY_MANAGE)
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   deactivateMeter(
     @Param('meterId', ParseUUIDPipe) meterId: string,
     @Body() dto: DeactivateUtilityMeterDto,
@@ -63,19 +63,19 @@ export class UtilitiesController {
   }
 
   @Get('meters/:meterId/readings')
-  @RequiresPermissions(AppPermission.UTILITY_READ)
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
   listReadings(@Param('meterId', ParseUUIDPipe) meterId: string, @CurrentTenant() societyId: string) {
     return this.utilities.listReadings(societyId, meterId);
   }
 
   @Post('readings')
-  @RequiresPermissions(AppPermission.UTILITY_MANAGE)
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   createReading(@Body() dto: CreateUtilityReadingDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.utilities.createReading(societyId, this.requireUser(userId), dto);
   }
 
   @Get('history')
-  @RequiresPermissions(AppPermission.UTILITY_READ)
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
   history(@CurrentTenant() societyId: string) {
     return this.utilities.history(societyId);
   }
