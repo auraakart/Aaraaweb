@@ -9,6 +9,7 @@ import { TenantGuard } from '../auth/tenant.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
+import { NoticeDeliveryObservabilityService } from './notice-delivery-observability.service';
 import { NoticesService } from './notices.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -33,7 +34,10 @@ class PublishNoticeDto {
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.NOTICES)
 export class NoticesController {
-  constructor(private readonly notices: NoticesService) {}
+  constructor(
+    private readonly notices: NoticesService,
+    private readonly deliveryObservability: NoticeDeliveryObservabilityService,
+  ) {}
 
   @Get()
   @RequiresPermissions(AppPermission.NOTICE_READ)
@@ -98,6 +102,12 @@ export class NoticesController {
   @RequiresPermissions(AppPermission.NOTICE_MANAGE)
   acknowledgementSummary(@Param('noticeId', ParseUUIDPipe) noticeId: string, @CurrentTenant() societyId: string) {
     return this.notices.acknowledgementSummary(societyId, noticeId);
+  }
+
+  @Get('manage/:noticeId/delivery')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  deliverySummary(@Param('noticeId', ParseUUIDPipe) noticeId: string, @CurrentTenant() societyId: string) {
+    return this.deliveryObservability.summary(societyId, noticeId);
   }
 
   @Get('manage/:noticeId/history')
