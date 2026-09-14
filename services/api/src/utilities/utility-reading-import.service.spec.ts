@@ -15,7 +15,9 @@ function asPrismaService(value: Partial<PrismaService>): PrismaService {
 describe('UtilityReadingImportService', () => {
   test('preview rejects duplicate timestamps in the same batch', async () => {
     const prisma = asPrismaService({
-      $queryRaw: vi.fn()\n        .mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111', code: 'ELEC-A101', active: true }])\n        .mockResolvedValueOnce([]) as PrismaService['$queryRaw'],
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111', code: 'ELEC-A101', active: true }])
+        .mockResolvedValueOnce([]) as PrismaService['$queryRaw'],
     });
     const service = new UtilityReadingImportService(prisma);
 
