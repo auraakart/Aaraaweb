@@ -45,7 +45,8 @@ export class HelpdeskSlaService {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
         CASE
-          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET'
+          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
+            THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
           WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
           WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
           WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
@@ -58,6 +59,7 @@ export class HelpdeskSlaService {
       WHERE ht."societyId"=${societyId}::uuid
       ORDER BY
         CASE
+          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND ht."resolvedAt" > ht."resolutionDueAt" THEN 0
           WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 0
           WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 1
           ELSE 2
@@ -82,11 +84,15 @@ export class HelpdeskSlaService {
         WHERE "societyId"=${societyId}::uuid AND "priority"=${ticket.priority} AND "active"=true LIMIT 1
       `);
       if (!policy) throw new BadRequestException('No active SLA policy exists for this ticket priority');
-      const [updated] = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      const [updated] = await tx.$queryRaw<Array<Record<string, unknown> & { slaState: SlaState }>>(Prisma.sql`
         UPDATE "HelpdeskTicket" SET
           "firstResponseDueAt"="createdAt" + make_interval(mins => ${policy.firstResponseMinutes}),
           "resolutionDueAt"="createdAt" + make_interval(mins => ${policy.resolutionMinutes}),
-          "slaState"='ON_TRACK',
+          "slaState"=CASE
+            WHEN CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.resolutionMinutes}) THEN 'RESOLUTION_BREACHED'
+            WHEN "firstRespondedAt" IS NULL AND CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.firstResponseMinutes}) THEN 'RESPONSE_BREACHED'
+            ELSE 'ON_TRACK'
+          END,
           "updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
         RETURNING *
@@ -94,7 +100,7 @@ export class HelpdeskSlaService {
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "HelpdeskSlaEvent" ("societyId","ticketId","actorUserId","eventType","fromState","toState","note")
         VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,
-          ${ticket.slaState === 'UNTRACKED' ? 'TRACKING_STARTED' : 'POLICY_REAPPLIED'},${ticket.slaState},'ON_TRACK','SLA policy applied')
+          ${ticket.slaState === 'UNTRACKED' ? 'TRACKING_STARTED' : 'POLICY_REAPPLIED'},${ticket.slaState},${updated.slaState},'SLA policy applied')
       `);
       return updated;
     });
@@ -110,7 +116,8 @@ export class HelpdeskSlaService {
       const [calc] = await tx.$queryRaw<Array<{ state: SlaState }>>(Prisma.sql`
         SELECT CASE
           WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
-          WHEN ${ticket.status} IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL AND ${ticket.resolvedAt}::timestamptz <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET'
+          WHEN ${ticket.status} IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
+            THEN CASE WHEN ${ticket.resolvedAt}::timestamptz <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
           WHEN ${ticket.status} NOT IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL AND CURRENT_TIMESTAMP > ${ticket.resolutionDueAt}::timestamptz THEN 'RESOLUTION_BREACHED'
           WHEN ${ticket.firstRespondedAt}::timestamptz IS NULL AND CURRENT_TIMESTAMP > ${ticket.firstResponseDueAt}::timestamptz THEN 'RESPONSE_BREACHED'
           ELSE 'ON_TRACK'
