@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -24,6 +24,10 @@ class ReturnParcelDto {
   @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
 
+class ParcelPickupCodeDto {
+  @IsString() @Matches(/^\d{6}$/) code!: string;
+}
+
 @Controller('parcels')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class ParcelsController {
@@ -33,6 +37,12 @@ export class ParcelsController {
   @RequiresPermissions(AppPermission.PARCEL_READ_OWN)
   mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.parcels.listOwn(societyId, this.requireUser(userId));
+  }
+
+  @Post('mine/:parcelId/pickup-code')
+  @RequiresPermissions(AppPermission.PARCEL_READ_OWN)
+  pickupCode(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Param('parcelId', ParseUUIDPipe) parcelId: string) {
+    return this.parcels.issuePickupCode(societyId, this.requireUser(userId), parcelId);
   }
 
   @Patch('mine/:parcelId/collect')
@@ -51,6 +61,17 @@ export class ParcelsController {
   @RequiresPermissions(AppPermission.PARCEL_PROCESS)
   intake(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Body() dto: IntakeParcelDto) {
     return this.parcels.intake(societyId, this.requireUser(userId), dto);
+  }
+
+  @Patch('desk/:parcelId/collect-with-code')
+  @RequiresPermissions(AppPermission.PARCEL_PROCESS)
+  collectWithCode(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('parcelId', ParseUUIDPipe) parcelId: string,
+    @Body() dto: ParcelPickupCodeDto,
+  ) {
+    return this.parcels.collectWithPickupCode(societyId, this.requireUser(userId), parcelId, dto.code);
   }
 
   @Patch('desk/:parcelId/return')
