@@ -82,7 +82,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading && _parcels.isEmpty
-            ? const ListView(children: [SizedBox(height: 220), Center(child: CircularProgressIndicator())])
+            ? ListView(children: const [SizedBox(height: 220), Center(child: CircularProgressIndicator())])
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
