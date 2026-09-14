@@ -10,6 +10,22 @@ describe('HelpdeskSlaService', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('requires a target when automatic escalation is enabled', async () => {
+    const service = new HelpdeskSlaService({} as never);
+    await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
+      priority:'HIGH', firstResponseMinutes:30, resolutionMinutes:60, escalationAfterMinutes:15, automaticEscalationEnabled:true,
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects configured automatic target outside current society', async () => {
+    const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } } as never;
+    const service = new HelpdeskSlaService(prisma);
+    await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
+      priority:'HIGH', firstResponseMinutes:30, resolutionMinutes:60, escalationAfterMinutes:15,
+      automaticEscalationEnabled:true, escalationTargetUserId:'44444444-4444-4444-8444-444444444444',
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects escalation target outside current society', async () => {
     const prisma = { societyMembership: { findFirst: vi.fn().mockResolvedValue(null) } } as never;
     const service = new HelpdeskSlaService(prisma);

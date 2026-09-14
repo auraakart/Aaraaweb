@@ -26,16 +26,20 @@ describe('ScheduledWorkService', () => {
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('runs the SLA sweep only after acquiring the cluster lock', async () => {
+  it('runs SLA state evaluation and first automatic escalation only after acquiring the cluster lock', async () => {
     const tx = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ locked: true }])
-        .mockResolvedValueOnce([{ ticketId: '00000000-0000-0000-0000-000000000001' }]),
+        .mockResolvedValueOnce([{ ticketId: '00000000-0000-0000-0000-000000000001' }])
+        .mockResolvedValueOnce([{ ticketId: '00000000-0000-0000-0000-000000000002' }]),
     };
     const prisma = { $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)) };
     const service = new ScheduledWorkService(prisma as never);
 
-    await expect(service.runOnce()).resolves.toEqual({ skipped: false, processed: 1 });
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    await expect(service.runOnce()).resolves.toEqual({ skipped: false, processed: 1, escalated: 1 });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    const escalationSql = (tx.$queryRaw.mock.calls[2][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(escalationSql).toContain('automaticEscalationEnabled');
+    expect(escalationSql).toContain('"escalationLevel"=0');
   });
 });

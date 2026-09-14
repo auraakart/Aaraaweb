@@ -11,23 +11,44 @@ export class HelpdeskSlaService {
 
   listPolicies(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT * FROM "HelpdeskSlaPolicy"
-      WHERE "societyId"=${societyId}::uuid
-      ORDER BY CASE "priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END
+      SELECT p.*, target."name" AS "escalationTargetName"
+      FROM "HelpdeskSlaPolicy" p
+      LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
+      WHERE p."societyId"=${societyId}::uuid
+      ORDER BY CASE p."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END
     `);
   }
 
   async upsertPolicy(societyId: string, actorUserId: string, input: {
-    priority: Priority; firstResponseMinutes: number; resolutionMinutes: number; escalationAfterMinutes: number; active?: boolean;
+    priority: Priority;
+    firstResponseMinutes: number;
+    resolutionMinutes: number;
+    escalationAfterMinutes: number;
+    active?: boolean;
+    escalationTargetUserId?: string | null;
+    automaticEscalationEnabled?: boolean;
   }) {
     if (input.firstResponseMinutes <= 0) throw new BadRequestException('First response SLA must be positive');
     if (input.resolutionMinutes < input.firstResponseMinutes) throw new BadRequestException('Resolution SLA cannot be shorter than first response SLA');
     if (input.escalationAfterMinutes <= 0) throw new BadRequestException('Escalation delay must be positive');
+    const escalationTargetUserId = input.escalationTargetUserId ?? null;
+    const automaticEscalationEnabled = input.automaticEscalationEnabled ?? false;
+    if (automaticEscalationEnabled && !escalationTargetUserId) {
+      throw new BadRequestException('Automatic escalation requires an escalation target');
+    }
+    if (escalationTargetUserId) {
+      const membership = await this.prisma.societyMembership.findFirst({
+        where: { societyId, userId: escalationTargetUserId, active: true }, select: { id: true },
+      });
+      if (!membership) throw new BadRequestException('Escalation target must be an active member of the current society');
+    }
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       INSERT INTO "HelpdeskSlaPolicy" (
-        "societyId","priority","firstResponseMinutes","resolutionMinutes","escalationAfterMinutes","active","updatedByUserId"
+        "societyId","priority","firstResponseMinutes","resolutionMinutes","escalationAfterMinutes","active",
+        "updatedByUserId","escalationTargetUserId","automaticEscalationEnabled"
       ) VALUES (
-        ${societyId}::uuid,${input.priority},${input.firstResponseMinutes},${input.resolutionMinutes},${input.escalationAfterMinutes},${input.active ?? true},${actorUserId}::uuid
+        ${societyId}::uuid,${input.priority},${input.firstResponseMinutes},${input.resolutionMinutes},${input.escalationAfterMinutes},
+        ${input.active ?? true},${actorUserId}::uuid,${escalationTargetUserId}::uuid,${automaticEscalationEnabled}
       )
       ON CONFLICT ("societyId","priority") DO UPDATE SET
         "firstResponseMinutes"=EXCLUDED."firstResponseMinutes",
@@ -35,6 +56,8 @@ export class HelpdeskSlaService {
         "escalationAfterMinutes"=EXCLUDED."escalationAfterMinutes",
         "active"=EXCLUDED."active",
         "updatedByUserId"=EXCLUDED."updatedByUserId",
+        "escalationTargetUserId"=EXCLUDED."escalationTargetUserId",
+        "automaticEscalationEnabled"=EXCLUDED."automaticEscalationEnabled",
         "updatedAt"=CURRENT_TIMESTAMP
       RETURNING *
     `);
