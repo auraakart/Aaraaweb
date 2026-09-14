@@ -25,7 +25,7 @@ export class ParcelsService {
   listOwn(societyId: string, userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT p.*,
-        (p."status"='RECEIVED' AND p."receivedAt" < CURRENT_TIMESTAMP - INTERVAL '${UNCOLLECTED_OVERDUE_HOURS} hours') AS "overdue"
+        (p."status"='RECEIVED' AND p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS})) AS "overdue"
       FROM "Parcel" p
       WHERE p."societyId"=${societyId}::uuid AND p."recipientUserId"=${userId}::uuid
       ORDER BY CASE p."status" WHEN 'RECEIVED' THEN 0 ELSE 1 END, p."receivedAt" DESC
@@ -36,7 +36,7 @@ export class ParcelsService {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT p.*, u."number" AS "unitNumber",
         recipient."name" AS "recipientName",
-        (p."receivedAt" < CURRENT_TIMESTAMP - INTERVAL '${UNCOLLECTED_OVERDUE_HOURS} hours') AS "overdue"
+        (p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS})) AS "overdue"
       FROM "Parcel" p
       JOIN "Unit" u ON u."id"=p."unitId" AND u."societyId"=p."societyId"
       JOIN "User" recipient ON recipient."id"=p."recipientUserId"
@@ -107,7 +107,7 @@ export class ParcelsService {
       UPDATE "Parcel"
       SET "pickupCodeSalt"=${salt}, "pickupCodeHash"=${digest},
           "pickupCodeIssuedAt"=CURRENT_TIMESTAMP,
-          "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + INTERVAL '${PICKUP_CODE_TTL_MINUTES} minutes',
+          "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + make_interval(mins => ${PICKUP_CODE_TTL_MINUTES}),
           "pickupCodeAttempts"=0, "pickupCodeLockedAt"=NULL, "updatedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${parcelId}::uuid AND "societyId"=${societyId}::uuid
         AND "recipientUserId"=${userId}::uuid AND "status"='RECEIVED'
