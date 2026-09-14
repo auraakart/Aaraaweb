@@ -8,7 +8,8 @@ type Recipient={userId:string;name:string;unitId:string;unitNumber:string;buildi
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const roles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();let body:any=null;try{body=text?JSON.parse(text):null}catch{body=text}if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`);return body as T}
+function apiErrorMessage(body:unknown,status:number){if(body&&typeof body==='object'&&'message' in body){const message=(body as {message?:unknown}).message;if(Array.isArray(message))return message.map(String).join(', ');if(typeof message==='string')return message}return `Request failed (${status})`}
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();let body:unknown=null;try{body=text?JSON.parse(text):null}catch{body=text}if(!r.ok)throw new Error(apiErrorMessage(body,r.status));return body as T}
 const fmt=(v:string)=>new Date(v).toLocaleString('en-IN')
 export default function ParcelsAdminPage(){
  const s=typeof window==='undefined'?null:getSession(),canUse=!!s&&roles.has(s.role)
