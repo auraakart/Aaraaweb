@@ -8,7 +8,7 @@ describe('PrivacyRegistryService', () => {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 'category-1' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    const prisma = { $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)) };
+    const prisma = { $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)) };
     const service = new PrivacyRegistryService(prisma as unknown as PrismaService);
 
     await service.createCategory('society-1', 'admin-1', {
@@ -25,8 +25,12 @@ describe('PrivacyRegistryService', () => {
     expect(event.strings.join(' ')).toContain('"PrivacyRegistryEvent"');
   });
 
-  it('rejects processors that reference categories outside the active current-society inventory', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([{ code: 'PAYMENTS' }]) };
+  it('validates processor categories inside the creation transaction', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{ code: 'PAYMENTS' }]),
+      $executeRaw: vi.fn(),
+    };
+    const prisma = { $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)) };
     const service = new PrivacyRegistryService(prisma as unknown as PrismaService);
 
     await expect(
@@ -37,10 +41,42 @@ describe('PrivacyRegistryService', () => {
       }),
     ).rejects.toThrow('Unknown or inactive privacy data categories: VISITOR_ID_PROOF');
 
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
-    expect(query.strings.join(' ')).toContain('"societyId"');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(query.strings.join(' ')).toContain('"PrivacyDataCategory"');
     expect(query.strings.join(' ')).toContain('"active"=true');
+    expect(query.strings.join(' ')).toContain('FOR SHARE');
     expect(query.values).toContain('society-1');
+  });
+
+  it('changes category active state and evidence in one transaction', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'category-1', code: 'PAYMENTS' }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)) };
+    const service = new PrivacyRegistryService(prisma as unknown as PrismaService);
+
+    await expect(service.setCategoryActive('society-1', 'admin-1', 'category-1', false)).resolves.toMatchObject({
+      id: 'category-1', active: false,
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('changes processor active state and evidence in one transaction', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'processor-1', name: 'Processor' }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { $transaction: vi.fn(async (callback: (client: unknown) => unknown) => callback(tx)) };
+    const service = new PrivacyRegistryService(prisma as unknown as PrismaService);
+
+    await expect(service.setProcessorActive('society-1', 'admin-1', 'processor-1', false)).resolves.toMatchObject({
+      id: 'processor-1', active: false,
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('scopes category listing to the current society', async () => {

@@ -59,19 +59,27 @@ export class PrivacyRegistryService {
   }
 
   async setCategoryActive(societyId: string, actorUserId: string, categoryId: string, active: boolean) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; code: string }>>(Prisma.sql`
-      UPDATE "PrivacyDataCategory"
-      SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${categoryId}::uuid AND "societyId"=${societyId}::uuid
-      RETURNING "id", "code"
-    `);
-    const category = rows[0];
-    if (!category) throw new NotFoundException('Privacy data category not found');
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "PrivacyRegistryEvent" ("societyId","entityType","entityId","actorUserId","action","summary","metadataJson")
-      VALUES (${societyId}::uuid,'DATA_CATEGORY',${categoryId}::uuid,${actorUserId}::uuid,'ACTIVE_CHANGED',${active ? 'Privacy data category activated' : 'Privacy data category deactivated'},${JSON.stringify({ active })}::jsonb)
-    `);
-    return { ...category, active };
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; code: string }>>(Prisma.sql`
+        UPDATE "PrivacyDataCategory"
+        SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${categoryId}::uuid AND "societyId"=${societyId}::uuid
+        RETURNING "id", "code"
+      `);
+      const category = rows[0];
+      if (!category) throw new NotFoundException('Privacy data category not found');
+      await this.recordEvent(
+        tx,
+        societyId,
+        actorUserId,
+        'DATA_CATEGORY',
+        categoryId,
+        'ACTIVE_CHANGED',
+        active ? 'Privacy data category activated' : 'Privacy data category deactivated',
+        { active },
+      );
+      return { ...category, active };
+    });
   }
 
   listProcessors(societyId: string) {
@@ -88,9 +96,9 @@ export class PrivacyRegistryService {
     if (!name || !purpose) throw new BadRequestException('Processor name and purpose are required');
     const codes = [...new Set(input.dataCategoryCodes.map((value) => this.normaliseCode(value)))];
     if (codes.length === 0) throw new BadRequestException('At least one data category is required');
-    await this.assertActiveCategoryCodes(societyId, codes);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.assertActiveCategoryCodes(tx, societyId, codes);
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "PrivacyProcessorRegister" (
           "societyId", "name", "purpose", "dataCategoryCodes", "processingLocation", "contactReference", "agreementReference", "createdByUserId"
@@ -107,19 +115,27 @@ export class PrivacyRegistryService {
   }
 
   async setProcessorActive(societyId: string, actorUserId: string, processorId: string, active: boolean) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
-      UPDATE "PrivacyProcessorRegister"
-      SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${processorId}::uuid AND "societyId"=${societyId}::uuid
-      RETURNING "id", "name"
-    `);
-    const processor = rows[0];
-    if (!processor) throw new NotFoundException('Privacy processor not found');
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "PrivacyRegistryEvent" ("societyId","entityType","entityId","actorUserId","action","summary","metadataJson")
-      VALUES (${societyId}::uuid,'PROCESSOR',${processorId}::uuid,${actorUserId}::uuid,'ACTIVE_CHANGED',${active ? 'Privacy processor activated' : 'Privacy processor deactivated'},${JSON.stringify({ active })}::jsonb)
-    `);
-    return { ...processor, active };
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
+        UPDATE "PrivacyProcessorRegister"
+        SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${processorId}::uuid AND "societyId"=${societyId}::uuid
+        RETURNING "id", "name"
+      `);
+      const processor = rows[0];
+      if (!processor) throw new NotFoundException('Privacy processor not found');
+      await this.recordEvent(
+        tx,
+        societyId,
+        actorUserId,
+        'PROCESSOR',
+        processorId,
+        'ACTIVE_CHANGED',
+        active ? 'Privacy processor activated' : 'Privacy processor deactivated',
+        { active },
+      );
+      return { ...processor, active };
+    });
   }
 
   history(societyId: string, entityType: 'DATA_CATEGORY' | 'PROCESSOR', entityId: string) {
@@ -132,10 +148,11 @@ export class PrivacyRegistryService {
     `);
   }
 
-  private async assertActiveCategoryCodes(societyId: string, codes: string[]) {
-    const rows = await this.prisma.$queryRaw<Array<{ code: string }>>(Prisma.sql`
+  private async assertActiveCategoryCodes(tx: Prisma.TransactionClient, societyId: string, codes: string[]) {
+    const rows = await tx.$queryRaw<Array<{ code: string }>>(Prisma.sql`
       SELECT "code" FROM "PrivacyDataCategory"
       WHERE "societyId"=${societyId}::uuid AND "active"=true AND "code" IN (${Prisma.join(codes)})
+      FOR SHARE
     `);
     const found = new Set(rows.map((row) => row.code));
     const missing = codes.filter((code) => !found.has(code));
