@@ -8,9 +8,14 @@ describe('Parking v2 authorization', () => {
   it('uses parking-specific capability permissions on all operations', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.list)).toEqual([AppPermission.PARKING_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.history)).toEqual([AppPermission.PARKING_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.eligibleVisitors)).toEqual([AppPermission.PARKING_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.listPermits)).toEqual([AppPermission.PARKING_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.createSlot)).toEqual([AppPermission.PARKING_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.allocate)).toEqual([AppPermission.PARKING_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.release)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.createPermit)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.cancelPermit)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.completePermit)).toEqual([AppPermission.PARKING_MANAGE]);
   });
 
   it('keeps mutation authority with society operations roles and read-only committee/supervisor access', () => {
