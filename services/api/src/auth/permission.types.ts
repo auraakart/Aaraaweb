@@ -68,6 +68,8 @@ export enum AppPermission {
   PRIVACY_OPERATIONS_MANAGE = 'PRIVACY_OPERATIONS_MANAGE',
   OCCUPANCY_LIFECYCLE_READ = 'OCCUPANCY_LIFECYCLE_READ',
   OCCUPANCY_LIFECYCLE_MANAGE = 'OCCUPANCY_LIFECYCLE_MANAGE',
+  PARKING_READ = 'PARKING_READ',
+  PARKING_MANAGE = 'PARKING_MANAGE',
 }
 
 export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]>> = {
@@ -102,6 +104,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.PRIVACY_OPERATIONS_READ,
     AppPermission.OCCUPANCY_LIFECYCLE_READ,
     AppPermission.OCCUPANCY_LIFECYCLE_MANAGE,
+    AppPermission.PARKING_READ,
+    AppPermission.PARKING_MANAGE,
   ],
   [AppRole.COMMITTEE_MEMBER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -120,6 +124,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.SOCIETY_VENDORS_READ,
     AppPermission.DOCUMENTS_READ,
     AppPermission.OCCUPANCY_LIFECYCLE_READ,
+    AppPermission.PARKING_READ,
   ],
   [AppRole.FACILITY_MANAGER]: [
     AppPermission.SOCIETY_CONFIGURATION_READ,
@@ -141,6 +146,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.DOCUMENTS_READ,
     AppPermission.OCCUPANCY_LIFECYCLE_READ,
     AppPermission.OCCUPANCY_LIFECYCLE_MANAGE,
+    AppPermission.PARKING_READ,
+    AppPermission.PARKING_MANAGE,
   ],
   [AppRole.ACCOUNTANT]: [
     AppPermission.REPORTS_READ,
@@ -220,6 +227,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.PARCEL_PROCESS,
     AppPermission.SOS_RESPOND,
     AppPermission.AUDIT_READ,
+    AppPermission.PARKING_READ,
   ],
   [AppRole.SECURITY_GUARD]: [
     AppPermission.GATE_READ,
