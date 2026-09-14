@@ -65,7 +65,14 @@ export class ResidentPushOutboxService implements OnApplicationBootstrap, OnAppl
     try {
       await this.recoverStaleClaims();
       const rows = await this.claim(Math.max(1, Math.min(100, batchSize)));
-      for (const row of rows) await this.deliver(row);
+      for (const row of rows) {
+        try {
+          await this.deliver(row);
+        } catch (error) {
+          this.logger.error(`Resident push outbox row ${row.id} failed unexpectedly: ${this.errorMessage(error)}`);
+          await this.markDead(row.id, 'WORKER_ERROR', this.errorMessage(error));
+        }
+      }
       return { claimed: rows.length, skipped: false };
     } catch (error) {
       this.logger.error(`Resident push outbox sweep failed: ${this.errorMessage(error)}`);
@@ -107,14 +114,15 @@ export class ResidentPushOutboxService implements OnApplicationBootstrap, OnAppl
 
   private async deliver(row: OutboxRow) {
     let event: ResidentMessageEvent;
+    let targetIds: string[] | undefined;
     try {
       event = this.parseEvent(row.payload);
+      targetIds = this.parseTargetIds(row.targetRegistrationIds);
     } catch (error) {
       await this.markDead(row.id, 'INVALID_PAYLOAD', this.errorMessage(error));
       return;
     }
 
-    const targetIds = this.parseTargetIds(row.targetRegistrationIds);
     try {
       const result = await this.push.sendResidentOutboxEvent(event, targetIds);
       if (result.retryRegistrationIds.length === 0) {
