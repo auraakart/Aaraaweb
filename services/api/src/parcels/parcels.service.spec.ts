@@ -42,8 +42,11 @@ describe('ParcelsService', () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     await service.listDesk(societyId);
-    const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    const sql = query.strings.join(' ');
     expect(sql).toContain("p.\"status\"='RECEIVED'");
-    expect(sql).toContain('24 hours');
+    expect(sql).toContain("INTERVAL '");
+    expect(sql).toContain("hours'");
+    expect(query.values).toContain(24);
   });
 });
