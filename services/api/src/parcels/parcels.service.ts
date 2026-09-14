@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const UNCOLLECTED_OVERDUE_HOURS = 24;
@@ -14,7 +15,7 @@ type IntakeInput = {
 
 @Injectable()
 export class ParcelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
   listOwn(societyId: string, userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -28,7 +29,7 @@ export class ParcelsService {
 
   listDesk(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p.*, u."unitNumber",
+      SELECT p.*, u."number" AS "unitNumber",
         recipient."name" AS "recipientName",
         (p."receivedAt" < CURRENT_TIMESTAMP - INTERVAL '${UNCOLLECTED_OVERDUE_HOURS} hours') AS "overdue"
       FROM "Parcel" p
@@ -47,7 +48,7 @@ export class ParcelsService {
     if (trackingReference && trackingReference.length > 160) throw new BadRequestException('Tracking reference is too long');
     if (notes && notes.length > 500) throw new BadRequestException('Parcel notes are too long');
 
-    return this.prisma.$transaction(async (tx) => {
+    const parcel = await this.prisma.$transaction(async (tx) => {
       const occupancy = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT uo."id"
         FROM "UnitOccupancy" uo
@@ -71,13 +72,26 @@ export class ParcelsService {
         )
         RETURNING *
       `);
-      const parcel = rows[0];
+      const created = rows[0];
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "ParcelEvent" ("societyId","parcelId","actorUserId","action","note")
-        VALUES (${societyId}::uuid,${parcel.id}::uuid,${actorUserId}::uuid,'RECEIVED',${courierName})
+        VALUES (${societyId}::uuid,${created.id}::uuid,${actorUserId}::uuid,'RECEIVED',${courierName})
       `);
-      return parcel;
+      return created;
     });
+
+    this.realtime?.publishResident({
+      type: 'PARCEL_RECEIVED',
+      societyId,
+      userId: input.recipientUserId,
+      unitId: input.unitId,
+      parcelId: parcel.id,
+      title: 'Parcel received',
+      body: courierName ? `A parcel from ${courierName} is waiting at the gate.` : 'A parcel is waiting for you at the gate.',
+      createdAt: new Date().toISOString(),
+    });
+
+    return parcel;
   }
 
   async confirmCollection(societyId: string, userId: string, parcelId: string) {

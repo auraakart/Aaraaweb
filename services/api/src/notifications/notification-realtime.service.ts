@@ -39,6 +39,17 @@ type GeneralNoticeEvent = {
   noticeId?: string;
 };
 
+type ParcelReceivedEvent = {
+  type: 'PARCEL_RECEIVED';
+  societyId: string;
+  userId: string;
+  unitId: string;
+  parcelId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+};
+
 type EmergencyBroadcastEvent = {
   type: 'EMERGENCY_BROADCAST';
   societyId: string;
@@ -51,7 +62,7 @@ type EmergencyBroadcastEvent = {
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
 };
 
-export type ResidentMessageEvent = AccessRealtimeEvent | MaintenanceDueEvent | GeneralNoticeEvent | EmergencyBroadcastEvent;
+export type ResidentMessageEvent = AccessRealtimeEvent | MaintenanceDueEvent | GeneralNoticeEvent | ParcelReceivedEvent | EmergencyBroadcastEvent;
 
 @Injectable()
 export class NotificationRealtimeService {
