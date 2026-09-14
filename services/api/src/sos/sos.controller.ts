@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -29,6 +29,10 @@ class TriggerSosDto {
 
 class SosActionDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
+class ResolveSosDto {
+  @IsString() @MinLength(5) @MaxLength(500) note!: string;
 }
 
 @Controller('sos')
@@ -101,7 +105,7 @@ export class SosController {
   @RequiresPermissions(AppPermission.SOS_RESPOND)
   resolve(
     @Param('incidentId', ParseUUIDPipe) incidentId: string,
-    @Body() dto: SosActionDto,
+    @Body() dto: ResolveSosDto,
     @CurrentTenant() societyId: string,
     @CurrentUser() userId?: string,
   ) {
