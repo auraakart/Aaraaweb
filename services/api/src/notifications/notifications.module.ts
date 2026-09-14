@@ -5,11 +5,20 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationRealtimeService } from './notification-realtime.service';
 import { PushNotificationService } from './push-notification.service';
 import { GateRecipientService } from './gate-recipient.service';
+import { ReliableResidentPushService } from './reliable-resident-push.service';
+import { ResidentPushOutboxService } from './resident-push-outbox.service';
 
 @Global()
 @Module({
   controllers: [NotificationsController, ConsumerNotificationsController],
-  providers: [PrismaService, PushNotificationService, GateRecipientService, NotificationRealtimeService],
-  exports: [PushNotificationService, GateRecipientService, NotificationRealtimeService],
+  providers: [
+    PrismaService,
+    ReliableResidentPushService,
+    { provide: PushNotificationService, useExisting: ReliableResidentPushService },
+    ResidentPushOutboxService,
+    GateRecipientService,
+    NotificationRealtimeService,
+  ],
+  exports: [PushNotificationService, GateRecipientService, NotificationRealtimeService, ResidentPushOutboxService],
 })
 export class NotificationsModule {}
