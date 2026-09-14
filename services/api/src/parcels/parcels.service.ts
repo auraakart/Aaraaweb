@@ -28,9 +28,8 @@ export class ParcelsService {
 
   listDesk(societyId: string, status?: ParcelStatus) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p.*, u."label" AS "unitLabel"
+      SELECT p.*
       FROM "ParcelRecord" p
-      JOIN "Unit" u ON u."id"=p."unitId" AND u."societyId"=p."societyId"
       WHERE p."societyId"=${societyId}::uuid
         AND (${status ?? null}::text IS NULL OR p."status"=${status ?? null})
       ORDER BY CASE p."status" WHEN 'RECEIVED' THEN 0 ELSE 1 END, p."receivedAt" DESC
