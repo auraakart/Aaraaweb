@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import { ServiceUnavailableException } from '@nestjs/common';
 import {
+  ObjectStorageDownloadIntent,
   ObjectStorageObjectMetadata,
   ObjectStoragePort,
   ObjectStorageUploadIntent,
@@ -75,6 +76,16 @@ export class S3CompatibleObjectStorageAdapter implements ObjectStoragePort {
       method: 'PUT',
       headers: { 'Content-Type': input.contentType },
       publicUrl: `${this.config.publicBaseUrl}/${encodeKey(input.storageKey)}`,
+      expiresAt,
+    };
+  }
+
+  async createDownloadIntent(storageKey: string): Promise<ObjectStorageDownloadIntent> {
+    const expiresAt = new Date(Date.now() + this.config.presignTtlSeconds * 1000).toISOString();
+    return {
+      storageKey,
+      downloadUrl: this.presign('GET', storageKey, this.config.presignTtlSeconds),
+      method: 'GET',
       expiresAt,
     };
   }
