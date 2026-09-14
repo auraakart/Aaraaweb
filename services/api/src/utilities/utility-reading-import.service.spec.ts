@@ -46,7 +46,7 @@ describe('UtilityReadingImportService', () => {
       $executeRaw: vi.fn().mockResolvedValue(0),
     };
     const prisma = asPrismaService({
-      $transaction: vi.fn(async (callback: (client: TransactionClientMock) => unknown) => callback(tx)) as PrismaService['$transaction'],
+      $transaction: vi.fn(async (callback: (client: TransactionClientMock) => unknown) => callback(tx)) as unknown as PrismaService['$transaction'],
     });
     const service = new UtilityReadingImportService(prisma);
 
