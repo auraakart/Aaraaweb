@@ -6,6 +6,7 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ParcelRecipientsService } from './parcel-recipients.service';
 import { ParcelReminderService } from './parcel-reminder.service';
 import { ParcelsService } from './parcels.service';
 
@@ -32,7 +33,11 @@ class ParcelPickupCodeDto {
 @Controller('parcels')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class ParcelsController {
-  constructor(private readonly parcels: ParcelsService, private readonly reminders: ParcelReminderService) {}
+  constructor(
+    private readonly parcels: ParcelsService,
+    private readonly reminders: ParcelReminderService,
+    private readonly recipients: ParcelRecipientsService,
+  ) {}
 
   @Get('mine')
   @RequiresPermissions(AppPermission.PARCEL_READ_OWN)
@@ -56,6 +61,12 @@ export class ParcelsController {
   @RequiresPermissions(AppPermission.PARCEL_PROCESS)
   desk(@CurrentTenant() societyId: string) {
     return this.parcels.listDesk(societyId);
+  }
+
+  @Get('desk/recipients')
+  @RequiresPermissions(AppPermission.PARCEL_PROCESS)
+  deskRecipients(@CurrentTenant() societyId: string) {
+    return this.recipients.list(societyId);
   }
 
   @Post('desk')

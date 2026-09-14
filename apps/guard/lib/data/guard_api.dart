@@ -61,7 +61,9 @@ class GuardApi {
       final headers = {..._headers, ...?extraHeaders};
       final response = method == 'GET'
           ? await http.get(uri, headers: headers)
-          : await http.post(uri, headers: headers, body: jsonEncode(body ?? const {}));
+          : method == 'PATCH'
+              ? await http.patch(uri, headers: headers, body: jsonEncode(body ?? const {}))
+              : await http.post(uri, headers: headers, body: jsonEncode(body ?? const {}));
       dynamic decoded;
       if (response.body.isNotEmpty) {
         try {
@@ -102,6 +104,36 @@ class GuardApi {
     return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> parcelDesk() async {
+    final value = await _send('GET', '/parcels/desk');
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>> parcelRecipients() async {
+    final value = await _send('GET', '/parcels/desk/recipients');
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> intakeParcel({required String unitId, required String recipientUserId, String? courierName, String? trackingReference, String? notes}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/parcels/desk', body: {
+        'unitId': unitId,
+        'recipientUserId': recipientUserId,
+        if (courierName != null && courierName.trim().isNotEmpty) 'courierName': courierName.trim(),
+        if (trackingReference != null && trackingReference.trim().isNotEmpty) 'trackingReference': trackingReference.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      }) as Map);
+
+  Future<Map<String, dynamic>> collectParcelWithCode(String parcelId, String code) async =>
+      Map<String, dynamic>.from(await _send('PATCH', '/parcels/desk/$parcelId/collect-with-code', body: {'code': code.trim()}) as Map);
+
+  Future<Map<String, dynamic>> remindParcel(String parcelId) async =>
+      Map<String, dynamic>.from(await _send('POST', '/parcels/desk/$parcelId/remind') as Map);
+
+  Future<Map<String, dynamic>> returnParcel(String parcelId, String reason) async =>
+      Map<String, dynamic>.from(await _send('PATCH', '/parcels/desk/$parcelId/return', body: {'reason': reason.trim()}) as Map);
+
   Future<List<Map<String, dynamic>>> eligibleWorkforce({String? query}) async {
     final normalized = query?.trim();
     final suffix = normalized == null || normalized.isEmpty ? '' : '?query=${Uri.encodeQueryComponent(normalized)}';
@@ -126,7 +158,7 @@ class GuardApi {
       Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/walk-ins', body: {
         'gateId': gateId,
         'unitId': unitId,
-        'name': name,
+        'name': name.trim(),
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
         if (purpose != null && purpose.trim().isNotEmpty) 'purpose': purpose.trim(),
       }) as Map);
@@ -136,7 +168,7 @@ class GuardApi {
         'gateId': gateId,
         'unitId': unitId,
         'subjectType': subjectType,
-        'name': name,
+        'name': name.trim(),
         if (provider != null && provider.trim().isNotEmpty) 'provider': provider.trim(),
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
         if (vehicleNumber != null && vehicleNumber.trim().isNotEmpty) 'vehicleNumber': vehicleNumber.trim(),
