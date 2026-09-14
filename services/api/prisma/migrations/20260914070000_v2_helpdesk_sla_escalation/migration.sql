@@ -56,6 +56,41 @@ CREATE TABLE "HelpdeskSlaEvent" (
 
 CREATE INDEX "HelpdeskSlaEvent_ticket_time_idx" ON "HelpdeskSlaEvent"("ticketId", "createdAt" ASC);
 
+CREATE OR REPLACE FUNCTION helpdesk_apply_sla_on_insert() RETURNS trigger AS $$
+DECLARE
+  p "HelpdeskSlaPolicy"%ROWTYPE;
+BEGIN
+  SELECT * INTO p FROM "HelpdeskSlaPolicy"
+  WHERE "societyId"=NEW."societyId" AND "priority"=NEW."priority" AND "active"=true
+  LIMIT 1;
+  IF FOUND THEN
+    NEW."firstResponseDueAt" := NEW."createdAt" + make_interval(mins => p."firstResponseMinutes");
+    NEW."resolutionDueAt" := NEW."createdAt" + make_interval(mins => p."resolutionMinutes");
+    NEW."slaState" := 'ON_TRACK';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER helpdesk_ticket_apply_sla
+BEFORE INSERT ON "HelpdeskTicket"
+FOR EACH ROW EXECUTE FUNCTION helpdesk_apply_sla_on_insert();
+
+CREATE OR REPLACE FUNCTION helpdesk_capture_first_response() RETURNS trigger AS $$
+BEGIN
+  IF NEW."type"='STATUS_CHANGED' AND NEW."toStatus" IN ('IN_PROGRESS','RESOLVED','CLOSED') THEN
+    UPDATE "HelpdeskTicket"
+    SET "firstRespondedAt"=COALESCE("firstRespondedAt",NEW."occurredAt"),"updatedAt"=CURRENT_TIMESTAMP
+    WHERE "id"=NEW."ticketId" AND "societyId"=NEW."societyId";
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER helpdesk_activity_capture_first_response
+AFTER INSERT ON "HelpdeskActivity"
+FOR EACH ROW EXECUTE FUNCTION helpdesk_capture_first_response();
+
 CREATE OR REPLACE FUNCTION prevent_helpdesk_sla_event_mutation() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'HelpdeskSlaEvent is append-only';
