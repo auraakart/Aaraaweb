@@ -25,7 +25,7 @@ describe('HelpdeskSlaService', () => {
     };
     const prisma = {
       societyMembership: { findFirst: vi.fn().mockResolvedValue({ id:'membership' }) },
-      $transaction: vi.fn(async (cb: (tx: typeof tx) => unknown) => cb(tx)),
+      $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)),
     } as never;
     const service = new HelpdeskSlaService(prisma);
     const result = await service.escalate(
@@ -37,7 +37,7 @@ describe('HelpdeskSlaService', () => {
 
   it('rejects policy application to unknown ticket', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const prisma = { $transaction: vi.fn(async (cb: (tx: typeof tx) => unknown) => cb(tx)) } as never;
+    const prisma = { $transaction: vi.fn(async (cb: (client: unknown) => unknown) => cb(tx)) } as never;
     const service = new HelpdeskSlaService(prisma);
     await expect(service.applyPolicy(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
