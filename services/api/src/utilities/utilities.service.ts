@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export type UtilityMeterType = 'ELECTRICITY' | 'WATER' | 'DG' | 'GAS' | 'OTHER';
 export type UtilityReadingKind = 'ACTUAL' | 'RESET';
 export type UtilityReadingSource = 'MANUAL' | 'IMPORT' | 'INTEGRATION';
+export type UtilityTariffPlanStatus = 'DRAFT' | 'ACTIVE' | 'RETIRED';
 
 type CreateMeterInput = {
   code: string;
@@ -22,6 +23,23 @@ type CreateReadingInput = {
   readingKind?: UtilityReadingKind;
   source?: UtilityReadingSource;
   note?: string;
+};
+
+type TariffSlabInput = {
+  fromUnit: number;
+  toUnit?: number | null;
+  ratePaisePerUnit: number;
+};
+
+type CreateTariffPlanInput = {
+  code: string;
+  name: string;
+  meterType: UtilityMeterType;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  fixedChargePaise?: number;
+  minimumChargePaise?: number;
+  slabs: TariffSlabInput[];
 };
 
 @Injectable()
@@ -184,6 +202,158 @@ export class UtilitiesService {
     }
   }
 
+  listTariffPlans(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT p.*,
+        COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'id', s."id",
+              'sequence', s."sequence",
+              'fromUnit', s."fromUnit",
+              'toUnit', s."toUnit",
+              'ratePaisePerUnit', s."ratePaisePerUnit"
+            ) ORDER BY s."sequence"
+          ) FILTER (WHERE s."id" IS NOT NULL), '[]'::jsonb
+        ) AS "slabs"
+      FROM "UtilityTariffPlan" p
+      LEFT JOIN "UtilityTariffSlab" s ON s."planId"=p."id" AND s."societyId"=p."societyId"
+      WHERE p."societyId"=${societyId}::uuid
+      GROUP BY p."id"
+      ORDER BY p."meterType", p."effectiveFrom" DESC, p."createdAt" DESC
+    `);
+  }
+
+  async createTariffPlan(societyId: string, actorUserId: string, input: CreateTariffPlanInput) {
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    if (!code || code.length > 60) throw new BadRequestException('Tariff code must be between 1 and 60 characters');
+    if (!name || name.length > 120) throw new BadRequestException('Tariff name must be between 1 and 120 characters');
+
+    const effectiveFrom = this.parseDateOnly(input.effectiveFrom, 'effectiveFrom');
+    const effectiveTo = input.effectiveTo ? this.parseDateOnly(input.effectiveTo, 'effectiveTo') : null;
+    if (effectiveTo && effectiveTo <= effectiveFrom) throw new BadRequestException('Tariff effectiveTo must be after effectiveFrom');
+
+    const fixedChargePaise = input.fixedChargePaise ?? 0;
+    const minimumChargePaise = input.minimumChargePaise ?? 0;
+    if (!Number.isInteger(fixedChargePaise) || fixedChargePaise < 0) throw new BadRequestException('Fixed charge must be a non-negative paise integer');
+    if (!Number.isInteger(minimumChargePaise) || minimumChargePaise < 0) throw new BadRequestException('Minimum charge must be a non-negative paise integer');
+    const slabs = this.validateTariffSlabs(input.slabs);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const plans = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          INSERT INTO "UtilityTariffPlan" (
+            "societyId","code","name","meterType","effectiveFrom","effectiveTo",
+            "fixedChargePaise","minimumChargePaise","createdByUserId"
+          ) VALUES (
+            ${societyId}::uuid,${code},${name},${input.meterType},${effectiveFrom}::date,${effectiveTo}::date,
+            ${fixedChargePaise},${minimumChargePaise},${actorUserId}::uuid
+          ) RETURNING "id"
+        `);
+        const plan = plans[0];
+        for (let index = 0; index < slabs.length; index += 1) {
+          const slab = slabs[index];
+          await tx.$executeRaw(Prisma.sql`
+            INSERT INTO "UtilityTariffSlab" (
+              "societyId","planId","sequence","fromUnit","toUnit","ratePaisePerUnit"
+            ) VALUES (
+              ${societyId}::uuid,${plan.id}::uuid,${index + 1},${slab.fromUnit},${slab.toUnit ?? null},${slab.ratePaisePerUnit}
+            )
+          `);
+        }
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "UtilityTariffEvent" ("societyId","planId","actorUserId","action","note")
+          VALUES (${societyId}::uuid,${plan.id}::uuid,${actorUserId}::uuid,'TARIFF_CREATED',${code})
+        `);
+        return { id: plan.id, status: 'DRAFT' as UtilityTariffPlanStatus };
+      });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) throw new ConflictException('Tariff code already exists in this society');
+      throw error;
+    }
+  }
+
+  async activateTariffPlan(societyId: string, actorUserId: string, planId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const plans = await tx.$queryRaw<Array<{
+        id: string;
+        status: UtilityTariffPlanStatus;
+        meterType: UtilityMeterType;
+        effectiveFrom: Date;
+        effectiveTo: Date | null;
+      }>>(Prisma.sql`
+        SELECT "id","status","meterType","effectiveFrom","effectiveTo"
+        FROM "UtilityTariffPlan"
+        WHERE "id"=${planId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      const plan = plans[0];
+      if (!plan) throw new NotFoundException('Utility tariff plan not found');
+      if (plan.status !== 'DRAFT') throw new BadRequestException('Only draft tariff plans can be activated');
+
+      const slabCount = await tx.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "count" FROM "UtilityTariffSlab"
+        WHERE "planId"=${planId}::uuid AND "societyId"=${societyId}::uuid
+      `);
+      if (Number(slabCount[0]?.count ?? 0) === 0) throw new BadRequestException('Tariff plan has no slabs');
+
+      const overlaps = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "UtilityTariffPlan"
+        WHERE "societyId"=${societyId}::uuid
+          AND "meterType"=${plan.meterType}
+          AND "status"='ACTIVE'
+          AND daterange("effectiveFrom", COALESCE("effectiveTo", 'infinity'::date), '[)')
+              && daterange(${plan.effectiveFrom}::date, ${plan.effectiveTo}::date, '[)')
+        LIMIT 1
+      `);
+      if (overlaps[0]) throw new ConflictException('An active tariff already overlaps this effective period');
+
+      const rows = await tx.$queryRaw<Array<{ id: string; status: UtilityTariffPlanStatus }>>(Prisma.sql`
+        UPDATE "UtilityTariffPlan"
+        SET "status"='ACTIVE',"activatedByUserId"=${actorUserId}::uuid,"activatedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${planId}::uuid AND "societyId"=${societyId}::uuid AND "status"='DRAFT'
+        RETURNING "id","status"
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "UtilityTariffEvent" ("societyId","planId","actorUserId","action")
+        VALUES (${societyId}::uuid,${planId}::uuid,${actorUserId}::uuid,'TARIFF_ACTIVATED')
+      `);
+      return rows[0];
+    });
+  }
+
+  async retireTariffPlan(societyId: string, actorUserId: string, planId: string, noteInput?: string) {
+    const note = noteInput?.trim() || null;
+    if (note && note.length > 300) throw new BadRequestException('Tariff retirement note is too long');
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; status: UtilityTariffPlanStatus }>>(Prisma.sql`
+        UPDATE "UtilityTariffPlan"
+        SET "status"='RETIRED',"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${planId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
+        RETURNING "id","status"
+      `);
+      if (!rows[0]) throw new NotFoundException('Active utility tariff plan not found');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "UtilityTariffEvent" ("societyId","planId","actorUserId","action","note")
+        VALUES (${societyId}::uuid,${planId}::uuid,${actorUserId}::uuid,'TARIFF_RETIRED',${note})
+      `);
+      return rows[0];
+    });
+  }
+
+  tariffHistory(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT e.*, p."code" AS "tariffCode", p."name" AS "tariffName", p."meterType", actor."name" AS "actorName"
+      FROM "UtilityTariffEvent" e
+      LEFT JOIN "UtilityTariffPlan" p ON p."id"=e."planId" AND p."societyId"=e."societyId"
+      JOIN "User" actor ON actor."id"=e."actorUserId"
+      WHERE e."societyId"=${societyId}::uuid
+      ORDER BY e."occurredAt" DESC
+      LIMIT 500
+    `);
+  }
+
   history(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT e.*, m."code" AS "meterCode", actor."name" AS "actorName"
@@ -194,6 +364,36 @@ export class UtilitiesService {
       ORDER BY e."occurredAt" DESC
       LIMIT 500
     `);
+  }
+
+  private validateTariffSlabs(input: TariffSlabInput[]) {
+    if (!Array.isArray(input) || input.length === 0 || input.length > 50) throw new BadRequestException('Tariff plan must contain between 1 and 50 slabs');
+    const slabs = input.map((slab) => ({
+      fromUnit: Number(slab.fromUnit),
+      toUnit: slab.toUnit === null || slab.toUnit === undefined ? null : Number(slab.toUnit),
+      ratePaisePerUnit: Number(slab.ratePaisePerUnit),
+    }));
+    for (const slab of slabs) {
+      if (!Number.isFinite(slab.fromUnit) || slab.fromUnit < 0) throw new BadRequestException('Tariff slab fromUnit must be non-negative');
+      if (slab.toUnit !== null && (!Number.isFinite(slab.toUnit) || slab.toUnit <= slab.fromUnit)) throw new BadRequestException('Tariff slab toUnit must be greater than fromUnit');
+      if (!Number.isInteger(slab.ratePaisePerUnit) || slab.ratePaisePerUnit < 0) throw new BadRequestException('Tariff slab rate must be a non-negative paise integer');
+    }
+    const sorted = [...slabs].sort((a, b) => a.fromUnit - b.fromUnit);
+    if (sorted[0].fromUnit !== 0) throw new BadRequestException('Tariff slabs must start at zero units');
+    for (let index = 0; index < sorted.length - 1; index += 1) {
+      const current = sorted[index];
+      const next = sorted[index + 1];
+      if (current.toUnit === null) throw new BadRequestException('Only the final tariff slab may be open-ended');
+      if (current.toUnit !== next.fromUnit) throw new BadRequestException('Tariff slabs must be contiguous with no gaps or overlaps');
+    }
+    return sorted;
+  }
+
+  private parseDateOnly(value: string, field: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${field} must use YYYY-MM-DD`);
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new BadRequestException(`${field} is invalid`);
+    return value;
   }
 
   private isUniqueViolation(error: unknown) {
