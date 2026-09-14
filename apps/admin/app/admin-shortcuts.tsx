@@ -11,6 +11,7 @@ const occupancyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','
 const facilitiesRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+const parcelRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
 type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
@@ -48,6 +49,7 @@ export function AdminShortcuts(){
     links.push({href:'/governance/polls',label:'Community polls'})
   }
   if(occupancyRoles.has(role))links.push({href:'/occupancy-lifecycle',label:'Move-in / move-out'})
+  if(parcelRoles.has(role))links.push({href:'/parcels',label:'Parcel desk'})
   if(facilitiesRoles.has(role)){
     links.push({href:'/facilities',label:'Facilities ops'})
     links.push({href:'/facilities/health',label:'Facilities health'})
