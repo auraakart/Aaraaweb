@@ -20,6 +20,13 @@ type AmenityRow = {
 
 type CountRow = { count: bigint | number };
 
+type AmenityBookingRules = {
+  minAdvanceMinutes?: number;
+  maxAdvanceDays?: number;
+  maxFutureBookingsPerUnit?: number;
+  cancellationCutoffMinutes?: number;
+};
+
 type AmenityUpdateInput = {
   name: string;
   description?: string | null;
@@ -73,7 +80,8 @@ export class AmenitiesService {
     if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || startsAt >= endsAt) {
       throw new BadRequestException('A valid booking window is required');
     }
-    if (startsAt.getTime() <= Date.now()) throw new BadRequestException('Amenity bookings must start in the future');
+    const now = Date.now();
+    if (startsAt.getTime() <= now) throw new BadRequestException('Amenity bookings must start in the future');
 
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
@@ -92,6 +100,30 @@ export class AmenitiesService {
       const durationMinutes = (endsAt.getTime() - startsAt.getTime()) / 60000;
       if (durationMinutes !== amenity.slotMinutes) {
         throw new BadRequestException(`Booking duration must be exactly ${amenity.slotMinutes} minutes`);
+      }
+
+      const rules = this.parseBookingRules(amenity.bookingRules);
+      const minutesUntilStart = (startsAt.getTime() - now) / 60000;
+      if (rules.minAdvanceMinutes !== undefined && minutesUntilStart < rules.minAdvanceMinutes) {
+        throw new BadRequestException(`Amenity must be booked at least ${rules.minAdvanceMinutes} minutes in advance`);
+      }
+      if (rules.maxAdvanceDays !== undefined && minutesUntilStart > rules.maxAdvanceDays * 24 * 60) {
+        throw new BadRequestException(`Amenity cannot be booked more than ${rules.maxAdvanceDays} days in advance`);
+      }
+
+      if (rules.maxFutureBookingsPerUnit !== undefined) {
+        const futureRows = await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking"
+          WHERE "societyId" = ${societyId}::uuid
+            AND "amenityId" = ${amenityId}::uuid
+            AND "unitId" = ${input.unitId}::uuid
+            AND "status" IN ('PENDING', 'CONFIRMED')
+            AND "endsAt" > CURRENT_TIMESTAMP
+        `;
+        if (Number(futureRows[0]?.count ?? 0) >= rules.maxFutureBookingsPerUnit) {
+          throw new ConflictException('Unit has reached the future booking limit for this amenity');
+        }
       }
 
       const overlaps = await tx.$queryRaw<CountRow[]>`
@@ -124,18 +156,41 @@ export class AmenitiesService {
   }
 
   async cancelMine(societyId: string, userId: string, bookingId: string) {
-    const rows = await this.prisma.$queryRaw`
-      UPDATE "AmenityBooking"
-      SET "status" = 'CANCELLED', "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${bookingId}::uuid
-        AND "societyId" = ${societyId}::uuid
-        AND "userId" = ${userId}::uuid
-        AND "status" IN ('PENDING', 'CONFIRMED')
-      RETURNING *
-    `;
-    const booking = Array.isArray(rows) ? rows[0] : undefined;
-    if (!booking) throw new NotFoundException('Active amenity booking not found');
-    return booking;
+    return this.prisma.$transaction(async (tx) => {
+      const activeRows = await tx.$queryRaw<Array<{ startsAt: Date; bookingRules: unknown }>>`
+        SELECT b."startsAt", a."bookingRules"
+        FROM "AmenityBooking" b
+        JOIN "Amenity" a ON a."id" = b."amenityId" AND a."societyId" = b."societyId"
+        WHERE b."id" = ${bookingId}::uuid
+          AND b."societyId" = ${societyId}::uuid
+          AND b."userId" = ${userId}::uuid
+          AND b."status" IN ('PENDING', 'CONFIRMED')
+        FOR UPDATE OF b
+      `;
+      const active = activeRows[0];
+      if (!active) throw new NotFoundException('Active amenity booking not found');
+
+      const rules = this.parseBookingRules(active.bookingRules);
+      if (
+        rules.cancellationCutoffMinutes !== undefined
+        && active.startsAt.getTime() - Date.now() < rules.cancellationCutoffMinutes * 60000
+      ) {
+        throw new ConflictException(`Booking cannot be cancelled within ${rules.cancellationCutoffMinutes} minutes of start time`);
+      }
+
+      const rows = await tx.$queryRaw`
+        UPDATE "AmenityBooking"
+        SET "status" = 'CANCELLED', "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${bookingId}::uuid
+          AND "societyId" = ${societyId}::uuid
+          AND "userId" = ${userId}::uuid
+          AND "status" IN ('PENDING', 'CONFIRMED')
+        RETURNING *
+      `;
+      const booking = Array.isArray(rows) ? rows[0] : undefined;
+      if (!booking) throw new ConflictException('Booking changed; refresh and retry');
+      return booking;
+    });
   }
 
   async listManage(societyId: string) {
@@ -164,6 +219,7 @@ export class AmenitiesService {
       maxConcurrentBookings?: number;
     },
   ) {
+    this.parseBookingRules(input.bookingRules ?? {});
     try {
       const rows = await this.prisma.$queryRaw`
         INSERT INTO "Amenity" (
@@ -197,6 +253,7 @@ export class AmenitiesService {
       `;
       const existing = existingRows[0];
       if (!existing) throw new NotFoundException('Amenity not found');
+      this.parseBookingRules(input.bookingRules ?? existing.bookingRules);
 
       const structuralChange = existing.slotMinutes !== input.slotMinutes || existing.maxConcurrentBookings !== input.maxConcurrentBookings;
       if (structuralChange) {
@@ -278,6 +335,26 @@ export class AmenitiesService {
     const booking = Array.isArray(rows) ? rows[0] : undefined;
     if (!booking) throw new NotFoundException('Pending amenity booking not found');
     return booking;
+  }
+
+  private parseBookingRules(value: unknown): AmenityBookingRules {
+    if (value === null || value === undefined) return {};
+    if (typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('Amenity booking rules must be an object');
+    const source = value as Record<string, unknown>;
+    return {
+      minAdvanceMinutes: this.optionalPolicyInteger(source.minAdvanceMinutes, 'minAdvanceMinutes', 0),
+      maxAdvanceDays: this.optionalPolicyInteger(source.maxAdvanceDays, 'maxAdvanceDays', 1),
+      maxFutureBookingsPerUnit: this.optionalPolicyInteger(source.maxFutureBookingsPerUnit, 'maxFutureBookingsPerUnit', 1),
+      cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
+    };
+  }
+
+  private optionalPolicyInteger(value: unknown, field: string, minimum: number) {
+    if (value === undefined || value === null) return undefined;
+    if (!Number.isInteger(value) || (value as number) < minimum) {
+      throw new BadRequestException(`${field} must be an integer greater than or equal to ${minimum}`);
+    }
+    return value as number;
   }
 
   private async assertUnitAccess(societyId: string, userId: string, unitId: string) {
