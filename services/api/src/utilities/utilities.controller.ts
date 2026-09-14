@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -31,6 +31,21 @@ class CreateUtilityReadingDto {
 }
 
 class DeactivateUtilityMeterDto {
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+
+class CreateUtilityTariffPlanDto {
+  @IsString() @MinLength(1) @MaxLength(60) code!: string;
+  @IsString() @MinLength(1) @MaxLength(120) name!: string;
+  @IsIn(['ELECTRICITY', 'WATER', 'DG', 'GAS', 'OTHER']) meterType!: UtilityMeterType;
+  @IsString() effectiveFrom!: string;
+  @IsOptional() @IsString() effectiveTo?: string;
+  @IsOptional() @IsInt() @Min(0) fixedChargePaise?: number;
+  @IsOptional() @IsInt() @Min(0) minimumChargePaise?: number;
+  @IsArray() slabs!: Array<{ fromUnit: number; toUnit?: number | null; ratePaisePerUnit: number }>;
+}
+
+class RetireUtilityTariffDto {
   @IsOptional() @IsString() @MaxLength(300) note?: string;
 }
 
@@ -72,6 +87,45 @@ export class UtilitiesController {
   @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   createReading(@Body() dto: CreateUtilityReadingDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.utilities.createReading(societyId, this.requireUser(userId), dto);
+  }
+
+  @Get('tariffs')
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  listTariffs(@CurrentTenant() societyId: string) {
+    return this.utilities.listTariffPlans(societyId);
+  }
+
+  @Post('tariffs')
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  createTariff(@Body() dto: CreateUtilityTariffPlanDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.utilities.createTariffPlan(societyId, this.requireUser(userId), dto);
+  }
+
+  @Post('tariffs/:planId/activate')
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  activateTariff(
+    @Param('planId', ParseUUIDPipe) planId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.utilities.activateTariffPlan(societyId, this.requireUser(userId), planId);
+  }
+
+  @Post('tariffs/:planId/retire')
+  @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
+  retireTariff(
+    @Param('planId', ParseUUIDPipe) planId: string,
+    @Body() dto: RetireUtilityTariffDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.utilities.retireTariffPlan(societyId, this.requireUser(userId), planId, dto.note);
+  }
+
+  @Get('tariff-history')
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  tariffHistory(@CurrentTenant() societyId: string) {
+    return this.utilities.tariffHistory(societyId);
   }
 
   @Get('history')
