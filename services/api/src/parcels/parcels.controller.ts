@@ -6,6 +6,7 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ParcelReminderService } from './parcel-reminder.service';
 import { ParcelsService } from './parcels.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
@@ -31,7 +32,7 @@ class ParcelPickupCodeDto {
 @Controller('parcels')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class ParcelsController {
-  constructor(private readonly parcels: ParcelsService) {}
+  constructor(private readonly parcels: ParcelsService, private readonly reminders: ParcelReminderService) {}
 
   @Get('mine')
   @RequiresPermissions(AppPermission.PARCEL_READ_OWN)
@@ -61,6 +62,12 @@ export class ParcelsController {
   @RequiresPermissions(AppPermission.PARCEL_PROCESS)
   intake(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Body() dto: IntakeParcelDto) {
     return this.parcels.intake(societyId, this.requireUser(userId), dto);
+  }
+
+  @Post('desk/:parcelId/remind')
+  @RequiresPermissions(AppPermission.PARCEL_PROCESS)
+  remind(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Param('parcelId', ParseUUIDPipe) parcelId: string) {
+    return this.reminders.remind(societyId, this.requireUser(userId), parcelId);
   }
 
   @Patch('desk/:parcelId/collect-with-code')
