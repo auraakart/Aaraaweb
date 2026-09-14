@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,6 +42,43 @@ describe('ParcelsService', () => {
     const sql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('"recipientUserId"');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('issues pickup codes only against the assigned resident parcel and stores a digest rather than plaintext', async () => {
+    const expiresAt = new Date(Date.now() + 600_000);
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: parcelId, pickupCodeExpiresAt: expiresAt }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const service = new ParcelsService(prisma as unknown as PrismaService);
+    const result = await service.issuePickupCode(societyId, recipientId, parcelId);
+    expect(result.code).toMatch(/^\d{6}$/);
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(query.strings.join(' ')).toContain('"pickupCodeHash"');
+    expect(query.strings.join(' ')).toContain('"recipientUserId"');
+    expect(query.values).not.toContain(result.code);
+  });
+
+  it('commits failed pickup attempts before returning an invalid-code error', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{
+        id: parcelId,
+        recipientUserId: recipientId,
+        status: 'RECEIVED',
+        pickupCodeSalt: 'salt',
+        pickupCodeHash: 'not-the-presented-code',
+        pickupCodeExpiresAt: new Date(Date.now() + 600_000),
+        pickupCodeAttempts: 0,
+        pickupCodeLockedAt: null,
+      }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = { $transaction: vi.fn(async (cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const service = new ParcelsService(prisma as unknown as PrismaService);
+    await expect(service.collectWithPickupCode(societyId, actorId, parcelId, '123456')).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    const updateSql = (tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(updateSql).toContain('"pickupCodeAttempts"');
   });
 
   it('surfaces uncollected parcels as an overdue-aware desk queue with the canonical unit number field', async () => {
