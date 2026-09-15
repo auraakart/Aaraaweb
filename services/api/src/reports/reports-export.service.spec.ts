@@ -11,13 +11,24 @@ describe('ReportsExportService', () => {
     }]);
     const auditCreate = vi.fn().mockResolvedValue({});
     const service = new ReportsExportService({ auditEvent: { findMany, create: auditCreate } } as unknown as PrismaService);
-    const result = await service.auditCsv('society', 'actor', '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z');
+    const result = await service.auditCsv(
+      'society', 'actor', '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z', 'ACCESS_CHECKED_IN',
+    );
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { societyId: 'society', occurredAt: expect.any(Object) }, take: 5001,
+      where: { societyId: 'society', occurredAt: expect.any(Object), event: 'ACCESS_CHECKED_IN' }, take: 5001,
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
     }));
     expect(result.csv).toContain('ACCESS_CHECKED_IN,2026-09-15T00:00:00.000Z,actor,,request,');
     expect(auditCreate).toHaveBeenCalled();
+  });
+
+  it('rejects unknown audit-event filters before querying data', async () => {
+    const findMany = vi.fn();
+    const service = new ReportsExportService({ auditEvent: { findMany } } as unknown as PrismaService);
+    await expect(service.auditCsv('society', 'actor', undefined, undefined, 'UNKNOWN')).rejects.toThrow(
+      'event must be a valid audit event type',
+    );
+    expect(findMany).not.toHaveBeenCalled();
   });
 
   it.each(['\t=2+2', '\r=2+2', '\n=2+2', '  =2+2', '＝2+2', '＋2', '－2', '＠SUM(A1)'])('neutralizes unsafe spreadsheet prefix %j', async (invoiceNumber) => {

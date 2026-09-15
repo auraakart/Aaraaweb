@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditEventType, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { auditEventFilter } from './reports-filter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WINDOW_DAYS = 30;
@@ -50,7 +51,7 @@ export class ReportsExportService {
       data: {
         societyId,
         actorUserId,
-        event: 'REPORT_EXPORTED' as AuditEventType,
+        event: AuditEventType.REPORT_EXPORTED,
       },
     });
 
@@ -63,10 +64,11 @@ export class ReportsExportService {
     };
   }
 
-  async auditCsv(societyId: string, actorUserId: string, from?: string, to?: string) {
+  async auditCsv(societyId: string, actorUserId: string, from?: string, to?: string, event?: string) {
     const range = this.dateRange(from, to);
+    const eventType = auditEventFilter(event);
     const rows = await this.prisma.auditEvent.findMany({
-      where: { societyId, occurredAt: range },
+      where: { societyId, occurredAt: range, ...(eventType ? { event: eventType } : {}) },
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       take: MAX_EXPORT_ROWS + 1,
       select: { event: true, occurredAt: true, actorUserId: true, gateId: true, accessRequestId: true, visitorPassId: true },
@@ -79,7 +81,7 @@ export class ReportsExportService {
       row.event, row.occurredAt.toISOString(), row.actorUserId ?? '', row.gateId ?? '',
       row.accessRequestId ?? '', row.visitorPassId ?? '',
     ].map((value) => this.csvCell(value)).join(','));
-    await this.prisma.auditEvent.create({ data: { societyId, actorUserId, event: 'REPORT_EXPORTED' as AuditEventType } });
+    await this.prisma.auditEvent.create({ data: { societyId, actorUserId, event: AuditEventType.REPORT_EXPORTED } });
     return {
       fileName: `audit-report-${range.gte.toISOString().slice(0, 10)}-to-${range.lte.toISOString().slice(0, 10)}.csv`,
       rowCount: rows.length,

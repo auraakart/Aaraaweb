@@ -222,6 +222,21 @@ describe('ReportsService', () => {
     expect(result.total).toBe(1);
   });
 
+  it('applies validated event and date filters to both audit feed queries', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    await service.auditFeed(
+      'society-1', 1, 25, 'ACCESS_CHECKED_IN', '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z',
+    );
+    const where = { societyId: 'society-1', event: 'ACCESS_CHECKED_IN', occurredAt: expect.any(Object) };
+    expect(prisma.auditEvent.count).toHaveBeenCalledWith({ where });
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+
+    await expect(service.auditFeed('society-1', 1, 25, 'UNKNOWN')).rejects.toThrow(
+      'event must be a valid audit event type',
+    );
+  });
+
   it('rejects excessive page sizes for all paginated feeds', async () => {
     const prisma = prismaMock();
     const service = new ReportsService(prisma as unknown as PrismaService);

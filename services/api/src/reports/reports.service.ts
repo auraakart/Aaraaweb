@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AccessSubjectType, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { auditEventFilter } from './reports-filter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WINDOW_DAYS = 30;
@@ -228,13 +229,16 @@ export class ReportsService {
     return { page, pageSize, total, items };
   }
 
-  async auditFeed(societyId: string, page = 1, pageSize = 50) {
+  async auditFeed(societyId: string, page = 1, pageSize = 50, event?: string, from?: string, to?: string) {
     const paging = this.paging(page, pageSize);
+    const eventType = auditEventFilter(event);
+    const range = from || to ? this.dateRange(from, to) : undefined;
+    const where = { societyId, ...(eventType ? { event: eventType } : {}), ...(range ? { occurredAt: range } : {}) };
 
     const [total, items] = await Promise.all([
-      this.prisma.auditEvent.count({ where: { societyId } }),
+      this.prisma.auditEvent.count({ where }),
       this.prisma.auditEvent.findMany({
-        where: { societyId },
+        where,
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
         take: paging.take,
