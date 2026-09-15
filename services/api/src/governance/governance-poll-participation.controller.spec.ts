@@ -7,9 +7,10 @@ import { GovernancePollParticipationController } from './governance-poll-partici
 const permissions=(method:keyof GovernancePollParticipationController)=>Reflect.getMetadata(PERMISSIONS_KEY,GovernancePollParticipationController.prototype[method] as object) as AppPermission[]|undefined;
 
 describe('GovernancePollParticipationController permission boundaries',()=>{
-  it('keeps community participation behind resident-readable society access',()=>{
+  it('keeps community participation and closed results behind resident-readable society access',()=>{
     expect(permissions('listAvailable')).toEqual([AppPermission.NOTICE_READ]);
     expect(permissions('respond')).toEqual([AppPermission.NOTICE_READ]);
+    expect(permissions('results')).toEqual([AppPermission.NOTICE_READ]);
   });
   it('keeps poll lifecycle management behind governance management',()=>{
     expect(permissions('setStatus')).toEqual([AppPermission.GOVERNANCE_MANAGE]);
