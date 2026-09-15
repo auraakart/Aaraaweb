@@ -23,7 +23,7 @@ type SnapshotSetupRow={
   policyReference:string;
 };
 
-type ReviewRow={id:string;snapshotId:string;outcome:ReviewOutcome;note:string|null;createdByUserId:string;createdAt:Date};
+type ReviewRow={id:string;snapshotId:string;sequence:number;outcome:ReviewOutcome;note:string|null;createdByUserId:string;createdAt:Date};
 type DraftRow={id:string;snapshotId:string;title:string;question:string;status:'DRAFT';createdByUserId:string;createdAt:Date};
 
 class RecordElectorateReviewDto{
@@ -47,10 +47,10 @@ export class GovernanceElectionBallotDraftController{
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   listReviews(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) snapshotId:string){
     return this.prisma.$queryRaw<ReviewRow[]>(Prisma.sql`
-      SELECT r."id",r."snapshotId",r."outcome",r."note",r."createdByUserId",r."createdAt"
+      SELECT r."id",r."snapshotId",r."sequence",r."outcome",r."note",r."createdByUserId",r."createdAt"
       FROM "GovernanceElectorateReviewAttestation" r
       WHERE r."societyId"=${societyId}::uuid AND r."snapshotId"=${snapshotId}::uuid
-      ORDER BY r."createdAt" DESC,r."id" DESC
+      ORDER BY r."sequence" DESC
     `);
   }
 
@@ -67,12 +67,18 @@ export class GovernanceElectionBallotDraftController{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       const setup=await this.currentSnapshot(tx,societyId,snapshotId);
       if(setup.snapshotCreatedByUserId===actor)throw new ConflictException('Electorate review must be recorded by a different governance actor than the snapshot creator');
+      const latest=await tx.$queryRaw<Array<{sequence:number}>>(Prisma.sql`
+        SELECT "sequence" FROM "GovernanceElectorateReviewAttestation"
+        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid
+        ORDER BY "sequence" DESC LIMIT 1
+      `);
+      const sequence=(latest[0]?.sequence??0)+1;
       const rows=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
         INSERT INTO "GovernanceElectorateReviewAttestation"
-          ("societyId","snapshotId","outcome","note","createdByUserId")
+          ("societyId","snapshotId","sequence","outcome","note","createdByUserId")
         VALUES
-          (${societyId}::uuid,${snapshotId}::uuid,${dto.outcome},${dto.note?.trim()||null},${actor}::uuid)
-        RETURNING "id","snapshotId","outcome","note","createdByUserId","createdAt"
+          (${societyId}::uuid,${snapshotId}::uuid,${sequence},${dto.outcome},${dto.note?.trim()||null},${actor}::uuid)
+        RETURNING "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
       `);
       return {...rows[0],policyVersion:setup.policyVersion,policyReference:setup.policyReference};
     });
@@ -119,15 +125,15 @@ export class GovernanceElectionBallotDraftController{
     const actor=this.user(userId),title=dto.title.trim(),question=dto.question.trim(),options=dto.options.map(v=>v.trim());
     if(!title||!question)throw new BadRequestException('Ballot title and question are required');
     if(options.some(v=>!v))throw new BadRequestException('Ballot option labels cannot be empty');
-    if(new Set(options.map(v=>v.toLocaleLowerCase('en-IN'))).size!==options.length)throw new BadRequestException('Ballot option labels must be unique');
+    if(new Set(options.map(v=>v.toLowerCase())).size!==options.length)throw new BadRequestException('Ballot option labels must be unique');
     return this.prisma.$transaction(async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       const setup=await this.currentSnapshot(tx,societyId,snapshotId);
       const reviews=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
-        SELECT "id","snapshotId","outcome","note","createdByUserId","createdAt"
+        SELECT "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
         FROM "GovernanceElectorateReviewAttestation"
         WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid
-        ORDER BY "createdAt" DESC,"id" DESC LIMIT 1
+        ORDER BY "sequence" DESC LIMIT 1
       `);
       if(!reviews.length)throw new ConflictException('Electorate review is required before creating a ballot draft');
       const review=reviews[0];
