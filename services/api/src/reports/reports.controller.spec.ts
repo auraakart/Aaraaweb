@@ -8,6 +8,7 @@ import { ProductFeature } from '../entitlements/entitlement.types';
 import { REQUIRED_FEATURE_KEY } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ReportsController } from './reports.controller';
+import { ReportsExportService } from './reports-export.service';
 import { ReportsService } from './reports.service';
 
 describe('ReportsController entitlement and permission boundaries', () => {
@@ -27,9 +28,19 @@ describe('ReportsController entitlement and permission boundaries', () => {
     ]);
   });
 
+  it('requires the same finance-read boundary for maintenance CSV exports', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.maintenanceExport)).toEqual([
+      AppPermission.REPORTS_READ,
+      AppPermission.FINANCE_READ,
+    ]);
+  });
+
   it('includes financial summary amounts for a finance-read committee member', () => {
     const summary = vi.fn();
-    const controller = new ReportsController({ summary } as unknown as ReportsService);
+    const controller = new ReportsController(
+      { summary } as unknown as ReportsService,
+      {} as ReportsExportService,
+    );
     const request = { auth: { roles: [AppRole.COMMITTEE_MEMBER] } } as unknown as AuthenticatedRequest;
 
     controller.summary('society-1', request);
@@ -39,7 +50,10 @@ describe('ReportsController entitlement and permission boundaries', () => {
 
   it('redacts financial summary amounts from reports readers without finance read', () => {
     const summary = vi.fn();
-    const controller = new ReportsController({ summary } as unknown as ReportsService);
+    const controller = new ReportsController(
+      { summary } as unknown as ReportsService,
+      {} as ReportsExportService,
+    );
     const request = { auth: { roles: [AppRole.FACILITY_MANAGER] } } as unknown as AuthenticatedRequest;
 
     controller.summary('society-1', request);
