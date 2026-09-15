@@ -6,6 +6,7 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
     <nav aria-label="Finance workspace" style={{maxWidth:1240,margin:'18px auto 0',padding:'0 22px',display:'flex',gap:10,flexWrap:'wrap'}}>
       <Link href="/finance" style={tab}>Receivables & accounting</Link>
       <Link href="/finance/operations" style={tab}>Expenses, payables & budgets</Link>
+      <Link href="/finance/exports" style={tab}>Accounting exports</Link>
     </nav>
     {children}
   </>;

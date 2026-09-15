@@ -28,6 +28,47 @@ function prismaMock() {
 }
 
 describe('ReportsService', () => {
+  it('compares adjacent equal-duration periods while preserving the finance redaction boundary', async () => {
+    const prisma = prismaMock();
+    prisma.maintenanceInvoice.aggregate.mockResolvedValue({ _count: { _all: 2 }, _sum: { amountPaise: 10000 } });
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    const result = await service.summaryComparison(
+      'society-1', '2026-09-10T00:00:00.000Z', '2026-09-12T00:00:00.000Z', false,
+    );
+
+    expect(result.current.range).toEqual({ from: '2026-09-10T00:00:00.000Z', to: '2026-09-12T00:00:00.000Z' });
+    expect(result.previous.range).toEqual({ from: '2026-09-07T23:59:59.999Z', to: '2026-09-09T23:59:59.999Z' });
+    expect(result.current.maintenance.billedPaise).toBeNull();
+    expect(result.previous.maintenance.collectedPaise).toBeNull();
+    for (const [query] of prisma.accessRequest.count.mock.calls) expect(query.where.societyId).toBe('society-1');
+    for (const [query] of prisma.maintenanceInvoice.aggregate.mock.calls) expect(query.where.societyId).toBe('society-1');
+  });
+
+  it.each([Number.MAX_SAFE_INTEGER + 1, Number.MAX_SAFE_INTEGER, 1e100])('rejects overflowing pagination %s before database access', async (page) => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    await expect(service.auditFeed('society', page, 100)).rejects.toThrow();
+    expect(prisma.auditEvent.count).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it('uses unique tie breakers when report timestamps match', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    await service.accessFeed('society', 'VISITOR');
+    await service.helpdeskFeed('society');
+    await service.maintenanceFeed('society');
+    await service.auditFeed('society');
+    for (const [model, timestamp] of [
+      [prisma.accessRequest, 'createdAt'], [prisma.helpdeskTicket, 'createdAt'],
+      [prisma.maintenanceInvoice, 'issuedAt'], [prisma.auditEvent, 'occurredAt'],
+    ] as const) {
+      expect(model.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: [{ [timestamp]: 'desc' }, { id: 'desc' }],
+      }));
+    }
+  });
+
   it('keeps every summary query scoped to the authenticated society and redacts finance amounts by default', async () => {
     const prisma = prismaMock();
     const service = new ReportsService(prisma as unknown as PrismaService);
@@ -179,6 +220,21 @@ describe('ReportsService', () => {
       }),
     );
     expect(result.total).toBe(1);
+  });
+
+  it('applies validated event and date filters to both audit feed queries', async () => {
+    const prisma = prismaMock();
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    await service.auditFeed(
+      'society-1', 1, 25, 'ACCESS_CHECKED_IN', '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z',
+    );
+    const where = { societyId: 'society-1', event: 'ACCESS_CHECKED_IN', occurredAt: expect.any(Object) };
+    expect(prisma.auditEvent.count).toHaveBeenCalledWith({ where });
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+
+    await expect(service.auditFeed('society-1', 1, 25, 'UNKNOWN')).rejects.toThrow(
+      'event must be a valid audit event type',
+    );
   });
 
   it('rejects excessive page sizes for all paginated feeds', async () => {

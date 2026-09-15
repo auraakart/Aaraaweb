@@ -2,7 +2,14 @@ import { Module } from '@nestjs/common';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountingController } from './accounting.controller';
+import { AccountingConnectorDeliveryController } from './accounting-connector-delivery.controller';
+import { AccountingConnectorDeliveryRunner } from './accounting-connector-delivery.runner';
+import { AccountingConnectorDeliveryService } from './accounting-connector-delivery.service';
+import { AccountingExportController } from './accounting-export.controller';
+import { AccountingExportRunner } from './accounting-export.runner';
+import { AccountingExportService } from './accounting-export.service';
 import { AccountingService } from './accounting.service';
+import { ConfiguredHttpAccountingConnectorAdapter } from './configured-http-accounting-connector.adapter';
 import { ConfiguredHttpPaymentGatewayAdapter } from './configured-http-payment-gateway.adapter';
 import { FinanceOperationsController } from './finance-operations.controller';
 import { FinanceOperationsService } from './finance-operations.service';
@@ -22,8 +29,8 @@ import { SettlementService } from './settlement.service';
 
 @Module({
   imports: [EntitlementsModule],
-  controllers: [AccountingController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController, PaymentReconciliationController, PaymentReconciliationObservabilityController],
-  providers: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, PrismaService],
-  exports: [AccountingService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService],
+  controllers: [AccountingController, AccountingExportController, AccountingConnectorDeliveryController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController, PaymentReconciliationController, PaymentReconciliationObservabilityController],
+  providers: [AccountingService, AccountingExportService, AccountingExportRunner, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryRunner, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, PrismaService],
+  exports: [AccountingService, AccountingExportService, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService],
 })
 export class AccountingModule {}

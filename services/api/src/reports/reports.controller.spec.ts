@@ -35,6 +35,18 @@ describe('ReportsController entitlement and permission boundaries', () => {
     ]);
   });
 
+  it('requires audit-read for audit CSV exports', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.auditExport)).toEqual([
+      AppPermission.AUDIT_READ,
+    ]);
+  });
+
+  it('keeps comparison dashboards behind the reports-read boundary', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.summaryComparison)).toEqual([
+      AppPermission.REPORTS_READ,
+    ]);
+  });
+
   it('includes financial summary amounts for a finance-read committee member', () => {
     const summary = vi.fn();
     const controller = new ReportsController(

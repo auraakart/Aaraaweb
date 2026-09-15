@@ -41,6 +41,8 @@ jobs:
           test -f scripts/check-hosted-staging-contract.sh
           test -f scripts/check-staging-deployment-template.sh
           test -f scripts/validate-hosted-health.mjs
+          test -f scripts/check-v2-validation-manifest.mjs
+          test -f docs/v2-validation-manifest.json
           bash -n scripts/production-preflight.sh
           bash -n scripts/check-product-branding.sh
           bash -n scripts/check-flutter-release-compatibility.sh
@@ -58,6 +60,8 @@ jobs:
         run: bash scripts/check-hosted-staging-contract.sh
       - name: Check hosted staging deployment template
         run: bash scripts/check-staging-deployment-template.sh
+      - name: Check V2.4 validation evidence contract
+        run: node scripts/check-v2-validation-manifest.mjs
       - name: Exercise production preflight control
         env:
           NODE_ENV: production

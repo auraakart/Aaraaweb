@@ -1,8 +1,8 @@
 # Aaraagate API
 
-NestJS modular monolith. Domain modules will be added incrementally under `src/`.
+NestJS modular monolith. Domain modules are added incrementally under `src/`.
 
-Initial module boundaries:
+Primary module boundaries include:
 - auth
 - organizations
 - societies
@@ -21,6 +21,7 @@ Initial module boundaries:
 - maintenance
 - amenities
 - payments
+- accounting / finance operations
 - documents
 - notifications
 - polls
@@ -28,3 +29,10 @@ Initial module boundaries:
 - audit
 
 API version prefix: `/api/v1`.
+
+## Operations references
+
+- Accounting connector deployment, enablement, retry and monitoring: [`../../docs/ACCOUNTING-CONNECTOR-OPERATIONS.md`](../../docs/ACCOUNTING-CONNECTOR-OPERATIONS.md)
+- Environment-variable examples: [`.env.example`](.env.example)
+
+Real deployment secrets must be supplied through the deployment secret store and must not be committed to the repository.
