@@ -15,6 +15,11 @@ export type IntegrationReadingInput = {
   note?: string;
 };
 
+type NormalizedIntegrationReading = Omit<IntegrationReadingInput, 'readingKind' | 'note'> & {
+  readingKind: UtilityReadingKind;
+  note: string | null;
+};
+
 type IntegrationIdentity = {
   id: string;
   societyId: string;
@@ -295,7 +300,7 @@ export class UtilityIntegrationsService {
     return identity;
   }
 
-  private validateReading(input: IntegrationReadingInput & { readingKind: UtilityReadingKind; note: string | null }): QuarantineReason | null {
+  private validateReading(input: NormalizedIntegrationReading): QuarantineReason | null {
     const readingAt = new Date(input.readingAt);
     if (!Number.isFinite(readingAt.getTime())) return { code: 'INVALID_TIMESTAMP', message: 'readingAt must be a valid ISO-8601 timestamp' };
     if (!Number.isFinite(input.value) || input.value < 0) return { code: 'INVALID_VALUE', message: 'value must be a non-negative number' };
@@ -308,7 +313,7 @@ export class UtilityIntegrationsService {
   private async quarantine(
     tx: Prisma.TransactionClient,
     identity: IntegrationIdentity,
-    input: IntegrationReadingInput & { readingKind: UtilityReadingKind; note: string | null },
+    input: NormalizedIntegrationReading,
     payloadHash: string,
     rawPayload: string,
     reason: QuarantineReason,
