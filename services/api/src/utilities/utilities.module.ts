@@ -10,6 +10,8 @@ import { UtilityResidentController } from './utility-resident.controller';
 import { UtilityResidentService } from './utility-resident.service';
 import { UtilityReadingImportController } from './utility-reading-import.controller';
 import { UtilityReadingImportService } from './utility-reading-import.service';
+import { UtilityIntegrationIngestionController, UtilityIntegrationManagementController } from './utility-integrations.controller';
+import { UtilityIntegrationsService } from './utility-integrations.service';
 
 @Module({
   imports: [PrismaModule],
@@ -19,6 +21,8 @@ import { UtilityReadingImportService } from './utility-reading-import.service';
     UtilityInvoicesController,
     UtilityResidentController,
     UtilityReadingImportController,
+    UtilityIntegrationManagementController,
+    UtilityIntegrationIngestionController,
   ],
   providers: [
     UtilitiesService,
@@ -26,6 +30,7 @@ import { UtilityReadingImportService } from './utility-reading-import.service';
     UtilityInvoicesService,
     UtilityResidentService,
     UtilityReadingImportService,
+    UtilityIntegrationsService,
   ],
 })
 export class UtilitiesModule {}

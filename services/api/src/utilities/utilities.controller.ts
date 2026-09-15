@@ -26,7 +26,7 @@ class CreateUtilityReadingDto {
   @IsDateString() readingAt!: string;
   @IsNumber({ maxDecimalPlaces: 6 }) @Min(0) value!: number;
   @IsOptional() @IsIn(['ACTUAL', 'RESET']) readingKind?: UtilityReadingKind;
-  @IsOptional() @IsIn(['MANUAL', 'IMPORT', 'INTEGRATION']) source?: UtilityReadingSource;
+  @IsOptional() @IsIn(['MANUAL']) source?: UtilityReadingSource;
   @IsOptional() @IsString() @MaxLength(300) note?: string;
 }
 
