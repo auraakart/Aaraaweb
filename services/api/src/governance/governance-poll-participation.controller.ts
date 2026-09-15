@@ -7,6 +7,9 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
@@ -14,7 +17,8 @@ class PollResponseDto{@IsUUID() optionId!:string;}
 class PollStatusDto{@IsIn(['OPEN','CLOSED','CANCELLED']) status!:'OPEN'|'CLOSED'|'CANCELLED';}
 
 @Controller('governance/community-polls')
-@UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
+@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)
+@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)
 export class GovernancePollParticipationController{
   constructor(private readonly prisma:PrismaService){}
 
