@@ -25,7 +25,7 @@ jobs:
   hosted-staging-acceptance:
     name: Hosted staging operational smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     environment: staging
     steps:
       - name: Checkout declared candidate

@@ -18,6 +18,8 @@ required_literals=(
   'git rev-parse origin/staging'
   'bash scripts/hosted-staging-smoke.sh'
   "Upload hosted staging evidence"
+  "HOSTED_STAGING_ATTEMPTS"
+  "retrying in"
   "--proto '=https' --tlsv1.2"
   "health/live"
   "health/ready"
@@ -40,6 +42,10 @@ if bash "$SMOKE" "http://staging.example.com" "$sha" "$tmp_dir/http" >/dev/null 
 fi
 if bash "$SMOKE" "https://127.0.0.1" "$sha" "$tmp_dir/local" >/dev/null 2>&1; then
   echo "Hosted staging smoke accepted a local target." >&2
+  exit 1
+fi
+if HOSTED_STAGING_ATTEMPTS=0 bash "$SMOKE" "https://staging.example.com" "$sha" "$tmp_dir/attempts" >/dev/null 2>&1; then
+  echo "Hosted staging smoke accepted an invalid attempt count." >&2
   exit 1
 fi
 

@@ -4,6 +4,8 @@ Updated: 2026-09-15
 
 Configure the non-secret repository variable `AARAAGATE_STAGING_API_BASE_URL` with the public HTTPS API origin before promoting this workflow to `staging`. Every subsequent staging push runs `Hosted staging acceptance` against the pushed SHA and fails closed when the variable or hosted deployment is unavailable.
 
+The DigitalOcean staging template enables deployment only from the protected `staging` branch. Its pre-deploy job applies migrations before services are released, the API runs production preflight before startup, and App Platform routes traffic only after dependency readiness succeeds. The hosted acceptance workflow polls for the exact candidate for up to ten minutes so it can safely run alongside that deployment; it never accepts the previously deployed SHA.
+
 The workflow may also be manually dispatched after it is available on the default branch. Select the protected `staging` environment and provide:
 
 - the full commit SHA currently at `staging`;
