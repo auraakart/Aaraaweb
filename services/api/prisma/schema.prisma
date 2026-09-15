@@ -583,6 +583,7 @@ model AuditEvent {
   accessRequest   AccessRequest? @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
 
   @@index([societyId, occurredAt])
+  @@index([societyId, event, occurredAt(sort: Desc)], map: "AuditEvent_society_event_time_idx")
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
   @@index([societyId, accessRequestId, occurredAt])
@@ -1062,4 +1063,5 @@ enum AuditEventType {
   ACCESS_VERIFIED
   ACCESS_CHECKED_IN
   ACCESS_CHECKED_OUT
+  REPORT_EXPORTED
 }

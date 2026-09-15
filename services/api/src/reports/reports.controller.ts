@@ -115,10 +115,11 @@ export class ReportsController {
     @Res() response: CsvResponse,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('event') event?: string,
   ) {
     const actorUserId = request.auth?.userId;
     if (!actorUserId) throw new ForbiddenException('Authenticated user is required');
-    const result = await this.exports.auditCsv(societyId, actorUserId, from, to);
+    const result = await this.exports.auditCsv(societyId, actorUserId, from, to, event);
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
     response.setHeader('X-Aaraagate-Export-Rows', String(result.rowCount));
@@ -131,7 +132,10 @@ export class ReportsController {
     @CurrentTenant() societyId: string,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+    @Query('event') event?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    return this.reports.auditFeed(societyId, page ?? 1, pageSize ?? 50);
+    return this.reports.auditFeed(societyId, page ?? 1, pageSize ?? 50, event, from, to);
   }
 }
