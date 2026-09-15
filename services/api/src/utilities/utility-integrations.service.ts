@@ -103,7 +103,7 @@ export class UtilityIntegrationsService {
           FOR UPDATE
         `);
         if (!meters[0]) throw new NotFoundException('Active utility meter not found');
-        const rows = await tx.$queryRaw(Prisma.sql`
+        const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
           INSERT INTO "UtilityIntegrationMeterMap" (
             "societyId","integrationId","externalMeterId","meterId","createdByUserId"
           ) VALUES (
@@ -279,11 +279,14 @@ export class UtilityIntegrationsService {
     if (separator <= 0 || separator === integrationKey.length - 1) throw new UnauthorizedException('Utility integration key is invalid');
     const integrationId = integrationKey.slice(0, separator);
     const secret = integrationKey.slice(separator + 1);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(integrationId)) {
+      throw new UnauthorizedException('Utility integration key is invalid');
+    }
     const rows = await this.prisma.$queryRaw<IntegrationIdentity[]>(Prisma.sql`
       SELECT "id","societyId","name","secretHash","status"
       FROM "UtilityIntegration"
       WHERE "id"=${integrationId}::uuid
-    `).catch(() => [] as IntegrationIdentity[]);
+    `);
     const identity = rows[0];
     if (!identity || identity.status !== 'ACTIVE') throw new UnauthorizedException('Utility integration key is invalid');
     const expected = Buffer.from(identity.secretHash, 'hex');
