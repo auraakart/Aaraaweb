@@ -104,14 +104,16 @@ export class GovernanceElectionFoundationController{
   async createSnapshot(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
     return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
       const policies=await tx.$queryRaw<PolicyRow[]>(Prisma.sql`
         SELECT "id","version","enabled","eligibilityMode","policyReference","note","createdByUserId","createdAt"
         FROM "GovernanceElectionPolicyRevision"
-        WHERE "societyId"=${societyId}::uuid ORDER BY "version" DESC LIMIT 1 FOR UPDATE
+        WHERE "societyId"=${societyId}::uuid ORDER BY "version" DESC LIMIT 1
       `);
       if(!policies.length)throw new ConflictException('Election policy is not configured');
       const policy=policies[0];
       if(!policy.enabled)throw new ConflictException('Election policy is disabled for this society');
+      if(policy.createdByUserId===actor)throw new ConflictException('Electorate snapshot must be created by a different governance actor than the active policy revision');
       const snapshots=await tx.$queryRaw<SnapshotRow[]>(Prisma.sql`
         INSERT INTO "GovernanceElectorateSnapshot" ("societyId","policyRevisionId","createdByUserId")
         VALUES (${societyId}::uuid,${policy.id}::uuid,${actor}::uuid)
