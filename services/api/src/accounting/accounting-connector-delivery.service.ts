@@ -22,6 +22,12 @@ export type AccountingConnectorDeliveryView={
 type DeliveryMetrics={totalCount:number;pendingCount:number;deliveredCount:number;failedCount:number;retryExhaustedCount:number;oldestPendingAt:Date|null;terminalSuccessRatePct:number|null};
 type ProviderMetrics={provider:string;totalCount:number;pendingCount:number;deliveredCount:number;failedCount:number;oldestPendingAt:Date|null;terminalSuccessRatePct:number|null};
 export type DeliveryActionView={id:string;deliveryId:string;actorUserId:string;action:'MANUAL_RETRY';fromStatus:'FAILED'|'UNKNOWN';previousAttemptCount:number;occurredAt:Date};
+type DeliveryEvidenceRow={
+  deliveryId:string;exportJobId:string;provider:string;deliveryStatus:AccountingConnectorDeliveryView['status'];attemptCount:number;idempotencyKey:string;
+  lastAttemptAt:Date|null;nextAttemptAt:Date|null;providerReceiptId:string|null;failureCode:string|null;failureMessage:string|null;deliveryCreatedAt:Date;deliveryUpdatedAt:Date;deliveryCompletedAt:Date|null;
+  contractVersion:string;format:'CSV'|'JSONL';fromDate:Date;toDate:Date;exportStatus:string;recordCount:number|null;exportCreatedAt:Date;exportCompletedAt:Date|null;
+  artifactKey:string;filename:string;contentType:string;sha256:string;byteLength:number;artifactCreatedAt:Date;
+};
 
 @Injectable()
 export class AccountingConnectorDeliveryService{
@@ -41,6 +47,36 @@ export class AccountingConnectorDeliveryService{
     const connector=this.connector.readiness();
     const autoDeliveryEnabled=process.env.ACCOUNTING_CONNECTOR_AUTO_DELIVER==='true';
     return {...connector,autoDeliveryEnabled,state:!connector.bridgeConfigured?'NOT_CONFIGURED':autoDeliveryEnabled?'ACTIVE':'READY_DISABLED',networkCheckPerformed:false};
+  }
+
+  async evidence(societyId:string,id:string){
+    const rows=await this.prisma.$queryRaw<DeliveryEvidenceRow[]>(Prisma.sql`
+      SELECT d."id" AS "deliveryId",d."exportJobId",d."provider",d."status" AS "deliveryStatus",d."attemptCount",d."idempotencyKey",
+        d."lastAttemptAt",d."nextAttemptAt",d."providerReceiptId",d."failureCode",d."failureMessage",d."createdAt" AS "deliveryCreatedAt",d."updatedAt" AS "deliveryUpdatedAt",d."completedAt" AS "deliveryCompletedAt",
+        j."contractVersion",j."format",j."fromDate",j."toDate",j."status" AS "exportStatus",j."recordCount",j."createdAt" AS "exportCreatedAt",j."completedAt" AS "exportCompletedAt",
+        a."id" AS "artifactKey",a."filename",a."contentType",a."sha256",a."byteLength",a."createdAt" AS "artifactCreatedAt"
+      FROM "AccountingConnectorDelivery" d
+      JOIN "AccountingExportJob" j ON j."id"=d."exportJobId" AND j."societyId"=d."societyId"
+      JOIN "AccountingExportArtifact" a ON a."jobId"=j."id" AND a."societyId"=j."societyId"
+      WHERE d."societyId"=${societyId}::uuid AND d."id"=${id}::uuid
+      LIMIT 1
+    `);
+    const row=rows[0];
+    if(!row)throw new NotFoundException('Accounting connector delivery evidence not found');
+    const actions=await this.prisma.$queryRaw<DeliveryActionView[]>(Prisma.sql`
+      SELECT "id","deliveryId","actorUserId","action","fromStatus","previousAttemptCount","occurredAt"
+      FROM "AccountingConnectorDeliveryAction"
+      WHERE "societyId"=${societyId}::uuid AND "deliveryId"=${id}::uuid
+      ORDER BY "occurredAt","id"
+    `);
+    return {
+      evidenceVersion:'aaraagate.accounting.connector-evidence.v1',
+      generatedAt:new Date(),
+      delivery:{id:row.deliveryId,provider:row.provider,status:row.deliveryStatus,attemptCount:row.attemptCount,idempotencyKey:row.idempotencyKey,lastAttemptAt:row.lastAttemptAt,nextAttemptAt:row.nextAttemptAt,providerReceiptId:row.providerReceiptId,failureCode:row.failureCode,failureMessage:row.failureMessage,createdAt:row.deliveryCreatedAt,updatedAt:row.deliveryUpdatedAt,completedAt:row.deliveryCompletedAt},
+      export:{id:row.exportJobId,contractVersion:row.contractVersion,format:row.format,fromDate:row.fromDate,toDate:row.toDate,status:row.exportStatus,recordCount:row.recordCount,createdAt:row.exportCreatedAt,completedAt:row.exportCompletedAt},
+      artifact:{id:row.artifactKey,filename:row.filename,contentType:row.contentType,sha256:row.sha256,byteLength:row.byteLength,createdAt:row.artifactCreatedAt},
+      actions,
+    };
   }
 
   async metrics(societyId:string){

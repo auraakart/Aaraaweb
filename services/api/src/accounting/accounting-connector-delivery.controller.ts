@@ -25,6 +25,8 @@ export class AccountingConnectorDeliveryController{
   actions(@CurrentTenant() societyId:string){return this.deliveries.actions(societyId);}
   @Get('readiness') @RequiresPermissions(AppPermission.FINANCE_READ)
   readiness(){return this.deliveries.readiness();}
+  @Get(':id/evidence') @RequiresPermissions(AppPermission.FINANCE_READ)
+  evidence(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.deliveries.evidence(societyId,id);}
   @Post(':id/retry') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
   retry(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){return this.deliveries.retry(societyId,this.user(userId),id);}
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
