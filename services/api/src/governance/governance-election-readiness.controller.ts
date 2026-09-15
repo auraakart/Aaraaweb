@@ -20,6 +20,8 @@ type ReadinessRow={
   policyCurrent:boolean;
   procedureRevisionId:string|null;
   procedureVersion:number|null;
+  privacyArchitectureRevisionId:string|null;
+  privacyArchitectureVersion:number|null;
   reviewOutcome:'REVIEWED'|'BLOCKED'|null;
   reviewSequence:number|null;
   decisionOutcome:'APPROVED'|'REJECTED'|'CANCELLED'|null;
@@ -42,6 +44,7 @@ export class GovernanceElectionReadinessController{
           WHERE newer."societyId"=p."societyId" AND newer."version">p."version"
         )) AS "policyCurrent",
         procedure."id" AS "procedureRevisionId",procedure."version" AS "procedureVersion",
+        privacy."id" AS "privacyArchitectureRevisionId",privacy."version" AS "privacyArchitectureVersion",
         review."outcome" AS "reviewOutcome",review."sequence" AS "reviewSequence",
         decision."outcome" AS "decisionOutcome",decision."sequence" AS "decisionSequence"
       FROM "GovernanceElectionBallotDraft" d
@@ -52,6 +55,11 @@ export class GovernanceElectionReadinessController{
         WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
         ORDER BY r."version" DESC LIMIT 1
       ) procedure ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT r."id",r."version" FROM "GovernanceElectionPrivacyArchitectureRevision" r
+        WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
+        ORDER BY r."version" DESC LIMIT 1
+      ) privacy ON TRUE
       LEFT JOIN LATERAL (
         SELECT r."outcome",r."sequence" FROM "GovernanceElectorateReviewAttestation" r
         WHERE r."societyId"=d."societyId" AND r."snapshotId"=s."id"
@@ -71,6 +79,7 @@ export class GovernanceElectionReadinessController{
       snapshotBoundToCurrentPolicy:row.policyCurrent,
       electorateReviewed:row.reviewOutcome==='REVIEWED',
       procedureConfigured:!!row.procedureRevisionId,
+      privacyArchitectureConfigured:!!row.privacyArchitectureRevisionId,
       ballotApproved:row.decisionOutcome==='APPROVED',
       ballotNotCancelled:row.decisionOutcome!=='CANCELLED',
     };
@@ -79,6 +88,7 @@ export class GovernanceElectionReadinessController{
     if(!checks.snapshotBoundToCurrentPolicy)blockers.push('CURRENT_POLICY_SNAPSHOT_REQUIRED');
     if(!checks.electorateReviewed)blockers.push('ELECTORATE_REVIEW_REQUIRED');
     if(!checks.procedureConfigured)blockers.push('PROCEDURE_POLICY_REQUIRED');
+    if(!checks.privacyArchitectureConfigured)blockers.push('PRIVACY_ARCHITECTURE_REQUIRED');
     if(!checks.ballotApproved)blockers.push(row.decisionOutcome==='CANCELLED'?'BALLOT_CANCELLED':'BALLOT_APPROVAL_REQUIRED');
     const configurationReady=blockers.length===0;
     return {
@@ -88,6 +98,8 @@ export class GovernanceElectionReadinessController{
       policyVersion:row.policyVersion,
       procedureRevisionId:row.procedureRevisionId,
       procedureVersion:row.procedureVersion,
+      privacyArchitectureRevisionId:row.privacyArchitectureRevisionId,
+      privacyArchitectureVersion:row.privacyArchitectureVersion,
       reviewOutcome:row.reviewOutcome,
       reviewSequence:row.reviewSequence,
       decisionOutcome:row.decisionOutcome,
