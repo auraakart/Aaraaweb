@@ -8,7 +8,7 @@ import { AccountingExportController } from './accounting-export.controller';
 describe('AccountingExportController authorization', () => {
   it('requires accounting entitlement and finance-read for every export operation', () => {
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, AccountingExportController)).toBe(ProductFeature.SOCIETY_ACCOUNTING);
-    for (const method of ['create','list','get'] as const) {
+    for (const method of ['create','list','get','artifact'] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingExportController.prototype[method])).toEqual([AppPermission.FINANCE_READ]);
     }
   });
