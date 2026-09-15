@@ -7,7 +7,7 @@ type Society={id:string;name:string;code:string;status:'ACTIVE'|'SUSPENDED';prod
 type AdminMembership={id:string;userId:string;active:boolean;user:{name?:string|null;phone:string;email?:string|null;status:string}}
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const tiers=['STARTER','PROFESSIONAL','PREMIUM','ENTERPRISE'] as const
-const features=['VISITOR_MANAGEMENT','DELIVERY_MANAGEMENT','DOMESTIC_HELP','NOTICES','HELPDESK','SOS','HOUSEHOLD_SERVICES','MAINTENANCE_BILLING','PAYMENTS','AMENITIES','ADVANCED_REPORTS','WHATSAPP_AUTOMATION','AI_ASSISTANT','CUSTOM_INTEGRATIONS'] as const
+const features=['VISITOR_MANAGEMENT','DELIVERY_MANAGEMENT','DOMESTIC_HELP','NOTICES','HELPDESK','SOS','HOUSEHOLD_SERVICES','MAINTENANCE_BILLING','PAYMENTS','AMENITIES','GOVERNANCE_POLLS','ADVANCED_REPORTS','WHATSAPP_AUTOMATION','AI_ASSISTANT','CUSTOM_INTEGRATIONS'] as const
 
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
 async function api<T>(session:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.accessToken}`,...init.headers}});const t=await r.text();const body=t?JSON.parse(t):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
