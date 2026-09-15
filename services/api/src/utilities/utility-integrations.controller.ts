@@ -12,7 +12,7 @@ import {
   UseGuards,
   createParamDecorator,
 } from '@nestjs/common';
-import { IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -38,9 +38,9 @@ class CreateUtilityMeterMappingDto {
 class IngestUtilityReadingDto {
   @IsString() @MinLength(1) @MaxLength(120) idempotencyKey!: string;
   @IsString() @MinLength(1) @MaxLength(160) externalMeterId!: string;
-  @IsDateString() readingAt!: string;
-  @IsNumber({ maxDecimalPlaces: 6 }) @Min(0) value!: number;
-  @IsOptional() @IsIn(['ACTUAL', 'RESET']) readingKind?: 'ACTUAL' | 'RESET';
+  @IsString() readingAt!: string;
+  @IsNumber({ maxDecimalPlaces: 6 }) value!: number;
+  @IsOptional() @IsString() readingKind?: 'ACTUAL' | 'RESET';
   @IsOptional() @IsString() @MaxLength(300) note?: string;
 }
 
