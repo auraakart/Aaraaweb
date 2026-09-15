@@ -9,8 +9,8 @@ describe('AccountingConnectorDeliveryController authorization',()=>{
   it('requires accounting entitlement',()=>{
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY,AccountingConnectorDeliveryController)).toBe(ProductFeature.SOCIETY_ACCOUNTING);
   });
-  it('keeps delivery visibility, health, readiness and action history read-only',()=>{
-    for(const method of ['list','metrics','actions','readiness'] as const){
+  it('keeps delivery visibility, health, readiness, evidence and action history read-only',()=>{
+    for(const method of ['list','metrics','actions','readiness','evidence'] as const){
       expect(Reflect.getMetadata(PERMISSIONS_KEY,AccountingConnectorDeliveryController.prototype[method])).toEqual([AppPermission.FINANCE_READ]);
     }
   });
