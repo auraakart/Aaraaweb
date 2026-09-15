@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "aaraagate.v2.staging-pilot-execution.v1",
+  "phase": "V2.4",
+  "status": "NOT_PREPARED",
+  "candidate": {
+    "developSha": "15408ab8a0e8e734f0629e133e55cc81b8d579ba",
+    "stagingSha": null,
+    "rollbackMainSha": null,
+    "hostedStagingUrl": null
+  },
+  "pilot": {
+    "identifier": null,
+    "society": null,
+    "releaseOwner": null,
+    "reviewers": [],
+    "accountsReady": false,
+    "residentDevicesReady": false,
+    "guardDevicesReady": false
+  },
+  "technicalEvidence": {
+    "hostedStagingAcceptance": null,
+    "backupRestoreEvidence": "docs/BACKUP-RESTORE-EVIDENCE.md",
+    "productionPreflight": null
+  },
+  "humanValidation": {
+    "roleUat": "docs/v2-role-uat-plan.json",
+    "policyPilot": "docs/v2-policy-pilot-plan.json",
+    "securityPrivacyReview": "docs/V2-SECURITY-PRIVACY-AUTOMATED-EVIDENCE.md",
+    "pilotAcceptance": "docs/v2-pilot-acceptance-plan.json"
+  },
+  "blockingIssues": [],
+  "acceptedExceptions": [],
+  "releaseDecision": "NOT_READY"
+}
