@@ -147,6 +147,7 @@ export class UtilitiesService {
     if (!Number.isFinite(input.value) || input.value < 0) throw new BadRequestException('Meter reading must be a non-negative number');
     const readingKind = input.readingKind ?? 'ACTUAL';
     const source = input.source ?? 'MANUAL';
+    if (source !== 'MANUAL') throw new BadRequestException('Interactive readings must use MANUAL source');
     const note = input.note?.trim() || null;
     if (note && note.length > 300) throw new BadRequestException('Reading note is too long');
     if (readingKind === 'RESET' && !note) throw new BadRequestException('Reset readings require a note explaining the reset or meter replacement');
@@ -356,10 +357,13 @@ export class UtilitiesService {
 
   history(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT e.*, m."code" AS "meterCode", actor."name" AS "actorName"
+      SELECT e.*, m."code" AS "meterCode",
+        COALESCE(actor."name", integration."name") AS "actorName"
       FROM "UtilityEvent" e
       LEFT JOIN "UtilityMeter" m ON m."id"=e."meterId" AND m."societyId"=e."societyId"
-      JOIN "User" actor ON actor."id"=e."actorUserId"
+      LEFT JOIN "User" actor ON actor."id"=e."actorUserId"
+      LEFT JOIN "UtilityIntegration" integration
+        ON integration."id"=e."integrationId" AND integration."societyId"=e."societyId"
       WHERE e."societyId"=${societyId}::uuid
       ORDER BY e."occurredAt" DESC
       LIMIT 500
