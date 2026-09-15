@@ -13,19 +13,26 @@ services:
     github:
       repo: auraakart/Aaraaweb
       branch: staging
-      deploy_on_push: false
+      deploy_on_push: true
     source_dir: /
     build_command: >-
       corepack enable &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @aaraagate/api prisma:generate &&
       pnpm --filter @aaraagate/api build
-    run_command: pnpm --filter @aaraagate/api start
+    run_command: bash scripts/production-preflight.sh && pnpm --filter @aaraagate/api start
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     liveness_health_check:
       http_path: /api/v1/health/live
+      port: 8080
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 6
+    health_check:
+      http_path: /api/v1/health/ready
       port: 8080
       initial_delay_seconds: 15
       period_seconds: 10
@@ -61,7 +68,27 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: OTP_DELIVERY_PROVIDER
-        value: REPLACE_WITH_PRODUCTION_CAPABLE_OTP_PROVIDER
+        value: msg91
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MSG91_AUTH_KEY
+        value: REPLACE_WITH_MSG91_AUTH_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: MSG91_OTP_TEMPLATE_ID
+        value: REPLACE_WITH_MSG91_OTP_TEMPLATE_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        value: REPLACE_WITH_FIREBASE_SERVICE_ACCOUNT_JSON
+        scope: RUN_TIME
+        type: SECRET
+      - key: PAYMENT_WEBHOOK_SECRET
+        value: REPLACE_WITH_PAYMENT_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: NEXT_PUBLIC_AARAGATE_API_BASE_URL
+        value: REPLACE_WITH_STAGING_API_ORIGIN
         scope: RUN_TIME
         type: GENERAL
 
@@ -70,7 +97,7 @@ services:
     github:
       repo: auraakart/Aaraaweb
       branch: staging
-      deploy_on_push: false
+      deploy_on_push: true
     source_dir: /
     build_command: >-
       corepack enable &&
@@ -89,3 +116,41 @@ services:
         value: REPLACE_WITH_STAGING_API_ORIGIN
         scope: RUN_AND_BUILD_TIME
         type: GENERAL
+
+jobs:
+  - name: aaraagate-migrate
+    kind: PRE_DEPLOY
+    environment_slug: node-js
+    github:
+      repo: auraakart/Aaraaweb
+      branch: staging
+      deploy_on_push: true
+    source_dir: /
+    build_command: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @aaraagate/api prisma:generate
+    run_command: pnpm --filter @aaraagate/api prisma:migrate:deploy
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    envs:
+      - key: DATABASE_URL
+        value: REPLACE_WITH_MANAGED_POSTGRES_PRIVATE_URL
+        scope: RUN_TIME
+        type: SECRET
+
+ingress:
+  rules:
+    - component:
+        name: aaraagate-api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: aaraagate-admin
+      match:
+        path:
+          prefix: /
+
+# Keep DATABASE_URL identical for the API and pre-deploy migration job. Managed
+# PostgreSQL and Valkey must be provisioned in BLR and reached over private URLs.

@@ -4,9 +4,20 @@ set -euo pipefail
 API_BASE_URL="${1:-}"
 EXPECTED_SHA="${2:-}"
 EVIDENCE_DIR="${3:-hosted-staging-evidence}"
+ATTEMPTS="${HOSTED_STAGING_ATTEMPTS:-30}"
+INTERVAL_SECONDS="${HOSTED_STAGING_INTERVAL_SECONDS:-20}"
 
 if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected staging SHA must be a full lowercase Git commit SHA." >&2
+  exit 2
+fi
+
+if [[ ! "$ATTEMPTS" =~ ^[0-9]+$ ]] || (( ATTEMPTS < 1 || ATTEMPTS > 60 )); then
+  echo "HOSTED_STAGING_ATTEMPTS must be an integer between 1 and 60." >&2
+  exit 2
+fi
+if [[ ! "$INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || (( INTERVAL_SECONDS < 1 || INTERVAL_SECONDS > 60 )); then
+  echo "HOSTED_STAGING_INTERVAL_SECONDS must be an integer between 1 and 60." >&2
   exit 2
 fi
 
@@ -56,15 +67,34 @@ API_BASE_URL="$normalized_url"
 
 mkdir -p "$EVIDENCE_DIR"
 
-curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
-  --connect-timeout 10 --max-time 30 \
-  "$API_BASE_URL/api/v1/health/live" > "$EVIDENCE_DIR/liveness.json"
-curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
-  --connect-timeout 10 --max-time 30 \
-  "$API_BASE_URL/api/v1/health/ready" > "$EVIDENCE_DIR/readiness.json"
+accepted=false
+last_error="Hosted endpoint was unavailable."
+for (( attempt = 1; attempt <= ATTEMPTS; attempt++ )); do
+  validation_output=""
+  if curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+      --connect-timeout 10 --max-time 30 \
+      "$API_BASE_URL/api/v1/health/live" > "$EVIDENCE_DIR/liveness.json" 2>/dev/null && \
+    curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+      --connect-timeout 10 --max-time 30 \
+      "$API_BASE_URL/api/v1/health/ready" > "$EVIDENCE_DIR/readiness.json" 2>/dev/null; then
+    if validation_output="$(node scripts/validate-hosted-health.mjs \
+      "$EVIDENCE_DIR/liveness.json" "$EVIDENCE_DIR/readiness.json" "$EXPECTED_SHA" 2>&1)"; then
+      accepted=true
+      break
+    fi
+    last_error="$validation_output"
+  fi
 
-node scripts/validate-hosted-health.mjs \
-  "$EVIDENCE_DIR/liveness.json" "$EVIDENCE_DIR/readiness.json" "$EXPECTED_SHA"
+  if (( attempt < ATTEMPTS )); then
+    echo "Hosted staging candidate is not ready (attempt ${attempt}/${ATTEMPTS}); retrying in ${INTERVAL_SECONDS}s."
+    sleep "$INTERVAL_SECONDS"
+  fi
+done
+
+if [[ "$accepted" != "true" ]]; then
+  echo "Hosted staging did not expose candidate ${EXPECTED_SHA} after ${ATTEMPTS} attempt(s): ${last_error}" >&2
+  exit 1
+fi
 
 cat > "$EVIDENCE_DIR/hosted-staging-evidence.md" <<EOF
 # Aaraagate hosted staging smoke

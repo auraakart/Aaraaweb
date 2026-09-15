@@ -8,7 +8,7 @@ Never commit credentials or production secrets.
 
 The initial hosted staging/production target is DigitalOcean Bangalore. See [`docs/HOSTING-DECISION.md`](../docs/HOSTING-DECISION.md) for the rationale and operational requirements.
 
-`digitalocean/app.staging.template.yaml` is a reviewed starting template only. Replace every `REPLACE_*` value in the DigitalOcean control plane before deployment and keep secrets encrypted outside Git.
+`digitalocean/app.staging.template.yaml` is a reviewed starting template only. Replace every `REPLACE_*` value in the DigitalOcean control plane before deployment and keep secrets encrypted outside Git. API and Admin deployments track only the protected `staging` branch; the pre-deploy migration job and API must use the same managed PostgreSQL URL. Run `bash scripts/check-staging-deployment-template.sh` before applying a changed template.
 
 The application itself must remain provider-portable and continue to use standard PostgreSQL/Redis-compatible connections and environment variables.
 
