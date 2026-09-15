@@ -36,7 +36,11 @@
       "kind": "MANUAL_REQUIRED",
       "status": "PENDING",
       "requiredPersonas": ["ACCOUNTANT_TREASURER", "COMMITTEE", "FACILITY", "SECURITY_SUPERVISOR", "AUDITOR"],
-      "evidence": []
+      "evidence": [
+        ".github/workflows/v2-role-uat-contract.yml",
+        "scripts/check-v2-role-uat-plan.mjs",
+        "docs/v2-role-uat-plan.json"
+      ]
     },
     {
       "id": "V24-POLICY-PILOT",

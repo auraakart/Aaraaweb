@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "aaraagate.v2.role-uat.v1",
+  "phase": "V2.4",
+  "status": "NOT_STARTED",
+  "personas": [
+    {
+      "id": "ACCOUNTANT_TREASURER",
+      "scenarios": [
+        {"id":"UAT-ACC-001","title":"Review society accounting dashboard and period comparison","domains":["V2-FIN","V2-ANL"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-ACC-002","title":"Create and download an authenticated accounting export","domains":["V2-FIN","V2-ANL"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-ACC-003","title":"Review connector delivery evidence and controlled retry visibility","domains":["V2-FIN","V2-ANL"],"status":"NOT_RUN","evidence":[]}
+      ]
+    },
+    {
+      "id": "COMMITTEE",
+      "scenarios": [
+        {"id":"UAT-COM-001","title":"Review governance notices and community communication controls","domains":["V2-GOV","V2-COM"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-COM-002","title":"Review society analytics without finance-management mutation rights","domains":["V2-RBAC","V2-ANL"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-COM-003","title":"Review privacy and policy configuration visibility appropriate to committee role","domains":["V2-PRV","V2-RBAC"],"status":"NOT_RUN","evidence":[]}
+      ]
+    },
+    {
+      "id": "FACILITY",
+      "scenarios": [
+        {"id":"UAT-FAC-001","title":"Manage facility and amenity operational workflow","domains":["V2-FAC","V2-AMN"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-FAC-002","title":"Review vendor and service-provider operational information","domains":["V2-VND","V2-DOC"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-FAC-003","title":"Handle helpdesk or operational issue without finance-only permissions","domains":["V2-HLP","V2-RBAC"],"status":"NOT_RUN","evidence":[]}
+      ]
+    },
+    {
+      "id": "SECURITY_SUPERVISOR",
+      "scenarios": [
+        {"id":"UAT-SEC-001","title":"Review occupant and gate-relevant operational information under tenant boundaries","domains":["V2-OCC","V2-RBAC"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-SEC-002","title":"Review emergency-response workflow and escalation visibility","domains":["V2-EMR","V2-RBAC"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-SEC-003","title":"Confirm restricted finance and privacy administration actions are unavailable","domains":["V2-FIN","V2-PRV","V2-RBAC"],"status":"NOT_RUN","evidence":[]}
+      ]
+    },
+    {
+      "id": "AUDITOR",
+      "scenarios": [
+        {"id":"UAT-AUD-001","title":"Review accounting history and export evidence without mutation privileges","domains":["V2-FIN","V2-RBAC"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-AUD-002","title":"Review governance and privacy audit history across permitted records","domains":["V2-GOV","V2-PRV"],"status":"NOT_RUN","evidence":[]},
+        {"id":"UAT-AUD-003","title":"Confirm evidence is tenant-scoped and cross-society data is not exposed","domains":["V2-RBAC","V2-PRV","V2-ANL"],"status":"NOT_RUN","evidence":[]}
+      ]
+    }
+  ]
+}
