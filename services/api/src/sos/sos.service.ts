@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 type SosStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED';
+type SosCategory = 'MEDICAL' | 'FIRE' | 'SECURITY' | 'LIFT' | 'OTHER';
+type SosSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM';
 
 type SosIncidentRow = {
   id: string;
@@ -10,6 +12,8 @@ type SosIncidentRow = {
   unitId: string;
   residentUserId: string;
   status: SosStatus;
+  category: SosCategory;
+  severity: SosSeverity;
   message: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -29,7 +33,14 @@ export class SosService {
   async trigger(
     societyId: string,
     residentUserId: string,
-    input: { unitId: string; message?: string; latitude?: number; longitude?: number },
+    input: {
+      unitId: string;
+      category?: SosCategory;
+      severity?: SosSeverity;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    },
   ) {
     await this.assertResidentUnit(societyId, residentUserId, input.unitId);
     if (input.latitude !== undefined && (input.latitude < -90 || input.latitude > 90)) {
@@ -38,18 +49,38 @@ export class SosService {
     if (input.longitude !== undefined && (input.longitude < -180 || input.longitude > 180)) {
       throw new BadRequestException('Longitude must be between -180 and 180');
     }
+    const category = input.category ?? 'OTHER';
+    const severity = input.severity ?? 'HIGH';
     const message = input.message?.trim() || null;
 
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
-        INSERT INTO "SosIncident" ("societyId", "unitId", "residentUserId", "message", "latitude", "longitude")
-        VALUES (${societyId}::uuid, ${input.unitId}::uuid, ${residentUserId}::uuid, ${message}, ${input.latitude ?? null}, ${input.longitude ?? null})
+        INSERT INTO "SosIncident" (
+          "societyId", "unitId", "residentUserId", "category", "severity", "message", "latitude", "longitude"
+        )
+        VALUES (
+          ${societyId}::uuid,
+          ${input.unitId}::uuid,
+          ${residentUserId}::uuid,
+          ${category},
+          ${severity},
+          ${message},
+          ${input.latitude ?? null},
+          ${input.longitude ?? null}
+        )
         RETURNING *
       `);
       const incident = rows[0];
       await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "toStatus")
-        VALUES (${societyId}::uuid, ${incident.id}::uuid, ${residentUserId}::uuid, 'TRIGGERED', 'ACTIVE')
+        INSERT INTO "SosIncidentEvent" ("societyId", "incidentId", "actorUserId", "action", "toStatus", "note")
+        VALUES (
+          ${societyId}::uuid,
+          ${incident.id}::uuid,
+          ${residentUserId}::uuid,
+          'TRIGGERED',
+          'ACTIVE',
+          ${`category=${category};severity=${severity}`}
+        )
       `);
       return incident;
     });
@@ -67,14 +98,29 @@ export class SosService {
 
   listManage(societyId: string) {
     return this.prisma.$queryRaw<SosIncidentRow[]>(Prisma.sql`
-      SELECT si.*, u."number" AS "unitNumber", b."name" AS "buildingName", r."name" AS "residentName", r."phone" AS "residentPhone"
+      SELECT
+        si.*,
+        u."number" AS "unitNumber",
+        b."name" AS "buildingName",
+        r."name" AS "residentName",
+        r."phone" AS "residentPhone",
+        escalation."escalatedAt"
       FROM "SosIncident" si
       JOIN "Unit" u ON u."id" = si."unitId"
       JOIN "Building" b ON b."id" = u."buildingId"
       JOIN "User" r ON r."id" = si."residentUserId"
+      LEFT JOIN LATERAL (
+        SELECT MAX(se."occurredAt") AS "escalatedAt"
+        FROM "SosIncidentEvent" se
+        WHERE se."societyId" = si."societyId"
+          AND se."incidentId" = si."id"
+          AND se."action" = 'ESCALATED'
+      ) escalation ON true
       WHERE si."societyId" = ${societyId}::uuid
       ORDER BY
+        CASE WHEN escalation."escalatedAt" IS NOT NULL AND si."status" IN ('ACTIVE', 'ACKNOWLEDGED') THEN 0 ELSE 1 END,
         CASE si."status" WHEN 'ACTIVE' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,
+        CASE si."severity" WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
         si."createdAt" DESC
       LIMIT 250
     `);
@@ -94,6 +140,55 @@ export class SosService {
     if (current.status === 'ACKNOWLEDGED') return current;
     if (current.status !== 'ACTIVE') throw new BadRequestException('Only active SOS incidents can be acknowledged');
     return this.transition(societyId, actorUserId, current, 'ACKNOWLEDGED', 'ACKNOWLEDGED', note);
+  }
+
+  async escalate(societyId: string, actorUserId: string, incidentId: string, note?: string) {
+    const current = await this.findIncident(societyId, incidentId);
+    if (!current) throw new NotFoundException('SOS incident not found');
+    if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
+      throw new BadRequestException('Only active or acknowledged SOS incidents can be escalated');
+    }
+    const cleanNote = note?.trim() || null;
+    const events = await this.prisma.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
+      INSERT INTO "SosIncidentEvent" (
+        "societyId", "incidentId", "actorUserId", "action", "fromStatus", "toStatus", "note"
+      )
+      VALUES (
+        ${societyId}::uuid,
+        ${incidentId}::uuid,
+        ${actorUserId}::uuid,
+        'ESCALATED',
+        ${current.status}::"SosStatus",
+        ${current.status}::"SosStatus",
+        ${cleanNote}
+      )
+      RETURNING "occurredAt"
+    `);
+    return { ...current, escalatedAt: events[0]?.occurredAt ?? null };
+  }
+
+  async escalationTargets(societyId: string, incidentId: string) {
+    const current = await this.findIncident(societyId, incidentId);
+    if (!current) throw new NotFoundException('SOS incident not found');
+    return this.prisma.$queryRaw<
+      Array<{ contactId: string; name: string; phone: string; relation: string | null; priority: number }>
+    >(Prisma.sql`
+      SELECT
+        ec."id" AS "contactId",
+        ec."name",
+        ec."phone",
+        ec."relation",
+        ec."priority"
+      FROM "Household" h
+      JOIN "EmergencyContact" ec
+        ON ec."householdId" = h."id"
+       AND ec."societyId" = h."societyId"
+      WHERE h."societyId" = ${societyId}::uuid
+        AND h."unitId" = ${current.unitId}::uuid
+        AND ec."active" = true
+      ORDER BY ec."priority" ASC, ec."createdAt" ASC
+      LIMIT 10
+    `);
   }
 
   async resolve(societyId: string, actorUserId: string, incidentId: string, note?: string) {

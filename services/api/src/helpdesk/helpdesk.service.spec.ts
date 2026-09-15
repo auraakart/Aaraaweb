@@ -57,4 +57,47 @@ describe('HelpdeskService', () => {
     ).rejects.toThrow('Helpdesk ticket not found');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
+
+  it('filters internal staff notes from resident activity history', async () => {
+    const prisma = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '44444444-4444-4444-4444-444444444444' }])
+        .mockResolvedValueOnce([]),
+    };
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    await service.activitiesMine(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+      '44444444-4444-4444-4444-444444444444',
+    );
+
+    const query = prisma.$queryRaw.mock.calls[1][0] as { strings: readonly string[] };
+    expect(query.strings.join(' ')).toContain('ha."type" <> \'INTERNAL_NOTE\'');
+  });
+
+  it('requires a structured resolution reason before resolving a ticket', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{
+        id: '44444444-4444-4444-4444-444444444444',
+        societyId: '11111111-1111-1111-1111-111111111111',
+        status: 'OPEN',
+        resolutionCode: null,
+        closureCode: null,
+      }]),
+      $transaction: vi.fn(),
+    };
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.updateStatus(
+        '11111111-1111-1111-1111-111111111111',
+        '22222222-2222-2222-2222-222222222222',
+        '44444444-4444-4444-4444-444444444444',
+        'RESOLVED',
+        'Repair completed',
+      ),
+    ).rejects.toThrow('A valid resolution code is required');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });

@@ -55,6 +55,16 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> communityPolls() async {
+    final value = await api.get('/api/v1/governance/community-polls');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> respondToCommunityPoll({required String pollId, required String optionId}) async {
+    final value = await api.post('/api/v1/governance/community-polls/$pollId/responses', {'optionId': optionId});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> currentEntitlements() async {
     final value = await api.get('/api/v1/entitlements/current');
     return Map<String, dynamic>.from(value as Map);
@@ -69,8 +79,7 @@ class ResidentRepository {
         if (deviceId != null && deviceId.isNotEmpty) 'deviceId': deviceId,
       });
 
-  Future<void> unregisterPushDevice(String token) =>
-      api.post('/api/v1/notifications/devices/unregister', {'token': token});
+  Future<void> unregisterPushDevice(String token) => api.post('/api/v1/notifications/devices/unregister', {'token': token});
 
   Future<List<Map<String, dynamic>>> serviceCategories() async {
     final value = await api.get('/api/v1/services-marketplace/categories');

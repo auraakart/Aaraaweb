@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
+import '../data/utility_billing_repository_extension.dart';
 import '../widgets/app_state_card.dart';
 
 class BillingScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class BillingScreen extends StatefulWidget {
 class _BillingScreenState extends State<BillingScreen> {
   List<Map<String, dynamic>> invoices = const [];
   List<Map<String, dynamic>> payments = const [];
+  List<Map<String, dynamic>> utilityCharges = const [];
   bool loading = true;
   String? error;
   String? payingInvoiceId;
@@ -26,15 +28,22 @@ class _BillingScreenState extends State<BillingScreen> {
     setState(() { loading = true; error = null; });
     try {
       final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
+      List<Map<String, dynamic>> utilityResult = const [];
+      try {
+        utilityResult = await widget.repository.issuedUtilityCharges();
+      } catch (_) {
+        utilityResult = const [];
+      }
       final selected = widget.activeUnitId;
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
-      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; });
+      final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
+      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; });
     } on ApiException catch (exception) {
-      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your maintenance invoices could not be loaded.');
+      if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
     } catch (_) {
-      if (mounted) setState(() => error = 'Your maintenance invoices could not be loaded.');
+      if (mounted) setState(() => error = 'Your billing details could not be loaded.');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -133,18 +142,30 @@ class _BillingScreenState extends State<BillingScreen> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
             if (loading)
-              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading maintenance and payment details…', loading: true)
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading billing and payment details…', loading: true)
             else if (error != null)
               AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: 'Retry', onAction: _load)
-            else if (invoices.isEmpty)
-              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No maintenance invoices are available for this property.')
+            else if (invoices.isEmpty && utilityCharges.isEmpty)
+              const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
               _SummaryCard(outstanding: outstanding),
-              const SizedBox(height: 26),
+              if (utilityCharges.isNotEmpty) ...[
+                const SizedBox(height: 26),
+                Row(children: [
+                  Expanded(child: Text('Utility usage', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
+                  Text('Issued bills', style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ]),
+                const SizedBox(height: 10),
+                for (final charge in utilityCharges.take(6)) ...[
+                  _UtilityChargeCard(charge: charge),
+                  const SizedBox(height: 10),
+                ],
+              ],
+              const SizedBox(height: 24),
               Text('Outstanding', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               if (outstanding.isEmpty)
-                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding maintenance dues.')
+                const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.')
               else
                 for (final invoice in outstanding) ...[
                   _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id']?.toString(), onPay: () => _preparePayment(invoice)),
@@ -197,6 +218,86 @@ class _SummaryCard extends StatelessWidget {
       ]),
     );
   }
+}
+
+class _UtilityChargeCard extends StatelessWidget {
+  const _UtilityChargeCard({required this.charge});
+  final Map<String, dynamic> charge;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final calculation = charge['calculationJson'] is Map ? Map<String, dynamic>.from(charge['calculationJson'] as Map) : const <String, dynamic>{};
+    final slabs = calculation['breakdown'] is List ? (calculation['breakdown'] as List).whereType<Map>().toList(growable: false) : const <Map>[];
+    final meterName = (charge['meterLabel']?.toString().trim().isNotEmpty ?? false) ? charge['meterLabel'].toString() : charge['meterCode']?.toString() ?? 'Utility meter';
+    final periodStart = DateTime.tryParse(charge['periodStart']?.toString() ?? '');
+    final periodEnd = DateTime.tryParse(charge['periodEnd']?.toString() ?? '');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 44, height: 44, decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(Icons.bolt_outlined, color: scheme.onTertiaryContainer)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(meterName, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            Text('${charge['buildingName'] ?? 'Building'} · ${charge['unitNumber'] ?? 'Unit'} · ${charge['meterType'] ?? 'Utility'}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          ])),
+          Text(_money((charge['totalPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+        ]),
+        const SizedBox(height: 14),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _MetricPill(label: 'Usage', value: '${charge['consumption'] ?? '0'} units'),
+          _MetricPill(label: 'Opening', value: '${charge['openingReadingValue'] ?? '—'}'),
+          _MetricPill(label: 'Closing', value: '${charge['closingReadingValue'] ?? '—'}'),
+        ]),
+        const SizedBox(height: 12),
+        Text(
+          '${periodStart == null ? '' : _date(periodStart)}${periodStart != null && periodEnd != null ? ' – ' : ''}${periodEnd == null ? '' : _date(periodEnd)} · Tariff ${charge['tariffName'] ?? charge['tariffCode'] ?? '—'}',
+          style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _ChargeLine(label: 'Usage charge', paise: (charge['variableChargePaise'] as num?)?.toInt() ?? 0)),
+          const SizedBox(width: 8),
+          Expanded(child: _ChargeLine(label: 'Fixed charge', paise: (charge['fixedChargePaise'] as num?)?.toInt() ?? 0)),
+        ]),
+        if (slabs.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('${slabs.length} tariff slab${slabs.length == 1 ? '' : 's'} applied · Invoice ${charge['invoiceNumber'] ?? ''}', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
+      ]),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({required this.label, required this.value});
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withOpacity(.65), borderRadius: BorderRadius.circular(12)),
+      child: Text('$label · $value', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+class _ChargeLine extends StatelessWidget {
+  const _ChargeLine({required this.label, required this.paise});
+  final String label;
+  final int paise;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    const SizedBox(height: 2),
+    Text(_money(paise), style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800)),
+  ]);
 }
 
 class _InvoiceCard extends StatelessWidget {

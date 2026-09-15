@@ -1,0 +1,38 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+
+type Session={accessToken:string;role:string;societyName?:string}
+type Parcel={id:string;unitNumber?:string;recipientName?:string;courierName?:string|null;trackingReference?:string|null;notes?:string|null;receivedAt:string;overdue?:boolean}
+type Recipient={userId:string;name:string;unitId:string;unitNumber:string;buildingName:string;buildingCode?:string|null}
+const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
+const roles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
+function apiErrorMessage(body:unknown,status:number){if(body&&typeof body==='object'&&'message' in body){const message=(body as {message?:unknown}).message;if(Array.isArray(message))return message.map(String).join(', ');if(typeof message==='string')return message}return `Request failed (${status})`}
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();let body:unknown=null;try{body=text?JSON.parse(text):null}catch{body=text}if(!r.ok)throw new Error(apiErrorMessage(body,r.status));return body as T}
+const fmt=(v:string)=>new Date(v).toLocaleString('en-IN')
+export default function ParcelsAdminPage(){
+ const s=typeof window==='undefined'?null:getSession(),canUse=!!s&&roles.has(s.role)
+ const[parcels,setParcels]=useState<Parcel[]>([]),[recipients,setRecipients]=useState<Recipient[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[ok,setOk]=useState('')
+ const[recipientKey,setRecipientKey]=useState(''),[courier,setCourier]=useState(''),[tracking,setTracking]=useState(''),[notes,setNotes]=useState('')
+ const overdue=useMemo(()=>parcels.filter(p=>p.overdue).length,[parcels])
+ async function load(){if(!s||!canUse)return;setBusy(true);setError('');try{const[p,r]=await Promise.all([api<Parcel[]>(s,'/parcels/desk'),api<Recipient[]>(s,'/parcels/desk/recipients')]);setParcels(p);setRecipients(r);if(!recipientKey&&r[0])setRecipientKey(`${r[0].unitId}|${r[0].userId}`)}catch(e){setError(e instanceof Error?e.message:'Could not load parcel desk')}finally{setBusy(false)}}
+ useEffect(()=>{void load()},[])
+ async function intake(){if(!s||!recipientKey)return;const[unitId,recipientUserId]=recipientKey.split('|');setBusy(true);setError('');setOk('');try{await api(s,'/parcels/desk',{method:'POST',body:JSON.stringify({unitId,recipientUserId,courierName:courier.trim()||undefined,trackingReference:tracking.trim()||undefined,notes:notes.trim()||undefined})});setCourier('');setTracking('');setNotes('');setOk('Parcel received and resident notified.');await load()}catch(e){setError(e instanceof Error?e.message:'Could not receive parcel')}finally{setBusy(false)}}
+ async function remind(id:string){if(!s)return;setBusy(true);setError('');try{await api(s,`/parcels/desk/${id}/remind`,{method:'POST'});setOk('Reminder sent.');await load()}catch(e){setError(e instanceof Error?e.message:'Could not send reminder')}finally{setBusy(false)}}
+ async function returnParcel(id:string){if(!s)return;const reason=window.prompt('Return reason');if(!reason?.trim())return;setBusy(true);setError('');try{await api(s,`/parcels/desk/${id}/return`,{method:'PATCH',body:JSON.stringify({reason:reason.trim()})});setOk('Parcel marked returned to sender.');await load()}catch(e){setError(e instanceof Error?e.message:'Could not return parcel')}finally{setBusy(false)}}
+ if(!s||!canUse)return <main style={{padding:32}}><h1>Parcel Desk access required</h1><p>Society admin or facility manager access is required.</p><a href="/">Return to Admin</a></main>
+ return <main style={{maxWidth:1160,margin:'0 auto',padding:'28px 22px 80px'}}><header><small>{s.societyName??'Current society'} · {s.role.replaceAll('_',' ')}</small><h1>Parcel Desk</h1><p>Receive parcels for current occupants, monitor overdue pickups, send reminders and record returns.</p></header>{error&&<p style={err}>{error}</p>}{ok&&<p style={success}>{ok}</p>}<section style={panel}><div style={stats}><div><b>{parcels.length}</b><span>Waiting</span></div><div><b>{overdue}</b><span>Overdue</span></div><div><b>{recipients.length}</b><span>Eligible recipients</span></div></div></section><section style={{...panel,marginTop:18}}><h2>Receive parcel</h2><div style={grid}><label>Recipient<select value={recipientKey} onChange={e=>setRecipientKey(e.target.value)} style={input}>{recipients.map(r=><option key={`${r.unitId}-${r.userId}`} value={`${r.unitId}|${r.userId}`}>{r.buildingName} · {r.unitNumber} · {r.name}</option>)}</select></label><label>Courier<input value={courier} onChange={e=>setCourier(e.target.value)} style={input} placeholder="Amazon / Blue Dart"/></label><label>Tracking reference<input value={tracking} onChange={e=>setTracking(e.target.value)} style={input}/></label><label>Notes<input value={notes} onChange={e=>setNotes(e.target.value)} style={input}/></label></div><button disabled={busy||!recipientKey} onClick={()=>void intake()} style={button}>Receive & notify resident</button></section><section style={{...panel,marginTop:18}}><div style={row}><h2 style={{margin:0}}>Waiting parcels</h2><button disabled={busy} onClick={()=>void load()} style={secondary}>Refresh</button></div>{parcels.length===0?<p>No parcels are waiting.</p>:parcels.map(p=><article key={p.id} style={item}><div><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong>{p.recipientName??'Resident'} · {p.unitNumber??'Unit'}</strong>{p.overdue&&<span style={badge}>OVERDUE</span>}</div><p style={{margin:'7px 0'}}>{p.courierName??'Courier not specified'}{p.trackingReference?` · ${p.trackingReference}`:''}</p><small>Received {fmt(p.receivedAt)}{p.notes?` · ${p.notes}`:''}</small></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button disabled={busy} onClick={()=>void remind(p.id)} style={secondary}>Remind</button><button disabled={busy} onClick={()=>void returnParcel(p.id)} style={danger}>Return</button></div></article>)}</section></main>
+}
+const panel={background:'#fff',border:'1px solid #e5e7eb',borderRadius:18,padding:20,boxShadow:'0 8px 24px rgba(15,23,42,.05)'}
+const stats={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12}
+const grid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:16}
+const input={display:'block',width:'100%',marginTop:6,padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:10,boxSizing:'border-box' as const}
+const row={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}
+const item={display:'flex',justifyContent:'space-between',gap:16,padding:'16px 0',borderBottom:'1px solid #eef2f7',alignItems:'flex-start'}
+const button={border:0,borderRadius:10,padding:'10px 14px',background:'#05879A',color:'#fff',fontWeight:700,cursor:'pointer'}
+const secondary={border:'1px solid #cbd5e1',borderRadius:10,padding:'9px 12px',background:'#fff',fontWeight:700,cursor:'pointer'}
+const danger={...secondary,color:'#b91c1c',border:'1px solid #fecaca'}
+const badge={display:'inline-block',padding:'4px 8px',borderRadius:999,fontSize:12,fontWeight:800,background:'#fef3c7',color:'#92400e'}
+const err={background:'#fff1f2',border:'1px solid #fecdd3',padding:12,borderRadius:10,color:'#9f1239'}
+const success={background:'#ecfdf5',border:'1px solid #a7f3d0',padding:12,borderRadius:10,color:'#065f46'}

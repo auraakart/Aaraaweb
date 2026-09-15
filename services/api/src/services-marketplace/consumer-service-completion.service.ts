@@ -17,6 +17,7 @@ type BookingRow = {
   id: string;
   userId: string;
   providerId: string;
+  offeringId: string;
   status: ServiceBookingStatus;
 };
 
@@ -114,7 +115,7 @@ export class ConsumerServiceCompletionService {
   async confirmByConsumer(userId: string, bookingId: string) {
     return this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
-        SELECT "id", "userId", "providerId", "status" FROM "ConsumerServiceBooking"
+        SELECT "id", "userId", "providerId", "offeringId", "status" FROM "ConsumerServiceBooking"
         WHERE "id" = ${bookingId}::uuid AND "userId" = ${userId}::uuid FOR UPDATE
       `);
       const booking = bookingRows[0];
@@ -153,8 +154,31 @@ export class ConsumerServiceCompletionService {
         INSERT INTO "ConsumerServiceAssignmentEvent" ("id", "assignmentId", "actorUserId", "type", "fromStatus", "toStatus", "occurredAt")
         VALUES (${randomUUID()}::uuid, ${assignment.id}::uuid, ${userId}::uuid, 'CUSTOMER_CONFIRMED_COMPLETION', 'ARRIVED'::"ConsumerDispatchStatus", 'RELEASED'::"ConsumerDispatchStatus", ${occurredAt})
       `);
+      await this.captureWarrantySnapshot(tx, booking.id, booking.offeringId, occurredAt);
       return completedRows[0];
     });
+  }
+
+  private async captureWarrantySnapshot(tx: Prisma.TransactionClient, bookingId: string, offeringId: string, completedAt: Date) {
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "ConsumerServiceWarrantySnapshot" (
+        "bookingId", "warrantyDays", "revisitPolicy", "warrantyStartedAt", "warrantyUntil", "capturedAt"
+      )
+      SELECT
+        ${bookingId}::uuid,
+        p."warrantyDays",
+        p."revisitPolicy",
+        ${completedAt},
+        CASE
+          WHEN p."warrantyDays" IS NULL THEN NULL
+          ELSE ${completedAt} + make_interval(days => p."warrantyDays")
+        END,
+        CURRENT_TIMESTAMP
+      FROM "ServiceOfferingContinuityPolicy" p
+      WHERE p."offeringId" = ${offeringId}::uuid
+        AND (p."warrantyDays" IS NOT NULL OR NULLIF(BTRIM(p."revisitPolicy"), '') IS NOT NULL)
+      ON CONFLICT ("bookingId") DO NOTHING
+    `);
   }
 
   private async publishCompletionRequest(bookingId: string, assignmentId: string) {
@@ -183,7 +207,7 @@ export class ConsumerServiceCompletionService {
 
   private async lockBooking(tx: Prisma.TransactionClient, bookingId: string) {
     const rows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
-      SELECT "id", "userId", "providerId", "status" FROM "ConsumerServiceBooking" WHERE "id" = ${bookingId}::uuid FOR UPDATE
+      SELECT "id", "userId", "providerId", "offeringId", "status" FROM "ConsumerServiceBooking" WHERE "id" = ${bookingId}::uuid FOR UPDATE
     `);
     if (!rows[0]) throw new NotFoundException('Consumer booking not found');
     return rows[0];

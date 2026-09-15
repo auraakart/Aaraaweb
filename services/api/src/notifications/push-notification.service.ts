@@ -56,10 +56,6 @@ export class PushNotificationService {
   async registerConsumer(userId: string, token: string, platform: DevicePlatform, deviceId?: string) {
     const normalized = token.trim();
 
-    // A Firebase token identifies the current app installation. Claiming it for a
-    // consumer session must invalidate any earlier society binding first. Society
-    // sessions immediately re-bind the same token through register(); independent-
-    // home sessions intentionally leave it unbound from every society.
     await this.prisma.devicePushToken.updateMany({
       where: { token: normalized, active: true },
       data: { active: false, lastSeenAt: new Date() },
@@ -115,19 +111,7 @@ export class PushNotificationService {
     if (!this.firebaseApp || !event.userId) return;
     const registrations = await this.prisma.devicePushToken.findMany({ where: { societyId: event.societyId, userId: event.userId, active: true }, select: { id: true, token: true } });
     if (registrations.length === 0) return;
-    const content = 'requestId' in event ? {
-      title: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${this.label(event.subjectType)} at the gate` : 'Gate access updated',
-      body: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${event.subjectName} is waiting for your approval.` : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`,
-      data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
-    } : {
-      title: event.title,
-      body: event.body,
-      data: {
-        ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}),
-        ...(event.noticeId ? { noticeId: event.noticeId } : {}),
-        ...(event.unitId ? { unitId: event.unitId } : {}),
-      },
-    };
+    const content = this.residentPushContent(event);
     const response = await getMessaging(this.firebaseApp).sendEachForMulticast({
       tokens: registrations.map((item) => item.token), notification: { title: content.title, body: content.body },
       data: { type: event.type, societyId: event.societyId, ...content.data }, android: { priority: 'high' }, apns: { payload: { aps: { sound: 'default', contentAvailable: true } } },
@@ -140,6 +124,47 @@ export class PushNotificationService {
       else this.logger.warn(`FCM delivery failed for resident event ${event.type}: ${code ?? 'unknown error'}`);
     });
     if (invalidIds.length > 0) await this.prisma.devicePushToken.updateMany({ where: { id: { in: invalidIds } }, data: { active: false } });
+  }
+
+  private residentPushContent(event: ResidentMessageEvent): { title: string; body: string; data: Record<string, string> } {
+    switch (event.type) {
+      case 'ACCESS_APPROVAL_REQUESTED':
+      case 'ACCESS_APPROVAL_DECIDED':
+      case 'ACCESS_STATUS_CHANGED':
+        return {
+          title: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${this.label(event.subjectType)} at the gate` : 'Gate access updated',
+          body: event.type === 'ACCESS_APPROVAL_REQUESTED' ? `${event.subjectName} is waiting for your approval.` : `${event.subjectName}: ${event.status.replaceAll('_', ' ').toLowerCase()}`,
+          data: { requestId: event.requestId, subjectType: event.subjectType, subjectName: event.subjectName, status: event.status, ...(event.gateId ? { gateId: event.gateId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+        };
+      case 'MAINTENANCE_DUE_ISSUED':
+        return {
+          title: event.title,
+          body: event.body,
+          data: { ...(event.invoiceId ? { invoiceId: event.invoiceId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+        };
+      case 'GENERAL_NOTICE_PUBLISHED':
+        return {
+          title: event.title,
+          body: event.body,
+          data: { ...(event.noticeId ? { noticeId: event.noticeId } : {}), ...(event.unitId ? { unitId: event.unitId } : {}) },
+        };
+      case 'PARCEL_RECEIVED':
+        return {
+          title: event.title,
+          body: event.body,
+          data: { parcelId: event.parcelId, unitId: event.unitId },
+        };
+      case 'EMERGENCY_BROADCAST':
+        return {
+          title: event.title,
+          body: event.body,
+          data: {
+            broadcastId: event.broadcastId,
+            severity: event.severity,
+            ...(event.incidentId ? { incidentId: event.incidentId } : {}),
+          },
+        };
+    }
   }
 
   private consumerBookingContent(event: ConsumerBookingPushEvent) {

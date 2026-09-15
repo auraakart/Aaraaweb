@@ -26,6 +26,17 @@ describe('permission matrix', () => {
     expect(hasPermission([AppRole.ACCOUNTANT], AppPermission.AUDIT_READ)).toBe(false);
     expect(hasPermission([AppRole.ACCOUNTANT], AppPermission.SOCIETY_CONFIGURATION_MANAGE)).toBe(false);
     expect(hasPermission([AppRole.ACCOUNTANT], AppPermission.GATE_ACCESS_PROCESS)).toBe(false);
+    expect(hasPermission([AppRole.ACCOUNTANT], AppPermission.OCCUPANCY_LIFECYCLE_READ)).toBe(false);
+  });
+
+  it('scopes occupancy lifecycle operations to society operations roles', () => {
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.OCCUPANCY_LIFECYCLE_READ)).toBe(true);
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.OCCUPANCY_LIFECYCLE_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.OCCUPANCY_LIFECYCLE_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.COMMITTEE_MEMBER], AppPermission.OCCUPANCY_LIFECYCLE_READ)).toBe(true);
+    expect(hasPermission([AppRole.COMMITTEE_MEMBER], AppPermission.OCCUPANCY_LIFECYCLE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.OWNER], AppPermission.OCCUPANCY_LIFECYCLE_READ)).toBe(false);
+    expect(hasPermission([AppRole.TENANT], AppPermission.OCCUPANCY_LIFECYCLE_MANAGE)).toBe(false);
   });
 
   it('keeps security supervisors on gate and audit operations without society administration', () => {
