@@ -65,7 +65,8 @@ export class ReportsExportService {
 
   private csvCell(value: string | number) {
     let text = String(value);
-    if (/^[=+\-@]/.test(text)) text = `'${text}`;
+    // Spreadsheet importers may ignore whitespace or recognize full-width operators.
+    if (/^[\t\r\n]|^\s*[=+\-@＝＋－＠]/u.test(text)) text = `'${text}`;
     if (/[",\r\n]/.test(text)) text = `"${text.replace(/"/g, '""')}"`;
     return text;
   }
