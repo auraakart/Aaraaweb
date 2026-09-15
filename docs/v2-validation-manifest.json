@@ -3,94 +3,14 @@
   "program": "Aaraagate V2",
   "phase": "V2.4",
   "releaseDecision": "NOT_YET_APPROVED",
-  "requiredPersonas": [
-    "ACCOUNTANT_TREASURER",
-    "COMMITTEE",
-    "FACILITY",
-    "SECURITY_SUPERVISOR",
-    "AUDITOR"
-  ],
-  "requiredDomains": [
-    "V2-FIN",
-    "V2-OCC",
-    "V2-GOV",
-    "V2-EMR",
-    "V2-PRV",
-    "V2-PAY",
-    "V2-RBAC",
-    "V2-FAC",
-    "V2-VND",
-    "V2-DOC",
-    "V2-HLP",
-    "V2-COM",
-    "V2-AMN",
-    "V2-PRC",
-    "V2-PRK",
-    "V2-UTL",
-    "V2-ANL"
-  ],
+  "requiredPersonas": ["ACCOUNTANT_TREASURER","COMMITTEE","FACILITY","SECURITY_SUPERVISOR","AUDITOR"],
+  "requiredDomains": ["V2-FIN","V2-OCC","V2-GOV","V2-EMR","V2-PRV","V2-PAY","V2-RBAC","V2-FAC","V2-VND","V2-DOC","V2-HLP","V2-COM","V2-AMN","V2-PRC","V2-PRK","V2-UTL","V2-ANL"],
   "gates": [
-    {
-      "id": "V24-ROLE-UAT",
-      "title": "Role-by-role UAT",
-      "kind": "MANUAL_REQUIRED",
-      "status": "PENDING",
-      "requiredPersonas": ["ACCOUNTANT_TREASURER", "COMMITTEE", "FACILITY", "SECURITY_SUPERVISOR", "AUDITOR"],
-      "evidence": [
-        ".github/workflows/v2-role-uat-contract.yml",
-        "scripts/check-v2-role-uat-plan.mjs",
-        "docs/v2-role-uat-plan.json"
-      ]
-    },
-    {
-      "id": "V24-POLICY-PILOT",
-      "title": "Real-society policy and bye-law configuration pilot",
-      "kind": "PILOT_REQUIRED",
-      "status": "PENDING",
-      "requiredDomains": ["V2-OCC", "V2-GOV", "V2-AMN", "V2-COM"],
-      "evidence": []
-    },
-    {
-      "id": "V24-MIGRATIONS",
-      "title": "Clean and upgrade-path migration validation",
-      "kind": "AUTOMATED",
-      "status": "AUTOMATED_EVIDENCE_AVAILABLE",
-      "requiredDomains": ["V2-FIN", "V2-UTL", "V2-ANL"],
-      "evidence": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/backup-restore-smoke.yml"
-      ]
-    },
-    {
-      "id": "V24-BACKUP-RESTORE",
-      "title": "Backup, restore and rollback evidence",
-      "kind": "AUTOMATED",
-      "status": "AUTOMATED_EVIDENCE_AVAILABLE",
-      "evidence": [
-        ".github/workflows/backup-restore-smoke.yml",
-        "docs/BACKUP-RESTORE-EVIDENCE.md"
-      ]
-    },
-    {
-      "id": "V24-SECURITY-PRIVACY",
-      "title": "Security and privacy review",
-      "kind": "MANUAL_REQUIRED",
-      "status": "PENDING",
-      "requiredDomains": ["V2-PRV", "V2-RBAC", "V2-PAY", "V2-DOC"],
-      "evidence": [
-        ".github/workflows/v2-security-privacy-review.yml",
-        "scripts/check-v2-security-privacy-controls.mjs",
-        "docs/V2-SECURITY-PRIVACY-AUTOMATED-EVIDENCE.md"
-      ]
-    },
-    {
-      "id": "V24-PILOT-ACCEPTANCE",
-      "title": "Accountant and committee pilot acceptance",
-      "kind": "PILOT_REQUIRED",
-      "status": "PENDING",
-      "requiredPersonas": ["ACCOUNTANT_TREASURER", "COMMITTEE"],
-      "requiredDomains": ["V2-FIN", "V2-ANL"],
-      "evidence": []
-    }
+    {"id":"V24-ROLE-UAT","title":"Role-by-role UAT","kind":"MANUAL_REQUIRED","status":"PENDING","requiredPersonas":["ACCOUNTANT_TREASURER","COMMITTEE","FACILITY","SECURITY_SUPERVISOR","AUDITOR"],"evidence":[".github/workflows/v2-role-uat-contract.yml","scripts/check-v2-role-uat-plan.mjs","docs/v2-role-uat-plan.json"]},
+    {"id":"V24-POLICY-PILOT","title":"Real-society policy and bye-law configuration pilot","kind":"PILOT_REQUIRED","status":"PENDING","requiredDomains":["V2-OCC","V2-GOV","V2-AMN","V2-COM"],"evidence":[".github/workflows/v2-policy-pilot-contract.yml","scripts/check-v2-policy-pilot-plan.mjs","docs/v2-policy-pilot-plan.json"]},
+    {"id":"V24-MIGRATIONS","title":"Clean and upgrade-path migration validation","kind":"AUTOMATED","status":"AUTOMATED_EVIDENCE_AVAILABLE","requiredDomains":["V2-FIN","V2-UTL","V2-ANL"],"evidence":[".github/workflows/ci.yml",".github/workflows/backup-restore-smoke.yml"]},
+    {"id":"V24-BACKUP-RESTORE","title":"Backup, restore and rollback evidence","kind":"AUTOMATED","status":"AUTOMATED_EVIDENCE_AVAILABLE","evidence":[".github/workflows/backup-restore-smoke.yml","docs/BACKUP-RESTORE-EVIDENCE.md"]},
+    {"id":"V24-SECURITY-PRIVACY","title":"Security and privacy review","kind":"MANUAL_REQUIRED","status":"PENDING","requiredDomains":["V2-PRV","V2-RBAC","V2-PAY","V2-DOC"],"evidence":[".github/workflows/v2-security-privacy-review.yml","scripts/check-v2-security-privacy-controls.mjs","docs/V2-SECURITY-PRIVACY-AUTOMATED-EVIDENCE.md"]},
+    {"id":"V24-PILOT-ACCEPTANCE","title":"Accountant and committee pilot acceptance","kind":"PILOT_REQUIRED","status":"PENDING","requiredPersonas":["ACCOUNTANT_TREASURER","COMMITTEE"],"requiredDomains":["V2-FIN","V2-ANL"],"evidence":[]}
   ]
 }
