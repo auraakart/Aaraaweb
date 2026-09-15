@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountingController } from './accounting.controller';
+import { AccountingConnectorDeliveryRunner } from './accounting-connector-delivery.runner';
 import { AccountingExportController } from './accounting-export.controller';
 import { AccountingExportRunner } from './accounting-export.runner';
 import { AccountingExportService } from './accounting-export.service';
@@ -27,7 +28,7 @@ import { SettlementService } from './settlement.service';
 @Module({
   imports: [EntitlementsModule],
   controllers: [AccountingController, AccountingExportController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, PaymentExceptionsController, PaymentReconciliationController, PaymentReconciliationObservabilityController],
-  providers: [AccountingService, AccountingExportService, AccountingExportRunner, ConfiguredHttpAccountingConnectorAdapter, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, PrismaService],
+  providers: [AccountingService, AccountingExportService, AccountingExportRunner, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryRunner, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, PrismaService],
   exports: [AccountingService, AccountingExportService, ConfiguredHttpAccountingConnectorAdapter, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService],
 })
 export class AccountingModule {}
