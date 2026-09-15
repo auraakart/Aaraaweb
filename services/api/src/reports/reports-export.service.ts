@@ -63,6 +63,30 @@ export class ReportsExportService {
     };
   }
 
+  async auditCsv(societyId: string, actorUserId: string, from?: string, to?: string) {
+    const range = this.dateRange(from, to);
+    const rows = await this.prisma.auditEvent.findMany({
+      where: { societyId, occurredAt: range },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: MAX_EXPORT_ROWS + 1,
+      select: { event: true, occurredAt: true, actorUserId: true, gateId: true, accessRequestId: true, visitorPassId: true },
+    });
+    if (rows.length > MAX_EXPORT_ROWS) {
+      throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
+    }
+    const header = ['event', 'occurredAt', 'actorUserId', 'gateId', 'accessRequestId', 'visitorPassId'];
+    const lines = rows.map((row) => [
+      row.event, row.occurredAt.toISOString(), row.actorUserId ?? '', row.gateId ?? '',
+      row.accessRequestId ?? '', row.visitorPassId ?? '',
+    ].map((value) => this.csvCell(value)).join(','));
+    await this.prisma.auditEvent.create({ data: { societyId, actorUserId, event: 'REPORT_EXPORTED' as AuditEventType } });
+    return {
+      fileName: `audit-report-${range.gte.toISOString().slice(0, 10)}-to-${range.lte.toISOString().slice(0, 10)}.csv`,
+      rowCount: rows.length,
+      csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
+    };
+  }
+
   private csvCell(value: string | number) {
     let text = String(value);
     // Spreadsheet importers may ignore whitespace or recognize full-width operators.

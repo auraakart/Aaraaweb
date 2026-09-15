@@ -94,6 +94,24 @@ export class ReportsController {
     response.send(result.csv);
   }
 
+  @Get('audit/export.csv')
+  @RequiresPermissions(AppPermission.AUDIT_READ)
+  async auditExport(
+    @CurrentTenant() societyId: string,
+    @Req() request: AuthenticatedRequest,
+    @Res() response: CsvResponse,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const actorUserId = request.auth?.userId;
+    if (!actorUserId) throw new ForbiddenException('Authenticated user is required');
+    const result = await this.exports.auditCsv(societyId, actorUserId, from, to);
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    response.setHeader('X-Aaraagate-Export-Rows', String(result.rowCount));
+    response.send(result.csv);
+  }
+
   @Get('audit')
   @RequiresPermissions(AppPermission.AUDIT_READ)
   audit(
