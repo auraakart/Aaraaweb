@@ -51,6 +51,8 @@ Never validate restore by overwriting the production database.
 Normal production path:
 `develop` -> green CI -> `staging` -> staging smoke/UAT/security approval -> `main` -> production.
 
+The `develop` -> `staging` gate validates the immutable source candidate SHA and retains its non-sensitive readiness evidence. Diverged staging history must be reconciled back into `develop` through a reviewed PR before promotion; do not overwrite or force-update protected branch history.
+
 Before production deployment confirm:
 - release commit is on `main`;
 - CI and staging smoke are green for the promoted state;

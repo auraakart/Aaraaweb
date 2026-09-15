@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/service_booking_lifecycle.dart';
+import 'parcels_screen.dart';
 
 class UpdatesScreen extends StatelessWidget {
   const UpdatesScreen({super.key, required this.controller});
@@ -22,6 +23,21 @@ class UpdatesScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               children: [
                 Text('Your society and home activity in one place.', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
+                    title: const Text('Parcels', style: TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: const Text('View gate parcels, create a pickup code, or confirm collection'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ParcelsScreen(
+                        repository: controller.repository,
+                        demoMode: controller.repository.api.baseUrl.contains('demo.invalid'),
+                      ),
+                    )),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 if (_hasErrors())
                   const AppStateCard(

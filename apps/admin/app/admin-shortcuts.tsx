@@ -9,8 +9,11 @@ const governanceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER']
 const societySetupRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const occupancyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
 const facilitiesRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
+const utilitiesRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
 const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+const parcelRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+const noticeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 
 type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
@@ -55,7 +58,10 @@ export function AdminShortcuts(){
     links.push({href:'/facilities/contracts',label:'AMC & evidence'})
     links.push({href:'/facilities/alerts',label:'Facilities alerts'})
   }
+  if(utilitiesRoles.has(role))links.push({href:'/utilities',label:'Meter & utilities'})
+  if(parcelRoles.has(role))links.push({href:'/parcels',label:'Parcel desk'})
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
+  if(noticeRoles.has(role)&&features.has('NOTICES'))links.push({href:'/notices/metrics',label:'Notice metrics'})
   if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))links.push({href:'/marketplace-control',label:'Marketplace controls'})
   if(role==='SOCIETY_ADMIN')links.push({href:'/household-approvals',label:'Household approvals'})
   if(societySetupRoles.has(role)){

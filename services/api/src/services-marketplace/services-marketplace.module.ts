@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
-import { createMediaSafetyScannerFromEnv } from './clamav-media-safety-scanner.adapter';
+import { FileSafetyModule } from '../storage/file-safety.module';
+import { ObjectStorageModule } from '../storage/object-storage.module';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
@@ -32,8 +33,6 @@ import { ConsumerServiceMemoryController } from './consumer-service-memory.contr
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
 import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
 import { ConsumerServicesController } from './consumer-services.controller';
-import { MEDIA_SAFETY_SCANNER } from './media-safety-scanner.port';
-import { OBJECT_STORAGE, ObjectStoragePort } from './object-storage.port';
 import { ProviderCommercialPlatformController } from './provider-commercial-platform.controller';
 import { ProviderCommercialSelfServiceController } from './provider-commercial-self-service.controller';
 import { ProviderCommercialService } from './provider-commercial.service';
@@ -43,7 +42,6 @@ import { ProviderOfferingContinuityController } from './provider-offering-contin
 import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
 import { ProviderTrustReviewController } from './provider-trust-review.controller';
 import { ProviderTrustReviewService } from './provider-trust-review.service';
-import { createObjectStorageAdapterFromEnv } from './s3-compatible-object-storage.adapter';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
 import { ServiceBookingTransitionService } from './service-booking-transition.service';
@@ -55,7 +53,7 @@ import { ServicesMarketplaceOperationsService } from './services-marketplace-ope
 import { ServicesMarketplaceService } from './services-marketplace.service';
 
 @Module({
-  imports: [AccessModule, EntitlementsModule],
+  imports: [AccessModule, EntitlementsModule, ObjectStorageModule, FileSafetyModule],
   controllers: [
     ServicesMarketplaceController,
     ServicesPlatformController,
@@ -107,12 +105,6 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ProviderMediaService,
     ProviderOfferingContinuityService,
     ProviderTrustReviewService,
-    { provide: OBJECT_STORAGE, useFactory: createObjectStorageAdapterFromEnv },
-    {
-      provide: MEDIA_SAFETY_SCANNER,
-      inject: [OBJECT_STORAGE],
-      useFactory: (storage: ObjectStoragePort) => createMediaSafetyScannerFromEnv(storage),
-    },
   ],
   exports: [ServicesMarketplaceService],
 })

@@ -14,6 +14,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   staging-smoke:
     name: Staging API smoke
@@ -47,13 +50,55 @@ jobs:
       PORT: 3000
       NODE_ENV: production
       APP_VERSION: staging-smoke
-      GIT_SHA: ${{ github.sha }}
+      GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       OTP_DELIVERY_PROVIDER: msg91
       MSG91_AUTH_KEY: staging-smoke-placeholder
       MSG91_OTP_TEMPLATE_ID: staging-smoke-placeholder
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Record exact candidate evidence
+        env:
+          SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+          TARGET_REF: ${{ github.base_ref || github.ref_name }}
+          TARGET_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: |
+          mkdir -p staging-evidence
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"
+          {
+            echo "# Aaraagate staging evidence"
+            echo
+            echo "- Candidate SHA: ${CANDIDATE_SHA}"
+            echo "- Checked-out SHA: ${CHECKED_OUT_SHA}"
+            echo "- Source ref: ${SOURCE_REF}"
+            echo "- Target ref: ${TARGET_REF}"
+            echo "- Target SHA at workflow start: ${TARGET_SHA}"
+            echo "- Workflow run: ${GITHUB_RUN_ID}"
+            echo "- Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > staging-evidence/staging-evidence.md
+
+      - name: Enforce develop to staging promotion path
+        if: github.event_name == 'pull_request'
+        env:
+          SOURCE_REF: ${{ github.head_ref }}
+          TARGET_REF: ${{ github.base_ref }}
+          TARGET_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$SOURCE_REF" != "develop" ] || [ "$TARGET_REF" != "staging" ]; then
+            echo "Staging promotions must come from develop."
+            exit 1
+          fi
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          if ! git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"; then
+            echo "Staging history is not an ancestor of the candidate. Reconcile staging into develop first."
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -118,6 +163,7 @@ jobs:
             process.exit(1);
           }
           NODE
+          cp /tmp/readiness.json staging-evidence/readiness.json
 
       - name: Verify liveness endpoint and release metadata
         run: |
@@ -147,3 +193,12 @@ jobs:
       - name: Print API logs on failure
         if: failure()
         run: cat /tmp/aaraagate-api.log || true
+
+      - name: Upload exact-SHA staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-evidence-${{ github.run_id }}
+          path: staging-evidence/
+          if-no-files-found: error
+          retention-days: 30

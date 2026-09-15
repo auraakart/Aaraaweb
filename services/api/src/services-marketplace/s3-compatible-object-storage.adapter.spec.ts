@@ -3,20 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UnconfiguredObjectStorageAdapter } from './object-storage.port';
 import {
   createObjectStorageAdapterFromEnv,
+  createPrivateObjectStorageAdapterFromEnv,
   S3CompatibleObjectStorageAdapter,
 } from './s3-compatible-object-storage.adapter';
 
 const envKeys = [
-  'OBJECT_STORAGE_DRIVER',
-  'OBJECT_STORAGE_S3_ENDPOINT',
-  'OBJECT_STORAGE_S3_BUCKET',
-  'OBJECT_STORAGE_S3_REGION',
-  'OBJECT_STORAGE_S3_ACCESS_KEY_ID',
-  'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY',
-  'OBJECT_STORAGE_PUBLIC_BASE_URL',
-  'OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS',
+  'OBJECT_STORAGE_DRIVER','OBJECT_STORAGE_S3_ENDPOINT','OBJECT_STORAGE_S3_BUCKET','OBJECT_STORAGE_S3_REGION',
+  'OBJECT_STORAGE_S3_ACCESS_KEY_ID','OBJECT_STORAGE_S3_SECRET_ACCESS_KEY','OBJECT_STORAGE_PUBLIC_BASE_URL','OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS',
+  'PRIVATE_OBJECT_STORAGE_DRIVER','PRIVATE_OBJECT_STORAGE_S3_ENDPOINT','PRIVATE_OBJECT_STORAGE_S3_BUCKET','PRIVATE_OBJECT_STORAGE_S3_REGION',
+  'PRIVATE_OBJECT_STORAGE_S3_ACCESS_KEY_ID','PRIVATE_OBJECT_STORAGE_S3_SECRET_ACCESS_KEY','PRIVATE_OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS',
 ] as const;
-
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
 function configure() {
@@ -29,6 +25,15 @@ function configure() {
   process.env.OBJECT_STORAGE_PUBLIC_BASE_URL = 'https://cdn.example.test';
   process.env.OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS = '300';
 }
+function configurePrivate() {
+  process.env.PRIVATE_OBJECT_STORAGE_DRIVER = 's3';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_ENDPOINT = 'https://private-objects.example.test';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_BUCKET = 'aaraagate-private';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_REGION = 'auto';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_ACCESS_KEY_ID = 'private-access';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_SECRET_ACCESS_KEY = 'private-secret';
+  process.env.PRIVATE_OBJECT_STORAGE_S3_PRESIGN_TTL_SECONDS = '180';
+}
 
 describe('S3CompatibleObjectStorageAdapter', () => {
   beforeEach(() => {
@@ -36,19 +41,17 @@ describe('S3CompatibleObjectStorageAdapter', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-11T07:15:30.000Z'));
   });
-
   afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
+    vi.useRealTimers(); vi.unstubAllGlobals();
     for (const key of envKeys) {
       const value = originalEnv[key];
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
   });
 
   it('keeps storage disabled unless a driver is explicitly configured', () => {
     expect(createObjectStorageAdapterFromEnv()).toBeInstanceOf(UnconfiguredObjectStorageAdapter);
+    expect(createPrivateObjectStorageAdapterFromEnv()).toBeInstanceOf(UnconfiguredObjectStorageAdapter);
   });
 
   it('fails fast when the S3 driver configuration is incomplete', () => {
@@ -60,14 +63,8 @@ describe('S3CompatibleObjectStorageAdapter', () => {
     configure();
     const adapter = createObjectStorageAdapterFromEnv();
     expect(adapter).toBeInstanceOf(S3CompatibleObjectStorageAdapter);
-
-    const intent = await adapter.createUploadIntent({
-      storageKey: 'providers/provider-1/media/photo one.webp',
-      contentType: 'image/webp',
-      contentLengthBytes: 1234,
-    });
+    const intent = await adapter.createUploadIntent({ storageKey: 'providers/provider-1/media/photo one.webp', contentType: 'image/webp', contentLengthBytes: 1234 });
     const url = new URL(intent.uploadUrl);
-
     expect(url.origin).toBe('https://objects.example.test');
     expect(url.pathname).toBe('/aaraagate-media/providers/provider-1/media/photo%20one.webp');
     expect(url.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
@@ -80,21 +77,26 @@ describe('S3CompatibleObjectStorageAdapter', () => {
     expect(intent.expiresAt).toBe('2026-09-11T07:20:30.000Z');
   });
 
+  it('keeps private uploads non-public and issues short-lived signed downloads', async () => {
+    configurePrivate();
+    const adapter = createPrivateObjectStorageAdapterFromEnv();
+    const upload = await adapter.createUploadIntent({ storageKey: 'societies/s1/documents/policy.pdf', contentType: 'application/pdf', contentLengthBytes: 1234 });
+    const download = await adapter.createDownloadIntent('societies/s1/documents/policy.pdf');
+    expect(upload.publicUrl).toBeNull();
+    expect(new URL(upload.uploadUrl).origin).toBe('https://private-objects.example.test');
+    expect(new URL(upload.uploadUrl).pathname).toBe('/aaraagate-private/societies/s1/documents/policy.pdf');
+    expect(new URL(upload.uploadUrl).searchParams.get('X-Amz-Expires')).toBe('180');
+    expect(download.method).toBe('GET');
+    expect(new URL(download.downloadUrl).searchParams.get('X-Amz-Expires')).toBe('180');
+    expect(download.downloadUrl).not.toContain('private-secret');
+  });
+
   it('reads object metadata through a signed HEAD request', async () => {
     configure();
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(null, {
-        status: 200,
-        headers: { 'content-type': 'image/png', 'content-length': '4321' },
-      }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200, headers: { 'content-type': 'image/png', 'content-length': '4321' } }));
     vi.stubGlobal('fetch', fetchMock);
     const adapter = createObjectStorageAdapterFromEnv();
-
-    await expect(adapter.headObject('providers/p1/media/logo.png')).resolves.toEqual({
-      contentType: 'image/png',
-      contentLengthBytes: 4321,
-    });
+    await expect(adapter.headObject('providers/p1/media/logo.png')).resolves.toEqual({ contentType: 'image/png', contentLengthBytes: 4321 });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('HEAD');
     expect(new URL(url).searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
@@ -102,44 +104,23 @@ describe('S3CompatibleObjectStorageAdapter', () => {
 
   it('reads object bytes through signed GET and enforces the scan size cap', async () => {
     configure();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(new Uint8Array([1, 2, 3]), {
-          status: 200,
-          headers: { 'content-length': '3' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(new Uint8Array([1, 2, 3]), {
-          status: 200,
-          headers: { 'content-length': '999' },
-        }),
-      );
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(new Uint8Array([1,2,3]), { status: 200, headers: { 'content-length':'3' } }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1,2,3]), { status: 200, headers: { 'content-length':'999' } }));
     vi.stubGlobal('fetch', fetchMock);
     const adapter = createObjectStorageAdapterFromEnv();
-
-    await expect(adapter.getObjectBytes('providers/p1/media/logo.png', 10)).resolves.toEqual(
-      new Uint8Array([1, 2, 3]),
-    );
+    await expect(adapter.getObjectBytes('providers/p1/media/logo.png', 10)).resolves.toEqual(new Uint8Array([1,2,3]));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('GET');
     expect(new URL(url).searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
-
-    await expect(adapter.getObjectBytes('providers/p1/media/large.png', 10)).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(adapter.getObjectBytes('providers/p1/media/large.png', 10)).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('treats missing objects as absent and fails closed on storage errors', async () => {
     configure();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status:404 })).mockResolvedValueOnce(new Response(null, { status:503 }));
     vi.stubGlobal('fetch', fetchMock);
     const adapter = createObjectStorageAdapterFromEnv();
-
     await expect(adapter.headObject('missing.webp')).resolves.toBeNull();
     await expect(adapter.deleteObject('broken.webp')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });

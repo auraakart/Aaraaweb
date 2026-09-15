@@ -64,12 +64,15 @@ jobs:
           test -f docs/PRODUCTION-READINESS.md
           test -f docs/DEPLOYMENT-ROLLBACK-GATES.md
           test -f docs/UAT-PILOT-CHECKLIST.md
+          test -f docs/STAGING-RELEASE-EVIDENCE.md
           test -f scripts/production-preflight.sh
           test -f scripts/release-migration-gate.sh
+          test -f scripts/check-staging-release-contract.sh
           test -f services/api/src/health/health.controller.ts
           grep -q "process.env.GIT_SHA" services/api/src/health/health.controller.ts
           grep -q "rollback" docs/PRODUCTION-READINESS.md
           grep -q "expand.*migrate.*contract" docs/DEPLOYMENT-ROLLBACK-GATES.md
+          bash scripts/check-staging-release-contract.sh
 
       - name: Validate production preflight control
         env:
