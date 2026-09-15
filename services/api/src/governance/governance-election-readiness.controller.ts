@@ -26,6 +26,9 @@ type ReadinessRow={
   reviewSequence:number|null;
   decisionOutcome:'APPROVED'|'REJECTED'|'CANCELLED'|null;
   decisionSequence:number|null;
+  holdAction:'OPEN_HOLD'|'RESOLVE_HOLD'|'CANCEL_HOLD'|null;
+  holdSequence:number|null;
+  holdCategory:string|null;
 };
 
 @Controller('governance/elections/readiness')
@@ -46,7 +49,8 @@ export class GovernanceElectionReadinessController{
         procedure."id" AS "procedureRevisionId",procedure."version" AS "procedureVersion",
         privacy."id" AS "privacyArchitectureRevisionId",privacy."version" AS "privacyArchitectureVersion",
         review."outcome" AS "reviewOutcome",review."sequence" AS "reviewSequence",
-        decision."outcome" AS "decisionOutcome",decision."sequence" AS "decisionSequence"
+        decision."outcome" AS "decisionOutcome",decision."sequence" AS "decisionSequence",
+        hold."action" AS "holdAction",hold."sequence" AS "holdSequence",hold."category" AS "holdCategory"
       FROM "GovernanceElectionBallotDraft" d
       JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
       JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
@@ -70,6 +74,11 @@ export class GovernanceElectionReadinessController{
         WHERE x."societyId"=d."societyId" AND x."ballotDraftId"=d."id"
         ORDER BY x."sequence" DESC LIMIT 1
       ) decision ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT h."action",h."sequence",h."category" FROM "GovernanceElectionHoldEvent" h
+        WHERE h."societyId"=d."societyId" AND h."ballotDraftId"=d."id"
+        ORDER BY h."sequence" DESC LIMIT 1
+      ) hold ON TRUE
       WHERE d."id"=${ballotDraftId}::uuid AND d."societyId"=${societyId}::uuid LIMIT 1
     `);
     if(!rows.length)throw new BadRequestException('Ballot draft not found');
@@ -82,6 +91,7 @@ export class GovernanceElectionReadinessController{
       privacyArchitectureConfigured:!!row.privacyArchitectureRevisionId,
       ballotApproved:row.decisionOutcome==='APPROVED',
       ballotNotCancelled:row.decisionOutcome!=='CANCELLED',
+      noActiveHold:row.holdAction!=='OPEN_HOLD',
     };
     const blockers:string[]=[];
     if(!checks.currentEnabledPolicy)blockers.push('CURRENT_ENABLED_POLICY_REQUIRED');
@@ -90,6 +100,7 @@ export class GovernanceElectionReadinessController{
     if(!checks.procedureConfigured)blockers.push('PROCEDURE_POLICY_REQUIRED');
     if(!checks.privacyArchitectureConfigured)blockers.push('PRIVACY_ARCHITECTURE_REQUIRED');
     if(!checks.ballotApproved)blockers.push(row.decisionOutcome==='CANCELLED'?'BALLOT_CANCELLED':'BALLOT_APPROVAL_REQUIRED');
+    if(!checks.noActiveHold)blockers.push('ACTIVE_ELECTION_HOLD');
     const configurationReady=blockers.length===0;
     return {
       ballotDraftId:row.ballotDraftId,
@@ -104,6 +115,9 @@ export class GovernanceElectionReadinessController{
       reviewSequence:row.reviewSequence,
       decisionOutcome:row.decisionOutcome,
       decisionSequence:row.decisionSequence,
+      holdAction:row.holdAction,
+      holdSequence:row.holdSequence,
+      holdCategory:row.holdCategory,
       checks,
       blockers,
       configurationReady,
