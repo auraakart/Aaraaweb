@@ -4,6 +4,24 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ReportsExportService } from './reports-export.service';
 
 describe('ReportsExportService', () => {
+  it.each(['\t=2+2', '\r=2+2', '\n=2+2', '  =2+2', '＝2+2', '＋2', '－2', '＠SUM(A1)'])('neutralizes unsafe spreadsheet prefix %j', async (invoiceNumber) => {
+    const prisma = {
+      maintenanceInvoice: { findMany: vi.fn().mockResolvedValue([{
+        invoiceNumber, billingPeriod: '2026-09', amountPaise: 100,
+        dueDate: new Date('2026-09-30Z'), status: 'ISSUED',
+        issuedAt: new Date('2026-09-15Z'), paidAt: null,
+        unit: { number: '101', building: { name: 'Tower "A", east' } },
+      }]) },
+      auditEvent: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const result = await new ReportsExportService(prisma as unknown as PrismaService)
+      .maintenanceCsv('society', 'actor');
+    const escaped = `'${invoiceNumber}`;
+    const expectedCell = /[",\r\n]/.test(escaped) ? `"${escaped}"` : escaped;
+    expect(result.csv).toContain(`\n${expectedCell},2026-09,`);
+    expect(result.csv).toContain('"Tower ""A"", east",101,100,');
+  });
+
   it('scopes finance exports to the authenticated society, neutralizes spreadsheet formulas, and audits the export', async () => {
     const findMany = vi.fn().mockResolvedValue([
       {
