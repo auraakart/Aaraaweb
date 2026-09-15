@@ -7,6 +7,9 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
@@ -29,7 +32,7 @@ class CreateGovernancePollDto{
 }
 
 @Controller('governance')
-@UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
+@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)
 export class GovernanceArtifactsController{
   constructor(private readonly prisma:PrismaService){}
 
@@ -57,13 +60,19 @@ export class GovernanceArtifactsController{
     await this.evidence(societyId,rows[0].meetingId,actor,'DOCUMENT_REFERENCE_VERIFIED',`Governance document verified: ${rows[0].kind}`);return rows[0];
   }
 
-  @Get('polls') @RequiresPermissions(AppPermission.GOVERNANCE_READ)
+  @Get('polls')
+  @RequiresFeature(ProductFeature.GOVERNANCE_POLLS)
+  @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   listPolls(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT p.*,COALESCE(json_agg(json_build_object('id',o."id",'ordinal',o."ordinal",'label',o."label") ORDER BY o."ordinal") FILTER (WHERE o."id" IS NOT NULL),'[]'::json) AS options FROM "GovernancePoll" p LEFT JOIN "GovernancePollOption" o ON o."pollId"=p."id" WHERE p."societyId"=${societyId}::uuid GROUP BY p."id" ORDER BY p."createdAt" DESC`);}
 
-  @Get('polls/:id') @RequiresPermissions(AppPermission.GOVERNANCE_READ)
+  @Get('polls/:id')
+  @RequiresFeature(ProductFeature.GOVERNANCE_POLLS)
+  @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async getPoll(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT p.*,COALESCE(json_agg(json_build_object('id',o."id",'ordinal',o."ordinal",'label',o."label") ORDER BY o."ordinal") FILTER (WHERE o."id" IS NOT NULL),'[]'::json) AS options FROM "GovernancePoll" p LEFT JOIN "GovernancePollOption" o ON o."pollId"=p."id" WHERE p."societyId"=${societyId}::uuid AND p."id"=${id}::uuid GROUP BY p."id" LIMIT 1`);if(!rows.length)throw new NotFoundException('Governance poll not found');return rows[0];}
 
-  @Post('polls') @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
+  @Post('polls')
+  @RequiresFeature(ProductFeature.GOVERNANCE_POLLS)
+  @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async createPoll(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateGovernancePollDto){
     const actor=this.user(userId),title=dto.title.trim(),options=dto.options.map(v=>v.trim()).filter(Boolean);if(options.length<2)throw new BadRequestException('At least two non-empty options are required');if(new Set(options.map(v=>v.toLocaleLowerCase())).size!==options.length)throw new BadRequestException('Poll options must be unique');
     const opensAt=dto.opensAt?new Date(dto.opensAt):undefined,closesAt=dto.closesAt?new Date(dto.closesAt):undefined;if(opensAt&&closesAt&&closesAt<opensAt)throw new BadRequestException('Poll close time cannot precede open time');if(dto.meetingId)await this.assertMeeting(societyId,dto.meetingId);
