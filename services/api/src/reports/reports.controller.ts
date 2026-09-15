@@ -39,6 +39,19 @@ export class ReportsController {
     return this.reports.summary(societyId, from, to, includeFinancialAmounts);
   }
 
+  @Get('summary/comparison')
+  @RequiresPermissions(AppPermission.REPORTS_READ)
+  summaryComparison(
+    @CurrentTenant() societyId: string,
+    @Req() request: AuthenticatedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const roles = request.auth?.roles as AppRole[] | undefined;
+    const includeFinancialAmounts = !!roles && hasPermission(roles, AppPermission.FINANCE_READ);
+    return this.reports.summaryComparison(societyId, from, to, includeFinancialAmounts);
+  }
+
   @Get('access')
   @RequiresPermissions(AppPermission.REPORTS_READ)
   access(
