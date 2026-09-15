@@ -12,6 +12,7 @@ For one ballot draft, Aaraagate checks the currently stored evidence for:
 - the ballot's immutable electorate snapshot being bound to that current policy;
 - the latest electorate review outcome being `REVIEWED`;
 - a procedure-policy revision for the same election-policy revision;
+- a privacy-architecture revision for the same election-policy revision;
 - the latest ballot decision being `APPROVED`; and
 - no later cancellation decision.
 
@@ -34,10 +35,11 @@ No user-facing election execution endpoint is introduced by this slice.
 - `CURRENT_POLICY_SNAPSHOT_REQUIRED`
 - `ELECTORATE_REVIEW_REQUIRED`
 - `PROCEDURE_POLICY_REQUIRED`
+- `PRIVACY_ARCHITECTURE_REQUIRED`
 - `BALLOT_APPROVAL_REQUIRED`
 - `BALLOT_CANCELLED`
 
-The assessment is derived from immutable/append-only policy, snapshot, review, procedure and ballot-decision evidence already introduced in earlier V2.3 slices.
+The assessment is derived from immutable/append-only policy, snapshot, review, procedure, privacy-architecture and ballot-decision evidence introduced in the V2.3 safety slices.
 
 ## Still intentionally excluded
 
@@ -47,7 +49,8 @@ This slice does not implement or validate the substantive legal correctness of:
 - proxy appointment or validation;
 - vote weighting or one-vote-per-unit/member rules;
 - quorum or turnout calculation;
-- secret-ballot implementation;
+- operational secret-ballot enforcement or cryptographic guarantees;
+- voter credential issuance or revocation;
 - ballot opening/closing;
 - vote storage or casting;
 - tallying;
