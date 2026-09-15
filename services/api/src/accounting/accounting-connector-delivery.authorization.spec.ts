@@ -9,9 +9,10 @@ describe('AccountingConnectorDeliveryController authorization',()=>{
   it('requires accounting entitlement',()=>{
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY,AccountingConnectorDeliveryController)).toBe(ProductFeature.SOCIETY_ACCOUNTING);
   });
-  it('keeps delivery visibility and health read-only',()=>{
-    expect(Reflect.getMetadata(PERMISSIONS_KEY,AccountingConnectorDeliveryController.prototype.list)).toEqual([AppPermission.FINANCE_READ]);
-    expect(Reflect.getMetadata(PERMISSIONS_KEY,AccountingConnectorDeliveryController.prototype.metrics)).toEqual([AppPermission.FINANCE_READ]);
+  it('keeps delivery visibility, health, readiness and action history read-only',()=>{
+    for(const method of ['list','metrics','actions','readiness'] as const){
+      expect(Reflect.getMetadata(PERMISSIONS_KEY,AccountingConnectorDeliveryController.prototype[method])).toEqual([AppPermission.FINANCE_READ]);
+    }
   });
   it('requires finance-manage permission for manual retries',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,AccountingConnectorDeliveryController.prototype.retry)).toEqual([AppPermission.FINANCE_MANAGE]);
