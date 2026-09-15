@@ -26,7 +26,7 @@ export class ReportsController {
     @Query('to') to?: string,
   ) {
     const roles = request.auth?.roles as AppRole[] | undefined;
-    const includeFinancialAmounts = !!roles && hasPermission(roles, AppPermission.BILLING_MANAGE);
+    const includeFinancialAmounts = !!roles && hasPermission(roles, AppPermission.FINANCE_READ);
     return this.reports.summary(societyId, from, to, includeFinancialAmounts);
   }
 
@@ -56,7 +56,7 @@ export class ReportsController {
   }
 
   @Get('maintenance')
-  @RequiresPermissions(AppPermission.REPORTS_READ, AppPermission.BILLING_MANAGE)
+  @RequiresPermissions(AppPermission.REPORTS_READ, AppPermission.FINANCE_READ)
   maintenance(
     @CurrentTenant() societyId: string,
     @Query('from') from?: string,
