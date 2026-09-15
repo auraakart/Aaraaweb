@@ -73,7 +73,11 @@
       "kind": "MANUAL_REQUIRED",
       "status": "PENDING",
       "requiredDomains": ["V2-PRV", "V2-RBAC", "V2-PAY", "V2-DOC"],
-      "evidence": []
+      "evidence": [
+        ".github/workflows/v2-security-privacy-review.yml",
+        "scripts/check-v2-security-privacy-controls.mjs",
+        "docs/V2-SECURITY-PRIVACY-AUTOMATED-EVIDENCE.md"
+      ]
     },
     {
       "id": "V24-PILOT-ACCEPTANCE",
