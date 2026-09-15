@@ -1,0 +1,29 @@
+name: V2 Policy Pilot Contract
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-policy-pilot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-plan:
+    name: Validate policy pilot plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate V2 policy pilot execution plan
+        run: node scripts/check-v2-policy-pilot-plan.mjs
