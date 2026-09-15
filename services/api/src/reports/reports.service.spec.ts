@@ -28,6 +28,22 @@ function prismaMock() {
 }
 
 describe('ReportsService', () => {
+  it('compares adjacent equal-duration periods while preserving the finance redaction boundary', async () => {
+    const prisma = prismaMock();
+    prisma.maintenanceInvoice.aggregate.mockResolvedValue({ _count: { _all: 2 }, _sum: { amountPaise: 10000 } });
+    const service = new ReportsService(prisma as unknown as PrismaService);
+    const result = await service.summaryComparison(
+      'society-1', '2026-09-10T00:00:00.000Z', '2026-09-12T00:00:00.000Z', false,
+    );
+
+    expect(result.current.range).toEqual({ from: '2026-09-10T00:00:00.000Z', to: '2026-09-12T00:00:00.000Z' });
+    expect(result.previous.range).toEqual({ from: '2026-09-07T23:59:59.999Z', to: '2026-09-09T23:59:59.999Z' });
+    expect(result.current.maintenance.billedPaise).toBeNull();
+    expect(result.previous.maintenance.collectedPaise).toBeNull();
+    for (const [query] of prisma.accessRequest.count.mock.calls) expect(query.where.societyId).toBe('society-1');
+    for (const [query] of prisma.maintenanceInvoice.aggregate.mock.calls) expect(query.where.societyId).toBe('society-1');
+  });
+
   it.each([Number.MAX_SAFE_INTEGER + 1, Number.MAX_SAFE_INTEGER, 1e100])('rejects overflowing pagination %s before database access', async (page) => {
     const prisma = prismaMock();
     const service = new ReportsService(prisma as unknown as PrismaService);

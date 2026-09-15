@@ -14,6 +14,28 @@ export class ReportsService {
 
   async summary(societyId: string, from?: string, to?: string, includeFinancialAmounts = false) {
     const range = this.dateRange(from, to);
+    return this.summaryForRange(societyId, range, includeFinancialAmounts);
+  }
+
+  async summaryComparison(societyId: string, from?: string, to?: string, includeFinancialAmounts = false) {
+    const currentRange = this.dateRange(from, to);
+    const durationMs = currentRange.lte.getTime() - currentRange.gte.getTime();
+    const previousRange = {
+      gte: new Date(currentRange.gte.getTime() - durationMs - 1),
+      lte: new Date(currentRange.gte.getTime() - 1),
+    };
+    const [current, previous] = await Promise.all([
+      this.summaryForRange(societyId, currentRange, includeFinancialAmounts),
+      this.summaryForRange(societyId, previousRange, includeFinancialAmounts),
+    ]);
+    return { current, previous };
+  }
+
+  private async summaryForRange(
+    societyId: string,
+    range: { gte: Date; lte: Date },
+    includeFinancialAmounts: boolean,
+  ) {
     const [
       visitorRequests,
       visitorEntries,
