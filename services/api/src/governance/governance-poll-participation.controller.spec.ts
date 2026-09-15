@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { AppPermission } from '../auth/permission.types';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { REQUIRED_FEATURE_KEY } from '../entitlements/feature.decorator';
 import { GovernancePollParticipationController } from './governance-poll-participation.controller';
 
 const permissions=(method:keyof GovernancePollParticipationController)=>Reflect.getMetadata(PERMISSIONS_KEY,GovernancePollParticipationController.prototype[method] as object) as AppPermission[]|undefined;
@@ -14,5 +16,8 @@ describe('GovernancePollParticipationController permission boundaries',()=>{
   });
   it('keeps poll lifecycle management behind governance management',()=>{
     expect(permissions('setStatus')).toEqual([AppPermission.GOVERNANCE_MANAGE]);
+  });
+  it('requires the society GOVERNANCE_POLLS entitlement for every community-poll route',()=>{
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY,GovernancePollParticipationController)).toBe(ProductFeature.GOVERNANCE_POLLS);
   });
 });
