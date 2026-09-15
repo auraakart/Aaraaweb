@@ -5,6 +5,7 @@ import { GovernanceArtifactsController } from './governance-artifacts.controller
 import { GovernanceController } from './governance.controller';
 import { GovernanceElectionBallotDraftController } from './governance-election-ballot-draft.controller';
 import { GovernanceElectionFoundationController } from './governance-election-foundation.controller';
+import { GovernanceElectionPrivacyController } from './governance-election-privacy.controller';
 import { GovernanceElectionProcedureController } from './governance-election-procedure.controller';
 import { GovernanceElectionReadinessController } from './governance-election-readiness.controller';
 import { GovernancePollParticipationController } from './governance-poll-participation.controller';
@@ -12,7 +13,7 @@ import { GovernanceService } from './governance.service';
 
 @Module({
   imports:[EntitlementsModule],
-  controllers:[GovernanceController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController],
+  controllers:[GovernanceController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController],
   providers:[GovernanceService,PrismaService],
   exports:[GovernanceService],
 })
