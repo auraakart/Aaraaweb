@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UtilityReadingKind } from './utilities.service';
 
 type CreateIntegrationInput = { code: string; name: string };
 type CreateMappingInput = { externalMeterId: string; meterId: string };
+type ResolutionInput = { note?: string };
 export type IntegrationReadingInput = {
   idempotencyKey: string;
   externalMeterId: string;
@@ -48,7 +49,13 @@ export class UtilityIntegrationsService {
       SELECT i."id",i."code",i."name",i."status",i."createdAt",i."revokedAt",
         creator."name" AS "createdByName",
         COUNT(DISTINCT map."id") FILTER (WHERE map."active")::int AS "activeMappingCount",
-        COUNT(DISTINCT receipt."id") FILTER (WHERE receipt."status"='QUARANTINED')::int AS "quarantinedCount"
+        COUNT(DISTINCT receipt."id") FILTER (
+          WHERE receipt."status"='QUARANTINED' AND NOT EXISTS (
+            SELECT 1 FROM "UtilityIngestionResolution" resolution
+            WHERE resolution."receiptId"=receipt."id"
+              AND resolution."action" IN ('DISMISSED','REPROCESS_ACCEPTED')
+          )
+        )::int AS "quarantinedCount"
       FROM "UtilityIntegration" i
       JOIN "User" creator ON creator."id"=i."createdByUserId"
       LEFT JOIN "UtilityIntegrationMeterMap" map ON map."integrationId"=i."id" AND map."societyId"=i."societyId"
@@ -67,28 +74,51 @@ export class UtilityIntegrationsService {
     const secret = randomBytes(32).toString('base64url');
     const secretHash = this.hash(secret);
     try {
-      const rows = await this.prisma.$queryRaw<Array<{ id: string; code: string; name: string; status: string; createdAt: Date }>>(Prisma.sql`
-        INSERT INTO "UtilityIntegration" ("societyId","code","name","secretHash","createdByUserId")
-        VALUES (${societyId}::uuid,${code},${name},${secretHash},${actorUserId}::uuid)
-        RETURNING "id","code","name","status","createdAt"
-      `);
-      const integration = rows[0];
-      return { ...integration, integrationKey: `${integration.id}.${secret}` };
+      return await this.prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{ id: string; code: string; name: string; status: string; createdAt: Date }>>(Prisma.sql`
+          INSERT INTO "UtilityIntegration" ("societyId","code","name","secretHash","createdByUserId")
+          VALUES (${societyId}::uuid,${code},${name},${secretHash},${actorUserId}::uuid)
+          RETURNING "id","code","name","status","createdAt"
+        `);
+        const integration = rows[0];
+        await this.recordIntegrationEvent(tx, societyId, integration.id, actorUserId, 'CREATED', { code });
+        return { ...integration, integrationKey: `${integration.id}.${secret}` };
+      });
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new ConflictException('Integration code already exists in this society');
       throw error;
     }
   }
 
+  async rotateKey(societyId: string, actorUserId: string, integrationId: string) {
+    const secret = randomBytes(32).toString('base64url');
+    const secretHash = this.hash(secret);
+    const integration = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; code: string; name: string; status: string }>>(Prisma.sql`
+        UPDATE "UtilityIntegration"
+        SET "secretHash"=${secretHash}
+        WHERE "id"=${integrationId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
+        RETURNING "id","code","name","status"
+      `);
+      if (!rows[0]) throw new NotFoundException('Active utility integration not found');
+      await this.recordIntegrationEvent(tx, societyId, integrationId, actorUserId, 'KEY_ROTATED');
+      return rows[0];
+    });
+    return { ...integration, integrationKey: `${integration.id}.${secret}` };
+  }
+
   async revoke(societyId: string, actorUserId: string, integrationId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: string; revokedAt: Date }>>(Prisma.sql`
-      UPDATE "UtilityIntegration"
-      SET "status"='REVOKED',"revokedByUserId"=${actorUserId}::uuid,"revokedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${integrationId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
-      RETURNING "id","status","revokedAt"
-    `);
-    if (!rows[0]) throw new NotFoundException('Active utility integration not found');
-    return rows[0];
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; status: string; revokedAt: Date }>>(Prisma.sql`
+        UPDATE "UtilityIntegration"
+        SET "status"='REVOKED',"revokedByUserId"=${actorUserId}::uuid,"revokedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${integrationId}::uuid AND "societyId"=${societyId}::uuid AND "status"='ACTIVE'
+        RETURNING "id","status","revokedAt"
+      `);
+      if (!rows[0]) throw new NotFoundException('Active utility integration not found');
+      await this.recordIntegrationEvent(tx, societyId, integrationId, actorUserId, 'REVOKED');
+      return rows[0];
+    });
   }
 
   async createMapping(societyId: string, actorUserId: string, integrationId: string, input: CreateMappingInput) {
@@ -116,10 +146,102 @@ export class UtilityIntegrationsService {
           )
           RETURNING *
         `);
+        await this.recordIntegrationEvent(tx, societyId, integrationId, actorUserId, 'MAPPING_CREATED', {
+          mappingId: rows[0].id,
+          externalMeterId,
+          meterId: input.meterId,
+        });
         return rows[0];
       });
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new ConflictException('External meter ID is already mapped for this integration');
+      throw error;
+    }
+  }
+
+  listMappings(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT map."id",map."integrationId",map."externalMeterId",map."meterId",map."active",
+        map."createdAt",map."retiredAt",map."replacesMappingId",
+        integration."code" AS "integrationCode",meter."code" AS "meterCode",meter."label" AS "meterLabel"
+      FROM "UtilityIntegrationMeterMap" map
+      JOIN "UtilityIntegration" integration
+        ON integration."id"=map."integrationId" AND integration."societyId"=map."societyId"
+      JOIN "UtilityMeter" meter ON meter."id"=map."meterId" AND meter."societyId"=map."societyId"
+      WHERE map."societyId"=${societyId}::uuid
+      ORDER BY map."active" DESC,map."createdAt" DESC
+      LIMIT 500
+    `);
+  }
+
+  async retireMapping(societyId: string, actorUserId: string, integrationId: string, mappingId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; externalMeterId: string; meterId: string; retiredAt: Date }>>(Prisma.sql`
+        UPDATE "UtilityIntegrationMeterMap"
+        SET "active"=false,"retiredByUserId"=${actorUserId}::uuid,"retiredAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${mappingId}::uuid AND "integrationId"=${integrationId}::uuid
+          AND "societyId"=${societyId}::uuid AND "active"=true
+        RETURNING "id","externalMeterId","meterId","retiredAt"
+      `);
+      if (!rows[0]) throw new NotFoundException('Active utility meter mapping not found');
+      await this.recordIntegrationEvent(tx, societyId, integrationId, actorUserId, 'MAPPING_RETIRED', {
+        mappingId,
+        externalMeterId: rows[0].externalMeterId,
+        meterId: rows[0].meterId,
+      });
+      return rows[0];
+    });
+  }
+
+  async replaceMapping(
+    societyId: string,
+    actorUserId: string,
+    integrationId: string,
+    mappingId: string,
+    input: { meterId: string },
+  ) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.$queryRaw<Array<{ id: string; externalMeterId: string; meterId: string }>>(Prisma.sql`
+          SELECT map."id",map."externalMeterId",map."meterId"
+          FROM "UtilityIntegrationMeterMap" map
+          JOIN "UtilityIntegration" integration ON integration."id"=map."integrationId"
+          WHERE map."id"=${mappingId}::uuid AND map."integrationId"=${integrationId}::uuid
+            AND map."societyId"=${societyId}::uuid AND map."active"=true AND integration."status"='ACTIVE'
+          FOR UPDATE OF map
+        `);
+        if (!existing[0]) throw new NotFoundException('Active utility meter mapping not found');
+        const meters = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "UtilityMeter"
+          WHERE "id"=${input.meterId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+          FOR UPDATE
+        `);
+        if (!meters[0]) throw new NotFoundException('Replacement utility meter not found');
+        if (existing[0].meterId === input.meterId) throw new BadRequestException('Replacement meter must be different');
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "UtilityIntegrationMeterMap"
+          SET "active"=false,"retiredByUserId"=${actorUserId}::uuid,"retiredAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${mappingId}::uuid
+        `);
+        const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+          INSERT INTO "UtilityIntegrationMeterMap" (
+            "societyId","integrationId","externalMeterId","meterId","createdByUserId","replacesMappingId"
+          ) VALUES (
+            ${societyId}::uuid,${integrationId}::uuid,${existing[0].externalMeterId},${input.meterId}::uuid,
+            ${actorUserId}::uuid,${mappingId}::uuid
+          ) RETURNING *
+        `);
+        await this.recordIntegrationEvent(tx, societyId, integrationId, actorUserId, 'MAPPING_REPLACED', {
+          retiredMappingId: mappingId,
+          replacementMappingId: rows[0].id,
+          externalMeterId: existing[0].externalMeterId,
+          previousMeterId: existing[0].meterId,
+          meterId: input.meterId,
+        });
+        return rows[0];
+      });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) throw new ConflictException('External meter ID already has an active mapping');
       throw error;
     }
   }
@@ -129,20 +251,101 @@ export class UtilityIntegrationsService {
       SELECT receipt."id",receipt."idempotencyKey",receipt."externalMeterId",receipt."status",
         receipt."readingId",receipt."errorCode",receipt."errorMessage",receipt."receivedAt",
         integration."code" AS "integrationCode",integration."name" AS "integrationName",
-        meter."code" AS "meterCode"
+        meter."code" AS "meterCode",resolution."action" AS "latestResolutionAction",
+        resolution."occurredAt" AS "latestResolutionAt",resolution."replacementReceiptId"
       FROM "UtilityIngestionReceipt" receipt
       JOIN "UtilityIntegration" integration
         ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
       LEFT JOIN "UtilityReading" reading ON reading."id"=receipt."readingId" AND reading."societyId"=receipt."societyId"
       LEFT JOIN "UtilityMeter" meter ON meter."id"=reading."meterId" AND meter."societyId"=receipt."societyId"
+      LEFT JOIN LATERAL (
+        SELECT r."action",r."occurredAt",r."replacementReceiptId"
+        FROM "UtilityIngestionResolution" r
+        WHERE r."receiptId"=receipt."id"
+        ORDER BY r."occurredAt" DESC,r."id" DESC LIMIT 1
+      ) resolution ON true
       WHERE receipt."societyId"=${societyId}::uuid
       ORDER BY receipt."receivedAt" DESC
       LIMIT 500
     `);
   }
 
+  listEvents(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT event."id",event."integrationId",event."action",event."metadata",event."occurredAt",
+        integration."code" AS "integrationCode",actor."name" AS "actorName"
+      FROM "UtilityIntegrationEvent" event
+      JOIN "UtilityIntegration" integration
+        ON integration."id"=event."integrationId" AND integration."societyId"=event."societyId"
+      JOIN "User" actor ON actor."id"=event."actorUserId"
+      WHERE event."societyId"=${societyId}::uuid
+      ORDER BY event."occurredAt" DESC
+      LIMIT 500
+    `);
+  }
+
+  async dismissReceipt(societyId: string, actorUserId: string, receiptId: string, input: ResolutionInput) {
+    const note = this.normalizeResolutionNote(input.note, true);
+    const operationId = randomUUID();
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      INSERT INTO "UtilityIngestionResolution" (
+        "societyId","receiptId","operationId","action","actorUserId","note"
+      )
+      SELECT ${societyId}::uuid,receipt."id",${operationId}::uuid,'DISMISSED',${actorUserId}::uuid,${note}
+      FROM "UtilityIngestionReceipt" receipt
+      WHERE receipt."id"=${receiptId}::uuid AND receipt."societyId"=${societyId}::uuid
+        AND receipt."status"='QUARANTINED'
+      RETURNING *
+    `);
+    if (!rows[0]) throw new NotFoundException('Quarantined utility ingestion receipt not found');
+    return rows[0];
+  }
+
+  async reprocessReceipt(societyId: string, actorUserId: string, receiptId: string, input: ResolutionInput) {
+    const note = this.normalizeResolutionNote(input.note, false);
+    const operationId = randomUUID();
+    const rows = await this.prisma.$queryRaw<Array<IntegrationIdentity & { rawPayload: IntegrationReadingInput }>>(Prisma.sql`
+      SELECT integration."id",integration."societyId",integration."name",integration."secretHash",integration."status",
+        receipt."rawPayload"
+      FROM "UtilityIngestionReceipt" receipt
+      JOIN "UtilityIntegration" integration
+        ON integration."id"=receipt."integrationId" AND integration."societyId"=receipt."societyId"
+      WHERE receipt."id"=${receiptId}::uuid AND receipt."societyId"=${societyId}::uuid
+        AND receipt."status"='QUARANTINED'
+    `);
+    const original = rows[0];
+    if (!original) throw new NotFoundException('Quarantined utility ingestion receipt not found');
+    if (original.status !== 'ACTIVE') throw new BadRequestException('The integration must be active before reprocessing');
+
+    await this.recordResolution(societyId, receiptId, operationId, 'REPROCESS_REQUESTED', actorUserId, null, note);
+    try {
+      const result = await this.process(original, {
+        ...original.rawPayload,
+        idempotencyKey: `reprocess:${operationId}`,
+      });
+      await this.recordResolution(
+        societyId,
+        receiptId,
+        operationId,
+        result.status === 'ACCEPTED' ? 'REPROCESS_ACCEPTED' : 'REPROCESS_QUARANTINED',
+        actorUserId,
+        result.receiptId,
+        note,
+      );
+      return { operationId, originalReceiptId: receiptId, replacementReceipt: result };
+    } catch (error) {
+      const failure = error instanceof Error ? error.message.slice(0, 300) : 'Unexpected reprocessing failure';
+      await this.recordResolution(societyId, receiptId, operationId, 'REPROCESS_FAILED', actorUserId, null, failure);
+      throw error;
+    }
+  }
+
   async ingest(integrationKey: string | undefined, input: IntegrationReadingInput) {
     const identity = await this.authenticate(integrationKey);
+    return this.process(identity, input);
+  }
+
+  private async process(identity: IntegrationIdentity, input: IntegrationReadingInput) {
     const idempotencyKey = input.idempotencyKey?.trim();
     const externalMeterId = input.externalMeterId?.trim();
     if (!idempotencyKey || idempotencyKey.length > 120) throw new BadRequestException('idempotencyKey must be between 1 and 120 characters');
@@ -353,6 +556,46 @@ export class UtilityIntegrationsService {
         ${identity.societyId}::uuid,${identity.id}::uuid,${receiptId}::uuid,${idempotencyKey},${payloadHash},${outcome}
       )
     `);
+  }
+
+  private recordIntegrationEvent(
+    tx: Prisma.TransactionClient,
+    societyId: string,
+    integrationId: string,
+    actorUserId: string,
+    action: 'CREATED' | 'KEY_ROTATED' | 'REVOKED' | 'MAPPING_CREATED' | 'MAPPING_RETIRED' | 'MAPPING_REPLACED',
+    metadata: Record<string, unknown> = {},
+  ) {
+    return tx.$executeRaw(Prisma.sql`
+      INSERT INTO "UtilityIntegrationEvent" ("societyId","integrationId","actorUserId","action","metadata")
+      VALUES (${societyId}::uuid,${integrationId}::uuid,${actorUserId}::uuid,${action},${JSON.stringify(metadata)}::jsonb)
+    `);
+  }
+
+  private recordResolution(
+    societyId: string,
+    receiptId: string,
+    operationId: string,
+    action: 'REPROCESS_REQUESTED' | 'REPROCESS_ACCEPTED' | 'REPROCESS_QUARANTINED' | 'REPROCESS_FAILED',
+    actorUserId: string,
+    replacementReceiptId: string | null,
+    note: string | null,
+  ) {
+    return this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "UtilityIngestionResolution" (
+        "societyId","receiptId","operationId","action","actorUserId","replacementReceiptId","note"
+      ) VALUES (
+        ${societyId}::uuid,${receiptId}::uuid,${operationId}::uuid,${action},${actorUserId}::uuid,
+        ${replacementReceiptId}::uuid,${note}
+      )
+    `);
+  }
+
+  private normalizeResolutionNote(value: string | undefined, required: boolean) {
+    const note = value?.trim() || null;
+    if (required && !note) throw new BadRequestException('A resolution note is required');
+    if (note && note.length > 300) throw new BadRequestException('Resolution note must be at most 300 characters');
+    return note;
   }
 
   private hash(value: string) {
