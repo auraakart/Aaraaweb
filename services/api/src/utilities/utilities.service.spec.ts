@@ -43,6 +43,19 @@ describe('UtilitiesService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects interactive attempts to spoof import or integration evidence', async () => {
+    const prisma = { $transaction: vi.fn() };
+    const service = new UtilitiesService(prisma as unknown as PrismaService);
+
+    await expect(service.createReading(societyId, actorId, {
+      meterId,
+      readingAt: '2026-09-15T00:00:00.000Z',
+      value: 5,
+      source: 'INTEGRATION',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('rejects readings for inactive or missing meters', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn() };
     const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
