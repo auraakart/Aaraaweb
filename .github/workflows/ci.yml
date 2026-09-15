@@ -37,16 +37,23 @@ jobs:
           test -f scripts/check-product-branding.sh
           test -f scripts/check-flutter-release-compatibility.sh
           test -f scripts/check-staging-release-contract.sh
+          test -f scripts/hosted-staging-smoke.sh
+          test -f scripts/check-hosted-staging-contract.sh
+          test -f scripts/validate-hosted-health.mjs
           bash -n scripts/production-preflight.sh
           bash -n scripts/check-product-branding.sh
           bash -n scripts/check-flutter-release-compatibility.sh
           bash -n scripts/check-staging-release-contract.sh
+          bash -n scripts/hosted-staging-smoke.sh
+          bash -n scripts/check-hosted-staging-contract.sh
       - name: Enforce Aaraagate product branding boundary
         run: bash scripts/check-product-branding.sh
       - name: Check Flutter release compatibility patch
         run: bash scripts/check-flutter-release-compatibility.sh
       - name: Check exact-SHA staging release contract
         run: bash scripts/check-staging-release-contract.sh
+      - name: Check hosted staging acceptance contract
+        run: bash scripts/check-hosted-staging-contract.sh
       - name: Exercise production preflight control
         env:
           NODE_ENV: production
