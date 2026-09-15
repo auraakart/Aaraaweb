@@ -35,6 +35,28 @@ export class GovernancePollParticipationController{
     `);
   }
 
+  @Get(':id/results')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  async results(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
+    const polls=await this.prisma.$queryRaw<Array<{id:string;status:string;statutoryUseProhibited:boolean}>>(Prisma.sql`
+      SELECT "id","status","statutoryUseProhibited" FROM "GovernancePoll"
+      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1
+    `);
+    if(!polls.length)throw new BadRequestException('Community poll not found');
+    const poll=polls[0];
+    if(!poll.statutoryUseProhibited)throw new ForbiddenException('Statutory voting is not supported by community poll results');
+    if(poll.status!=='CLOSED')throw new ConflictException('Community poll results are available only after the poll is closed');
+    const options=await this.prisma.$queryRaw<Array<{id:string;ordinal:number;label:string;responseCount:number}>>(Prisma.sql`
+      SELECT o."id",o."ordinal",o."label",COUNT(r."id")::int AS "responseCount"
+      FROM "GovernancePollOption" o
+      LEFT JOIN "GovernancePollResponse" r ON r."optionId"=o."id" AND r."pollId"=${id}::uuid
+      WHERE o."pollId"=${id}::uuid
+      GROUP BY o."id",o."ordinal",o."label"
+      ORDER BY o."ordinal"
+    `);
+    return {pollId:id,status:poll.status,totalResponses:options.reduce((sum,option)=>sum+option.responseCount,0),options,statutoryUseProhibited:true};
+  }
+
   @Post(':id/responses')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   async respond(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PollResponseDto){
@@ -62,13 +84,24 @@ export class GovernancePollParticipationController{
   @Post(':id/status')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async setStatus(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PollStatusDto){
-    const rows=await this.prisma.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`SELECT "id","status" FROM "GovernancePoll" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`);
-    if(!rows.length)throw new BadRequestException('Governance poll not found');
-    const current=rows[0].status;
-    const allowed=(current==='DRAFT'&&(dto.status==='OPEN'||dto.status==='CANCELLED'))||(current==='OPEN'&&(dto.status==='CLOSED'||dto.status==='CANCELLED'));
-    if(!allowed)throw new ConflictException(`Poll cannot transition from ${current} to ${dto.status}`);
-    const updated=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernancePoll" SET "status"=${dto.status},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING *`);
-    return updated[0];
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<Array<{id:string;status:string;closesAt:Date|null;statutoryUseProhibited:boolean}>>(Prisma.sql`
+        SELECT "id","status","closesAt","statutoryUseProhibited" FROM "GovernancePoll"
+        WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
+      `);
+      if(!rows.length)throw new BadRequestException('Governance poll not found');
+      const poll=rows[0];
+      if(!poll.statutoryUseProhibited)throw new ForbiddenException('Statutory voting cannot be managed through the community poll lifecycle');
+      if(dto.status==='OPEN'&&poll.closesAt&&poll.closesAt.getTime()<Date.now())throw new ConflictException('Community poll cannot be opened after its close time');
+      const current=poll.status;
+      const allowed=(current==='DRAFT'&&(dto.status==='OPEN'||dto.status==='CANCELLED'))||(current==='OPEN'&&(dto.status==='CLOSED'||dto.status==='CANCELLED'));
+      if(!allowed)throw new ConflictException(`Poll cannot transition from ${current} to ${dto.status}`);
+      const updated=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        UPDATE "GovernancePoll" SET "status"=${dto.status},"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING *
+      `);
+      return updated[0];
+    });
   }
 
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
