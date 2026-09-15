@@ -1,5 +1,4 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Res, UseGuards, createParamDecorator } from '@nestjs/common';
-import type { Response } from 'express';
 import { IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -12,6 +11,7 @@ import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ACCOUNTING_EXPORT_CONTRACT_V1, AccountingExportService } from './accounting-export.service';
 
+type HeaderResponse={setHeader(name:string,value:string):void};
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 class CreateAccountingExportDto {
   @IsString() @MinLength(1) @MaxLength(120) idempotencyKey!:string;
@@ -28,6 +28,6 @@ export class AccountingExportController {
   constructor(private readonly exports:AccountingExportService){}
   @Post() @RequiresPermissions(AppPermission.FINANCE_READ) create(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateAccountingExportDto){if(!userId)throw new BadRequestException('Authenticated user is required');return this.exports.create(societyId,userId,dto);}
   @Get() @RequiresPermissions(AppPermission.FINANCE_READ) list(@CurrentTenant() societyId:string){return this.exports.list(societyId);}
-  @Get(':id/artifact') @RequiresPermissions(AppPermission.FINANCE_READ) async artifact(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Res({passthrough:true}) response:Response){const artifact=await this.exports.artifact(societyId,id);response.setHeader('Content-Type',artifact.contentType);response.setHeader('Content-Disposition',`attachment; filename="${artifact.filename}"`);response.setHeader('Content-Length',String(artifact.byteLength));response.setHeader('Digest',`sha-256=${Buffer.from(artifact.sha256,'hex').toString('base64')}`);return artifact.content;}
+  @Get(':id/artifact') @RequiresPermissions(AppPermission.FINANCE_READ) async artifact(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Res({passthrough:true}) response:HeaderResponse){const artifact=await this.exports.artifact(societyId,id);response.setHeader('Content-Type',artifact.contentType);response.setHeader('Content-Disposition',`attachment; filename="${artifact.filename}"`);response.setHeader('Content-Length',String(artifact.byteLength));response.setHeader('Digest',`sha-256=${Buffer.from(artifact.sha256,'hex').toString('base64')}`);return artifact.content;}
   @Get(':id') @RequiresPermissions(AppPermission.FINANCE_READ) get(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.exports.get(societyId,id);}
 }
