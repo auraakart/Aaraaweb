@@ -1,11 +1,14 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { AppRole } from '../auth/auth.types';
+import { AuthenticatedRequest } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { REQUIRED_FEATURE_KEY } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ReportsController } from './reports.controller';
+import { ReportsService } from './reports.service';
 
 describe('ReportsController entitlement and permission boundaries', () => {
   it('requires the advanced reports product feature', () => {
@@ -22,5 +25,25 @@ describe('ReportsController entitlement and permission boundaries', () => {
       AppPermission.REPORTS_READ,
       AppPermission.FINANCE_READ,
     ]);
+  });
+
+  it('includes financial summary amounts for a finance-read committee member', () => {
+    const summary = vi.fn();
+    const controller = new ReportsController({ summary } as unknown as ReportsService);
+    const request = { auth: { roles: [AppRole.COMMITTEE_MEMBER] } } as unknown as AuthenticatedRequest;
+
+    controller.summary('society-1', request);
+
+    expect(summary).toHaveBeenCalledWith('society-1', undefined, undefined, true);
+  });
+
+  it('redacts financial summary amounts from reports readers without finance read', () => {
+    const summary = vi.fn();
+    const controller = new ReportsController({ summary } as unknown as ReportsService);
+    const request = { auth: { roles: [AppRole.FACILITY_MANAGER] } } as unknown as AuthenticatedRequest;
+
+    controller.summary('society-1', request);
+
+    expect(summary).toHaveBeenCalledWith('society-1', undefined, undefined, false);
   });
 });
