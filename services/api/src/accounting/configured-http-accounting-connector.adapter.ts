@@ -7,6 +7,7 @@ export class ConfiguredHttpAccountingConnectorAdapter implements AccountingConne
   private readonly baseUrl=(process.env.ACCOUNTING_CONNECTOR_BASE_URL??'').replace(/\/$/,'');
   private readonly apiKey=process.env.ACCOUNTING_CONNECTOR_API_KEY??'';
 
+  readiness(){return {provider:this.provider,bridgeConfigured:!!this.baseUrl,apiKeyConfigured:!!this.apiKey};}
   private ensureConfigured(){if(!this.baseUrl)throw new Error('Accounting connector bridge is not configured');}
   private headers(input:AccountingConnectorDeliveryRequest){return {
     'Content-Type':input.contentType,
