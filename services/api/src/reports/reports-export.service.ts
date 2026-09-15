@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditEventType, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { auditEventFilter } from './reports-filter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WINDOW_DAYS = 30;
@@ -50,7 +51,7 @@ export class ReportsExportService {
       data: {
         societyId,
         actorUserId,
-        event: 'REPORT_EXPORTED' as AuditEventType,
+        event: AuditEventType.REPORT_EXPORTED,
       },
     });
 
@@ -63,9 +64,35 @@ export class ReportsExportService {
     };
   }
 
+  async auditCsv(societyId: string, actorUserId: string, from?: string, to?: string, event?: string) {
+    const range = this.dateRange(from, to);
+    const eventType = auditEventFilter(event);
+    const rows = await this.prisma.auditEvent.findMany({
+      where: { societyId, occurredAt: range, ...(eventType ? { event: eventType } : {}) },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: MAX_EXPORT_ROWS + 1,
+      select: { event: true, occurredAt: true, actorUserId: true, gateId: true, accessRequestId: true, visitorPassId: true },
+    });
+    if (rows.length > MAX_EXPORT_ROWS) {
+      throw new BadRequestException(`Report export cannot exceed ${MAX_EXPORT_ROWS} rows; narrow the date range`);
+    }
+    const header = ['event', 'occurredAt', 'actorUserId', 'gateId', 'accessRequestId', 'visitorPassId'];
+    const lines = rows.map((row) => [
+      row.event, row.occurredAt.toISOString(), row.actorUserId ?? '', row.gateId ?? '',
+      row.accessRequestId ?? '', row.visitorPassId ?? '',
+    ].map((value) => this.csvCell(value)).join(','));
+    await this.prisma.auditEvent.create({ data: { societyId, actorUserId, event: AuditEventType.REPORT_EXPORTED } });
+    return {
+      fileName: `audit-report-${range.gte.toISOString().slice(0, 10)}-to-${range.lte.toISOString().slice(0, 10)}.csv`,
+      rowCount: rows.length,
+      csv: `${header.join(',')}\n${lines.join('\n')}${lines.length ? '\n' : ''}`,
+    };
+  }
+
   private csvCell(value: string | number) {
     let text = String(value);
-    if (/^[=+\-@]/.test(text)) text = `'${text}`;
+    // Spreadsheet importers may ignore whitespace or recognize full-width operators.
+    if (/^[\t\r\n]|^\s*[=+\-@＝＋－＠]/u.test(text)) text = `'${text}`;
     if (/[",\r\n]/.test(text)) text = `"${text.replace(/"/g, '""')}"`;
     return text;
   }

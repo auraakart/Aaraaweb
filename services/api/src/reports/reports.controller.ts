@@ -39,6 +39,19 @@ export class ReportsController {
     return this.reports.summary(societyId, from, to, includeFinancialAmounts);
   }
 
+  @Get('summary/comparison')
+  @RequiresPermissions(AppPermission.REPORTS_READ)
+  summaryComparison(
+    @CurrentTenant() societyId: string,
+    @Req() request: AuthenticatedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const roles = request.auth?.roles as AppRole[] | undefined;
+    const includeFinancialAmounts = !!roles && hasPermission(roles, AppPermission.FINANCE_READ);
+    return this.reports.summaryComparison(societyId, from, to, includeFinancialAmounts);
+  }
+
   @Get('access')
   @RequiresPermissions(AppPermission.REPORTS_READ)
   access(
@@ -94,13 +107,35 @@ export class ReportsController {
     response.send(result.csv);
   }
 
+  @Get('audit/export.csv')
+  @RequiresPermissions(AppPermission.AUDIT_READ)
+  async auditExport(
+    @CurrentTenant() societyId: string,
+    @Req() request: AuthenticatedRequest,
+    @Res() response: CsvResponse,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('event') event?: string,
+  ) {
+    const actorUserId = request.auth?.userId;
+    if (!actorUserId) throw new ForbiddenException('Authenticated user is required');
+    const result = await this.exports.auditCsv(societyId, actorUserId, from, to, event);
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    response.setHeader('X-Aaraagate-Export-Rows', String(result.rowCount));
+    response.send(result.csv);
+  }
+
   @Get('audit')
   @RequiresPermissions(AppPermission.AUDIT_READ)
   audit(
     @CurrentTenant() societyId: string,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+    @Query('event') event?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    return this.reports.auditFeed(societyId, page ?? 1, pageSize ?? 50);
+    return this.reports.auditFeed(societyId, page ?? 1, pageSize ?? 50, event, from, to);
   }
 }

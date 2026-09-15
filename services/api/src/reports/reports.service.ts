@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AccessSubjectType, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { auditEventFilter } from './reports-filter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WINDOW_DAYS = 30;
@@ -14,6 +15,28 @@ export class ReportsService {
 
   async summary(societyId: string, from?: string, to?: string, includeFinancialAmounts = false) {
     const range = this.dateRange(from, to);
+    return this.summaryForRange(societyId, range, includeFinancialAmounts);
+  }
+
+  async summaryComparison(societyId: string, from?: string, to?: string, includeFinancialAmounts = false) {
+    const currentRange = this.dateRange(from, to);
+    const durationMs = currentRange.lte.getTime() - currentRange.gte.getTime();
+    const previousRange = {
+      gte: new Date(currentRange.gte.getTime() - durationMs - 1),
+      lte: new Date(currentRange.gte.getTime() - 1),
+    };
+    const [current, previous] = await Promise.all([
+      this.summaryForRange(societyId, currentRange, includeFinancialAmounts),
+      this.summaryForRange(societyId, previousRange, includeFinancialAmounts),
+    ]);
+    return { current, previous };
+  }
+
+  private async summaryForRange(
+    societyId: string,
+    range: { gte: Date; lte: Date },
+    includeFinancialAmounts: boolean,
+  ) {
     const [
       visitorRequests,
       visitorEntries,
@@ -100,7 +123,8 @@ export class ReportsService {
       this.prisma.accessRequest.count({ where }),
       this.prisma.accessRequest.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        // A unique tie breaker keeps equal timestamps in a stable page order.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
         take: paging.take,
         select: {
@@ -140,7 +164,7 @@ export class ReportsService {
       this.prisma.helpdeskTicket.count({ where }),
       this.prisma.helpdeskTicket.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
         take: paging.take,
         select: {
@@ -180,7 +204,7 @@ export class ReportsService {
       this.prisma.maintenanceInvoice.count({ where }),
       this.prisma.maintenanceInvoice.findMany({
         where,
-        orderBy: { issuedAt: 'desc' },
+        orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
         take: paging.take,
         select: {
@@ -205,14 +229,17 @@ export class ReportsService {
     return { page, pageSize, total, items };
   }
 
-  async auditFeed(societyId: string, page = 1, pageSize = 50) {
+  async auditFeed(societyId: string, page = 1, pageSize = 50, event?: string, from?: string, to?: string) {
     const paging = this.paging(page, pageSize);
+    const eventType = auditEventFilter(event);
+    const range = from || to ? this.dateRange(from, to) : undefined;
+    const where = { societyId, ...(eventType ? { event: eventType } : {}), ...(range ? { occurredAt: range } : {}) };
 
     const [total, items] = await Promise.all([
-      this.prisma.auditEvent.count({ where: { societyId } }),
+      this.prisma.auditEvent.count({ where }),
       this.prisma.auditEvent.findMany({
-        where: { societyId },
-        orderBy: { occurredAt: 'desc' },
+        where,
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         skip: paging.skip,
         take: paging.take,
         select: {
@@ -231,11 +258,14 @@ export class ReportsService {
   }
 
   private paging(page: number, pageSize: number) {
-    if (!Number.isInteger(page) || page < 1) throw new BadRequestException('page must be a positive integer');
+    if (!Number.isSafeInteger(page) || page < 1) throw new BadRequestException('page must be a positive safe integer');
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
       throw new BadRequestException(`pageSize must be between 1 and ${MAX_PAGE_SIZE}`);
     }
-    return { skip: (page - 1) * pageSize, take: pageSize };
+    const skip = (page - 1) * pageSize;
+    // Validate the product too: valid operands can still overflow the safe integer range.
+    if (!Number.isSafeInteger(skip)) throw new BadRequestException('page offset exceeds the supported range');
+    return { skip, take: pageSize };
   }
 
   private accessSubjectType(value: string) {
