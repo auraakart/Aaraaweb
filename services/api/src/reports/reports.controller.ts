@@ -1,5 +1,4 @@
 import { Controller, ForbiddenException, Get, ParseIntPipe, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
 import { AppRole } from '../auth/auth.types';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission, hasPermission } from '../auth/permission.types';
@@ -12,6 +11,11 @@ import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
 import { ReportsExportService } from './reports-export.service';
 import { ReportsService } from './reports.service';
+
+type CsvResponse = {
+  setHeader(name: string, value: string): void;
+  send(body: string): void;
+};
 
 @Controller('reports')
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
@@ -77,7 +81,7 @@ export class ReportsController {
   async maintenanceExport(
     @CurrentTenant() societyId: string,
     @Req() request: AuthenticatedRequest,
-    @Res() response: Response,
+    @Res() response: CsvResponse,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
