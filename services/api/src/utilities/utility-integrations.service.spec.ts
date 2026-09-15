@@ -19,6 +19,27 @@ function identity() {
 }
 
 describe('UtilityIntegrationsService', () => {
+  it('rotates a key atomically and records lifecycle evidence without returning the hash', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: integrationId, code: 'PARTNER', name: 'Meter partner', status: 'ACTIVE' }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
+
+    const rotated = await service.rotateKey(societyId, '66666666-6666-4666-8666-666666666666', integrationId);
+
+    expect(rotated.integrationKey).toMatch(new RegExp(`^${integrationId}\\.`));
+    expect(rotated).not.toHaveProperty('secretHash');
+    const update = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(update.strings.join(' ')).toContain('SET "secretHash"');
+    expect(update.values).not.toContain(secret);
+    const event = tx.$executeRaw.mock.calls[0][0] as { values: unknown[] };
+    expect(event.values).toContain('KEY_ROTATED');
+  });
+
   it('returns the immutable receipt for an exact idempotent replay and records replay evidence', async () => {
     const input = {
       idempotencyKey: 'reading-001',
@@ -127,5 +148,48 @@ describe('UtilityIntegrationsService', () => {
     const eventInsert = tx.$executeRaw.mock.calls[2][0] as { strings: readonly string[]; values: unknown[] };
     expect(eventInsert.strings.join(' ')).toContain("'INTEGRATION'");
     expect(eventInsert.values).toContain(integrationId);
+  });
+
+  it('reprocesses quarantine into a new linked receipt without mutating original evidence', async () => {
+    const actorUserId = '66666666-6666-4666-8666-666666666666';
+    const replacementReceiptId = '77777777-7777-4777-8777-777777777777';
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: integrationId }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: replacementReceiptId }]),
+    };
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{
+        ...identity(),
+        rawPayload: {
+          idempotencyKey: 'original-key',
+          externalMeterId: 'UNMAPPED',
+          readingAt: '2026-09-15T04:00:00.000Z',
+          value: 10,
+          readingKind: 'ACTUAL',
+          note: null,
+        },
+      }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const service = new UtilityIntegrationsService(prisma as unknown as PrismaService);
+
+    await expect(service.reprocessReceipt(societyId, actorUserId, receiptId, { note: 'Mapping reviewed' }))
+      .resolves.toMatchObject({
+        originalReceiptId: receiptId,
+        replacementReceipt: { receiptId: replacementReceiptId, status: 'QUARANTINED' },
+      });
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    const requested = prisma.$executeRaw.mock.calls[0][0] as { values: unknown[] };
+    const completed = prisma.$executeRaw.mock.calls[1][0] as { values: unknown[] };
+    expect(requested.values).toContain('REPROCESS_REQUESTED');
+    expect(completed.values).toContain('REPROCESS_QUARANTINED');
+    expect(completed.values).toContain(replacementReceiptId);
+    const replacementInsert = tx.$queryRaw.mock.calls[3][0] as { values: unknown[] };
+    expect(replacementInsert.values).not.toContain('original-key');
   });
 });

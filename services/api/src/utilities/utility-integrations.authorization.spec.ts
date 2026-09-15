@@ -23,6 +23,12 @@ describe('Utility integration authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.receipts)).toEqual([
       AppPermission.FACILITIES_READ,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.mappings)).toEqual([
+      AppPermission.FACILITIES_READ,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.events)).toEqual([
+      AppPermission.FACILITIES_READ,
+    ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.create)).toEqual([
       AppPermission.FACILITIES_MANAGE,
     ]);
@@ -30,6 +36,21 @@ describe('Utility integration authorization', () => {
       AppPermission.FACILITIES_MANAGE,
     ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.revoke)).toEqual([
+      AppPermission.FACILITIES_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.rotateKey)).toEqual([
+      AppPermission.FACILITIES_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.retireMapping)).toEqual([
+      AppPermission.FACILITIES_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.replaceMapping)).toEqual([
+      AppPermission.FACILITIES_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.dismissReceipt)).toEqual([
+      AppPermission.FACILITIES_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, UtilityIntegrationManagementController.prototype.reprocessReceipt)).toEqual([
       AppPermission.FACILITIES_MANAGE,
     ]);
   });

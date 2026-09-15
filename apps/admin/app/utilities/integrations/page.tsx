@@ -28,6 +28,30 @@ type Receipt = {
   integrationCode: string
   integrationName: string
   meterCode?: string | null
+  latestResolutionAction?: string | null
+  latestResolutionAt?: string | null
+  replacementReceiptId?: string | null
+}
+type Mapping = {
+  id: string
+  integrationId: string
+  integrationCode: string
+  externalMeterId: string
+  meterId: string
+  meterCode: string
+  meterLabel?: string | null
+  active: boolean
+  createdAt: string
+  retiredAt?: string | null
+  replacesMappingId?: string | null
+}
+type IntegrationEvent = {
+  id: string
+  integrationId: string
+  integrationCode: string
+  action: string
+  actorName: string
+  occurredAt: string
 }
 
 const base = (process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
@@ -70,6 +94,8 @@ export default function UtilityIntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [meters, setMeters] = useState<Meter[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [mappings, setMappings] = useState<Mapping[]>([])
+  const [events, setEvents] = useState<IntegrationEvent[]>([])
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [selectedIntegrationId, setSelectedIntegrationId] = useState('')
@@ -81,22 +107,28 @@ export default function UtilityIntegrationsPage() {
   const [message, setMessage] = useState('')
 
   const activeIntegrations = useMemo(() => integrations.filter(item => item.status === 'ACTIVE'), [integrations])
-  const quarantined = useMemo(() => receipts.filter(item => item.status === 'QUARANTINED'), [receipts])
-  const accepted = receipts.length - quarantined.length
+  const quarantined = useMemo(() => receipts.filter(item =>
+    item.status === 'QUARANTINED' && !['DISMISSED', 'REPROCESS_ACCEPTED'].includes(item.latestResolutionAction ?? ''),
+  ), [receipts])
+  const accepted = useMemo(() => receipts.filter(item => item.status === 'ACCEPTED').length, [receipts])
 
   async function load() {
     if (!session || !canRead) return
     setBusy(true)
     setError('')
     try {
-      const [integrationRows, meterRows, receiptRows] = await Promise.all([
+      const [integrationRows, meterRows, receiptRows, mappingRows, eventRows] = await Promise.all([
         api<Integration[]>(session, '/utilities/v2/integrations'),
         api<Meter[]>(session, '/utilities/v2/meters'),
         api<Receipt[]>(session, '/utilities/v2/integrations/receipts'),
+        api<Mapping[]>(session, '/utilities/v2/integrations/mappings'),
+        api<IntegrationEvent[]>(session, '/utilities/v2/integrations/events'),
       ])
       setIntegrations(integrationRows)
       setMeters(meterRows)
       setReceipts(receiptRows)
+      setMappings(mappingRows)
+      setEvents(eventRows)
       setSelectedIntegrationId(current =>
         current && integrationRows.some(item => item.id === current && item.status === 'ACTIVE')
           ? current
@@ -182,6 +214,89 @@ export default function UtilityIntegrationsPage() {
     }
   }
 
+  async function rotateKey(integration: Integration) {
+    if (!session || !canManage || integration.status !== 'ACTIVE') return
+    if (!confirm(`Rotate the key for ${integration.code}? The current key will stop working immediately.`)) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    setGeneratedKey('')
+    try {
+      const rotated = await api<CreatedIntegration>(session, `/utilities/v2/integrations/${integration.id}/rotate-key`, { method: 'POST' })
+      setGeneratedKey(rotated.integrationKey)
+      setMessage(`${integration.code} key rotated. Store the replacement key now; it will not be shown again.`)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not rotate utility integration key')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function retireMapping(mapping: Mapping) {
+    if (!session || !canManage || !mapping.active) return
+    if (!confirm(`Retire mapping ${mapping.externalMeterId} → ${mapping.meterCode}? New readings will quarantine until a replacement is active.`)) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      await api(session, `/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/retire`, { method: 'POST' })
+      setMessage(`Mapping ${mapping.externalMeterId} retired; its history was preserved.`)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not retire meter mapping')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function replaceMapping(mapping: Mapping) {
+    if (!session || !canManage || !mapping.active) return
+    const meterId = prompt('Enter the replacement Aaraagate meter UUID. The existing mapping will be retained as retired history.')?.trim()
+    if (!meterId) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      await api(session, `/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/replace`, {
+        method: 'POST',
+        body: JSON.stringify({ meterId }),
+      })
+      setMessage(`Mapping ${mapping.externalMeterId} replaced; the previous mapping remains in history.`)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not replace meter mapping')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resolveReceipt(receipt: Receipt, action: 'dismiss' | 'reprocess') {
+    if (!session || !canManage || receipt.status !== 'QUARANTINED') return
+    const note = prompt(action === 'dismiss'
+      ? 'Record why this quarantined receipt is being dismissed (required).'
+      : 'Optional reprocessing note. A new immutable receipt will be created; the original will not change.')?.trim()
+    if (note === undefined || (action === 'dismiss' && !note)) return
+    if (action === 'reprocess' && !confirm('Reprocess this payload against the current active mapping? This creates a new receipt but never a bill.')) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      await api(session, `/utilities/v2/integrations/receipts/${receipt.id}/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({ note: note || undefined }),
+      })
+      setMessage(action === 'dismiss'
+        ? 'Quarantine disposition recorded without changing the original receipt.'
+        : 'Reprocessing completed with a new receipt linked to the original evidence.')
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : `Could not ${action} quarantined receipt`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function copyKey() {
     if (!generatedKey) return
     try {
@@ -229,7 +344,7 @@ export default function UtilityIntegrationsPage() {
           <h2 style={{ margin: 0 }}>Operations</h2>
           <button type="button" onClick={() => void load()} disabled={busy} style={secondary}>Reload</button>
         </div>
-        <p>Exact retries reuse their original receipt. Reusing an idempotency key with changed data is rejected and audited.</p>
+        <p>Exact retries reuse their original receipt. Recovery runs create linked replacement receipts; original evidence is never edited.</p>
       </div>
     </section>
 
@@ -243,7 +358,7 @@ export default function UtilityIntegrationsPage() {
           <input required maxLength={120} value={name} onChange={event => setName(event.target.value)} style={input} placeholder="Approved meter data provider" />
         </label>
         <button disabled={busy} style={button}>Create and issue key</button>
-        <p><small>The generated secret is shown once. A lost key must be revoked and replaced with a new integration identity.</small></p>
+        <p><small>The generated secret is shown once. Rotate an active connection to replace a lost or exposed key.</small></p>
       </form>
 
       <form onSubmit={createMapping} style={panel}>
@@ -288,7 +403,10 @@ export default function UtilityIntegrationsPage() {
               <small>Created {formatDate(item.createdAt)} by {item.createdByName ?? 'Recorded administrator'}</small>
               {item.revokedAt && <><br /><small>Revoked {formatDate(item.revokedAt)}</small></>}
             </span>
-            {canManage && item.status === 'ACTIVE' && <button type="button" disabled={busy} onClick={() => void revoke(item)} style={danger}>Revoke</button>}
+            {canManage && item.status === 'ACTIVE' && <span style={actionGroup}>
+              <button type="button" disabled={busy} onClick={() => void rotateKey(item)} style={secondary}>Rotate key</button>
+              <button type="button" disabled={busy} onClick={() => void revoke(item)} style={danger}>Revoke</button>
+            </span>}
           </div>)}
       </div>
 
@@ -302,6 +420,42 @@ export default function UtilityIntegrationsPage() {
               <small>{item.errorCode ?? 'REJECTED'} · {formatDate(item.receivedAt)}</small><br />
               <small>{item.errorMessage ?? 'Reading requires operational review'}</small><br />
               <small>Idempotency: {item.idempotencyKey}</small>
+              {item.latestResolutionAction && <><br /><small>Latest resolution: {item.latestResolutionAction} · {formatDate(item.latestResolutionAt)}</small></>}
+            </span>
+            {canManage && <span style={actionGroup}>
+              <button type="button" disabled={busy} onClick={() => void resolveReceipt(item, 'reprocess')} style={secondary}>Reprocess</button>
+              <button type="button" disabled={busy} onClick={() => void resolveReceipt(item, 'dismiss')} style={danger}>Dismiss</button>
+            </span>}
+          </div>)}
+      </div>
+    </section>
+
+    <section style={grid}>
+      <div style={panel}>
+        <h2>Meter mapping history</h2>
+        {mappings.length === 0
+          ? <p>No meter mappings configured.</p>
+          : mappings.map(mapping => <div key={mapping.id} style={itemRow}>
+            <span>
+              <b>{mapping.integrationCode} · {mapping.externalMeterId}</b><br />
+              <small>{mapping.active ? 'ACTIVE' : 'RETIRED'} → {mapping.meterCode} · {mapping.meterLabel ?? 'Utility meter'}</small><br />
+              <small>Created {formatDate(mapping.createdAt)}{mapping.retiredAt ? ` · retired ${formatDate(mapping.retiredAt)}` : ''}</small>
+            </span>
+            {canManage && mapping.active && <span style={actionGroup}>
+              <button type="button" disabled={busy} onClick={() => void replaceMapping(mapping)} style={secondary}>Replace</button>
+              <button type="button" disabled={busy} onClick={() => void retireMapping(mapping)} style={danger}>Retire</button>
+            </span>}
+          </div>)}
+      </div>
+
+      <div style={panel}>
+        <h2>Lifecycle audit trail</h2>
+        {events.length === 0
+          ? <p>No lifecycle events recorded.</p>
+          : events.slice(0, 200).map(event => <div key={event.id} style={itemRow}>
+            <span>
+              <b>{event.integrationCode} · {event.action.replaceAll('_', ' ')}</b><br />
+              <small>{formatDate(event.occurredAt)} · {event.actorName}</small>
             </span>
           </div>)}
       </div>
@@ -329,6 +483,7 @@ const input = { display: 'block', width: '100%', boxSizing: 'border-box' as cons
 const button = { border: 0, borderRadius: 10, padding: '10px 14px', background: '#05879A', color: '#fff', fontWeight: 700, cursor: 'pointer' }
 const secondary = { border: '1px solid #cbd5e1', borderRadius: 10, padding: '9px 12px', background: '#fff', fontWeight: 700, cursor: 'pointer' }
 const danger = { ...secondary, borderColor: '#fecaca', color: '#b91c1c' }
+const actionGroup = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }
 const itemRow = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '13px 10px', borderBottom: '1px solid #eef2f7', borderRadius: 10 }
 const stats = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }
 const keyPanel = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, background: '#fffbeb', borderColor: '#fde68a' }
