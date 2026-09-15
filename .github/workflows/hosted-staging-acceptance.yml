@@ -1,0 +1,65 @@
+name: Hosted staging acceptance
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Full commit SHA currently at the staging branch
+        required: true
+        type: string
+      api_base_url:
+        description: Public HTTPS origin of the hosted staging API
+        required: true
+        type: string
+
+concurrency:
+  group: hosted-staging-acceptance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-staging-acceptance:
+    name: Hosted staging operational smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    steps:
+      - name: Checkout declared candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate is current staging
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
+        run: |
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "candidate_sha must be a full lowercase Git commit SHA."
+            exit 1
+          fi
+          git fetch origin staging --depth=1
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git rev-parse origin/staging)" = "$CANDIDATE_SHA"
+
+      - name: Prepare evidence directory
+        run: mkdir -p hosted-staging-evidence
+
+      - name: Verify hosted TLS endpoint and dependencies
+        env:
+          API_BASE_URL: ${{ inputs.api_base_url || vars.AARAAGATE_STAGING_API_BASE_URL }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
+        run: bash scripts/hosted-staging-smoke.sh "$API_BASE_URL" "$CANDIDATE_SHA" hosted-staging-evidence
+
+      - name: Upload hosted staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-staging-evidence-${{ github.run_id }}
+          path: hosted-staging-evidence/
+          if-no-files-found: error
+          retention-days: 30
