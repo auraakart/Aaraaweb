@@ -8,10 +8,11 @@ const requiredDomains=['V2-FIN','V2-OCC','V2-GOV','V2-EMR','V2-PRV','V2-PAY','V2
 const requiredGates=['V24-ROLE-UAT','V24-POLICY-PILOT','V24-MIGRATIONS','V24-BACKUP-RESTORE','V24-SECURITY-PRIVACY','V24-PILOT-ACCEPTANCE'];
 const kinds=new Set(['AUTOMATED','MANUAL_REQUIRED','PILOT_REQUIRED']);
 const statuses=new Set(['PENDING','AUTOMATED_EVIDENCE_AVAILABLE','ACCEPTED']);
+const releaseDecisions=new Set(['NOT_YET_APPROVED','APPROVED']);
 
 if(manifest.schemaVersion!=='aaraagate.v2.validation.v1')fail('unexpected schemaVersion');
 if(manifest.phase!=='V2.4')fail('phase must remain V2.4');
-if(manifest.releaseDecision!=='NOT_YET_APPROVED')fail('releaseDecision may only change through explicit release governance');
+if(!releaseDecisions.has(manifest.releaseDecision))fail(`unsupported releaseDecision ${manifest.releaseDecision}`);
 for(const persona of requiredPersonas)if(!manifest.requiredPersonas?.includes(persona))fail(`missing required persona ${persona}`);
 for(const domain of requiredDomains)if(!manifest.requiredDomains?.includes(domain))fail(`missing required domain ${domain}`);
 if(!Array.isArray(manifest.gates))fail('gates must be an array');
@@ -37,8 +38,7 @@ for(const gate of manifest.gates){
 
 const roleGate=manifest.gates.find(g=>g.id==='V24-ROLE-UAT');
 for(const persona of requiredPersonas)if(!roleGate.requiredPersonas?.includes(persona))fail(`role UAT gate does not cover ${persona}`);
-const manualOrPilot=manifest.gates.filter(g=>g.kind!=='AUTOMATED');
-if(manualOrPilot.every(g=>g.status==='ACCEPTED')&&manifest.releaseDecision==='NOT_YET_APPROVED'){
-  console.log('All manual/pilot V2.4 gates are accepted; release promotion still requires explicit governance approval.');
-}
-console.log(`V2 validation manifest OK: ${manifest.gates.length} gates, ${manifest.requiredPersonas.length} personas, ${manifest.requiredDomains.length} domains.`);
+const allAccepted=manifest.gates.every(g=>g.status==='ACCEPTED');
+if(manifest.releaseDecision==='APPROVED'&&!allAccepted)fail('release cannot be APPROVED until every V2.4 gate is ACCEPTED with evidence');
+if(allAccepted&&manifest.releaseDecision==='NOT_YET_APPROVED')console.log('All V2.4 gates are accepted; release promotion still requires explicit governance approval.');
+console.log(`V2 validation manifest OK: ${manifest.gates.length} gates, ${manifest.requiredPersonas.length} personas, ${manifest.requiredDomains.length} domains, release ${manifest.releaseDecision}.`);
