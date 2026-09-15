@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConfiguredHttpAccountingConnectorAdapter } from './configured-http-accounting-connector.adapter';
 
 export type AccountingConnectorDeliveryView={
   id:string;
@@ -18,61 +19,50 @@ export type AccountingConnectorDeliveryView={
   completedAt:Date|null;
 };
 
-type DeliveryMetrics={
-  totalCount:number;
-  pendingCount:number;
-  deliveredCount:number;
-  failedCount:number;
-  retryExhaustedCount:number;
-  oldestPendingAt:Date|null;
-  terminalSuccessRatePct:number|null;
-};
-type ProviderMetrics={
-  provider:string;
-  totalCount:number;
-  pendingCount:number;
-  deliveredCount:number;
-  failedCount:number;
-  oldestPendingAt:Date|null;
-  terminalSuccessRatePct:number|null;
-};
+type DeliveryMetrics={totalCount:number;pendingCount:number;deliveredCount:number;failedCount:number;retryExhaustedCount:number;oldestPendingAt:Date|null;terminalSuccessRatePct:number|null};
+type ProviderMetrics={provider:string;totalCount:number;pendingCount:number;deliveredCount:number;failedCount:number;oldestPendingAt:Date|null;terminalSuccessRatePct:number|null};
+export type DeliveryActionView={id:string;deliveryId:string;actorUserId:string;action:'MANUAL_RETRY';fromStatus:'FAILED'|'UNKNOWN';previousAttemptCount:number;occurredAt:Date};
 
 @Injectable()
 export class AccountingConnectorDeliveryService{
-  constructor(private readonly prisma:PrismaService){}
+  constructor(private readonly prisma:PrismaService,private readonly connector:ConfiguredHttpAccountingConnectorAdapter){}
 
   list(societyId:string){return this.prisma.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
     SELECT "id","exportJobId","provider","status","attemptCount","lastAttemptAt","nextAttemptAt","providerReceiptId","failureCode","failureMessage","createdAt","updatedAt","completedAt"
-    FROM "AccountingConnectorDelivery"
-    WHERE "societyId"=${societyId}::uuid
-    ORDER BY "createdAt" DESC LIMIT 100
+    FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC LIMIT 100
   `);}
+
+  actions(societyId:string){return this.prisma.$queryRaw<DeliveryActionView[]>(Prisma.sql`
+    SELECT "id","deliveryId","actorUserId","action","fromStatus","previousAttemptCount","occurredAt"
+    FROM "AccountingConnectorDeliveryAction" WHERE "societyId"=${societyId}::uuid ORDER BY "occurredAt" DESC LIMIT 100
+  `);}
+
+  readiness(){
+    const connector=this.connector.readiness();
+    const autoDeliveryEnabled=process.env.ACCOUNTING_CONNECTOR_AUTO_DELIVER==='true';
+    return {...connector,autoDeliveryEnabled,state:!connector.bridgeConfigured?'NOT_CONFIGURED':autoDeliveryEnabled?'ACTIVE':'READY_DISABLED',networkCheckPerformed:false};
+  }
 
   async metrics(societyId:string){
     const [totals,providers]=await Promise.all([
       this.prisma.$queryRaw<DeliveryMetrics[]>(Prisma.sql`
-        SELECT
-          COUNT(*)::int AS "totalCount",
+        SELECT COUNT(*)::int AS "totalCount",
           COUNT(*) FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN'))::int AS "pendingCount",
           COUNT(*) FILTER (WHERE "status"='DELIVERED')::int AS "deliveredCount",
           COUNT(*) FILTER (WHERE "status"='FAILED')::int AS "failedCount",
           COUNT(*) FILTER (WHERE "failureCode"='DELIVERY_RETRY_EXHAUSTED')::int AS "retryExhaustedCount",
           MIN("createdAt") FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN')) AS "oldestPendingAt",
-          CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL
-               ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
+          CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
         FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid
       `),
       this.prisma.$queryRaw<ProviderMetrics[]>(Prisma.sql`
-        SELECT "provider",
-          COUNT(*)::int AS "totalCount",
+        SELECT "provider",COUNT(*)::int AS "totalCount",
           COUNT(*) FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN'))::int AS "pendingCount",
           COUNT(*) FILTER (WHERE "status"='DELIVERED')::int AS "deliveredCount",
           COUNT(*) FILTER (WHERE "status"='FAILED')::int AS "failedCount",
           MIN("createdAt") FILTER (WHERE "status" IN ('QUEUED','PROCESSING','ACCEPTED','UNKNOWN')) AS "oldestPendingAt",
-          CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL
-               ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
-        FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid
-        GROUP BY "provider" ORDER BY "provider"
+          CASE WHEN COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED'))=0 THEN NULL ELSE ROUND(100.0*COUNT(*) FILTER (WHERE "status"='DELIVERED')/COUNT(*) FILTER (WHERE "status" IN ('DELIVERED','FAILED')),2)::double precision END AS "terminalSuccessRatePct"
+        FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid GROUP BY "provider" ORDER BY "provider"
       `),
     ]);
     return {totals:totals[0]??{totalCount:0,pendingCount:0,deliveredCount:0,failedCount:0,retryExhaustedCount:0,oldestPendingAt:null,terminalSuccessRatePct:null},providers};
@@ -82,20 +72,14 @@ export class AccountingConnectorDeliveryService{
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
         SELECT "id","exportJobId","provider","status","attemptCount","lastAttemptAt","nextAttemptAt","providerReceiptId","failureCode","failureMessage","createdAt","updatedAt","completedAt"
-        FROM "AccountingConnectorDelivery"
-        WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid
-        FOR UPDATE
+        FROM "AccountingConnectorDelivery" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid FOR UPDATE
       `);
       const current=rows[0];
       if(!current)throw new NotFoundException('Accounting connector delivery not found');
       if(!['FAILED','UNKNOWN'].includes(current.status))throw new BadRequestException('Only failed or unknown connector deliveries can be retried manually');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "AccountingConnectorDeliveryAction" ("societyId","deliveryId","actorUserId","action","fromStatus","previousAttemptCount")
-        VALUES (${societyId}::uuid,${id}::uuid,${userId}::uuid,'MANUAL_RETRY',${current.status},${current.attemptCount})
-      `);
+      await tx.$executeRaw(Prisma.sql`INSERT INTO "AccountingConnectorDeliveryAction" ("societyId","deliveryId","actorUserId","action","fromStatus","previousAttemptCount") VALUES (${societyId}::uuid,${id}::uuid,${userId}::uuid,'MANUAL_RETRY',${current.status},${current.attemptCount})`);
       const updated=await tx.$queryRaw<AccountingConnectorDeliveryView[]>(Prisma.sql`
-        UPDATE "AccountingConnectorDelivery"
-        SET "status"='QUEUED',"attemptCount"=0,"nextAttemptAt"=CURRENT_TIMESTAMP,"leaseUntil"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+        UPDATE "AccountingConnectorDelivery" SET "status"='QUEUED',"attemptCount"=0,"nextAttemptAt"=CURRENT_TIMESTAMP,"leaseUntil"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
         WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid
         RETURNING "id","exportJobId","provider","status","attemptCount","lastAttemptAt","nextAttemptAt","providerReceiptId","failureCode","failureMessage","createdAt","updatedAt","completedAt"
       `);
