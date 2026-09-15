@@ -16,17 +16,11 @@ const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.sw
 type ReviewOutcome='REVIEWED'|'BLOCKED';
 type DecisionOutcome='APPROVED'|'REJECTED'|'CANCELLED';
 
-type SnapshotSetupRow={
-  snapshotId:string;
-  snapshotCreatedByUserId:string;
-  policyRevisionId:string;
-  policyVersion:number;
-  policyReference:string;
-};
-
+type SnapshotSetupRow={snapshotId:string;snapshotCreatedByUserId:string;policyRevisionId:string;policyVersion:number;policyReference:string};
 type ReviewRow={id:string;snapshotId:string;sequence:number;outcome:ReviewOutcome;note:string|null;createdByUserId:string;createdAt:Date};
 type DraftRow={id:string;snapshotId:string;title:string;question:string;status:'DRAFT';createdByUserId:string;createdAt:Date};
 type DecisionRow={id:string;ballotDraftId:string;sequence:number;outcome:DecisionOutcome;reason:string|null;createdByUserId:string;createdAt:Date};
+type DecisionDraftRow=DraftRow&{snapshotCreatedByUserId:string;policyVersion:number;policyReference:string;policyCurrent:boolean};
 
 class RecordElectorateReviewDto{
   @IsIn(['REVIEWED','BLOCKED']) outcome!:ReviewOutcome;
@@ -63,12 +57,7 @@ export class GovernanceElectionBallotDraftController{
 
   @Post('electorate-snapshots/:id/reviews')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
-  async recordReview(
-    @CurrentTenant() societyId:string,
-    @CurrentUser() userId:string|undefined,
-    @Param('id',new ParseUUIDPipe()) snapshotId:string,
-    @Body() dto:RecordElectorateReviewDto,
-  ){
+  async recordReview(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) snapshotId:string,@Body() dto:RecordElectorateReviewDto){
     const actor=this.user(userId);
     return this.prisma.$transaction(async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
@@ -76,15 +65,12 @@ export class GovernanceElectionBallotDraftController{
       if(setup.snapshotCreatedByUserId===actor)throw new ConflictException('Electorate review must be recorded by a different governance actor than the snapshot creator');
       const latest=await tx.$queryRaw<Array<{sequence:number}>>(Prisma.sql`
         SELECT "sequence" FROM "GovernanceElectorateReviewAttestation"
-        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid
-        ORDER BY "sequence" DESC LIMIT 1
+        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid ORDER BY "sequence" DESC LIMIT 1
       `);
       const sequence=(latest[0]?.sequence??0)+1;
       const rows=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
-        INSERT INTO "GovernanceElectorateReviewAttestation"
-          ("societyId","snapshotId","sequence","outcome","note","createdByUserId")
-        VALUES
-          (${societyId}::uuid,${snapshotId}::uuid,${sequence},${dto.outcome},${dto.note?.trim()||null},${actor}::uuid)
+        INSERT INTO "GovernanceElectorateReviewAttestation" ("societyId","snapshotId","sequence","outcome","note","createdByUserId")
+        VALUES (${societyId}::uuid,${snapshotId}::uuid,${sequence},${dto.outcome},${dto.note?.trim()||null},${actor}::uuid)
         RETURNING "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
       `);
       return {...rows[0],policyVersion:setup.policyVersion,policyReference:setup.policyReference};
@@ -95,13 +81,11 @@ export class GovernanceElectionBallotDraftController{
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async listDrafts(@CurrentTenant() societyId:string){
     const drafts=await this.prisma.$queryRaw<Array<DraftRow&{policyVersion:number;policyReference:string}>>(Prisma.sql`
-      SELECT d."id",d."snapshotId",d."title",d."question",d."status",d."createdByUserId",d."createdAt",
-        p."version" AS "policyVersion",p."policyReference"
+      SELECT d."id",d."snapshotId",d."title",d."question",d."status",d."createdByUserId",d."createdAt",p."version" AS "policyVersion",p."policyReference"
       FROM "GovernanceElectionBallotDraft" d
       JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
       JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
-      WHERE d."societyId"=${societyId}::uuid
-      ORDER BY d."createdAt" DESC,d."id" DESC
+      WHERE d."societyId"=${societyId}::uuid ORDER BY d."createdAt" DESC,d."id" DESC
     `);
     return Promise.all(drafts.map(async draft=>({...draft,options:await this.options(draft.id,societyId),latestDecision:await this.latestDecision(draft.id,societyId),executable:false,castingEnabled:false})));
   }
@@ -110,8 +94,7 @@ export class GovernanceElectionBallotDraftController{
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async getDraft(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
     const drafts=await this.prisma.$queryRaw<Array<DraftRow&{policyVersion:number;policyReference:string}>>(Prisma.sql`
-      SELECT d."id",d."snapshotId",d."title",d."question",d."status",d."createdByUserId",d."createdAt",
-        p."version" AS "policyVersion",p."policyReference"
+      SELECT d."id",d."snapshotId",d."title",d."question",d."status",d."createdByUserId",d."createdAt",p."version" AS "policyVersion",p."policyReference"
       FROM "GovernanceElectionBallotDraft" d
       JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
       JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
@@ -123,12 +106,7 @@ export class GovernanceElectionBallotDraftController{
 
   @Post('electorate-snapshots/:id/ballot-drafts')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
-  async createDraft(
-    @CurrentTenant() societyId:string,
-    @CurrentUser() userId:string|undefined,
-    @Param('id',new ParseUUIDPipe()) snapshotId:string,
-    @Body() dto:CreateBallotDraftDto,
-  ){
+  async createDraft(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) snapshotId:string,@Body() dto:CreateBallotDraftDto){
     const actor=this.user(userId),title=dto.title.trim(),question=dto.question.trim(),options=dto.options.map(v=>v.trim());
     if(!title||!question)throw new BadRequestException('Ballot title and question are required');
     if(options.some(v=>!v))throw new BadRequestException('Ballot option labels cannot be empty');
@@ -139,8 +117,7 @@ export class GovernanceElectionBallotDraftController{
       const reviews=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
         SELECT "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
         FROM "GovernanceElectorateReviewAttestation"
-        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid
-        ORDER BY "sequence" DESC LIMIT 1
+        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${snapshotId}::uuid ORDER BY "sequence" DESC LIMIT 1
       `);
       if(!reviews.length)throw new ConflictException('Electorate review is required before creating a ballot draft');
       const review=reviews[0];
@@ -148,10 +125,8 @@ export class GovernanceElectionBallotDraftController{
       if(review.createdByUserId===actor)throw new ConflictException('Ballot draft must be created by a different governance actor than the electorate reviewer');
       if(setup.snapshotCreatedByUserId===actor)throw new ConflictException('Ballot draft must be created by a different governance actor than the snapshot creator');
       const drafts=await tx.$queryRaw<DraftRow[]>(Prisma.sql`
-        INSERT INTO "GovernanceElectionBallotDraft"
-          ("societyId","snapshotId","title","question","createdByUserId")
-        VALUES
-          (${societyId}::uuid,${snapshotId}::uuid,${title},${question},${actor}::uuid)
+        INSERT INTO "GovernanceElectionBallotDraft" ("societyId","snapshotId","title","question","createdByUserId")
+        VALUES (${societyId}::uuid,${snapshotId}::uuid,${title},${question},${actor}::uuid)
         RETURNING "id","snapshotId","title","question","status","createdByUserId","createdAt"
       `);
       const draft=drafts[0];
@@ -171,65 +146,57 @@ export class GovernanceElectionBallotDraftController{
     return this.prisma.$queryRaw<DecisionRow[]>(Prisma.sql`
       SELECT "id","ballotDraftId","sequence","outcome","reason","createdByUserId","createdAt"
       FROM "GovernanceElectionBallotDraftDecision"
-      WHERE "societyId"=${societyId}::uuid AND "ballotDraftId"=${ballotDraftId}::uuid
-      ORDER BY "sequence" DESC
+      WHERE "societyId"=${societyId}::uuid AND "ballotDraftId"=${ballotDraftId}::uuid ORDER BY "sequence" DESC
     `);
   }
 
   @Post('ballot-drafts/:id/decisions')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
-  async recordDecision(
-    @CurrentTenant() societyId:string,
-    @CurrentUser() userId:string|undefined,
-    @Param('id',new ParseUUIDPipe()) ballotDraftId:string,
-    @Body() dto:RecordBallotDraftDecisionDto,
-  ){
+  async recordDecision(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) ballotDraftId:string,@Body() dto:RecordBallotDraftDecisionDto){
     const actor=this.user(userId),reason=dto.reason?.trim()||null;
     if(dto.outcome!=='APPROVED'&&!reason)throw new BadRequestException('A reason is required when rejecting or cancelling a ballot draft');
     return this.prisma.$transaction(async tx=>{
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Society" WHERE "id"=${societyId}::uuid FOR UPDATE`);
-      const drafts=await tx.$queryRaw<Array<DraftRow&{snapshotCreatedByUserId:string;policyVersion:number;policyReference:string}>>(Prisma.sql`
+      const drafts=await tx.$queryRaw<DecisionDraftRow[]>(Prisma.sql`
         SELECT d."id",d."snapshotId",d."title",d."question",d."status",d."createdByUserId",d."createdAt",
-          s."createdByUserId" AS "snapshotCreatedByUserId",p."version" AS "policyVersion",p."policyReference"
+          s."createdByUserId" AS "snapshotCreatedByUserId",p."version" AS "policyVersion",p."policyReference",
+          (p."enabled"=TRUE AND NOT EXISTS (
+            SELECT 1 FROM "GovernanceElectionPolicyRevision" newer
+            WHERE newer."societyId"=d."societyId" AND newer."version">p."version"
+          )) AS "policyCurrent"
         FROM "GovernanceElectionBallotDraft" d
         JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
         JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
-        WHERE d."id"=${ballotDraftId}::uuid AND d."societyId"=${societyId}::uuid AND p."enabled"=TRUE
-          AND NOT EXISTS (
-            SELECT 1 FROM "GovernanceElectionPolicyRevision" newer
-            WHERE newer."societyId"=d."societyId" AND newer."version">p."version"
-          )
-        LIMIT 1
+        WHERE d."id"=${ballotDraftId}::uuid AND d."societyId"=${societyId}::uuid LIMIT 1
       `);
-      if(!drafts.length)throw new ConflictException('Ballot draft is not bound to the current enabled election policy');
+      if(!drafts.length)throw new BadRequestException('Ballot draft not found');
       const draft=drafts[0];
-      const reviews=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
-        SELECT "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
-        FROM "GovernanceElectorateReviewAttestation"
-        WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${draft.snapshotId}::uuid
-        ORDER BY "sequence" DESC LIMIT 1
-      `);
-      if(!reviews.length||reviews[0].outcome!=='REVIEWED')throw new ConflictException('Current electorate review does not permit ballot approval');
       const latest=await tx.$queryRaw<DecisionRow[]>(Prisma.sql`
         SELECT "id","ballotDraftId","sequence","outcome","reason","createdByUserId","createdAt"
         FROM "GovernanceElectionBallotDraftDecision"
-        WHERE "societyId"=${societyId}::uuid AND "ballotDraftId"=${ballotDraftId}::uuid
-        ORDER BY "sequence" DESC LIMIT 1
+        WHERE "societyId"=${societyId}::uuid AND "ballotDraftId"=${ballotDraftId}::uuid ORDER BY "sequence" DESC LIMIT 1
       `);
       const previous=latest[0];
       if(previous?.outcome==='REJECTED'||previous?.outcome==='CANCELLED')throw new ConflictException('Ballot draft decision is terminal');
       if(previous?.outcome==='APPROVED'&&dto.outcome!=='CANCELLED')throw new ConflictException('Approved ballot drafts can only receive a later cancellation decision');
+
       if(dto.outcome!=='CANCELLED'){
+        if(!draft.policyCurrent)throw new ConflictException('Ballot draft is not bound to the current enabled election policy');
+        const reviews=await tx.$queryRaw<ReviewRow[]>(Prisma.sql`
+          SELECT "id","snapshotId","sequence","outcome","note","createdByUserId","createdAt"
+          FROM "GovernanceElectorateReviewAttestation"
+          WHERE "societyId"=${societyId}::uuid AND "snapshotId"=${draft.snapshotId}::uuid ORDER BY "sequence" DESC LIMIT 1
+        `);
+        if(!reviews.length||reviews[0].outcome!=='REVIEWED')throw new ConflictException('Current electorate review does not permit ballot approval or rejection');
         if(draft.createdByUserId===actor)throw new ConflictException('Ballot approval or rejection must be recorded by a different governance actor than the draft creator');
         if(draft.snapshotCreatedByUserId===actor)throw new ConflictException('Ballot approval or rejection must be recorded by a different governance actor than the electorate snapshot creator');
         if(reviews[0].createdByUserId===actor)throw new ConflictException('Ballot approval or rejection must be recorded by a different governance actor than the electorate reviewer');
       }
+
       const sequence=(previous?.sequence??0)+1;
       const rows=await tx.$queryRaw<DecisionRow[]>(Prisma.sql`
-        INSERT INTO "GovernanceElectionBallotDraftDecision"
-          ("societyId","ballotDraftId","sequence","outcome","reason","createdByUserId")
-        VALUES
-          (${societyId}::uuid,${ballotDraftId}::uuid,${sequence},${dto.outcome},${reason},${actor}::uuid)
+        INSERT INTO "GovernanceElectionBallotDraftDecision" ("societyId","ballotDraftId","sequence","outcome","reason","createdByUserId")
+        VALUES (${societyId}::uuid,${ballotDraftId}::uuid,${sequence},${dto.outcome},${reason},${actor}::uuid)
         RETURNING "id","ballotDraftId","sequence","outcome","reason","createdByUserId","createdAt"
       `);
       return {...rows[0],policyVersion:draft.policyVersion,policyReference:draft.policyReference,executable:false,castingEnabled:false};
@@ -238,15 +205,11 @@ export class GovernanceElectionBallotDraftController{
 
   private async currentSnapshot(tx:Prisma.TransactionClient,societyId:string,snapshotId:string){
     const rows=await tx.$queryRaw<SnapshotSetupRow[]>(Prisma.sql`
-      SELECT s."id" AS "snapshotId",s."createdByUserId" AS "snapshotCreatedByUserId",s."policyRevisionId",
-        p."version" AS "policyVersion",p."policyReference"
+      SELECT s."id" AS "snapshotId",s."createdByUserId" AS "snapshotCreatedByUserId",s."policyRevisionId",p."version" AS "policyVersion",p."policyReference"
       FROM "GovernanceElectorateSnapshot" s
       JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=s."societyId"
       WHERE s."id"=${snapshotId}::uuid AND s."societyId"=${societyId}::uuid AND p."enabled"=TRUE
-        AND NOT EXISTS (
-          SELECT 1 FROM "GovernanceElectionPolicyRevision" newer
-          WHERE newer."societyId"=s."societyId" AND newer."version">p."version"
-        )
+        AND NOT EXISTS (SELECT 1 FROM "GovernanceElectionPolicyRevision" newer WHERE newer."societyId"=s."societyId" AND newer."version">p."version")
       LIMIT 1
     `);
     if(!rows.length)throw new ConflictException('Electorate snapshot is not bound to the current enabled election policy');
@@ -264,8 +227,7 @@ export class GovernanceElectionBallotDraftController{
     const rows=await this.prisma.$queryRaw<DecisionRow[]>(Prisma.sql`
       SELECT "id","ballotDraftId","sequence","outcome","reason","createdByUserId","createdAt"
       FROM "GovernanceElectionBallotDraftDecision"
-      WHERE "ballotDraftId"=${ballotDraftId}::uuid AND "societyId"=${societyId}::uuid
-      ORDER BY "sequence" DESC LIMIT 1
+      WHERE "ballotDraftId"=${ballotDraftId}::uuid AND "societyId"=${societyId}::uuid ORDER BY "sequence" DESC LIMIT 1
     `);
     return rows[0]??null;
   }
