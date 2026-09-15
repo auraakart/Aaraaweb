@@ -5,6 +5,7 @@ CREATE TABLE "GovernanceElectorateReviewAttestation" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "societyId" UUID NOT NULL,
   "snapshotId" UUID NOT NULL,
+  "sequence" INTEGER NOT NULL,
   "outcome" VARCHAR(32) NOT NULL,
   "note" VARCHAR(2000),
   "createdByUserId" UUID NOT NULL,
@@ -13,10 +14,12 @@ CREATE TABLE "GovernanceElectorateReviewAttestation" (
   CONSTRAINT "GovernanceElectorateReviewAttestation_societyId_fkey" FOREIGN KEY ("societyId") REFERENCES "Society"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "GovernanceElectorateReviewAttestation_snapshotId_fkey" FOREIGN KEY ("snapshotId") REFERENCES "GovernanceElectorateSnapshot"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "GovernanceElectorateReviewAttestation_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "GovernanceElectorateReviewAttestation_outcome_check" CHECK ("outcome" IN ('REVIEWED','BLOCKED'))
+  CONSTRAINT "GovernanceElectorateReviewAttestation_sequence_check" CHECK ("sequence" > 0),
+  CONSTRAINT "GovernanceElectorateReviewAttestation_outcome_check" CHECK ("outcome" IN ('REVIEWED','BLOCKED')),
+  CONSTRAINT "GovernanceElectorateReviewAttestation_snapshot_sequence_key" UNIQUE ("snapshotId", "sequence")
 );
 
-CREATE INDEX "GovernanceElectorateReviewAttestation_snapshot_created_idx" ON "GovernanceElectorateReviewAttestation"("snapshotId", "createdAt" DESC);
+CREATE INDEX "GovernanceElectorateReviewAttestation_snapshot_sequence_idx" ON "GovernanceElectorateReviewAttestation"("snapshotId", "sequence" DESC);
 CREATE INDEX "GovernanceElectorateReviewAttestation_society_created_idx" ON "GovernanceElectorateReviewAttestation"("societyId", "createdAt" DESC);
 
 CREATE TABLE "GovernanceElectionBallotDraft" (
