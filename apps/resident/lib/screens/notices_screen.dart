@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 import 'community_polls_screen.dart';
 
 class NoticesScreen extends StatelessWidget {
@@ -59,32 +60,22 @@ class _NoticeCard extends StatelessWidget {
     final published = _formatDate(notice['publishedAt']?.toString());
     final body = notice['body']?.toString() ?? '';
     final urgent = _isUrgent(notice['category']?.toString(), notice['title']?.toString());
-    return Semantics(
-      button: true,
-      label: '${notice['title'] ?? 'Society notice'}${urgent ? ', urgent' : ''}',
-      child: Material(
-        color: urgent ? scheme.errorContainer.withOpacity(.35) : scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(width: 44, height: 44, decoration: BoxDecoration(color: urgent ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(urgent ? Icons.warning_amber_rounded : Icons.campaign_outlined, color: urgent ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text([if (category.isNotEmpty) category, if (published != null) published].join(' • '), style: theme.textTheme.labelMedium?.copyWith(color: urgent ? scheme.error : scheme.primary, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(notice['title']?.toString() ?? 'Society notice', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                if (body.isNotEmpty) ...[const SizedBox(height: 5), Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.4, color: scheme.onSurfaceVariant))],
-              ])),
-              const SizedBox(width: 8),
-              const Padding(padding: EdgeInsets.only(top: 10), child: Icon(Icons.chevron_right_rounded)),
-            ]),
-          ),
-        ),
-      ),
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: '${notice['title'] ?? 'Society notice'}${urgent ? ', urgent' : ''}',
+      color: urgent ? scheme.errorContainer.withOpacity(.35) : scheme.surfaceContainerLow,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: urgent ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(urgent ? Icons.warning_amber_rounded : Icons.campaign_outlined, color: urgent ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text([if (category.isNotEmpty) category, if (published != null) published].join(' • '), style: theme.textTheme.labelMedium?.copyWith(color: urgent ? scheme.error : scheme.primary, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(notice['title']?.toString() ?? 'Society notice', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          if (body.isNotEmpty) ...[const SizedBox(height: 5), Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.4, color: scheme.onSurfaceVariant))],
+        ])),
+        const SizedBox(width: 8),
+        const Padding(padding: EdgeInsets.only(top: 10), child: Icon(Icons.chevron_right_rounded)),
+      ]),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/resident_data_controller.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 import '../widgets/visitor_pass_share_message.dart';
 
 class GateScreen extends StatelessWidget {
@@ -421,13 +422,9 @@ class _AccessCard extends StatelessWidget {
     return Semantics(
       container: true,
       label: '$title, $type, $status',
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: prominent ? scheme.surface : scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: prominent ? [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 22, offset: const Offset(0, 8))] : null,
-        ),
+      child: PremiumSurface(
+        elevated: prominent,
+        color: prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(
@@ -443,7 +440,10 @@ class _AccessCard extends StatelessWidget {
               Text(detail.isEmpty ? type : '$type · $detail', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
             ])),
             const SizedBox(width: 8),
-            _StatusPill(status: status, pending: request['status'] == 'PENDING'),
+            AaraagateStatusPill(
+              label: status,
+              tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+            ),
           ]),
           if (approvalHint != null) ...[
             const SizedBox(height: 10),
@@ -464,24 +464,6 @@ class _AccessCard extends StatelessWidget {
   }
 
   static String _label(String? value) => (value ?? '').toLowerCase().split('_').map((e) => e.isEmpty ? e : '${e[0].toUpperCase()}${e.substring(1)}').join(' ');
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status, required this.pending});
-  final String status;
-  final bool pending;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = pending ? scheme.errorContainer : scheme.primaryContainer;
-    final foreground = pending ? scheme.onErrorContainer : scheme.onPrimaryContainer;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),
-      child: Text(status, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: foreground, fontWeight: FontWeight.w800)),
-    );
-  }
 }
 
 String _formatDateTime(DateTime value) {
