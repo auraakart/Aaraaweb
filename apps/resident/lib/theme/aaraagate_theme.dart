@@ -16,6 +16,14 @@ class AaraagateTokens {
 
   static const double minTouchTarget = 48;
   static const double primaryActionHeight = 52;
+  static const double pageGutter = 20;
+  static const double iconContainer = 48;
+}
+
+class AaraagateMotion {
+  static const Duration quick = Duration(milliseconds: 120);
+  static const Duration standard = Duration(milliseconds: 220);
+  static const Curve emphasized = Curves.easeOutCubic;
 }
 
 class AaraagateTheme {
@@ -84,6 +92,8 @@ class AaraagateTheme {
 
     return ThemeData(
       useMaterial3: true,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffoldBackground,
       dividerColor: divider,
@@ -123,6 +133,24 @@ class AaraagateTheme {
         shadowColor: Colors.black.withOpacity(.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AaraagateTokens.minTouchTarget),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+          ),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        minVerticalPadding: AaraagateTokens.space3,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AaraagateTokens.space4,
+          vertical: AaraagateTokens.space1,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -234,6 +262,22 @@ class AaraagateTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
         ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: scheme.onInverseSurface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        ),
+        textStyle: TextStyle(color: scheme.onInverseSurface),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );

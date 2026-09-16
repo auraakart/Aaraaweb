@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/amenity_actions.dart';
 import '../data/resident_repository.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class AmenitiesScreen extends StatefulWidget {
   const AmenitiesScreen({super.key, required this.repository, required this.unitId});
@@ -433,10 +434,10 @@ class _AmenityCard extends StatelessWidget {
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
     final description = amenity['description']?.toString() ?? '';
 
-    return Card(
+    return PremiumSurface(
       color: scheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+      elevated: true,
+      padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -465,7 +466,10 @@ class _AmenityCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusPill(label: approval ? 'Approval' : 'Server check'),
+                AaraagateStatusPill(
+                  label: approval ? 'Approval' : 'Instant',
+                  tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
+                ),
               ],
             ),
             if (description.isNotEmpty) ...[
@@ -491,7 +495,6 @@ class _AmenityCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
@@ -509,9 +512,8 @@ class _BookingCard extends StatelessWidget {
     final status = booking['status']?.toString() ?? 'PENDING';
     final statusLabel = status.replaceAll('_', ' ').toLowerCase();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+    return PremiumSurface(
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -541,25 +543,6 @@ class _BookingCard extends StatelessWidget {
               TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
     );
   }
 }

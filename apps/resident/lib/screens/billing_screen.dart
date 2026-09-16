@@ -3,6 +3,7 @@ import '../data/api_client.dart';
 import '../data/resident_repository.dart';
 import '../data/utility_billing_repository_extension.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key, required this.repository, this.activeUnitId});
@@ -234,9 +235,7 @@ class _UtilityChargeCard extends StatelessWidget {
     final periodStart = DateTime.tryParse(charge['periodStart']?.toString() ?? '');
     final periodEnd = DateTime.tryParse(charge['periodEnd']?.toString() ?? '');
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+    return PremiumSurface(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(width: 44, height: 44, decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(Icons.bolt_outlined, color: scheme.onTertiaryContainer)),
@@ -314,13 +313,14 @@ class _InvoiceCard extends StatelessWidget {
     final overdue = due != null && _isOverdueDate(due, DateTime.now());
     final description = invoice['description']?.toString() ?? '';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+    return PremiumSurface(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('${invoice['buildingName'] ?? 'Building'} · ${invoice['unitNumber'] ?? 'Unit'}', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
-          _DuePill(overdue: overdue),
+          AaraagateStatusPill(
+            label: overdue ? 'OVERDUE' : 'DUE',
+            tone: overdue ? AaraagateStatusTone.danger : AaraagateStatusTone.warning,
+          ),
         ]),
         const SizedBox(height: 10),
         Text(_money((invoice['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
@@ -340,20 +340,6 @@ class _InvoiceCard extends StatelessWidget {
           ),
         ),
       ]),
-    );
-  }
-}
-
-class _DuePill extends StatelessWidget {
-  const _DuePill({required this.overdue});
-  final bool overdue;
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(color: overdue ? scheme.errorContainer : scheme.secondaryContainer, borderRadius: BorderRadius.circular(999)),
-      child: Text(overdue ? 'OVERDUE' : 'DUE', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: overdue ? scheme.onErrorContainer : scheme.onSecondaryContainer, fontWeight: FontWeight.w900)),
     );
   }
 }
