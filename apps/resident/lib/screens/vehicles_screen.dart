@@ -189,7 +189,7 @@ class VehiclesScreen extends StatelessWidget {
           children: [
             PremiumSectionHeader(
               title: 'Registered vehicles',
-              supportingText: 'Vehicle additions and removals require Society Admin approval. Parking bay assignments appear here when assigned.',
+              supportingText: 'Vehicle additions and removals require Society Admin approval. Parking bay assignments are managed by society administration and appear here when assigned.',
               trailing: AaraagateStatusPill(label: '${vehicles.length} active', tone: vehicles.isEmpty ? AaraagateStatusTone.neutral : AaraagateStatusTone.success),
             ),
             const SizedBox(height: AaraagateTokens.space5),
