@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../layout/resident_responsive_layout.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -116,7 +117,14 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final itemWidth = (constraints.maxWidth - AaraagateTokens.space3) / 2;
+                  final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+                  final columns = residentQuickActionColumns(
+                    maxWidth: constraints.maxWidth,
+                    textScale: textScale,
+                  );
+                  final itemWidth = columns == 1
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - AaraagateTokens.space3) / columns;
                   return Wrap(
                     spacing: AaraagateTokens.space3,
                     runSpacing: AaraagateTokens.space3,
