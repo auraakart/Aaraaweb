@@ -19,7 +19,10 @@ void main() {
       ),
     ));
 
-    expect(find.bySemanticsLabel('Open society notice'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(PremiumSurface)),
+      matchesSemantics(label: 'Open society notice', isButton: true),
+    );
     await tester.tap(find.text('Water maintenance'));
     await tester.pumpAndSettle();
     expect(taps, 1);
@@ -36,7 +39,10 @@ void main() {
       ),
     ));
 
-    expect(find.bySemanticsLabel('Status: OVERDUE'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(AaraagateStatusPill)),
+      matchesSemantics(label: 'Status: OVERDUE'),
+    );
     expect(find.text('OVERDUE'), findsOneWidget);
   });
 }
