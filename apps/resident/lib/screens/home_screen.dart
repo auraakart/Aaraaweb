@@ -271,16 +271,10 @@ class _HomeHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
+    return PremiumSurface(
+      elevated: true,
+      color: scheme.surfaceContainerLow,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [scheme.primaryContainer.withOpacity(.78), scheme.surface],
-        ),
-        borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
-      ),
       child: Row(
         children: [
           Container(
