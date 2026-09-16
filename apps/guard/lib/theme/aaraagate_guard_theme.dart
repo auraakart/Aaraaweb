@@ -15,6 +15,12 @@ class AaraagateGuardTokens {
   static const double primaryActionHeight = 64;
 }
 
+class AaraagateGuardMotion {
+  static const Duration quick = Duration(milliseconds: 110);
+  static const Duration standard = Duration(milliseconds: 200);
+  static const Curve emphasized = Curves.easeOutCubic;
+}
+
 class AaraagateGuardTheme {
   // Same Aaraagate visual language as Resident, tuned for faster operational
   // scanning and larger touch targets at the gate.
@@ -76,6 +82,8 @@ class AaraagateGuardTheme {
     final baseText = ThemeData(brightness: scheme.brightness).textTheme;
     return ThemeData(
       useMaterial3: true,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffoldBackground,
       dividerColor: divider,
@@ -98,6 +106,17 @@ class AaraagateGuardTheme {
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusCard)),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AaraagateGuardTokens.minTouchTarget),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSmall)),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        minVerticalPadding: AaraagateGuardTokens.space3,
+        contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateGuardTokens.space4, vertical: AaraagateGuardTokens.space2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -154,6 +173,12 @@ class AaraagateGuardTheme {
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSheet)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: scheme.onInverseSurface, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl)),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );
