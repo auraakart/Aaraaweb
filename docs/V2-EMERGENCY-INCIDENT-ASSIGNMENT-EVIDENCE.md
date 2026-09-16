@@ -32,7 +32,7 @@ All management endpoints require the existing `SOS_RESPOND` capability and the s
   - allowed only while the incident is `ACTIVE` or `ACKNOWLEDGED`.
 
 - `GET /sos/manage/:incidentId/evidence`
-  - lists evidence metadata only after the incident is resolved within the authenticated society boundary;
+  - resolves the incident within the authenticated society boundary before listing evidence metadata;
   - object keys are references only and do not grant object-download authorization.
 
 The management queue also exposes the latest assignee and total evidence count, derived from the immutable incident event stream.
