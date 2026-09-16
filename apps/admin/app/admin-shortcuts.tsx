@@ -14,6 +14,7 @@ const marketplaceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'
 const amenityRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const parcelRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const noticeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
+const emergencyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
 
 type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
@@ -58,6 +59,7 @@ export function AdminShortcuts(){
     links.push({href:'/facilities/contracts',label:'AMC & evidence'})
     links.push({href:'/facilities/alerts',label:'Facilities alerts'})
   }
+  if(emergencyRoles.has(role)&&features.has('SOS'))links.push({href:'/emergency-operations',label:'Emergency control room'})
   if(utilitiesRoles.has(role))links.push({href:'/utilities',label:'Meter & utilities'})
   if(parcelRoles.has(role))links.push({href:'/parcels',label:'Parcel desk'})
   if(amenityRoles.has(role)&&features.has('AMENITIES'))links.push({href:'/amenities',label:'Amenities'})
