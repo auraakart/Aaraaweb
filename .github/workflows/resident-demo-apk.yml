@@ -7,12 +7,14 @@ on:
       - 'apps/resident/**'
       - '.github/workflows/resident-demo-apk.yml'
       - 'scripts/enrich-resident-demo-fixture.py'
+      - 'scripts/enrich-resident-demo-fixture-premium.py'
   push:
     branches: [develop, main]
     paths:
       - 'apps/resident/**'
       - '.github/workflows/resident-demo-apk.yml'
       - 'scripts/enrich-resident-demo-fixture.py'
+      - 'scripts/enrich-resident-demo-fixture-premium.py'
   workflow_dispatch:
 
 permissions:
@@ -63,7 +65,7 @@ jobs:
           grep -Eq 'minSdk(Version)?([[:space:]]*=)?[[:space:]]*23' "$APP_GRADLE"
 
       - name: Enrich showcase fixture during packaging only
-        run: python scripts/enrich-resident-demo-fixture.py
+        run: python scripts/enrich-resident-demo-fixture-premium.py
 
       - name: Verify rich marketplace fixture
         run: |
