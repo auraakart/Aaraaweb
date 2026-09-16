@@ -233,12 +233,6 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
     controller.dispose();
     return value;
   }
-
-  String _format(dynamic value) {
-    final date = DateTime.tryParse(value?.toString() ?? '');
-    if (date == null) return value?.toString() ?? '';
-    return '${date.day}/${date.month}/${date.year}';
-  }
 }
 
 class _MoveRequestCard extends StatelessWidget {
