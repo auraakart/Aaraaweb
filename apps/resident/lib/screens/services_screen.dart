@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/service_booking_actions.dart';
+import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key, required this.controller});
@@ -38,32 +40,47 @@ class _ServiceBookingDialogState extends State<_ServiceBookingDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: Text('Book ${widget.serviceName}'),
-        scrollable: true,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Provider: ${widget.providerName}'),
-            const SizedBox(height: 6),
-            Text('Price: ${widget.price}'),
-            const SizedBox(height: 6),
-            Text('Scheduled: ${widget.scheduled}'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notes,
-              maxLength: 300,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes for the provider (optional)'),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text('Book ${widget.serviceName}'),
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PremiumSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.providerName, style: theme.textTheme.titleMedium),
+                const SizedBox(height: AaraagateTokens.space2),
+                Wrap(
+                  spacing: AaraagateTokens.space2,
+                  runSpacing: AaraagateTokens.space2,
+                  children: [
+                    AaraagateStatusPill(label: widget.price, tone: AaraagateStatusTone.neutral),
+                    AaraagateStatusPill(label: widget.scheduled, tone: AaraagateStatusTone.info),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, _ServiceBookingInput(notes: _notes.text)), child: const Text('Request booking')),
+          ),
+          const SizedBox(height: AaraagateTokens.space4),
+          TextField(
+            controller: _notes,
+            maxLength: 300,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Notes for the provider (optional)'),
+          ),
         ],
-      );
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, _ServiceBookingInput(notes: _notes.text)), child: const Text('Request booking')),
+      ],
+    );
+  }
 }
 
 class _ServiceRatingInput {
@@ -169,104 +186,108 @@ class _ServicesScreenState extends State<ServicesScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      useSafeArea: true,
       builder: (context) {
         final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
         final serviceName = offerings.first['name']?.toString() ?? 'Service';
         final sorted = [...offerings]..sort((a, b) => _pricePaise(a).compareTo(_pricePaise(b)));
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.82,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Choose a provider', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text('$serviceName · ${sorted.length} verified provider${sorted.length == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: sorted.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final offering = sorted[index];
-                        final provider = offering['provider'];
-                        final providerDescription = provider is Map ? provider['description']?.toString() : null;
-                        final ratingAverage = provider is Map ? (provider['ratingAverage'] as num?)?.toDouble() : null;
-                        final ratingCount = provider is Map ? (provider['ratingCount'] as num?)?.toInt() ?? 0 : 0;
-                        final completedJobs = provider is Map ? (provider['completedJobs'] as num?)?.toInt() ?? 0 : 0;
-                        final duration = (offering['durationMinutes'] as num?)?.toInt();
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
+        return FractionallySizedBox(
+          heightFactor: 0.86,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space1, AaraagateTokens.pageGutter, AaraagateTokens.space5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const PremiumSectionHeader(title: 'Choose a provider'),
+                const SizedBox(height: AaraagateTokens.space1),
+                Text('$serviceName · ${sorted.length} verified provider${sorted.length == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: AaraagateTokens.space4),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: sorted.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: AaraagateTokens.space3),
+                    itemBuilder: (context, index) {
+                      final offering = sorted[index];
+                      final provider = offering['provider'];
+                      final providerDescription = provider is Map ? provider['description']?.toString() : null;
+                      final ratingAverage = provider is Map ? (provider['ratingAverage'] as num?)?.toDouble() : null;
+                      final ratingCount = provider is Map ? (provider['ratingCount'] as num?)?.toInt() ?? 0 : 0;
+                      final completedJobs = provider is Map ? (provider['completedJobs'] as num?)?.toInt() ?? 0 : 0;
+                      final duration = (offering['durationMinutes'] as num?)?.toInt();
+                      return PremiumSurface(
+                        elevated: true,
+                        padding: const EdgeInsets.all(AaraagateTokens.space4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    CircleAvatar(
-                                      child: Text(_providerInitial(offering)),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                Container(
+                                  width: AaraagateTokens.iconContainer,
+                                  height: AaraagateTokens.iconContainer,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+                                  child: Text(_providerInitial(offering), style: theme.textTheme.titleMedium?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w800)),
+                                ),
+                                const SizedBox(width: AaraagateTokens.space3),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(_providerName(offering), style: theme.textTheme.titleMedium),
+                                      const SizedBox(height: AaraagateTokens.space1),
+                                      Row(
                                         children: [
-                                          Text(_providerName(offering), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                                          const SizedBox(height: 3),
-                                          Row(
-                                            children: [
-                                              Icon(Icons.verified_rounded, size: 16, color: theme.colorScheme.primary),
-                                              const SizedBox(width: 4),
-                                              Text('Verified provider', style: theme.textTheme.bodySmall),
-                                            ],
-                                          ),
+                                          Icon(Icons.verified_rounded, size: 17, color: scheme.primary),
+                                          const SizedBox(width: AaraagateTokens.space1),
+                                          Text('Verified provider', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                                         ],
                                       ),
-                                    ),
-                                    Text(_price(offering['pricePaise']), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                                  ],
-                                ),
-                                if ((providerDescription ?? '').trim().isNotEmpty) ...[
-                                  const SizedBox(height: 10),
-                                  Text(providerDescription!),
-                                ],
-                                if ((offering['description']?.toString() ?? '').trim().isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(offering['description'].toString(), style: theme.textTheme.bodySmall),
-                                ],
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    if (ratingAverage != null && ratingCount > 0)
-                                      Chip(avatar: const Icon(Icons.star_rounded, size: 16), label: Text('${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}')),
-                                    if (completedJobs > 0)
-                                      Chip(avatar: const Icon(Icons.task_alt_rounded, size: 16), label: Text('$completedJobs completed job${completedJobs == 1 ? '' : 's'}')),
-                                    if (duration != null) Chip(avatar: const Icon(Icons.schedule_rounded, size: 16), label: Text('Approx. $duration min')),
-                                    const Chip(avatar: Icon(Icons.shield_outlined, size: 16), label: Text('Society approved')),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton(
-                                    onPressed: () => Navigator.pop(context, offering),
-                                    child: Text('Choose ${_providerName(offering)}'),
+                                    ],
                                   ),
                                 ),
+                                const SizedBox(width: AaraagateTokens.space2),
+                                Text(_price(offering['pricePaise']), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                               ],
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                            if ((providerDescription ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: AaraagateTokens.space3),
+                              Text(providerDescription!, style: theme.textTheme.bodyMedium),
+                            ],
+                            if ((offering['description']?.toString() ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: AaraagateTokens.space2),
+                              Text(offering['description'].toString(), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                            ],
+                            const SizedBox(height: AaraagateTokens.space3),
+                            Wrap(
+                              spacing: AaraagateTokens.space2,
+                              runSpacing: AaraagateTokens.space2,
+                              children: [
+                                if (ratingAverage != null && ratingCount > 0)
+                                  AaraagateStatusPill(label: '${ratingAverage.toStringAsFixed(1)} ★ · $ratingCount rating${ratingCount == 1 ? '' : 's'}', tone: AaraagateStatusTone.info),
+                                if (completedJobs > 0)
+                                  AaraagateStatusPill(label: '$completedJobs completed job${completedJobs == 1 ? '' : 's'}', tone: AaraagateStatusTone.neutral),
+                                if (duration != null) AaraagateStatusPill(label: 'Approx. $duration min', tone: AaraagateStatusTone.neutral),
+                                const AaraagateStatusPill(label: 'Society approved', tone: AaraagateStatusTone.success),
+                              ],
+                            ),
+                            const SizedBox(height: AaraagateTokens.space4),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: () => Navigator.pop(context, offering),
+                                child: Text('Choose ${_providerName(offering)}'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -380,18 +401,19 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final groups = _serviceGroups;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, AaraagateTokens.space8),
           children: [
-            Text('Home services', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text('Compare verified professionals and choose who works for you.', style: theme.textTheme.bodyLarge),
-            const SizedBox(height: 18),
+            Text('Home services', style: theme.textTheme.headlineMedium),
+            const SizedBox(height: AaraagateTokens.space2),
+            Text('Compare verified professionals and choose who works for you.', style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
+            const SizedBox(height: AaraagateTokens.space5),
             TextField(
               controller: _searchController,
               onChanged: (value) => setState(() => _query = value),
@@ -410,7 +432,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AaraagateTokens.space6),
             if (controller.loading && controller.serviceCategories.isEmpty)
               const AppStateCard(icon: Icons.sync_rounded, message: 'Loading home services…', loading: true)
             else if (controller.servicesError != null)
@@ -421,14 +443,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 onAction: _busy ? null : controller.load,
               )
             else ...[
-              Text('Categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const PremiumSectionHeader(title: 'Categories'),
+              const SizedBox(height: AaraagateTokens.space3),
               if (controller.serviceCategories.isEmpty)
                 const AppStateCard(icon: Icons.category_outlined, message: 'No service categories are available yet.')
               else
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: AaraagateTokens.space2,
+                  runSpacing: AaraagateTokens.space2,
                   children: [
                     ChoiceChip(label: const Text('All'), selected: _categoryId == null, onSelected: (_) => setState(() => _categoryId = null)),
                     for (final category in controller.serviceCategories)
@@ -439,9 +461,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       ),
                   ],
                 ),
-              const SizedBox(height: 24),
-              Text('Available services', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              PremiumSectionHeader(
+                title: 'Available services',
+                supportingText: groups.isEmpty ? 'Browse society-approved providers for the selected property.' : '${groups.length} service${groups.length == 1 ? '' : 's'} match your current filters.',
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
               if (controller.serviceOfferings.isEmpty)
                 const AppStateCard(icon: Icons.home_repair_service_outlined, message: 'No approved provider offerings are available yet.')
               else if (groups.isEmpty)
@@ -452,44 +477,49 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   final minPrice = offerings.map(_pricePaise).reduce((a, b) => a < b ? a : b);
                   final count = offerings.length;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Card(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: _busy ? null : () => _chooseProvider(offerings),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const CircleAvatar(child: Icon(Icons.home_repair_service_outlined)),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(first['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                    const SizedBox(height: 4),
-                                    Text('$count verified provider${count == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 4),
-                                    Text(first['description']?.toString() ?? 'Compare providers, prices and service details.'),
-                                    const SizedBox(height: 8),
-                                    Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: theme.colorScheme.primary)),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.chevron_right_rounded),
-                            ],
+                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                    child: PremiumSurface(
+                      onTap: _busy ? null : () => _chooseProvider(offerings),
+                      semanticLabel: '${first['name']?.toString() ?? 'Service'}, $count verified provider${count == 1 ? '' : 's'}, from ${_price(minPrice)}',
+                      padding: const EdgeInsets.all(AaraagateTokens.space4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: AaraagateTokens.iconContainer,
+                            height: AaraagateTokens.iconContainer,
+                            decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+                            child: Icon(Icons.home_repair_service_outlined, color: scheme.onPrimaryContainer),
                           ),
-                        ),
+                          const SizedBox(width: AaraagateTokens.space3),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(first['name']?.toString() ?? 'Service', style: theme.textTheme.titleMedium),
+                                const SizedBox(height: AaraagateTokens.space1),
+                                Text('$count verified provider${count == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: AaraagateTokens.space1),
+                                Text(first['description']?.toString() ?? 'Compare providers, prices and service details.', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                                const SizedBox(height: AaraagateTokens.space2),
+                                Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: scheme.primary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AaraagateTokens.space2),
+                          Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                        ],
                       ),
                     ),
                   );
                 }),
-              const SizedBox(height: 24),
-              Text('Your bookings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              PremiumSectionHeader(
+                title: 'Your bookings',
+                supportingText: controller.bookings.isEmpty ? 'Requested and confirmed services will appear here.' : 'Track provider confirmation, gate access and completion status.',
+                trailing: AaraagateStatusPill(label: '${controller.bookings.length}', tone: AaraagateStatusTone.neutral),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
               if (controller.bookings.isEmpty)
                 const AppStateCard(icon: Icons.event_available_outlined, message: 'You have no service bookings yet.')
               else
@@ -498,36 +528,45 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   final cancellable = status == 'REQUESTED' || status == 'CONFIRMED';
                   final rateable = status == 'COMPLETED' && booking['rating'] == null;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [Expanded(child: Text(_bookingTitle(booking), style: const TextStyle(fontWeight: FontWeight.w800))), Chip(label: Text(status.replaceAll('_', ' ')))]),
-                            const SizedBox(height: 4),
-                            Text(_providerName(booking), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 4),
-                            Text('Scheduled ${_dateTime(booking['scheduledFrom'])}'),
-                            const SizedBox(height: 6),
-                            Text(_statusMessage(booking)),
-                            if (cancellable || rateable) ...[
-                              const SizedBox(height: 10),
-                              Wrap(spacing: 8, children: [
+                    padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                    child: PremiumSurface(
+                      padding: const EdgeInsets.all(AaraagateTokens.space4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: Text(_bookingTitle(booking), style: theme.textTheme.titleMedium)),
+                              const SizedBox(width: AaraagateTokens.space2),
+                              AaraagateStatusPill(label: status.replaceAll('_', ' '), tone: _bookingTone(status)),
+                            ],
+                          ),
+                          const SizedBox(height: AaraagateTokens.space2),
+                          Text(_providerName(booking), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: AaraagateTokens.space1),
+                          Text('Scheduled ${_dateTime(booking['scheduledFrom'])}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                          const SizedBox(height: AaraagateTokens.space2),
+                          Text(_statusMessage(booking), style: theme.textTheme.bodyMedium),
+                          if (cancellable || rateable) ...[
+                            const SizedBox(height: AaraagateTokens.space3),
+                            Wrap(
+                              spacing: AaraagateTokens.space2,
+                              runSpacing: AaraagateTokens.space2,
+                              children: [
                                 if (cancellable) OutlinedButton(onPressed: _busy ? null : () => _cancel(booking), child: const Text('Cancel')),
                                 if (rateable) FilledButton(onPressed: _busy ? null : () => _rate(booking), child: const Text('Rate service')),
-                              ]),
-                            ],
+                              ],
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
                   );
                 }),
             ],
             if (_busy) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AaraagateTokens.space4),
               const AppStateCard(icon: Icons.sync_rounded, message: 'Updating your service request…', loading: true),
             ],
           ],
@@ -553,6 +592,20 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final provider = item['provider'];
     if (provider is Map && provider['businessName'] != null) return provider['businessName'].toString();
     return 'Verified provider';
+  }
+
+  static AaraagateStatusTone _bookingTone(String status) {
+    switch (status) {
+      case 'CONFIRMED':
+      case 'IN_PROGRESS':
+        return AaraagateStatusTone.info;
+      case 'COMPLETED':
+        return AaraagateStatusTone.success;
+      case 'CANCELLED':
+        return AaraagateStatusTone.neutral;
+      default:
+        return AaraagateStatusTone.warning;
+    }
   }
 
   static String _statusMessage(Map<String, dynamic> booking) {
