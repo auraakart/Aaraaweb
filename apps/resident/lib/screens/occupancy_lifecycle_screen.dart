@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../theme/aaraagate_theme.dart';
+import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class OccupancyLifecycleScreen extends StatefulWidget {
   const OccupancyLifecycleScreen({super.key, required this.api, required this.activeUnitId});
@@ -114,6 +117,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final unitId = widget.activeUnitId;
     final myOccupancies = unitId == null ? occupancies : occupancies.where((o) => o['unitId']?.toString() == unitId).toList();
     final canInitiateTenantMoveIn = unitId != null && ownedUnitIds.contains(unitId);
@@ -123,63 +127,83 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space4,
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space8,
+          ),
           children: [
             Text('Occupancy lifecycle', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            const Text('Submit bounded move requests and track society readiness. Legal ownership is not changed by these requests.'),
+            const SizedBox(height: AaraagateTokens.space1),
+            Text(
+              'Submit bounded move requests and track society readiness. Legal ownership is not changed by these requests.',
+              style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+            ),
             if (error != null) ...[
-              const SizedBox(height: 14),
-              Card(color: theme.colorScheme.errorContainer, child: Padding(padding: const EdgeInsets.all(14), child: Text(error!))),
+              const SizedBox(height: AaraagateTokens.space4),
+              AppStateCard(icon: Icons.error_outline_rounded, message: error!, actionLabel: 'Retry', onAction: _load),
             ],
-            const SizedBox(height: 18),
+            const SizedBox(height: AaraagateTokens.space5),
             if (loading)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading move requests…', loading: true)
             else ...[
-              Text('Actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 10),
-              Card(child: Column(children: [
-                for (final occupancy in myOccupancies)
-                  ListTile(
-                    leading: const Icon(Icons.logout_rounded),
-                    title: const Text('Request move-out'),
-                    subtitle: Text('${occupancy['relation']?.toString().replaceAll('_', ' ') ?? 'Resident'} · occupancy ${occupancy['id']}'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    enabled: !submitting,
-                    onTap: () => _requestMoveOut(occupancy),
-                  ),
-                if (canInitiateTenantMoveIn) ...[
-                  if (myOccupancies.isNotEmpty) const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.person_add_alt_1_rounded),
-                    title: const Text('Request tenant move-in'),
-                    subtitle: const Text('Use the tenant mobile number registered with Aaraagate'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    enabled: !submitting,
-                    onTap: () => _requestTenantMoveIn(unitId),
-                  ),
-                ],
-                if (myOccupancies.isEmpty && !canInitiateTenantMoveIn)
-                  const Padding(padding: EdgeInsets.all(16), child: Text('No eligible move action is available for the selected property.')),
-              ])),
-              const SizedBox(height: 22),
-              Text('My requests', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 10),
-              if (requests.isEmpty)
-                const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No move requests yet.')))
-              else
-                Card(child: Column(children: [
-                  for (var i = 0; i < requests.length; i++) ...[
-                    if (i > 0) const Divider(height: 1),
+              PremiumSectionHeader(
+                title: 'Actions',
+                supportingText: 'Available actions are based on the selected property and your current relationship.',
+                trailing: submitting ? const AaraagateStatusPill(label: 'Submitting', tone: AaraagateStatusTone.info) : null,
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
+              PremiumSurface(
+                padding: EdgeInsets.zero,
+                child: Column(children: [
+                  for (var i = 0; i < myOccupancies.length; i++) ...[
+                    if (i > 0) Divider(height: 1, color: scheme.outlineVariant),
                     ListTile(
-                      leading: Icon(requests[i]['kind'] == 'MOVE_OUT' ? Icons.logout_rounded : Icons.login_rounded),
-                      title: Text('${requests[i]['kind']?.toString().replaceAll('_', ' ') ?? 'Move'} · ${requests[i]['status'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text('Effective ${_format(requests[i]['effectiveAt'])}'),
+                      minTileHeight: AaraagateTokens.minTouchTarget,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space2),
+                      leading: const Icon(Icons.logout_rounded),
+                      title: const Text('Request move-out'),
+                      subtitle: Text('${myOccupancies[i]['relation']?.toString().replaceAll('_', ' ') ?? 'Resident'} · occupancy ${myOccupancies[i]['id']}'),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => _openRequest(requests[i]['id'].toString()),
+                      enabled: !submitting,
+                      onTap: () => _requestMoveOut(myOccupancies[i]),
                     ),
                   ],
-                ])),
+                  if (canInitiateTenantMoveIn) ...[
+                    if (myOccupancies.isNotEmpty) Divider(height: 1, color: scheme.outlineVariant),
+                    ListTile(
+                      minTileHeight: AaraagateTokens.minTouchTarget,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space2),
+                      leading: const Icon(Icons.person_add_alt_1_rounded),
+                      title: const Text('Request tenant move-in'),
+                      subtitle: const Text('Use the tenant mobile number registered with Aaraagate'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !submitting,
+                      onTap: () => _requestTenantMoveIn(unitId),
+                    ),
+                  ],
+                  if (myOccupancies.isEmpty && !canInitiateTenantMoveIn)
+                    const Padding(
+                      padding: EdgeInsets.all(AaraagateTokens.space4),
+                      child: Text('No eligible move action is available for the selected property.'),
+                    ),
+                ]),
+              ),
+              const SizedBox(height: AaraagateTokens.space6),
+              PremiumSectionHeader(
+                title: 'My requests',
+                supportingText: 'Track move dates and society readiness.',
+                trailing: AaraagateStatusPill(label: '${requests.length}', tone: requests.isEmpty ? AaraagateStatusTone.neutral : AaraagateStatusTone.info),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
+              if (requests.isEmpty)
+                const AppStateCard(icon: Icons.move_up_outlined, message: 'No move requests yet.')
+              else
+                for (final request in requests) ...[
+                  _MoveRequestCard(request: request, onTap: () => _openRequest(request['id'].toString())),
+                  const SizedBox(height: AaraagateTokens.space3),
+                ],
             ],
           ],
         ),
@@ -209,12 +233,55 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
     controller.dispose();
     return value;
   }
+}
 
-  String _format(dynamic value) {
+class _MoveRequestCard extends StatelessWidget {
+  const _MoveRequestCard({required this.request, required this.onTap});
+  final Map<String, dynamic> request;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final status = request['status']?.toString() ?? '';
+    final kind = request['kind']?.toString() ?? '';
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: '${kind.replaceAll('_', ' ')} request. Status $status. Effective ${_formatValue(request['effectiveAt'])}',
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: AaraagateTokens.iconContainer,
+          height: AaraagateTokens.iconContainer,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+          child: Icon(kind == 'MOVE_OUT' ? Icons.logout_rounded : Icons.login_rounded, color: scheme.primary),
+        ),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(kind.replaceAll('_', ' ').isEmpty ? 'Move' : kind.replaceAll('_', ' '), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text('Effective ${_formatValue(request['effectiveAt'])}', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: AaraagateTokens.space3),
+          AaraagateStatusPill(label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '), tone: _statusTone(status)),
+        ])),
+        const Icon(Icons.chevron_right_rounded),
+      ]),
+    );
+  }
+
+  String _formatValue(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '');
     if (date == null) return value?.toString() ?? '';
     return '${date.day}/${date.month}/${date.year}';
   }
+
+  AaraagateStatusTone _statusTone(String status) => switch (status.toUpperCase()) {
+        'APPROVED' || 'COMPLETED' || 'READY' => AaraagateStatusTone.success,
+        'REJECTED' || 'CANCELLED' => AaraagateStatusTone.danger,
+        'IN_REVIEW' || 'PROCESSING' || 'IN_PROGRESS' => AaraagateStatusTone.info,
+        _ => AaraagateStatusTone.warning,
+      };
 }
 
 class _RequestDetail extends StatelessWidget {
@@ -223,30 +290,69 @@ class _RequestDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final checklist = (detail['checklist'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final documents = (detail['documents'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final complete = checklist.where((item) => item['completedAt'] != null).length;
-    return SafeArea(child: Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${detail['kind']?.toString().replaceAll('_', ' ') ?? 'Move'} · ${detail['status'] ?? ''}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        Text('Readiness: $complete of ${checklist.length} items complete'),
-        const SizedBox(height: 14),
-        for (final item in checklist)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(item['completedAt'] == null ? Icons.radio_button_unchecked : Icons.check_circle_rounded),
-            title: Text(item['label']?.toString() ?? item['code']?.toString() ?? 'Checklist item'),
-            subtitle: item['note'] == null ? null : Text(item['note'].toString()),
-          ),
-        if (documents.isNotEmpty) ...[
-          const Divider(),
-          const Text('Documents', style: TextStyle(fontWeight: FontWeight.w800)),
-          for (final doc in documents)
-            ListTile(contentPadding: EdgeInsets.zero, leading: Icon(doc['verifiedAt'] == null ? Icons.description_outlined : Icons.verified_rounded), title: Text(doc['kind']?.toString() ?? 'Document'), subtitle: Text(doc['verifiedAt'] == null ? 'Awaiting verification' : 'Verified')),
-        ],
-      ])),
-    ));
+    final status = detail['status']?.toString() ?? '';
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AaraagateTokens.pageGutter,
+          0,
+          AaraagateTokens.pageGutter,
+          AaraagateTokens.space5 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Text('${detail['kind']?.toString().replaceAll('_', ' ') ?? 'Move'} · $status', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
+              const SizedBox(width: AaraagateTokens.space2),
+              AaraagateStatusPill(label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '), tone: _detailTone(status)),
+            ]),
+            const SizedBox(height: AaraagateTokens.space3),
+            PremiumSurface(
+              child: Row(children: [
+                Icon(Icons.fact_check_outlined, color: scheme.primary),
+                const SizedBox(width: AaraagateTokens.space3),
+                Expanded(child: Text('Readiness: $complete of ${checklist.length} items complete')),
+              ]),
+            ),
+            const SizedBox(height: AaraagateTokens.space4),
+            if (checklist.isNotEmpty) ...[
+              const PremiumSectionHeader(title: 'Readiness checklist'),
+              const SizedBox(height: AaraagateTokens.space2),
+              for (final item in checklist)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(item['completedAt'] == null ? Icons.radio_button_unchecked : Icons.check_circle_rounded),
+                  title: Text(item['label']?.toString() ?? item['code']?.toString() ?? 'Checklist item'),
+                  subtitle: item['note'] == null ? null : Text(item['note'].toString()),
+                ),
+            ],
+            if (documents.isNotEmpty) ...[
+              const SizedBox(height: AaraagateTokens.space4),
+              const PremiumSectionHeader(title: 'Documents'),
+              const SizedBox(height: AaraagateTokens.space2),
+              for (final doc in documents)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(doc['verifiedAt'] == null ? Icons.description_outlined : Icons.verified_rounded),
+                  title: Text(doc['kind']?.toString() ?? 'Document'),
+                  subtitle: Text(doc['verifiedAt'] == null ? 'Awaiting verification' : 'Verified'),
+                ),
+            ],
+          ]),
+        ),
+      ),
+    );
   }
+
+  AaraagateStatusTone _detailTone(String status) => switch (status.toUpperCase()) {
+        'APPROVED' || 'COMPLETED' || 'READY' => AaraagateStatusTone.success,
+        'REJECTED' || 'CANCELLED' => AaraagateStatusTone.danger,
+        'IN_REVIEW' || 'PROCESSING' || 'IN_PROGRESS' => AaraagateStatusTone.info,
+        _ => AaraagateStatusTone.warning,
+      };
 }
