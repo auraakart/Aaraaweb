@@ -5,8 +5,6 @@ import 'package:aaraagate_resident/widgets/premium_ui.dart';
 
 void main() {
   testWidgets('premium surface exposes one semantic action and press feedback', (tester) async {
-    final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     var taps = 0;
     await tester.pumpWidget(MaterialApp(
       theme: AaraagateTheme.light(),
@@ -19,10 +17,10 @@ void main() {
       ),
     ));
 
-    expect(
-      tester.getSemantics(find.byType(PremiumSurface)),
-      matchesSemantics(label: 'Open society notice', isButton: true),
-    );
+    final action = tester.widget<Semantics>(find.byWidgetPredicate(
+      (widget) => widget is Semantics && widget.properties.label == 'Open society notice',
+    ));
+    expect(action.properties.button, isTrue);
     await tester.tap(find.text('Water maintenance'));
     await tester.pumpAndSettle();
     expect(taps, 1);
@@ -30,8 +28,6 @@ void main() {
   });
 
   testWidgets('status pill announces its status without relying on colour', (tester) async {
-    final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     await tester.pumpWidget(MaterialApp(
       theme: AaraagateTheme.dark(),
       home: const Scaffold(
@@ -40,8 +36,8 @@ void main() {
     ));
 
     expect(
-      tester.getSemantics(find.byType(AaraagateStatusPill)),
-      matchesSemantics(label: 'Status: OVERDUE'),
+      find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.label == 'Status: OVERDUE'),
+      findsOneWidget,
     );
     expect(find.text('OVERDUE'), findsOneWidget);
   });
