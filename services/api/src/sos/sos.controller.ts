@@ -36,6 +36,18 @@ class ResolveSosDto {
   @IsString() @MinLength(5) @MaxLength(500) note!: string;
 }
 
+class AssignSosDto {
+  @IsUUID() assigneeUserId!: string;
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
+class AddSosEvidenceDto {
+  @IsString() @MinLength(1) @MaxLength(512) objectKey!: string;
+  @IsString() @MinLength(1) @MaxLength(255) fileName!: string;
+  @IsOptional() @IsString() @MaxLength(120) contentType?: string;
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
 @Controller('sos')
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.SOS)
@@ -91,6 +103,34 @@ export class SosController {
     @CurrentUser() userId?: string,
   ) {
     return this.sos.escalate(societyId, this.requireUser(userId), incidentId, dto.note);
+  }
+
+  @Patch('manage/:incidentId/assign')
+  @RequiresPermissions(AppPermission.SOS_RESPOND)
+  assign(
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @Body() dto: AssignSosDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.sos.assign(societyId, this.requireUser(userId), incidentId, dto.assigneeUserId, dto.note);
+  }
+
+  @Post('manage/:incidentId/evidence')
+  @RequiresPermissions(AppPermission.SOS_RESPOND)
+  addEvidence(
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @Body() dto: AddSosEvidenceDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.sos.addEvidence(societyId, this.requireUser(userId), incidentId, dto);
+  }
+
+  @Get('manage/:incidentId/evidence')
+  @RequiresPermissions(AppPermission.SOS_RESPOND)
+  evidence(@Param('incidentId', ParseUUIDPipe) incidentId: string, @CurrentTenant() societyId: string) {
+    return this.sos.evidence(societyId, incidentId);
   }
 
   @Get('manage/:incidentId/escalation-targets')
