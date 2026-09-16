@@ -15,14 +15,13 @@
   --danger: #b42318;
   --warning: #8a6100;
   --radius: 18px;
-  --shadow-soft: 0 14px 36px rgba(5, 135, 154, 0.08);
-  --brand-gradient: linear-gradient(135deg, #05879a 0%, #0eabbe 58%, #6ec9d2 100%);
+  --shadow-soft: 0 14px 36px rgba(23, 50, 58, 0.06);
 }
 
 /* Product UI deliberately carries only Aaraagate branding. These selectors
    refine the shared admin components without introducing corporate naming. */
 .sidebar {
-  box-shadow: 8px 0 30px rgba(5, 135, 154, 0.035);
+  box-shadow: 8px 0 30px rgba(23, 50, 58, 0.035);
 }
 
 .brand {
@@ -31,7 +30,7 @@
 }
 
 .society {
-  background: linear-gradient(145deg, #eefafa 0%, var(--accent) 100%);
+  background: var(--neutral-soft);
   border: 1px solid var(--line);
 }
 
@@ -56,9 +55,14 @@
 }
 
 .primary {
-  background: var(--brand-gradient) !important;
+  background: var(--brand) !important;
   border-color: var(--brand) !important;
   box-shadow: 0 8px 22px rgba(5, 135, 154, 0.16);
+}
+
+.primary:hover {
+  background: var(--brand-bright) !important;
+  border-color: var(--brand-bright) !important;
 }
 
 input,
@@ -91,5 +95,5 @@ select:focus {
 }
 
 .progress {
-  background: var(--brand-gradient);
+  background: var(--brand);
 }
