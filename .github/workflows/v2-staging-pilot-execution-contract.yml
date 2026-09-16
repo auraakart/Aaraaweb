@@ -17,6 +17,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch staging history
+        run: git fetch origin staging:refs/remotes/origin/staging --force
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

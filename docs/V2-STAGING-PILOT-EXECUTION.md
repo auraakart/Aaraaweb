@@ -1,29 +1,39 @@
 # V2 Staging and Pilot Execution
 
-This runbook coordinates the remaining V2.4 human validation against one exact candidate SHA. It does not replace the existing hosted staging smoke, UAT, policy pilot, security/privacy review, or Accountant/Committee acceptance plans.
+This runbook coordinates the remaining V2.4 human validation against one exact source candidate and its governed staging promotion commit. It does not replace the existing hosted staging smoke, UAT, policy pilot, security/privacy review, or Accountant/Committee acceptance plans.
 
 ## Current state
 
-The execution record is `docs/v2-staging-pilot-execution.json`. It starts `NOT_PREPARED` and `NOT_READY`. That is intentional until a real staging/pilot execution is scheduled.
+The execution record is `docs/v2-staging-pilot-execution.json`. `STAGING_PROMOTED` means the reviewed `develop` candidate has been merged into the protected `staging` branch and repository-level staging smoke/backup evidence exists, but the hosted staging API has not yet passed exact-deployment acceptance. This is intentionally different from `STAGING_DEPLOYED`.
 
-## Preparation
+The current V2.4 source candidate is `26724d3b1b0da114a6fd3b71fa2f88eccae95fad`. PR #551 promoted that candidate into staging merge commit `5d9f9c87fc13d481d5eb30f916349d5cc3458a04`. The promotion merge preserves the exact source-candidate tree. Post-push Staging smoke #491 and Backup restore smoke #309 passed. Hosted staging acceptance #2 did not reach the API because `AARAAGATE_STAGING_API_BASE_URL` was empty, so hosted acceptance remains a blocker rather than evidence of application failure.
+
+## Preparation and promotion
 
 1. Select the exact `develop` commit to validate.
-2. Open a PR from that candidate to `staging`; do not merge a different SHA.
-3. Record the current `main` SHA as rollback target.
-4. Confirm the hosted staging API origin is HTTPS.
-5. Prepare non-production Resident, Guard and Admin test accounts/devices without copying production credentials or resident PII.
-6. Identify the pilot society, pilot identifier, release owner and reviewers before changing the execution record to `PILOT_IN_PROGRESS`.
+2. Open a PR from that candidate to `staging`; do not move the protected staging ref directly.
+3. Reconcile any diverged staging history back into `develop` through a reviewed PR before promotion.
+4. Record the current `main` SHA as rollback target.
+5. Merge only after the staging API smoke and backup/restore promotion gates are green.
+6. Record both identities: `developSha` is the source candidate; `stagingSha` is the governed staging merge commit.
+7. The staging merge commit must contain the source candidate as an ancestor and preserve its exact Git tree. Equality between the two commit SHAs is neither expected nor required.
 
 ## Hosted staging evidence
 
-After the exact candidate reaches `staging`, require the existing `Hosted staging acceptance` workflow to prove the same SHA is live and dependency-ready. Record only the workflow/run evidence reference in the execution record. Do not store tokens, connection strings, resident information or raw production data.
+After the candidate is promoted to `staging`, configure the non-secret `AARAAGATE_STAGING_API_BASE_URL` with the public HTTPS origin of the hosted staging API and ensure the hosting platform deploys the current staging commit. Require the existing `Hosted staging acceptance` workflow to prove that exact staging commit is live and dependency-ready.
 
-The execution record checker rejects `STAGING_DEPLOYED` or later unless:
-- `stagingSha` is a full SHA and equals the declared `developSha`;
-- a full rollback `main` SHA is recorded;
-- the staging origin is HTTPS;
-- hosted staging acceptance evidence is recorded.
+The execution record uses these states:
+- `STAGING_PROMOTED`: Git promotion is complete; hosted acceptance may still be blocked or pending.
+- `STAGING_DEPLOYED`: the promoted staging commit has a valid HTTPS hosted origin and green hosted staging acceptance evidence.
+- `PILOT_IN_PROGRESS`: hosted staging is accepted and real pilot identities/accounts/devices are ready.
+- `COMPLETE`: all required execution evidence has been collected.
+
+The checker validates staging promotion by Git ancestry plus exact tree identity. For `STAGING_DEPLOYED` or later it additionally requires:
+- a full rollback `main` SHA;
+- an HTTPS hosted staging origin;
+- hosted staging acceptance evidence.
+
+Never store tokens, connection strings, resident information or raw production data in this record or workflow evidence.
 
 ## Pilot entry
 

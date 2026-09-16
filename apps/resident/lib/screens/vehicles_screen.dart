@@ -3,6 +3,9 @@ import '../data/demo_household_state.dart';
 import '../data/demo_resident_repository.dart';
 import '../data/resident_data_controller.dart';
 import '../data/vehicle_actions.dart';
+import '../theme/aaraagate_theme.dart';
+import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class VehiclesScreen extends StatelessWidget {
   const VehiclesScreen({super.key, required this.controller, required this.householdId});
@@ -59,7 +62,7 @@ class VehiclesScreen extends StatelessWidget {
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(labelText: 'Registration number', hintText: 'KA01AB1234'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space3),
               DropdownButtonFormField<String>(
                 value: type,
                 decoration: const InputDecoration(labelText: 'Vehicle type'),
@@ -70,14 +73,23 @@ class VehiclesScreen extends StatelessWidget {
                 ],
                 onChanged: (value) => value == null ? null : setState(() => type = value),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space3),
               TextField(controller: make, decoration: const InputDecoration(labelText: 'Make (optional)', hintText: 'Maruti Suzuki')),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space3),
               TextField(controller: model, decoration: const InputDecoration(labelText: 'Model (optional)', hintText: 'Baleno')),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space3),
               TextField(controller: color, decoration: const InputDecoration(labelText: 'Colour (optional)')),
-              const SizedBox(height: 12),
-              const Text('The vehicle becomes active only after Society Admin approval.', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: AaraagateTokens.space3),
+              const PremiumSurface(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 20),
+                    SizedBox(width: AaraagateTokens.space2),
+                    Expanded(child: Text('The vehicle becomes active only after Society Admin approval.')),
+                  ],
+                ),
+              ),
             ]),
           ),
           actions: [
@@ -117,8 +129,8 @@ class VehiclesScreen extends StatelessWidget {
         await controller.load();
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request submitted for society approval.')));
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request could not be submitted. Please try again.')));
     }
   }
 
@@ -145,18 +157,20 @@ class VehiclesScreen extends StatelessWidget {
         await controller.load();
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal submitted for society approval.')));
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal could not be submitted. Please try again.')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final vehicles = _vehicles;
     final pending = _pending;
     final parkingSlots = _parkingSlots;
     return Scaffold(
-      appBar: AppBar(title: const Text('Vehicles & parking', style: TextStyle(fontWeight: FontWeight.w900))),
+      appBar: AppBar(title: const Text('Vehicles & parking')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _add(context),
         icon: const Icon(Icons.add_rounded),
@@ -166,32 +180,69 @@ class VehiclesScreen extends StatelessWidget {
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+          padding: const EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space4,
+            AaraagateTokens.pageGutter,
+            100,
+          ),
           children: [
-            Text('Registered vehicles', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            const Text('Vehicle additions and removals require Society Admin approval. Parking bay assignments are managed by society administration and shown below when assigned.'),
-            const SizedBox(height: 18),
+            PremiumSectionHeader(
+              title: 'Registered vehicles',
+              supportingText: 'Vehicle additions and removals require Society Admin approval. Parking bay assignments are managed by society administration and appear here when assigned.',
+              trailing: AaraagateStatusPill(label: '${vehicles.length} active', tone: vehicles.isEmpty ? AaraagateStatusTone.neutral : AaraagateStatusTone.success),
+            ),
+            const SizedBox(height: AaraagateTokens.space5),
             if (pending.isNotEmpty) ...[
-              Text('Pending society approval', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              for (final request in pending) _PendingVehicleRequestCard(request: request),
-              const SizedBox(height: 12),
+              PremiumSectionHeader(
+                title: 'Pending society approval',
+                trailing: AaraagateStatusPill(label: '${pending.length}', tone: AaraagateStatusTone.warning),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
+              for (final request in pending) ...[
+                _PendingVehicleRequestCard(request: request),
+                const SizedBox(height: AaraagateTokens.space3),
+              ],
+              const SizedBox(height: AaraagateTokens.space2),
             ],
             if (vehicles.isEmpty)
-              const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('No approved active vehicles registered for this household.')))
+              const AppStateCard(icon: Icons.directions_car_outlined, message: 'No approved active vehicles registered for this household.')
             else
-              ...vehicles.map((vehicle) {
-                final vehicleId = vehicle['id']?.toString() ?? '';
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(child: Icon(vehicle['vehicleType'] == 'TWO_WHEELER' ? Icons.two_wheeler_rounded : Icons.directions_car_rounded)),
-                    title: Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: const TextStyle(fontWeight: FontWeight.w900)),
-                    subtitle: Text(_details(vehicle, parkingSlots[vehicleId])),
-                    trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded), tooltip: 'Request vehicle removal', onPressed: () => _remove(context, vehicle)),
-                  ),
-                );
-              }),
+              for (final vehicle in vehicles) ...[
+                Builder(builder: (context) {
+                  final vehicleId = vehicle['id']?.toString() ?? '';
+                  final twoWheeler = vehicle['vehicleType'] == 'TWO_WHEELER';
+                  return PremiumSurface(
+                    padding: const EdgeInsets.all(AaraagateTokens.space4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: AaraagateTokens.iconContainer,
+                          height: AaraagateTokens.iconContainer,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+                          child: Icon(twoWheeler ? Icons.two_wheeler_rounded : Icons.directions_car_rounded, color: scheme.onPrimaryContainer),
+                        ),
+                        const SizedBox(width: AaraagateTokens.space3),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(vehicle['plateNumber']?.toString() ?? 'Vehicle', style: theme.textTheme.titleMedium),
+                            const SizedBox(height: AaraagateTokens.space1),
+                            Text(_details(vehicle, parkingSlots[vehicleId]), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                          ]),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          tooltip: 'Request vehicle removal',
+                          onPressed: () => _remove(context, vehicle),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: AaraagateTokens.space3),
+              ],
           ],
         ),
       ),
@@ -223,14 +274,25 @@ class _PendingVehicleRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final payload = request['payload'] is Map ? request['payload'] as Map : const {};
     final adding = request['type'] == 'VEHICLE_ADD';
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.schedule_rounded),
-        title: Text(payload['plateNumber']?.toString() ?? 'Vehicle change'),
-        subtitle: Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval'),
-        trailing: const Chip(label: Text('Pending')),
+    return PremiumSurface(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.schedule_rounded),
+          const SizedBox(width: AaraagateTokens.space3),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(payload['plateNumber']?.toString() ?? 'Vehicle change', style: theme.textTheme.titleSmall),
+              const SizedBox(height: AaraagateTokens.space1),
+              Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval', style: theme.textTheme.bodySmall),
+            ]),
+          ),
+          const SizedBox(width: AaraagateTokens.space2),
+          const AaraagateStatusPill(label: 'Pending', tone: AaraagateStatusTone.warning),
+        ],
       ),
     );
   }

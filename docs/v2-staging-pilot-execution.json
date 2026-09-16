@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "aaraagate.v2.staging-pilot-execution.v1",
+  "schemaVersion": "aaraagate.v2.staging-pilot-execution.v2",
   "phase": "V2.4",
   "status": "NOT_PREPARED",
   "candidate": {
-    "developSha": "15408ab8a0e8e734f0629e133e55cc81b8d579ba",
-    "stagingSha": null,
-    "rollbackMainSha": null,
+    "developSha": "8f82b32ff62f71b49d1c2094d7103861c7944d72",
+    "stagingSha": "5d9f9c87fc13d481d5eb30f916349d5cc3458a04",
+    "rollbackMainSha": "f1a61620570cf7c0303608242b286d94d5b09b70",
     "hostedStagingUrl": null
   },
   "pilot": {
@@ -18,6 +18,7 @@
     "guardDevicesReady": false
   },
   "technicalEvidence": {
+    "stagingPromotionEvidence": "Historical only: PR #551; Staging smoke #491; Backup restore smoke #309. This evidence predates the current develop tip and is not release acceptance for the current candidate.",
     "hostedStagingAcceptance": null,
     "backupRestoreEvidence": "docs/BACKUP-RESTORE-EVIDENCE.md",
     "productionPreflight": null
@@ -28,7 +29,12 @@
     "securityPrivacyReview": "docs/V2-SECURITY-PRIVACY-AUTOMATED-EVIDENCE.md",
     "pilotAcceptance": "docs/v2-pilot-acceptance-plan.json"
   },
-  "blockingIssues": [],
+  "blockingIssues": [
+    "AARAAGATE_STAGING_API_BASE_URL is not configured; configure the public HTTPS staging API origin and rerun hosted acceptance.",
+    "The previous V2.4 staging/preprod candidate predates current develop and must be regenerated from an accepted current develop SHA.",
+    "Restricted admin manager/read-only UAT evidence is incomplete.",
+    "Resident and Guard real-device pilot acceptance is incomplete."
+  ],
   "acceptedExceptions": [],
   "releaseDecision": "NOT_READY"
 }

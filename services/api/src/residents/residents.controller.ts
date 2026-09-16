@@ -126,7 +126,7 @@ export class ResidentsController {
     const role = membershipRoleForRelation(dto.relation);
     const isOccupant = dto.isOccupant ?? true;
     const now = new Date();
-    const effectiveFrom = dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date();
+    const effectiveFrom = dto.effectiveFrom ? new Date(dto.effectiveFrom) : now;
     const effectiveTo = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
     if (effectiveTo && effectiveTo <= effectiveFrom) throw new BadRequestException('Relationship validity window is invalid');
     if (effectiveFrom > now) throw new BadRequestException('Future relationship activation is not supported; link the resident on the move-in date');

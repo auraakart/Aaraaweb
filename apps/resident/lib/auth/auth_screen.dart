@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/aaraagate_theme.dart';
+import '../widgets/premium_ui.dart';
 import 'auth_repository.dart';
 import 'resident_auth_controller.dart';
 
@@ -28,11 +30,17 @@ class _AuthScreenState extends State<AuthScreen> {
       builder: (context, _) {
         final controller = widget.controller;
         final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
         return Scaffold(
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  AaraagateTokens.pageGutter,
+                  AaraagateTokens.space8,
+                  AaraagateTokens.pageGutter,
+                  AaraagateTokens.space8,
+                ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 460),
                   child: Column(
@@ -43,50 +51,67 @@ class _AuthScreenState extends State<AuthScreen> {
                           width: 76,
                           height: 76,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-                            ),
-                            borderRadius: BorderRadius.circular(24),
+                            color: scheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
                           ),
-                          child: const Icon(Icons.shield_rounded, size: 38, color: Colors.white),
+                          child: Icon(Icons.shield_rounded, size: 38, color: scheme.onPrimaryContainer),
                         ),
                       ),
-                      const SizedBox(height: 22),
-                      Text('Welcome to Aaraagate', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      Text('Secure access to your home, community and services.', textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(height: 28),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(22),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (controller.step == ResidentAuthStep.loading) const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: CircularProgressIndicator())),
-                              if (controller.step == ResidentAuthStep.phone) _phoneStep(controller),
-                              if (controller.step == ResidentAuthStep.otp) _otpStep(controller),
-                              if (controller.step == ResidentAuthStep.society) _societyStep(controller),
-                              if (controller.error != null) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
-                                  child: Text(controller.error!, style: TextStyle(color: theme.colorScheme.onErrorContainer), textAlign: TextAlign.center),
+                      const SizedBox(height: AaraagateTokens.space5),
+                      Text(
+                        'Welcome to Aaraagate',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: AaraagateTokens.space2),
+                      Text(
+                        'Secure access to your home, community and services.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: AaraagateTokens.space6),
+                      PremiumSurface(
+                        elevated: true,
+                        padding: const EdgeInsets.all(AaraagateTokens.space5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (controller.step == ResidentAuthStep.loading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: AaraagateTokens.space6),
+                                child: Center(child: CircularProgressIndicator()),
+                              ),
+                            if (controller.step == ResidentAuthStep.phone) _phoneStep(controller),
+                            if (controller.step == ResidentAuthStep.otp) _otpStep(controller),
+                            if (controller.step == ResidentAuthStep.society) _societyStep(controller),
+                            if (controller.error != null) ...[
+                              const SizedBox(height: AaraagateTokens.space4),
+                              Container(
+                                padding: const EdgeInsets.all(AaraagateTokens.space3),
+                                decoration: BoxDecoration(
+                                  color: scheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
                                 ),
-                              ],
+                                child: Text(
+                                  controller.error!,
+                                  style: TextStyle(color: scheme.onErrorContainer),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ],
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: AaraagateTokens.space4),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.lock_outline_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                          const SizedBox(width: 6),
-                          Text('Secure context-scoped session', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                          Icon(Icons.lock_outline_rounded, size: 16, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: AaraagateTokens.space2),
+                          Text(
+                            'Secure context-scoped session',
+                            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
                         ],
                       ),
                     ],
@@ -105,19 +130,42 @@ class _AuthScreenState extends State<AuthScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Sign in', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
+        const SizedBox(height: AaraagateTokens.space2),
         Text('Use your Aaraagate mobile number.', style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 18),
-        TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number', prefixIcon: Icon(Icons.phone_android_rounded), hintText: '+91 98765 43210')),
-        const SizedBox(height: 16),
-        FilledButton(onPressed: controller.busy ? null : () => controller.requestOtp(_phone.text), child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Send OTP')),
-        const SizedBox(height: 12),
+        const SizedBox(height: AaraagateTokens.space4),
+        TextField(
+          controller: _phone,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Mobile number',
+            prefixIcon: Icon(Icons.phone_android_rounded),
+            hintText: '+91 98765 43210',
+          ),
+        ),
+        const SizedBox(height: AaraagateTokens.space4),
+        FilledButton(
+          onPressed: controller.busy ? null : () => controller.requestOtp(_phone.text),
+          child: controller.busy
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Send OTP'),
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
         const Text('We’ll send a one-time password to verify your mobile number.', textAlign: TextAlign.center),
         if (controller.demoEnabled) ...[
-          const SizedBox(height: 24),
-          const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('DEMO')), Expanded(child: Divider())]),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(onPressed: controller.busy ? null : controller.enterDemo, icon: const Icon(Icons.play_circle_outline_rounded), label: const Text('Continue as Demo Resident')),
+          const SizedBox(height: AaraagateTokens.space6),
+          const Row(
+            children: [
+              Expanded(child: Divider()),
+              Padding(padding: EdgeInsets.symmetric(horizontal: AaraagateTokens.space3), child: Text('DEMO')),
+              Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: AaraagateTokens.space4),
+          OutlinedButton.icon(
+            onPressed: controller.busy ? null : controller.enterDemo,
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text('Continue as Demo Resident'),
+          ),
         ],
       ],
     );
@@ -128,12 +176,23 @@ class _AuthScreenState extends State<AuthScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Verify mobile', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
+        const SizedBox(height: AaraagateTokens.space2),
         const Text('Enter the 6-digit OTP sent to your number.'),
-        const SizedBox(height: 18),
-        TextField(controller: _otp, keyboardType: TextInputType.number, maxLength: 6, autofocus: true, decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.lock_outline_rounded))),
-        const SizedBox(height: 8),
-        FilledButton(onPressed: controller.busy ? null : () => controller.verifyOtp(_otp.text), child: controller.busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Verify & continue')),
+        const SizedBox(height: AaraagateTokens.space4),
+        TextField(
+          controller: _otp,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '6-digit OTP', prefixIcon: Icon(Icons.lock_outline_rounded)),
+        ),
+        const SizedBox(height: AaraagateTokens.space2),
+        FilledButton(
+          onPressed: controller.busy ? null : () => controller.verifyOtp(_otp.text),
+          child: controller.busy
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Verify & continue'),
+        ),
       ],
     );
   }
@@ -143,9 +202,9 @@ class _AuthScreenState extends State<AuthScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('My Properties', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
+        const SizedBox(height: AaraagateTokens.space2),
         const Text('Choose the exact property you want to open.'),
-        const SizedBox(height: 16),
+        const SizedBox(height: AaraagateTokens.space4),
         for (final membership in controller.memberships)
           if (membership.properties.isEmpty)
             _PropertyTile(
@@ -188,14 +247,42 @@ class _PropertyTile extends StatelessWidget {
         ? membership.name
         : '${membership.name} · ${property!.buildingName} ${property!.unitNumber}'.trim();
     final relationship = property?.relationship.toLowerCase();
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+      child: PremiumSurface(
         onTap: busy ? null : onTap,
-        leading: CircleAvatar(backgroundColor: scheme.primaryContainer, foregroundColor: scheme.onPrimaryContainer, child: const Icon(Icons.apartment_rounded)),
-        title: Text(propertyLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text([if (relationship != null && relationship.isNotEmpty) relationship, roleText].join(' · ')),
-        trailing: const Icon(Icons.chevron_right_rounded),
+        semanticLabel: propertyLabel,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AaraagateTokens.space4,
+          vertical: AaraagateTokens.space3,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: AaraagateTokens.iconContainer,
+              height: AaraagateTokens.iconContainer,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+              ),
+              child: Icon(Icons.apartment_rounded, color: scheme.onPrimaryContainer),
+            ),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(propertyLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: AaraagateTokens.space1),
+                  Text([if (relationship != null && relationship.isNotEmpty) relationship, roleText].join(' · ')),
+                ],
+              ),
+            ),
+            const SizedBox(width: AaraagateTokens.space2),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
       ),
     );
   }

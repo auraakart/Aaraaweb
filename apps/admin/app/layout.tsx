@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import './brand-tokens.css'
+import './admin-navigation.css'
 
 export const metadata: Metadata = {
   title: 'Aaraagate Admin',
