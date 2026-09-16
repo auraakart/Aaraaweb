@@ -176,7 +176,9 @@ export class SosService {
   async escalate(societyId: string, actorUserId: string, incidentId: string, note?: string) {
     const current = await this.findIncident(societyId, incidentId);
     if (!current) throw new NotFoundException('SOS incident not found');
-    this.assertOpenForResponse(current);
+    if (current.status !== 'ACTIVE' && current.status !== 'ACKNOWLEDGED') {
+      throw new BadRequestException('Only active or acknowledged SOS incidents can be escalated');
+    }
     const cleanNote = note?.trim() || null;
     const events = await this.prisma.$queryRaw<Array<{ occurredAt: Date }>>(Prisma.sql`
       INSERT INTO "SosIncidentEvent" (
