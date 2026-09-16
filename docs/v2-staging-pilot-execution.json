@@ -1,7 +1,7 @@
 {
   "schemaVersion": "aaraagate.v2.staging-pilot-execution.v2",
   "phase": "V2.4",
-  "status": "STAGING_CANDIDATE_STALE",
+  "status": "NOT_PREPARED",
   "candidate": {
     "developSha": "8f82b32ff62f71b49d1c2094d7103861c7944d72",
     "stagingSha": "5d9f9c87fc13d481d5eb30f916349d5cc3458a04",
