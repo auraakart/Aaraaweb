@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../qr_scanner.dart';
 import '../widgets/guard_state_card.dart';
+import '../widgets/guard_operation_ui.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
   const GuardOperationsScreen({super.key, required this.controller});
@@ -91,9 +92,8 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+              GuardOperationSurface(
+                semanticLabel: gateReady ? 'Security shift active at ${c.gateName ?? 'selected gate'}' : 'No active gate selected',
                 child: Row(children: [
                   Container(width: 52, height: 52, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.security_rounded, color: scheme.onPrimaryContainer, size: 28)),
                   const SizedBox(width: 12),
@@ -102,7 +102,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                     const SizedBox(height: 2),
                     Text(c.gateName ?? 'Select a gate to begin operations', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                   ])),
-                  Icon(Icons.circle, size: 12, color: gateReady ? scheme.primary : scheme.outline),
+                  GuardStatusPill(label: gateReady ? 'READY' : 'SELECT GATE', tone: gateReady ? GuardStatusTone.ready : GuardStatusTone.waiting),
                 ]),
               ),
               const SizedBox(height: 14),
@@ -401,9 +401,9 @@ class _SyncHealthCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final pending = controller.queuedActions > 0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+    return GuardOperationSurface(
+      semanticLabel: pending ? '${controller.queuedActions} offline gate actions pending' : 'Online operations clear',
+      color: pending ? scheme.errorContainer.withOpacity(.62) : scheme.surfaceContainerLow,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(width: 44, height: 44, decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(pending ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, color: pending ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
@@ -413,6 +413,7 @@ class _SyncHealthCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(controller.offlineSyncMessage ?? (pending ? 'Stored securely for supervisor review and safe sync.' : 'No locally queued gate actions.'), style: theme.textTheme.bodySmall?.copyWith(color: pending ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
           ])),
+          GuardStatusPill(label: pending ? 'OFFLINE' : 'SYNCED', tone: pending ? GuardStatusTone.offline : GuardStatusTone.ready),
         ]),
         if (pending) ...[
           const SizedBox(height: 12),
@@ -442,14 +443,20 @@ class _GateApprovalCard extends StatelessWidget {
     final title = access['subjectName']?.toString() ?? 'Gate arrival';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR';
     final background = waiting ? scheme.secondaryContainer.withOpacity(.55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
-    return Container(
+    return GuardOperationSurface(
+      color: background,
+      prominent: waiting,
+      semanticLabel: '$title, $type, ${waiting ? 'waiting for resident approval' : status}',
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Icon(denied ? Icons.block_rounded : waiting ? Icons.hourglass_top_rounded : Icons.verified_rounded, size: 30),
           const SizedBox(width: 10),
           Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+          GuardStatusPill(
+            label: waiting ? 'WAITING' : status.replaceAll('_', ' '),
+            tone: denied ? GuardStatusTone.blocked : waiting ? GuardStatusTone.waiting : GuardStatusTone.ready,
+          ),
         ]),
         const SizedBox(height: 6),
         Text(type, style: theme.textTheme.labelLarge),
@@ -477,24 +484,21 @@ class _AccessResultCard extends StatelessWidget {
     final positive = status == 'APPROVED' || status == 'CHECKED_IN';
     final subject = access['subjectName']?.toString() ?? 'Access holder';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'ACCESS';
-    return Semantics(
-      container: true,
-      label: '$subject, $type, ${status.replaceAll('_', ' ')}',
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer, borderRadius: BorderRadius.circular(20)),
+    return GuardOperationSurface(
+      semanticLabel: '$subject, $type, ${status.replaceAll('_', ' ')}',
+      color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer,
+      prominent: true,
+      padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 52, height: 52, decoration: BoxDecoration(color: positive ? scheme.primaryContainer : scheme.errorContainer, borderRadius: BorderRadius.circular(16)), child: Icon(positive ? Icons.check_rounded : Icons.block_rounded, size: 30, color: positive ? scheme.onPrimaryContainer : scheme.onErrorContainer)),
             const SizedBox(width: 12),
             Expanded(child: Text(subject, style: theme.textTheme.titleLarge)),
+            GuardStatusPill(label: status.replaceAll('_', ' '), tone: positive ? GuardStatusTone.ready : GuardStatusTone.blocked),
           ]),
           const SizedBox(height: 12),
           Text(type, style: theme.textTheme.labelLarge),
-          const SizedBox(height: 6),
-          Text(status.replaceAll('_', ' '), style: theme.textTheme.titleMedium?.copyWith(color: positive ? scheme.primary : scheme.error, fontWeight: FontWeight.w900)),
         ]),
-      ),
     );
   }
 }
