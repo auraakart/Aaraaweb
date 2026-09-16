@@ -133,7 +133,6 @@ class _BillingScreenState extends State<BillingScreen> {
     final outstanding = invoices.where((invoice) => invoice['status'] == 'ISSUED').toList();
     final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     outstanding.sort((a, b) => (DateTime.tryParse(a['dueDate']?.toString() ?? '') ?? DateTime(9999)).compareTo(DateTime.tryParse(b['dueDate']?.toString() ?? '') ?? DateTime(9999)));
-    final nextInvoice = outstanding.isEmpty ? null : outstanding.first;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Maintenance & payments')),
@@ -150,45 +149,28 @@ class _BillingScreenState extends State<BillingScreen> {
             else if (invoices.isEmpty && utilityCharges.isEmpty)
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
-              _SummaryCard(
-                outstanding: outstanding,
-                busy: nextInvoice != null && payingInvoiceId == nextInvoice['id']?.toString(),
-                onPayNext: nextInvoice == null ? null : () => _preparePayment(nextInvoice),
-              ),
+              _SummaryCard(outstanding: outstanding),
               if (outstanding.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space6),
+                const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
                   title: 'Outstanding',
                   supportingText: '${outstanding.length} bill${outstanding.length == 1 ? '' : 's'} waiting for payment.',
                 ),
-                const SizedBox(height: AaraagateTokens.space3),
+                const SizedBox(height: AaraagateTokens.space2),
                 for (final invoice in outstanding) ...[
                   _InvoiceCard(invoice: invoice, busy: payingInvoiceId == invoice['id']?.toString(), onPay: () => _preparePayment(invoice)),
-                  const SizedBox(height: AaraagateTokens.space3),
+                  const SizedBox(height: AaraagateTokens.space2),
                 ],
               ] else ...[
-                const SizedBox(height: AaraagateTokens.space6),
+                const SizedBox(height: AaraagateTokens.space5),
                 const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
               ],
-              if (utilityCharges.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space6),
-                PremiumSectionHeader(
-                  title: 'Utility usage',
-                  supportingText: 'Issued meter-based charges for this property.',
-                  trailing: AaraagateStatusPill(label: '${utilityCharges.length}', tone: AaraagateStatusTone.neutral),
-                ),
-                const SizedBox(height: AaraagateTokens.space3),
-                for (final charge in utilityCharges.take(6)) ...[
-                  _UtilityChargeCard(charge: charge),
-                  const SizedBox(height: AaraagateTokens.space3),
-                ],
-              ],
-              const SizedBox(height: AaraagateTokens.space6),
+              const SizedBox(height: AaraagateTokens.space5),
               PremiumSectionHeader(
                 title: 'Payment history',
                 supportingText: completedPayments.isEmpty ? 'Verified payments will appear here.' : 'Receipts are available for completed payments.',
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              const SizedBox(height: AaraagateTokens.space2),
               if (completedPayments.isEmpty)
                 const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.')
               else
@@ -196,6 +178,19 @@ class _BillingScreenState extends State<BillingScreen> {
                   _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
+              if (utilityCharges.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space5),
+                PremiumSectionHeader(
+                  title: 'Utility usage',
+                  supportingText: 'Issued meter-based charges for this property.',
+                  trailing: AaraagateStatusPill(label: '${utilityCharges.length}', tone: AaraagateStatusTone.neutral),
+                ),
+                const SizedBox(height: AaraagateTokens.space2),
+                for (final charge in utilityCharges.take(6)) ...[
+                  _UtilityChargeCard(charge: charge),
+                  const SizedBox(height: AaraagateTokens.space2),
+                ],
+              ],
             ],
           ],
         ),
@@ -205,10 +200,8 @@ class _BillingScreenState extends State<BillingScreen> {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.outstanding, required this.busy, this.onPayNext});
+  const _SummaryCard({required this.outstanding});
   final List<Map<String, dynamic>> outstanding;
-  final bool busy;
-  final VoidCallback? onPayNext;
 
   @override
   Widget build(BuildContext context) {
@@ -236,19 +229,6 @@ class _SummaryCard extends StatelessWidget {
           outstanding.isEmpty ? 'All caught up' : 'Next due${nextDue == null ? '' : ' ${_date(nextDue)}'}',
           style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withOpacity(.82)),
         ),
-        if (onPayNext != null) ...[
-          const SizedBox(height: AaraagateTokens.space5),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: busy ? null : onPayNext,
-              icon: busy
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.lock_outline_rounded),
-              label: Text(busy ? 'Preparing payment…' : 'Pay next bill'),
-            ),
-          ),
-        ],
       ]),
     );
   }
@@ -369,9 +349,7 @@ class _InvoiceCard extends StatelessWidget {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: busy ? null : onPay,
-            icon: busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.lock_outline_rounded),
+            icon: Icon(busy ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded),
             label: Text(busy ? 'Preparing payment…' : 'Pay securely'),
           ),
         ),
