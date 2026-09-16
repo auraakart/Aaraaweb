@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
-const adminRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','SECURITY_SUPERVISOR'])
+const adminRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR','SECURITY_SUPERVISOR'])
 
 type StoredSession={sessionId:string;accessToken:string;refreshToken:string;societyId:string;role:string;societyName:string}
 type SocietyContext={societyId:string;role:string;roles:string[];society:{name:string;code:string}}

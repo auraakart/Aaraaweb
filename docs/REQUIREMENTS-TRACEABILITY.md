@@ -1,8 +1,8 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-12
+Updated: 2026-09-16
 
-`PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records implementation/acceptance state.
+`PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
 ## V1 implementation baseline
 | Area | Status | Current acceptance state |
@@ -16,50 +16,53 @@ Updated: 2026-09-12
 | Household / owner / tenant | Validated | Ownership and occupancy independent; stale relationships revoke authority |
 | Vehicles / parking baseline | Validated | Resident vehicles and Admin parking assignment baseline |
 | Workforce / domestic help | Validated | Assignment, leave, rating, suspension and gate integration |
-| Notices | Validated | Owner-only / owner+occupant audience logic |
-| Helpdesk / SOS | Validated baseline | Tenant-scoped resident and operations lifecycles |
-| Amenities | Validated baseline | Booking baseline and entitlement controls |
+| Notices | Validated | Audience policy plus V2 targeting/scheduling/attachment/observability extensions |
+| Helpdesk / SOS | Validated / hardened | Tenant-scoped lifecycles plus SLA/escalation and emergency incident hardening |
+| Amenities | Validated / hardened | Booking baseline plus V2 policy controls |
 | External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
-| Billing / payments | Validated baseline | Dues, eligible owner/tenant payment, signed reconciliation and audit |
-| Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit |
-| Privacy UX | Validated disclosure baseline | Current data-use disclosure without unsupported compliance claims |
-| CI / release controls | Hardened | API/Admin/Flutter validation, dependency audit, staging smoke and backup/restore drill |
+| Billing / payments | Validated / hardened | Dues, eligible owner/tenant payment, signed reconciliation, exception handling and audit |
+| Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit and controlled exports |
+| Privacy UX / operations | Implemented baseline | Disclosure baseline plus V2 auditable privacy operations; human policy review remains separate |
+| CI / release controls | Hardened | API/Admin/Flutter validation, dependency audit and release-control contracts |
 | Hosted production evidence | Pending external setup | Hosted infrastructure/provider/Play evidence remains operational work |
 
 ## V2 requirement traceability
-Status values: **Started**, **Planned P0**, **Planned P1**, **Planned P2**, **Conditional**.
+Status values below describe repository implementation only. **Human acceptance pending** does not mean the code is incomplete; it means the corresponding role/device/policy evidence has not yet been executed.
 
-| Requirement | Priority | Status | Initial implementation evidence / acceptance target |
+| Requirement | Priority | Repository status | Current evidence / remaining non-production work |
 |---|---|---|---|
-| V2-RBAC Administrative segregation of duties | P0 | **Started** | V2 domain permissions added to `permission.types.ts`; negative SoD unit tests added. Controllers/services must consume permissions as each domain ships. |
-| V2-FIN Full society accounting | P0 | Planned P0 | Ledger/journal/fund/bank/budget/payable model; immutable adjustments; finance authorization and reports. |
-| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | Planned P0 | Workflow around existing `UnitOwnership`/`UnitOccupancy`; configurable documents/approvals; atomic authority revocation. |
-| V2-GOV Society governance | P0/P1 | Planned P0 | Committee tenure, meetings, minutes, resolutions/action items and configurable governance evidence. |
-| V2-EMR Emergency/incident operations | P0/P1 | Planned P0 | Categorized incidents, control-room escalation, broadcast/ack, timeline/evidence/closure and fallback delivery semantics. |
-| V2-PRV Privacy/data lifecycle | P0 | Planned P0 | Auditable privacy request cases, retention checks, processor/vendor hooks and personal-data incident workflow. |
-| V2-PAY Payment exception hardening | P0 | Planned P0 | Debited-unconfirmed, duplicate, reversal/refund and dispute workflows; accounting allocation separate from gateway state. |
-| V2-FAC Assets/AMCs/work orders | P1 | Planned P1 | Asset register, preventive maintenance, AMC/warranty, work orders, inspections/evidence/cost/escalation. |
-| V2-VND Society vendors/procurement | P1 | Planned P1 | Separate bounded context from External Services; vendor/contracts/quotes/optional PR-PO/invoice/SLA. |
-| V2-DOC Document repository | P1 | Planned P1 | Classified document metadata + server-authorized object access and domain associations. |
-| V2-HLP Helpdesk SLA/escalation | P1 | Planned P1 | Severity/priority/SLA, assignment/escalation, internal/public notes, reopen, satisfaction and analytics. |
-| V2-COM Communication governance | P1 | Planned P1 | Targeting, schedule/expiry, attachments, optional acknowledgement and metrics without unsupported legal-delivery claims. |
-| V2-AMN Amenity policy engine | P1 | Planned P1 | Capacity/quotas/windows/cooling-off/guests/pricing/deposit/refund/blackout/approval rules. |
-| V2-PRC Parcel desk | P1 | Planned P1 | Leave-at-gate custody, collection acknowledgement/OTP, escalation, history and overstay linkage. |
-| V2-PRK Advanced parking | P1/P2 | Planned P2 | Allocations, visitor/temporary parking, additional-vehicle policy, credentials, violations and EV readiness. |
-| V2-UTL Meter/utilities | P2 | Planned P2 | Optional meter/readings/tariffs/history/billing integration. |
-| V2 digital statutory election | Conditional | Conditional | Implement only after target-society legal/bye-law policy confirms the permitted workflow; polls/surveys may ship independently. |
+| V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
+| V2-FIN Full society accounting | P0 | **Implemented baseline / hardened** | `services/api/src/accounting`, finance permissions, ledger/report/export/reconciliation controls and Admin finance surfaces are present. Accountant/Treasurer human acceptance remains. |
+| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
+| V2-GOV Society governance | P0/P1 | **Implemented baseline / hardened** | `services/api/src/governance`, committee/governance permissions and Admin governance workflows are present. Bye-law-dependent configuration remains pilot evidence. |
+| V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
+| V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
+| V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
+| V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. Human facility-role UAT remains. |
+| V2-VND Society vendors/procurement | P1 | **Implemented baseline** | Society-vendor bounded context and capability permissions are separate from consumer External Services. Pilot workflow evidence remains. |
+| V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
+| V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
+| V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
+| V2-AMN Amenity policy engine | P1 | **Implemented baseline / hardened** | Capacity/booking rules, approval and booking policy controls are present. Real-society policy acceptance remains. |
+| V2-PRC Parcel desk | P1 | **Implemented / hardened** | Custody, recipient/collection handling, reminders/escalation and history are implemented in `services/api/src/parcels`. Real guard/resident flow UAT remains. |
+| V2-PRK Advanced parking | P1/P2 | **Partial; non-blocking P2 remainder** | Allocations, visitor/temporary permits, history and EV-ready slot metadata are implemented. Configurable second-car policy, external credential references and incorrect-parking reports remain optional P2 depth. |
+| V2-UTL Meter/utilities | P2 | **Optional / advanced** | Optional V2.3 scope; not a launch blocker unless explicitly promoted into release scope. |
+| V2 digital statutory election | Conditional | **Conditional / policy-gated** | Statutory election behavior remains disabled unless a target society's governing framework permits it; non-statutory polls/surveys may operate separately. |
 
-## V2 foundation acceptance state
-Current branch: `feat/aaraagate-v2-foundation-20260912`.
+## Current non-production functional closure
 
-Completed in this first slice:
-- V2 product specification promoted from deferred comments into approved requirement domains.
-- Phased V2 implementation roadmap created.
-- Architecture expanded with Finance, Governance, Occupancy Lifecycle, Facilities, Society Vendors, Documents, Privacy, Emergency and Parcel bounded contexts.
-- Explicit code permissions introduced for finance/governance/facilities/vendors/documents/privacy operations.
-- Segregation-of-duties tests prevent Committee/Facility/Security/resident roles from inheriting inappropriate financial or administrative mutation rights.
-- Society Admin receives finance read, not finance mutation, as the initial V2 baseline.
-- Privacy mutation remains platform-only until a scoped privacy workflow defines safe delegation.
+After the 2026-09-16 live-code reconciliation, the mandatory repository-side closure items are:
+
+1. Complete the scoped read-only Auditor responsibility workflow and automated authorization checks.
+2. Keep requirements/traceability synchronized with live implementation.
+3. Preserve negative tenant/RBAC regression coverage as new domain work is added.
+
+The following are **not** repository feature gaps and remain separate acceptance/release gates:
+- human role UAT for Accountant/Treasurer, Committee, Facility, Security Supervisor and Auditor;
+- Resident/Guard real-device pilot acceptance;
+- real-society policy/bye-law configuration acceptance;
+- hosted staging acceptance and provider E2E;
+- backup/restore/rollback, monitoring/alerts, signed Android/Play and production operations.
 
 ## Cross-cutting V2 acceptance requirements
 Every V2 domain must prove:
