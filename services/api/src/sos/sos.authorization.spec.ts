@@ -35,7 +35,17 @@ describe('SOS authorization', () => {
   });
 
   it('protects every operational response endpoint with SOS respond permission', () => {
-    for (const handler of ['manage', 'acknowledge', 'resolve', 'history'] as const) {
+    for (const handler of [
+      'manage',
+      'acknowledge',
+      'escalate',
+      'assign',
+      'addEvidence',
+      'evidence',
+      'escalationTargets',
+      'resolve',
+      'history',
+    ] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, SosController.prototype[handler])).toEqual([AppPermission.SOS_RESPOND]);
     }
   });
