@@ -5,6 +5,8 @@ import 'package:aaraagate_resident/widgets/premium_ui.dart';
 
 void main() {
   testWidgets('premium surface exposes one semantic action and press feedback', (tester) async {
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
     var taps = 0;
     await tester.pumpWidget(MaterialApp(
       theme: AaraagateTheme.light(),
@@ -25,6 +27,8 @@ void main() {
   });
 
   testWidgets('status pill announces its status without relying on colour', (tester) async {
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
     await tester.pumpWidget(MaterialApp(
       theme: AaraagateTheme.dark(),
       home: const Scaffold(
