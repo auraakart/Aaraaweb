@@ -193,6 +193,7 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.logout_rounded,
                   iconColor: scheme.error,
                   title: 'Sign out',
+                  subtitle: 'End this session on this device',
                   titleColor: scheme.error,
                   showChevron: false,
                   onTap: () async {
