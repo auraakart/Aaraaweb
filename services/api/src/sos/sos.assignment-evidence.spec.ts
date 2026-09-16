@@ -21,9 +21,11 @@ describe('SosService incident assignment and evidence', () => {
     expect(membershipSql).toContain('"SocietyMembership"');
     expect(membershipSql).toContain('sm."societyId"');
     expect(membershipSql).toContain('sm."active" = true');
-    expect(membershipSql).toContain('SECURITY_GUARD');
+    expect(membershipSql).toContain('"MembershipRole"');
     expect(membershipQuery.values).toContain('society-1');
     expect(membershipQuery.values).toContain('guard-1');
+    expect(membershipQuery.values).toContain('SECURITY_GUARD');
+    expect(membershipQuery.values).toContain('SECURITY_SUPERVISOR');
 
     const assignment = prisma.$queryRaw.mock.calls[2][0] as { strings: readonly string[]; values: unknown[] };
     expect(assignment.strings.join(' ')).toContain("'ASSIGNED'");
@@ -99,6 +101,21 @@ describe('SosService incident assignment and evidence', () => {
         fileName: 'evidence.jpg',
       }),
     ).rejects.toThrow('Evidence must use a private object key, not a public URL');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects new evidence after an incident is closed', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1', status: 'CANCELLED', societyId: 'society-1' }]),
+    };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.addEvidence('society-1', 'guard-1', 'incident-1', {
+        objectKey: 'sos/society-1/incident-1/photo-2.jpg',
+        fileName: 'closed.jpg',
+      }),
+    ).rejects.toThrow('Only active or acknowledged SOS incidents can be updated');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
