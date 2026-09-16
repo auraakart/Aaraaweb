@@ -17,6 +17,20 @@ const SENSITIVE_V2_MANAGE_PERMISSIONS = [
   AppPermission.PARKING_MANAGE,
 ] as const;
 
+const AUDITOR_READ_PERMISSIONS = [
+  AppPermission.SOCIETY_CONFIGURATION_READ,
+  AppPermission.REPORTS_READ,
+  AppPermission.AUDIT_READ,
+  AppPermission.FINANCE_READ,
+  AppPermission.GOVERNANCE_READ,
+  AppPermission.FACILITIES_READ,
+  AppPermission.SOCIETY_VENDORS_READ,
+  AppPermission.DOCUMENTS_READ,
+  AppPermission.PRIVACY_OPERATIONS_READ,
+  AppPermission.OCCUPANCY_LIFECYCLE_READ,
+  AppPermission.PARKING_READ,
+] as const;
+
 function contextFor(permission: AppPermission, roles: AppRole[]): ExecutionContext {
   class TestController {}
   const handler = () => undefined;
@@ -68,6 +82,18 @@ describe('Aaraagate v2 restricted-role authorization contract', () => {
     ]);
   });
 
+  it('gives Auditor cross-domain read evidence without any sensitive mutation authority', () => {
+    for (const permission of AUDITOR_READ_PERMISSIONS) {
+      expect(hasPermission([AppRole.AUDITOR], permission), `AUDITOR -> ${permission}`).toBe(true);
+    }
+    expectOnlyManagePermissions(AppRole.AUDITOR, []);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.BILLING_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.PAYMENT_RECONCILE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.NOTICE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOS_RESPOND)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.GATE_ACCESS_PROCESS)).toBe(false);
+  });
+
   it('denies all sensitive v2 mutation permissions to security, resident, staff and vendor roles', () => {
     const restrictedRoles = [
       AppRole.SECURITY_SUPERVISOR,
@@ -100,6 +126,11 @@ describe('Aaraagate v2 restricted-role authorization contract', () => {
       'Insufficient permissions',
     );
     expect(() => guard.canActivate(contextFor(AppPermission.PRIVACY_OPERATIONS_MANAGE, [AppRole.SOCIETY_ADMIN]))).toThrow(
+      'Insufficient permissions',
+    );
+    expect(guard.canActivate(contextFor(AppPermission.AUDIT_READ, [AppRole.AUDITOR]))).toBe(true);
+    expect(guard.canActivate(contextFor(AppPermission.FINANCE_READ, [AppRole.AUDITOR]))).toBe(true);
+    expect(() => guard.canActivate(contextFor(AppPermission.FINANCE_MANAGE, [AppRole.AUDITOR]))).toThrow(
       'Insufficient permissions',
     );
     expect(() => guard.canActivate(contextFor(AppPermission.PARKING_MANAGE, [AppRole.SECURITY_SUPERVISOR]))).toThrow(
