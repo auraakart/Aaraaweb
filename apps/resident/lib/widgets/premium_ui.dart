@@ -72,6 +72,53 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
   }
 }
 
+/// Consistent section heading for scan-friendly resident screens.
+/// Keeps headings quiet enough that the screen title remains dominant.
+class PremiumSectionHeader extends StatelessWidget {
+  const PremiumSectionHeader({
+    super.key,
+    required this.title,
+    this.supportingText,
+    this.trailing,
+  });
+
+  final String title;
+  final String? supportingText;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              if (supportingText != null) ...[
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(
+                  supportingText!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: AaraagateTokens.space3),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
 class AaraagateStatusPill extends StatelessWidget {
   const AaraagateStatusPill({super.key, required this.label, this.tone = AaraagateStatusTone.neutral});
 
