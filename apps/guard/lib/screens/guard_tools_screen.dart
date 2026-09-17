@@ -3,6 +3,7 @@ import '../guard_controller.dart';
 import '../localization/guard_strings.dart';
 import '../widgets/guard_operation_ui.dart';
 import 'guard_field_operations_screen.dart';
+import 'guard_school_transport_screen.dart';
 
 class GuardToolsScreen extends StatefulWidget {
   const GuardToolsScreen({super.key, required this.controller});
@@ -67,6 +68,15 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardFieldOperationsScreen(controller: c))),
                       icon: const Icon(Icons.security_rounded),
                       label: const Text('FIELD OPERATIONS'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: c.gateId == null || c.units.isEmpty ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardSchoolTransportScreen(controller: c))),
+                      icon: const Icon(Icons.directions_bus_rounded),
+                      label: const Text('SCHOOL TRANSPORT'),
                     ),
                   ),
                 ],
