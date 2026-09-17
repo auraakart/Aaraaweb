@@ -96,6 +96,48 @@ export class AiOperationsService {
     };
   }
 
+  async operationsSummary(societyId:string) {
+    const tickets=await this.prisma.$queryRaw<Array<{
+      id:string;
+      title:string;
+      priority:string;
+      status:string;
+      slaState:string;
+      firstResponseDueAt:Date|null;
+      resolutionDueAt:Date|null;
+      unitNumber:string;
+      buildingName:string;
+      assignedToId:string|null;
+      escalationLevel:number;
+    }>>(Prisma.sql`
+      SELECT ht."id",ht."title",ht."priority",ht."status",ht."slaState",
+             ht."firstResponseDueAt",ht."resolutionDueAt",ht."assignedToId",ht."escalationLevel",
+             u."number" AS "unitNumber",b."name" AS "buildingName"
+      FROM "HelpdeskTicket" ht
+      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=ht."societyId"
+      WHERE ht."societyId"=${societyId}::uuid
+        AND ht."status" NOT IN ('RESOLVED','CLOSED')
+      ORDER BY CASE ht."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
+               ht."createdAt" ASC
+      LIMIT 500
+    `);
+    const breached=tickets.filter(ticket=>ticket.slaState==='RESPONSE_BREACHED'||ticket.slaState==='RESOLUTION_BREACHED');
+    const unassigned=tickets.filter(ticket=>!ticket.assignedToId);
+    const byPriority=tickets.reduce<Record<string,number>>((acc,ticket)=>{
+      acc[ticket.priority]=(acc[ticket.priority]??0)+1;
+      return acc;
+    },{});
+    return {
+      openCount:tickets.length,
+      breachedCount:breached.length,
+      unassignedCount:unassigned.length,
+      byPriority,
+      breaches:breached.slice(0,50),
+      unassigned:unassigned.slice(0,50),
+    };
+  }
+
   async proposeHelpdesk(societyId:string,userId:string,input:HelpdeskProposalInput) {
     const title=input.title.trim();
     const description=input.description.trim();
