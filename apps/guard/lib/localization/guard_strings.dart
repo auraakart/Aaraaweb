@@ -22,7 +22,7 @@ class GuardStrings {
 
   final String languageCode;
 
-  String get(String key) => (_values[languageCode]?[key] ?? _values['en']?[key] ?? key)!;
+  String get(String key) => _values[languageCode]?[key] ?? _values['en']?[key] ?? key;
 
   static const _values = <String, Map<String, String>>{
     'en': {

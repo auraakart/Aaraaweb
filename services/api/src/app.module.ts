@@ -8,6 +8,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
+import { GuardOperationsModule } from './guard-operations/guard-operations.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
 import { NoticesModule } from './notices/notices.module';
 import { ParcelsModule } from './parcels/parcels.module';
@@ -47,6 +48,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     ParkingModule,
     SosModule,
     GatesModule,
+    GuardOperationsModule,
     VisitorsModule,
     AccessModule,
     AmenitiesModule,
