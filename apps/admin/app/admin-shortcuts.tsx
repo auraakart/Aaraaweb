@@ -75,14 +75,13 @@ export function AdminShortcuts(){
       add(operations,{href:'/facilities/contracts',label:'AMC & evidence',description:'Contracts and maintenance evidence'})
       add(operations,{href:'/facilities/alerts',label:'Facilities alerts',description:'Operational exceptions and alerts'})
     }
-    if(emergencyRoles.has(role)&&features.has('SOS'))add(operations,{href:'/emergency-operations',label:'Emergency control room',description:'Acknowledge and resolve SOS incidents'})
+    if((emergencyRoles.has(role)&&features.has('SOS'))||privacyRoles.has(role)||role==='SUPER_ADMIN')add(operations,{href:'/operations-control',label:'Operations & control',description:'Emergency, privacy, audit and platform controls'})
     if(vendorRoles.has(role))add(operations,{href:'/society-vendors',label:'Vendors & procurement',description:'Vendor relationships and procurement'})
     if(utilitiesRoles.has(role))add(operations,{href:'/utilities',label:'Meter & utilities',description:'Metering and utility operations'})
     if(parcelRoles.has(role))add(operations,{href:'/parcels',label:'Parcel desk',description:'Parcel receiving and handover'})
     if(amenityRoles.has(role)&&features.has('AMENITIES'))add(operations,{href:'/amenities',label:'Amenities',description:'Amenity configuration and bookings'})
     if(noticeRoles.has(role)&&features.has('NOTICES'))add(operations,{href:'/notices/metrics',label:'Notice metrics',description:'Announcement delivery and engagement'})
     if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))add(operations,{href:'/marketplace-control',label:'Marketplace controls',description:'Society marketplace operations'})
-    if(privacyRoles.has(role))add(operations,{href:'/privacy-operations',label:'Privacy operations',description:'Privacy requests and operational controls'})
 
     if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))add(finance,{href:'/reports',label:'Reports',description:'Operational and management reporting'})
     if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING')){
