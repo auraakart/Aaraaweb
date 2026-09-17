@@ -70,6 +70,8 @@ export function AdminShortcuts(){
 
     if(facilitiesRoles.has(role)){
       add(operations,{href:'/facilities',label:'Facilities ops',description:'Assets, issues and facility workflows'})
+      add(operations,{href:'/facilities/inventory',label:'Inventory & spares',description:'Track stock, receipts and work-order consumption'})
+      add(operations,{href:'/facilities/operations',label:'Housekeeping & staff',description:'Schedule and complete operational tasks'})
       add(operations,{href:'/facilities/health',label:'Facilities health',description:'Operational health overview'})
       add(operations,{href:'/facilities/preventive',label:'Preventive maintenance',description:'Scheduled maintenance activities'})
       add(operations,{href:'/facilities/contracts',label:'AMC & evidence',description:'Contracts and maintenance evidence'})
