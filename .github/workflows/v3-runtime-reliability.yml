@@ -1,0 +1,60 @@
+name: V3 Runtime Reliability
+
+on:
+  pull_request:
+    paths:
+      - 'services/api/src/auth/**'
+      - 'services/api/src/scheduled-work/**'
+      - 'services/api/scripts/runtime-reliability-smoke.ts'
+      - '.github/workflows/v3-runtime-reliability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-runtime-reliability-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-reliability:
+    name: Redis and scheduled-work reliability
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Exercise production Redis state primitives and reconnect
+        run: pnpm --filter @aaraagate/api exec tsx scripts/runtime-reliability-smoke.ts
+
+      - name: Verify scheduled-work locking and retry contracts
+        run: pnpm --filter @aaraagate/api test -- src/scheduled-work/scheduled-work.service.spec.ts
