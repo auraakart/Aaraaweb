@@ -75,6 +75,8 @@ export function AdminShortcuts(){
       add(operations,{href:'/facilities/contracts',label:'AMC & evidence',description:'Contracts and maintenance evidence'})
       add(operations,{href:'/facilities/alerts',label:'Facilities alerts',description:'Operational exceptions and alerts'})
     }
+    if(emergencyRoles.has(role)&&features.has('SOS'))add(operations,{href:'/emergency-operations',label:'Emergency control room',description:'Acknowledge and resolve SOS incidents'})
+    if(privacyRoles.has(role))add(operations,{href:'/privacy-operations',label:'Privacy operations',description:'Privacy requests and operational controls'})
     if((emergencyRoles.has(role)&&features.has('SOS'))||privacyRoles.has(role)||role==='SUPER_ADMIN')add(operations,{href:'/operations-control',label:'Operations & control',description:'Emergency, privacy, audit and platform controls'})
     if(vendorRoles.has(role))add(operations,{href:'/society-vendors',label:'Vendors & procurement',description:'Vendor relationships and procurement'})
     if(utilitiesRoles.has(role))add(operations,{href:'/utilities',label:'Meter & utilities',description:'Metering and utility operations'})
