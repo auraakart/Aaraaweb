@@ -67,6 +67,22 @@ describe('AiOperationsService',()=>{
     }));
   });
 
+  it('summarizes overdue society accounts without mutating finance data',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {id:'i-1',invoiceNumber:'INV-1',amountPaise:150000,dueDate:new Date('2026-07-01'),unitNumber:'A-101',buildingName:'A',daysOverdue:78},
+      {id:'i-2',invoiceNumber:'INV-2',amountPaise:50000,dueDate:new Date('2026-09-01'),unitNumber:'B-202',buildingName:'B',daysOverdue:16},
+    ]);
+
+    await expect(service.overdueFinanceSummary('society-1')).resolves.toEqual(expect.objectContaining({
+      overdueCount:2,
+      overduePaise:200000,
+      severeCount:1,
+      oldest:expect.objectContaining({id:'i-1'}),
+    }));
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('claims before executing through HelpdeskService and records the result',async()=>{
     const {prisma,helpdesk,service}=setup();
     prisma.$queryRaw.mockResolvedValueOnce([{
