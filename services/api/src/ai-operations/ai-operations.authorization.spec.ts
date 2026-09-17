@@ -21,8 +21,20 @@ describe('V3.6 AI operations authorization',()=>{
   });
 
   for(const method of ['proposeHelpdesk','confirm','cancel'] as const){
-    it(`${method} requires the existing resident helpdesk mutation permission`,()=>{
+    it(`${method} requires the resident helpdesk mutation permission`,()=>{
       expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype[method])).toEqual([AppPermission.HELPDESK_MANAGE_OWN]);
+    });
+  }
+
+  for(const method of ['proposeAmenityBooking','confirmAmenity','cancelAmenity'] as const){
+    it(`${method} requires the resident amenity booking permission`,()=>{
+      expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype[method])).toEqual([AppPermission.AMENITY_BOOK_OWN]);
+    });
+  }
+
+  for(const method of ['proposeVisitorPass','confirmVisitor','cancelVisitor'] as const){
+    it(`${method} requires the resident visitor mutation permission`,()=>{
+      expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype[method])).toEqual([AppPermission.VISITOR_MANAGE_OWN]);
     });
   }
 });
