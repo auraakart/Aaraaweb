@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AccessModule } from './access/access.module';
+import { AccessIntegrationModule } from './access-integration/access-integration.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { AiOperationsModule } from './ai-operations/ai-operations.module';
 import { AmenitiesModule } from './amenities/amenities.module';
@@ -53,6 +54,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     GuardOperationsModule,
     VisitorsModule,
     AccessModule,
+    AccessIntegrationModule,
     AmenitiesModule,
     FacilitiesModule,
     UtilitiesModule,
