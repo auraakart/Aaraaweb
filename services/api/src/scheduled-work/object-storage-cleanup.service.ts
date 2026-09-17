@@ -13,6 +13,10 @@ type CleanupWork = {
   attemptCount: number;
 };
 
+export function objectStorageCleanupEnabled(raw = process.env.OBJECT_STORAGE_DRIVER) {
+  return (raw ?? '').trim().toLowerCase() === 's3';
+}
+
 export function storageCleanupRetryDelayMinutes(attemptCount: number) {
   return Math.min(24 * 60, Math.max(5, 5 * 2 ** Math.max(0, attemptCount - 1)));
 }
@@ -29,6 +33,10 @@ export class ObjectStorageCleanupService implements OnModuleInit, OnModuleDestro
   ) {}
 
   onModuleInit() {
+    if (!objectStorageCleanupEnabled()) {
+      this.logger.log('Object-storage cleanup is disabled because provider-media object storage is not enabled');
+      return;
+    }
     this.timer = setInterval(() => void this.runOnce(), DEFAULT_INTERVAL_MS);
     this.timer.unref?.();
     void this.runOnce();
@@ -39,6 +47,7 @@ export class ObjectStorageCleanupService implements OnModuleInit, OnModuleDestro
   }
 
   async runOnce() {
+    if (!objectStorageCleanupEnabled()) return { skipped: true, reason: 'storage-disabled' as const };
     if (this.running) return { skipped: true, reason: 'local-run-active' as const };
     this.running = true;
     try {

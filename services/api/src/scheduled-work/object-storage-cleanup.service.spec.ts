@@ -1,7 +1,34 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ObjectStorageCleanupService, storageCleanupRetryDelayMinutes } from './object-storage-cleanup.service';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ObjectStorageCleanupService,
+  objectStorageCleanupEnabled,
+  storageCleanupRetryDelayMinutes,
+} from './object-storage-cleanup.service';
+
+const originalDriver = process.env.OBJECT_STORAGE_DRIVER;
 
 describe('ObjectStorageCleanupService', () => {
+  beforeEach(() => {
+    process.env.OBJECT_STORAGE_DRIVER = 's3';
+  });
+
+  afterEach(() => {
+    if (originalDriver === undefined) delete process.env.OBJECT_STORAGE_DRIVER;
+    else process.env.OBJECT_STORAGE_DRIVER = originalDriver;
+  });
+
+  it('stays dormant when provider-media object storage is disabled', async () => {
+    delete process.env.OBJECT_STORAGE_DRIVER;
+    const prisma = { $transaction: vi.fn() };
+    const storage = { deleteObject: vi.fn() };
+    const service = new ObjectStorageCleanupService(prisma as never, storage as never);
+
+    expect(objectStorageCleanupEnabled()).toBe(false);
+    await expect(service.runOnce()).resolves.toEqual({ skipped: true, reason: 'storage-disabled' });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
   it('backs off retries with a 24-hour cap', () => {
     expect(storageCleanupRetryDelayMinutes(1)).toBe(5);
     expect(storageCleanupRetryDelayMinutes(2)).toBe(10);
