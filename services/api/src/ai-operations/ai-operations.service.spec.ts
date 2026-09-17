@@ -29,6 +29,27 @@ describe('AiOperationsService',()=>{
     expect(helpdesk.listMine).toHaveBeenCalledWith('society-1','user-1');
   });
 
+  it('aggregates only returned owner-scoped invoices and payment evidence',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        {id:'i-1',invoiceNumber:'INV-1',amountPaise:120000,dueDate:new Date('2026-09-01'),status:'ISSUED',unitNumber:'A-101',buildingName:'A'},
+        {id:'i-2',invoiceNumber:'INV-2',amountPaise:80000,dueDate:new Date('2026-08-01'),status:'PAID',unitNumber:'A-101',buildingName:'A'},
+      ])
+      .mockResolvedValueOnce([
+        {id:'p-1',invoiceId:'i-2',invoiceNumber:'INV-2',amountPaise:80000,status:'CAPTURED',createdAt:new Date('2026-08-02'),completedAt:new Date('2026-08-02')},
+      ]);
+
+    await expect(service.financeSummary('society-1','user-1')).resolves.toEqual(expect.objectContaining({
+      outstandingPaise:120000,
+      invoiceCount:2,
+      openInvoices:[expect.objectContaining({id:'i-1'})],
+      recentPayments:[expect.objectContaining({id:'p-1'})],
+      latestReceiptCandidate:expect.objectContaining({id:'p-1'}),
+    }));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
   it('claims before executing through HelpdeskService and records the result',async()=>{
     const {prisma,helpdesk,service}=setup();
     prisma.$queryRaw.mockResolvedValueOnce([{
