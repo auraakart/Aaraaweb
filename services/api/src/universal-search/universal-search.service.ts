@@ -21,6 +21,7 @@ export type SearchCapabilities = {
   helpdeskSociety: boolean;
   helpdeskOwn: boolean;
   notices: boolean;
+  noticesSociety: boolean;
   services: boolean;
   assets: boolean;
 };
@@ -35,6 +36,7 @@ export function universalSearchCapabilities(roles: readonly AppRole[]): SearchCa
     helpdeskSociety: hasPermission(roles, AppPermission.HELPDESK_REVIEW),
     helpdeskOwn: hasPermission(roles, AppPermission.HELPDESK_READ_OWN),
     notices: hasPermission(roles, AppPermission.NOTICE_READ),
+    noticesSociety: hasPermission(roles, AppPermission.NOTICE_MANAGE),
     services: hasPermission(roles, AppPermission.SERVICES_MARKETPLACE_USE) || hasPermission(roles, AppPermission.SERVICES_PROVIDER_MANAGE),
     assets: hasPermission(roles, AppPermission.FACILITIES_READ),
   };
@@ -119,6 +121,14 @@ export class UniversalSearchService {
 
     if (capabilities.notices) {
       const unitTarget = unitId ? Prisma.sql`AND (n."targetUnitId" IS NULL OR n."targetUnitId"=${unitId}::uuid)` : Prisma.empty;
+      const noticeVisibility = capabilities.noticesSociety
+        ? Prisma.sql`TRUE`
+        : Prisma.sql`(
+            (n."targetBuildingId" IS NULL AND n."targetUnitId" IS NULL AND (
+              EXISTS (SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${userId}::uuid AND uo."verified"=true AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+              OR (n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS (SELECT 1 FROM "UnitOccupancy" ux WHERE ux."societyId"=${societyId}::uuid AND ux."userId"=${userId}::uuid AND ux."active"=true AND ux."effectiveFrom"<=CURRENT_TIMESTAMP AND (ux."effectiveTo" IS NULL OR ux."effectiveTo">CURRENT_TIMESTAMP)))
+            )) OR ((n."targetBuildingId" IS NOT NULL OR n."targetUnitId" IS NOT NULL) AND nr."userId" IS NOT NULL)
+          )`;
       const rows = await this.prisma.$queryRaw<Array<{ id: string; title: string; category: string | null; importance: string }>>(Prisma.sql`
         SELECT n."id", n."title", n."category", n."importance"::text AS "importance"
         FROM "Notice" n LEFT JOIN "NoticeRecipient" nr
@@ -127,12 +137,7 @@ export class UniversalSearchService {
           AND n."publishedAt"<=CURRENT_TIMESTAMP AND (n."expiresAt" IS NULL OR n."expiresAt">CURRENT_TIMESTAMP)
           ${unitTarget}
           AND (n."title" ILIKE ${term} OR n."body" ILIKE ${term} OR COALESCE(n."category",'') ILIKE ${term})
-          AND (
-            (n."targetBuildingId" IS NULL AND n."targetUnitId" IS NULL AND (
-              EXISTS (SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${userId}::uuid AND uo."verified"=true AND uo."active"=true AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
-              OR (n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS (SELECT 1 FROM "UnitOccupancy" ux WHERE ux."societyId"=${societyId}::uuid AND ux."userId"=${userId}::uuid AND ux."active"=true AND ux."effectiveFrom"<=CURRENT_TIMESTAMP AND (ux."effectiveTo" IS NULL OR ux."effectiveTo">CURRENT_TIMESTAMP)))
-            )) OR ((n."targetBuildingId" IS NOT NULL OR n."targetUnitId" IS NOT NULL) AND nr."userId" IS NOT NULL)
-          )
+          AND ${noticeVisibility}
         ORDER BY n."publishedAt" DESC LIMIT 8
       `);
       rows.forEach((row) => results.push({ type: 'NOTICE', id: row.id, title: row.title, subtitle: row.category ? `${row.category} · ${row.importance}` : row.importance, path: '/notices' }));

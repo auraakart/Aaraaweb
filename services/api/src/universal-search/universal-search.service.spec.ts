@@ -13,6 +13,7 @@ describe('universalSearchCapabilities', () => {
     expect(owner.financeOwn).toBe(true);
     expect(owner.helpdeskOwn).toBe(true);
     expect(owner.notices).toBe(true);
+    expect(owner.noticesSociety).toBe(false);
     expect(owner.services).toBe(true);
     expect(owner.assets).toBe(false);
   });
@@ -23,6 +24,7 @@ describe('universalSearchCapabilities', () => {
     expect(admin.accessSociety).toBe(true);
     expect(admin.financeSociety).toBe(true);
     expect(admin.helpdeskSociety).toBe(true);
+    expect(admin.noticesSociety).toBe(true);
     expect(admin.assets).toBe(true);
   });
 });

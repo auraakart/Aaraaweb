@@ -51,7 +51,7 @@ describe('V3.7 access integration persistence',()=>{
     prisma.$queryRaw
       .mockResolvedValueOnce([device])
       .mockResolvedValueOnce([{id:'55555555-5555-4555-8555-555555555555',status:'PENDING',result:null}]);
-    service.setSimulatorHealth('BOOM_BARRIER','OFFLINE');
+    service.setSimulatorHealth(device.societyId,'BOOM_BARRIER','OFFLINE');
 
     await expect(service.commandDevice(device.societyId,'user-1',device.id,{
       idempotencyKey:'persistent-0003',command:'OPEN',

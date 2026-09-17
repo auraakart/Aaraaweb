@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessDeviceCommand, AccessDeviceKind } from './access-device.adapter';
 import { SimulatorAccessDeviceAdapter } from './simulator-access-device.adapter';
 
+const ADAPTER_KINDS:readonly AccessDeviceKind[]=['ANPR','BOOM_BARRIER','RFID'];
+
 type DeviceRow={
   id:string;
   societyId:string;
@@ -17,29 +19,25 @@ type DeviceRow={
 
 @Injectable()
 export class AccessIntegrationService {
-  private readonly adapters=new Map<AccessDeviceKind,SimulatorAccessDeviceAdapter>([
-    ['ANPR',new SimulatorAccessDeviceAdapter('ANPR')],
-    ['BOOM_BARRIER',new SimulatorAccessDeviceAdapter('BOOM_BARRIER')],
-    ['RFID',new SimulatorAccessDeviceAdapter('RFID')],
-  ]);
+  private readonly adapters=new Map<string,SimulatorAccessDeviceAdapter>();
 
   constructor(private readonly prisma?:PrismaService) {}
 
-  async listAdapters(){
-    return Promise.all([...this.adapters.values()].map(async adapter=>({kind:adapter.kind,...await adapter.health()})));
+  async listAdapters(societyId:string){
+    return Promise.all(ADAPTER_KINDS.map(async kind=>({kind,...await this.adapter(societyId,kind).health()})));
   }
 
-  async health(kind:AccessDeviceKind){
-    return this.adapter(kind).health();
+  async health(societyId:string,kind:AccessDeviceKind){
+    return this.adapter(societyId,kind).health();
   }
 
-  async command(kind:AccessDeviceKind,input:AccessDeviceCommand){
+  async command(societyId:string,kind:AccessDeviceKind,input:AccessDeviceCommand){
     const key=this.key(input.idempotencyKey);
-    return this.adapter(kind).execute({...input,idempotencyKey:key});
+    return this.adapter(societyId,kind).execute({...input,idempotencyKey:key});
   }
 
-  setSimulatorHealth(kind:AccessDeviceKind,health:'ONLINE'|'DEGRADED'|'OFFLINE'){
-    this.adapter(kind).setHealth(health);
+  setSimulatorHealth(societyId:string,kind:AccessDeviceKind,health:'ONLINE'|'DEGRADED'|'OFFLINE'){
+    this.adapter(societyId,kind).setHealth(health);
     return {kind,health};
   }
 
@@ -84,7 +82,7 @@ export class AccessIntegrationService {
   async refreshDeviceHealth(societyId:string,deviceId:string){
     const db=this.db();
     const device=await this.device(societyId,deviceId);
-    const status=await this.adapter(device.adapterKind).health();
+    const status=await this.adapter(societyId,device.adapterKind).health();
     await db.$executeRaw(Prisma.sql`
       UPDATE "AccessIntegrationDevice"
       SET "health"=${status.health},"lastHealthAt"=CURRENT_TIMESTAMP,
@@ -118,7 +116,7 @@ export class AccessIntegrationService {
       if(!existing[0]) throw new BadRequestException('Command idempotency state could not be resolved');
       return {...existing[0],deviceId,idempotent:true};
     }
-    const result=await this.adapter(device.adapterKind).execute({...input,idempotencyKey});
+    const result=await this.adapter(societyId,device.adapterKind).execute({...input,idempotencyKey});
     const status=result.accepted?'SUCCEEDED':'FAILED';
     await db.$executeRaw(Prisma.sql`
       UPDATE "AccessIntegrationCommand"
@@ -192,9 +190,14 @@ export class AccessIntegrationService {
     return key;
   }
 
-  private adapter(kind:AccessDeviceKind){
-    const adapter=this.adapters.get(kind);
-    if(!adapter) throw new NotFoundException('Access device adapter not found');
+  private adapter(societyId:string,kind:AccessDeviceKind){
+    if(!ADAPTER_KINDS.includes(kind)) throw new NotFoundException('Access device adapter not found');
+    const key=`${societyId}:${kind}`;
+    let adapter=this.adapters.get(key);
+    if(!adapter){
+      adapter=new SimulatorAccessDeviceAdapter(kind);
+      this.adapters.set(key,adapter);
+    }
     return adapter;
   }
 

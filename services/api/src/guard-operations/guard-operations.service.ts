@@ -52,7 +52,7 @@ export class GuardOperationsService {
     `);return rows[0];
   }
 
-  async deactivateWatchlist(societyId:string,id:string){const changed=await this.prisma.$executeRaw(Prisma.sql`UPDATE "GuardWatchlistEntry" SET "active"=false,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "active"=true`);if(!changed)throw new NotFoundException('Active watchlist entry not found');return {id,active:false};}
+  async deactivateWatchlist(societyId:string,userId:string,id:string){const changed=await this.prisma.$executeRaw(Prisma.sql`UPDATE "GuardWatchlistEntry" SET "active"=false,"deactivatedByUserId"=${userId}::uuid,"deactivatedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "active"=true`);if(!changed)throw new NotFoundException('Active watchlist entry not found');return {id,active:false};}
 
   passes(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
     SELECT p."id",p."gateId",p."unitId",p."referenceCode",p."movementType",p."subjectName",p."itemDescription",p."vehicleNumber",p."status",p."validFrom",p."validUntil",p."processedAt",g."name" AS "gateName",u."number" AS "unitNumber"
@@ -77,7 +77,7 @@ export class GuardOperationsService {
     `);if(!rows.length)throw new ConflictException('Gate pass is unavailable, expired, or already processed');return rows[0];
   }
 
-  async cancelPass(societyId:string,id:string){const changed=await this.prisma.$executeRaw(Prisma.sql`UPDATE "MaterialGatePass" SET "status"='CANCELLED',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "status"='OPEN'`);if(!changed)throw new ConflictException('Open gate pass not found');return {id,status:'CANCELLED'};}
+  async cancelPass(societyId:string,userId:string,id:string){const changed=await this.prisma.$executeRaw(Prisma.sql`UPDATE "MaterialGatePass" SET "status"='CANCELLED',"cancelledByUserId"=${userId}::uuid,"cancelledAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "status"='OPEN'`);if(!changed)throw new ConflictException('Open gate pass not found');return {id,status:'CANCELLED'};}
 
   checkpoints(societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT "id","code","name","location","active" FROM "PatrolCheckpoint" WHERE "societyId"=${societyId}::uuid AND "active"=true ORDER BY "name"`);}
   async createCheckpoint(societyId:string,userId:string,input:CheckpointInput){const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "PatrolCheckpoint" ("societyId","code","name","location","createdByUserId") VALUES (${societyId}::uuid,${input.code.trim().toUpperCase()},${input.name.trim()},${input.location?.trim()||null},${userId}::uuid) RETURNING "id","code","name","location","active"`);return rows[0];}

@@ -43,19 +43,19 @@ export class AccessIntegrationController {
 
   @Get('adapters')
   @RequiresPermissions(AppPermission.GATE_READ)
-  adapters(){ return this.integrations.listAdapters(); }
+  adapters(@CurrentTenant() societyId:string){ return this.integrations.listAdapters(societyId); }
 
   @Get('adapters/:kind/health')
   @RequiresPermissions(AppPermission.GATE_READ)
-  health(@Param('kind') kind:AccessDeviceKind){ return this.integrations.health(kind); }
+  health(@CurrentTenant() societyId:string,@Param('kind') kind:AccessDeviceKind){ return this.integrations.health(societyId,kind); }
 
   @Post('adapters/:kind/commands')
   @RequiresPermissions(AppPermission.GATE_MANAGE)
-  command(@Param('kind') kind:AccessDeviceKind,@Body() dto:CommandDto){ return this.integrations.command(kind,dto); }
+  command(@CurrentTenant() societyId:string,@Param('kind') kind:AccessDeviceKind,@Body() dto:CommandDto){ return this.integrations.command(societyId,kind,dto); }
 
   @Post('adapters/:kind/simulator-health')
   @RequiresPermissions(AppPermission.GATE_MANAGE)
-  simulatorHealth(@Param('kind') kind:AccessDeviceKind,@Body() dto:HealthDto){ return this.integrations.setSimulatorHealth(kind,dto.health); }
+  simulatorHealth(@CurrentTenant() societyId:string,@Param('kind') kind:AccessDeviceKind,@Body() dto:HealthDto){ return this.integrations.setSimulatorHealth(societyId,kind,dto.health); }
 
   @Get('devices')
   @RequiresPermissions(AppPermission.GATE_READ)
