@@ -8,13 +8,7 @@ import 'data/guard_session_store.dart';
 import 'data/offline_action_queue.dart';
 
 class GuardController extends ChangeNotifier {
-  GuardController({
-    required this.api,
-    required this.sessions,
-    required this.offlineQueue,
-    this.directoryCache = const GuardDirectoryCache(),
-  });
-
+  GuardController({required this.api, required this.sessions, required this.offlineQueue, this.directoryCache = const GuardDirectoryCache()});
   final GuardApi api;
   final GuardSessionStore sessions;
   final OfflineActionQueue offlineQueue;
@@ -60,58 +54,50 @@ class GuardController extends ChangeNotifier {
           await loadGates();
           if (queuedActions > reviewRequiredActions) await syncQueuedActions();
         } on GuardApiException catch (e) {
-          if (e.statusCode == 401) {
-            await _refresh(stored);
-          } else {
-            rethrow;
-          }
+          if (e.statusCode == 401) { await _refresh(stored); } else { rethrow; }
         }
       }
-    } catch (e) {
-      error = e.toString();
-    } finally {
-      booting = false;
-      notifyListeners();
-    }
+    } catch (e) { error = e.toString(); }
+    finally { booting = false; notifyListeners(); }
   }
 
   Future<void> requestOtp(String phone) => _run(() async {
-        final result = await api.requestOtp(phone.trim());
-        challengeId = result['challengeId']?.toString();
-        if (challengeId == null) throw StateError('OTP challenge was not returned');
-      });
+    final result = await api.requestOtp(phone.trim());
+    challengeId = result['challengeId']?.toString();
+    if (challengeId == null) throw StateError('OTP challenge was not returned');
+  });
 
   Future<void> verifyOtp(String code) => _run(() async {
-        if (challengeId == null) throw StateError('Request an OTP first');
-        final result = await api.verifyOtp(challengeId!, code.trim());
-        userId = result['userId']?.toString();
-        selectionToken = result['selectionToken']?.toString();
-        memberships = _guardMemberships(_maps(result['memberships']));
-        if (memberships.isEmpty) throw StateError('This account does not have an active security guard role');
-        final rawSession = result['session'];
-        if (rawSession is Map && memberships.length == 1) {
-          final societyId = memberships.first['societyId']?.toString();
-          if (societyId == null) throw StateError('Society membership is missing');
-          await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
-          await loadGates();
-        } else if (memberships.length == 1) {
-          if (selectionToken == null) throw StateError('Society selection token was not returned');
-          await selectSociety(memberships.first['societyId'].toString());
-        }
-      });
+    if (challengeId == null) throw StateError('Request an OTP first');
+    final result = await api.verifyOtp(challengeId!, code.trim());
+    userId = result['userId']?.toString();
+    selectionToken = result['selectionToken']?.toString();
+    memberships = _guardMemberships(_maps(result['memberships']));
+    if (memberships.isEmpty) throw StateError('This account does not have an active security guard role');
+    final rawSession = result['session'];
+    if (rawSession is Map && memberships.length == 1) {
+      final societyId = memberships.first['societyId']?.toString();
+      if (societyId == null) throw StateError('Society membership is missing');
+      await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
+      await loadGates();
+    } else if (memberships.length == 1) {
+      if (selectionToken == null) throw StateError('Society selection token was not returned');
+      await selectSociety(memberships.first['societyId'].toString());
+    }
+  });
 
   Future<void> selectSociety(String societyId) => _run(() async {
-        if (userId == null || selectionToken == null) throw StateError('OTP verification is required');
-        final selected = memberships.where((m) => m['societyId']?.toString() == societyId).toList();
-        if (selected.isEmpty) throw StateError('Selected society is not available for this guard account');
-        final result = await api.selectSociety(userId: userId!, societyId: societyId, selectionToken: selectionToken!);
-        final rawSession = result['session'];
-        if (rawSession is! Map) throw StateError('Session was not returned');
-        await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
-        selectionToken = null;
-        memberships = const [];
-        await loadGates();
-      });
+    if (userId == null || selectionToken == null) throw StateError('OTP verification is required');
+    final selected = memberships.where((m) => m['societyId']?.toString() == societyId).toList();
+    if (selected.isEmpty) throw StateError('Selected society is not available for this guard account');
+    final result = await api.selectSociety(userId: userId!, societyId: societyId, selectionToken: selectionToken!);
+    final rawSession = result['session'];
+    if (rawSession is! Map) throw StateError('Session was not returned');
+    await _acceptSession(Map<String, dynamic>.from(rawSession), societyId);
+    selectionToken = null;
+    memberships = const [];
+    await loadGates();
+  });
 
   Future<void> loadGates() async {
     final current = session;
@@ -121,13 +107,7 @@ class GuardController extends ChangeNotifier {
       units = results[1];
       directoryFromCache = false;
       if (current != null) {
-        await directoryCache.save(GuardDirectorySnapshot(
-          societyId: current.societyId,
-          guardUserId: current.userId,
-          savedAt: DateTime.now().toUtc(),
-          gates: gates,
-          units: units,
-        ));
+        await directoryCache.save(GuardDirectorySnapshot(societyId: current.societyId, guardUserId: current.userId, savedAt: DateTime.now().toUtc(), gates: gates, units: units));
       }
     } on GuardApiException catch (e) {
       if (!e.transport || current == null) rethrow;
@@ -146,66 +126,59 @@ class GuardController extends ChangeNotifier {
 
   void startRealtime() {
     _gateEvents?.cancel();
-    _gateEvents = api.gateEvents().listen(
-      (event) async {
-        realtimeConnected = true;
-        if (event['type']?.toString() == 'CONNECTED') { if (!_disposed) notifyListeners(); return; }
-        final eventGateId = event['gateId']?.toString();
-        if (eventGateId != null && gateId != eventGateId) return;
-        final requestId = event['requestId']?.toString();
-        if (requestId != null && walkInAccess?['id']?.toString() == requestId && gateId != null) {
-          try { walkInAccess = await api.requestStatus(gateId!, requestId); } catch (_) {}
-        }
-        if (!_disposed) notifyListeners();
-      },
-      onError: (_) {
-        realtimeConnected = false;
-        _gateEvents = null;
-        if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
-      },
-      onDone: () {
-        realtimeConnected = false;
-        _gateEvents = null;
-        if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
-      },
-      cancelOnError: true,
-    );
+    _gateEvents = api.gateEvents().listen((event) async {
+      realtimeConnected = true;
+      if (event['type']?.toString() == 'CONNECTED') { if (!_disposed) notifyListeners(); return; }
+      final eventGateId = event['gateId']?.toString();
+      if (eventGateId != null && gateId != eventGateId) return;
+      final requestId = event['requestId']?.toString();
+      if (requestId != null && walkInAccess?['id']?.toString() == requestId && gateId != null) {
+        try { walkInAccess = await api.requestStatus(gateId!, requestId); } catch (_) {}
+      }
+      if (!_disposed) notifyListeners();
+    }, onError: (_) {
+      realtimeConnected = false; _gateEvents = null;
+      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+    }, onDone: () {
+      realtimeConnected = false; _gateEvents = null;
+      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+    }, cancelOnError: true);
   }
 
   void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
-        walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
-      });
+    walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+  });
 
   Future<void> createGateArrival({required String unitId, required String subjectType, required String name, String? provider, String? phone, String? vehicleNumber, String? note}) => _run(() async {
-        walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
-      });
+    walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
+  });
 
   Future<void> refreshWalkIn() => _run(() async {
-        final requestId = walkInAccess?['id']?.toString();
-        if (requestId == null) throw StateError('No gate approval is active');
-        walkInAccess = await api.requestStatus(_requireGate(), requestId);
-      });
+    final requestId = walkInAccess?['id']?.toString();
+    if (requestId == null) throw StateError('No gate approval is active');
+    walkInAccess = await api.requestStatus(_requireGate(), requestId);
+  });
 
   Future<void> checkInWalkIn() => _walkInMutation('CHECK_IN');
   Future<void> checkOutWalkIn() => _walkInMutation('CHECK_OUT');
 
   Future<void> _walkInMutation(String type) => _run(() async {
-        final requestId = walkInAccess?['id']?.toString();
-        if (requestId == null) throw StateError('No gate approval is active');
-        final gate = _requireGate();
-        final key = _idempotencyKey();
-        walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
-      });
+    final requestId = walkInAccess?['id']?.toString();
+    if (requestId == null) throw StateError('No gate approval is active');
+    final gate = _requireGate();
+    final key = _idempotencyKey();
+    walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
+  });
 
   void clearWalkIn() { walkInAccess = null; notifyListeners(); }
 
   Future<void> verifyCredential(String credential) => _run(() async {
-        final value = credential.trim();
-        if (value.isEmpty) throw StateError('Scan or enter an access credential');
-        verifiedAccess = await api.verifyAccess(_requireGate(), value);
-      });
+    final value = credential.trim();
+    if (value.isEmpty) throw StateError('Scan or enter an access credential');
+    verifiedAccess = await api.verifyAccess(_requireGate(), value);
+  });
 
   Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential);
   Future<void> checkOut(String credential) => _gateMutation('CHECK_OUT', credential);
@@ -241,11 +214,11 @@ class GuardController extends ChangeNotifier {
     }
     final remaining = <QueuedGateAction>[];
     final now = DateTime.now().toUtc();
-    var synced = 0, review = 0, deferred = 0;
+    var synced = 0, deferred = 0;
     for (var index = 0; index < pending.length; index++) {
       var action = pending[index];
-      if (action.reviewRequired) { remaining.add(action); review++; continue; }
-      if (action.isStale(now)) { action = action.requiringReview(now, 'STALE'); remaining.add(action); review++; continue; }
+      if (action.reviewRequired) { remaining.add(action); continue; }
+      if (action.isStale(now)) { action = action.requiringReview(now, 'STALE'); remaining.add(action); continue; }
       if (!action.canRetry(now)) { remaining.add(action); deferred++; continue; }
       try {
         if (action.type == 'CHECK_IN') {
@@ -253,7 +226,7 @@ class GuardController extends ChangeNotifier {
         } else if (action.type == 'CHECK_OUT') {
           await api.checkOut(action.gateId, action.credential, action.idempotencyKey);
         } else {
-          remaining.add(action.requiringReview(now, 'INVALID_ACTION')); review++; continue;
+          remaining.add(action.requiringReview(now, 'INVALID_ACTION')); continue;
         }
         synced++;
       } on GuardApiException catch (e) {
@@ -265,7 +238,6 @@ class GuardController extends ChangeNotifier {
         }
         final kind = e.statusCode == 409 ? 'CONFLICT' : 'REJECTED';
         remaining.add(action.requiringReview(now, kind));
-        review++;
       }
     }
     await offlineQueue.replace([...otherSessions, ...remaining]);
@@ -290,8 +262,7 @@ class GuardController extends ChangeNotifier {
     if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
     await _gateEvents?.cancel();
     _gateEvents = null; realtimeConnected = false;
-    await sessions.clear();
-    api.accessToken = '';
+    await sessions.clear(); api.accessToken = '';
     session = null; userId = null; selectionToken = null; memberships = const []; gates = const []; units = const []; gateId = null;
     verifiedAccess = null; walkInAccess = null; queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
     notifyListeners();
@@ -331,7 +302,8 @@ class GuardController extends ChangeNotifier {
 
   Future<void> _run(Future<void> Function() action) async {
     busy = true; error = null; notifyListeners();
-    try { await action(); } catch (e) { error = e.toString().replaceFirst('Bad state: ', ''); } finally { busy = false; notifyListeners(); }
+    try { await action(); } catch (e) { error = e.toString().replaceFirst('Bad state: ', ''); }
+    finally { busy = false; notifyListeners(); }
   }
 
   List<Map<String, dynamic>> _maps(dynamic value) {
