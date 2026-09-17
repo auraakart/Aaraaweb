@@ -6,6 +6,7 @@ import 'guard_controller.dart';
 import 'screens/guard_login_screen.dart';
 import 'screens/guard_operations_screen.dart';
 import 'screens/guard_parcels_screen.dart';
+import 'screens/guard_tools_screen.dart';
 import 'screens/guard_workforce_screen.dart';
 import 'theme/aaraagate_guard_theme.dart';
 
@@ -50,6 +51,15 @@ class AaraagateGuardApp extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
+                    FloatingActionButton.extended(
+                      heroTag: 'tools',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => GuardToolsScreen(controller: controller)),
+                      ),
+                      icon: const Icon(Icons.manage_search_rounded),
+                      label: const Text('TOOLS', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                    const SizedBox(height: 10),
                     FloatingActionButton.extended(
                       heroTag: 'parcels',
                       onPressed: () => Navigator.of(context).push(
