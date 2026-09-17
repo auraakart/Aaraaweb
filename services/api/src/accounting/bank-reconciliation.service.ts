@@ -88,16 +88,17 @@ export class BankReconciliationService {
       if(!bankTx) throw new NotFoundException('Bank transaction not found');
       if(bankTx.status!=='UNMATCHED') throw new ConflictException('Only unmatched bank transactions can be reconciled');
 
-      const journal=await tx.$queryRaw<Array<{id:string;status:string;bankDelta:bigint}>>(Prisma.sql`
-        SELECT je."id",je."status"::text AS "status",
-               COALESCE(SUM(CASE WHEN jl."accountId"=${bankTx.ledgerAccountId}::uuid THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END),0) AS "bankDelta"
-        FROM "JournalEntry" je LEFT JOIN "JournalLine" jl ON jl."entryId"=je."id" AND jl."societyId"=je."societyId"
-        WHERE je."id"=${input.journalEntryId}::uuid AND je."societyId"=${societyId}::uuid
-        GROUP BY je."id" LIMIT 1 FOR UPDATE OF je
+      const headers=await tx.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`
+        SELECT "id","status"::text AS "status" FROM "JournalEntry"
+        WHERE "id"=${input.journalEntryId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
       `);
-      if(!journal.length || !['POSTED','REVERSED'].includes(journal[0].status)) throw new BadRequestException('Reconciliation requires a posted journal entry');
+      if(!headers.length || !['POSTED','REVERSED'].includes(headers[0].status)) throw new BadRequestException('Reconciliation requires a posted journal entry');
+      const deltas=await tx.$queryRaw<Array<{bankDelta:bigint}>>(Prisma.sql`
+        SELECT COALESCE(SUM("debitPaise"-"creditPaise"),0) AS "bankDelta"
+        FROM "JournalLine" WHERE "entryId"=${input.journalEntryId}::uuid AND "societyId"=${societyId}::uuid AND "accountId"=${bankTx.ledgerAccountId}::uuid
+      `);
       const expected=bankTx.direction==='CREDIT'?bankTx.amountPaise:-bankTx.amountPaise;
-      if(journal[0].bankDelta!==expected) throw new ConflictException('Journal bank movement does not match statement amount and direction');
+      if((deltas[0]?.bankDelta??0n)!==expected) throw new ConflictException('Journal bank movement does not match statement amount and direction');
 
       const already=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "BankReconciliationMatch" WHERE "societyId"=${societyId}::uuid AND "journalEntryId"=${input.journalEntryId}::uuid LIMIT 1`);
       if(already.length) throw new ConflictException('Journal entry is already reconciled to another bank transaction');
