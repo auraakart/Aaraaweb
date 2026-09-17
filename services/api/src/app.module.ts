@@ -28,6 +28,7 @@ import { WorkforceModule } from './workforce/workforce.module';
 import { BillingModule } from './billing/billing.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
+import { UniversalSearchModule } from './universal-search/universal-search.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
 import { UtilitiesModule } from './utilities/utilities.module';
@@ -66,6 +67,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     GovernanceModule,
     PrivacyModule,
     ReportsModule,
+    UniversalSearchModule,
     ScheduledWorkModule,
   ],
   controllers: [HealthController],
