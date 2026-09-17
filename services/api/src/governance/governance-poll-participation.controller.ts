@@ -27,7 +27,7 @@ export class GovernancePollParticipationController{
   listAvailable(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p."id",p."pollType",p."status",p."title",p."description",p."opensAt",p."closesAt",p."statutoryUseProhibited",
+      SELECT p."id",p."pollType",p."status",p."title",p."description",p."opensAt",p."closesAt",p."statutoryUseProhibited",p."audienceScope",
         COALESCE(json_agg(json_build_object('id',o."id",'ordinal',o."ordinal",'label',o."label") ORDER BY o."ordinal") FILTER (WHERE o."id" IS NOT NULL),'[]'::json) AS options,
         r."optionId" AS "myOptionId"
       FROM "GovernancePoll" p
@@ -35,16 +35,32 @@ export class GovernancePollParticipationController{
       LEFT JOIN "GovernancePollResponse" r ON r."pollId"=p."id" AND r."userId"=${actor}::uuid
       WHERE p."societyId"=${societyId}::uuid AND p."statutoryUseProhibited"=TRUE AND p."status" IN ('OPEN','CLOSED')
         AND (p."opensAt" IS NULL OR p."opensAt"<=CURRENT_TIMESTAMP)
+        AND (
+          EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+          OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+        )
+        AND (p."audienceScope"='COMMUNITY' OR EXISTS(
+          SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+        ))
       GROUP BY p."id",r."optionId" ORDER BY p."createdAt" DESC
     `);
   }
 
   @Get(':id/results')
   @RequiresPermissions(AppPermission.NOTICE_READ)
-  async results(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
+  async results(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){
+    const actor=this.user(userId);
     const polls=await this.prisma.$queryRaw<Array<{id:string;status:string;statutoryUseProhibited:boolean}>>(Prisma.sql`
-      SELECT "id","status","statutoryUseProhibited" FROM "GovernancePoll"
-      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1
+      SELECT p."id",p."status",p."statutoryUseProhibited" FROM "GovernancePoll" p
+      WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
+        AND (
+          EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+          OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+        )
+        AND (p."audienceScope"='COMMUNITY' OR EXISTS(
+          SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+        ))
+      LIMIT 1
     `);
     if(!polls.length)throw new BadRequestException('Community poll not found');
     const poll=polls[0];
@@ -67,8 +83,16 @@ export class GovernancePollParticipationController{
     const actor=this.user(userId);
     return this.prisma.$transaction(async tx=>{
       const polls=await tx.$queryRaw<Array<{id:string;status:string;opensAt:Date|null;closesAt:Date|null;statutoryUseProhibited:boolean}>>(Prisma.sql`
-        SELECT "id","status","opensAt","closesAt","statutoryUseProhibited" FROM "GovernancePoll"
-        WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
+        SELECT p."id",p."status",p."opensAt",p."closesAt",p."statutoryUseProhibited" FROM "GovernancePoll" p
+        WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
+          AND (
+            EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+            OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+          )
+          AND (p."audienceScope"='COMMUNITY' OR EXISTS(
+            SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+          ))
+        FOR UPDATE
       `);
       if(!polls.length)throw new BadRequestException('Community poll not found');
       const poll=polls[0],now=Date.now();
