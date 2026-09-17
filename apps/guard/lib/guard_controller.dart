@@ -3,19 +3,27 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'data/guard_api.dart';
+import 'data/guard_directory_cache.dart';
 import 'data/guard_session_store.dart';
 import 'data/offline_action_queue.dart';
 
 class GuardController extends ChangeNotifier {
-  GuardController({required this.api, required this.sessions, required this.offlineQueue});
+  GuardController({
+    required this.api,
+    required this.sessions,
+    required this.offlineQueue,
+    this.directoryCache = const GuardDirectoryCache(),
+  });
 
   final GuardApi api;
   final GuardSessionStore sessions;
   final OfflineActionQueue offlineQueue;
+  final GuardDirectoryCache directoryCache;
 
   bool booting = true;
   bool busy = false;
   bool realtimeConnected = false;
+  bool directoryFromCache = false;
   String? error;
   String? challengeId;
   String? userId;
@@ -28,6 +36,7 @@ class GuardController extends ChangeNotifier {
   Map<String, dynamic>? verifiedAccess;
   Map<String, dynamic>? walkInAccess;
   int queuedActions = 0;
+  int reviewRequiredActions = 0;
   String? offlineSyncMessage;
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   bool _disposed = false;
@@ -42,14 +51,14 @@ class GuardController extends ChangeNotifier {
   Future<void> bootstrap() async {
     try {
       final stored = await sessions.read();
-      queuedActions = stored == null ? 0 : _sessionActions(await offlineQueue.read(), stored).length;
       if (stored != null) {
         session = stored;
         userId = stored.userId;
         api.accessToken = stored.accessToken;
+        await _refreshQueueCounts(stored);
         try {
           await loadGates();
-          if (queuedActions > 0) await syncQueuedActions();
+          if (queuedActions > reviewRequiredActions) await syncQueuedActions();
         } on GuardApiException catch (e) {
           if (e.statusCode == 401) {
             await _refresh(stored);
@@ -105,11 +114,33 @@ class GuardController extends ChangeNotifier {
       });
 
   Future<void> loadGates() async {
-    final results = await Future.wait([api.gates(), api.gateUnits()]);
-    gates = results[0].where((g) => g['active'] != false).toList(growable: false);
-    units = results[1];
+    final current = session;
+    try {
+      final results = await Future.wait([api.gates(), api.gateUnits()]);
+      gates = results[0].where((g) => g['active'] != false).toList(growable: false);
+      units = results[1];
+      directoryFromCache = false;
+      if (current != null) {
+        await directoryCache.save(GuardDirectorySnapshot(
+          societyId: current.societyId,
+          guardUserId: current.userId,
+          savedAt: DateTime.now().toUtc(),
+          gates: gates,
+          units: units,
+        ));
+      }
+    } on GuardApiException catch (e) {
+      if (!e.transport || current == null) rethrow;
+      final cached = await directoryCache.read(societyId: current.societyId, guardUserId: current.userId);
+      final now = DateTime.now().toUtc();
+      if (cached == null || !cached.isFresh(now)) rethrow;
+      gates = cached.gates.where((g) => g['active'] != false).toList(growable: false);
+      units = cached.units;
+      directoryFromCache = true;
+      offlineSyncMessage = 'Offline directory loaded. Gate and unit lookup remain available.';
+    }
     if (gateId == null || !gates.any((g) => g['id']?.toString() == gateId)) gateId = gates.isEmpty ? null : gates.first['id']?.toString();
-    if (signedIn && _gateEvents == null) startRealtime();
+    if (signedIn && _gateEvents == null && !directoryFromCache) startRealtime();
     notifyListeners();
   }
 
@@ -118,17 +149,12 @@ class GuardController extends ChangeNotifier {
     _gateEvents = api.gateEvents().listen(
       (event) async {
         realtimeConnected = true;
-        if (event['type']?.toString() == 'CONNECTED') {
-          if (!_disposed) notifyListeners();
-          return;
-        }
+        if (event['type']?.toString() == 'CONNECTED') { if (!_disposed) notifyListeners(); return; }
         final eventGateId = event['gateId']?.toString();
         if (eventGateId != null && gateId != eventGateId) return;
         final requestId = event['requestId']?.toString();
         if (requestId != null && walkInAccess?['id']?.toString() == requestId && gateId != null) {
-          try {
-            walkInAccess = await api.requestStatus(gateId!, requestId);
-          } catch (_) {}
+          try { walkInAccess = await api.requestStatus(gateId!, requestId); } catch (_) {}
         }
         if (!_disposed) notifyListeners();
       },
@@ -146,12 +172,7 @@ class GuardController extends ChangeNotifier {
     );
   }
 
-  void selectGate(String? value) {
-    gateId = value;
-    verifiedAccess = null;
-    walkInAccess = null;
-    notifyListeners();
-  }
+  void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
         walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
@@ -178,10 +199,7 @@ class GuardController extends ChangeNotifier {
         walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
       });
 
-  void clearWalkIn() {
-    walkInAccess = null;
-    notifyListeners();
-  }
+  void clearWalkIn() { walkInAccess = null; notifyListeners(); }
 
   Future<void> verifyCredential(String credential) => _run(() async {
         final value = credential.trim();
@@ -204,8 +222,8 @@ class GuardController extends ChangeNotifier {
         if (!e.transport) rethrow;
         final current = session;
         if (current == null) throw StateError('Sign in is required to save an offline action');
-        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now(), societyId: current.societyId, guardUserId: current.userId));
-        queuedActions = _sessionActions(await offlineQueue.read(), current).length;
+        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now().toUtc(), societyId: current.societyId, guardUserId: current.userId));
+        await _refreshQueueCounts(current);
         offlineSyncMessage = 'Action saved securely. Retry when connectivity returns.';
         throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
@@ -219,43 +237,49 @@ class GuardController extends ChangeNotifier {
     final pending = _sessionActions(all, current);
     final otherSessions = all.where((action) => !action.belongsTo(societyId: current.societyId, guardUserId: current.userId)).toList();
     if (pending.isEmpty) {
-      queuedActions = 0;
-      offlineSyncMessage = 'No offline actions are pending.';
-      notifyListeners();
-      return;
+      queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = 'No offline actions are pending.'; notifyListeners(); return;
     }
     final remaining = <QueuedGateAction>[];
-    var synced = 0;
-    var rejected = 0;
+    final now = DateTime.now().toUtc();
+    var synced = 0, review = 0, deferred = 0;
     for (var index = 0; index < pending.length; index++) {
-      final action = pending[index];
+      var action = pending[index];
+      if (action.reviewRequired) { remaining.add(action); review++; continue; }
+      if (action.isStale(now)) { action = action.requiringReview(now, 'STALE'); remaining.add(action); review++; continue; }
+      if (!action.canRetry(now)) { remaining.add(action); deferred++; continue; }
       try {
         if (action.type == 'CHECK_IN') {
           await api.checkIn(action.gateId, action.credential, action.idempotencyKey);
         } else if (action.type == 'CHECK_OUT') {
           await api.checkOut(action.gateId, action.credential, action.idempotencyKey);
         } else {
-          remaining.add(action);
-          rejected++;
-          continue;
+          remaining.add(action.requiringReview(now, 'INVALID_ACTION')); review++; continue;
         }
         synced++;
       } on GuardApiException catch (e) {
         if (e.transport) {
-          remaining.addAll(pending.sublist(index));
+          remaining.add(action.withRetryFailure(now));
+          remaining.addAll(pending.sublist(index + 1));
+          deferred += pending.length - index;
           break;
         }
-        remaining.add(action);
-        rejected++;
+        final kind = e.statusCode == 409 ? 'CONFLICT' : 'REJECTED';
+        remaining.add(action.requiringReview(now, kind));
+        review++;
       }
     }
     await offlineQueue.replace([...otherSessions, ...remaining]);
     queuedActions = remaining.length;
-    offlineSyncMessage = remaining.isEmpty
-        ? '$synced offline ${synced == 1 ? 'action' : 'actions'} synced.'
-        : rejected > 0
-            ? '$synced synced; $rejected retained for supervisor review.'
-            : 'Connectivity is still unavailable. ${remaining.length} ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
+    reviewRequiredActions = remaining.where((action) => action.reviewRequired).length;
+    if (remaining.isEmpty) {
+      offlineSyncMessage = '$synced offline ${synced == 1 ? 'action' : 'actions'} synced.';
+    } else if (reviewRequiredActions > 0) {
+      offlineSyncMessage = '$synced synced; $reviewRequiredActions ${reviewRequiredActions == 1 ? 'action requires' : 'actions require'} supervisor review.';
+    } else if (deferred > 0) {
+      offlineSyncMessage = 'Connectivity retry is scheduled safely; ${remaining.length} ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
+    } else {
+      offlineSyncMessage = '${remaining.length} ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
+    }
     notifyListeners();
   }
 
@@ -263,27 +287,13 @@ class GuardController extends ChangeNotifier {
 
   Future<void> signOut() async {
     final current = session;
-    if (current != null) {
-      try {
-        await api.logout(current.sessionId, current.refreshToken);
-      } catch (_) {}
-    }
+    if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
     await _gateEvents?.cancel();
-    _gateEvents = null;
-    realtimeConnected = false;
+    _gateEvents = null; realtimeConnected = false;
     await sessions.clear();
     api.accessToken = '';
-    session = null;
-    userId = null;
-    selectionToken = null;
-    memberships = const [];
-    gates = const [];
-    units = const [];
-    gateId = null;
-    verifiedAccess = null;
-    walkInAccess = null;
-    queuedActions = 0;
-    offlineSyncMessage = null;
+    session = null; userId = null; selectionToken = null; memberships = const []; gates = const []; units = const []; gateId = null;
+    verifiedAccess = null; walkInAccess = null; queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
     notifyListeners();
   }
 
@@ -291,25 +301,24 @@ class GuardController extends ChangeNotifier {
     final result = await api.refresh(stored.sessionId, stored.refreshToken);
     final refreshed = GuardSession(sessionId: result['sessionId']?.toString() ?? stored.sessionId, accessToken: result['accessToken']?.toString() ?? '', refreshToken: result['refreshToken']?.toString() ?? stored.refreshToken, userId: stored.userId, societyId: stored.societyId);
     if (refreshed.accessToken.isEmpty) throw StateError('Session refresh failed');
-    session = refreshed;
-    api.accessToken = refreshed.accessToken;
-    await sessions.save(refreshed);
-    await loadGates();
-    if (queuedActions > 0) await syncQueuedActions();
+    session = refreshed; api.accessToken = refreshed.accessToken; await sessions.save(refreshed); await loadGates();
+    await _refreshQueueCounts(refreshed);
+    if (queuedActions > reviewRequiredActions) await syncQueuedActions();
   }
 
   Future<void> _acceptSession(Map<String, dynamic> value, String societyId) async {
     final accepted = GuardSession(sessionId: value['sessionId']?.toString() ?? '', accessToken: value['accessToken']?.toString() ?? '', refreshToken: value['refreshToken']?.toString() ?? '', userId: userId ?? '', societyId: societyId);
     if (accepted.sessionId.isEmpty || accepted.accessToken.isEmpty || accepted.refreshToken.isEmpty || accepted.userId.isEmpty) throw StateError('Incomplete security session');
-    session = accepted;
-    api.accessToken = accepted.accessToken;
-    await sessions.save(accepted);
+    session = accepted; api.accessToken = accepted.accessToken; await sessions.save(accepted); await _refreshQueueCounts(accepted);
   }
 
-  String _requireGate() {
-    if (gateId == null) throw StateError('Select an active gate');
-    return gateId!;
+  Future<void> _refreshQueueCounts(GuardSession current) async {
+    final actions = _sessionActions(await offlineQueue.read(), current);
+    queuedActions = actions.length;
+    reviewRequiredActions = actions.where((action) => action.reviewRequired).length;
   }
+
+  String _requireGate() { if (gateId == null) throw StateError('Select an active gate'); return gateId!; }
 
   String _idempotencyKey() {
     final random = Random.secure();
@@ -318,21 +327,11 @@ class GuardController extends ChangeNotifier {
   }
 
   List<QueuedGateAction> _sessionActions(List<QueuedGateAction> actions, GuardSession current) => actions
-      .where((action) => action.belongsTo(societyId: current.societyId, guardUserId: current.userId))
-      .toList(growable: false);
+      .where((action) => action.belongsTo(societyId: current.societyId, guardUserId: current.userId)).toList(growable: false);
 
   Future<void> _run(Future<void> Function() action) async {
-    busy = true;
-    error = null;
-    notifyListeners();
-    try {
-      await action();
-    } catch (e) {
-      error = e.toString().replaceFirst('Bad state: ', '');
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
+    busy = true; error = null; notifyListeners();
+    try { await action(); } catch (e) { error = e.toString().replaceFirst('Bad state: ', ''); } finally { busy = false; notifyListeners(); }
   }
 
   List<Map<String, dynamic>> _maps(dynamic value) {
@@ -346,9 +345,5 @@ class GuardController extends ChangeNotifier {
   }
 
   @override
-  void dispose() {
-    _disposed = true;
-    _gateEvents?.cancel();
-    super.dispose();
-  }
+  void dispose() { _disposed = true; _gateEvents?.cancel(); super.dispose(); }
 }
