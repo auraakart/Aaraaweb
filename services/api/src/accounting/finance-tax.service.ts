@@ -25,10 +25,13 @@ export class FinanceTaxService{
     `);return rows[0];
   }
 
-  listMetadata(societyId:string,documentType?:string){return this.prisma.$queryRaw(Prisma.sql`
-    SELECT "id","documentType","documentId","taxableAmountPaise"::text AS "taxableAmountPaise","gstRateBasisPoints","gstAmountPaise"::text AS "gstAmountPaise","vendorGstin","invoiceNumber","tdsSection","tdsRateBasisPoints","tdsAmountPaise"::text AS "tdsAmountPaise","metadata","updatedAt"
-    FROM "FinanceTaxDocumentMetadata" WHERE "societyId"=${societyId}::uuid AND (${documentType??null}::text IS NULL OR "documentType"=${documentType??null}) ORDER BY "updatedAt" DESC LIMIT 500
-  `);}
+  listMetadata(societyId:string,documentType?:string){
+    if(documentType&&!['EXPENSE','CHARGE_RULE','RECEIVABLE'].includes(documentType))throw new BadRequestException('Unsupported finance tax document type');
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT "id","documentType","documentId","taxableAmountPaise"::text AS "taxableAmountPaise","gstRateBasisPoints","gstAmountPaise"::text AS "gstAmountPaise","vendorGstin","invoiceNumber","tdsSection","tdsRateBasisPoints","tdsAmountPaise"::text AS "tdsAmountPaise","metadata","updatedAt"
+      FROM "FinanceTaxDocumentMetadata" WHERE "societyId"=${societyId}::uuid AND (${documentType??null}::text IS NULL OR "documentType"=${documentType??null}) ORDER BY "updatedAt" DESC LIMIT 500
+    `);
+  }
 
   async upsertMetadata(societyId:string,userId:string,input:TaxMetadataInput){
     const config=await this.configuration(societyId) as {gstEnabled?:boolean;tdsEnabled?:boolean};
@@ -48,8 +51,10 @@ export class FinanceTaxService{
   }
 
   private async assertDocument(societyId:string,type:TaxMetadataInput['documentType'],id:string){
-    const table=type==='EXPENSE'?'SocietyExpense':type==='CHARGE_RULE'?'ChargeRule':'Receivable';
-    const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.raw(`SELECT "id" FROM "${table}" WHERE "id"='${id.replaceAll("'",'')}'::uuid AND "societyId"='${societyId.replaceAll("'",'')}'::uuid LIMIT 1`));
+    let rows:Array<{id:string}>;
+    if(type==='EXPENSE') rows=await this.prisma.$queryRaw(Prisma.sql`SELECT "id" FROM "SocietyExpense" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
+    else if(type==='CHARGE_RULE') rows=await this.prisma.$queryRaw(Prisma.sql`SELECT "id" FROM "ChargeRule" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
+    else rows=await this.prisma.$queryRaw(Prisma.sql`SELECT "id" FROM "Receivable" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
     if(!rows.length)throw new NotFoundException('Finance document was not found in the current society');
   }
 }

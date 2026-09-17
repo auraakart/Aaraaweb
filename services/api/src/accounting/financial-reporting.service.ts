@@ -8,54 +8,53 @@ export class FinancialReportingService {
 
   trialBalance(societyId:string,asOf:string) {
     return this.prisma.$queryRaw(Prisma.sql`
+      WITH totals AS (
+        SELECT jl."accountId",SUM(jl."debitPaise") AS debit,SUM(jl."creditPaise") AS credit
+        FROM "JournalLine" jl
+        JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
+        WHERE jl."societyId"=${societyId}::uuid AND je."status" IN ('POSTED','REVERSED') AND je."entryDate"<=${asOf}::date
+        GROUP BY jl."accountId"
+      )
       SELECT la."id" AS "accountId",la."code",la."name",la."type"::text AS "type",
-             COALESCE(SUM(jl."debitPaise"),0)::text AS "debitPaise",
-             COALESCE(SUM(jl."creditPaise"),0)::text AS "creditPaise",
-             (COALESCE(SUM(jl."debitPaise"),0)-COALESCE(SUM(jl."creditPaise"),0))::text AS "netDebitPaise"
-      FROM "LedgerAccount" la
-      LEFT JOIN "JournalLine" jl ON jl."accountId"=la."id" AND jl."societyId"=la."societyId"
-      LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
-        AND je."status" IN ('POSTED','REVERSED') AND je."entryDate"<=${asOf}::date
-      WHERE la."societyId"=${societyId}::uuid
-      GROUP BY la."id" ORDER BY la."code"
+             COALESCE(t.debit,0)::text AS "debitPaise",COALESCE(t.credit,0)::text AS "creditPaise",
+             (COALESCE(t.debit,0)-COALESCE(t.credit,0))::text AS "netDebitPaise"
+      FROM "LedgerAccount" la LEFT JOIN totals t ON t."accountId"=la."id"
+      WHERE la."societyId"=${societyId}::uuid ORDER BY la."code"
     `);
   }
 
   incomeExpense(societyId:string,from:string,to:string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      WITH rows AS (
-        SELECT la."id" AS "accountId",la."code",la."name",la."type"::text AS "type",
-               COALESCE(SUM(jl."debitPaise"),0) AS debit,
-               COALESCE(SUM(jl."creditPaise"),0) AS credit
-        FROM "LedgerAccount" la
-        LEFT JOIN "JournalLine" jl ON jl."accountId"=la."id" AND jl."societyId"=la."societyId"
-        LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
-          AND je."status" IN ('POSTED','REVERSED') AND je."entryDate" BETWEEN ${from}::date AND ${to}::date
-        WHERE la."societyId"=${societyId}::uuid AND la."type" IN ('INCOME','EXPENSE')
-        GROUP BY la."id"
+      WITH totals AS (
+        SELECT jl."accountId",SUM(jl."debitPaise") AS debit,SUM(jl."creditPaise") AS credit
+        FROM "JournalLine" jl
+        JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
+        WHERE jl."societyId"=${societyId}::uuid AND je."status" IN ('POSTED','REVERSED') AND je."entryDate" BETWEEN ${from}::date AND ${to}::date
+        GROUP BY jl."accountId"
       )
-      SELECT "accountId","code","name","type",debit::text AS "debitPaise",credit::text AS "creditPaise",
-             (CASE WHEN "type"='INCOME' THEN credit-debit ELSE debit-credit END)::text AS "amountPaise"
-      FROM rows ORDER BY "type","code"
+      SELECT la."id" AS "accountId",la."code",la."name",la."type"::text AS "type",
+             COALESCE(t.debit,0)::text AS "debitPaise",COALESCE(t.credit,0)::text AS "creditPaise",
+             (CASE WHEN la."type"='INCOME' THEN COALESCE(t.credit,0)-COALESCE(t.debit,0) ELSE COALESCE(t.debit,0)-COALESCE(t.credit,0) END)::text AS "amountPaise"
+      FROM "LedgerAccount" la LEFT JOIN totals t ON t."accountId"=la."id"
+      WHERE la."societyId"=${societyId}::uuid AND la."type" IN ('INCOME','EXPENSE')
+      ORDER BY la."type",la."code"
     `);
   }
 
   async balanceSheet(societyId:string,asOf:string) {
     const accounts=await this.prisma.$queryRaw<Array<{accountId:string;code:string;name:string;type:string;amountPaise:string}>>(Prisma.sql`
-      WITH rows AS (
-        SELECT la."id" AS "accountId",la."code",la."name",la."type"::text AS "type",
-               COALESCE(SUM(jl."debitPaise"),0) AS debit,
-               COALESCE(SUM(jl."creditPaise"),0) AS credit
-        FROM "LedgerAccount" la
-        LEFT JOIN "JournalLine" jl ON jl."accountId"=la."id" AND jl."societyId"=la."societyId"
-        LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
-          AND je."status" IN ('POSTED','REVERSED') AND je."entryDate"<=${asOf}::date
-        WHERE la."societyId"=${societyId}::uuid AND la."type" IN ('ASSET','LIABILITY','EQUITY')
-        GROUP BY la."id"
+      WITH totals AS (
+        SELECT jl."accountId",SUM(jl."debitPaise") AS debit,SUM(jl."creditPaise") AS credit
+        FROM "JournalLine" jl
+        JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
+        WHERE jl."societyId"=${societyId}::uuid AND je."status" IN ('POSTED','REVERSED') AND je."entryDate"<=${asOf}::date
+        GROUP BY jl."accountId"
       )
-      SELECT "accountId","code","name","type",
-             (CASE WHEN "type"='ASSET' THEN debit-credit ELSE credit-debit END)::text AS "amountPaise"
-      FROM rows ORDER BY "type","code"
+      SELECT la."id" AS "accountId",la."code",la."name",la."type"::text AS "type",
+             (CASE WHEN la."type"='ASSET' THEN COALESCE(t.debit,0)-COALESCE(t.credit,0) ELSE COALESCE(t.credit,0)-COALESCE(t.debit,0) END)::text AS "amountPaise"
+      FROM "LedgerAccount" la LEFT JOIN totals t ON t."accountId"=la."id"
+      WHERE la."societyId"=${societyId}::uuid AND la."type" IN ('ASSET','LIABILITY','EQUITY')
+      ORDER BY la."type",la."code"
     `);
     const result=await this.prisma.$queryRaw<Array<{income:bigint;expense:bigint}>>(Prisma.sql`
       SELECT
@@ -87,25 +86,28 @@ export class FinancialReportingService {
              MAX(${asOf}::date-b."dueDate")::int AS "maxDaysOverdue"
       FROM balances b JOIN "Unit" u ON u."id"=b."unitId" AND u."societyId"=${societyId}::uuid
       JOIN "Building" bld ON bld."id"=u."buildingId"
-      WHERE b.outstanding>0
-      GROUP BY u."id",bld."name",u."number"
-      ORDER BY SUM(b.outstanding) DESC,u."number"
-      LIMIT 500
+      WHERE b.outstanding>0 GROUP BY u."id",bld."name",u."number"
+      ORDER BY SUM(b.outstanding) DESC,u."number" LIMIT 500
     `);
   }
 
   fundStatement(societyId:string,from:string,to:string) {
     return this.prisma.$queryRaw(Prisma.sql`
+      WITH totals AS (
+        SELECT jl."fundId",
+          SUM(CASE WHEN je."entryDate"<${from}::date THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END) AS opening,
+          SUM(CASE WHEN je."entryDate" BETWEEN ${from}::date AND ${to}::date THEN jl."debitPaise" ELSE 0 END) AS period_debit,
+          SUM(CASE WHEN je."entryDate" BETWEEN ${from}::date AND ${to}::date THEN jl."creditPaise" ELSE 0 END) AS period_credit,
+          SUM(CASE WHEN je."entryDate"<=${to}::date THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END) AS closing
+        FROM "JournalLine" jl JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId"
+        WHERE jl."societyId"=${societyId}::uuid AND jl."fundId" IS NOT NULL AND je."status" IN ('POSTED','REVERSED')
+        GROUP BY jl."fundId"
+      )
       SELECT f."id" AS "fundId",f."code",f."name",f."restricted",
-             COALESCE(SUM(CASE WHEN je."entryDate"<${from}::date THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END),0)::text AS "openingNetDebitPaise",
-             COALESCE(SUM(CASE WHEN je."entryDate" BETWEEN ${from}::date AND ${to}::date THEN jl."debitPaise" ELSE 0 END),0)::text AS "periodDebitPaise",
-             COALESCE(SUM(CASE WHEN je."entryDate" BETWEEN ${from}::date AND ${to}::date THEN jl."creditPaise" ELSE 0 END),0)::text AS "periodCreditPaise",
-             COALESCE(SUM(CASE WHEN je."entryDate"<=${to}::date THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END),0)::text AS "closingNetDebitPaise"
-      FROM "AccountingFund" f
-      LEFT JOIN "JournalLine" jl ON jl."fundId"=f."id" AND jl."societyId"=f."societyId"
-      LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId" AND je."status" IN ('POSTED','REVERSED')
-      WHERE f."societyId"=${societyId}::uuid
-      GROUP BY f."id" ORDER BY f."code"
+             COALESCE(t.opening,0)::text AS "openingNetDebitPaise",COALESCE(t.period_debit,0)::text AS "periodDebitPaise",
+             COALESCE(t.period_credit,0)::text AS "periodCreditPaise",COALESCE(t.closing,0)::text AS "closingNetDebitPaise"
+      FROM "AccountingFund" f LEFT JOIN totals t ON t."fundId"=f."id"
+      WHERE f."societyId"=${societyId}::uuid ORDER BY f."code"
     `);
   }
 }
