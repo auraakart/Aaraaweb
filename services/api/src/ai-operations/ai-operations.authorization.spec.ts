@@ -12,6 +12,10 @@ describe('V3.6 AI operations authorization',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype.financeSummary)).toEqual([AppPermission.PROPERTY_FINANCE_READ]);
   });
 
+  it('operations summary requires the existing helpdesk review boundary',()=>{
+    expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype.operationsSummary)).toEqual([AppPermission.HELPDESK_REVIEW]);
+  });
+
   for(const method of ['proposeHelpdesk','confirm','cancel'] as const){
     it(`${method} requires the existing resident helpdesk mutation permission`,()=>{
       expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype[method])).toEqual([AppPermission.HELPDESK_MANAGE_OWN]);
