@@ -67,30 +67,45 @@ export class GovernanceCommunityController{
       JOIN "GovernanceMeeting" m ON m."id"=d."meetingId" AND m."societyId"=d."societyId"
       WHERE d."societyId"=${societyId}::uuid
         AND (
-          EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
-          OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+          (
+            (EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+             OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)))
+            AND d."audienceScope"='COMMUNITY' AND m."audienceScope"='COMMUNITY'
+          )
+          OR (
+            d."audienceScope" IN ('COMMUNITY','OWNER_ONLY') AND m."audienceScope" IN ('COMMUNITY','OWNER_ONLY')
+            AND EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+          )
         )
-        AND d."audienceScope"='COMMUNITY'
-        AND m."audienceScope"='COMMUNITY'
-        OR (d."societyId"=${societyId}::uuid AND d."audienceScope" IN ('COMMUNITY','OWNER_ONLY') AND m."audienceScope" IN ('COMMUNITY','OWNER_ONLY') AND EXISTS(
-          SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
-        ))
       ORDER BY d."createdAt" DESC LIMIT 250
     `);
   }
 
   @Post('audience/:kind/:id')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
-  async setAudience(@CurrentTenant() societyId:string,@Param('kind') kind:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:AudienceDto){
-    const table=kind==='meeting'?'GovernanceMeeting':kind==='document'?'GovernanceDocumentReference':kind==='poll'?'GovernancePoll':null;
-    if(!table)throw new BadRequestException('Unsupported governance audience resource');
-    const rows=table==='GovernanceMeeting'
-      ?await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernanceMeeting" SET "audienceScope"=${dto.audienceScope},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`)
-      :table==='GovernanceDocumentReference'
-        ?await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernanceDocumentReference" SET "audienceScope"=${dto.audienceScope} WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`)
-        :await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernancePoll" SET "audienceScope"=${dto.audienceScope},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`);
-    if(!rows.length)throw new BadRequestException('Governance resource not found');
-    return rows[0];
+  async setAudience(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('kind') kind:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:AudienceDto){
+    const actor=this.user(userId);
+    const resourceType=kind==='meeting'?'MEETING':kind==='document'?'DOCUMENT':kind==='poll'?'POLL':null;
+    if(!resourceType)throw new BadRequestException('Unsupported governance audience resource');
+    return this.prisma.$transaction(async tx=>{
+      const current=resourceType==='MEETING'
+        ?await tx.$queryRaw<Array<{audienceScope:'COMMUNITY'|'OWNER_ONLY'}>>(Prisma.sql`SELECT "audienceScope" FROM "GovernanceMeeting" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`)
+        :resourceType==='DOCUMENT'
+          ?await tx.$queryRaw<Array<{audienceScope:'COMMUNITY'|'OWNER_ONLY'}>>(Prisma.sql`SELECT "audienceScope" FROM "GovernanceDocumentReference" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`)
+          :await tx.$queryRaw<Array<{audienceScope:'COMMUNITY'|'OWNER_ONLY'}>>(Prisma.sql`SELECT "audienceScope" FROM "GovernancePoll" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`);
+      if(!current.length)throw new BadRequestException('Governance resource not found');
+      if(current[0].audienceScope===dto.audienceScope)return {id,audienceScope:dto.audienceScope,idempotent:true};
+      const rows=resourceType==='MEETING'
+        ?await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernanceMeeting" SET "audienceScope"=${dto.audienceScope},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`)
+        :resourceType==='DOCUMENT'
+          ?await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernanceDocumentReference" SET "audienceScope"=${dto.audienceScope} WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`)
+          :await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernancePoll" SET "audienceScope"=${dto.audienceScope},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id","audienceScope"`);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "GovernanceAudienceAudit" ("societyId","resourceType","resourceId","fromScope","toScope","actorUserId")
+        VALUES (${societyId}::uuid,${resourceType},${id}::uuid,${current[0].audienceScope},${dto.audienceScope},${actor}::uuid)
+      `);
+      return rows[0];
+    });
   }
 
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
