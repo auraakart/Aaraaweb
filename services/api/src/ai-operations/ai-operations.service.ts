@@ -138,6 +138,37 @@ export class AiOperationsService {
     };
   }
 
+  async overdueFinanceSummary(societyId:string) {
+    const overdue=await this.prisma.$queryRaw<Array<{
+      id:string;
+      invoiceNumber:string;
+      amountPaise:number;
+      dueDate:Date;
+      unitNumber:string;
+      buildingName:string;
+      daysOverdue:number;
+    }>>(Prisma.sql`
+      SELECT i."id",i."invoiceNumber",i."amountPaise",i."dueDate",
+             u."number" AS "unitNumber",b."name" AS "buildingName",
+             GREATEST(0,(CURRENT_DATE-i."dueDate"))::int AS "daysOverdue"
+      FROM "MaintenanceInvoice" i
+      JOIN "Unit" u ON u."id"=i."unitId" AND u."societyId"=i."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=i."societyId"
+      WHERE i."societyId"=${societyId}::uuid
+        AND i."status"='ISSUED'
+        AND i."dueDate"<CURRENT_DATE
+      ORDER BY i."dueDate" ASC,i."amountPaise" DESC
+      LIMIT 500
+    `);
+    return {
+      overdueCount:overdue.length,
+      overduePaise:overdue.reduce((sum,item)=>sum+Number(item.amountPaise),0),
+      severeCount:overdue.filter(item=>Number(item.daysOverdue)>=30).length,
+      oldest:overdue[0]??null,
+      accounts:overdue,
+    };
+  }
+
   async proposeHelpdesk(societyId:string,userId:string,input:HelpdeskProposalInput) {
     const title=input.title.trim();
     const description=input.description.trim();
@@ -180,8 +211,6 @@ export class AiOperationsService {
     if(proposal.action!=='CREATE_HELPDESK_TICKET') throw new BadRequestException('Unsupported AI operation action');
 
     try {
-      // Execute only through the existing domain service. The AI layer never
-      // writes HelpdeskTicket/HelpdeskActivity tables directly.
       const ticket=await this.helpdesk.createMine(societyId,userId,proposal.payload);
       const result={ticketId:String((ticket as {id?:unknown}).id??'')};
       await this.prisma.$executeRaw(Prisma.sql`
