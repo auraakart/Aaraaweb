@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../localization/guard_strings.dart';
 import '../widgets/guard_operation_ui.dart';
+import 'guard_field_operations_screen.dart';
 
 class GuardToolsScreen extends StatefulWidget {
   const GuardToolsScreen({super.key, required this.controller});
@@ -50,34 +51,24 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
             GuardOperationSurface(
               child: Column(
                 children: [
-                  _StatusRow(
-                    icon: Icons.door_front_door_outlined,
-                    label: strings.get('activeGate'),
-                    value: c.gateName ?? strings.get('ready'),
-                  ),
+                  _StatusRow(icon: Icons.door_front_door_outlined, label: strings.get('activeGate'), value: c.gateName ?? strings.get('ready')),
                   const Divider(height: 24),
-                  _StatusRow(
-                    icon: c.realtimeConnected ? Icons.wifi_rounded : Icons.wifi_off_rounded,
-                    label: strings.get('realtime'),
-                    value: strings.get(c.realtimeConnected ? 'connected' : 'disconnected'),
-                  ),
+                  _StatusRow(icon: c.realtimeConnected ? Icons.wifi_rounded : Icons.wifi_off_rounded, label: strings.get('realtime'), value: strings.get(c.realtimeConnected ? 'connected' : 'disconnected')),
                   const Divider(height: 24),
-                  _StatusRow(
-                    icon: c.queuedActions > 0 ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
-                    label: strings.get('offlineQueue'),
-                    value: '${c.queuedActions} ${strings.get('pendingActions')}',
-                  ),
+                  _StatusRow(icon: c.queuedActions > 0 ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, label: strings.get('offlineQueue'), value: '${c.queuedActions} ${strings.get('pendingActions')}'),
                   if (c.queuedActions > 0) ...[
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: c.busy ? null : c.retryQueuedActions,
-                        icon: const Icon(Icons.sync_rounded),
-                        label: Text(strings.get('retrySync')),
-                      ),
-                    ),
+                    SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy ? null : c.retryQueuedActions, icon: const Icon(Icons.sync_rounded), label: Text(strings.get('retrySync')))),
                   ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardFieldOperationsScreen(controller: c))),
+                      icon: const Icon(Icons.security_rounded),
+                      label: const Text('FIELD OPERATIONS'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -86,26 +77,15 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
             const SizedBox(height: 10),
             TextField(
               onChanged: (value) => setState(() => query = value),
-              decoration: InputDecoration(
-                hintText: strings.get('searchUnit'),
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: query.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() => query = '')),
-              ),
+              decoration: InputDecoration(hintText: strings.get('searchUnit'), prefixIcon: const Icon(Icons.search_rounded), suffixIcon: query.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setState(() => query = ''))),
             ),
             const SizedBox(height: 10),
             if (units.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 28),
-                child: Center(child: Text(strings.get('noUnits'), style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant))),
-              )
+              Padding(padding: const EdgeInsets.symmetric(vertical: 28), child: Center(child: Text(strings.get('noUnits'), style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant))))
             else
               ...units.take(100).map((unit) => Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: const Icon(Icons.apartment_rounded),
-                      title: Text(_unitLabel(unit), style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: unit['occupancyType'] == null ? null : Text(unit['occupancyType'].toString().replaceAll('_', ' ')),
-                    ),
+                    child: ListTile(leading: const Icon(Icons.apartment_rounded), title: Text(_unitLabel(unit), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: unit['occupancyType'] == null ? null : Text(unit['occupancyType'].toString().replaceAll('_', ' '))),
                   )),
           ],
         ),
@@ -119,17 +99,7 @@ class _StatusRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(children: [
-      Icon(icon, size: 26),
-      const SizedBox(width: 12),
-      Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
-      Flexible(child: Text(value, textAlign: TextAlign.end, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800))),
-    ]);
-  }
+  @override Widget build(BuildContext context) {final theme=Theme.of(context);return Row(children:[Icon(icon,size:26),const SizedBox(width:12),Expanded(child:Text(label,style:theme.textTheme.titleSmall)),Flexible(child:Text(value,textAlign:TextAlign.end,style:theme.textTheme.bodyMedium?.copyWith(fontWeight:FontWeight.w800)))]);}
 }
 
 String _unitLabel(Map<String, dynamic> unit) {
