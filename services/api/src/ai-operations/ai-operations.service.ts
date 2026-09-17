@@ -36,6 +36,66 @@ export class AiOperationsService {
     return { helpdesk: { total: tickets.length, byStatus: counts } };
   }
 
+  async financeSummary(societyId:string,userId:string) {
+    const invoices=await this.prisma.$queryRaw<Array<{
+      id:string;
+      invoiceNumber:string;
+      amountPaise:number;
+      dueDate:Date;
+      status:string;
+      unitNumber:string;
+      buildingName:string;
+    }>>(Prisma.sql`
+      SELECT i."id",i."invoiceNumber",i."amountPaise",i."dueDate",i."status",
+             u."number" AS "unitNumber",b."name" AS "buildingName"
+      FROM "MaintenanceInvoice" i
+      JOIN "Unit" u ON u."id"=i."unitId" AND u."societyId"=i."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=i."societyId"
+      WHERE i."societyId"=${societyId}::uuid
+        AND EXISTS (
+          SELECT 1 FROM "UnitOwnership" uo
+          WHERE uo."unitId"=i."unitId" AND uo."societyId"=${societyId}::uuid
+            AND uo."userId"=${userId}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE
+            AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+        )
+      ORDER BY i."dueDate" DESC,i."createdAt" DESC
+      LIMIT 100
+    `);
+    const payments=await this.prisma.$queryRaw<Array<{
+      id:string;
+      invoiceId:string;
+      invoiceNumber:string;
+      amountPaise:number;
+      status:string;
+      createdAt:Date;
+      completedAt:Date|null;
+    }>>(Prisma.sql`
+      SELECT p."id",p."invoiceId",i."invoiceNumber",p."amountPaise",p."status",p."createdAt",p."completedAt"
+      FROM "Payment" p
+      JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      WHERE p."societyId"=${societyId}::uuid
+        AND (p."payerUserId"=${userId}::uuid OR EXISTS (
+          SELECT 1 FROM "UnitOwnership" uo
+          WHERE uo."unitId"=i."unitId" AND uo."societyId"=${societyId}::uuid
+            AND uo."userId"=${userId}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE
+            AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+        ))
+      ORDER BY p."createdAt" DESC
+      LIMIT 100
+    `);
+    const open=invoices.filter(invoice=>invoice.status==='ISSUED');
+    const outstandingPaise=open.reduce((sum,invoice)=>sum+Number(invoice.amountPaise),0);
+    return {
+      outstandingPaise,
+      openInvoices:open,
+      invoiceCount:invoices.length,
+      recentPayments:payments,
+      latestReceiptCandidate:payments.find(payment=>payment.status==='CAPTURED'||payment.status==='REFUNDED')??null,
+    };
+  }
+
   async proposeHelpdesk(societyId:string,userId:string,input:HelpdeskProposalInput) {
     const title=input.title.trim();
     const description=input.description.trim();
