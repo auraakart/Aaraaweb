@@ -32,6 +32,7 @@ describe('GateArrivalService', () => {
   it.each([
     [AccessSubjectType.DELIVERY, 30, 'swiggy'],
     [AccessSubjectType.CAB, 15, 'ola'],
+    [AccessSubjectType.OTHER, 20, 'SCHOOL_TRANSPORT'],
   ])('creates a pending %s request assigned to the destination resident', async (subjectType, approvalWindowMinutes, provider) => {
     const { service, prisma, entitlements } = setup();
     const result = await service.create(
@@ -40,7 +41,7 @@ describe('GateArrivalService', () => {
       'gate-1',
       'unit-1',
       subjectType,
-      subjectType === AccessSubjectType.CAB ? 'Driver' : 'Delivery partner',
+      subjectType === AccessSubjectType.CAB ? 'Driver' : subjectType === AccessSubjectType.OTHER ? 'Greenwood school bus' : 'Delivery partner',
       provider,
       '9999999999',
       'KA01AB1234',
@@ -61,6 +62,7 @@ describe('GateArrivalService', () => {
           provider,
           vehicleNumber: 'KA01AB1234',
           approvalWindowMinutes,
+          ...(subjectType === AccessSubjectType.OTHER ? { transportMode: 'SCHOOL_TRANSPORT' } : {}),
         }),
       }),
     }));
@@ -74,9 +76,14 @@ describe('GateArrivalService', () => {
     await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.VISITOR, 'Visitor')).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects delivery/cab when the society feature is disabled', async () => {
+  it('rejects generic OTHER arrivals without the school transport marker', async () => {
+    const { service } = setup();
+    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.OTHER, 'Unknown transport', 'OTHER')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects delivery/cab/school transport when the society feature is disabled', async () => {
     const { service } = setup(false);
-    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.DELIVERY, 'Partner')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create('society-1', 'guard-1', 'gate-1', 'unit-1', AccessSubjectType.OTHER, 'School bus', 'SCHOOL_TRANSPORT')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects whitespace-only arrival names', async () => {
