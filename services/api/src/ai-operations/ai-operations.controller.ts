@@ -41,6 +41,12 @@ export class AiOperationsController {
     return this.ai.operationsSummary(societyId);
   }
 
+  @Get('overdue-finance-summary')
+  @RequiresPermissions(AppPermission.FINANCE_READ)
+  overdueFinanceSummary(@CurrentTenant() societyId:string){
+    return this.ai.overdueFinanceSummary(societyId);
+  }
+
   @Post('proposals/helpdesk')
   @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
   proposeHelpdesk(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskDto){
