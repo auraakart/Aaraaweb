@@ -29,6 +29,12 @@ export class AiOperationsController {
     return this.ai.summary(societyId,this.user(userId));
   }
 
+  @Get('finance-summary')
+  @RequiresPermissions(AppPermission.PROPERTY_FINANCE_READ)
+  financeSummary(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
+    return this.ai.financeSummary(societyId,this.user(userId));
+  }
+
   @Post('proposals/helpdesk')
   @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
   proposeHelpdesk(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskDto){
