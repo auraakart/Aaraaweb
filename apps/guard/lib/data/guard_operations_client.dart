@@ -46,7 +46,14 @@ class GuardOperationsClient {
   }) as Map);
   Future<Map<String,dynamic>> processPass(String id) async => Map<String,dynamic>.from(await _send('POST','passes/$id/process') as Map);
   Future<Map<String,dynamic>> scanCheckpoint(String id,{String? gateId,String? note}) async => Map<String,dynamic>.from(await _send('POST','patrol/checkpoints/$id/scan',body:{if(gateId!=null)'gateId':gateId,if(note!=null&&note.trim().isNotEmpty)'note':note.trim()}) as Map);
-  Future<Map<String,dynamic>> createIncident({required String severity,required String category,required String title,String? description,String? gateId}) async => Map<String,dynamic>.from(await _send('POST','incidents',body:{'severity':severity,'category':category,'title':title,if(description!=null&&description.trim().isNotEmpty)'description':description.trim(),if(gateId!=null)'gateId':gateId}) as Map);
+  Future<Map<String,dynamic>> createIncident({required String severity,required String category,required String title,String? description,String? gateId,List<String> mediaRefs=const []}) async => Map<String,dynamic>.from(await _send('POST','incidents',body:{
+    'severity':severity,
+    'category':category,
+    'title':title,
+    if(description!=null&&description.trim().isNotEmpty)'description':description.trim(),
+    if(gateId!=null)'gateId':gateId,
+    if(mediaRefs.isNotEmpty)'mediaRefs':mediaRefs.map((ref)=>ref.trim()).where((ref)=>ref.isNotEmpty).toList(growable:false),
+  }) as Map);
   Future<Map<String,dynamic>> createShiftHandover({required String summary,required List<String> openItems,String? gateId}) async => Map<String,dynamic>.from(await _send('POST','shift-handovers',body:{'summary':summary,'openItems':openItems,if(gateId!=null)'gateId':gateId}) as Map);
   Future<Map<String,dynamic>> acknowledgeShiftHandover(String id) async => Map<String,dynamic>.from(await _send('POST','shift-handovers/$id/acknowledge') as Map);
 
