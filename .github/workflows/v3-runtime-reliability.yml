@@ -53,8 +53,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+
       - name: Exercise production Redis state primitives and reconnect
         run: pnpm --filter @aaraagate/api exec tsx scripts/runtime-reliability-smoke.ts
 
       - name: Verify scheduled-work locking and retry contracts
-        run: pnpm --filter @aaraagate/api test -- src/scheduled-work/scheduled-work.service.spec.ts
+        run: pnpm --filter @aaraagate/api exec vitest run src/scheduled-work/scheduled-work.service.spec.ts
