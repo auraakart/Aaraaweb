@@ -50,6 +50,23 @@ describe('AiOperationsService',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it('surfaces breached and unassigned helpdesk work for the active society',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {id:'t-1',title:'Lift issue',priority:'URGENT',status:'OPEN',slaState:'RESOLUTION_BREACHED',assignedToId:null,escalationLevel:1},
+      {id:'t-2',title:'Light issue',priority:'NORMAL',status:'IN_PROGRESS',slaState:'ON_TRACK',assignedToId:'u-2',escalationLevel:0},
+    ]);
+
+    await expect(service.operationsSummary('society-1')).resolves.toEqual(expect.objectContaining({
+      openCount:2,
+      breachedCount:1,
+      unassignedCount:1,
+      byPriority:{URGENT:1,NORMAL:1},
+      breaches:[expect.objectContaining({id:'t-1'})],
+      unassigned:[expect.objectContaining({id:'t-1'})],
+    }));
+  });
+
   it('claims before executing through HelpdeskService and records the result',async()=>{
     const {prisma,helpdesk,service}=setup();
     prisma.$queryRaw.mockResolvedValueOnce([{
