@@ -35,6 +35,12 @@ export class AiOperationsController {
     return this.ai.financeSummary(societyId,this.user(userId));
   }
 
+  @Get('operations-summary')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  operationsSummary(@CurrentTenant() societyId:string){
+    return this.ai.operationsSummary(societyId);
+  }
+
   @Post('proposals/helpdesk')
   @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
   proposeHelpdesk(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskDto){
