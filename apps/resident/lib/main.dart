@@ -129,7 +129,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           controller: _dataController!,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
-          canManageFamilyMembers: session.role == 'OWNER',
+          canManageFamilyMembers: widget.authController.isActivePropertyOwner,
           propertyContexts: widget.authController.memberships,
           currentSocietyId: session.societyId,
           currentUnitId: session.activeUnitId,
