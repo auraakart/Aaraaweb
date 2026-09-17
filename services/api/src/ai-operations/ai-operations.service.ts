@@ -13,11 +13,10 @@ type HelpdeskProposalInput = {
 
 type ProposalRow = {
   id: string;
-  societyId: string;
-  actorUserId: string;
   action: 'CREATE_HELPDESK_TICKET';
   payload: HelpdeskProposalInput;
-  status: 'PROPOSED'|'EXECUTED'|'CANCELLED';
+  status: 'PROPOSED'|'EXECUTING'|'EXECUTED'|'FAILED'|'CANCELLED';
+  result?: unknown;
 };
 
 @Injectable()
@@ -58,38 +57,55 @@ export class AiOperationsService {
   }
 
   async confirm(societyId:string,userId:string,proposalId:string) {
-    return this.prisma.$transaction(async tx=>{
-      const rows=await tx.$queryRaw<ProposalRow[]>(Prisma.sql`
-        SELECT "id","societyId","actorUserId","action","payload","status"
-        FROM "AiOperationProposal"
-        WHERE "id"=${proposalId}::uuid AND "societyId"=${societyId}::uuid AND "actorUserId"=${userId}::uuid
-        FOR UPDATE
+    const claimed=await this.prisma.$queryRaw<ProposalRow[]>(Prisma.sql`
+      UPDATE "AiOperationProposal"
+      SET "status"='EXECUTING',"confirmedAt"=COALESCE("confirmedAt",CURRENT_TIMESTAMP),
+          "errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${proposalId}::uuid AND "societyId"=${societyId}::uuid AND "actorUserId"=${userId}::uuid
+        AND "status" IN ('PROPOSED','FAILED')
+      RETURNING "id","action","payload","status","result"
+    `);
+    const proposal=claimed[0];
+    if(!proposal){
+      const current=await this.prisma.$queryRaw<ProposalRow[]>(Prisma.sql`
+        SELECT "id","action","payload","status","result" FROM "AiOperationProposal"
+        WHERE "id"=${proposalId}::uuid AND "societyId"=${societyId}::uuid AND "actorUserId"=${userId}::uuid LIMIT 1
       `);
-      const proposal=rows[0];
-      if(!proposal) throw new NotFoundException('AI operation proposal not found');
-      if(proposal.status!=='PROPOSED') throw new BadRequestException(`AI operation proposal is ${proposal.status.toLowerCase()}`);
-      if(proposal.action!=='CREATE_HELPDESK_TICKET') throw new BadRequestException('Unsupported AI operation action');
+      if(!current[0]) throw new NotFoundException('AI operation proposal not found');
+      if(current[0].status==='EXECUTED') return {proposalId:current[0].id,status:'EXECUTED',result:current[0].result,idempotent:true};
+      throw new BadRequestException(`AI operation proposal is ${current[0].status.toLowerCase()}`);
+    }
+    if(proposal.action!=='CREATE_HELPDESK_TICKET') throw new BadRequestException('Unsupported AI operation action');
 
-      // Execute through the existing domain service so occupancy, validation and
-      // normal helpdesk audit behaviour remain authoritative. The AI layer never
-      // writes the HelpdeskTicket domain tables directly.
+    try {
+      // Execute only through the existing domain service. The AI layer never
+      // writes HelpdeskTicket/HelpdeskActivity tables directly.
       const ticket=await this.helpdesk.createMine(societyId,userId,proposal.payload);
       const result={ticketId:String((ticket as {id?:unknown}).id??'')};
-      await tx.$executeRaw(Prisma.sql`
+      await this.prisma.$executeRaw(Prisma.sql`
         UPDATE "AiOperationProposal"
-        SET "status"='EXECUTED',"confirmedAt"=CURRENT_TIMESTAMP,"executedAt"=CURRENT_TIMESTAMP,
-            "result"=${JSON.stringify(result)}::jsonb
-        WHERE "id"=${proposal.id}::uuid AND "status"='PROPOSED'
+        SET "status"='EXECUTED',"executedAt"=CURRENT_TIMESTAMP,"result"=${JSON.stringify(result)}::jsonb,
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
       `);
       return {proposalId:proposal.id,status:'EXECUTED',result};
-    });
+    } catch(error) {
+      const message=error instanceof Error?error.message:'AI operation execution failed';
+      await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE "AiOperationProposal"
+        SET "status"='FAILED',"errorMessage"=${message.slice(0,1000)},"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
+      `);
+      throw error;
+    }
   }
 
   async cancel(societyId:string,userId:string,proposalId:string) {
     const rows=await this.prisma.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`
       UPDATE "AiOperationProposal"
-      SET "status"='CANCELLED'
-      WHERE "id"=${proposalId}::uuid AND "societyId"=${societyId}::uuid AND "actorUserId"=${userId}::uuid AND "status"='PROPOSED'
+      SET "status"='CANCELLED',"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${proposalId}::uuid AND "societyId"=${societyId}::uuid AND "actorUserId"=${userId}::uuid
+        AND "status" IN ('PROPOSED','FAILED')
       RETURNING "id","status"
     `);
     if(!rows[0]) throw new NotFoundException('Open AI operation proposal not found');
