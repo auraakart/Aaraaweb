@@ -33,7 +33,7 @@ export class GuardOperationsController {
   @Post('watchlist') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
   createWatchlist(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Body() body:WatchlistDto){return this.operations.createWatchlist(societyId,this.actor(userId),body);}
   @Post('watchlist/:id/deactivate') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
-  deactivateWatchlist(@CurrentTenant() societyId:string,@Param('id') id:string){return this.operations.deactivateWatchlist(societyId,id);}
+  deactivateWatchlist(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Param('id') id:string){return this.operations.deactivateWatchlist(societyId,this.actor(userId),id);}
 
   @Get('passes') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   passes(@CurrentTenant() societyId:string){return this.operations.passes(societyId);}
@@ -42,7 +42,7 @@ export class GuardOperationsController {
   @Post('passes/:id/process') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   processPass(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Param('id') id:string){return this.operations.processPass(societyId,this.actor(userId),id);}
   @Post('passes/:id/cancel') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
-  cancelPass(@CurrentTenant() societyId:string,@Param('id') id:string){return this.operations.cancelPass(societyId,id);}
+  cancelPass(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Param('id') id:string){return this.operations.cancelPass(societyId,this.actor(userId),id);}
 
   @Get('patrol/checkpoints') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   checkpoints(@CurrentTenant() societyId:string){return this.operations.checkpoints(societyId);}
