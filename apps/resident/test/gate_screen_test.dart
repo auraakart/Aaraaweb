@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
