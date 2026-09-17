@@ -103,6 +103,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('உங்கள் அனுமதி தேவை'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Delivery partner'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('மறுக்கவும்'), findsOneWidget);
     expect(find.text('நுழைய அனுமதி'), findsOneWidget);
     expect(tester.takeException(), isNull);
