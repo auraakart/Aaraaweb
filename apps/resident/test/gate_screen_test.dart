@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
@@ -67,6 +69,45 @@ void main() {
     expect(find.textContaining('Ola · KA02CD5678'), findsOneWidget);
     expect(find.text('Allow for the next 15 minutes'), findsOneWidget);
     expect(find.text('Allow entry'), findsNWidgets(2));
+
+    controller.dispose();
+  });
+
+  testWidgets('localized gate actions remain usable with large accessibility text', (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.localeTestValue = const Locale('ta', 'IN');
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+
+    final controller = ResidentDataController(
+      ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test-token')),
+    );
+    controller.accessRequests = [
+      {
+        'id': 'delivery-1',
+        'subjectType': 'DELIVERY',
+        'subjectName': 'Delivery partner',
+        'status': 'PENDING',
+      },
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.6)),
+          child: child!,
+        ),
+        home: Scaffold(body: GateScreen(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('உங்கள் அனுமதி தேவை'), findsOneWidget);
+    expect(find.text('மறுக்கவும்'), findsOneWidget);
+    expect(find.text('நுழைய அனுமதி'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     controller.dispose();
   });
