@@ -27,13 +27,16 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: GuardToolsScreen(controller: controller)));
 
     expect(find.text('Guard tools'), findsOneWidget);
-    expect(find.text('Alpha · A-101'), findsOneWidget);
+    expect(find.text('SCHOOL TRANSPORT'), findsOneWidget);
 
     await tester.tap(find.byType(DropdownButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('हिन्दी · Hindi').last);
     await tester.pumpAndSettle();
     expect(find.text('गार्ड टूल्स'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Alpha · A-101'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Alpha · A-101'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.byType(TextField), 300, scrollable: find.byType(Scrollable).first);
     await tester.enterText(find.byType(TextField), 'beta');
