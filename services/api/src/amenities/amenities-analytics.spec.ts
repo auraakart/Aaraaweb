@@ -17,7 +17,7 @@ describe('V4.12 amenity operations analytics',()=>{
     });
     expect(executeRaw).not.toHaveBeenCalled();
     for(const call of queryRaw.mock.calls){
-      expect((call[0] as {values?:unknown[]}).values).toContain('11111111-1111-4111-8111-111111111111');
+      expect(call.slice(1)).toContain('11111111-1111-4111-8111-111111111111');
     }
   });
 
