@@ -5,6 +5,7 @@ import { GateRecipientService } from './gate-recipient.service';
 import { NotificationRealtimeService } from './notification-realtime.service';
 import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
+import { PushDeliveryOutboxService } from './push-delivery-outbox.service';
 import { SimulatorWhatsAppProvider } from './simulator-whatsapp.provider';
 import { WhatsAppNotificationService } from './whatsapp-notification.service';
 import { WHATSAPP_PROVIDER } from './whatsapp.provider';
@@ -14,6 +15,7 @@ import { WHATSAPP_PROVIDER } from './whatsapp.provider';
   controllers: [NotificationsController, ConsumerNotificationsController],
   providers: [
     PrismaService,
+    PushDeliveryOutboxService,
     PushNotificationService,
     GateRecipientService,
     NotificationRealtimeService,

@@ -47,12 +47,27 @@ Implemented:
 - Payment webhook limits are intentionally higher than user-facing limits; webhook signature/idempotency controls remain authoritative.
 - Enabling trusted proxy headers requires ingress configuration that overwrites client-supplied forwarding headers.
 
+## V4.4.2 — Durable direct push delivery
+
+Implemented:
+- `PushDeliveryOutbox` persists resident/consumer direct push business events before transport;
+- target-scoped unique dedupe keys prevent repeated business transitions from creating duplicate queued work;
+- gate/access, maintenance, parcel and emergency resident pushes use the outbox;
+- consumer service booking/dispatch pushes use the outbox;
+- scheduled notices deliberately remain on the existing recipient-level `NoticeDispatch` retry queue and are not double-queued;
+- immediate outbox attempt preserves low-latency gate/service UX;
+- transient FCM failures return work to PENDING with bounded exponential backoff;
+- stale IN_FLIGHT work is reclaimable and due batches use `FOR UPDATE SKIP LOCKED`;
+- delivery stops after eight attempts in FAILED state with the last error retained;
+- invalid device tokens continue to be deactivated immediately;
+- the scheduled cluster-owned sweep drains due direct-push work;
+- outbox payloads contain notification business data only; no auth/session secret is stored.
+
 ## Remaining V4.4 work
 Continue bounded audits for:
-1. push delivery retry/deduplication durability;
-2. webhook replay/operational evidence;
-3. booking concurrency/double-submit/revocation;
-4. scheduled-job idempotency evidence;
-5. object authorization regressions;
-6. backup/restore and rollback evidence consolidation;
-7. production metrics/reliability acceptance evidence.
+1. webhook replay/operational evidence;
+2. booking double-submit/revocation evidence;
+3. scheduled-job idempotency evidence;
+4. object authorization regressions;
+5. backup/restore and rollback evidence consolidation;
+6. production metrics/reliability acceptance evidence.
