@@ -16,11 +16,14 @@ extension ResidentAmenityActions on ResidentRepository {
     required String unitId,
     required DateTime startsAt,
     required DateTime endsAt,
+    String? idempotencyKey,
   }) async {
+    final bookingKey = idempotencyKey ?? 'amenity-${DateTime.now().microsecondsSinceEpoch}';
     final value = await api.post('/api/v1/amenities/$amenityId/bookings', {
       'unitId': unitId,
       'startsAt': startsAt.toUtc().toIso8601String(),
       'endsAt': endsAt.toUtc().toIso8601String(),
+      'idempotencyKey': bookingKey,
     });
     return Map<String, dynamic>.from(value as Map);
   }

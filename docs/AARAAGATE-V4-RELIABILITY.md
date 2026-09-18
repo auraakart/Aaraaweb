@@ -77,10 +77,22 @@ Implemented:
 - cross-society receipt lookup/replay fails closed;
 - the rate limiter now matches the real `/billing/payment-webhooks/gateway-adapter` route so signed provider traffic receives the intended webhook bucket rather than the general API limit.
 
+## V4.4.4 — Booking retry and revocation reliability
+
+Implemented:
+- amenity booking creation accepts an optional tenant-user-scoped idempotency key; exact retries return the original booking while key reuse with a changed unit/amenity/window fails closed;
+- the amenity booking database boundary enforces the idempotency key and existing amenity-scoped advisory locking continues to serialize capacity/overlap checks;
+- Resident amenity requests now send an idempotency key;
+- active amenity bookings can be revoked by an authorized amenity manager with actor/reason audit evidence;
+- the Admin amenity workspace exposes controlled revocation for active bookings;
+- External Services booking creation accepts an optional authenticated-user-scoped idempotency key, serializes same-key requests, returns the original booking on an exact retry, and rejects changed payload reuse;
+- the External Services database boundary enforces the consumer booking key with a partial unique index, preserving legacy rows without keys;
+- the Resident service-request screen retains one request key across ambiguous submission failures, allowing safe direct retry; changing location or schedule explicitly resets the key;
+- existing provider availability locking remains authoritative for service-capacity concurrency, while consumer cancellation continues to use row locking plus compare-and-update semantics.
+
 ## Remaining V4.4 work
 Continue bounded audits for:
-1. booking double-submit/revocation evidence;
-2. scheduled-job idempotency evidence;
-3. object authorization regressions;
-4. backup/restore and rollback evidence consolidation;
-5. production metrics/reliability acceptance evidence.
+1. scheduled-job idempotency evidence;
+2. object authorization regressions;
+3. backup/restore and rollback evidence consolidation;
+4. production metrics/reliability acceptance evidence.

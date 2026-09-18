@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,6 +24,7 @@ export type ConsumerBookingInput = {
   scheduledFrom: Date;
   scheduledUntil: Date;
   notes?: string;
+  idempotencyKey?: string;
 };
 
 type ConsumerHomeRow = {
@@ -199,7 +200,28 @@ export class ConsumerBookingsService {
       throw new BadRequestException('Use either legacy homeId or locationType/locationId, not both');
     }
 
+    const idempotencyKey = input.idempotencyKey?.trim() || null;
     return this.prisma.$transaction(async (tx) => {
+      if (idempotencyKey) {
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${idempotencyKey}`}))`);
+        const existing = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
+          SELECT * FROM "ConsumerServiceBooking"
+          WHERE "userId"=${userId}::uuid AND "idempotencyKey"=${idempotencyKey}
+          LIMIT 1
+        `);
+        if (existing[0]) {
+          const expectedHomeId = locationType === 'HOME' ? locationId : null;
+          const expectedUnitId = locationType === 'SOCIETY_UNIT' ? locationId : null;
+          const samePayload = existing[0].offeringId === input.offeringId
+            && existing[0].homeId === expectedHomeId
+            && existing[0].societyUnitId === expectedUnitId
+            && existing[0].scheduledFrom.getTime() === input.scheduledFrom.getTime()
+            && existing[0].scheduledUntil.getTime() === input.scheduledUntil.getTime();
+          if (!samePayload) throw new ConflictException('Idempotency key is already used for another service booking');
+          return existing[0];
+        }
+      }
+
       const location = await this.resolveBookingLocation(tx, userId, locationType, locationId);
 
       const offering = await tx.serviceOffering.findFirst({
@@ -246,15 +268,19 @@ export class ConsumerBookingsService {
       const rows = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceBooking" (
           "id", "userId", "homeId", "societyUnitId", "providerId", "offeringId", "offeringName", "providerName",
-          "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "createdAt", "updatedAt"
+          "addressSnapshot", "status", "scheduledFrom", "scheduledUntil", "servicePricePaise", "notes", "idempotencyKey", "createdAt", "updatedAt"
         ) VALUES (
           ${id}::uuid, ${userId}::uuid, ${location.homeId}::uuid, ${location.societyUnitId}::uuid,
           ${offering.providerId}::uuid, ${offering.id}::uuid, ${offering.name}, ${offering.provider.businessName},
           ${addressSnapshot}::jsonb, ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus", ${input.scheduledFrom},
-          ${input.scheduledUntil}, ${offering.pricePaise}, ${input.notes ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          ${input.scheduledUntil}, ${offering.pricePaise}, ${input.notes ?? null}, ${idempotencyKey}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         ) RETURNING *
       `);
       return rows[0];
+    }).catch((error) => {
+      if (error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      if (this.isUniqueViolation(error)) throw new ConflictException('Service booking idempotency key already exists');
+      throw error;
     });
   }
 
@@ -287,6 +313,12 @@ export class ConsumerBookingsService {
       `);
       return rows[0];
     });
+  }
+
+  private isUniqueViolation(error: unknown) {
+    if (typeof error !== 'object' || error === null) return false;
+    const candidate = error as { code?: string; meta?: { code?: string } };
+    return candidate.code === '23505' || candidate.code === 'P2002' || candidate.meta?.code === '23505';
   }
 
   private async resolveBookingLocation(

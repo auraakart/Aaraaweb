@@ -197,6 +197,63 @@ describe('ConsumerBookingsService', () => {
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it('returns the original external-service booking for an exact idempotent retry', async () => {
+    const { tx, availability, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    const existing = {
+      id: '77777777-7777-4777-8777-777777777777',
+      userId: home.userId,
+      homeId: home.id,
+      societyUnitId: null,
+      providerId: '55555555-5555-5555-5555-555555555555',
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      offeringName: 'AC service',
+      providerName: 'CoolCare',
+      addressSnapshot: {},
+      status: 'REQUESTED',
+      scheduledFrom: from,
+      scheduledUntil: until,
+      servicePricePaise: 75000,
+      notes: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([existing]);
+
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id,
+      offeringId: existing.offeringId,
+      scheduledFrom: from,
+      scheduledUntil: until,
+      idempotencyKey: 'service-retry-123',
+    })).resolves.toEqual(existing);
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
+    expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+  });
+
+  it('rejects reuse of an external-service booking key for a changed payload', async () => {
+    const { tx, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      id: '77777777-7777-4777-8777-777777777777',
+      homeId: home.id,
+      societyUnitId: null,
+      offeringId: '99999999-9999-4999-8999-999999999999',
+      scheduledFrom: new Date('2030-01-01T10:00:00Z'),
+      scheduledUntil: new Date('2030-01-01T11:00:00Z'),
+    }]);
+
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: new Date('2030-01-01T10:00:00Z'),
+      scheduledUntil: new Date('2030-01-01T11:00:00Z'),
+      idempotencyKey: 'service-retry-123',
+    })).rejects.toThrow('Idempotency key is already used for another service booking');
+  });
+
   it('does not cancel another users booking', async () => {
     const { tx, service } = setup();
     tx.$queryRaw.mockResolvedValueOnce([]);
