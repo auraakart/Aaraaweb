@@ -10,7 +10,7 @@ Baseline before V4.15.1: `00931683548ce25b39e959b192c6e8ce20b8ff63`
 |---|---:|---|---|
 | V4.15.1 Governance operator ergonomics | #674 | merged to `develop` as `3abd0c5d44317678b76becfea0afd47085ea5c75` | Persistent typed forms replace browser-prompt committee tenure, agenda, resolution, action and outcome/minutes operations; bounded numeric/date inputs and regression coverage |
 | V4.15.2 Governance readiness & closure evidence | #675 | merged to `develop` as `fabd26410b5e4846665986638faf732bf174eff8` | Dedicated descriptive readiness/closure evidence surface; quorum/approval/reference completeness; unresolved-resolution/action/evidence counts; explicit no-legal-validity boundary |
-| V4.15.3 Action follow-through | #676 | final feature head `426bdeb0e96b97248a83ce5037bea30d0cb59f80`; integration merge recorded after required gates complete | Tenant-scoped action status transitions, owner/due-date updates, backend completion timestamps, overdue visibility and append-only ACTION_UPDATED evidence |
+| V4.15.3 Action follow-through | #676 | merged to `develop` as `a5ad0d3cbaf89055c87b24c742e2fbe28c65ef66` after all nine workflows passed | Tenant-scoped action status transitions, owner/due-date updates, backend completion timestamps, overdue visibility and append-only ACTION_UPDATED evidence |
 
 ## Governance integrity evidence
 
@@ -38,7 +38,7 @@ V4.15 adds Admin regression contracts for:
 - action follow-through;
 - scorecard/traceability reconciliation consistency.
 
-The exact V4.15.1 and V4.15.2 feature heads passed their applicable PR validation gates before merge. V4.15.3 integration is permitted only after its exact feature head completes the required validation gates.
+The exact V4.15.1, V4.15.2 and V4.15.3 feature heads passed their applicable PR validation gates before merge. V4.15.3 passed CI, Performance Regression, Cross-role E2E, V2 Security Privacy Review, V2 Role UAT, V2 Policy Pilot, V2 Pilot Acceptance, V2 Staging Pilot Execution and V4.11 Pilot Readiness.
 
 ## Conservative score effect
 
