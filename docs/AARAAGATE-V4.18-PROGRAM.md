@@ -31,7 +31,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 - expose append-only document lifecycle history in Admin;
 - API and Admin regression coverage.
 
-### V4.18.2 — Controlled supersession & version lineage — in progress — in progress
+### V4.18.2 — Controlled supersession & version lineage — merged via #706 — in progress
 
 - implement a bounded replacement flow using the existing `VERSION_REPLACED` event vocabulary;
 - preserve prior versions and immutable history;
@@ -39,7 +39,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 - expose current-versus-superseded lineage to operators;
 - no legal-validity inference.
 
-### V4.18.3 — Resident document clarity
+### V4.18.3 — Resident document clarity — in progress
 
 - improve published-document property/audience context;
 - version/current-document clarity where relevant;
