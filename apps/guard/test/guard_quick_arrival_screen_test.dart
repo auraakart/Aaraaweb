@@ -66,6 +66,11 @@ void main(){
     await tester.pump();
 
     expect(find.text('Beta · B-202'),findsOneWidget);
+    // Voice quick-fill adds a deliberate review control above the manual fields.
+    // Scroll before inspecting the lazily built field so the regression test
+    // continues to validate restored form state rather than viewport height.
+    await tester.drag(find.byType(ListView),const Offset(0,-320));
+    await tester.pumpAndSettle();
     final nameField=tester.widget<TextField>(find.widgetWithText(TextField,'Person / provider name'));
     expect(nameField.controller?.text,'Amazon');
   });
