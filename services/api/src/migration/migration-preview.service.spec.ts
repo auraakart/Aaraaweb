@@ -89,6 +89,13 @@ describe('MigrationPreviewService', () => {
     const vendors = service.preview('VENDOR', [{ name: 'Lift Co' }, { code: 'V1', name: 'Lift Co', category: 'LIFT' }]);
     expect(vendors.validRows).toBe(1);
     expect(vendors.invalidRows).toBe(1);
+
+    const duplicateVendors = service.preview('VENDOR', [
+      { code: 'V1', name: 'Lift Co', category: 'LIFT' },
+      { code: 'v1', name: 'Lift Company Renamed', category: 'LIFT' },
+    ]);
+    expect(duplicateVendors.duplicateRows).toBe(1);
+    expect(duplicateVendors.issues).toContainEqual(expect.objectContaining({ row: 2, code: 'DUPLICATE' }));
   });
 
   it('rejects empty and oversized preview batches before processing', () => {
