@@ -138,6 +138,15 @@ export class ProviderSettlementService{
     return this.prisma.$transaction(async tx=>{
       const current=await this.lockBatch(tx,batchId);
       if(current.status!=='APPROVED')throw new BadRequestException('Only APPROVED settlement batches can be marked paid');
+      const invalid=await tx.$queryRaw<Array<{count:number}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS count
+        FROM "ConsumerProviderSettlementEntry" e
+        JOIN "ConsumerServicePayment" p ON p."id"=e."paymentId"
+        JOIN "ConsumerServiceBooking" b ON b."id"=e."bookingId"
+        WHERE e."batchId"=${batchId}::uuid
+          AND (p."status"<>'CAPTURED'::"ConsumerServicePaymentStatus" OR b."status"<>'COMPLETED'::"ServiceBookingStatus")
+      `);
+      if((invalid[0]?.count??0)>0)throw new BadRequestException('Settlement contains evidence that is no longer payable');
       const rows=await tx.$queryRaw<BatchRow[]>(Prisma.sql`
         UPDATE "ConsumerProviderSettlementBatch"
         SET "status"='PAID',"paidByUserId"=${actorUserId}::uuid,"paidAt"=CURRENT_TIMESTAMP,
@@ -183,6 +192,70 @@ export class ProviderSettlementService{
       FROM "ConsumerProviderSettlementEvent"
       WHERE "batchId"=${batchId}::uuid ORDER BY "occurredAt","id"
     `);
+  }
+
+  listForProvider(providerId:string){
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT b."id",b."status",b."currency",b."grossAmountPaise",b."platformFeePaise",b."providerAmountPaise",
+             b."approvedAt",b."paidAt",b."paymentReference",b."createdAt",
+             (SELECT COUNT(*)::int FROM "ConsumerProviderSettlementEntry" e WHERE e."batchId"=b."id") AS "entryCount"
+      FROM "ConsumerProviderSettlementBatch" b
+      WHERE b."providerId"=${providerId}::uuid
+      ORDER BY b."createdAt" DESC LIMIT 250
+    `);
+  }
+
+  providerSummary(providerId:string){
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='PAID'),0)::bigint AS "paidPaise",
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='APPROVED'),0)::bigint AS "approvedPaise",
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='DRAFT'),0)::bigint AS "draftPaise",
+        (SELECT COALESCE(SUM("providerAmountPaise"),0)::bigint
+           FROM "ConsumerProviderSettlementRecovery"
+           WHERE "providerId"=${providerId}::uuid AND "status"='OPEN') AS "openRecoveryPaise",
+        (SELECT COUNT(*)::int FROM "ConsumerProviderSettlementRecovery"
+           WHERE "providerId"=${providerId}::uuid AND "status"='OPEN') AS "openRecoveryCount"
+      FROM "ConsumerProviderSettlementBatch"
+      WHERE "providerId"=${providerId}::uuid
+    `);
+  }
+
+  entriesForProvider(providerId:string,batchId:string){
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT e."id",e."paymentId",e."bookingId",e."grossAmountPaise",e."platformFeePaise",e."providerAmountPaise",
+             e."currency",e."capturedAt",b."offeringName",b."scheduledFrom",b."scheduledUntil"
+      FROM "ConsumerProviderSettlementEntry" e
+      JOIN "ConsumerServiceBooking" b ON b."id"=e."bookingId"
+      WHERE e."providerId"=${providerId}::uuid AND e."batchId"=${batchId}::uuid
+      ORDER BY e."capturedAt",e."id"
+    `);
+  }
+
+  listRecoveries(providerId?:string){
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT r.*,p."businessName",b."offeringName"
+      FROM "ConsumerProviderSettlementRecovery" r
+      JOIN "ServiceProvider" p ON p."id"=r."providerId"
+      JOIN "ConsumerServicePayment" pay ON pay."id"=r."paymentId"
+      JOIN "ConsumerServiceBooking" b ON b."id"=pay."bookingId"
+      ${providerId?Prisma.sql`WHERE r."providerId"=${providerId}::uuid`:Prisma.empty}
+      ORDER BY CASE r."status" WHEN 'OPEN' THEN 0 ELSE 1 END,r."createdAt" DESC
+      LIMIT 500
+    `);
+  }
+
+  async resolveRecovery(actorUserId:string,recoveryId:string,reference:string){
+    const normalized=reference.trim();
+    if(normalized.length<3||normalized.length>200)throw new BadRequestException('Recovery reference must be between 3 and 200 characters');
+    const rows=await this.prisma.$queryRaw(Prisma.sql`
+      UPDATE "ConsumerProviderSettlementRecovery"
+      SET "status"='RESOLVED',"resolvedReference"=${normalized},"resolvedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${recoveryId}::uuid AND "status"='OPEN'
+      RETURNING *
+    `);
+    if(!(rows as unknown[])[0])throw new NotFoundException('Open provider settlement recovery not found');
+    return (rows as unknown[])[0];
   }
 
   private async assertProvider(providerId:string){
