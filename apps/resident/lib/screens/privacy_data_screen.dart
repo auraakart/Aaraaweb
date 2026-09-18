@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/api_client.dart';
 
 class PrivacyDataScreen extends StatefulWidget {
@@ -267,7 +269,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               else if (!_loading && _requests.isEmpty)
                 const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No privacy requests in this account context yet.')))
               else
-                for (final request in _requests) _RequestCard(request: request),
+                for (final request in _requests) _RequestCard(request: request, apiClient: widget.apiClient!),
             ],
             const SizedBox(height: 12),
             Text(
@@ -281,13 +283,37 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
   }
 }
 
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.request});
+class _RequestCard extends StatefulWidget {
+  const _RequestCard({required this.request, required this.apiClient});
 
   final Map<String, dynamic> request;
+  final ApiClient apiClient;
+
+  @override
+  State<_RequestCard> createState() => _RequestCardState();
+}
+
+class _RequestCardState extends State<_RequestCard> {
+  bool _exporting=false;
+
+  Future<void> _shareExport() async {
+    if(_exporting)return;
+    setState(()=>_exporting=true);
+    try{
+      final payload=await widget.apiClient.get('/api/v1/privacy/self/requests/${widget.request['id']}/export');
+      final formatted=const JsonEncoder.withIndent('  ').convert(payload);
+      await Share.share(formatted,subject:'Aaraagate personal data export');
+    }catch(error){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not prepare data export. $error')));
+    }finally{
+      if(mounted)setState(()=>_exporting=false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final request=widget.request;
+
     final type = request['requestType']?.toString() ?? 'OTHER';
     final status = request['status']?.toString() ?? 'OPEN';
     final legalHold = request['legalHold'] == true;
@@ -308,6 +334,14 @@ class _RequestCard extends StatelessWidget {
             if (created != null) ...[
               const SizedBox(height: 6),
               Text('Submitted ${created.day}/${created.month}/${created.year}', style: Theme.of(context).textTheme.bodySmall),
+            ],
+            if(type=='ACCESS'&&status=='COMPLETED') ...[
+              const SizedBox(height:10),
+              OutlinedButton.icon(
+                onPressed:_exporting?null:_shareExport,
+                icon:_exporting?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.ios_share_outlined),
+                label:Text(_exporting?'Preparing export…':'Share my data export'),
+              ),
             ],
             if (legalHold) ...[
               const SizedBox(height: 8),
