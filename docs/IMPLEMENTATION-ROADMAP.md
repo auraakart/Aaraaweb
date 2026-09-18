@@ -1,6 +1,6 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-12
+Updated: 2026-09-18
 
 ## Current execution status
 Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
@@ -127,7 +127,7 @@ Separate from the consumer External Services marketplace:
 - Leave-at-gate parcel inventory, collection acknowledgement and escalation.
 
 ## V2.3 — Optional / advanced modules
-- Advanced parking allocation/visitor/temporary parking/EV readiness.
+- Advanced parking repository closure: allocation limits, visitor/temporary parking, credential lifecycle, incorrect-parking/violation handling and EV-readiness metadata are implemented. Physical ANPR/RFID/EV/access hardware remains external.
 - Meter and utility readings/tariffs/history/billing integration.
 - Optional digital voting/election capability only where society governing framework permits.
 - Advanced dashboards, audit/export packs and accounting integrations.
@@ -135,6 +135,8 @@ Separate from the consumer External Services marketplace:
 - AI features only after permissions/data/action-safety are proven.
 
 ## V2.4 — Validation and release
+Repository-only Guard usability closure now includes app-wide eight-language critical gate vocabulary plus opt-out on-device spoken access-status cues. Cloud speech providers and physical gate hardware remain outside repository closure.
+
 - Role-by-role UAT: Super Admin, Society Admin, Committee, Accountant/Treasurer, Facility Manager, Security Supervisor, Guard, owner-resident, tenant, non-resident owner, independent-home and multi-property owner.
 - Accountant/committee real-society pilot.
 - Policy/bye-law configuration review for pilot society.

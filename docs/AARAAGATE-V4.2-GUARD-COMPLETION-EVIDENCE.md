@@ -52,8 +52,8 @@ The V4.2 completion batch exposes the existing API `mediaRefs` contract in the G
 
 V4.2 does not invent a client-side privilege bypass for quarantined actions. Server-authoritative supervisor permissions remain the boundary for supervised operational changes.
 
-### Regional-language baseline
-Guard operational localization covers:
+### Regional-language and voice closure
+Guard critical gate-operation localization is now app-wide and persisted across:
 - English
 - Hindi
 - Tamil
@@ -63,7 +63,16 @@ Guard operational localization covers:
 - Marathi
 - Bengali
 
-The localization architecture is key-based and extensible; Gujarati remains an additive localization-pack item and is not a blocker for the approved English/Hindi/Tamil-first V4.2 baseline.
+The high-frequency gate surface, global quick actions, Guard Tools controls and short access-status safety vocabulary use the selected language. Localization completeness tests require the critical vocabulary in every advertised language.
+
+Repository-achievable voice assistance is also implemented:
+- language and voice-enabled preferences persist securely on the device;
+- short approval / waiting / blocked access-status cues use device-local text-to-speech;
+- the guard can disable spoken cues;
+- controller tests remain platform-independent through injected preference/voice abstractions;
+- runtime app wiring uses secure storage plus on-device TTS.
+
+Cloud speech providers, speech recognition, physical gate hardware and vendor-specific voice systems are explicitly outside this repository-only closure. Gujarati remains an additive localization-pack item and is not a blocker for the approved baseline.
 
 ## Quality evidence
 
