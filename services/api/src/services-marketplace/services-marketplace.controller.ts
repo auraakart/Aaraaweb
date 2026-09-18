@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, Pa
 import { ProviderSocietyStatus } from '@prisma/client';
 import { IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { OperationalUsageService } from '../analytics/operational-usage.service';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -79,6 +80,7 @@ export class ServicesMarketplaceController {
     private readonly operations: ServicesMarketplaceOperationsService,
     private readonly transitions: ServiceBookingTransitionService,
     private readonly ratings: ServiceBookingRatingService,
+    private readonly usage: OperationalUsageService,
   ) {}
 
   @Get('categories')
@@ -89,7 +91,8 @@ export class ServicesMarketplaceController {
 
   @Get('offerings')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
-  offerings(@CurrentTenant() societyId: string, @Query() query: ListOfferingsQueryDto) {
+  async offerings(@CurrentTenant() societyId: string, @CurrentUser() userId:string, @Query() query: ListOfferingsQueryDto) {
+    if(userId) await this.usage.record(userId,societyId,'SERVICE_DISCOVERY_VIEWED');
     return this.marketplace.listOfferings(societyId, query.categoryId);
   }
 
