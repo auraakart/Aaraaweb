@@ -150,6 +150,8 @@ export class AiAssistantService {
       });
     }
 
+    const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
+    cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||a.domain.localeCompare(b.domain));
     return {cards,grounded:true,mutationPerformed:false};
   }
 
