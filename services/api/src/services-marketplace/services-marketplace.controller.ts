@@ -80,7 +80,7 @@ export class ServicesMarketplaceController {
     private readonly operations: ServicesMarketplaceOperationsService,
     private readonly transitions: ServiceBookingTransitionService,
     private readonly ratings: ServiceBookingRatingService,
-    private readonly usage: OperationalUsageService,
+    private readonly usage?: OperationalUsageService,
   ) {}
 
   @Get('categories')
@@ -92,7 +92,7 @@ export class ServicesMarketplaceController {
   @Get('offerings')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
   async offerings(@CurrentTenant() societyId: string, @CurrentUser() userId:string, @Query() query: ListOfferingsQueryDto) {
-    if(userId) await this.usage.record(userId,societyId,'SERVICE_DISCOVERY_VIEWED');
+    if(userId) await this.usage?.record(userId,societyId,'SERVICE_DISCOVERY_VIEWED');
     return this.marketplace.listOfferings(societyId, query.categoryId);
   }
 
