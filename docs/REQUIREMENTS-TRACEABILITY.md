@@ -18,7 +18,7 @@ Updated: 2026-09-18
 | Workforce / domestic help | Validated | Assignment, leave, rating, suspension and gate integration |
 | Notices | Validated | Audience policy plus V2 targeting/scheduling/attachment/observability extensions |
 | Helpdesk / SOS | Validated / hardened | Tenant-scoped lifecycles plus SLA/escalation and emergency incident hardening |
-| Amenities | Validated / hardened | Booking baseline plus V2 policy controls |
+| Amenities | Validated / hardened | Booking/policy controls plus attendance check-in/completion/no-show, deterministic FIFO waitlist/promotion, property-scoped Resident queue UX and read-only operations analytics |
 | External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
 | Billing / payments | Validated / hardened | Dues, eligible owner/tenant payment, signed reconciliation, exception handling and audit |
 | Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit and controlled exports |
@@ -43,7 +43,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
 | V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
-| V2-AMN Amenity policy engine | P1 | **Implemented baseline / hardened** | Capacity/booking rules, approval and booking policy controls are present. Real-society policy acceptance remains. |
+| V2-AMN Amenity policy engine | P1 | **Implemented / hardened** | Capacity/booking rules, approval controls, attendance lifecycle, configurable check-in/no-show timing, society/property-scoped FIFO waitlist with deterministic promotion, explicit Resident waitlist consent/position/history, and tenant-scoped descriptive operations analytics are present. No-show penalties, physical check-in hardware, predictive allocation and real-society policy outcomes remain external/conditional. |
 | V2-PRC Parcel desk | P1 | **Implemented / hardened** | Custody, recipient/collection handling, reminders/escalation and history are implemented in `services/api/src/parcels`. Real guard/resident flow UAT remains. |
 | V2-PRK Advanced parking | P1/P2 | **Implemented repository closure / hardened** | Allocations, visitor/temporary permits, history, EV-ready metadata, configurable active-vehicle allocation limits, optional credential-required policy, parking credential lifecycle and auditable incorrect-parking/violation reporting are implemented with tenant-scoped RBAC and Admin operations. Physical ANPR/RFID/EV hardware and real access providers remain explicitly external. |
 | V2-UTL Meter/utilities | P2 | **Optional / advanced** | Optional V2.3 scope; not a launch blocker unless explicitly promoted into release scope. |
@@ -79,6 +79,18 @@ The V4.11 repository cycle is complete on `develop`:
 5. Pilot readiness: `docs/v4.11-pilot-readiness.json` plus `scripts/check-v4.11-pilot-readiness.mjs` define machine-checked KPI/evidence rules and `docs/AARAAGATE-V4.11-PILOT-PLAYBOOK.md` defines Guard, Accountant and Admin/support training and escalation.
 
 Repository completion does **not** claim field completion. The V4.11 manifest remains `REPOSITORY_READY_EXTERNAL_PENDING`, `fieldEvidenceStatus` is `NOT_STARTED`, and all field KPIs remain `PENDING_EXTERNAL`.
+
+## V4.12 Smart Amenities closure
+
+The V4.12 repository cycle is complete on `develop`:
+
+1. **Attendance truth:** confirmed amenity bookings can be checked in, completed or marked no-show by authorized amenity managers. Check-in opening and no-show grace periods are configurable, with actor/note/timestamp evidence.
+2. **Deterministic waitlist:** residents may join an exact amenity/time waitlist only when server-side capacity is full. Entries are society/property/user scoped, duplicate active entries are blocked, and future capacity release may promote the oldest currently eligible waiter under locking and fresh eligibility checks.
+3. **Operations insight:** authorized Admin users receive a tenant-scoped 30-day descriptive snapshot of bookings, finalized attendance, no-shows, cancellations, waiting/promoted entries and per-amenity demand signals. The contract is explicitly non-predictive.
+4. **Resident UX:** the active property's waitlist position/history is visible; only active WAITING entries can be left. A booking capacity conflict presents an explicit choice to join the waitlist, and no automatic enrollment occurs.
+5. **Boundaries:** physical amenity access hardware, external messaging, automated no-show penalties, AI queue ranking and predictive demand/allocation remain excluded.
+
+Repository completion does **not** constitute real-society amenity policy acceptance, representative-device acceptance or proof of utilization/waitlist outcomes.
 
 ## Cross-cutting V2 acceptance requirements
 Every V2 domain must prove:
