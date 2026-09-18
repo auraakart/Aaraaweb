@@ -1,11 +1,12 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, Put, UseGuards, createParamDecorator } from '@nestjs/common';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
+import { ParkingOperationsService } from './parking-operations.service';
 import { ParkingPermitService } from './parking-permit.service';
 import { ParkingService, ParkingSlotType } from './parking.service';
 
@@ -43,10 +44,35 @@ class CreateParkingPermitDto {
 }
 class CloseParkingPermitDto { @IsOptional() @IsString() @MaxLength(300) note?: string; }
 
+class UpdateParkingPolicyDto {
+  @IsInt() @Min(1) @Max(12) maxActiveResidentVehicles!: number;
+  @IsBoolean() requireCredential!: boolean;
+  @IsBoolean() allowTemporaryOverflow!: boolean;
+}
+class IssueParkingCredentialDto {
+  @IsUUID() vehicleId!: string;
+  @IsString() @MinLength(3) @MaxLength(80) credential!: string;
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+class ParkingCredentialNoteDto { @IsOptional() @IsString() @MaxLength(300) note?: string; }
+class ReportParkingViolationDto {
+  @IsOptional() @IsUUID() slotId?: string;
+  @IsOptional() @IsUUID() vehicleId?: string;
+  @IsOptional() @IsUUID() permitId?: string;
+  @IsString() @MinLength(1) @MaxLength(40) code!: string;
+  @IsOptional() @IsIn(['INFO','WARNING','CRITICAL']) severity?: 'INFO'|'WARNING'|'CRITICAL';
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+class ResolveParkingViolationDto { @IsOptional() @IsString() @MaxLength(500) resolutionNote?: string; }
+
 @Controller('parking/v2')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class ParkingController {
-  constructor(private readonly parking: ParkingService, private readonly permits: ParkingPermitService) {}
+  constructor(
+    private readonly parking: ParkingService,
+    private readonly permits: ParkingPermitService,
+    private readonly operations: ParkingOperationsService,
+  ) {}
 
   @Get('slots')
   @RequiresPermissions(AppPermission.PARKING_READ)
@@ -94,6 +120,48 @@ export class ParkingController {
   @RequiresPermissions(AppPermission.PARKING_MANAGE)
   completePermit(@Param('permitId', ParseUUIDPipe) permitId: string, @Body() dto: CloseParkingPermitDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.permits.complete(societyId, this.requireUser(userId), permitId, dto.note);
+  }
+
+  @Get('policy')
+  @RequiresPermissions(AppPermission.PARKING_READ)
+  policy(@CurrentTenant() societyId: string) { return this.operations.policy(societyId); }
+
+  @Put('policy')
+  @RequiresPermissions(AppPermission.PARKING_MANAGE)
+  updatePolicy(@Body() dto: UpdateParkingPolicyDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.operations.updatePolicy(societyId, this.requireUser(userId), dto);
+  }
+
+  @Get('credentials')
+  @RequiresPermissions(AppPermission.PARKING_READ)
+  credentials(@CurrentTenant() societyId: string) { return this.operations.credentials(societyId); }
+
+  @Post('credentials')
+  @RequiresPermissions(AppPermission.PARKING_MANAGE)
+  issueCredential(@Body() dto: IssueParkingCredentialDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.operations.issueCredential(societyId, this.requireUser(userId), dto);
+  }
+
+  @Patch('credentials/:credentialId/revoke')
+  @RequiresPermissions(AppPermission.PARKING_MANAGE)
+  revokeCredential(@Param('credentialId', ParseUUIDPipe) credentialId: string, @Body() dto: ParkingCredentialNoteDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.operations.revokeCredential(societyId, this.requireUser(userId), credentialId, dto.note);
+  }
+
+  @Get('violations')
+  @RequiresPermissions(AppPermission.PARKING_READ)
+  violations(@CurrentTenant() societyId: string) { return this.operations.violations(societyId); }
+
+  @Post('violations')
+  @RequiresPermissions(AppPermission.PARKING_MANAGE)
+  reportViolation(@Body() dto: ReportParkingViolationDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.operations.reportViolation(societyId, this.requireUser(userId), dto);
+  }
+
+  @Patch('violations/:violationId/resolve')
+  @RequiresPermissions(AppPermission.PARKING_MANAGE)
+  resolveViolation(@Param('violationId', ParseUUIDPipe) violationId: string, @Body() dto: ResolveParkingViolationDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.operations.resolveViolation(societyId, this.requireUser(userId), violationId, dto.resolutionNote);
   }
 
   @Get('history')
