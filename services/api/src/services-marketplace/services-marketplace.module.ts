@@ -40,6 +40,7 @@ import { ProviderMediaPlatformController } from './provider-media-platform.contr
 import { ProviderMediaService } from './provider-media.service';
 import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
 import { ProviderSettlementPlatformController } from './provider-settlement-platform.controller';
+import { ProviderSettlementSelfServiceController } from './provider-settlement-self-service.controller';
 import { ProviderSettlementService } from './provider-settlement.service';
 import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
 import { ProviderTrustReviewController } from './provider-trust-review.controller';
@@ -83,6 +84,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerProviderMediaController,
     ProviderOfferingContinuityController,
     ProviderSettlementPlatformController,
+    ProviderSettlementSelfServiceController,
   ],
   providers: [
     PrismaService,
