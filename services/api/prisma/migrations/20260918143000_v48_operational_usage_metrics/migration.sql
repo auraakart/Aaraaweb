@@ -10,6 +10,7 @@ CREATE TABLE "OperationalUsageEvent" (
   CONSTRAINT "OperationalUsageEvent_type_check" CHECK ("eventType" IN (
     'PROPERTY_CONTEXT_SWITCHED',
     'SERVICE_DISCOVERY_VIEWED',
+    'SERVICE_BOOKING_CREATED',
     'INDEPENDENT_HOME_ENTERED'
   ))
 );
