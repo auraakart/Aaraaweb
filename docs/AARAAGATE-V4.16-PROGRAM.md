@@ -25,7 +25,7 @@ The fresh post-V4.15 repository audit found Society Vendors as the clearest repo
 - operator sequencing guidance;
 - Admin regression contract.
 
-### V4.16.2 — Procurement/accounting handoff — in progress
+### V4.16.2 — Procurement/accounting handoff — merged via #688
 - finance-scoped issued-PO read model that does not grant vendor-management access;
 - visible pending/linked accounting state;
 - FINANCE_MANAGE-gated creation of the existing SocietyExpense draft;
@@ -33,7 +33,7 @@ The fresh post-V4.15 repository audit found Society Vendors as the clearest repo
 - one-PO/one-expense idempotency retained;
 - authorization and Admin regression coverage.
 
-### V4.16.3 — Society vendor lifecycle evidence
+### V4.16.3 — Society vendor lifecycle evidence — in progress
 - society-vendor contract/SLA/expiry records tied to SocietyVendor;
 - configurable dates, references and status;
 - descriptive expiry/readiness visibility;
