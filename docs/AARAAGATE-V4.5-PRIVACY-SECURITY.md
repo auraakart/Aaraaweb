@@ -99,3 +99,18 @@ Implemented in this slice:
 This is a product security/privacy control, not a claim that every external infrastructure log sink is configured correctly. Hosted log retention, access control and destination policy remain deployment evidence.
 
 The next V4.5 slice is the document/file authorization regression review, followed by privacy retention/deletion enforcement and security-event retention/closeout.
+
+
+## V4.5.5 — Document/file authorization regression
+
+Implemented in this slice:
+- verified all society-document endpoints remain behind bearer, tenant and permission guards;
+- proved published member listing/download stays separate from privileged document management: published access requires the resident-facing read capability while management listing/download/history require `DOCUMENTS_READ` and upload/create/publish/archive require `DOCUMENTS_MANAGE`;
+- added structural regression coverage proving management lookup is scoped by both document id and current society;
+- added structural regression coverage proving published download authorization requires the current society, authenticated user, published status and audience/active ownership predicates before a storage key can be signed;
+- retained the private-object boundary: download URLs are generated only after application authorization and the private storage service rejects cross-society keys;
+- expanded download signing tests to reject traversal-shaped document keys before the storage adapter is invoked.
+
+The review found no need to redesign the current document service in this slice. Provider marketplace media remains a separate public-media model after approval and does not use the private society-document download path.
+
+The next V4.5 slice is privacy retention/deletion enforcement and legal-hold interaction, followed by security-event reporting/retention completion and V4.5 closeout.
