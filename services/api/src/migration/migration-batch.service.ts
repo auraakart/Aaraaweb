@@ -26,6 +26,7 @@ interface ReferenceSnapshot {
   vehicles: Array<{ plateNumber: string }>;
   workers: Array<{ phone: string }>;
   vendors: Array<{ code: string; name: string; gstin: string | null }>;
+  parkingSlots: Array<{ code: string }>;
 }
 
 type BatchRow = {
@@ -155,6 +156,7 @@ export class MigrationBatchService {
     const vendorIdentities = new Set(snapshot.vendors.flatMap((item) =>
       [item.code, item.gstin ?? '', item.name].map((value) => this.norm(value)).filter(Boolean),
     ));
+    const parkingSlotCodes = new Set(snapshot.parkingSlots.map((item) => this.norm(item.code)));
 
     rows.forEach((row, index) => {
       const rowNumber = index + 1;
@@ -189,8 +191,19 @@ export class MigrationBatchService {
       }
 
       if (entityType === 'PARKING') {
-        const unitRef = value('unit_ref', 'unit', 'flat_number');
-        if (unitRef) issues.push(...this.unitReferenceIssues(rowNumber, unitRef, units));
+        const buildingRef = value('building_ref', 'building', 'building_code');
+        if (buildingRef) {
+          const matches = buildings.filter((item) => [item.code, item.name].includes(this.norm(buildingRef)));
+          if (matches.length === 0) {
+            issues.push({ row: rowNumber, field: 'building_ref', code: 'REFERENCE_MISSING', message: 'Referenced parking building does not exist in this society' });
+          } else if (matches.length > 1) {
+            issues.push({ row: rowNumber, field: 'building_ref', code: 'REFERENCE_AMBIGUOUS', message: 'Referenced parking building is ambiguous' });
+          }
+        }
+        const slotCode = this.norm(value('slot_code', 'parking_slot', 'slot'));
+        if (slotCode && parkingSlotCodes.has(slotCode)) {
+          issues.push({ row: rowNumber, field: 'slot_code', code: 'EXISTING_CONFLICT', message: 'Parking slot already exists in this society' });
+        }
       }
 
       if (entityType === 'VEHICLE') {
@@ -235,7 +248,7 @@ export class MigrationBatchService {
   }
 
   private async loadReferenceSnapshot(societyId: string): Promise<ReferenceSnapshot> {
-    const [buildings, units, accounts, vehicles, workers, vendors] = await Promise.all([
+    const [buildings, units, accounts, vehicles, workers, vendors, parkingSlots] = await Promise.all([
       this.prisma.$queryRaw<Array<{ code: string; name: string }>>(Prisma.sql`
         SELECT "code","name" FROM "Building" WHERE "societyId"=${societyId}::uuid
       `),
@@ -256,8 +269,11 @@ export class MigrationBatchService {
       this.prisma.$queryRaw<Array<{ code: string; name: string; gstin: string | null }>>(Prisma.sql`
         SELECT "code","name","gstin" FROM "SocietyVendor" WHERE "societyId"=${societyId}::uuid AND "status" <> 'ARCHIVED'
       `),
+      this.prisma.$queryRaw<Array<{ code: string }>>(Prisma.sql`
+        SELECT "code" FROM "ParkingSlot" WHERE "societyId"=${societyId}::uuid
+      `),
     ]);
-    return { buildings, units, accounts, vehicles, workers, vendors };
+    return { buildings, units, accounts, vehicles, workers, vendors, parkingSlots };
   }
 
   private unitReferenceIssues(
