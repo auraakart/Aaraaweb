@@ -34,7 +34,7 @@ type SocietyContext = {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService, private readonly usage: OperationalUsageService) {}
+  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService, private readonly usage?: OperationalUsageService) {}
 
   @Post('otp/request') async requestOtp(@Body() dto: RequestOtpDto) {
     const challenge = await this.authService.requestOtp(dto.phone);
@@ -54,7 +54,7 @@ export class AuthController {
     const contexts = await this.listSocietyContexts(user.id, membershipRows);
 
     if (membershipRows.length === 0) {
-      await this.usage.record(user.id, undefined, 'INDEPENDENT_HOME_ENTERED');
+      await this.usage?.record(user.id, undefined, 'INDEPENDENT_HOME_ENTERED');
       return {
         verified: true,
         userId: user.id,
@@ -114,7 +114,7 @@ export class AuthController {
   async switchSociety(@CurrentUser() userId: string, @Body() dto: SwitchSocietyDto) {
     if (!userId) throw new UnauthorizedException('Authentication required');
     const result=await this.createSocietySession(userId, dto.societyId);
-    await this.usage.record(userId,dto.societyId,'PROPERTY_CONTEXT_SWITCHED');
+    await this.usage?.record(userId,dto.societyId,'PROPERTY_CONTEXT_SWITCHED');
     return result;
   }
 
