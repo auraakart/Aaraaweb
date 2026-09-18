@@ -29,4 +29,23 @@ export class OperationalUsageService {
       `);
     }
   }
+  async recordGuardSync(societyId:string,input:{considered:number;synced:number;retried:number;unresolved:number;reviewRequired:number}) {
+    const values=[input.considered,input.synced,input.retried,input.unresolved,input.reviewRequired];
+    if(values.some(value=>!Number.isSafeInteger(value)||value<0)) return;
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "GuardOfflineSyncMetric" (
+        "societyId","bucketDate","syncRuns","actionsConsidered","actionsSynced","actionsRetried","actionsUnresolved","reviewRequired"
+      ) VALUES (
+        ${societyId}::uuid,CURRENT_DATE,1,${input.considered},${input.synced},${input.retried},${input.unresolved},${input.reviewRequired}
+      )
+      ON CONFLICT ("societyId","bucketDate") DO UPDATE SET
+        "syncRuns"="GuardOfflineSyncMetric"."syncRuns"+1,
+        "actionsConsidered"="GuardOfflineSyncMetric"."actionsConsidered"+EXCLUDED."actionsConsidered",
+        "actionsSynced"="GuardOfflineSyncMetric"."actionsSynced"+EXCLUDED."actionsSynced",
+        "actionsRetried"="GuardOfflineSyncMetric"."actionsRetried"+EXCLUDED."actionsRetried",
+        "actionsUnresolved"="GuardOfflineSyncMetric"."actionsUnresolved"+EXCLUDED."actionsUnresolved",
+        "reviewRequired"="GuardOfflineSyncMetric"."reviewRequired"+EXCLUDED."reviewRequired",
+        "updatedAt"=CURRENT_TIMESTAMP
+    `);
+  }
 }
