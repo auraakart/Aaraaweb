@@ -12,7 +12,7 @@ Updated: 2026-09-18
 | Tenancy / RBAC | Hardened | Society isolation, typed permissions, platform/tenant boundary, owner/occupant separation, independent-home isolation |
 | Society structure | Validated | Society → Building/Block → Floor → Unit → household |
 | SaaS entitlements | Validated | Tier/feature resolution, overrides and client/server enforcement |
-| Visitor / gate / delivery / cab | Validated / hardened | Occupant routing, QR/OTP, guard assignment, audit, idempotent offline recovery |
+| Visitor / gate / delivery / cab | Validated / hardened | Occupant routing, QR/OTP, guard assignment, audit, idempotent offline recovery, eight-language Guard cues and review-before-submit voice quick-fill |
 | Household / owner / tenant | Validated | Ownership and occupancy independent; stale relationships revoke authority |
 | Vehicles / parking baseline | Validated / hardened | Resident vehicles, parking allocations, visitor/temporary permits, configurable allocation policy, credentials, violations, EV-readiness metadata and Admin operations |
 | Workforce / domestic help | Validated | Assignment, leave, rating, suspension and gate integration |
@@ -32,7 +32,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | Requirement | Priority | Repository status | Current evidence / remaining non-production work |
 |---|---|---|---|
 | V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
-| V2-FIN Full society accounting | P0 | **Implemented baseline / hardened** | `services/api/src/accounting`, finance permissions, ledger/report/export/reconciliation controls and Admin finance surfaces are present. Accountant/Treasurer human acceptance remains. |
+| V2-FIN Full society accounting | P0 | **Implemented baseline / hardened** | `services/api/src/accounting`, finance permissions, ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds tenant-scoped reconciliation review metrics, read-only exact-movement candidate suggestions and accountant export date presets without auto-posting. Accountant/Treasurer human acceptance remains. |
 | V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
 | V2-GOV Society governance | P0/P1 | **Implemented baseline / hardened** | `services/api/src/governance`, committee/governance permissions and Admin governance workflows are present. Bye-law-dependent configuration remains pilot evidence. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
@@ -67,6 +67,18 @@ The following are **not** repository feature gaps and remain separate acceptance
 - physical ANPR/RFID/boom-barrier/EV/access hardware validation;
 - real payment/OTP/push/SMS/WhatsApp or other external-provider credentials and callbacks;
 - backup/restore/rollback, monitoring/alerts, signed Android/Play and production operations.
+
+## V4.11 competitive-depth closure
+
+The V4.11 repository cycle is complete on `develop`:
+
+1. Guard field UX: short-phrase device speech can draft delivery/cab quick arrivals in the active Guard language. Provider/type and destination are filled only when deterministic; ambiguous destinations require manual selection and voice never submits or approves access.
+2. Finance depth: bank reconciliation now exposes review health and tenant-scoped read-only matching candidates, while the existing validated match mutation remains the only reconciliation write path. Admin exports add practical period presets including the Indian financial year.
+3. AI Action Centre: authorized Admin roles receive read-only, severity-ordered operational cards grounded in finance, helpdesk, security and facilities sources. Cards prepare grounded queries only; existing mutation allow-lists and explicit confirmations remain unchanged.
+4. Resident experience: the existing Updates timeline is reused, while Home adds active-property next actions for unsettled maintenance, active service bookings and current notices; settled/completed items are excluded.
+5. Pilot readiness: `docs/v4.11-pilot-readiness.json` plus `scripts/check-v4.11-pilot-readiness.mjs` define machine-checked KPI/evidence rules and `docs/AARAAGATE-V4.11-PILOT-PLAYBOOK.md` defines Guard, Accountant and Admin/support training and escalation.
+
+Repository completion does **not** claim field completion. The V4.11 manifest remains `REPOSITORY_READY_EXTERNAL_PENDING`, `fieldEvidenceStatus` is `NOT_STARTED`, and all field KPIs remain `PENDING_EXTERNAL`.
 
 ## Cross-cutting V2 acceptance requirements
 Every V2 domain must prove:
