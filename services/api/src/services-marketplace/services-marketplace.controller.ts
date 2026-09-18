@@ -98,9 +98,11 @@ export class ServicesMarketplaceController {
 
   @Post('bookings')
   @RequiresPermissions(AppPermission.SERVICES_MARKETPLACE_USE)
-  book(@Body() dto: CreateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  async book(@Body() dto: CreateBookingDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.marketplace.book(societyId, userId, dto.unitId, dto.offeringId, new Date(dto.scheduledFrom), new Date(dto.scheduledUntil), dto.notes);
+    const booking=await this.marketplace.book(societyId, userId, dto.unitId, dto.offeringId, new Date(dto.scheduledFrom), new Date(dto.scheduledUntil), dto.notes);
+    await this.usage?.record(userId,societyId,'SERVICE_BOOKING_CREATED');
+    return booking;
   }
 
   @Get('bookings/mine')
