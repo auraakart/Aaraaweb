@@ -23,7 +23,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 
 ## Delivery slices
 
-### V4.18.1 — Document operator depth
+### V4.18.1 — Document operator depth — merged via #705 — merged via #705
 
 - tenant-scoped property selector for property-owner-only documents;
 - fix Admin/API contract so required `unitId` is supplied;
@@ -31,7 +31,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 - expose append-only document lifecycle history in Admin;
 - API and Admin regression coverage.
 
-### V4.18.2 — Controlled supersession & version lineage
+### V4.18.2 — Controlled supersession & version lineage — in progress — in progress
 
 - implement a bounded replacement flow using the existing `VERSION_REPLACED` event vocabulary;
 - preserve prior versions and immutable history;
