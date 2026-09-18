@@ -159,9 +159,9 @@ describe('AmenitiesService', () => {
       revoked.id,
       'Maintenance closure',
     )).resolves.toEqual(revoked);
-    const sql = (txQueryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(sql).toContain('\"status\"=\'CANCELLED\'');
-    expect(sql).toContain('\"reviewedByUserId\"=');
+    const sql = (txQueryRaw.mock.calls[0][0] as readonly string[]).join(' ');
+    expect(sql).toContain('"status"=\'CANCELLED\'');
+    expect(sql).toContain('"reviewedByUserId"=');
   });
 
   it('enforces minimum booking lead time', async () => {
