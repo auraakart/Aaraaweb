@@ -5,78 +5,49 @@ Status: In progress
 Baseline: `develop` after V4.15 release ancestry reconciliation
 
 ## Why V4.16
-
-The fresh post-V4.15 repository audit found that Society Vendors remains the clearest repository-achievable depth gap.
-
-The backend already contains tenant-scoped vendor master, procurement requests, quotations, quote selection, purchase orders and purchase-order-to-accounting draft linkage. The Admin surface, however, exposes only vendor creation/status and basic request submit/approve/reject. This leaves implemented procurement capability operationally hidden and keeps V2-VND at **Implemented baseline** in requirements traceability.
-
-V4.16 closes that gap without production providers, hosted infrastructure, physical hardware or real-society acceptance claims.
+The fresh post-V4.15 repository audit found Society Vendors as the clearest repository-achievable depth gap. V4.16 closes the operational exposure and lifecycle evidence gaps without production/provider claims.
 
 ## Boundaries
-
 - Society-appointed vendors remain separate from External Services marketplace providers.
 - Procurement decisions remain operator-controlled; no AI vendor ranking or automatic award.
 - Finance posting remains governed by finance permissions and existing accounting controls.
 - No claim of statutory procurement compliance is made.
 - Real vendor onboarding, contract legal review, tax applicability and society procurement policy acceptance remain external.
-- `main` changes only through the normal `develop → staging → main` release path.
+- `main` changes only through `develop → staging → main`.
 
 ## Delivery slices
 
-### V4.16.1 — Procurement operator depth
-
-Expose the already-implemented procurement lifecycle in Admin:
-
+### V4.16.1 — Procurement operator depth — merged via #687
 - request drill-down;
-- quotation entry and side-by-side descriptive comparison;
-- explicit quote selection;
-- purchase-order issuance;
-- append-only procurement event history;
-- clear operator sequencing for quote selection before approval when a PO is expected;
-- regression coverage for the operator contract.
+- quotation entry/comparison and explicit selection;
+- PO issuance;
+- append-only procurement evidence history;
+- operator sequencing guidance;
+- Admin regression contract.
 
-### V4.16.2 — Procurement/accounting handoff
-
-Strengthen the controlled PO-to-finance handoff:
-
-- expose issued POs awaiting accounting linkage;
-- finance-permission-gated creation of the existing SocietyExpense draft from a PO;
-- visible linkage status and finance evidence;
-- preserve one-PO/one-expense idempotency and finance segregation of duties;
-- regression/authorization coverage.
+### V4.16.2 — Procurement/accounting handoff — in progress
+- finance-scoped issued-PO read model that does not grant vendor-management access;
+- visible pending/linked accounting state;
+- FINANCE_MANAGE-gated creation of the existing SocietyExpense draft;
+- account/fund selection from existing accounting sources;
+- one-PO/one-expense idempotency retained;
+- authorization and Admin regression coverage.
 
 ### V4.16.3 — Society vendor lifecycle evidence
-
-Close the remaining explicit V2-VND lifecycle depth:
-
 - society-vendor contract/SLA/expiry records tied to SocietyVendor;
-- configurable contract dates, references and status;
+- configurable dates, references and status;
 - descriptive expiry/readiness visibility;
 - tenant-scoped audit evidence and operator workflow;
 - no legal-validity interpretation.
 
-Vendor-staff gate linkage is intentionally excluded from this slice until the workforce/gate identity model is re-audited to avoid duplicating person identity or weakening access controls.
+Vendor-staff gate linkage remains excluded until the workforce/gate identity model is re-audited to avoid duplicate identity or weakened access controls.
 
 ### V4.16.4 — Evidence reconciliation
-
-- full regression and required CI gates;
-- requirements traceability update;
+- full regression and CI;
+- requirements traceability;
 - completion evidence;
-- conservative repository-only score reconciliation;
-- no increase to production/field readiness without external evidence.
+- conservative repository-only re-score;
+- production/field readiness unchanged without external evidence.
 
 ## Quality gates
-
-Every functional slice must preserve:
-
-1. tenant/resource scoping;
-2. explicit capability permissions;
-3. append-only or auditable privileged transitions;
-4. failure-safe state transitions;
-5. bounded typed Admin inputs;
-6. automated regression evidence;
-7. full required CI before merge to `develop`.
-
-## Success condition
-
-V4.16 is complete when Society Vendor/Procurement is no longer merely backend-capable but is an operator-complete, auditable repository workflow through procurement and finance handoff, with vendor lifecycle evidence represented without external-production claims.
+Tenant scoping, capability permissions, audited transitions, failure-safe state changes, bounded typed Admin inputs, automated regression and full CI are required for every slice.
