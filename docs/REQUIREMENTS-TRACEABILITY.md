@@ -1,6 +1,6 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-16
+Updated: 2026-09-18
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
@@ -14,7 +14,7 @@ Updated: 2026-09-16
 | SaaS entitlements | Validated | Tier/feature resolution, overrides and client/server enforcement |
 | Visitor / gate / delivery / cab | Validated / hardened | Occupant routing, QR/OTP, guard assignment, audit, idempotent offline recovery |
 | Household / owner / tenant | Validated | Ownership and occupancy independent; stale relationships revoke authority |
-| Vehicles / parking baseline | Validated | Resident vehicles and Admin parking assignment baseline |
+| Vehicles / parking baseline | Validated / hardened | Resident vehicles, parking allocations, visitor/temporary permits, configurable allocation policy, credentials, violations, EV-readiness metadata and Admin operations |
 | Workforce / domestic help | Validated | Assignment, leave, rating, suspension and gate integration |
 | Notices | Validated | Audience policy plus V2 targeting/scheduling/attachment/observability extensions |
 | Helpdesk / SOS | Validated / hardened | Tenant-scoped lifecycles plus SLA/escalation and emergency incident hardening |
@@ -45,23 +45,27 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
 | V2-AMN Amenity policy engine | P1 | **Implemented baseline / hardened** | Capacity/booking rules, approval and booking policy controls are present. Real-society policy acceptance remains. |
 | V2-PRC Parcel desk | P1 | **Implemented / hardened** | Custody, recipient/collection handling, reminders/escalation and history are implemented in `services/api/src/parcels`. Real guard/resident flow UAT remains. |
-| V2-PRK Advanced parking | P1/P2 | **Partial; non-blocking P2 remainder** | Allocations, visitor/temporary permits, history and EV-ready slot metadata are implemented. Configurable second-car policy, external credential references and incorrect-parking reports remain optional P2 depth. |
+| V2-PRK Advanced parking | P1/P2 | **Implemented repository closure / hardened** | Allocations, visitor/temporary permits, history, EV-ready metadata, configurable active-vehicle allocation limits, optional credential-required policy, parking credential lifecycle and auditable incorrect-parking/violation reporting are implemented with tenant-scoped RBAC and Admin operations. Physical ANPR/RFID/EV hardware and real access providers remain explicitly external. |
 | V2-UTL Meter/utilities | P2 | **Optional / advanced** | Optional V2.3 scope; not a launch blocker unless explicitly promoted into release scope. |
 | V2 digital statutory election | Conditional | **Conditional / policy-gated** | Statutory election behavior remains disabled unless a target society's governing framework permits it; non-statutory polls/surveys may operate separately. |
 
 ## Current non-production functional closure
 
-After the 2026-09-16 live-code reconciliation, the mandatory repository-side closure items are:
+After the 2026-09-18 repository reconciliation, the requested repository-only closure batch is complete:
 
-1. Complete the scoped read-only Auditor responsibility workflow and automated authorization checks.
-2. Keep requirements/traceability synchronized with live implementation.
-3. Preserve negative tenant/RBAC regression coverage as new domain work is added.
+1. Advanced parking depth is implemented and validated: policy limits, credentials, visitor/temporary controls and violation handling.
+2. Guard localization is app-wide for the critical gate vocabulary across English, Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi and Bengali.
+3. Guard voice assistance provides persistent, opt-out, on-device spoken access-status cues; it does not depend on a cloud speech provider.
+4. Requirements, roadmap and score evidence are reconciled to the merged implementation state.
+5. Negative tenant/RBAC, cross-role E2E and application regression gates remain required for subsequent changes.
 
 The following are **not** repository feature gaps and remain separate acceptance/release gates:
 - human role UAT for Accountant/Treasurer, Committee, Facility, Security Supervisor and Auditor;
 - Resident/Guard real-device pilot acceptance;
 - real-society policy/bye-law configuration acceptance;
-- hosted staging acceptance and provider E2E;
+- hosted staging acceptance and real provider E2E;
+- physical ANPR/RFID/boom-barrier/EV/access hardware validation;
+- real payment/OTP/push/SMS/WhatsApp or other external-provider credentials and callbacks;
 - backup/restore/rollback, monitoring/alerts, signed Android/Play and production operations.
 
 ## Cross-cutting V2 acceptance requirements
