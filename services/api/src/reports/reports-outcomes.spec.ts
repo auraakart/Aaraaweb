@@ -17,7 +17,7 @@ describe('V4.8 outcome analytics',()=>{
       .mockResolvedValueOnce([{attempted:20,dispatched:18,retried:2}])
       .mockResolvedValueOnce([{bookings:5,completed:4,cancelled:1,distinctBookers:4}])
       .mockResolvedValueOnce([{eligibleResidents:20,activeResidents:15}])
-      .mockResolvedValueOnce([{serviceDiscoverers:8,propertySwitchers:3}]);
+      .mockResolvedValueOnce([{serviceDiscoverers:8,serviceBookers:4,propertySwitchers:3}]);
 
     const result=await service.outcomes('society-1','2026-09-01','2026-09-17',false);
     expect(result.finance).toBeNull();
@@ -42,7 +42,7 @@ describe('V4.8 outcome analytics',()=>{
       .mockResolvedValueOnce([{attempted:0,dispatched:0,retried:0}])
       .mockResolvedValueOnce([{bookings:0,completed:0,cancelled:0,distinctBookers:0}])
       .mockResolvedValueOnce([{eligibleResidents:0,activeResidents:0}])
-      .mockResolvedValueOnce([{serviceDiscoverers:0,propertySwitchers:0}]);
+      .mockResolvedValueOnce([{serviceDiscoverers:0,serviceBookers:0,propertySwitchers:0}]);
 
     const result=await service.outcomes('society-1','2026-09-01','2026-09-17',true);
     expect(result.finance).toEqual(expect.objectContaining({
