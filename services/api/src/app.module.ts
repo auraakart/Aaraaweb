@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AccessModule } from './access/access.module';
 import { AccessIntegrationModule } from './access-integration/access-integration.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { AiOperationsModule } from './ai-operations/ai-operations.module';
 import { AmenitiesModule } from './amenities/amenities.module';
@@ -40,6 +41,7 @@ import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
 @Module({
   imports: [
     AuthModule,
+    AnalyticsModule,
     EntitlementsModule,
     NotificationsModule,
     SocietiesModule,
