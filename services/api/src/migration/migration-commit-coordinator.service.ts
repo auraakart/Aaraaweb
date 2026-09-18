@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MigrationOperationalCommitService } from './migration-operational-commit.service';
 import { MigrationStructuralCommitService } from './migration-structural-commit.service';
 import { MigrationResidentCommitService } from './migration-resident-commit.service';
+import { MigrationOpeningBalanceCommitService } from './migration-opening-balance-commit.service';
 
 @Injectable()
 export class MigrationCommitCoordinator {
@@ -12,6 +13,7 @@ export class MigrationCommitCoordinator {
     private readonly structural: MigrationStructuralCommitService,
     private readonly operational: MigrationOperationalCommitService,
     private readonly resident: MigrationResidentCommitService,
+    private readonly openingBalance: MigrationOpeningBalanceCommitService,
   ) {}
 
   async commit(societyId: string, actorUserId: string, batchId: string) {
@@ -19,6 +21,7 @@ export class MigrationCommitCoordinator {
     if (this.structural.supports(entityType)) return this.structural.commit(societyId, actorUserId, batchId);
     if (this.operational.supports(entityType)) return this.operational.commit(societyId, actorUserId, batchId);
     if (this.resident.supports(entityType)) return this.resident.commit(societyId, actorUserId, batchId);
+    if (this.openingBalance.supports(entityType)) return this.openingBalance.commit(societyId, actorUserId, batchId);
     throw new ConflictException('This migration entity type is not enabled for controlled commit yet');
   }
 
@@ -27,6 +30,7 @@ export class MigrationCommitCoordinator {
     if (this.structural.supports(entityType)) return this.structural.rollback(societyId, actorUserId, batchId);
     if (this.operational.supports(entityType)) return this.operational.rollback(societyId, actorUserId, batchId);
     if (this.resident.supports(entityType)) return this.resident.rollback(societyId, actorUserId, batchId);
+    if (this.openingBalance.supports(entityType)) return this.openingBalance.rollback(societyId, actorUserId, batchId);
     throw new ConflictException('This migration entity type is not enabled for controlled rollback yet');
   }
 

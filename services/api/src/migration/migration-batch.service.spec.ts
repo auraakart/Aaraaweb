@@ -16,6 +16,8 @@ describe('MigrationBatchService evidence', () => {
     workers: [{ phone: '9000000001' }],
     vendors: [{ code: 'V001', name: 'Lift Co', gstin: '33ABCDE1234F1Z5' }],
     parkingSlots: [{ code: 'P-001' }],
+    funds: [{ code: 'CORPUS', name: 'Corpus Fund' }],
+    periods: [{ startsOn: new Date('2026-04-01T00:00:00.000Z'), endsOn: new Date('2027-03-31T00:00:00.000Z'), status: 'OPEN' }],
     residentRelations: [
       { phone: '9000000003', unitNumber: '102', buildingCode: 'A', buildingName: 'Alpha', relation: 'OWNER' },
     ],
@@ -49,8 +51,8 @@ describe('MigrationBatchService evidence', () => {
 
   it('validates opening balance accounts and optional unit references', () => {
     const issues = service.validateReferences('OPENING_BALANCE', [
-      { ledger_code: '9999', flat_number: 'A/102' },
-      { ledger_code: '1100', flat_number: 'A/102' },
+      { ledger_code: '9999', flat_number: 'A/102', entry_date: '2026-04-01' },
+      { ledger_code: '1100', flat_number: 'A/102', entry_date: '2026-04-01' },
     ], snapshot);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toEqual(expect.objectContaining({ row: 1, field: 'account_code', code: 'REFERENCE_MISSING' }));
@@ -70,6 +72,17 @@ describe('MigrationBatchService evidence', () => {
       .toContainEqual(expect.objectContaining({ code: 'REFERENCE_MISSING', field: 'building_ref' }));
     expect(service.validateReferences('PARKING', [{ slot_code: 'p-001', building_ref: 'A' }], snapshot))
       .toContainEqual(expect.objectContaining({ code: 'EXISTING_CONFLICT', field: 'slot_code' }));
+  });
+
+  it('validates opening balance fund and open-period references', () => {
+    const issues = service.validateReferences('OPENING_BALANCE', [
+      { ledger_code: '1100', fund_ref: 'missing', entry_date: '2026-04-01' },
+      { ledger_code: '1100', fund_ref: 'CORPUS', entry_date: '2030-04-01' },
+    ], snapshot);
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, field: 'fund_ref', code: 'REFERENCE_MISSING' }),
+      expect.objectContaining({ row: 2, field: 'entry_date', code: 'REFERENCE_MISSING' }),
+    ]));
   });
 
   it('creates a deterministic checksum independent of source key ordering', () => {

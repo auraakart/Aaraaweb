@@ -32,7 +32,7 @@ The first mutation-enabled slice deliberately supports only:
 
 A batch must be `READY`. Building rows require stable `name` and `code`; unit rows resolve a current-society building reference before insert. Every created target UUID and commit timestamp is recorded against the immutable source row. Commit is transaction-scoped and advisory-locked by batch id.
 
-Operational commit is additionally enabled for `RESIDENT`, `VEHICLE`, `PARKING`, `WORKFORCE` and `VENDOR`. `OPENING_BALANCE` remains protected until its V4.1 finance handoff adapter is implemented.
+Controlled commit is enabled for all currently supported V4.3 canonical entities: `BUILDING`, `UNIT`, `RESIDENT`, `VEHICLE`, `PARKING`, `WORKFORCE`, `VENDOR` and `OPENING_BALANCE`.
 
 ### Controlled structural rollback
 `POST /api/v1/migration/batches/:id/rollback`
@@ -81,7 +81,7 @@ These tables are migration evidence, not a parallel operational store.
 4. Dependency-ordered commit engine. **Structural BUILDING/UNIT slice implemented**
 5. Rollback/undo boundary. **Structural BUILDING/UNIT slice implemented**
 6. Resident/vehicle/parking/workforce/vendor domain-safe commit adapters. **Implemented**
-7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary.
+7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary. **Cutover handoff implemented; reconciliation evidence remains**
 8. Admin onboarding checklist/progress surface.
 9. Migration evidence export.
 10. Large-import, invalid-data, duplicate, rollback and cross-society isolation regression evidence.
@@ -101,9 +101,11 @@ These tables are migration evidence, not a parallel operational store.
 - Resident rollback is blocked after post-migration gate/service/helpdesk/SOS/payment/household activity, after created memberships gain other relationships, or after a migration-created household/user becomes independently used.
 - Workforce rollback is blocked once assignments/ratings/suspension evidence exists.
 - Vendor rollback is blocked once procurement records reference the migrated vendor.
-- Financial cutover will reuse V4.1 opening-balance logic rather than create a second balance store.
+- Opening-balance migration requires one shared cutover date, positive integer paise, balanced debit/credit totals, valid society ledger/fund/unit references and one open period covering the date.
+- Opening-balance commit delegates to the V4.1 `OpeningBalancesService` with a deterministic migration batch key; rollback uses normal posted-journal reversal in an open accounting period and never deletes ledger history.
+- `AccountingModule` now registers and exports the V4.1 opening-balance controller/service, correcting the previously unexposed runtime contract.
 - Cross-society references fail closed.
 - Migration evidence is never silently destroyed.
 
 ## Remaining V4.3 acceptance work
-V4.3 remains open until the V4.1 finance cutover/reconciliation handoff, Admin onboarding/progress, evidence export and large-import/isolation regression evidence are complete.
+V4.3 remains open until reconciliation evidence, Admin onboarding/progress, evidence export and large-import/isolation regression evidence are complete.

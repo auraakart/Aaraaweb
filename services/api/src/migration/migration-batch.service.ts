@@ -28,6 +28,8 @@ interface ReferenceSnapshot {
   vendors: Array<{ code: string; name: string; gstin: string | null }>;
   parkingSlots: Array<{ code: string }>;
   residentRelations: Array<{ phone: string; unitNumber: string; buildingCode: string; buildingName: string; relation: string }>;
+  funds?: Array<{ code: string; name: string }>;
+  periods?: Array<{ startsOn: Date; endsOn: Date; status: string }>;
 }
 
 type BatchRow = {
@@ -263,6 +265,31 @@ export class MigrationBatchService {
         }
         const unitRef = value('unit_ref', 'unit', 'flat_number');
         if (unitRef) issues.push(...this.unitReferenceIssues(rowNumber, unitRef, units));
+
+        const fundRef = this.norm(value('fund_ref', 'fund'));
+        if (fundRef && snapshot.funds) {
+          const matches = snapshot.funds.filter((fund) => [this.norm(fund.code), this.norm(fund.name)].includes(fundRef));
+          if (matches.length === 0) {
+            issues.push({ row: rowNumber, field: 'fund_ref', code: 'REFERENCE_MISSING', message: 'Accounting fund does not exist in this society' });
+          } else if (matches.length > 1) {
+            issues.push({ row: rowNumber, field: 'fund_ref', code: 'REFERENCE_AMBIGUOUS', message: 'Accounting fund reference is ambiguous' });
+          }
+        }
+
+        const entryDate = value('entry_date', 'cutover_date');
+        if (entryDate && snapshot.periods) {
+          const matches = snapshot.periods.filter((period) => {
+            if (period.status !== 'OPEN') return false;
+            const start = period.startsOn.toISOString().slice(0, 10);
+            const end = period.endsOn.toISOString().slice(0, 10);
+            return entryDate >= start && entryDate <= end;
+          });
+          if (matches.length === 0) {
+            issues.push({ row: rowNumber, field: 'entry_date', code: 'REFERENCE_MISSING', message: 'entry_date is not covered by an open accounting period' });
+          } else if (matches.length > 1) {
+            issues.push({ row: rowNumber, field: 'entry_date', code: 'REFERENCE_AMBIGUOUS', message: 'entry_date resolves to multiple open accounting periods' });
+          }
+        }
       }
     });
 
@@ -277,7 +304,7 @@ export class MigrationBatchService {
   }
 
   private async loadReferenceSnapshot(societyId: string): Promise<ReferenceSnapshot> {
-    const [buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations] = await Promise.all([
+    const [buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations, funds, periods] = await Promise.all([
       this.prisma.$queryRaw<Array<{ code: string; name: string }>>(Prisma.sql`
         SELECT "code","name" FROM "Building" WHERE "societyId"=${societyId}::uuid
       `),
@@ -316,8 +343,16 @@ export class MigrationBatchService {
         JOIN "Building" b ON b."id"=un."buildingId" AND b."societyId"=un."societyId"
         WHERE rel."societyId"=${societyId}::uuid AND rel."active"=TRUE
       `),
+      this.prisma.$queryRaw<Array<{ code: string; name: string }>>(Prisma.sql`
+        SELECT "code","name" FROM "AccountingFund"
+        WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+      `),
+      this.prisma.$queryRaw<Array<{ startsOn: Date; endsOn: Date; status: string }>>(Prisma.sql`
+        SELECT "startsOn","endsOn","status"::text AS "status" FROM "AccountingPeriod"
+        WHERE "societyId"=${societyId}::uuid
+      `),
     ]);
-    return { buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations };
+    return { buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations, funds, periods };
   }
 
   private unitReferenceIssues(

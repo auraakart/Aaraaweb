@@ -64,26 +64,40 @@ describe('MigrationPreviewService', () => {
 
   it('validates opening balances in integer paise and debit-credit form', () => {
     const result = service.preview('OPENING_BALANCE', [
-      { ledger_code: '1100', amount: '125000', debit_credit: 'DEBIT', flat_number: 'A-101' },
-      { account: '1100', amount: '125.50', side: 'SIDEWAYS', unit: 'A-102' },
+      { ledger_code: '1100', amount: '125000', debit_credit: 'DEBIT', flat_number: 'A-101', entry_date: '2026-04-01' },
+      { account: '2100', amount: '125000', side: 'CREDIT', unit: 'A-102', cutover_date: '2026-04-01' },
+      { account: '1100', amount: '125.50', side: 'SIDEWAYS', unit: 'A-103', entry_date: '2026-04-01' },
     ]);
 
-    expect(result.validRows).toBe(1);
+    expect(result.validRows).toBe(2);
     expect(result.invalidRows).toBe(1);
     expect(result.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ row: 2, field: 'amount_paise', code: 'INVALID' }),
-      expect.objectContaining({ row: 2, field: 'side', code: 'INVALID' }),
+      expect.objectContaining({ row: 3, field: 'amount_paise', code: 'INVALID' }),
+      expect.objectContaining({ row: 3, field: 'side', code: 'INVALID' }),
     ]));
   });
 
   it('does not treat different units on the same ledger as duplicate opening-balance rows', () => {
     const result = service.preview('OPENING_BALANCE', [
-      { account_code: '1100', amount_paise: '1000', side: 'DEBIT', unit_ref: 'A-101' },
-      { account_code: '1100', amount_paise: '2000', side: 'DEBIT', unit_ref: 'A-102' },
+      { account_code: '1100', amount_paise: '1000', side: 'DEBIT', unit_ref: 'A-101', entry_date: '2026-04-01' },
+      { account_code: '1100', amount_paise: '2000', side: 'DEBIT', unit_ref: 'A-102', entry_date: '2026-04-01' },
+      { account_code: '2100', amount_paise: '3000', side: 'CREDIT', entry_date: '2026-04-01' },
     ]);
 
-    expect(result.validRows).toBe(2);
+    expect(result.validRows).toBe(3);
     expect(result.duplicateRows).toBe(0);
+  });
+
+  it('rejects unbalanced or mixed-date opening balance batches', () => {
+    const result = service.preview('OPENING_BALANCE', [
+      { account_code: '1100', amount_paise: '1000', side: 'DEBIT', entry_date: '2026-04-01' },
+      { account_code: '2100', amount_paise: '900', side: 'CREDIT', entry_date: '2026-04-02' },
+    ]);
+    expect(result.invalidRows).toBeGreaterThan(0);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'entry_date', code: 'INVALID' }),
+      expect.objectContaining({ field: 'amount_paise', code: 'INVALID' }),
+    ]));
   });
 
   it('requires stable building name and code before a structural batch can become ready', () => {

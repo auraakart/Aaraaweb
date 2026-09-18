@@ -8,14 +8,17 @@ describe('MigrationCommitCoordinator', () => {
       .mockResolvedValueOnce([{ entityType: 'BUILDING' }])
       .mockResolvedValueOnce([{ entityType: 'VENDOR' }])
       .mockResolvedValueOnce([{ entityType: 'RESIDENT' }])
-      .mockResolvedValueOnce([{ entityType: 'OPENING_BALANCE' }]) };
+      .mockResolvedValueOnce([{ entityType: 'OPENING_BALANCE' }])
+      .mockResolvedValueOnce([{ entityType: 'UNSUPPORTED' }]) };
     const structural = { supports: (type: string) => type === 'BUILDING', commit: vi.fn().mockResolvedValue({ kind: 'structural' }), rollback: vi.fn() };
     const operational = { supports: (type: string) => type === 'VENDOR', commit: vi.fn().mockResolvedValue({ kind: 'operational' }), rollback: vi.fn() };
     const resident = { supports: (type: string) => type === 'RESIDENT', commit: vi.fn().mockResolvedValue({ kind: 'resident' }), rollback: vi.fn() };
-    const service = new MigrationCommitCoordinator(prisma as never, structural as never, operational as never, resident as never);
+    const openingBalance = { supports: (type: string) => type === 'OPENING_BALANCE', commit: vi.fn().mockResolvedValue({ kind: 'finance' }), rollback: vi.fn() };
+    const service = new MigrationCommitCoordinator(prisma as never, structural as never, operational as never, resident as never, openingBalance as never);
     await expect(service.commit('s','u','b1')).resolves.toEqual({ kind: 'structural' });
     await expect(service.commit('s','u','b2')).resolves.toEqual({ kind: 'operational' });
     await expect(service.commit('s','u','b3')).resolves.toEqual({ kind: 'resident' });
-    await expect(service.commit('s','u','b4')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.commit('s','u','b4')).resolves.toEqual({ kind: 'finance' });
+    await expect(service.commit('s','u','b5')).rejects.toBeInstanceOf(ConflictException);
   });
 });
