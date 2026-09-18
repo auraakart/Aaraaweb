@@ -40,6 +40,10 @@ jobs:
           test -f scripts/hosted-staging-smoke.sh
           test -f scripts/check-hosted-staging-contract.sh
           test -f scripts/check-staging-deployment-template.sh
+          test -f scripts/performance-smoke.mjs
+          test -f services/api/scripts/performance-seed.mjs
+          test -f .github/workflows/performance-regression.yml
+          test -f docs/PERFORMANCE-REGRESSION-EVIDENCE.md
           test -f scripts/validate-hosted-health.mjs
           test -f scripts/check-v2-validation-manifest.mjs
           test -f docs/v2-validation-manifest.json
