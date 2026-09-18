@@ -25,7 +25,7 @@ Raise Administration/Governance, currently the lowest repository-only product di
 
 ## V4.15.2 Governance readiness & closure evidence
 
-Status: implemented on feature branch.
+Status: merged to `develop` via PR #675.
 
 Repository-achievable closure evidence now includes:
 - A dedicated Admin readiness/closure evidence view for governance meetings.
@@ -39,7 +39,7 @@ Boundary: this is an operational completeness aid. State law, registered society
 
 ## V4.15.3 Governance action follow-through
 
-Status: implemented on stacked feature branch pending V4.15.2 merge.
+Status: merged to `develop` via PR #676 after all required workflows passed.
 
 Repository-achievable action follow-through now includes:
 - Tenant-scoped action status transitions across OPEN, IN_PROGRESS, COMPLETED and CANCELLED.
@@ -49,3 +49,17 @@ Repository-achievable action follow-through now includes:
 - Admin follow-up controls and descriptive overdue visibility without automated legal or policy interpretation.
 - Regression coverage for the follow-through operator surface and permission boundary.
 
+
+
+## V4.15.4 Evidence reconciliation
+
+Status: implementation complete on reconciliation branch.
+
+Closure evidence:
+- V4.15.1 merged via PR #674.
+- V4.15.2 merged via PR #675.
+- V4.15.3 merged via PR #676 after all required validation workflows passed.
+- Requirements traceability updated to the hardened governance implementation.
+- Competitive scorecard conservatively raises Administration/governance from 8.9 to 9.1 only; overall repository evidence becomes 9.04/10.
+- Production/field readiness remains 8.0 because real committee UAT, society-specific bye-law acceptance and hosted/field evidence remain external.
+- A machine-checkable reconciliation contract protects the code/document/legal-boundary alignment.
