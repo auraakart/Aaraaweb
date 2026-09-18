@@ -21,3 +21,17 @@ Raise Administration/Governance, currently the lowest repository-only product di
 - No automated legal interpretation, vote outcome determination or quorum assumptions.
 - No production provider/hardware work.
 - `main` remains untouched without explicit release approval.
+
+
+## V4.15.2 Governance readiness & closure evidence
+
+Status: implemented on feature branch.
+
+Repository-achievable closure evidence now includes:
+- A dedicated Admin readiness/closure evidence view for governance meetings.
+- Descriptive presence checks for meeting outcome, held timestamp, minutes, quorum configuration/recording and meeting rule/bye-law references.
+- Arithmetic comparison of operator-entered quorum counts only; no statutory threshold or legal-validity inference.
+- Resolution counts, unresolved PROPOSED records, approval-evidence presence, resolution rule/bye-law reference coverage, action ownership gaps and evidence-event count.
+- A direct link from the governance workspace plus an Admin regression contract preventing accidental legal-validity claims or removal of the evidence surface.
+
+Boundary: this is an operational completeness aid. State law, registered society bye-laws, notice/voting procedures and external records remain authoritative outside repository truth.
