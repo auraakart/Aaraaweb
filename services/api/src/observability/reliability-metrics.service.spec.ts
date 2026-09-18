@@ -6,20 +6,23 @@ describe('ReliabilityMetricsService', () => {
     const metrics = new ReliabilityMetricsService();
     metrics.beginRequest();
     metrics.beginRequest();
+    metrics.beginRequest();
     metrics.completeRequest(200, 12.5);
+    metrics.completeRequest(302, 10);
     metrics.completeRequest(503, 30);
     metrics.recordRateLimited('otp-request');
     metrics.recordLimiterDegradation();
 
     const snapshot = metrics.snapshot();
     expect(snapshot).toMatchObject({
-      totalRequests: 2,
+      totalRequests: 3,
       inflightRequests: 0,
-      completedResponses: 2,
+      completedResponses: 3,
       responses2xx: 1,
+      responses3xx: 1,
       responses5xx: 1,
-      errorRate5xx: 0.5,
-      averageLatencyMs: 21.25,
+      errorRate5xx: 0.3333,
+      averageLatencyMs: 17.5,
       maxLatencyMs: 30,
       rateLimitedRequests: 1,
       limiterDegradations: 1,
