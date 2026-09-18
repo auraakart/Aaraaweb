@@ -118,6 +118,7 @@ CREATE TABLE "ConsumerProviderSettlementRecovery" (
   "status" TEXT NOT NULL DEFAULT 'OPEN',
   "reason" TEXT NOT NULL,
   "resolvedReference" TEXT,
+  "resolvedByUserId" UUID,
   "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "resolvedAt" TIMESTAMPTZ(6),
   CONSTRAINT "ConsumerProviderSettlementRecovery_pkey" PRIMARY KEY ("id"),
@@ -140,3 +141,7 @@ ALTER TABLE "ConsumerProviderSettlementRecovery"
 ALTER TABLE "ConsumerProviderSettlementRecovery"
   ADD CONSTRAINT "ConsumerProviderSettlementRecovery_settlementEntryId_fkey"
   FOREIGN KEY ("settlementEntryId") REFERENCES "ConsumerProviderSettlementEntry"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "ConsumerProviderSettlementRecovery"
+  ADD CONSTRAINT "ConsumerProviderSettlementRecovery_resolvedByUserId_fkey"
+  FOREIGN KEY ("resolvedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
