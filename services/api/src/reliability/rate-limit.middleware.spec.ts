@@ -28,7 +28,8 @@ describe('rate limit policy', () => {
 describe('RateLimitMiddleware', () => {
   it('returns 429 without calling the downstream handler after the bucket limit', async () => {
     const store = { increment: vi.fn().mockResolvedValue(6) };
-    const middleware = new RateLimitMiddleware(store as never);
+    const metrics = { recordRateLimited: vi.fn(), recordLimiterDegradation: vi.fn() };
+    const middleware = new RateLimitMiddleware(store as never, metrics as never);
     const response = { statusCode: 200, setHeader: vi.fn(), end: vi.fn() };
     const next = vi.fn();
 
@@ -42,12 +43,14 @@ describe('RateLimitMiddleware', () => {
     expect(response.statusCode).toBe(429);
     expect(response.setHeader).toHaveBeenCalledWith('Retry-After', 300);
     expect(response.end).toHaveBeenCalledOnce();
+    expect(metrics.recordRateLimited).toHaveBeenCalledWith('otp-request');
     expect(next).not.toHaveBeenCalled();
   });
 
   it('fails open if the limiter store is temporarily unavailable', async () => {
     const store = { increment: vi.fn().mockRejectedValue(new Error('redis unavailable')) };
-    const middleware = new RateLimitMiddleware(store as never);
+    const metrics = { recordRateLimited: vi.fn(), recordLimiterDegradation: vi.fn() };
+    const middleware = new RateLimitMiddleware(store as never, metrics as never);
     vi.spyOn((middleware as unknown as { logger: { warn: (message: string) => void } }).logger, 'warn').mockImplementation(() => undefined);
     const response = { statusCode: 200, setHeader: vi.fn(), end: vi.fn() };
     const next = vi.fn();
@@ -60,6 +63,7 @@ describe('RateLimitMiddleware', () => {
     }, response, next);
 
     expect(next).toHaveBeenCalledOnce();
+    expect(metrics.recordLimiterDegradation).toHaveBeenCalledOnce();
     expect(response.end).not.toHaveBeenCalled();
   });
 });
