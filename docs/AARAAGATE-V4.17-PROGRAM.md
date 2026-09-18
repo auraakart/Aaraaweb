@@ -1,7 +1,7 @@
 # Aaraagate V4.17 Program — Occupancy Lifecycle & Property Operations Depth
 
 Date: 2026-09-18  
-Status: In progress  
+Status: Repository closure complete  
 Baseline: `develop` after V4.16 repository closure
 
 ## Why V4.17
@@ -37,13 +37,13 @@ V4.17 closes occupancy and adjacent property-operations depth without changing l
 - access/vehicle/workforce handover visibility using existing repository data where available;
 - no legal or police-verification validity inference.
 
-### V4.17.3 — Resident move experience — in progress
+### V4.17.3 — Resident move experience — merged via #703
 
 - improve Resident self-service move-in/move-out visibility and status clarity;
 - property-scoped timeline and next-action guidance;
 - preserve server-authoritative ownership/occupancy checks.
 
-### V4.17.4 — Evidence reconciliation
+### V4.17.4 — Evidence reconciliation — complete
 
 - full regression and CI;
 - requirements traceability and completion evidence;
@@ -53,3 +53,7 @@ V4.17 closes occupancy and adjacent property-operations depth without changing l
 ## Quality gates
 
 Tenant scoping, capability permissions, effective-date safety, gate-authority revocation, checklist blocking, typed operator inputs, negative tests and full CI remain mandatory.
+
+## Repository closure
+
+V4.17 repository closure is complete when this branch is merged to `develop`. The milestone improves repository-backed occupancy operations and Resident clarity only; real-society rental/police-verification policy acceptance, representative-device usability, hosted production evidence and field outcomes remain external.
