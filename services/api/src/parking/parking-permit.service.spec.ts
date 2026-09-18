@@ -36,6 +36,9 @@ describe('ParkingPermitService', () => {
     const service = new ParkingPermitService(prisma as unknown as PrismaService);
     await expect(service.create(societyId, actorId, validInput)).rejects.toBeInstanceOf(NotFoundException);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const eligibilitySql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(eligibilitySql).toContain('"allowTemporaryOverflow"');
+    expect(eligibilitySql).toContain("'TEMPORARY'");
   });
 
   it('rejects overlapping active permits before insert', async () => {
