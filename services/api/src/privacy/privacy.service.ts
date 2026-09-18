@@ -262,6 +262,7 @@ export class PrivacyService {
           AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
           AND "status" = ${current.status}
           AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
         RETURNING *
       `);
       const updated = rows[0];
