@@ -21,7 +21,7 @@ for (const fragment of requiredFragments) {
 }
 
 const closeAction = source.indexOf('async function closeSelectedPeriod()');
-const closeCall = source.indexOf('/accounting/periods/${period.id}/close`',{method:\'POST\'}');
+const closeCall = source.indexOf('/accounting/periods/${period.id}/close');
 if (closeAction < 0 || closeCall < closeAction) throw new Error('Period close must remain an explicit operator action.');
 
 console.log('Finance period-close workspace contract: PASS');
