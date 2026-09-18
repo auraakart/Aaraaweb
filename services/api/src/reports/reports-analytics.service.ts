@@ -101,22 +101,67 @@ export class ReportsAnalyticsService{
       amenityRows,notificationRows,serviceRows,adoptionRows,usageRows,
     ]=await Promise.all([
       includeFinance?this.prisma.$queryRaw<Array<{billedPaise:bigint|number;collectedPaise:bigint|number}>>(Prisma.sql`
+        WITH cohort AS (
+          SELECT
+            r."id",
+            GREATEST(
+              r."amountPaise"
+              + COALESCE((
+                  SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
+                  FROM "ReceivableAdjustment" a
+                  WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
+                    AND a."createdAt"<=${range.lte}
+                ),0),
+              0
+            ) AS "netBilledPaise",
+            COALESCE((
+              SELECT SUM(x."amountPaise")
+              FROM "ReceivableAllocation" x
+              WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                AND x."allocatedAt"<=${range.lte}
+            ),0) AS "allocatedPaise"
+          FROM "Receivable" r
+          WHERE r."societyId"=${societyId}::uuid
+            AND r."issuedAt" BETWEEN ${range.gte} AND ${range.lte}
+            AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
+        )
         SELECT
-          COALESCE(SUM("amountPaise") FILTER (WHERE "issuedAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"<>'VOID'),0)::bigint AS "billedPaise",
-          COALESCE(SUM("amountPaise") FILTER (
-            WHERE "issuedAt" BETWEEN ${range.gte} AND ${range.lte}
-              AND "status"='PAID' AND "paidAt" IS NOT NULL AND "paidAt"<=${range.lte}
-          ),0)::bigint AS "collectedPaise"
-        FROM "MaintenanceInvoice" WHERE "societyId"=${societyId}::uuid
+          COALESCE(SUM("netBilledPaise"),0)::bigint AS "billedPaise",
+          COALESCE(SUM(LEAST("allocatedPaise","netBilledPaise")),0)::bigint AS "collectedPaise"
+        FROM cohort
       `):Promise.resolve([]),
       includeFinance?this.prisma.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
+        WITH balances AS (
+          SELECT
+            r."dueDate",
+            GREATEST(
+              r."amountPaise"
+              + COALESCE((
+                  SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
+                  FROM "ReceivableAdjustment" a
+                  WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
+                    AND a."createdAt"<=${range.lte}
+                ),0)
+              - COALESCE((
+                  SELECT SUM(x."amountPaise")
+                  FROM "ReceivableAllocation" x
+                  WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                    AND x."allocatedAt"<=${range.lte}
+                ),0),
+              0
+            ) AS "outstandingPaise"
+          FROM "Receivable" r
+          WHERE r."societyId"=${societyId}::uuid
+            AND r."issuedAt"<=${range.lte}
+            AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
+        )
         SELECT
-          COALESCE(SUM("amountPaise") FILTER (WHERE "status"='ISSUED' AND "dueDate">=CURRENT_DATE),0)::bigint AS "currentPaise",
-          COALESCE(SUM("amountPaise") FILTER (WHERE "status"='ISSUED' AND "dueDate"<CURRENT_DATE AND "dueDate">=CURRENT_DATE-30),0)::bigint AS "days1To30Paise",
-          COALESCE(SUM("amountPaise") FILTER (WHERE "status"='ISSUED' AND "dueDate"<CURRENT_DATE-30 AND "dueDate">=CURRENT_DATE-60),0)::bigint AS "days31To60Paise",
-          COALESCE(SUM("amountPaise") FILTER (WHERE "status"='ISSUED' AND "dueDate"<CURRENT_DATE-60 AND "dueDate">=CURRENT_DATE-90),0)::bigint AS "days61To90Paise",
-          COALESCE(SUM("amountPaise") FILTER (WHERE "status"='ISSUED' AND "dueDate"<CURRENT_DATE-90),0)::bigint AS "days90PlusPaise"
-        FROM "MaintenanceInvoice" WHERE "societyId"=${societyId}::uuid
+          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND "dueDate">=${range.lte}::date),0)::bigint AS "currentPaise",
+          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 1 AND 30),0)::bigint AS "days1To30Paise",
+          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 31 AND 60),0)::bigint AS "days31To60Paise",
+          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate" BETWEEN 61 AND 90),0)::bigint AS "days61To90Paise",
+          COALESCE(SUM("outstandingPaise") FILTER (WHERE "outstandingPaise">0 AND ${range.lte}::date-"dueDate">90),0)::bigint AS "days90PlusPaise"
+        FROM balances
       `):Promise.resolve([]),
       includeFinance?this.prisma.$queryRaw<Array<{open:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "open" FROM "PaymentReconciliationCase"
