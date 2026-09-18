@@ -1,12 +1,11 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { AppRole } from '../auth/auth.types';
-import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
-import { BearerGuard } from '../auth/bearer.guard';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { RequiresFeature } from '../entitlements/feature.decorator';
 import { FeatureGuard } from '../entitlements/feature.guard';
