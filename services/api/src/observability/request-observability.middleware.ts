@@ -1,5 +1,6 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { ReliabilityMetricsService } from './reliability-metrics.service';
 
 type HeaderValue = string | string[] | undefined;
 
@@ -34,15 +35,19 @@ function routePath(request: ObservableRequest) {
 export class RequestObservabilityMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestObservability');
 
+  constructor(private readonly metrics?: ReliabilityMetricsService) {}
+
   use(request: ObservableRequest, response: ObservableResponse, next: Next) {
     const requestId = resolveRequestId(request.headers['x-request-id']);
     const startedAt = process.hrtime.bigint();
+    this.metrics?.beginRequest();
 
     request.headers['x-request-id'] = requestId;
     response.setHeader('X-Request-Id', requestId);
 
     response.once('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      this.metrics?.completeRequest(response.statusCode, durationMs);
       this.logger.log(JSON.stringify({
         event: 'http_request',
         service: 'aaraagate-api',
