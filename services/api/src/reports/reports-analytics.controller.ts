@@ -1,5 +1,7 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { AppPermission } from '../auth/permission.types';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { AppRole } from '../auth/auth.types';
+import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { AppPermission, hasPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
@@ -15,6 +17,13 @@ import { ReportsAnalyticsService } from './reports-analytics.service';
 @RequiresFeature(ProductFeature.ADVANCED_REPORTS)
 export class ReportsAnalyticsController{
   constructor(private readonly analytics:ReportsAnalyticsService){}
+
+  @Get('outcomes')
+  @RequiresPermissions(AppPermission.REPORTS_READ)
+  outcomes(@CurrentTenant() societyId:string,@Req() request:AuthenticatedRequest,@Query('from') from?:string,@Query('to') to?:string){
+    const roles=(request.auth?.roles??[]) as AppRole[];
+    return this.analytics.outcomes(societyId,from,to,hasPermission(roles,AppPermission.FINANCE_READ));
+  }
 
   @Get('journeys')
   @RequiresPermissions(AppPermission.REPORTS_READ)
