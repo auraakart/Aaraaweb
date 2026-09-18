@@ -33,7 +33,7 @@ The fresh post-V4.15 repository audit found Society Vendors as the clearest repo
 - one-PO/one-expense idempotency retained;
 - authorization and Admin regression coverage.
 
-### V4.16.3 — Society vendor lifecycle evidence — in progress
+### V4.16.3 — Society vendor lifecycle evidence — merged via #691
 - society-vendor contract/SLA/expiry records tied to SocietyVendor;
 - configurable dates, references and status;
 - descriptive expiry/readiness visibility;
@@ -42,7 +42,7 @@ The fresh post-V4.15 repository audit found Society Vendors as the clearest repo
 
 Vendor-staff gate linkage remains excluded until the workforce/gate identity model is re-audited to avoid duplicate identity or weakened access controls.
 
-### V4.16.4 — Evidence reconciliation
+### V4.16.4 — Evidence reconciliation — in progress
 - full regression and CI;
 - requirements traceability;
 - completion evidence;
@@ -51,3 +51,14 @@ Vendor-staff gate linkage remains excluded until the workforce/gate identity mod
 
 ## Quality gates
 Tenant scoping, capability permissions, audited transitions, failure-safe state changes, bounded typed Admin inputs, automated regression and full CI are required for every slice.
+
+
+## V4.16.4 closure evidence
+
+V4.16 functional slices are integrated on `develop` through:
+
+- #687 — procurement operator depth;
+- #688 — procurement/accounting handoff;
+- #691 — society-vendor contract/SLA/expiry lifecycle evidence.
+
+The final reconciliation updates requirement traceability, conservative repository scoring and completion evidence. Production/field readiness remains unchanged because real vendor onboarding, society procurement policy, contract/legal review, hosted infrastructure and field outcomes remain external.
