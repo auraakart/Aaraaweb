@@ -261,13 +261,13 @@ export class MigrationBatchService {
         SELECT "code" FROM "LedgerAccount" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
       `),
       this.prisma.$queryRaw<Array<{ plateNumber: string }>>(Prisma.sql`
-        SELECT "plateNumber" FROM "HouseholdVehicle" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+        SELECT "plateNumber" FROM "HouseholdVehicle" WHERE "societyId"=${societyId}::uuid
       `),
       this.prisma.$queryRaw<Array<{ phone: string }>>(Prisma.sql`
-        SELECT "phone" FROM "DomesticWorker" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+        SELECT "phone" FROM "DomesticWorker" WHERE "societyId"=${societyId}::uuid
       `),
       this.prisma.$queryRaw<Array<{ code: string; name: string; gstin: string | null }>>(Prisma.sql`
-        SELECT "code","name","gstin" FROM "SocietyVendor" WHERE "societyId"=${societyId}::uuid AND "status" <> 'ARCHIVED'
+        SELECT "code","name","gstin" FROM "SocietyVendor" WHERE "societyId"=${societyId}::uuid
       `),
       this.prisma.$queryRaw<Array<{ code: string }>>(Prisma.sql`
         SELECT "code" FROM "ParkingSlot" WHERE "societyId"=${societyId}::uuid
