@@ -19,6 +19,10 @@ CREATE UNIQUE INDEX "OperationalUsageEvent_society_type_subject_day_key"
   ON "OperationalUsageEvent"("societyId","eventType","subjectHash","bucketDate")
   WHERE "societyId" IS NOT NULL;
 
+CREATE UNIQUE INDEX "OperationalUsageEvent_independent_type_subject_day_key"
+  ON "OperationalUsageEvent"("eventType","subjectHash","bucketDate")
+  WHERE "societyId" IS NULL;
+
 CREATE INDEX "OperationalUsageEvent_society_type_time_idx"
   ON "OperationalUsageEvent"("societyId","eventType","occurredAt" DESC);
 
