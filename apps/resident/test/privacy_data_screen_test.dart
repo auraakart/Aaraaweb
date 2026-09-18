@@ -15,7 +15,8 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('Your data requests'), 250);
     expect(find.text('Your data requests'), findsOneWidget);
-    expect(find.textContaining('not implemented yet'), findsOneWidget);
+    expect(find.textContaining('request a copy of your data'), findsOneWidget);
+    expect(find.textContaining('Erasure is not immediate'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.textContaining('does not make a data-retention or regulatory-compliance claim'),

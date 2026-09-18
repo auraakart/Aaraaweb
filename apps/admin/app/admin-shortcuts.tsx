@@ -98,6 +98,7 @@ export function AdminShortcuts(){
     if(role==='SUPER_ADMIN'){
       add(platform,{href:'/platform/providers',label:'Provider verification',description:'Verify external service providers'})
       add(platform,{href:'/platform/provider-trust',label:'Provider trust',description:'Trust and provider quality controls'})
+      add(platform,{href:'/platform/privacy',label:'Platform privacy',description:'Independent-home privacy requests and retention review'})
       add(platform,{href:'/marketplace-control/commercial',label:'Commercial controls',description:'Marketplace commissions and commercial policy'})
       add(platform,{href:'/marketplace-control/operations',label:'Services operations',description:'Cross-society service operations'})
       add(platform,{href:'/platform',label:'Platform',description:'Aaraagate platform administration'})

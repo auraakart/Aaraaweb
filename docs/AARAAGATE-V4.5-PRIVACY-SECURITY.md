@@ -41,6 +41,24 @@ Implemented in the first V4.5 slice:
 - the feed is SQL-scoped by `societyId` and supports a constrained event-type filter;
 - independent-home events can be retained with no society context and are therefore not exposed by a society-scoped audit feed.
 
+## V4.5.2 — Resident privacy self-service
+
+Implemented:
+- authenticated residents can list only their own privacy cases in the active society context;
+- independent-home users can submit and track society-less privacy cases without inventing a society tenancy;
+- self-service request types are constrained to ACCESS, CORRECTION and ERASURE;
+- Resident UI exposes data-access, correction and erasure-review requests from the existing Privacy & data use screen;
+- ambiguous network retries reuse a subject-scoped request key; exact retries return the original case and changed-payload key reuse fails closed;
+- case creation records a minimal `SELF_SERVICE_CREATED` audit event without storing credentials or request payloads beyond the user-provided case summary;
+- society-context requests continue through the existing society privacy-operations queue;
+- society-less independent-home requests route to a dedicated platform privacy queue;
+- platform privacy read/manage permissions are restricted to Super Admin and are not granted to Society Admin, Committee or Auditor roles;
+- platform processors can review status, legal hold and case history using the same privacy case engine rather than a second workflow;
+- erasure remains a review request, not immediate deletion: completion is blocked while legal hold is active;
+- the Resident screen explicitly avoids claiming regulatory certification or unconditional deletion.
+
+The ACCESS action creates a governed data-access case; it does not silently generate an immediate export archive. Actual export assembly/retention processing remains an operations workflow and will be addressed with retention/deletion enforcement later in V4.5.
+
 ## Safety and privacy boundary
 
 The security-event ledger is operational audit evidence, not a user-behaviour analytics stream. It must remain minimal, purpose-limited and free of credentials/secrets. Retention and access policy will be reviewed in later V4.5 slices together with privacy retention/deletion controls.
@@ -49,9 +67,8 @@ DPDP-oriented documentation in V4.5 describes product/operational controls only.
 
 ## Next V4.5 slices
 
-1. resident privacy self-service request/export/deletion workflow;
-2. privileged/admin audit visibility and negative-permission expansion;
-3. sensitive-data logging/redaction review and tests;
-4. document/file authorization regression review;
-5. privacy retention/deletion enforcement points and legal-hold interaction;
-6. security-event reporting/retention completion and V4.5 closeout.
+1. privileged/admin audit visibility and negative-permission expansion;
+2. sensitive-data logging/redaction review and tests;
+3. document/file authorization regression review;
+4. privacy retention/deletion enforcement points and legal-hold interaction;
+5. security-event reporting/retention completion and V4.5 closeout.

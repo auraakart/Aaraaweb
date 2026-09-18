@@ -7,10 +7,12 @@ import { PrivacyIncidentController } from './privacy-incident.controller';
 import { PrivacyIncidentService } from './privacy-incident.service';
 import { PrivacyRegistryController } from './privacy-registry.controller';
 import { PrivacyRegistryService } from './privacy-registry.service';
+import { PrivacyPlatformController } from './privacy-platform.controller';
+import { PrivacySelfController } from './privacy-self.controller';
 import { PrivacyService } from './privacy.service';
 
 @Module({
-  controllers: [PrivacyController, PrivacyRegistryController, PrivacyIncidentController, PrivacyConsentController],
+  controllers: [PrivacyController, PrivacyRegistryController, PrivacyIncidentController, PrivacyConsentController, PrivacySelfController, PrivacyPlatformController],
   providers: [PrivacyService, PrivacyRegistryService, PrivacyIncidentService, PrivacyConsentService, PrismaService],
   exports: [PrivacyService, PrivacyRegistryService, PrivacyIncidentService, PrivacyConsentService],
 })
