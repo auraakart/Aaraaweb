@@ -70,6 +70,31 @@ describe('ScheduledWorkService', () => {
     expect(noticeSql).toContain('FOR UPDATE OF nd SKIP LOCKED');
   });
 
+  it('drains durable direct-push work after the cluster-owned sweep', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ locked: true }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      $executeRaw: vi.fn(),
+    };
+    const push = { drainDurableOutbox: vi.fn().mockResolvedValue({ dispatched: 2, deferred: 1, failed: 0, claimed: 3 }) };
+    const service = new ScheduledWorkService(prisma as never, undefined, push as never);
+
+    await expect(service.runOnce()).resolves.toMatchObject({
+      pushDispatched: 2,
+      pushDeferred: 1,
+      pushFailed: 0,
+      pushClaimed: 3,
+    });
+    expect(push.drainDurableOutbox).toHaveBeenCalledOnce();
+  });
+
   it('dispatches due scheduled notices and records successful handoff', async () => {
     const dispatchId = '00000000-0000-4000-8000-000000000010';
     const societyId = '00000000-0000-4000-8000-000000000011';
