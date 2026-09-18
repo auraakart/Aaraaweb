@@ -22,6 +22,14 @@ describe('V4.8 operational usage analytics',()=>{
     expect(values.some(value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value))).toBe(true);
   });
 
+  it('rejects logically inconsistent guard sync metrics',async()=>{
+    const {prisma,service}=setup();
+    await expect(service.recordGuardSync('22222222-2222-4222-8222-222222222222',{
+      considered:2,synced:2,retried:0,unresolved:1,reviewRequired:2,
+    })).rejects.toThrow('Guard sync metric counts are inconsistent');
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('records only aggregate guard sync counts',async()=>{
     const {prisma,service}=setup();
     await service.recordGuardSync('22222222-2222-4222-8222-222222222222',{
