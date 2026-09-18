@@ -72,3 +72,15 @@ DPDP-oriented documentation in V4.5 describes product/operational controls only.
 3. document/file authorization regression review;
 4. privacy retention/deletion enforcement points and legal-hold interaction;
 5. security-event reporting/retention completion and V4.5 closeout.
+
+
+## V4.5.3 — Privileged/admin audit visibility
+
+Implemented in this slice:
+- the Admin reports workspace now exposes the existing society-scoped `SecurityEvent` feed alongside the general audit feed for audit-authorized roles;
+- the dedicated `AUDITOR` role is recognized by the Admin reports UI rather than being incorrectly hidden by a hard-coded role allowlist;
+- the security view remains privacy-minimal: event type, reason, user/session identifiers and timestamp only; access/refresh tokens, token hashes, OTP values and request payloads are not exposed;
+- permission regression coverage proves `AUDITOR` has audit/privacy read visibility without privacy, finance or society-configuration mutation authority;
+- `ACCOUNTANT` and other roles without `AUDIT_READ` remain denied by the API permission guard even if a client attempts the endpoint directly.
+
+The next V4.5 slice is the sensitive-data logging/redaction review and tests, followed by document/file authorization regression review.
