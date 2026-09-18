@@ -874,12 +874,14 @@ model AmenityBooking {
   currency         String               @default("INR")
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
+  idempotencyKey   String?
   createdAt        DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
 
   @@index([societyId, amenityId, startsAt, endsAt, status], map: "AmenityBooking_society_amenity_window_idx")
   @@index([societyId, userId, createdAt(sort: Desc)], map: "AmenityBooking_society_user_created_idx")
   @@index([societyId, unitId, createdAt(sort: Desc)], map: "AmenityBooking_society_unit_created_idx")
+  @@unique([societyId, userId, idempotencyKey], map: "AmenityBooking_society_user_idempotency_key")
 }
 
 enum AmenityBookingStatus {
