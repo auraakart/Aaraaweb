@@ -67,9 +67,11 @@ void main(){
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('SEND SOS'),findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
     expect(find.text('SOS could not be completed. Check your connection and try again.'),findsOneWidget);
     expect(find.textContaining('database stack trace'),findsNothing);
-    expect(find.text('SEND SOS'),findsOneWidget);
     expect(tester.takeException(),isNull);
     controller.dispose();
   });
