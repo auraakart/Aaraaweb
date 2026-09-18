@@ -48,4 +48,18 @@ void main() {
     );
     expect(items.single.title, 'Sooner');
   });
+
+  test('surfaces high-priority helpdesk work ahead of routine updates', () {
+    final items = ResidentHomeHighlights.build(
+      now: DateTime(2026, 9, 18),
+      invoices: const [],
+      bookings: const [],
+      notices: const [{'title': 'Pool cleaning', 'createdAt': '2026-09-18T08:00:00Z'}],
+      tickets: const [
+        {'title': 'Lift trapped intermittently', 'status': 'OPEN', 'priority': 'HIGH', 'updatedAt': '2026-09-18T09:00:00Z'},
+      ],
+    );
+    expect(items.first.kind, ResidentHomeHighlightKind.helpdesk);
+    expect(items.first.title, 'Lift trapped intermittently');
+  });
 }
