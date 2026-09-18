@@ -14,9 +14,11 @@ describe('MigrationController authorization', () => {
     ]));
   });
 
-  it('requires society configuration management for migration preview', () => {
-    expect(Reflect.getMetadata(PERMISSIONS_KEY, MigrationController.prototype.preview)).toEqual([
-      AppPermission.SOCIETY_CONFIGURATION_MANAGE,
-    ]);
+  it('requires society configuration management for preview and persisted batch evidence', () => {
+    for (const method of ['preview', 'createBatch', 'listBatches', 'getBatch'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, MigrationController.prototype[method])).toEqual([
+        AppPermission.SOCIETY_CONFIGURATION_MANAGE,
+      ]);
+    }
   });
 });
