@@ -33,6 +33,7 @@ class UpdatesScreen extends StatelessWidget {
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => ParcelsScreen(
                         repository: controller.repository,
+                        unitId: controller.primaryUnitId!,
                         demoMode: controller.repository.api.baseUrl.contains('demo.invalid'),
                       ),
                     )),
