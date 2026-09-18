@@ -72,7 +72,7 @@ export class AmenitiesService {
     societyId: string,
     userId: string,
     amenityId: string,
-    input: { unitId: string; startsAt: string; endsAt: string },
+    input: { unitId: string; startsAt: string; endsAt: string; idempotencyKey?: string },
   ) {
     await this.assertUnitAccess(societyId, userId, input.unitId);
     const startsAt = new Date(input.startsAt);
@@ -83,8 +83,32 @@ export class AmenitiesService {
     const now = Date.now();
     if (startsAt.getTime() <= now) throw new BadRequestException('Amenity bookings must start in the future');
 
+    const idempotencyKey = input.idempotencyKey?.trim() || null;
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+
+      if (idempotencyKey) {
+        const existing = await tx.$queryRaw<Array<{ id: string; amenityId: string; unitId: string; startsAt: Date; endsAt: Date }>>`
+          SELECT "id","amenityId","unitId","startsAt","endsAt"
+          FROM "AmenityBooking"
+          WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid
+            AND "idempotencyKey"=${idempotencyKey}
+          LIMIT 1
+        `;
+        if (existing[0]) {
+          const samePayload = existing[0].amenityId === amenityId
+            && existing[0].unitId === input.unitId
+            && existing[0].startsAt.getTime() === startsAt.getTime()
+            && existing[0].endsAt.getTime() === endsAt.getTime();
+          if (!samePayload) throw new ConflictException('Idempotency key is already used for another amenity booking');
+          const replay = await tx.$queryRaw`
+            SELECT * FROM "AmenityBooking"
+            WHERE "id"=${existing[0].id}::uuid AND "societyId"=${societyId}::uuid
+            LIMIT 1
+          `;
+          return Array.isArray(replay) ? replay[0] : replay;
+        }
+      }
 
       const amenities = await tx.$queryRaw<AmenityRow[]>`
         SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
@@ -144,14 +168,18 @@ export class AmenitiesService {
       const rows = await tx.$queryRaw`
         INSERT INTO "AmenityBooking" (
           "societyId", "amenityId", "unitId", "userId", "startsAt", "endsAt",
-          "status", "feePaise", "currency"
+          "status", "feePaise", "currency", "idempotencyKey"
         ) VALUES (
           ${societyId}::uuid, ${amenityId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
-          ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${amenity.feePaise}, ${amenity.currency}
+          ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${amenity.feePaise}, ${amenity.currency},
+          ${idempotencyKey}
         )
         RETURNING *
       `;
       return Array.isArray(rows) ? rows[0] : rows;
+    }).catch((error) => {
+      if (this.isUniqueViolation(error)) throw new ConflictException('Amenity booking already exists for this unit, slot or idempotency key');
+      throw error;
     });
   }
 
@@ -190,6 +218,31 @@ export class AmenitiesService {
       const booking = Array.isArray(rows) ? rows[0] : undefined;
       if (!booking) throw new ConflictException('Booking changed; refresh and retry');
       return booking;
+    });
+  }
+
+  async revoke(societyId: string, reviewerUserId: string, bookingId: string, reason: string) {
+    const note = reason.trim();
+    if (!note) throw new BadRequestException('Revocation reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        UPDATE "AmenityBooking"
+        SET "status"='CANCELLED',
+            "reviewedByUserId"=${reviewerUserId}::uuid,
+            "reviewNote"=${`Revoked: ${note}`},
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${bookingId}::uuid
+          AND "societyId"=${societyId}::uuid
+          AND "status" IN ('PENDING','CONFIRMED')
+        RETURNING "id"
+      `;
+      if (!rows[0]) throw new ConflictException('Active amenity booking is missing or already closed');
+      const booking = await tx.$queryRaw`
+        SELECT * FROM "AmenityBooking"
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1
+      `;
+      return Array.isArray(booking) ? booking[0] : booking;
     });
   }
 
@@ -383,6 +436,8 @@ export class AmenitiesService {
   }
 
   private isUniqueViolation(error: unknown): boolean {
-    return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+    if (typeof error !== 'object' || error === null) return false;
+    const candidate = error as { code?: string; meta?: { code?: string } };
+    return candidate.code === '23505' || candidate.code === 'P2002' || candidate.meta?.code === '23505';
   }
 }

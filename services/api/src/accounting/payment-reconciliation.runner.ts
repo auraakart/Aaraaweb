@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 import { ConfiguredHttpPaymentGatewayAdapter } from './configured-http-payment-gateway.adapter';
 import { PaymentReconciliationService } from './payment-reconciliation.service';
 
@@ -19,7 +20,7 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
   onModuleInit(){if(!(process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL??'').trim()){this.logger.log('Payment reconciliation runner disabled: gateway bridge not configured');return;}this.timer=setInterval(()=>void this.runOnce(),this.intervalMs);this.timer.unref();void this.runOnce();}
   onModuleDestroy(){if(this.timer)clearInterval(this.timer);}
 
-  async runOnce(){if(this.running)return;this.running=true;try{await this.processOperations();await this.refreshCases();}catch(error){this.logger.error(`Payment reconciliation cycle failed: ${this.message(error)}`);}finally{this.running=false;}}
+  async runOnce(){if(this.running)return;this.running=true;try{await this.processOperations();await this.refreshCases();}catch(error){this.logger.error(`Payment reconciliation cycle failed: ${safeOperationalError(error)}`);}finally{this.running=false;}}
 
   private async processOperations(){
     const due=await this.claimOperations(25);
@@ -37,14 +38,14 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
         }
       }catch(error){
         const exhausted=op.attemptCount>=this.maxAttempts;
-        await this.reconciliation.recordOperationResult(op.societyId,op.id,{status:exhausted?'FAILED':'UNKNOWN',failureCode:exhausted?'RUNNER_EXHAUSTED':'RUNNER_RETRY',failureMessage:this.message(error).slice(0,500)}).catch(e=>this.logger.error(`Could not persist gateway retry result ${op.id}: ${this.message(e)}`));
+        await this.reconciliation.recordOperationResult(op.societyId,op.id,{status:exhausted?'FAILED':'UNKNOWN',failureCode:exhausted?'RUNNER_EXHAUSTED':'RUNNER_RETRY',failureMessage:safeOperationalError(error)}).catch(e=>this.logger.error(`Could not persist gateway retry result ${op.id}: ${safeOperationalError(e)}`));
       }
     }
   }
 
   private async refreshCases(){
     const cases=await this.claimCases(25);
-    for(const c of cases){if(c.provider!==this.adapter.provider)continue;try{const observation=await this.adapter.queryPayment(c.paymentId);await this.reconciliation.recordObservation(c.societyId,c.id,{providerPaymentId:observation.providerPaymentId,observedProviderStatus:observation.providerStatus,observedAmountPaise:observation.amountPaise});}catch(error){this.logger.warn(`Reconciliation case ${c.id} refresh failed: ${this.message(error)}`);}}
+    for(const c of cases){if(c.provider!==this.adapter.provider)continue;try{const observation=await this.adapter.queryPayment(c.paymentId);await this.reconciliation.recordObservation(c.societyId,c.id,{providerPaymentId:observation.providerPaymentId,observedProviderStatus:observation.providerStatus,observedAmountPaise:observation.amountPaise});}catch(error){this.logger.warn(`Reconciliation case ${c.id} refresh failed: ${safeOperationalError(error)}`);}}
   }
 
   private claimOperations(limit:number){return this.prisma.$transaction(async tx=>{

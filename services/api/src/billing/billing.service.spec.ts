@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingService } from './billing.service';
@@ -114,20 +114,19 @@ describe('BillingService', () => {
     }
   });
 
-  it('acknowledges a duplicate signed webhook without mutating payment state', async () => {
+  it('acknowledges a previously processed signed webhook without mutating payment state', async () => {
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-secret';
     const event = { eventId: 'evt-1', providerOrderId: 'order-1', providerPaymentId: 'payment-1', status: 'CAPTURED' as const };
     const signature = createHmac('sha256', 'test-secret').update('evt-1|order-1|payment-1|CAPTURED').digest('hex');
-    const tx = {
+    const actualDigest = createHash('sha256').update('evt-1|order-1|payment-1|CAPTURED').digest('hex');
+    const prisma = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333', invoiceId: '44444444-4444-4444-4444-444444444444', societyId: '11111111-1111-1111-1111-111111111111', status: 'CAPTURED' }])
-        .mockResolvedValueOnce([]),
-      $executeRaw: vi.fn(),
+        .mockResolvedValueOnce([{ id: '55555555-5555-4555-8555-555555555555', societyId: '11111111-1111-1111-1111-111111111111', paymentId: '33333333-3333-3333-3333-333333333333', payloadDigest: actualDigest, processingStatus: 'PROCESSED' }]),
+      $transaction: vi.fn(),
     };
-    const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
     const service = new BillingService(prisma as unknown as PrismaService);
-    await expect(service.reconcile(signature, event)).resolves.toEqual({ duplicate: true });
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    await expect(service.reconcile(signature, event)).resolves.toEqual({ duplicate: true, receiptId: '55555555-5555-4555-8555-555555555555' });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

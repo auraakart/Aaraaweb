@@ -10,5 +10,6 @@ import { HelpdeskSlaService } from './helpdesk-sla.service';
   imports: [EntitlementsModule],
   controllers: [HelpdeskController, HelpdeskSlaController],
   providers: [HelpdeskService, HelpdeskSlaService, PrismaService],
+  exports: [HelpdeskService],
 })
 export class HelpdeskModule {}

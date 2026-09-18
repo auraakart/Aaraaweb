@@ -46,7 +46,7 @@ class IssueReceivableDto {
 }
 
 class CreateAdjustmentDto {
-  @IsIn(['DEBIT', 'CREDIT', 'WAIVER']) type!: 'DEBIT' | 'CREDIT' | 'WAIVER';
+  @IsIn(['DEBIT', 'CREDIT']) type!: 'DEBIT' | 'CREDIT';
   @IsInt() @Min(1) amountPaise!: number;
   @IsString() @MinLength(1) @MaxLength(500) reason!: string;
   @IsDateString() entryDate!: string;
@@ -58,62 +58,25 @@ class CreateAdjustmentDto {
 @RequiresFeature(ProductFeature.SOCIETY_ACCOUNTING)
 export class ReceivablesController {
   constructor(private readonly receivables: ReceivablesService) {}
-
-  @Get('charge-rules')
-  @RequiresPermissions(AppPermission.FINANCE_READ)
-  listChargeRules(@CurrentTenant() societyId: string) {
-    return this.receivables.listChargeRules(societyId);
-  }
-
-  @Post('charge-rules')
-  @RequiresPermissions(AppPermission.FINANCE_MANAGE)
-  createChargeRule(@CurrentTenant() societyId: string, @Body() dto: CreateChargeRuleDto) {
-    return this.receivables.createChargeRule(societyId, dto);
-  }
-
-  @Post('preview')
-  @RequiresPermissions(AppPermission.FINANCE_READ)
-  preview(@CurrentTenant() societyId: string, @Body() dto: IssueReceivableDto) {
-    return this.receivables.previewIssue(societyId, dto);
-  }
-
-  @Post('issue')
-  @RequiresPermissions(AppPermission.FINANCE_MANAGE)
-  issue(
-    @CurrentTenant() societyId: string,
-    @CurrentUser() userId: string | undefined,
-    @Body() dto: IssueReceivableDto,
-  ) {
-    return this.receivables.issue(societyId, this.requireUser(userId), dto);
-  }
-
-  @Get()
-  @RequiresPermissions(AppPermission.FINANCE_READ)
-  list(@CurrentTenant() societyId: string) {
-    return this.receivables.listReceivables(societyId);
-  }
-
-  @Get('ageing')
-  @RequiresPermissions(AppPermission.FINANCE_READ)
+  @Get('charge-rules') @RequiresPermissions(AppPermission.FINANCE_READ)
+  listChargeRules(@CurrentTenant() societyId: string) { return this.receivables.listChargeRules(societyId); }
+  @Post('charge-rules') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
+  createChargeRule(@CurrentTenant() societyId: string, @Body() dto: CreateChargeRuleDto) { return this.receivables.createChargeRule(societyId, dto); }
+  @Post('preview') @RequiresPermissions(AppPermission.FINANCE_READ)
+  preview(@CurrentTenant() societyId: string, @Body() dto: IssueReceivableDto) { return this.receivables.previewIssue(societyId, dto); }
+  @Post('issue') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
+  issue(@CurrentTenant() societyId: string,@CurrentUser() userId: string | undefined,@Body() dto: IssueReceivableDto) { return this.receivables.issue(societyId, this.requireUser(userId), dto); }
+  @Get() @RequiresPermissions(AppPermission.FINANCE_READ)
+  list(@CurrentTenant() societyId: string) { return this.receivables.listReceivables(societyId); }
+  @Get('ageing') @RequiresPermissions(AppPermission.FINANCE_READ)
   ageing(@CurrentTenant() societyId: string, @Query('asOf') asOf?: string) {
     const resolved = asOf?.slice(0, 10) || new Date().toISOString().slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(resolved)) throw new BadRequestException('asOf must be YYYY-MM-DD');
     return this.receivables.ageing(societyId, resolved);
   }
-
-  @Post(':receivableId/adjustments')
-  @RequiresPermissions(AppPermission.FINANCE_MANAGE)
-  addAdjustment(
-    @CurrentTenant() societyId: string,
-    @CurrentUser() userId: string | undefined,
-    @Param('receivableId', new ParseUUIDPipe()) receivableId: string,
-    @Body() dto: CreateAdjustmentDto,
-  ) {
+  @Post(':receivableId/adjustments') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
+  addAdjustment(@CurrentTenant() societyId: string,@CurrentUser() userId: string | undefined,@Param('receivableId', new ParseUUIDPipe()) receivableId: string,@Body() dto: CreateAdjustmentDto) {
     return this.receivables.addAdjustment(societyId, this.requireUser(userId), receivableId, dto);
   }
-
-  private requireUser(userId?: string) {
-    if (!userId) throw new BadRequestException('Authenticated user is required');
-    return userId;
-  }
+  private requireUser(userId?: string) { if (!userId) throw new BadRequestException('Authenticated user is required'); return userId; }
 }

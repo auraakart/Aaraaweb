@@ -8,5 +8,6 @@ import { AmenitiesService } from './amenities.service';
   imports: [EntitlementsModule],
   controllers: [AmenitiesController],
   providers: [AmenitiesService, PrismaService],
+  exports: [AmenitiesService],
 })
 export class AmenitiesModule {}

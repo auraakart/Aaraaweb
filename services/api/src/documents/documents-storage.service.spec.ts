@@ -25,6 +25,13 @@ describe('DocumentsStorageService', () => {
     expect(storage.createDownloadIntent).not.toHaveBeenCalled();
   });
 
+  it('rejects traversal-shaped storage keys before download signing', () => {
+    const storage = { createDownloadIntent: vi.fn() };
+    const service = new DocumentsStorageService(storage as never, {} as never);
+    expect(() => service.createDownloadIntent(societyId, `societies/${societyId}/documents/../other/file.pdf`)).toThrow(BadRequestException);
+    expect(storage.createDownloadIntent).not.toHaveBeenCalled();
+  });
+
   it('deletes an uploaded object when metadata does not match', async () => {
     const storage = {
       headObject: vi.fn().mockResolvedValue({ contentType:'application/pdf', contentLengthBytes:101 }),

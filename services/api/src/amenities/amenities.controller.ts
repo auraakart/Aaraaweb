@@ -44,6 +44,11 @@ class CreateAmenityBookingDto {
   @IsString() @Matches(/^[0-9a-f-]{36}$/i) unitId!: string;
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
+}
+
+class RevokeAmenityBookingDto {
+  @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
 
 class CreateAmenityDto {
@@ -139,6 +144,17 @@ export class AmenitiesController {
     @Body() dto: UpdateAmenityDto,
   ) {
     return this.amenities.updateAmenity(societyId, amenityId, dto);
+  }
+
+  @Patch('manage/bookings/:bookingId/revoke')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  revoke(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: RevokeAmenityBookingDto,
+  ) {
+    return this.amenities.revoke(societyId, this.requireUser(userId), bookingId, dto.reason);
   }
 
   @Get('manage/bookings')
