@@ -35,6 +35,7 @@ import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
 import { UtilitiesModule } from './utilities/utilities.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
+import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
 
 @Module({
   imports: [
@@ -73,11 +74,11 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     ScheduledWorkModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService, RequestObservabilityMiddleware],
+  providers: [PrismaService, RequestObservabilityMiddleware, RateLimitMiddleware],
   exports: [PrismaService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestObservabilityMiddleware).forRoutes('*');
+    consumer.apply(RequestObservabilityMiddleware, RateLimitMiddleware).forRoutes('*');
   }
 }
