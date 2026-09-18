@@ -16,9 +16,9 @@ class GuardController extends ChangeNotifier {
     required this.sessions,
     required this.offlineQueue,
     this.directoryCache = const GuardDirectoryCache(),
-    this.preferences = const GuardPreferences(),
+    this.preferences = const MemoryGuardPreferences(),
     GuardVoice? voice,
-  }) : voice = voice ?? DeviceGuardVoice();
+  }) : voice = voice ?? const SilentGuardVoice();
   final GuardApi api;
   final GuardSessionStore sessions;
   final OfflineActionQueue offlineQueue;
