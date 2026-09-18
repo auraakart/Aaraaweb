@@ -44,7 +44,12 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('RESIDENT_STATUS');
     expect((result.facts as {invoices:unknown[]}).invoices).toEqual([]);
     expect(result.sources).not.toContain('MaintenanceInvoice');
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    const sqlCalls=prisma.$queryRaw.mock.calls.map((call)=>{
+      const sql=call[0] as {strings?:readonly string[]};
+      return (sql.strings??[]).join('?');
+    });
+    expect(sqlCalls.some((sql)=>sql.includes('FROM "MaintenanceInvoice"'))).toBe(false);
+    expect(sqlCalls.some((sql)=>sql.includes('FROM "Payment"'))).toBe(false);
   });
 
   it('fails closed when the requested tool is outside the caller permissions',async()=>{
@@ -85,8 +90,8 @@ describe('V4.6 grounded AI assistant',()=>{
     prisma.$queryRaw.mockResolvedValueOnce([{id:'p-1',action:'CREATE_HELPDESK_TICKET',status:'EXECUTED'}]);
     const result=await service.audit('11111111-1111-4111-8111-111111111111');
     expect(result.items).toHaveLength(1);
-    const call=prisma.$queryRaw.mock.calls[0] as unknown[];
-    const sql=((call[0] as readonly string[])??[]).join('?');
+    const call=prisma.$queryRaw.mock.calls[0]?.[0] as {strings?:readonly string[]};
+    const sql=(call.strings??[]).join('?');
     expect(sql).toContain('"societyId"=?::uuid');
     expect(sql).not.toContain('"payload"');
   });
