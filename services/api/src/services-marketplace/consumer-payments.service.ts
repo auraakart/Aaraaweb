@@ -223,6 +223,25 @@ export class ConsumerPaymentsService {
         throw new BadRequestException(`Invalid payment transition from ${current.status} to ${input.status}`);
       }
 
+      let capturePlatformFeePaise: number | null = null;
+      let captureProviderAmountPaise: number | null = null;
+      if (input.status === 'CAPTURED') {
+        const commercial = await tx.$queryRaw<Array<{ settlementCommissionBps: number | null }>>(Prisma.sql`
+          SELECT cp."settlementCommissionBps"
+          FROM "ConsumerServicePayment" p
+          JOIN "ConsumerServiceBooking" b ON b."id"=p."bookingId"
+          LEFT JOIN "ConsumerProviderCommercialProfile" cp ON cp."providerId"=b."providerId"
+          WHERE p."id"=${paymentId}::uuid
+          LIMIT 1
+        `);
+        const commissionBps = commercial[0]?.settlementCommissionBps;
+        if (commissionBps === null || commissionBps === undefined) {
+          throw new BadRequestException('Provider settlement commission must be configured before payment capture');
+        }
+        capturePlatformFeePaise = Math.round((current.grossAmountPaise * commissionBps) / 10000);
+        captureProviderAmountPaise = current.grossAmountPaise - capturePlatformFeePaise;
+      }
+
       const rows = await tx.$queryRaw<ConsumerPaymentRow[]>(Prisma.sql`
         UPDATE "ConsumerServicePayment"
         SET
@@ -230,6 +249,8 @@ export class ConsumerPaymentsService {
           "provider" = COALESCE(${input.provider ?? null}, "provider"),
           "providerOrderId" = COALESCE(${input.providerOrderId ?? null}, "providerOrderId"),
           "providerPaymentId" = COALESCE(${input.providerPaymentId ?? null}, "providerPaymentId"),
+          "platformFeePaise" = CASE WHEN ${input.status} = 'CAPTURED' THEN ${capturePlatformFeePaise} ELSE "platformFeePaise" END,
+          "providerAmountPaise" = CASE WHEN ${input.status} = 'CAPTURED' THEN ${captureProviderAmountPaise} ELSE "providerAmountPaise" END,
           "capturedAt" = CASE WHEN ${input.status} = 'CAPTURED' THEN CURRENT_TIMESTAMP ELSE "capturedAt" END,
           "refundedAt" = CASE WHEN ${input.status} = 'REFUNDED' THEN CURRENT_TIMESTAMP ELSE "refundedAt" END,
           "updatedAt" = CURRENT_TIMESTAMP
