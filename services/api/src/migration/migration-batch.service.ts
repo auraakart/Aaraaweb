@@ -27,6 +27,7 @@ interface ReferenceSnapshot {
   workers: Array<{ phone: string }>;
   vendors: Array<{ code: string; name: string; gstin: string | null }>;
   parkingSlots: Array<{ code: string }>;
+  residentRelations: Array<{ phone: string; unitNumber: string; buildingCode: string; buildingName: string; relation: string }>;
 }
 
 type BatchRow = {
@@ -127,12 +128,19 @@ export class MigrationBatchService {
     `);
     if (!batches[0]) throw new NotFoundException('Migration batch not found');
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-      SELECT "rowNumber","normalized","identityKey","valid","issues"
+      SELECT "id","rowNumber","normalized","identityKey","valid","issues","targetType","targetId","committedAt","rolledBackAt"
       FROM "MigrationBatchRow"
       WHERE "batchId"=${batchId}::uuid
       ORDER BY "rowNumber"
     `);
-    return { ...batches[0], rows };
+    const artifacts = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT a."rowId",a."artifactType",a."artifactId",a."createdByMigration",a."metadata",a."createdAt",a."rolledBackAt"
+      FROM "MigrationBatchArtifact" a
+      JOIN "MigrationBatchRow" r ON r."id"=a."rowId"
+      WHERE r."batchId"=${batchId}::uuid
+      ORDER BY a."createdAt"
+    `);
+    return { ...batches[0], rows, artifacts };
   }
 
   validateReferences(
@@ -157,6 +165,13 @@ export class MigrationBatchService {
       [item.code, item.gstin ?? '', item.name].map((value) => this.norm(value)).filter(Boolean),
     ));
     const parkingSlotCodes = new Set(snapshot.parkingSlots.map((item) => this.norm(item.code)));
+    const residentRelations = snapshot.residentRelations.map((item) => ({
+      phone: this.norm(item.phone),
+      unitNumber: this.norm(item.unitNumber),
+      buildingCode: this.norm(item.buildingCode),
+      buildingName: this.norm(item.buildingName),
+      relation: item.relation.toUpperCase(),
+    }));
 
     rows.forEach((row, index) => {
       const rowNumber = index + 1;
@@ -188,6 +203,20 @@ export class MigrationBatchService {
       if (['RESIDENT', 'VEHICLE'].includes(entityType)) {
         const unitRef = value('unit_ref', 'unit', 'flat_number');
         if (unitRef) issues.push(...this.unitReferenceIssues(rowNumber, unitRef, units));
+        if (entityType === 'RESIDENT' && unitRef) {
+          const phone = this.norm(value('phone', 'mobile', 'mobile_number'));
+          const ref = this.norm(unitRef);
+          const split = ref.split(/[|/:]/).map((item) => item.trim()).filter(Boolean);
+          const existing = residentRelations.some((item) => {
+            const unitMatches = split.length >= 2
+              ? item.unitNumber === split[split.length - 1] && [item.buildingCode, item.buildingName].includes(split[0])
+              : item.unitNumber === ref;
+            return item.phone === phone && unitMatches;
+          });
+          if (phone && existing) {
+            issues.push({ row: rowNumber, field: 'phone', code: 'EXISTING_CONFLICT', message: 'Resident already has an active relationship with the referenced unit' });
+          }
+        }
       }
 
       if (entityType === 'PARKING') {
@@ -248,7 +277,7 @@ export class MigrationBatchService {
   }
 
   private async loadReferenceSnapshot(societyId: string): Promise<ReferenceSnapshot> {
-    const [buildings, units, accounts, vehicles, workers, vendors, parkingSlots] = await Promise.all([
+    const [buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations] = await Promise.all([
       this.prisma.$queryRaw<Array<{ code: string; name: string }>>(Prisma.sql`
         SELECT "code","name" FROM "Building" WHERE "societyId"=${societyId}::uuid
       `),
@@ -272,8 +301,23 @@ export class MigrationBatchService {
       this.prisma.$queryRaw<Array<{ code: string }>>(Prisma.sql`
         SELECT "code" FROM "ParkingSlot" WHERE "societyId"=${societyId}::uuid
       `),
+      this.prisma.$queryRaw<Array<{ phone: string; unitNumber: string; buildingCode: string; buildingName: string; relation: string }>>(Prisma.sql`
+        SELECT usr."phone", un."number" AS "unitNumber", b."code" AS "buildingCode", b."name" AS "buildingName", 'OWNER'::text AS "relation"
+        FROM "UnitOwnership" rel
+        JOIN "User" usr ON usr."id"=rel."userId"
+        JOIN "Unit" un ON un."id"=rel."unitId" AND un."societyId"=rel."societyId"
+        JOIN "Building" b ON b."id"=un."buildingId" AND b."societyId"=un."societyId"
+        WHERE rel."societyId"=${societyId}::uuid AND rel."active"=TRUE
+        UNION ALL
+        SELECT usr."phone", un."number" AS "unitNumber", b."code" AS "buildingCode", b."name" AS "buildingName", rel."relation"::text AS "relation"
+        FROM "UnitOccupancy" rel
+        JOIN "User" usr ON usr."id"=rel."userId"
+        JOIN "Unit" un ON un."id"=rel."unitId" AND un."societyId"=rel."societyId"
+        JOIN "Building" b ON b."id"=un."buildingId" AND b."societyId"=un."societyId"
+        WHERE rel."societyId"=${societyId}::uuid AND rel."active"=TRUE
+      `),
     ]);
-    return { buildings, units, accounts, vehicles, workers, vendors, parkingSlots };
+    return { buildings, units, accounts, vehicles, workers, vendors, parkingSlots, residentRelations };
   }
 
   private unitReferenceIssues(
@@ -301,7 +345,7 @@ export class MigrationBatchService {
     switch (entityType) {
       case 'BUILDING': return value('external_id') || value('code') || value('name');
       case 'UNIT': return `${value('building_ref', 'building', 'building_code')}|${value('unit_number', 'number', 'flat_number')}`;
-      case 'RESIDENT': return value('external_id') || value('phone', 'mobile', 'mobile_number');
+      case 'RESIDENT': return `${value('phone', 'mobile', 'mobile_number')}|${value('unit_ref', 'unit', 'flat_number')}`;
       case 'VEHICLE': return this.normPlate(value('registration_number', 'vehicle_number', 'registration'));
       case 'PARKING': return value('slot_code', 'parking_slot', 'slot');
       case 'WORKFORCE': return value('external_id') || value('phone', 'mobile', 'mobile_number');

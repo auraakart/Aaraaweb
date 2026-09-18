@@ -16,6 +16,9 @@ describe('MigrationBatchService evidence', () => {
     workers: [{ phone: '9000000001' }],
     vendors: [{ code: 'V001', name: 'Lift Co', gstin: '33ABCDE1234F1Z5' }],
     parkingSlots: [{ code: 'P-001' }],
+    residentRelations: [
+      { phone: '9000000003', unitNumber: '102', buildingCode: 'A', buildingName: 'Alpha', relation: 'OWNER' },
+    ],
   };
 
   it('fails missing building references and existing unit conflicts', () => {
@@ -32,6 +35,16 @@ describe('MigrationBatchService evidence', () => {
 
     const qualified = service.validateReferences('RESIDENT', [{ unit: 'A/101' }], snapshot);
     expect(qualified).toEqual([]);
+  });
+
+  it('rejects an existing active resident-unit relationship before commit', () => {
+    const issues = service.validateReferences('RESIDENT', [
+      { phone: '9000000003', unit: 'A/102', occupancy_type: 'TENANT' },
+    ], snapshot);
+    expect(issues).toContainEqual(expect.objectContaining({
+      field: 'phone',
+      code: 'EXISTING_CONFLICT',
+    }));
   });
 
   it('validates opening balance accounts and optional unit references', () => {
