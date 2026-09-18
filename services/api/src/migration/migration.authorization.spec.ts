@@ -1,4 +1,5 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { describe, expect, it } from 'vitest';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { AppPermission } from '../auth/permission.types';
 import { MigrationController } from './migration.controller';
