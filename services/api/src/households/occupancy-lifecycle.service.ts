@@ -44,6 +44,58 @@ export class OccupancyLifecycleService{
     this.prisma.$queryRaw(Prisma.sql`SELECT "id","kind","fileReference","uploadedByUserId","verifiedAt","verifiedByUserId","note","createdAt" FROM "OccupancyLifecycleDocument" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`)
   ]);return {...rows[0],events,checklist,documents};}
 
+  async readiness(societyId:string,id:string){
+    const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
+      SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
+    `);
+    const row=rows[0];
+    if(!row)throw new NotFoundException('Occupancy lifecycle request not found');
+    const [checklist,documents,household,currentOccupancy]=await Promise.all([
+      this.prisma.$queryRaw<Array<{total:bigint;required:bigint;completedRequired:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total",
+               COUNT(*) FILTER (WHERE "required"=true)::bigint AS "required",
+               COUNT(*) FILTER (WHERE "required"=true AND "completedAt" IS NOT NULL)::bigint AS "completedRequired"
+        FROM "OccupancyLifecycleChecklistItem"
+        WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
+      `),
+      this.prisma.$queryRaw<Array<{total:bigint;verified:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total",
+               COUNT(*) FILTER (WHERE "verifiedAt" IS NOT NULL)::bigint AS "verified"
+        FROM "OccupancyLifecycleDocument"
+        WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
+      `),
+      this.prisma.household.findFirst({where:{societyId,unitId:row.unitId},select:{id:true}}),
+      this.prisma.unitOccupancy.findFirst({where:{societyId,unitId:row.unitId,userId:row.userId,active:true},select:{id:true,primaryGateContact:true,gateApprovalEnabled:true,gateNotificationEnabled:true}})
+    ]);
+    const householdId=household?.id;
+    const [activeVehicles,activeWorkforce,activeParkingAllocations]=householdId?await Promise.all([
+      this.prisma.householdVehicle.count({where:{societyId,householdId,active:true}}),
+      this.prisma.workforceAssignment.count({where:{societyId,householdId,active:true}}),
+      this.prisma.$queryRaw<Array<{count:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "count" FROM "ParkingAllocation"
+        WHERE "societyId"=${societyId}::uuid AND "householdId"=${householdId}::uuid AND "endedAt" IS NULL
+      `)
+    ]):[0,0,[{count:0n}]];
+    const required=Number(checklist[0]?.required??0n),completedRequired=Number(checklist[0]?.completedRequired??0n);
+    return {
+      requestId:id,
+      kind:row.kind,
+      checklist:{total:Number(checklist[0]?.total??0n),required,completedRequired,mandatoryReady:required===completedRequired},
+      documents:{total:Number(documents[0]?.total??0n),verified:Number(documents[0]?.verified??0n)},
+      handover:{
+        activeVehicles,
+        activeWorkforceAssignments:activeWorkforce,
+        activeParkingAllocations:Number(activeParkingAllocations[0]?.count??0n),
+        gateAuthority:currentOccupancy?{
+          primaryGateContact:currentOccupancy.primaryGateContact,
+          gateApprovalEnabled:currentOccupancy.gateApprovalEnabled,
+          gateNotificationEnabled:currentOccupancy.gateNotificationEnabled
+        }:null
+      },
+      boundary:'Operational readiness evidence only; this does not determine legal, police-verification, rental-policy or ownership validity.'
+    };
+  }
+
   async getMine(societyId:string,userId:string,id:string){const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT "id" FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid AND ("requestedByUserId"=${userId}::uuid OR "userId"=${userId}::uuid) LIMIT 1
   `);if(!rows.length)throw new NotFoundException('Occupancy lifecycle request not found');return this.get(societyId,id);}
