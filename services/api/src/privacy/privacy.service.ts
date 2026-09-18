@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -7,7 +7,7 @@ type PrivacyCaseStatus = 'OPEN' | 'IN_REVIEW' | 'WAITING' | 'COMPLETED' | 'REJEC
 
 type PrivacyCaseRow = {
   id: string;
-  societyId: string;
+  societyId: string | null;
   subjectUserId: string;
   requestType: PrivacyRequestType;
   status: PrivacyCaseStatus;
@@ -15,11 +15,16 @@ type PrivacyCaseRow = {
   assignedToUserId: string | null;
   legalHold: boolean;
   retentionReason: string | null;
+  retentionDecision: 'ALLOW' | 'BLOCK' | null;
+  retentionDecisionReason: string | null;
+  retentionReviewedAt: Date | null;
+  retentionReviewedByUserId: string | null;
   dueAt: Date | null;
   closedAt: Date | null;
   createdByUserId: string;
   createdAt: Date;
   updatedAt: Date;
+  requestKey?: string | null;
 };
 
 const TERMINAL_STATUSES: readonly PrivacyCaseStatus[] = ['COMPLETED', 'REJECTED', 'CANCELLED'];
@@ -27,6 +32,69 @@ const TERMINAL_STATUSES: readonly PrivacyCaseStatus[] = ['COMPLETED', 'REJECTED'
 @Injectable()
 export class PrivacyService {
   constructor(private readonly prisma: PrismaService) {}
+
+  listMine(userId: string, societyId?: string) {
+    return this.prisma.$queryRaw<Array<Pick<PrivacyCaseRow, 'id' | 'requestType' | 'status' | 'requestSummary' | 'legalHold' | 'dueAt' | 'closedAt' | 'createdAt' | 'updatedAt'>>>(Prisma.sql`
+      SELECT "id","requestType","status","requestSummary","legalHold","dueAt","closedAt","createdAt","updatedAt"
+      FROM "PrivacyRequestCase"
+      WHERE "subjectUserId"=${userId}::uuid
+        AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
+      ORDER BY "createdAt" DESC
+      LIMIT 100
+    `);
+  }
+
+  async createMine(
+    userId: string,
+    societyId: string | undefined,
+    input: { requestType: 'ACCESS' | 'CORRECTION' | 'ERASURE'; requestSummary: string; requestKey: string },
+  ) {
+    const summary = input.requestSummary.trim();
+    const requestKey = input.requestKey.trim();
+    if (!summary) throw new BadRequestException('Privacy request summary is required');
+    if (!requestKey) throw new BadRequestException('Privacy request key is required');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${requestKey}`}))`);
+      const existingRows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+        SELECT *
+        FROM "PrivacyRequestCase"
+        WHERE "subjectUserId"=${userId}::uuid AND "requestKey"=${requestKey}
+        LIMIT 1
+      `);
+      const existing = existingRows[0];
+      if (existing) {
+        const sameContext = existing.societyId === (societyId ?? null);
+        const samePayload = sameContext && existing.requestType === input.requestType && existing.requestSummary === summary;
+        if (!samePayload) throw new ConflictException('Privacy request key is already used for another request');
+        return existing;
+      }
+
+      const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+        INSERT INTO "PrivacyRequestCase" (
+          "societyId","subjectUserId","requestType","requestSummary","createdByUserId","requestKey"
+        ) VALUES (
+          ${societyId ?? null}::uuid,${userId}::uuid,${input.requestType},${summary},${userId}::uuid,${requestKey}
+        )
+        RETURNING *
+      `);
+      const privacyCase = rows[0];
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "PrivacyRequestEvent" (
+          "societyId","caseId","actorUserId","eventType","summary","metadataJson"
+        ) VALUES (
+          ${societyId ?? null}::uuid,${privacyCase.id}::uuid,${userId}::uuid,
+          'SELF_SERVICE_CREATED','Privacy request created by the data subject',
+          ${JSON.stringify({ requestType: input.requestType })}::jsonb
+        )
+      `);
+      return privacyCase;
+    }).catch((error) => {
+      if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
+      if (this.isUniqueViolation(error)) throw new ConflictException('Privacy request key already exists');
+      throw error;
+    });
+  }
 
   listCases(societyId: string) {
     return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
@@ -95,8 +163,23 @@ export class PrivacyService {
     });
   }
 
+  listPlatformCases() {
+    return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+      SELECT pc.*, subject."name" AS "subjectName", subject."phone" AS "subjectPhone",
+             assignee."name" AS "assignedToName"
+      FROM "PrivacyRequestCase" pc
+      JOIN "User" subject ON subject."id" = pc."subjectUserId"
+      LEFT JOIN "User" assignee ON assignee."id" = pc."assignedToUserId"
+      WHERE pc."societyId" IS NULL
+      ORDER BY
+        CASE pc."status" WHEN 'OPEN' THEN 0 WHEN 'IN_REVIEW' THEN 1 WHEN 'WAITING' THEN 2 ELSE 3 END,
+        pc."createdAt" DESC
+      LIMIT 250
+    `);
+  }
+
   async updateStatus(
-    societyId: string,
+    societyId: string | undefined,
     actorUserId: string,
     caseId: string,
     status: PrivacyCaseStatus,
@@ -108,8 +191,13 @@ export class PrivacyService {
       if (current.status === status) return current;
       throw new BadRequestException('Closed privacy request cases cannot change status');
     }
-    if (status === 'COMPLETED' && current.requestType === 'ERASURE' && current.legalHold) {
-      throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+    if (status === 'COMPLETED' && current.requestType === 'ERASURE') {
+      if (current.legalHold) {
+        throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+      }
+      if (current.retentionDecision !== 'ALLOW') {
+        throw new BadRequestException('Erasure case cannot be completed until retention review allows completion');
+      }
     }
     const closedAt = TERMINAL_STATUSES.includes(status) ? new Date() : null;
     const cleanNote = note?.trim() || 'Privacy case status updated';
@@ -121,9 +209,10 @@ export class PrivacyService {
             "closedAt" = ${closedAt},
             "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${caseId}::uuid
-          AND "societyId" = ${societyId}::uuid
+          AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
           AND "status" = ${current.status}
           AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
         RETURNING *
       `);
       const updated = rows[0];
@@ -132,7 +221,7 @@ export class PrivacyService {
         INSERT INTO "PrivacyRequestEvent" (
           "societyId", "caseId", "actorUserId", "eventType", "summary", "metadataJson"
         ) VALUES (
-          ${societyId}::uuid,
+          ${societyId ?? null}::uuid,
           ${caseId}::uuid,
           ${actorUserId}::uuid,
           'STATUS_CHANGED',
@@ -145,7 +234,7 @@ export class PrivacyService {
   }
 
   async updateLegalHold(
-    societyId: string,
+    societyId: string | undefined,
     actorUserId: string,
     caseId: string,
     legalHold: boolean,
@@ -164,11 +253,16 @@ export class PrivacyService {
         UPDATE "PrivacyRequestCase"
         SET "legalHold" = ${legalHold},
             "retentionReason" = ${legalHold ? reason : null},
+            "retentionDecision" = NULL,
+            "retentionDecisionReason" = NULL,
+            "retentionReviewedAt" = NULL,
+            "retentionReviewedByUserId" = NULL,
             "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${caseId}::uuid
-          AND "societyId" = ${societyId}::uuid
+          AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
           AND "status" = ${current.status}
           AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
         RETURNING *
       `);
       const updated = rows[0];
@@ -177,40 +271,100 @@ export class PrivacyService {
         INSERT INTO "PrivacyRequestEvent" (
           "societyId", "caseId", "actorUserId", "eventType", "summary", "metadataJson"
         ) VALUES (
-          ${societyId}::uuid,
+          ${societyId ?? null}::uuid,
           ${caseId}::uuid,
           ${actorUserId}::uuid,
           'LEGAL_HOLD_CHANGED',
           ${legalHold ? 'Legal hold enabled' : 'Legal hold released'},
-          ${JSON.stringify({ legalHold, retentionReason: legalHold ? reason : null })}::jsonb
+          ${JSON.stringify({ legalHold, retentionReason: legalHold ? reason : null, retentionReviewInvalidated: current.retentionDecision !== null })}::jsonb
         )
       `);
       return updated;
     });
   }
 
-  async history(societyId: string, caseId: string) {
+  async updateRetentionReview(
+    societyId: string | undefined,
+    actorUserId: string,
+    caseId: string,
+    decision: 'ALLOW' | 'BLOCK',
+    reasonRaw: string,
+  ) {
+    const current = await this.findCase(societyId, caseId);
+    if (!current) throw new NotFoundException('Privacy request case not found');
+    if (current.requestType !== 'ERASURE') {
+      throw new BadRequestException('Retention review is only valid for erasure cases');
+    }
+    if (TERMINAL_STATUSES.includes(current.status)) {
+      throw new BadRequestException('Closed privacy request cases cannot change retention review');
+    }
+    const reason = reasonRaw.trim();
+    if (!reason) throw new BadRequestException('Retention review reason is required');
+    if (decision === 'ALLOW' && current.legalHold) {
+      throw new BadRequestException('Retention review cannot allow erasure while legal hold is active');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+        UPDATE "PrivacyRequestCase"
+        SET "retentionDecision" = ${decision},
+            "retentionDecisionReason" = ${reason},
+            "retentionReviewedAt" = CURRENT_TIMESTAMP,
+            "retentionReviewedByUserId" = ${actorUserId}::uuid,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${caseId}::uuid
+          AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
+          AND "status" = ${current.status}
+          AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
+        RETURNING *
+      `);
+      const updated = rows[0];
+      if (!updated) throw new BadRequestException('Privacy request case changed; refresh and retry');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "PrivacyRequestEvent" (
+          "societyId", "caseId", "actorUserId", "eventType", "summary", "metadataJson"
+        ) VALUES (
+          ${societyId ?? null}::uuid,
+          ${caseId}::uuid,
+          ${actorUserId}::uuid,
+          'RETENTION_REVIEWED',
+          ${decision === 'ALLOW' ? 'Retention review allows erasure completion' : 'Retention review blocks erasure completion'},
+          ${JSON.stringify({ decision, reason })}::jsonb
+        )
+      `);
+      return updated;
+    });
+  }
+
+  async history(societyId: string | undefined, caseId: string) {
     const current = await this.findCase(societyId, caseId);
     if (!current) throw new NotFoundException('Privacy request case not found');
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT pe.*, actor."name" AS "actorName"
       FROM "PrivacyRequestEvent" pe
       JOIN "User" actor ON actor."id" = pe."actorUserId"
-      WHERE pe."societyId" = ${societyId}::uuid
+      WHERE pe."societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
         AND pe."caseId" = ${caseId}::uuid
       ORDER BY pe."createdAt" ASC
     `);
   }
 
-  private async findCase(societyId: string, caseId: string) {
+  private async findCase(societyId: string | undefined, caseId: string) {
     const rows = await this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT *
       FROM "PrivacyRequestCase"
       WHERE "id" = ${caseId}::uuid
-        AND "societyId" = ${societyId}::uuid
+        AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  private isUniqueViolation(error: unknown) {
+    if (typeof error !== 'object' || error === null) return false;
+    const candidate = error as { code?: string; meta?: { code?: string } };
+    return candidate.code === '23505' || candidate.code === 'P2002' || candidate.meta?.code === '23505';
   }
 
   private async assertSocietySubjectRelationship(societyId: string, userId: string) {

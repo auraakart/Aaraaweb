@@ -69,8 +69,10 @@ export class ParkingPermitService {
           JOIN "Visitor" v ON v."id"=${input.visitorId}::uuid AND v."societyId"=ps."societyId"
           JOIN "VisitorPass" vp ON vp."id"=${input.visitorPassId}::uuid
             AND vp."visitorId"=v."id" AND vp."societyId"=ps."societyId"
+          LEFT JOIN "ParkingPolicy" policy ON policy."societyId"=ps."societyId"
           WHERE ps."id"=${input.slotId}::uuid AND ps."societyId"=${societyId}::uuid
             AND ps."active"=true AND ps."slotType" IN ('VISITOR','TEMPORARY','ACCESSIBLE')
+            AND (ps."slotType"<>'TEMPORARY' OR COALESCE(policy."allowTemporaryOverflow",true)=true)
             AND v."status"='APPROVED' AND vp."status"='ACTIVE'
             AND ${startsAt} >= vp."validFrom" AND ${endsAt} <= vp."validUntil"
           FOR UPDATE OF ps, vp

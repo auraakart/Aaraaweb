@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
+import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
@@ -44,6 +45,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime?: NotificationRealtimeService,
+    private readonly push?: PushNotificationService,
   ) {}
 
   onModuleInit() {
@@ -240,6 +242,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
       if (sweep.skipped) return { skipped: true, reason: sweep.reason };
 
       const dispatchResult = await this.dispatchNotices(sweep.noticeDispatches);
+      const pushResult = this.push ? await this.push.drainDurableOutbox() : null;
       return {
         skipped: false,
         processed: sweep.processed,
@@ -247,6 +250,12 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
         sosEscalated: sweep.sosEscalated,
         noticeDispatched: dispatchResult.dispatched,
         noticeDispatchFailed: dispatchResult.failed,
+        ...(pushResult ? {
+          pushDispatched: pushResult.dispatched,
+          pushDeferred: pushResult.deferred,
+          pushFailed: pushResult.failed,
+          pushClaimed: pushResult.claimed,
+        } : {}),
       };
     } catch (error) {
       this.logger.error('Scheduled operational sweep failed', error instanceof Error ? error.stack : String(error));

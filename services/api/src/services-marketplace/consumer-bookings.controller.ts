@@ -32,6 +32,7 @@ class ConsumerBookingDto {
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
 }
 
 class ConsumerPaymentIntentDto {
@@ -109,6 +110,7 @@ export class ConsumerBookingsController {
       scheduledFrom: new Date(dto.scheduledFrom),
       scheduledUntil: new Date(dto.scheduledUntil),
       notes: dto.notes,
+      idempotencyKey: dto.idempotencyKey,
     });
   }
 

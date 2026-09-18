@@ -70,6 +70,14 @@ describe('permission matrix', () => {
     expect(hasPermission([AppRole.OWNER], AppPermission.GATE_VISITOR_VERIFY)).toBe(false);
   });
 
+  it('keeps the dedicated auditor read-only across privileged domains', () => {
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.AUDIT_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.FINANCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_CONFIGURATION_MANAGE)).toBe(false);
+  });
+
   it('keeps unmapped operational permissions denied by default', () => {
     expect(hasPermission([AppRole.STAFF], AppPermission.SOCIETY_CONFIGURATION_MANAGE)).toBe(false);
   });

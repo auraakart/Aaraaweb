@@ -56,6 +56,7 @@ void main() {
       unitId: 'unit-22',
       startsAt: startsAt,
       endsAt: endsAt,
+      idempotencyKey: 'amenity-test-123',
     );
 
     expect(api.method, 'POST');
@@ -64,6 +65,7 @@ void main() {
       'unitId': 'unit-22',
       'startsAt': '2027-01-02T10:00:00.000Z',
       'endsAt': '2027-01-02T11:00:00.000Z',
+      'idempotencyKey': 'amenity-test-123',
     });
   });
 

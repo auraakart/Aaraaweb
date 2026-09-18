@@ -55,6 +55,8 @@ describe('ParkingService', () => {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: slotId, active: true }])
         .mockResolvedValueOnce([{ id: vehicleId }])
+        .mockResolvedValueOnce([{ maxActiveResidentVehicles: 2, requireCredential: false }])
+        .mockResolvedValueOnce([{ count: 0n }])
         .mockRejectedValueOnce({ code: '23505' }),
       $executeRaw: vi.fn(),
     };
@@ -62,6 +64,23 @@ describe('ParkingService', () => {
     const service = new ParkingService(prisma as unknown as PrismaService);
     await expect(service.allocate(societyId, actorId, { slotId, householdId, vehicleId }))
       .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('enforces credential-required society policy before allocation', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: slotId, active: true }])
+        .mockResolvedValueOnce([{ id: vehicleId }])
+        .mockResolvedValueOnce([{ maxActiveResidentVehicles: 2, requireCredential: true }])
+        .mockResolvedValueOnce([{ count: 0n }])
+        .mockResolvedValueOnce([]),
+      $executeRaw: vi.fn(),
+    };
+    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
+    const service = new ParkingService(prisma as unknown as PrismaService);
+    await expect(service.allocate(societyId, actorId, { slotId, householdId, vehicleId }))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('releases only an active society-scoped allocation and records evidence', async () => {

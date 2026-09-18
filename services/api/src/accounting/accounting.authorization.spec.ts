@@ -9,12 +9,14 @@ describe('AccountingController authorization', () => {
   it('requires finance read for accounting queries', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.listAccounts)).toEqual([AppPermission.FINANCE_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.listPeriods)).toEqual([AppPermission.FINANCE_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.periodCloseReadiness)).toEqual([AppPermission.FINANCE_READ]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.listJournals)).toEqual([AppPermission.FINANCE_READ]);
   });
 
   it('requires finance manage for accounting mutations', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.createAccount)).toEqual([AppPermission.FINANCE_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.createPeriod)).toEqual([AppPermission.FINANCE_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.closePeriod)).toEqual([AppPermission.FINANCE_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.createJournal)).toEqual([AppPermission.FINANCE_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.postJournal)).toEqual([AppPermission.FINANCE_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AccountingController.prototype.reverseJournal)).toEqual([AppPermission.FINANCE_MANAGE]);

@@ -71,14 +71,143 @@ export class AccountingService {
     `);
   }
 
+  async periodCloseReadiness(societyId: string, periodId: string) {
+    const periods = await this.prisma.$queryRaw<Array<{
+      id: string;
+      code: string;
+      name: string;
+      startsOn: Date;
+      endsOn: Date;
+      status: 'OPEN' | 'CLOSED';
+      closedAt: Date | null;
+      closedByUserId: string | null;
+    }>>(Prisma.sql`
+      SELECT "id", "code", "name", "startsOn", "endsOn", "status", "closedAt", "closedByUserId"
+      FROM "AccountingPeriod"
+      WHERE "id" = ${periodId}::uuid AND "societyId" = ${societyId}::uuid
+      LIMIT 1
+    `);
+    const period = periods[0];
+    if (!period) throw new NotFoundException('Accounting period not found');
+
+    const journalSummary = await this.prisma.$queryRaw<Array<{
+      draftCount: bigint;
+      postedCount: bigint;
+      reversedCount: bigint;
+      debit: bigint;
+      credit: bigint;
+    }>>(Prisma.sql`
+      SELECT
+        COUNT(*) FILTER (WHERE je."status" = 'DRAFT') AS "draftCount",
+        COUNT(*) FILTER (WHERE je."status" = 'POSTED') AS "postedCount",
+        COUNT(*) FILTER (WHERE je."status" = 'REVERSED') AS "reversedCount",
+        COALESCE(SUM(CASE WHEN je."status" IN ('POSTED','REVERSED') THEN jl."debitPaise" ELSE 0 END), 0) AS debit,
+        COALESCE(SUM(CASE WHEN je."status" IN ('POSTED','REVERSED') THEN jl."creditPaise" ELSE 0 END), 0) AS credit
+      FROM "JournalEntry" je
+      LEFT JOIN "JournalLine" jl
+        ON jl."entryId" = je."id" AND jl."societyId" = je."societyId"
+      WHERE je."societyId" = ${societyId}::uuid AND je."periodId" = ${periodId}::uuid
+    `);
+    const summary = journalSummary[0] ?? { draftCount: 0n, postedCount: 0n, reversedCount: 0n, debit: 0n, credit: 0n };
+    const blockers = Number(summary.draftCount) > 0
+      ? [{ code: 'DRAFT_JOURNALS', count: Number(summary.draftCount), message: 'Post or remove all draft journals before closing this period.' }]
+      : [];
+
+    return {
+      period: {
+        id: period.id,
+        code: period.code,
+        name: period.name,
+        startsOn: period.startsOn,
+        endsOn: period.endsOn,
+        status: period.status,
+        closedAt: period.closedAt,
+        closedByUserId: period.closedByUserId,
+      },
+      journalSummary: {
+        draftCount: Number(summary.draftCount),
+        postedCount: Number(summary.postedCount),
+        reversedCount: Number(summary.reversedCount),
+        debitPaise: summary.debit.toString(),
+        creditPaise: summary.credit.toString(),
+        balanced: summary.debit === summary.credit,
+      },
+      blockers,
+      readyToClose: period.status === 'OPEN' && blockers.length === 0 && summary.debit === summary.credit,
+    };
+  }
+
+  async closePeriod(societyId: string, userId: string, periodId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const periods = await tx.$queryRaw<Array<{
+        id: string;
+        code: string;
+        name: string;
+        startsOn: Date;
+        endsOn: Date;
+        status: 'OPEN' | 'CLOSED';
+      }>>(Prisma.sql`
+        SELECT "id", "code", "name", "startsOn", "endsOn", "status"
+        FROM "AccountingPeriod"
+        WHERE "id" = ${periodId}::uuid AND "societyId" = ${societyId}::uuid
+        FOR UPDATE
+      `);
+      const period = periods[0];
+      if (!period) throw new NotFoundException('Accounting period not found');
+      if (period.status !== 'OPEN') throw new ConflictException('Accounting period is already closed');
+
+      const draftRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "JournalEntry"
+        WHERE "societyId" = ${societyId}::uuid
+          AND "periodId" = ${periodId}::uuid
+          AND "status" = 'DRAFT'
+        FOR UPDATE
+      `);
+      if (draftRows.length > 0) {
+        throw new ConflictException('Accounting period has draft journals that must be resolved before close');
+      }
+
+      const totals = await tx.$queryRaw<Array<{ debit: bigint; credit: bigint }>>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(jl."debitPaise"), 0) AS debit,
+          COALESCE(SUM(jl."creditPaise"), 0) AS credit
+        FROM "JournalLine" jl
+        JOIN "JournalEntry" je
+          ON je."id" = jl."entryId" AND je."societyId" = jl."societyId"
+        WHERE je."societyId" = ${societyId}::uuid
+          AND je."periodId" = ${periodId}::uuid
+          AND je."status" IN ('POSTED','REVERSED')
+      `);
+      if ((totals[0]?.debit ?? 0n) !== (totals[0]?.credit ?? 0n)) {
+        throw new ConflictException('Accounting period cannot close because posted journal totals are not balanced');
+      }
+
+      const closed = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        UPDATE "AccountingPeriod"
+        SET "status" = 'CLOSED',
+            "closedAt" = CURRENT_TIMESTAMP,
+            "closedByUserId" = ${userId}::uuid,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${periodId}::uuid
+          AND "societyId" = ${societyId}::uuid
+          AND "status" = 'OPEN'
+        RETURNING "id", "code", "name", "startsOn", "endsOn", "status", "closedAt", "closedByUserId"
+      `);
+      if (!closed.length) throw new ConflictException('Accounting period could not be closed');
+      return closed[0];
+    }).catch((error) => this.rethrowKnownDatabaseError(error, 'Accounting period could not be closed'));
+  }
+
   async createDraft(societyId: string, userId: string, input: JournalInput) {
     this.validateLines(input.lines);
     return this.prisma.$transaction(async (tx) => {
-      const periods = await tx.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date }>>(Prisma.sql`
-        SELECT "id", "startsOn", "endsOn" FROM "AccountingPeriod"
+      const periods = await tx.$queryRaw<Array<{ id: string; status: string; startsOn: Date; endsOn: Date }>>(Prisma.sql`
+        SELECT "id", "status", "startsOn", "endsOn" FROM "AccountingPeriod"
         WHERE "id" = ${input.periodId}::uuid AND "societyId" = ${societyId}::uuid LIMIT 1
+        FOR SHARE
       `);
       if (!periods.length) throw new BadRequestException('Accounting period not found for this society');
+      if (periods[0].status !== 'OPEN') throw new ConflictException('Accounting period is closed');
       this.assertDateInsidePeriod(input.entryDate, periods[0].startsOn, periods[0].endsOn);
       const headers = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "JournalEntry" ("societyId", "periodId", "entryNumber", "entryDate", "description", "sourceType", "sourceId", "externalReference", "createdByUserId")

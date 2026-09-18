@@ -6,6 +6,7 @@ import { EmergencyBroadcastManageGuard } from './emergency-broadcast-manage.guar
 import { EmergencyBroadcastService } from './emergency-broadcast.service';
 import { SosFallbackController } from './sos-fallback.controller';
 import { SosFallbackService } from './sos-fallback.service';
+import { SosRespondersController } from './sos-responders.controller';
 import { SosRoutingController } from './sos-routing.controller';
 import { SosRoutingService } from './sos-routing.service';
 import { SosController } from './sos.controller';
@@ -13,7 +14,13 @@ import { SosService } from './sos.service';
 
 @Module({
   imports: [EntitlementsModule],
-  controllers: [SosController, SosRoutingController, EmergencyBroadcastController, SosFallbackController],
+  controllers: [
+    SosController,
+    SosRespondersController,
+    SosRoutingController,
+    EmergencyBroadcastController,
+    SosFallbackController,
+  ],
   providers: [
     PrismaService,
     SosService,

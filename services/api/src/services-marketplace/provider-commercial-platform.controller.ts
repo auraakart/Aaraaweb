@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsIn, IsISO8601, IsOptional } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
 import { BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -24,6 +24,8 @@ class SetProviderCommercialDto {
   @IsOptional() @IsISO8601() placementEndsAt?: string;
 
   @IsOptional() @IsBoolean() active?: boolean;
+
+  @IsOptional() @IsInt() @Min(0) @Max(10000) settlementCommissionBps?: number;
 }
 
 @Controller('platform/services/providers/:providerId/commercial')

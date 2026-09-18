@@ -1,0 +1,113 @@
+name: Performance Regression
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'services/api/**'
+      - 'scripts/performance-smoke.mjs'
+      - '.github/workflows/performance-regression.yml'
+      - 'docs/PERFORMANCE-REGRESSION-EVIDENCE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-production-benchmark:
+    name: Local production-mode API benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_perf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_perf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_perf
+      AARAAGATE_PERF_ACCESS_TOKEN: aaraagate-perf-access-token-local-ci
+      AARAAGATE_PERF_REFRESH_TOKEN: aaraagate-perf-refresh-token-local-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Apply clean migrations
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Seed authenticated benchmark subject
+        working-directory: services/api
+        run: node scripts/performance-seed.mjs
+      - name: Build API
+        run: pnpm --filter @aaraagate/api build
+      - name: Start production-mode API
+        env:
+          NODE_ENV: production
+          REDIS_URL: redis://localhost:6379
+          PORT: 3000
+          APP_VERSION: perf-regression
+          GIT_SHA: ${{ github.sha }}
+          OTP_DELIVERY_PROVIDER: msg91
+          MSG91_AUTH_KEY: ci-placeholder-auth-key
+          MSG91_OTP_TEMPLATE_ID: ci-placeholder-template
+        run: |
+          pnpm --filter @aaraagate/api start > /tmp/aaraagate-perf-api.log 2>&1 &
+          echo $! > /tmp/aaraagate-perf-api.pid
+          for attempt in $(seq 1 20); do
+            curl --fail --silent http://127.0.0.1:3000/api/v1/health/ready >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/aaraagate-perf-api.log
+          exit 1
+      - name: Run regression benchmark
+        env:
+          AARAAGATE_PERF_BASE_URL: http://127.0.0.1:3000
+          AARAAGATE_PERF_OUTPUT: /tmp/aaraagate-performance-summary.json
+        run: node scripts/performance-smoke.mjs
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-regression-${{ github.sha }}
+          path: /tmp/aaraagate-performance-summary.json
+          if-no-files-found: warn
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/aaraagate-perf-api.pid ]; then kill $(cat /tmp/aaraagate-perf-api.pid) || true; fi
+      - name: Print API logs on failure
+        if: failure()
+        run: cat /tmp/aaraagate-perf-api.log || true

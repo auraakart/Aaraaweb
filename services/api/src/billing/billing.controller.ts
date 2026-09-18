@@ -99,6 +99,24 @@ export class BillingController {
     return this.billing.listPaymentAudit(societyId);
   }
 
+  @Get('payments/admin/webhook-receipts')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_RECONCILE)
+  webhookReceipts(@CurrentTenant() societyId: string) {
+    return this.billing.listWebhookReceipts(societyId);
+  }
+
+  @Post('payments/admin/webhook-receipts/:receiptId/replay')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_RECONCILE)
+  replayWebhook(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('receiptId', new ParseUUIDPipe()) receiptId: string,
+  ) {
+    return this.billing.replayWebhookReceipt(societyId, this.requireUser(userId), receiptId);
+  }
+
   private requireUser(userId?: string) {
     if (!userId) throw new BadRequestException('Authenticated user is required');
     return userId;

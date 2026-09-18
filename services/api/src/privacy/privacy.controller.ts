@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { PrivacyService } from './privacy.service';
+import { PrivacySubjectDataService } from './privacy-subject-data.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
@@ -33,10 +34,15 @@ class UpdatePrivacyLegalHoldDto {
   @IsOptional() @IsString() @MaxLength(1000) retentionReason?: string;
 }
 
+class UpdatePrivacyRetentionReviewDto {
+  @IsIn(['ALLOW', 'BLOCK']) decision!: 'ALLOW' | 'BLOCK';
+  @IsString() @MaxLength(1000) reason!: string;
+}
+
 @Controller('privacy')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class PrivacyController {
-  constructor(private readonly privacy: PrivacyService) {}
+  constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
 
   @Get('cases')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
@@ -52,6 +58,22 @@ export class PrivacyController {
     @CurrentUser() userId?: string,
   ) {
     return this.privacy.createCase(societyId, this.requireUser(userId), dto);
+  }
+
+  @Get('cases/:caseId/erasure-plan')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  erasurePlan(@Param('caseId', ParseUUIDPipe) caseId: string, @CurrentTenant() societyId: string) {
+    return this.subjectData.erasurePlan(societyId, caseId);
+  }
+
+  @Post('cases/:caseId/execute-erasure')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_MANAGE)
+  executeErasure(
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.subjectData.executeErasure(societyId, this.requireUser(userId), caseId);
   }
 
   @Get('cases/:caseId/history')
@@ -86,6 +108,17 @@ export class PrivacyController {
       dto.legalHold,
       dto.retentionReason,
     );
+  }
+
+  @Patch('cases/:caseId/retention-review')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_MANAGE)
+  updateRetentionReview(
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+    @Body() dto: UpdatePrivacyRetentionReviewDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.privacy.updateRetentionReview(societyId, this.requireUser(userId), caseId, dto.decision, dto.reason);
   }
 
   private requireUser(userId?: string) {

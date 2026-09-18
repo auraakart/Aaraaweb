@@ -27,6 +27,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
   List<Map<String, dynamic>> _locations = const [];
   String? _locationKey;
   DateTime? _scheduledFrom;
+  String? _bookingAttemptKey;
 
   @override
   void initState() {
@@ -94,6 +95,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
         _locationKey = _key(location);
         _available = null;
         _availabilityMessage = null;
+        _bookingAttemptKey = null;
       });
       await _checkAvailability();
     } catch (e) {
@@ -121,6 +123,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     }
     setState(() {
       _scheduledFrom = selected;
+      _bookingAttemptKey = null;
       _available = null;
       _availabilityMessage = null;
     });
@@ -130,6 +133,7 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
   Future<void> _selectLocation(String? value) async {
     setState(() {
       _locationKey = value;
+      _bookingAttemptKey = null;
       _available = null;
       _availabilityMessage = null;
     });
@@ -200,6 +204,8 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     }
     final durationMinutes = (widget.offering['durationMinutes'] as num?)?.toInt() ?? 60;
     final until = from.add(Duration(minutes: durationMinutes > 0 ? durationMinutes : 60));
+    _bookingAttemptKey ??= 'service-${DateTime.now().microsecondsSinceEpoch}';
+    final idempotencyKey = _bookingAttemptKey!;
     setState(() => _submitting = true);
     try {
       await widget.apiClient.post('/api/v1/consumer/services/bookings', {
@@ -208,15 +214,17 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
         'offeringId': offeringId,
         'scheduledFrom': from.toUtc().toIso8601String(),
         'scheduledUntil': until.toUtc().toIso8601String(),
+        'idempotencyKey': idempotencyKey,
       });
       if (!mounted) return;
+      _bookingAttemptKey = null;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service request created.')));
       Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         setState(() {
-          _available = null;
-          _availabilityMessage = 'Availability changed. Please check the selected time again.';
+          _available = true;
+          _availabilityMessage = 'The request was not confirmed. Retrying is safe and will reuse the same request key.';
         });
         _showError(e.toString());
       }

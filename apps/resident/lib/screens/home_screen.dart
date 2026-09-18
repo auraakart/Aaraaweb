@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../data/resident_home_highlights.dart';
+import '../layout/resident_responsive_layout.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 import 'sos_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -45,6 +48,11 @@ class HomeScreen extends StatelessWidget {
     final household = controller.activeHousehold;
     final householdName = household?['displayName']?.toString() ?? 'Your home';
     final hasQuickActions = showGate || showServices || showAmenities || showHelpdesk || showSos;
+    final highlights = ResidentHomeHighlights.build(
+      invoices: showBilling ? controller.maintenanceInvoices : const [],
+      bookings: showServices ? controller.bookings : const [],
+      notices: showNotices ? controller.notices : const [],
+    );
 
     return SafeArea(
       child: RefreshIndicator(
@@ -52,10 +60,10 @@ class HomeScreen extends StatelessWidget {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.space5,
+            AaraagateTokens.pageGutter,
             AaraagateTokens.space3,
-            AaraagateTokens.space5,
-            28,
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space8,
           ),
           children: [
             _HomeHero(
@@ -75,9 +83,9 @@ class HomeScreen extends StatelessWidget {
             ],
             if (showGate) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              _SectionHeading(
+              PremiumSectionHeader(
                 title: 'Needs your attention',
-                supportingText: pending == null ? null : 'A gate response is waiting for you',
+                supportingText: pending == null ? null : 'A gate response is waiting for you.',
               ),
               const SizedBox(height: AaraagateTokens.space3),
               if (controller.loading && controller.accessRequests.isEmpty)
@@ -98,17 +106,31 @@ class HomeScreen extends StatelessWidget {
               else
                 _PendingAccessCard(
                   pending: pending,
-                  onDeny: () => controller.denyAccess(pending['id'].toString()),
-                  onAllow: () => controller.approveAccess(pending['id'].toString()),
+                  onDeny: () async {
+                    await controller.denyAccess(pending['id'].toString());
+                  },
+                  onAllow: () async {
+                    await controller.approveAccess(pending['id'].toString());
+                  },
                 ),
             ],
             if (hasQuickActions) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              const _SectionHeading(title: 'Quick actions'),
+              const PremiumSectionHeader(
+                title: 'Quick actions',
+                supportingText: 'Your most-used home tasks, one tap away.',
+              ),
               const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final itemWidth = (constraints.maxWidth - AaraagateTokens.space3) / 2;
+                  final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+                  final columns = residentQuickActionColumns(
+                    maxWidth: constraints.maxWidth,
+                    textScale: textScale,
+                  );
+                  final itemWidth = columns == 1
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - AaraagateTokens.space3) / columns;
                   return Wrap(
                     spacing: AaraagateTokens.space3,
                     runSpacing: AaraagateTokens.space3,
@@ -166,30 +188,39 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ],
-            if (showNotices || showBilling) ...[
+            if (highlights.isNotEmpty) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              const _SectionHeading(title: 'For your home'),
+              const PremiumSectionHeader(
+                title: 'Next for you',
+                supportingText: 'The most relevant items for this property right now.',
+              ),
               const SizedBox(height: AaraagateTokens.space3),
-              if (showNotices && controller.notices.isNotEmpty)
+              for (var i = 0; i < highlights.length; i++) ...[
                 _HomeSummaryRow(
-                  icon: Icons.campaign_outlined,
-                  title: controller.notices.first['title']?.toString() ?? 'Society notice',
-                  subtitle: 'Latest society update',
-                  onTap: onOpenNotices,
+                  icon: _highlightIcon(highlights[i].kind),
+                  title: highlights[i].title,
+                  subtitle: highlights[i].subtitle,
+                  onTap: () {
+                    switch (highlights[i].kind) {
+                      case ResidentHomeHighlightKind.billing:
+                        onOpenBilling();
+                        break;
+                      case ResidentHomeHighlightKind.service:
+                        onOpenServices();
+                        break;
+                      case ResidentHomeHighlightKind.notice:
+                        onOpenNotices();
+                        break;
+                    }
+                  },
                 ),
-              if (showNotices && controller.notices.isNotEmpty && showBilling)
-                const SizedBox(height: AaraagateTokens.space2),
-              if (showBilling)
-                _HomeSummaryRow(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Maintenance & payments',
-                  subtitle: 'Dues and payment history for your unit',
-                  onTap: onOpenBilling,
-                ),
+                if (i < highlights.length - 1)
+                  const SizedBox(height: AaraagateTokens.space2),
+              ],
             ],
             if (showGate) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              const _SectionHeading(title: 'Today'),
+              const PremiumSectionHeader(title: 'Today'),
               const SizedBox(height: AaraagateTokens.space3),
               if (controller.accessRequests.isEmpty)
                 const AppStateCard(
@@ -197,11 +228,9 @@ class HomeScreen extends StatelessWidget {
                   message: 'No access activity yet. New entries will appear here.',
                 )
               else
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
-                  ),
+                PremiumSurface(
+                  padding: EdgeInsets.zero,
+                  color: theme.colorScheme.surface,
                   child: Column(
                     children: [
                       for (var i = 0; i < controller.accessRequests.take(3).length; i++) ...[
@@ -222,6 +251,17 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static IconData _highlightIcon(ResidentHomeHighlightKind kind) {
+    switch (kind) {
+      case ResidentHomeHighlightKind.billing:
+        return Icons.receipt_long_outlined;
+      case ResidentHomeHighlightKind.service:
+        return Icons.home_repair_service_outlined;
+      case ResidentHomeHighlightKind.notice:
+        return Icons.campaign_outlined;
+    }
   }
 
   static IconData _iconFor(String? type) {
@@ -257,16 +297,10 @@ class _HomeHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
+    return PremiumSurface(
+      elevated: true,
+      color: scheme.surfaceContainerLow,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [scheme.primaryContainer.withOpacity(.78), scheme.surface],
-        ),
-        borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
-      ),
       child: Row(
         children: [
           Container(
@@ -312,32 +346,7 @@ class _HomeHero extends StatelessWidget {
   }
 }
 
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, this.supportingText});
-
-  final String title;
-  final String? supportingText;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: theme.textTheme.titleMedium),
-        if (supportingText != null) ...[
-          const SizedBox(height: 2),
-          Text(
-            supportingText!,
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _PendingAccessCard extends StatelessWidget {
+class _PendingAccessCard extends StatefulWidget {
   const _PendingAccessCard({
     required this.pending,
     required this.onDeny,
@@ -345,87 +354,115 @@ class _PendingAccessCard extends StatelessWidget {
   });
 
   final Map<String, dynamic> pending;
-  final VoidCallback onDeny;
-  final VoidCallback onAllow;
+  final Future<void> Function() onDeny;
+  final Future<void> Function() onAllow;
+
+  @override
+  State<_PendingAccessCard> createState() => _PendingAccessCardState();
+}
+
+class _PendingAccessCardState extends State<_PendingAccessCard> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _submit(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Could not update gate access. Check your connection and retry.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final name = pending['subjectName']?.toString() ?? 'Visitor';
-    final type = _displayLabel(pending['subjectType']?.toString() ?? 'VISITOR');
-    final purpose = pending['purpose']?.toString();
+    final name = widget.pending['subjectName']?.toString() ?? 'Visitor';
+    final type = _displayLabel(widget.pending['subjectType']?.toString() ?? 'VISITOR');
+    final purpose = widget.pending['purpose']?.toString();
 
     return Semantics(
       container: true,
       label: '$name is waiting at the gate',
-      child: Card(
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(.08),
-        child: Padding(
-          padding: const EdgeInsets.all(AaraagateTokens.space5),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-                    ),
-                    child: Icon(Icons.person_pin_circle_outlined, color: scheme.onPrimaryContainer),
+      child: PremiumSurface(
+        elevated: true,
+        color: scheme.surface,
+        padding: const EdgeInsets.all(AaraagateTokens.space5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: AaraagateTokens.iconContainer,
+                  height: AaraagateTokens.iconContainer,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
                   ),
-                  const SizedBox(width: AaraagateTokens.space4),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name, style: theme.textTheme.titleMedium),
-                        const SizedBox(height: 2),
-                        Text(
-                          purpose == null || purpose.isEmpty ? type : '$type · $purpose',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Now',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w800,
+                  child: Icon(Icons.person_pin_circle_outlined, color: scheme.onPrimaryContainer),
+                ),
+                const SizedBox(width: AaraagateTokens.space4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        purpose == null || purpose.isEmpty ? type : '$type · $purpose',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: AaraagateTokens.space5),
-              Row(
-                children: [
-                  Expanded(child: OutlinedButton(onPressed: onDeny, child: const Text('Deny'))),
-                  const SizedBox(width: AaraagateTokens.space3),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onAllow,
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Allow'),
-                    ),
-                  ),
-                ],
+                ),
+                const AaraagateStatusPill(label: 'Waiting', tone: AaraagateStatusTone.info),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AaraagateTokens.space3),
+              Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
               ),
             ],
-          ),
+            const SizedBox(height: AaraagateTokens.space5),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : () => _submit(widget.onDeny),
+                    child: const Text('Deny'),
+                  ),
+                ),
+                const SizedBox(width: AaraagateTokens.space3),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : () => _submit(widget.onAllow),
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_rounded),
+                    label: Text(_busy ? 'Updating…' : 'Allow'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -438,12 +475,7 @@ class _AllClearCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AaraagateTokens.space4),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
-      ),
+    return PremiumSurface(
       child: Row(
         children: [
           Icon(Icons.check_circle_rounded, color: scheme.primary),
@@ -470,48 +502,40 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = urgent ? scheme.errorContainer.withOpacity(.65) : scheme.surface;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final background = urgent ? scheme.errorContainer.withOpacity(.55) : scheme.surfaceContainerLow;
     final foreground = urgent ? scheme.error : scheme.primary;
 
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: background,
-        borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 72),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: AaraagateTokens.space4,
-                horizontal: AaraagateTokens.space4,
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: label,
+      color: background,
+      padding: const EdgeInsets.symmetric(
+        vertical: AaraagateTokens.space3,
+        horizontal: AaraagateTokens.space3,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AaraagateTokens.minTouchTarget),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: foreground.withOpacity(.10),
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: foreground.withOpacity(.10),
-                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-                    ),
-                    child: Icon(icon, color: foreground, size: 21),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space3),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+              child: Icon(icon, color: foreground, size: 21),
+            ),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.labelLarge,
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -535,48 +559,48 @@ class _HomeSummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Material(
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: title,
       color: scheme.surface,
-      borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 72),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-                  ),
-                  child: Icon(icon, color: scheme.primary),
-                ),
-                const SizedBox(width: AaraagateTokens.space3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AaraagateTokens.space2),
-                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-              ],
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+              ),
+              child: Icon(icon, color: scheme.primary),
             ),
-          ),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AaraagateTokens.space2),
+            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+          ],
         ),
       ),
     );

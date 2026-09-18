@@ -63,13 +63,22 @@ const _occupantMembership = SocietyMembershipOption(
   properties: [_occupantProperty],
 );
 
-ResidentSession _societySession() => const ResidentSession(
+const _ownerPropertyResidentMembership = SocietyMembershipOption(
+  societyId: 'society-owner',
+  role: 'RESIDENT',
+  roles: ['RESIDENT'],
+  name: 'Owner Property With Resident Society Role',
+  code: 'MIX',
+  properties: [_ownerProperty],
+);
+
+ResidentSession _societySession({String role = 'OWNER'}) => ResidentSession(
       sessionId: 'session-1',
       accessToken: 'access',
       refreshToken: 'refresh',
       contextType: 'SOCIETY',
       societyId: 'society-owner',
-      role: 'OWNER',
+      role: role,
     );
 
 void main() {
@@ -111,6 +120,29 @@ void main() {
     await controller.switchProperty(controller.memberships.last, controller.memberships.last.properties.first);
     expect(controller.activePropertyRelationship, 'OCCUPANT');
     expect(controller.isActivePropertyOwner, isFalse);
+  });
+
+  test('property ownership remains authoritative when society role is resident', () async {
+    final store = _MemorySessionStore();
+    final controller = ResidentAuthController(
+      repository: _AuthRepository(OtpVerificationResult(
+        userId: 'user-mixed-role',
+        memberships: const [_ownerPropertyResidentMembership],
+        contextType: 'SOCIETY',
+        session: _societySession(role: 'RESIDENT'),
+      )),
+      sessionStore: store,
+    );
+    addTearDown(controller.dispose);
+    controller.challengeId = 'challenge';
+
+    await controller.verifyOtp('123456');
+
+    expect(controller.step, ResidentAuthStep.signedIn);
+    expect(controller.session?.role, 'RESIDENT');
+    expect(controller.activeUnitId, _ownerProperty.unitId);
+    expect(controller.activePropertyRelationship, 'OWNER');
+    expect(controller.isActivePropertyOwner, isTrue);
   });
 
   test('independent-home OTP session bypasses society contexts and stays isolated', () async {

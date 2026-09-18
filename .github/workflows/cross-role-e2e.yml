@@ -1,0 +1,103 @@
+name: Cross-role E2E Journeys
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'services/api/**'
+      - 'apps/resident/**'
+      - 'apps/guard/**'
+      - 'apps/admin/**'
+      - 'scripts/cross-role-e2e.mjs'
+      - '.github/workflows/cross-role-e2e.yml'
+      - 'docs/CROSS-ROLE-E2E-EVIDENCE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-role-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visitor-gate-report:
+    name: Resident to Guard to Admin visitor journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_e2e
+      AARAAGATE_E2E_RESIDENT_TOKEN: aaraagate-e2e-resident-token
+      AARAAGATE_E2E_GUARD_TOKEN: aaraagate-e2e-guard-token
+      AARAAGATE_E2E_ADMIN_TOKEN: aaraagate-e2e-admin-token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.15.0 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Apply clean migrations
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Seed Resident Guard Admin journey
+        working-directory: services/api
+        run: node scripts/cross-role-e2e-seed.mjs
+      - name: Build API
+        run: pnpm --filter @aaraagate/api build
+      - name: Start production-mode API
+        env:
+          NODE_ENV: production
+          REDIS_URL: redis://localhost:6379
+          PORT: 3000
+          APP_VERSION: cross-role-e2e
+          GIT_SHA: ${{ github.sha }}
+          OTP_DELIVERY_PROVIDER: msg91
+          MSG91_AUTH_KEY: ci-placeholder-auth-key
+          MSG91_OTP_TEMPLATE_ID: ci-placeholder-template
+        run: |
+          pnpm --filter @aaraagate/api start > /tmp/aaraagate-e2e-api.log 2>&1 &
+          echo $! > /tmp/aaraagate-e2e-api.pid
+          for attempt in $(seq 1 20); do
+            curl --fail --silent http://127.0.0.1:3000/api/v1/health/ready >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/aaraagate-e2e-api.log
+          exit 1
+      - name: Execute cross-role journey
+        env:
+          AARAAGATE_E2E_BASE_URL: http://127.0.0.1:3000
+        run: node scripts/cross-role-e2e.mjs
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/aaraagate-e2e-api.pid ]; then kill $(cat /tmp/aaraagate-e2e-api.pid) || true; fi
+      - name: Print API logs on failure
+        if: failure()
+        run: cat /tmp/aaraagate-e2e-api.log || true

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../data/amenity_actions.dart';
+import '../data/api_client.dart';
 import '../data/resident_repository.dart';
+import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 
 class AmenitiesScreen extends StatefulWidget {
   const AmenitiesScreen({super.key, required this.repository, required this.unitId});
@@ -19,6 +22,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   String? _error;
   List<Map<String, dynamic>> _amenities = const [];
   List<Map<String, dynamic>> _bookings = const [];
+  List<Map<String, dynamic>> _waitlist = const [];
 
   @override
   void initState() {
@@ -32,11 +36,13 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       final results = await Future.wait([
         widget.repository.amenities(),
         widget.repository.amenityBookings(widget.unitId),
+        widget.repository.amenityWaitlist(widget.unitId),
       ]);
       if (!mounted) return;
       setState(() {
         _amenities = results[0];
         _bookings = results[1];
+        _waitlist = results[2];
         _loading = false;
       });
     } catch (error) {
@@ -82,9 +88,75 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
           : 'Amenity booked.');
       await _load();
     } catch (error) {
-      if (mounted) _showMessage(_friendlyError(error));
+      if (!mounted) return;
+      if (_isCapacityConflict(error)) {
+        final join = await _confirmWaitlist(amenity, startsAt);
+        if (join == true && mounted) {
+          try {
+            final entry = await widget.repository.joinAmenityWaitlist(
+              amenityId: amenity['id'].toString(),
+              unitId: widget.unitId,
+              startsAt: startsAt,
+              endsAt: endsAt,
+            );
+            if (!mounted) return;
+            final position = _asInt(entry['position'], fallback: 0);
+            _showMessage(position > 0 ? 'Added to waitlist · position $position.' : 'Added to waitlist.');
+            await _load();
+          } catch (waitlistError) {
+            if (mounted) _showMessage(_friendlyError(waitlistError));
+          }
+        }
+      } else {
+        _showMessage(_friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt) {
+    return showModalBottomSheet<bool>(
+      context:context,
+      useSafeArea:true,
+      builder:(sheetContext){
+        final theme=Theme.of(sheetContext);
+        return Padding(
+          padding:const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter,AaraagateTokens.space2,AaraagateTokens.pageGutter,AaraagateTokens.space6),
+          child:Column(
+            mainAxisSize:MainAxisSize.min,
+            crossAxisAlignment:CrossAxisAlignment.start,
+            children:[
+              Text('Slot just filled',style:theme.textTheme.headlineSmall),
+              const SizedBox(height:AaraagateTokens.space2),
+              Text('${amenity['name'] ?? 'Amenity'} · ${_formatDateTime(startsAt)}'),
+              const SizedBox(height:AaraagateTokens.space2),
+              const Text('You can join the first-in waitlist for this exact time. A cancellation may promote the oldest eligible resident automatically.'),
+              const SizedBox(height:AaraagateTokens.space5),
+              Row(children:[
+                Expanded(child:OutlinedButton(onPressed:()=>Navigator.pop(sheetContext,false),child:const Text('Choose another time'))),
+                const SizedBox(width:AaraagateTokens.space3),
+                Expanded(child:FilledButton(onPressed:()=>Navigator.pop(sheetContext,true),child:const Text('Join waitlist'))),
+              ]),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _cancelWaitlist(Map<String,dynamic> entry) async {
+    if(entry['status']?.toString()!='WAITING') return;
+    setState(()=>_submitting=true);
+    try{
+      await widget.repository.cancelAmenityWaitlist(entry['id'].toString());
+      if(!mounted)return;
+      _showMessage('Waitlist entry cancelled.');
+      await _load();
+    }catch(error){
+      if(mounted)_showMessage(_friendlyError(error));
+    }finally{
+      if(mounted)setState(()=>_submitting=false);
     }
   }
 
@@ -95,15 +167,15 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space2, AaraagateTokens.pageGutter, AaraagateTokens.space6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Cancel booking?', style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 8),
+              const SizedBox(height: AaraagateTokens.space2),
               Text('${booking['amenityName'] ?? 'Amenity'} · ${_formatApiDate(booking['startsAt'])}'),
-              const SizedBox(height: 20),
+              const SizedBox(height: AaraagateTokens.space5),
               Row(
                 children: [
                   Expanded(
@@ -112,7 +184,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
                       child: const Text('Keep booking'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AaraagateTokens.space3),
                   Expanded(
                     child: FilledButton(
                       onPressed: () => Navigator.pop(sheetContext, true),
@@ -143,7 +215,6 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final upcoming = [..._bookings]
       ..sort((a, b) => (a['startsAt']?.toString() ?? '').compareTo(b['startsAt']?.toString() ?? ''));
 
@@ -153,15 +224,8 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space3, AaraagateTokens.pageGutter, AaraagateTokens.space8),
           children: [
-            Text('Book society facilities', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text(
-              'Choose a facility and time for your currently selected property.',
-              style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 24),
             if (_loading && _amenities.isEmpty)
               const AppStateCard(icon: Icons.event_available_outlined, message: 'Loading amenities…', loading: true)
             else if (_error != null)
@@ -169,16 +233,47 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             else if (_amenities.isEmpty)
               const AppStateCard(icon: Icons.weekend_outlined, message: 'No bookable amenities are available right now.')
             else ...[
-              _SectionHeading(title: 'Available facilities', count: _amenities.length),
-              const SizedBox(height: 12),
+              PremiumSectionHeader(
+                title: 'Available facilities',
+                supportingText: 'Choose a facility and time for your currently selected property.',
+                trailing: AaraagateStatusPill(label: '${_amenities.length}', tone: AaraagateStatusTone.neutral),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
               for (final amenity in _amenities) ...[
                 _AmenityCard(amenity: amenity, busy: _submitting, onBook: () => _book(amenity)),
-                const SizedBox(height: 12),
+                const SizedBox(height: AaraagateTokens.space3),
               ],
             ],
-            const SizedBox(height: 20),
-            _SectionHeading(title: 'Your bookings', count: upcoming.length),
-            const SizedBox(height: 12),
+            const SizedBox(height: AaraagateTokens.space6),
+            PremiumSectionHeader(
+              title:'Your waitlist',
+              supportingText:_waitlist.where((item)=>item['status']?.toString()=='WAITING').isEmpty
+                ? 'Full slots you join will appear here.'
+                : 'Queue position is first-in for this property and exact time.',
+              trailing:AaraagateStatusPill(
+                label:'${_waitlist.where((item)=>item['status']?.toString()=='WAITING').length}',
+                tone:AaraagateStatusTone.neutral,
+              ),
+            ),
+            const SizedBox(height:AaraagateTokens.space3),
+            if(!_loading&&_waitlist.isEmpty)
+              const AppStateCard(icon:Icons.hourglass_empty_rounded,message:'You are not waiting for any amenity slots for this property.')
+            else
+              for(final entry in _waitlist) ...[
+                _WaitlistCard(
+                  entry:entry,
+                  busy:_submitting,
+                  onCancel:entry['status']?.toString()=='WAITING'?()=>_cancelWaitlist(entry):null,
+                ),
+                const SizedBox(height:AaraagateTokens.space2),
+              ],
+            const SizedBox(height: AaraagateTokens.space6),
+            PremiumSectionHeader(
+              title: 'Your bookings',
+              supportingText: upcoming.isEmpty ? 'Confirmed and pending reservations will appear here.' : 'Upcoming reservations for this property.',
+              trailing: AaraagateStatusPill(label: '${upcoming.length}', tone: AaraagateStatusTone.neutral),
+            ),
+            const SizedBox(height: AaraagateTokens.space3),
             if (!_loading && upcoming.isEmpty)
               const AppStateCard(icon: Icons.calendar_month_outlined, message: 'You have no amenity bookings for this property.')
             else
@@ -188,7 +283,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
                   busy: _submitting,
                   onCancel: _isCancelable(booking) ? () => _cancel(booking) : null,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AaraagateTokens.space2),
               ],
           ],
         ),
@@ -204,6 +299,11 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  static bool _isCapacityConflict(Object error) =>
+      error is ApiException
+      && error.statusCode==409
+      && error.message.toLowerCase().contains('slot is no longer available');
 
   static String _friendlyError(Object error) {
     final text = error.toString();
@@ -279,27 +379,32 @@ class _BookingSheetState extends State<_BookingSheet> {
     final invalidPast = startsAt != null && !startsAt.isAfter(now);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      padding: EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space2, AaraagateTokens.pageGutter, MediaQuery.viewInsetsOf(context).bottom + AaraagateTokens.space6),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text(
-              '${widget.slotMinutes} min · ${_feeLabel(widget.amenity['feePaise'])} · ${approval ? 'Approval required' : 'Server confirmation'}',
-              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            const SizedBox(height: AaraagateTokens.space2),
+            Wrap(
+              spacing: AaraagateTokens.space2,
+              runSpacing: AaraagateTokens.space2,
+              children: [
+                AaraagateStatusPill(label: '${widget.slotMinutes} min', tone: AaraagateStatusTone.neutral),
+                AaraagateStatusPill(label: _feeLabel(widget.amenity['feePaise']), tone: AaraagateStatusTone.neutral),
+                AaraagateStatusPill(label: approval ? 'Approval required' : 'Server confirmed', tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info),
+              ],
             ),
-            const SizedBox(height: 24),
-            Text('Choose date', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: AaraagateTokens.space6),
+            const PremiumSectionHeader(title: 'Choose date'),
+            const SizedBox(height: AaraagateTokens.space3),
             SizedBox(
               height: 68,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: quickDates.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, __) => const SizedBox(width: AaraagateTokens.space2),
                 itemBuilder: (context, index) {
                   final date = quickDates[index];
                   final selected = _sameDay(date, _date);
@@ -329,50 +434,38 @@ class _BookingSheetState extends State<_BookingSheet> {
                 label: Text(_isQuickDate(_date, quickDates) ? 'Choose another date' : _shortDate(_date)),
               ),
             ),
-            const SizedBox(height: 8),
-            Text('Choose time', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 10),
-            InkWell(
+            const SizedBox(height: AaraagateTokens.space2),
+            const PremiumSectionHeader(title: 'Choose time'),
+            const SizedBox(height: AaraagateTokens.space2),
+            PremiumSurface(
               onTap: _pickTime,
-              borderRadius: BorderRadius.circular(16),
-              child: Ink(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.schedule_rounded, color: scheme.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _time == null ? 'Select start time' : _time!.format(context),
-                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-                      ),
+              semanticLabel: _time == null ? 'Select start time' : 'Selected start time ${_time!.format(context)}',
+              padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space3),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule_rounded, color: scheme.primary),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Expanded(
+                    child: Text(
+                      _time == null ? 'Select start time' : _time!.format(context),
+                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                     ),
-                    const Icon(Icons.chevron_right_rounded),
-                  ],
-                ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                ],
               ),
             ),
             if (invalidPast) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AaraagateTokens.space2),
               Text('Choose a future time.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
             ],
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(16),
-              ),
+            const SizedBox(height: AaraagateTokens.space5),
+            PremiumSurface(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(approval ? Icons.schedule_send_outlined : Icons.verified_user_outlined, color: scheme.primary),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AaraagateTokens.space3),
                   Expanded(
                     child: Text(
                       approval
@@ -384,7 +477,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AaraagateTokens.space5),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -398,23 +491,6 @@ class _BookingSheetState extends State<_BookingSheet> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.count});
-  final String title;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
-        Text('$count', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      ],
     );
   }
 }
@@ -433,65 +509,101 @@ class _AmenityCard extends StatelessWidget {
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
     final description = amenity['description']?.toString() ?? '';
 
-    return Card(
+    return PremiumSurface(
       color: scheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(Icons.sports_tennis_rounded, color: scheme.onPrimaryContainer),
+      elevated: true,
+      padding: const EdgeInsets.all(AaraagateTokens.space5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: AaraagateTokens.iconContainer,
+                height: AaraagateTokens.iconContainer,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
-                      if (amenity['location'] != null) ...[
-                        const SizedBox(height: 3),
-                        Text(amenity['location'].toString(), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                      ],
-                    ],
-                  ),
-                ),
-                _StatusPill(label: approval ? 'Approval' : 'Server check'),
-              ],
-            ),
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
-            ],
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
-                const SizedBox(width: 16),
-                _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: busy ? null : onBook,
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: const Text('Choose date & time'),
+                child: Icon(Icons.sports_tennis_rounded, color: scheme.onPrimaryContainer),
               ),
-            ),
+              const SizedBox(width: AaraagateTokens.space3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
+                    if (amenity['location'] != null) ...[
+                      const SizedBox(height: AaraagateTokens.space1),
+                      Text(amenity['location'].toString(), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
+                  ],
+                ),
+              ),
+              AaraagateStatusPill(
+                label: approval ? 'Approval' : 'Instant',
+                tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
+              ),
+            ],
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
           ],
-        ),
+          const SizedBox(height: AaraagateTokens.space3),
+          Row(
+            children: [
+              _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
+              const SizedBox(width: AaraagateTokens.space4),
+              _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
+            ],
+          ),
+          const SizedBox(height: AaraagateTokens.space4),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: busy ? null : onBook,
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: const Text('Choose date & time'),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _WaitlistCard extends StatelessWidget {
+  const _WaitlistCard({required this.entry,required this.busy,this.onCancel});
+  final Map<String,dynamic> entry;
+  final bool busy;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context){
+    final theme=Theme.of(context),scheme=theme.colorScheme;
+    final status=entry['status']?.toString()??'WAITING';
+    final position=_asInt(entry['position'],fallback:0);
+    final detail=status=='WAITING'&&position>0
+      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}'
+      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}';
+    return PremiumSurface(
+      padding:const EdgeInsets.fromLTRB(AaraagateTokens.space4,AaraagateTokens.space3,AaraagateTokens.space3,AaraagateTokens.space3),
+      child:Row(children:[
+        Container(
+          width:44,height:44,
+          decoration:BoxDecoration(color:scheme.surfaceContainer,borderRadius:BorderRadius.circular(AaraagateTokens.radiusSmall)),
+          child:Icon(status=='PROMOTED'?Icons.event_available_rounded:Icons.hourglass_top_rounded,color:scheme.primary),
+        ),
+        const SizedBox(width:AaraagateTokens.space3),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(entry['amenityName']?.toString()??'Amenity',style:theme.textTheme.titleMedium),
+          const SizedBox(height:AaraagateTokens.space1),
+          Text(detail,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
+        ])),
+        if(onCancel!=null)TextButton(onPressed:busy?null:onCancel,child:const Text('Leave')),
+      ]),
     );
   }
 }
@@ -509,57 +621,37 @@ class _BookingCard extends StatelessWidget {
     final status = booking['status']?.toString() ?? 'PENDING';
     final statusLabel = status.replaceAll('_', ' ').toLowerCase();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(Icons.calendar_today_outlined, color: scheme.primary),
+    return PremiumSurface(
+      padding: const EdgeInsets.fromLTRB(AaraagateTokens.space4, AaraagateTokens.space3, AaraagateTokens.space3, AaraagateTokens.space3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(booking['amenityName']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 3),
-                  Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                ],
-              ),
+            child: Icon(Icons.calendar_today_outlined, color: scheme.primary),
+          ),
+          const SizedBox(width: AaraagateTokens.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(booking['amenityName']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
+                const SizedBox(height: AaraagateTokens.space1),
+                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ],
             ),
-            if (onCancel != null)
-              TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
-          ],
-        ),
+          ),
+          if (onCancel != null)
+            TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+        ],
       ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
     );
   }
 }

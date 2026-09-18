@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
+import '../localization/guard_strings.dart';
 import '../qr_scanner.dart';
 import '../widgets/guard_state_card.dart';
+import '../widgets/guard_operation_ui.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
   const GuardOperationsScreen({super.key, required this.controller});
@@ -25,6 +27,12 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
     if (!mounted || value == null || value.trim().isEmpty) return;
     credential.text = value.trim();
     await widget.controller.verifyCredential(credential.text);
+    await widget.controller.announceAccessResult();
+  }
+
+  Future<void> _verifyManual() async {
+    await widget.controller.verifyCredential(credential.text);
+    await widget.controller.announceAccessResult();
   }
 
   Future<void> _walkIn() async {
@@ -71,6 +79,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final strings = GuardStrings(c.languageCode);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final access = c.verifiedAccess;
@@ -81,8 +90,8 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gate operations'),
-        actions: [IconButton(onPressed: c.busy ? null : c.signOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded))],
+        title: Text(strings.get('gateOperations')),
+        actions: [IconButton(onPressed: c.busy ? null : c.signOut, tooltip: strings.get('signOut'), icon: const Icon(Icons.logout_rounded))],
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -91,36 +100,35 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+              GuardOperationSurface(
+                semanticLabel: gateReady ? 'Security shift active at ${c.gateName ?? 'selected gate'}' : 'No active gate selected',
                 child: Row(children: [
                   Container(width: 52, height: 52, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.security_rounded, color: scheme.onPrimaryContainer, size: 28)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Security shift active', style: theme.textTheme.titleMedium),
+                    Text(strings.get('securityShiftActive'), style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
-                    Text(c.gateName ?? 'Select a gate to begin operations', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                    Text(c.gateName ?? strings.get('selectGateBegin'), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                   ])),
-                  Icon(Icons.circle, size: 12, color: gateReady ? scheme.primary : scheme.outline),
+                  GuardStatusPill(label: gateReady ? 'READY' : 'SELECT GATE', tone: gateReady ? GuardStatusTone.ready : GuardStatusTone.waiting),
                 ]),
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: c.gateId,
-                decoration: const InputDecoration(labelText: 'Active gate', prefixIcon: Icon(Icons.door_front_door_outlined)),
+                decoration: InputDecoration(labelText: strings.get('activeGate'), prefixIcon: const Icon(Icons.door_front_door_outlined)),
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
               ),
               const SizedBox(height: 24),
-              Text('Scan a pass', style: theme.textTheme.titleLarge),
+              Text(strings.get('scanPass'), style: theme.textTheme.titleLarge),
               const SizedBox(height: 5),
-              Text('Use QR first for the fastest verified entry.', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+              Text(strings.get('scanHint'), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: c.busy || !gateReady ? null : _scan,
                 icon: const Icon(Icons.qr_code_scanner_rounded, size: 32),
-                label: const Text('SCAN QR', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+                label: Text(strings.get('scanQr').toUpperCase(), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(76)),
               ),
               const SizedBox(height: 12),
@@ -128,35 +136,35 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 tilePadding: const EdgeInsets.symmetric(horizontal: 4),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 leading: const Icon(Icons.keyboard_alt_outlined),
-                title: const Text('Enter credential manually', style: TextStyle(fontWeight: FontWeight.w800)),
+                title: Text(strings.get('enterCredential'), style: const TextStyle(fontWeight: FontWeight.w800)),
                 children: [
-                  TextField(controller: credential, decoration: const InputDecoration(labelText: 'Manual credential', prefixIcon: Icon(Icons.key_outlined))),
+                  TextField(controller: credential, decoration: InputDecoration(labelText: strings.get('manualCredential'), prefixIcon: const Icon(Icons.key_outlined))),
                   const SizedBox(height: 10),
-                  SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy || !gateReady ? null : () => c.verifyCredential(credential.text), icon: const Icon(Icons.verified_user_outlined), label: const Text('VERIFY'))),
+                  SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy || !gateReady ? null : _verifyManual, icon: const Icon(Icons.verified_user_outlined), label: Text(strings.get('verify').toUpperCase()))),
                 ],
               ),
               if (access != null) ...[
                 const SizedBox(height: 14),
-                _AccessResultCard(access: access),
+                _AccessResultCard(access: access, controller: c),
                 const SizedBox(height: 12),
                 Row(children: [
-                  Expanded(child: FilledButton.icon(onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text), icon: const Icon(Icons.login_rounded), label: const Text('ENTER', style: TextStyle(fontWeight: FontWeight.w900)))),
+                  Expanded(child: FilledButton.icon(onPressed: c.busy || status == 'CHECKED_IN' || status == 'CHECKED_OUT' ? null : () => c.checkIn(credential.text), icon: const Icon(Icons.login_rounded), label: Text(strings.get('enter').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)))),
                   const SizedBox(width: 10),
-                  Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: const Text('EXIT', style: TextStyle(fontWeight: FontWeight.w900)))),
+                  Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: Text(strings.get('exit').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)))),
                 ]),
               ],
               const SizedBox(height: 26),
-              Text('Quick arrival', style: theme.textTheme.titleLarge),
+              Text(strings.get('quickArrival'), style: theme.textTheme.titleLarge),
               const SizedBox(height: 5),
               Text('Create an approval request when there is no pre-approved pass.', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),
               Row(children: [
-                Expanded(child: _QuickAction(icon: Icons.delivery_dining_rounded, label: 'DELIVERY', onPressed: c.busy || !gateReady ? null : () => _quickArrival('DELIVERY'))),
+                Expanded(child: _QuickAction(icon: Icons.delivery_dining_rounded, label: strings.get('delivery').toUpperCase(), onPressed: c.busy || !gateReady ? null : () => _quickArrival('DELIVERY'))),
                 const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.local_taxi_rounded, label: 'CAB', tonal: true, onPressed: c.busy || !gateReady ? null : () => _quickArrival('CAB'))),
+                Expanded(child: _QuickAction(icon: Icons.local_taxi_rounded, label: strings.get('cab').toUpperCase(), tonal: true, onPressed: c.busy || !gateReady ? null : () => _quickArrival('CAB'))),
               ]),
               const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy || !gateReady ? null : _walkIn, icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('WALK-IN VISITOR'))),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy || !gateReady ? null : _walkIn, icon: const Icon(Icons.person_add_alt_1_rounded), label: Text(strings.get('walkInVisitor').toUpperCase()))),
               if (gateRequest != null) ...[
                 const SizedBox(height: 14),
                 _GateApprovalCard(
@@ -170,14 +178,14 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               ],
               if (c.busy) ...[
                 const SizedBox(height: 14),
-                const GuardStateCard(icon: Icons.sync_rounded, message: 'Processing gate operation…', loading: true),
+                GuardStateCard(icon: Icons.sync_rounded, message: strings.get('processing'), loading: true),
               ],
               if (c.error != null) ...[
                 const SizedBox(height: 12),
                 GuardStateCard(icon: Icons.error_outline_rounded, message: c.error!, error: true),
               ],
               const SizedBox(height: 26),
-              _SyncHealthCard(controller: c),
+              _SyncHealthCard(controller: c, strings: strings),
             ],
           ),
         ),
@@ -393,26 +401,28 @@ class _QuickAction extends StatelessWidget {
 }
 
 class _SyncHealthCard extends StatelessWidget {
-  const _SyncHealthCard({required this.controller});
+  const _SyncHealthCard({required this.controller, required this.strings});
   final GuardController controller;
+  final GuardStrings strings;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final pending = controller.queuedActions > 0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+    return GuardOperationSurface(
+      semanticLabel: pending ? '${controller.queuedActions} ${strings.get('pendingActions')}' : strings.get('onlineClear'),
+      color: pending ? scheme.errorContainer.withOpacity(.62) : scheme.surfaceContainerLow,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(width: 44, height: 44, decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(pending ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, color: pending ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(pending ? '${controller.queuedActions} offline actions pending' : 'Online operations clear', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(pending ? '${controller.queuedActions} ${strings.get('pendingActions')}' : strings.get('onlineClear'), style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 2),
-            Text(controller.offlineSyncMessage ?? (pending ? 'Stored securely for supervisor review and safe sync.' : 'No locally queued gate actions.'), style: theme.textTheme.bodySmall?.copyWith(color: pending ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
+            Text(controller.offlineSyncMessage ?? (pending ? strings.get('reviewRequired') : strings.get('noQueuedActions')), style: theme.textTheme.bodySmall?.copyWith(color: pending ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
           ])),
+          GuardStatusPill(label: pending ? 'OFFLINE' : 'SYNCED', tone: pending ? GuardStatusTone.offline : GuardStatusTone.ready),
         ]),
         if (pending) ...[
           const SizedBox(height: 12),
@@ -442,14 +452,20 @@ class _GateApprovalCard extends StatelessWidget {
     final title = access['subjectName']?.toString() ?? 'Gate arrival';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR';
     final background = waiting ? scheme.secondaryContainer.withOpacity(.55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
-    return Container(
+    return GuardOperationSurface(
+      color: background,
+      prominent: waiting,
+      semanticLabel: '$title, $type, ${waiting ? 'waiting for resident approval' : status}',
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Icon(denied ? Icons.block_rounded : waiting ? Icons.hourglass_top_rounded : Icons.verified_rounded, size: 30),
           const SizedBox(width: 10),
           Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+          GuardStatusPill(
+            label: waiting ? 'WAITING' : status.replaceAll('_', ' '),
+            tone: denied ? GuardStatusTone.blocked : waiting ? GuardStatusTone.waiting : GuardStatusTone.ready,
+          ),
         ]),
         const SizedBox(height: 6),
         Text(type, style: theme.textTheme.labelLarge),
@@ -466,8 +482,9 @@ class _GateApprovalCard extends StatelessWidget {
 }
 
 class _AccessResultCard extends StatelessWidget {
-  const _AccessResultCard({required this.access});
+  const _AccessResultCard({required this.access, required this.controller});
   final Map<String, dynamic> access;
+  final GuardController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -477,24 +494,22 @@ class _AccessResultCard extends StatelessWidget {
     final positive = status == 'APPROVED' || status == 'CHECKED_IN';
     final subject = access['subjectName']?.toString() ?? 'Access holder';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'ACCESS';
-    return Semantics(
-      container: true,
-      label: '$subject, $type, ${status.replaceAll('_', ' ')}',
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer, borderRadius: BorderRadius.circular(20)),
+    return GuardOperationSurface(
+      semanticLabel: '$subject, $type, ${status.replaceAll('_', ' ')}',
+      color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer,
+      prominent: true,
+      padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 52, height: 52, decoration: BoxDecoration(color: positive ? scheme.primaryContainer : scheme.errorContainer, borderRadius: BorderRadius.circular(16)), child: Icon(positive ? Icons.check_rounded : Icons.block_rounded, size: 30, color: positive ? scheme.onPrimaryContainer : scheme.onErrorContainer)),
             const SizedBox(width: 12),
             Expanded(child: Text(subject, style: theme.textTheme.titleLarge)),
+            if (controller.voiceEnabled) IconButton(onPressed: controller.announceAccessResult, tooltip: 'Speak status', icon: const Icon(Icons.volume_up_rounded)),
+            GuardStatusPill(label: status.replaceAll('_', ' '), tone: positive ? GuardStatusTone.ready : GuardStatusTone.blocked),
           ]),
           const SizedBox(height: 12),
           Text(type, style: theme.textTheme.labelLarge),
-          const SizedBox(height: 6),
-          Text(status.replaceAll('_', ' '), style: theme.textTheme.titleMedium?.copyWith(color: positive ? scheme.primary : scheme.error, fontWeight: FontWeight.w900)),
         ]),
-      ),
     );
   }
 }

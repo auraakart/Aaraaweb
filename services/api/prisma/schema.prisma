@@ -583,6 +583,7 @@ model AuditEvent {
   accessRequest   AccessRequest? @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
 
   @@index([societyId, occurredAt])
+  @@index([societyId, event, occurredAt(sort: Desc)], map: "AuditEvent_society_event_time_idx")
   @@index([societyId, gateId, occurredAt])
   @@index([societyId, visitorPassId, occurredAt])
   @@index([societyId, accessRequestId, occurredAt])
@@ -633,6 +634,7 @@ model Session {
   expiresAt        DateTime
   refreshExpiresAt DateTime
   revokedAt        DateTime?
+  revocationReason String?   @db.VarChar(64)
   createdAt        DateTime  @default(now())
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   society          Society?  @relation(fields: [societyId], references: [id], onDelete: Cascade)
@@ -873,17 +875,45 @@ model AmenityBooking {
   currency         String               @default("INR")
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
+  checkedInAt      DateTime?            @db.Timestamptz(6)
+  completedAt      DateTime?            @db.Timestamptz(6)
+  noShowAt         DateTime?            @db.Timestamptz(6)
+  attendanceByUserId String?            @db.Uuid
+  attendanceNote   String?
+  idempotencyKey   String?
   createdAt        DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
 
   @@index([societyId, amenityId, startsAt, endsAt, status], map: "AmenityBooking_society_amenity_window_idx")
   @@index([societyId, userId, createdAt(sort: Desc)], map: "AmenityBooking_society_user_created_idx")
   @@index([societyId, unitId, createdAt(sort: Desc)], map: "AmenityBooking_society_unit_created_idx")
+  @@unique([societyId, userId, idempotencyKey], map: "AmenityBooking_society_user_idempotency_key")
+}
+
+model AmenityWaitlistEntry {
+  id                String   @id @default(uuid()) @db.Uuid
+  societyId         String   @db.Uuid
+  amenityId         String   @db.Uuid
+  unitId            String   @db.Uuid
+  userId            String   @db.Uuid
+  startsAt          DateTime @db.Timestamptz(6)
+  endsAt            DateTime @db.Timestamptz(6)
+  status            String   @default("WAITING")
+  joinedAt          DateTime @default(now()) @db.Timestamptz(6)
+  promotedAt        DateTime? @db.Timestamptz(6)
+  cancelledAt       DateTime? @db.Timestamptz(6)
+  promotedBookingId String?  @db.Uuid
+
+  @@index([societyId, amenityId, startsAt, endsAt, status, joinedAt], map: "AmenityWaitlist_society_window_status_idx")
+  @@index([societyId, userId, unitId, joinedAt(sort: Desc)], map: "AmenityWaitlist_society_user_unit_idx")
 }
 
 enum AmenityBookingStatus {
   PENDING
   CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
   REJECTED
   CANCELLED
 }
@@ -1062,4 +1092,6 @@ enum AuditEventType {
   ACCESS_VERIFIED
   ACCESS_CHECKED_IN
   ACCESS_CHECKED_OUT
+  REPORT_EXPORTED
+  ACCOUNTING_EXPORT_REQUESTED
 }

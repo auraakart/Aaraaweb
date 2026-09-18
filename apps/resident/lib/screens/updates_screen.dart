@@ -33,6 +33,7 @@ class UpdatesScreen extends StatelessWidget {
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => ParcelsScreen(
                         repository: controller.repository,
+                        unitId: controller.primaryUnitId!,
                         demoMode: controller.repository.api.baseUrl.contains('demo.invalid'),
                       ),
                     )),
@@ -109,7 +110,7 @@ class UpdatesScreen extends StatelessWidget {
             icon: Icons.home_repair_service_outlined,
             title: service?.isNotEmpty == true ? service! : 'Home service',
             subtitle: ServiceBookingLifecycle.labelFor(status),
-            when: _date(booking, ['updatedAt', 'createdAt', 'scheduledStart']),
+            when: _date(booking, ['updatedAt', 'createdAt', 'scheduledFrom']),
           ));
         }
       }

@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/resident_data_controller.dart';
+import '../data/resident_error_message.dart';
+import '../localization/aaraagate_strings.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/premium_ui.dart';
 import '../widgets/visitor_pass_share_message.dart';
 
 class GateScreen extends StatelessWidget {
@@ -13,6 +16,7 @@ class GateScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AaraagateStrings.device();
     final requests = controller.accessRequests;
     final pending = requests.where((e) => e['status'] == 'PENDING').toList(growable: false);
     final inside = requests.where((e) => e['status'] == 'CHECKED_IN').length;
@@ -31,29 +35,30 @@ class GateScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Gate & access', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
+                      Text(strings.text('gateTitle'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
                       const SizedBox(height: 4),
-                      Text('Approve arrivals and create visitor passes.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                      Text(strings.text('gateSubtitle'), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 IconButton.filledTonal(
-                  tooltip: 'Invite guest',
+                  tooltip: strings.text('inviteGuest'),
                   onPressed: () => _invite(context),
                   icon: const Icon(Icons.person_add_alt_1_rounded),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            _GateSummary(waiting: pending.length, inside: inside, total: requests.length),
+            _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
             if (pending.isNotEmpty) ...[
               const SizedBox(height: 24),
-              _SectionTitle(title: 'Needs your attention', count: pending.length),
+              _SectionTitle(title: strings.text('needsAttention'), count: pending.length),
               const SizedBox(height: 12),
               for (final request in pending) ...[
                 _AccessCard(
                   request: request,
+                  strings: strings,
                   prominent: true,
                   onApprove: () => _approve(context, request),
                   onDeny: () => _deny(context, request),
@@ -64,21 +69,22 @@ class GateScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Row(
               children: [
-                Expanded(child: Text('Recent activity', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
-                TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: const Text('Invite')),
+                Expanded(child: Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
+                TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite'))),
               ],
             ),
             const SizedBox(height: 8),
             if (controller.loading && requests.isEmpty)
-              const AppStateCard(icon: Icons.sync_rounded, message: 'Loading access activity…', loading: true)
+              AppStateCard(icon: Icons.sync_rounded, message: strings.text('loadingActivity'), loading: true)
             else if (controller.accessError != null)
-              AppStateCard(icon: Icons.cloud_off_outlined, message: 'Could not load access activity.', actionLabel: 'Retry', onAction: controller.load)
+              AppStateCard(icon: Icons.cloud_off_outlined, message: strings.text('loadFailed'), actionLabel: strings.text('retry'), onAction: controller.load)
             else if (requests.isEmpty)
-              const AppStateCard(icon: Icons.shield_outlined, message: 'No gate activity yet. Create a visitor pass when you need one.')
+              AppStateCard(icon: Icons.shield_outlined, message: strings.text('emptyActivity'))
             else
               for (final request in requests.where((e) => e['status'] != 'PENDING')) ...[
                 _AccessCard(
                   request: request,
+                  strings: strings,
                   onCancel: request['status'] == 'APPROVED' && request['subjectType'] == 'VISITOR' ? () => _cancel(context, request) : null,
                 ),
                 const SizedBox(height: 10),
@@ -108,7 +114,7 @@ class GateScreen extends StatelessWidget {
       if (!context.mounted) return;
       await _showPass(context, pass);
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -118,15 +124,16 @@ class GateScreen extends StatelessWidget {
       final rawRequest = result['request'];
       final credential = result['credential']?.toString();
       if (!context.mounted) return;
+      final strings = AaraagateStrings.device();
       final subjectType = rawRequest is Map ? rawRequest['subjectType']?.toString() : request['subjectType']?.toString();
       if (subjectType == 'VISITOR' && rawRequest is Map && credential != null && credential.isNotEmpty) {
         await _showPass(context, {'request': Map<String, dynamic>.from(rawRequest), 'credential': credential});
         return;
       }
-      final label = subjectType == 'CAB' ? 'Cab' : subjectType == 'DELIVERY' ? 'Delivery' : 'Entry';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label approved. Security has been updated.')));
+      final label = subjectType == 'CAB' ? strings.text('cab') : subjectType == 'DELIVERY' ? strings.text('delivery') : strings.text('entry');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.format('approvedSecurity', {'label': label}))));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -134,7 +141,7 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.denyAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -142,13 +149,14 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.cancelAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
   Future<void> _showPass(BuildContext context, Map<String, dynamic> pass) async {
+    final strings = AaraagateStrings.device();
     final request = pass['request'];
-    final visitor = request is Map ? request['subjectName']?.toString() ?? 'Visitor' : 'Visitor';
+    final visitor = request is Map ? request['subjectName']?.toString() ?? strings.text('visitor') : strings.text('visitor');
     final credential = pass['credential']?.toString() ?? '';
     final validUntil = request is Map ? DateTime.tryParse(request['validUntil']?.toString() ?? '') : null;
 
@@ -172,20 +180,20 @@ class GateScreen extends StatelessWidget {
                 child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer),
               ),
               const SizedBox(height: 12),
-              Text('Visitor pass ready', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+              Text(strings.text('visitorPassReady'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 4),
               Text(visitor, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 18),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                child: Semantics(label: 'Visitor access QR code', child: QrImageView(data: credential, version: QrVersions.auto, size: 210)),
+                child: Semantics(label: strings.text('visitorQr'), child: QrImageView(data: credential, version: QrVersions.auto, size: 210)),
               ),
               const SizedBox(height: 14),
               SelectableText(credential, textAlign: TextAlign.center, style: theme.textTheme.titleSmall?.copyWith(fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.2)),
               if (validUntil != null) ...[
                 const SizedBox(height: 8),
-                Text('Valid until ${_formatDateTime(validUntil.toLocal())}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
               ],
               const SizedBox(height: 20),
               SizedBox(
@@ -196,17 +204,17 @@ class GateScreen extends StatelessWidget {
                     await Share.share(message, subject: 'Aaraagate visitor pass for $visitor');
                   },
                   icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share pass'),
+                  label: Text(strings.text('sharePass')),
                 ),
               ),
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: credential));
-                  if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Pass copied')));
+                  if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(strings.text('passCopied'))));
                 },
                 icon: const Icon(Icons.copy_rounded),
-                label: const Text('Copy credential'),
+                label: Text(strings.text('copyCredential')),
               ),
             ],
           ),
@@ -260,6 +268,7 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AaraagateStrings.device();
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: Form(
@@ -268,17 +277,17 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Invite a guest', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(strings.text('inviteTitle'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            Text('Create a secure pass you can share instantly.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            Text(strings.text('inviteSubtitle'), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             const SizedBox(height: 20),
             TextFormField(
               controller: _name,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.name],
-              decoration: const InputDecoration(labelText: 'Guest name', prefixIcon: Icon(Icons.person_outline_rounded)),
-              validator: (value) => (value?.trim().isEmpty ?? true) ? 'Enter the guest name' : null,
+              decoration: InputDecoration(labelText: strings.text('guestName'), prefixIcon: const Icon(Icons.person_outline_rounded)),
+              validator: (value) => (value?.trim().isEmpty ?? true) ? strings.text('guestNameError') : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -286,14 +295,14 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.telephoneNumber],
-              decoration: const InputDecoration(labelText: 'Phone (optional)', prefixIcon: Icon(Icons.phone_outlined)),
+              decoration: InputDecoration(labelText: strings.text('phoneOptional'), prefixIcon: const Icon(Icons.phone_outlined)),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _purpose,
               textCapitalization: TextCapitalization.sentences,
               onFieldSubmitted: (_) => _submit(),
-              decoration: const InputDecoration(labelText: 'Purpose (optional)', prefixIcon: Icon(Icons.notes_rounded)),
+              decoration: InputDecoration(labelText: strings.text('purposeOptional'), prefixIcon: const Icon(Icons.notes_rounded)),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -301,7 +310,7 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
               child: FilledButton.icon(
                 onPressed: _submit,
                 icon: const Icon(Icons.qr_code_2_rounded),
-                label: const Text('Create visitor pass'),
+                label: Text(strings.text('createPass')),
               ),
             ),
           ],
@@ -333,10 +342,11 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _GateSummary extends StatelessWidget {
-  const _GateSummary({required this.waiting, required this.inside, required this.total});
+  const _GateSummary({required this.waiting, required this.inside, required this.total, required this.strings});
   final int waiting;
   final int inside;
   final int total;
+  final AaraagateStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -346,11 +356,11 @@ class _GateSummary extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
       child: Row(children: [
-        Expanded(child: _Metric(label: 'Waiting', value: '$waiting')),
+        Expanded(child: _Metric(label: strings.text('waiting'), value: '$waiting')),
         _Divider(color: scheme.outlineVariant),
-        Expanded(child: _Metric(label: 'Inside', value: '$inside')),
+        Expanded(child: _Metric(label: strings.text('inside'), value: '$inside')),
         _Divider(color: scheme.outlineVariant),
-        Expanded(child: _Metric(label: 'Today', value: '$total')),
+        Expanded(child: _Metric(label: strings.text('today'), value: '$total')),
       ]),
     );
   }
@@ -383,8 +393,9 @@ class _Metric extends StatelessWidget {
 }
 
 class _AccessCard extends StatelessWidget {
-  const _AccessCard({required this.request, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
+  const _AccessCard({required this.request, required this.strings, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
   final Map<String, dynamic> request;
+  final AaraagateStrings strings;
   final VoidCallback? onApprove;
   final VoidCallback? onDeny;
   final VoidCallback? onCancel;
@@ -413,21 +424,17 @@ class _AccessCard extends StatelessWidget {
       _ => Icons.person_outline_rounded,
     };
     final approvalHint = request['status'] == 'PENDING' && rawType == 'CAB'
-        ? 'Allow for the next 15 minutes'
+        ? strings.text('allow15')
         : request['status'] == 'PENDING' && rawType == 'DELIVERY'
-            ? 'Allow for the next 30 minutes'
+            ? strings.text('allow30')
             : null;
 
     return Semantics(
       container: true,
       label: '$title, $type, $status',
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: prominent ? scheme.surface : scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: prominent ? [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 22, offset: const Offset(0, 8))] : null,
-        ),
+      child: PremiumSurface(
+        elevated: prominent,
+        color: prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(
@@ -443,7 +450,10 @@ class _AccessCard extends StatelessWidget {
               Text(detail.isEmpty ? type : '$type · $detail', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
             ])),
             const SizedBox(width: 8),
-            _StatusPill(status: status, pending: request['status'] == 'PENDING'),
+            AaraagateStatusPill(
+              label: status,
+              tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+            ),
           ]),
           if (approvalHint != null) ...[
             const SizedBox(height: 10),
@@ -452,10 +462,10 @@ class _AccessCard extends StatelessWidget {
           if (onApprove != null || onDeny != null || onCancel != null) ...[
             const SizedBox(height: 16),
             Row(children: [
-              if (onDeny != null) Expanded(child: OutlinedButton(onPressed: onDeny, child: const Text('Deny'))),
+              if (onDeny != null) Expanded(child: OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')))),
               if (onDeny != null && onApprove != null) const SizedBox(width: 12),
-              if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? 'Allow entry' : 'Allow'))),
-              if (onCancel != null) Expanded(child: OutlinedButton.icon(onPressed: onCancel, icon: const Icon(Icons.close_rounded), label: const Text('Cancel pass'))),
+              if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')))),
+              if (onCancel != null) Expanded(child: OutlinedButton.icon(onPressed: onCancel, icon: const Icon(Icons.close_rounded), label: Text(strings.text('cancelPass')))),
             ]),
           ],
         ]),
@@ -464,24 +474,6 @@ class _AccessCard extends StatelessWidget {
   }
 
   static String _label(String? value) => (value ?? '').toLowerCase().split('_').map((e) => e.isEmpty ? e : '${e[0].toUpperCase()}${e.substring(1)}').join(' ');
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status, required this.pending});
-  final String status;
-  final bool pending;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = pending ? scheme.errorContainer : scheme.primaryContainer;
-    final foreground = pending ? scheme.onErrorContainer : scheme.onPrimaryContainer;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),
-      child: Text(status, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: foreground, fontWeight: FontWeight.w800)),
-    );
-  }
 }
 
 String _formatDateTime(DateTime value) {

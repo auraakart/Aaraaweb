@@ -4,6 +4,8 @@ import { EntitlementService } from '../entitlements/entitlement.service';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { PrismaService } from '../prisma/prisma.service';
 
+const SCHOOL_TRANSPORT_PROVIDER = 'SCHOOL_TRANSPORT';
+
 @Injectable()
 export class GateArrivalService {
   constructor(
@@ -24,8 +26,10 @@ export class GateArrivalService {
     note?: string,
   ) {
     if (!name.trim()) throw new BadRequestException('Gate arrival name is required');
-    if (subjectType !== AccessSubjectType.DELIVERY && subjectType !== AccessSubjectType.CAB) {
-      throw new BadRequestException('Gate arrival type must be DELIVERY or CAB');
+    const normalizedProvider = provider?.trim() || undefined;
+    const schoolTransport = subjectType === AccessSubjectType.OTHER && normalizedProvider?.toUpperCase() === SCHOOL_TRANSPORT_PROVIDER;
+    if (subjectType !== AccessSubjectType.DELIVERY && subjectType !== AccessSubjectType.CAB && !schoolTransport) {
+      throw new BadRequestException('Gate arrival type must be DELIVERY, CAB, or configured school transport');
     }
     if (!(await this.entitlements.isEnabled(societyId, ProductFeature.DELIVERY_MANAGEMENT))) {
       throw new BadRequestException('Delivery management is not enabled for this society');
@@ -50,13 +54,15 @@ export class GateArrivalService {
     const hostUserId = destination?.occupancies[0]?.userId;
     if (!destination || !hostUserId) throw new BadRequestException('Destination unit does not have an active resident');
 
+    const approvalWindowMinutes = schoolTransport ? 20 : subjectType === AccessSubjectType.CAB ? 15 : 30;
     const metadata = {
       source: 'GATE_QUICK_ARRIVAL',
       gateId,
       createdByGuardId: actorUserId,
-      provider: provider?.trim() || null,
+      provider: normalizedProvider || null,
       vehicleNumber: vehicleNumber?.trim().toUpperCase() || null,
-      approvalWindowMinutes: subjectType === AccessSubjectType.CAB ? 15 : 30,
+      approvalWindowMinutes,
+      ...(schoolTransport ? { transportMode: SCHOOL_TRANSPORT_PROVIDER } : {}),
     };
 
     return this.prisma.$transaction(async (tx) => {
@@ -68,7 +74,7 @@ export class GateArrivalService {
           subjectType,
           subjectName: name.trim(),
           subjectPhone: phone?.trim() || null,
-          purpose: note?.trim() || (subjectType === AccessSubjectType.CAB ? 'Cab pickup/drop' : 'Delivery'),
+          purpose: note?.trim() || (schoolTransport ? 'School transport pickup/drop' : subjectType === AccessSubjectType.CAB ? 'Cab pickup/drop' : 'Delivery'),
           metadata: metadata as Prisma.InputJsonValue,
           status: AccessRequestStatus.PENDING,
         },
