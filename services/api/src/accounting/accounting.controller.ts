@@ -87,6 +87,25 @@ export class AccountingController {
     return this.accounting.createPeriod(societyId, dto);
   }
 
+  @Get('periods/:periodId/close-readiness')
+  @RequiresPermissions(AppPermission.FINANCE_READ)
+  periodCloseReadiness(
+    @CurrentTenant() societyId: string,
+    @Param('periodId', new ParseUUIDPipe()) periodId: string,
+  ) {
+    return this.accounting.periodCloseReadiness(societyId, periodId);
+  }
+
+  @Post('periods/:periodId/close')
+  @RequiresPermissions(AppPermission.FINANCE_MANAGE)
+  closePeriod(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('periodId', new ParseUUIDPipe()) periodId: string,
+  ) {
+    return this.accounting.closePeriod(societyId, this.requireUser(userId), periodId);
+  }
+
   @Get('journals')
   @RequiresPermissions(AppPermission.FINANCE_READ)
   listJournals(@CurrentTenant() societyId: string) {
