@@ -23,3 +23,25 @@ CREATE INDEX "OperationalUsageEvent_society_type_time_idx"
 
 CREATE INDEX "OperationalUsageEvent_type_time_idx"
   ON "OperationalUsageEvent"("eventType","occurredAt" DESC);
+
+
+CREATE TABLE "GuardOfflineSyncMetric" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "societyId" UUID NOT NULL,
+  "bucketDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "syncRuns" INTEGER NOT NULL DEFAULT 0,
+  "actionsConsidered" INTEGER NOT NULL DEFAULT 0,
+  "actionsSynced" INTEGER NOT NULL DEFAULT 0,
+  "actionsRetried" INTEGER NOT NULL DEFAULT 0,
+  "actionsUnresolved" INTEGER NOT NULL DEFAULT 0,
+  "reviewRequired" INTEGER NOT NULL DEFAULT 0,
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "GuardOfflineSyncMetric_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "GuardOfflineSyncMetric_societyId_fkey" FOREIGN KEY ("societyId") REFERENCES "Society"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "GuardOfflineSyncMetric_nonnegative_check" CHECK (
+    "syncRuns" >= 0 AND "actionsConsidered" >= 0 AND "actionsSynced" >= 0
+    AND "actionsRetried" >= 0 AND "actionsUnresolved" >= 0 AND "reviewRequired" >= 0
+  )
+);
+CREATE UNIQUE INDEX "GuardOfflineSyncMetric_society_day_key"
+  ON "GuardOfflineSyncMetric"("societyId","bucketDate");
