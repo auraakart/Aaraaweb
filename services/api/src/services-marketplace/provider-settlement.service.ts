@@ -276,11 +276,8 @@ export class ProviderSettlementService{
       UPDATE "ConsumerProviderSettlementRecovery"
       SET "status"='RESOLVED',"resolvedReference"=${normalized},"resolvedByUserId"=${actorUserId}::uuid,"resolvedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${recoveryId}::uuid AND "status"='OPEN'
-      RETURNING "id","providerId","status","currency",
-          "grossAmountPaise"::float8 AS "grossAmountPaise",
-          "platformFeePaise"::float8 AS "platformFeePaise",
-          "providerAmountPaise"::float8 AS "providerAmountPaise",
-          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
+      RETURNING "id","providerId","paymentId","settlementEntryId","providerAmountPaise","status",
+                "reason","resolvedReference","resolvedByUserId","createdAt","resolvedAt"
     `);
     if(!(rows as unknown[])[0])throw new NotFoundException('Open provider settlement recovery not found');
     return (rows as unknown[])[0];
