@@ -94,9 +94,8 @@ export class MigrationPreviewService {
 
     switch (entityType) {
       case 'BUILDING':
-        if (!this.value(row, 'name') && !this.value(row, 'code')) {
-          issues.push({ row: rowNumber, field: 'name', code: 'REQUIRED', message: 'building name or code is required' });
-        }
+        required('name');
+        required('code');
         break;
       case 'UNIT':
         required('unit_number', ['number', 'flat_number']);

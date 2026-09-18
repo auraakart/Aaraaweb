@@ -61,6 +61,16 @@ describe('MigrationPreviewService', () => {
     expect(result.duplicateRows).toBe(0);
   });
 
+  it('requires stable building name and code before a structural batch can become ready', () => {
+    const result = service.preview('BUILDING', [{ name: 'Alpha' }, { code: 'B' }, { name: 'Gamma', code: 'C' }]);
+    expect(result.validRows).toBe(1);
+    expect(result.invalidRows).toBe(2);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, field: 'code', code: 'REQUIRED' }),
+      expect.objectContaining({ row: 2, field: 'name', code: 'REQUIRED' }),
+    ]));
+  });
+
   it('rejects empty and oversized preview batches before processing', () => {
     expect(() => service.preview('BUILDING', [])).toThrow(BadRequestException);
     const rows = Array.from({ length: 10001 }, (_, index) => ({ code: `B${index}` }));
