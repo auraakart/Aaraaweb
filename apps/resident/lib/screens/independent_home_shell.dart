@@ -4,6 +4,7 @@ import 'consumer_booking_screen.dart';
 import 'consumer_bookings_screen.dart';
 import 'consumer_offers_screen.dart';
 import 'independent_services_screen.dart';
+import 'privacy_data_screen.dart';
 import 'service_history_screen.dart';
 
 class IndependentHomeShell extends StatefulWidget {
@@ -26,7 +27,7 @@ class _IndependentHomeShellState extends State<IndependentHomeShell> {
       ConsumerOffersScreen(apiClient: widget.apiClient),
       ConsumerBookingsScreen(apiClient: widget.apiClient),
       _IndependentHistoryTab(apiClient: widget.apiClient),
-      _IndependentProfileTab(onSignOut: widget.onSignOut),
+      _IndependentProfileTab(apiClient: widget.apiClient, onSignOut: widget.onSignOut),
     ];
 
     return Scaffold(
@@ -163,8 +164,9 @@ class _IndependentHistoryTabState extends State<_IndependentHistoryTab> {
 }
 
 class _IndependentProfileTab extends StatelessWidget {
-  const _IndependentProfileTab({required this.onSignOut});
+  const _IndependentProfileTab({required this.apiClient, required this.onSignOut});
 
+  final ApiClient apiClient;
   final Future<void> Function() onSignOut;
 
   @override
@@ -193,8 +195,18 @@ class _IndependentProfileTab extends StatelessWidget {
           Card(
             child: ListTile(
               leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Independent-home privacy boundary', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('Service requests use only homes and service locations authorized to this account.'),
+              title: const Text('Privacy & data use', style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('Review data use and submit access, correction or erasure-review requests.'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PrivacyDataScreen(apiClient: apiClient))),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.home_work_outlined),
+              title: Text('Independent-home privacy boundary', style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text('Service requests use only homes and service locations authorized to this account.'),
             ),
           ),
           const SizedBox(height: 18),

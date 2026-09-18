@@ -1,6 +1,9 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AccessModule } from './access/access.module';
+import { AccessIntegrationModule } from './access-integration/access-integration.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AccountingModule } from './accounting/accounting.module';
+import { AiOperationsModule } from './ai-operations/ai-operations.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
@@ -8,7 +11,9 @@ import { DocumentsModule } from './documents/documents.module';
 import { EntitlementsModule } from './entitlements/entitlements.module';
 import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
+import { GuardOperationsModule } from './guard-operations/guard-operations.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { MigrationModule } from './migration/migration.module';
 import { NoticesModule } from './notices/notices.module';
 import { ParcelsModule } from './parcels/parcels.module';
 import { ParkingModule } from './parking/parking.module';
@@ -25,15 +30,18 @@ import { WorkforceModule } from './workforce/workforce.module';
 import { BillingModule } from './billing/billing.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
+import { UniversalSearchModule } from './universal-search/universal-search.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
 import { UtilitiesModule } from './utilities/utilities.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
+import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
 
 @Module({
   imports: [
     AuthModule,
+    AnalyticsModule,
     EntitlementsModule,
     NotificationsModule,
     SocietiesModule,
@@ -42,13 +50,16 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     HouseholdsModule,
     WorkforceModule,
     HelpdeskModule,
+    AiOperationsModule,
     NoticesModule,
     ParcelsModule,
     ParkingModule,
     SosModule,
     GatesModule,
+    GuardOperationsModule,
     VisitorsModule,
     AccessModule,
+    AccessIntegrationModule,
     AmenitiesModule,
     FacilitiesModule,
     UtilitiesModule,
@@ -58,16 +69,18 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     BillingModule,
     AccountingModule,
     GovernanceModule,
+    MigrationModule,
     PrivacyModule,
     ReportsModule,
+    UniversalSearchModule,
     ScheduledWorkModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService, RequestObservabilityMiddleware],
+  providers: [PrismaService, RequestObservabilityMiddleware, RateLimitMiddleware],
   exports: [PrismaService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestObservabilityMiddleware).forRoutes('*');
+    consumer.apply(RequestObservabilityMiddleware, RateLimitMiddleware).forRoutes('*');
   }
 }

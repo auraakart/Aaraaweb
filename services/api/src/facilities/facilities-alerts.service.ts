@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 @Injectable()
 export class FacilitiesAlertsService implements OnModuleInit,OnModuleDestroy{
@@ -12,9 +13,9 @@ export class FacilitiesAlertsService implements OnModuleInit,OnModuleDestroy{
     if(process.env.FACILITIES_ALERTS_AUTO_GENERATE!=='true')return;
     const raw=Number(process.env.FACILITIES_ALERTS_INTERVAL_MS??21600000);
     const interval=Math.max(Number.isFinite(raw)?raw:21600000,3600000);
-    this.timer=setInterval(()=>void this.runAll().catch(e=>this.logger.error('Facilities alert generation failed',e instanceof Error?e.stack:undefined)),interval);
+    this.timer=setInterval(()=>void this.runAll().catch(e=>this.logger.error(`Facilities alert generation failed: ${safeOperationalError(e)}`)),interval);
     this.timer.unref();
-    void this.runAll().catch(e=>this.logger.error('Initial facilities alert generation failed',e instanceof Error?e.stack:undefined));
+    void this.runAll().catch(e=>this.logger.error(`Initial facilities alert generation failed: ${safeOperationalError(e)}`));
   }
   onModuleDestroy(){if(this.timer)clearInterval(this.timer);}
 

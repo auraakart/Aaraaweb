@@ -18,6 +18,7 @@ const emergencyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','
 const documentRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
 const vendorRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 const privacyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
+const accessIntegrationRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
 
 type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
@@ -59,6 +60,7 @@ export function AdminShortcuts(){
     if(role==='SOCIETY_ADMIN')add(property,{href:'/household-approvals',label:'Household approvals',description:'Review resident household requests'})
     if(societySetupRoles.has(role)){
       add(property,{href:'/property',label:'Property setup',description:'Buildings, units and society structure'})
+      add(property,{href:'/migration',label:'Migration center',description:'Validate imports, track onboarding and export evidence'})
       add(property,{href:'/roles',label:'People & roles',description:'Administrative memberships and access'})
       add(property,{href:'/parking',label:'Parking',description:'Parking inventory and assignments'})
     }
@@ -70,12 +72,15 @@ export function AdminShortcuts(){
 
     if(facilitiesRoles.has(role)){
       add(operations,{href:'/facilities',label:'Facilities ops',description:'Assets, issues and facility workflows'})
+      add(operations,{href:'/facilities/inventory',label:'Inventory & spares',description:'Track stock, receipts and work-order consumption'})
+      add(operations,{href:'/facilities/operations',label:'Housekeeping & staff',description:'Schedule and complete operational tasks'})
       add(operations,{href:'/facilities/health',label:'Facilities health',description:'Operational health overview'})
       add(operations,{href:'/facilities/preventive',label:'Preventive maintenance',description:'Scheduled maintenance activities'})
       add(operations,{href:'/facilities/contracts',label:'AMC & evidence',description:'Contracts and maintenance evidence'})
       add(operations,{href:'/facilities/alerts',label:'Facilities alerts',description:'Operational exceptions and alerts'})
     }
     if(emergencyRoles.has(role)&&features.has('SOS'))add(operations,{href:'/emergency-operations',label:'Emergency control room',description:'Acknowledge and resolve SOS incidents'})
+    if(accessIntegrationRoles.has(role))add(operations,{href:'/access-integrations',label:'Access integrations',description:'ANPR, barrier, RFID health and fallback evidence'})
     if(privacyRoles.has(role))add(operations,{href:'/privacy-operations',label:'Privacy operations',description:'Privacy requests and operational controls'})
     if((emergencyRoles.has(role)&&features.has('SOS'))||privacyRoles.has(role)||role==='SUPER_ADMIN')add(operations,{href:'/operations-control',label:'Operations & control',description:'Emergency, privacy, audit and platform controls'})
     if(vendorRoles.has(role))add(operations,{href:'/society-vendors',label:'Vendors & procurement',description:'Vendor relationships and procurement'})
@@ -85,6 +90,7 @@ export function AdminShortcuts(){
     if(noticeRoles.has(role)&&features.has('NOTICES'))add(operations,{href:'/notices/metrics',label:'Notice metrics',description:'Announcement delivery and engagement'})
     if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))add(operations,{href:'/marketplace-control',label:'Marketplace controls',description:'Society marketplace operations'})
 
+    if(features.has('AI_ASSISTANT')&&['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR','SECURITY_SUPERVISOR'].includes(role))add(operations,{href:'/ai-assistant',label:'Aaraagate Assistant',description:'Grounded, permission-aware operational assistance'})
     if(reportRoles.has(role)&&features.has('ADVANCED_REPORTS'))add(finance,{href:'/reports',label:'Reports',description:'Operational and management reporting'})
     if(financeRoles.has(role)&&features.has('SOCIETY_ACCOUNTING')){
       add(finance,{href:'/finance',label:'Finance',description:'Society financial overview'})
@@ -95,6 +101,7 @@ export function AdminShortcuts(){
     if(role==='SUPER_ADMIN'){
       add(platform,{href:'/platform/providers',label:'Provider verification',description:'Verify external service providers'})
       add(platform,{href:'/platform/provider-trust',label:'Provider trust',description:'Trust and provider quality controls'})
+      add(platform,{href:'/platform/privacy',label:'Platform privacy',description:'Independent-home privacy requests and retention review'})
       add(platform,{href:'/marketplace-control/commercial',label:'Commercial controls',description:'Marketplace commissions and commercial policy'})
       add(platform,{href:'/marketplace-control/operations',label:'Services operations',description:'Cross-society service operations'})
       add(platform,{href:'/platform',label:'Platform',description:'Aaraagate platform administration'})

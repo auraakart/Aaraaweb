@@ -3,6 +3,7 @@ import { Observable, Subject } from 'rxjs';
 import { PushNotificationService } from './push-notification.service';
 import { GateRecipientService } from './gate-recipient.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 export type AccessRealtimeEvent = {
   type: 'ACCESS_APPROVAL_REQUESTED' | 'ACCESS_APPROVAL_DECIDED' | 'ACCESS_STATUS_CHANGED';
@@ -89,7 +90,7 @@ export class NotificationRealtimeService {
 
   publishResident(event: ResidentMessageEvent) {
     void this.dispatchResident(event).catch((error: unknown) => {
-      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      this.logger.warn(`Push delivery failed for resident event ${event.type}: ${safeOperationalError(error)}`);
     });
   }
 
@@ -156,7 +157,7 @@ export class NotificationRealtimeService {
       }
       await this.deliverResident({ ...event, unitId: invoice.unitId });
     } catch (error) {
-      this.logger.warn(`Maintenance notification enrichment failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      this.logger.warn(`Maintenance notification enrichment failed: ${safeOperationalError(error)}`);
       throw error;
     }
   }

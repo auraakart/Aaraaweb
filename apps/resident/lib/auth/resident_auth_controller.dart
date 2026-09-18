@@ -273,6 +273,12 @@ class ResidentAuthController extends ChangeNotifier {
       session = _withProperty(next, property);
       await sessionStore.write(session!);
       if (_disposed) return;
+      try {
+        await repository.recordUsage(session!, 'PROPERTY_CONTEXT_SWITCHED');
+      } catch (_) {
+        // Product analytics must never block property switching.
+      }
+      if (_disposed) return;
       memberships = await repository.contexts(session!);
       if (_disposed) return;
       step = ResidentAuthStep.signedIn;

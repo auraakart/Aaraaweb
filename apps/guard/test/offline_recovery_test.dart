@@ -42,17 +42,14 @@ class MemoryQueue extends OfflineActionQueue {
   Future<void> replace(List<QueuedGateAction> actions) async => items = [...actions];
 }
 
-QueuedGateAction action(String key) => QueuedGateAction(
+QueuedGateAction action(String key, {DateTime? createdAt}) => QueuedGateAction(
   type: 'CHECK_IN', gateId: 'gate-1', credential: 'pass-1', idempotencyKey: key,
-  createdAt: DateTime.utc(2026, 9, 2), societyId: 'society-1', guardUserId: 'guard-1',
+  createdAt: createdAt ?? DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+  societyId: 'society-1', guardUserId: 'guard-1',
 );
 
 const session = GuardSession(
-  sessionId: 'session-1',
-  accessToken: 'token',
-  refreshToken: 'refresh',
-  userId: 'guard-1',
-  societyId: 'society-1',
+  sessionId: 'session-1', accessToken: 'token', refreshToken: 'refresh', userId: 'guard-1', societyId: 'society-1',
 );
 
 void main() {
@@ -60,8 +57,7 @@ void main() {
     final api = FakeGuardApi()..failure = GuardApiException('offline', transport: true);
     final queue = MemoryQueue();
     final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
-      ..gateId = 'gate-1'
-      ..session = session;
+      ..gateId = 'gate-1'..session = session;
 
     await controller.checkIn('pass-1');
 
@@ -74,8 +70,7 @@ void main() {
     final api = FakeGuardApi();
     final queue = MemoryQueue([action('stable-key')]);
     final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
-      ..queuedActions = 1
-      ..session = session;
+      ..queuedActions = 1..session = session;
 
     await controller.retryQueuedActions();
 
@@ -85,30 +80,59 @@ void main() {
     expect(controller.offlineSyncMessage, '1 offline action synced.');
   });
 
-  test('retains a server-rejected action for supervisor review', () async {
-    final api = FakeGuardApi()..failure = GuardApiException('expired', statusCode: 409);
-    final queue = MemoryQueue([action('review-key')]);
+  test('transport retry records bounded backoff without changing the idempotency key', () async {
+    final api = FakeGuardApi()..failure = GuardApiException('offline', transport: true);
+    final queue = MemoryQueue([action('backoff-key')]);
     final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
-      ..queuedActions = 1
-      ..session = session;
+      ..queuedActions = 1..session = session;
 
     await controller.retryQueuedActions();
 
     expect(queue.items, hasLength(1));
-    expect(controller.queuedActions, 1);
-    expect(controller.offlineSyncMessage, contains('retained for supervisor review'));
+    expect(queue.items.single.idempotencyKey, 'backoff-key');
+    expect(queue.items.single.attemptCount, 1);
+    expect(queue.items.single.failureKind, 'TRANSPORT');
+    expect(queue.items.single.nextAttemptAt, isNotNull);
+    expect(queue.items.single.reviewRequired, isFalse);
+  });
+
+  test('marks a server conflict for supervisor review and does not treat it as retryable transport', () async {
+    final api = FakeGuardApi()..failure = GuardApiException('expired', statusCode: 409);
+    final queue = MemoryQueue([action('review-key')]);
+    final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
+      ..queuedActions = 1..session = session;
+
+    await controller.retryQueuedActions();
+
+    expect(queue.items, hasLength(1));
+    expect(queue.items.single.failureKind, 'CONFLICT');
+    expect(queue.items.single.reviewRequired, isTrue);
+    expect(controller.reviewRequiredActions, 1);
+    expect(controller.offlineSyncMessage, contains('supervisor review'));
+  });
+
+  test('marks stale offline actions for review instead of replaying them', () async {
+    final api = FakeGuardApi();
+    final queue = MemoryQueue([action('stale-key', createdAt: DateTime.now().toUtc().subtract(const Duration(days: 31)))]);
+    final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
+      ..queuedActions = 1..session = session;
+
+    await controller.retryQueuedActions();
+
+    expect(api.calls, isEmpty);
+    expect(queue.items.single.failureKind, 'STALE');
+    expect(queue.items.single.reviewRequired, isTrue);
   });
 
   test('does not replay or reveal actions belonging to another guard session', () async {
     final foreign = QueuedGateAction(
       type: 'CHECK_IN', gateId: 'gate-2', credential: 'foreign-pass', idempotencyKey: 'foreign-key',
-      createdAt: DateTime.utc(2026, 9, 2), societyId: 'society-2', guardUserId: 'guard-2',
+      createdAt: DateTime.now().toUtc(), societyId: 'society-2', guardUserId: 'guard-2',
     );
     final api = FakeGuardApi();
     final queue = MemoryQueue([foreign, action('own-key')]);
     final controller = GuardController(api: api, sessions: const GuardSessionStore(), offlineQueue: queue)
-      ..queuedActions = 1
-      ..session = session;
+      ..queuedActions = 1..session = session;
 
     await controller.retryQueuedActions();
 
@@ -119,12 +143,27 @@ void main() {
     expect(controller.queuedActions, 0);
   });
 
+  test('serializes retry metadata while remaining backward compatible with scoped legacy records', () {
+    final decoded = QueuedGateAction.tryFromJson({
+      'type': 'CHECK_IN', 'gateId': 'gate-1', 'credential': 'pass', 'idempotencyKey': 'key',
+      'createdAt': DateTime.now().toUtc().toIso8601String(), 'societyId': 'society-1', 'guardUserId': 'guard-1',
+    });
+    expect(decoded, isNotNull);
+    expect(decoded!.attemptCount, 0);
+    expect(decoded.reviewRequired, isFalse);
+
+    final retried = decoded.withRetryFailure(DateTime.now().toUtc());
+    final restored = QueuedGateAction.tryFromJson(retried.toJson());
+    expect(restored!.attemptCount, 1);
+    expect(restored.failureKind, 'TRANSPORT');
+    expect(restored.nextAttemptAt, isNotNull);
+  });
+
   test('rejects legacy unscoped queue records', () {
     final decoded = QueuedGateAction.tryFromJson({
       'type': 'CHECK_IN', 'gateId': 'gate-1', 'credential': 'legacy-pass',
       'idempotencyKey': 'legacy-key', 'createdAt': '2026-09-02T00:00:00.000Z',
     });
-
     expect(decoded, isNull);
   });
 }

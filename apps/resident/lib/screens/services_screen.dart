@@ -4,6 +4,7 @@ import '../data/service_booking_actions.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
+import '../widgets/service_booking_timeline_sheet.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key, required this.controller});
@@ -381,6 +382,23 @@ class _ServicesScreenState extends State<ServicesScreen> {
     });
   }
 
+  Future<void> _showTimeline(Map<String, dynamic> booking) async {
+    final id = booking['id']?.toString();
+    if (id == null || id.isEmpty) return;
+    Map<String, dynamic>? timeline;
+    await _run(() async {
+      timeline = await controller.repository.serviceBookingTimeline(id);
+    });
+    if (!mounted || timeline == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => ServiceBookingTimelineSheet(timeline: timeline!),
+    );
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -548,17 +566,20 @@ class _ServicesScreenState extends State<ServicesScreen> {
                           Text('Scheduled ${_dateTime(booking['scheduledFrom'])}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                           const SizedBox(height: AaraagateTokens.space2),
                           Text(_statusMessage(booking), style: theme.textTheme.bodyMedium),
-                          if (cancellable || rateable) ...[
-                            const SizedBox(height: AaraagateTokens.space3),
-                            Wrap(
-                              spacing: AaraagateTokens.space2,
-                              runSpacing: AaraagateTokens.space2,
-                              children: [
-                                if (cancellable) OutlinedButton(onPressed: _busy ? null : () => _cancel(booking), child: const Text('Cancel')),
-                                if (rateable) FilledButton(onPressed: _busy ? null : () => _rate(booking), child: const Text('Rate service')),
-                              ],
-                            ),
-                          ],
+                          const SizedBox(height: AaraagateTokens.space3),
+                          Wrap(
+                            spacing: AaraagateTokens.space2,
+                            runSpacing: AaraagateTokens.space2,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: _busy ? null : () => _showTimeline(booking),
+                                icon: const Icon(Icons.timeline_rounded),
+                                label: const Text('Timeline & warranty'),
+                              ),
+                              if (cancellable) OutlinedButton(onPressed: _busy ? null : () => _cancel(booking), child: const Text('Cancel')),
+                              if (rateable) FilledButton(onPressed: _busy ? null : () => _rate(booking), child: const Text('Rate service')),
+                            ],
+                          ),
                         ],
                       ),
                     ),

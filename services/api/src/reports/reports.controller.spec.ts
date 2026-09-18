@@ -35,6 +35,12 @@ describe('ReportsController entitlement and permission boundaries', () => {
     ]);
   });
 
+  it('requires audit-read for security event visibility', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.securityEvents)).toEqual([
+      AppPermission.AUDIT_READ,
+    ]);
+  });
+
   it('requires audit-read for audit CSV exports', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ReportsController.prototype.auditExport)).toEqual([
       AppPermission.AUDIT_READ,

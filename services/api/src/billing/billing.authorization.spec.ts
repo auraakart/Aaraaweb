@@ -23,5 +23,9 @@ describe('BillingController authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.receipt)).toEqual([AppPermission.PAYMENT_CREATE_OWN]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.paymentAudit)).toEqual([AppPermission.BILLING_MANAGE]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.paymentAudit)).toBe(ProductFeature.PAYMENTS);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.webhookReceipts)).toEqual([AppPermission.PAYMENT_RECONCILE]);
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.webhookReceipts)).toBe(ProductFeature.PAYMENTS);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, BillingController.prototype.replayWebhook)).toEqual([AppPermission.PAYMENT_RECONCILE]);
+    expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, BillingController.prototype.replayWebhook)).toBe(ProductFeature.PAYMENTS);
   });
 });

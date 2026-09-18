@@ -92,6 +92,23 @@ class GuardApi {
   Future<Map<String, dynamic>> refresh(String sessionId, String refreshToken) async => Map<String, dynamic>.from(await _send('POST', '/auth/refresh', body: {'sessionId': sessionId, 'refreshToken': refreshToken}) as Map);
   Future<void> logout(String sessionId, String refreshToken) => _send('POST', '/auth/logout', body: {'sessionId': sessionId, 'refreshToken': refreshToken});
 
+  Future<void> reportOfflineSync({
+    required int considered,
+    required int synced,
+    required int retried,
+    required int unresolved,
+    required int reviewRequired,
+  }) async {
+    if (accessToken.isEmpty) return;
+    await _send('POST', '/analytics/guard-sync', body: {
+      'considered': considered,
+      'synced': synced,
+      'retried': retried,
+      'unresolved': unresolved,
+      'reviewRequired': reviewRequired,
+    });
+  }
+
   Future<List<Map<String, dynamic>>> gates() async {
     final value = await _send('GET', '/gates');
     if (value is! List) return const [];

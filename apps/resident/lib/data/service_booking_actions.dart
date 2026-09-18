@@ -21,6 +21,11 @@ extension ServiceBookingActions on ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<Map<String, dynamic>> serviceBookingTimeline(String bookingId) async {
+    final value = await api.get('/api/v1/services-marketplace/bookings/$bookingId/timeline');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> cancelServiceBooking(String bookingId) async {
     final value = await api.post('/api/v1/services-marketplace/bookings/$bookingId/cancel');
     return Map<String, dynamic>.from(value as Map);

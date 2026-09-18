@@ -1,0 +1,41 @@
+name: V4 Release Consolidation
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'docs/AARAAGATE-V4-**'
+      - 'docs/v4-release-manifest.json'
+      - 'scripts/check-v4-release-evidence.mjs'
+      - '.github/workflows/v4-release-consolidation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consolidation:
+    name: V4 evidence and release-control contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate V4 release manifest and evidence boundaries
+        run: node scripts/check-v4-release-evidence.mjs
+      - name: Validate release control scripts
+        run: |
+          bash -n scripts/release-migration-gate.sh
+          bash -n scripts/production-preflight.sh
+          bash -n scripts/check-staging-release-contract.sh
+          bash -n scripts/hosted-staging-smoke.sh
+      - name: Verify release workflows exist
+        run: |
+          test -f .github/workflows/ci.yml
+          test -f .github/workflows/backup-restore-smoke.yml
+          test -f .github/workflows/release-readiness.yml
+          test -f .github/workflows/staging-smoke.yml
