@@ -142,7 +142,77 @@ export class MigrationBatchService {
       WHERE r."batchId"=${batchId}::uuid
       ORDER BY a."createdAt"
     `);
-    return { ...batches[0], rows, artifacts };
+    const financeReconciliation = batches[0].entityType === 'OPENING_BALANCE'
+      ? await this.openingBalanceReconciliation(societyId, rows)
+      : null;
+    return { ...batches[0], rows, artifacts, financeReconciliation };
+  }
+
+  async exportEvidenceCsv(societyId: string, batchId: string) {
+    const batch = await this.getBatch(societyId, batchId) as Record<string, unknown> & {
+      rows: Array<Record<string, unknown>>;
+      financeReconciliation?: Record<string, unknown> | null;
+    };
+    const header = [
+      'batch_id','entity_type','status','checksum','row_number','valid','identity_key',
+      'target_type','target_id','committed_at','rolled_back_at','issues','normalized',
+    ];
+    const lines = [header.join(',')];
+    for (const row of batch.rows) {
+      lines.push([
+        batch.id,batch.entityType,batch.status,batch.checksum,row.rowNumber,row.valid,row.identityKey,
+        row.targetType,row.targetId,row.committedAt,row.rolledBackAt,
+        JSON.stringify(row.issues ?? []),JSON.stringify(row.normalized ?? {}),
+      ].map((value) => this.csv(value)).join(','));
+    }
+    if (batch.financeReconciliation) {
+      lines.push('');
+      lines.push('finance_reconciliation');
+      for (const [key,value] of Object.entries(batch.financeReconciliation)) {
+        lines.push([this.csv(key),this.csv(value)].join(','));
+      }
+    }
+    return lines.join('\n');
+  }
+
+  private async openingBalanceReconciliation(societyId: string, rows: Array<Record<string, unknown>>) {
+    const journalIds = [...new Set(rows.map((row) => typeof row.targetId === 'string' ? row.targetId : '').filter(Boolean))];
+    if (journalIds.length === 0) return { journalId: null, status: 'NOT_COMMITTED', balanced: false, debitPaise: 0, creditPaise: 0, reversalId: null };
+    if (journalIds.length !== 1) return { journalId: null, status: 'EVIDENCE_MISMATCH', balanced: false, debitPaise: 0, creditPaise: 0, reversalId: null };
+    const journalId = journalIds[0];
+    const result = await this.prisma.$queryRaw<Array<{
+      id: string;
+      status: string;
+      debitPaise: bigint | number;
+      creditPaise: bigint | number;
+      reversalId: string | null;
+    }>>(Prisma.sql`
+      SELECT je."id",je."status"::text AS "status",
+             COALESCE(SUM(jl."debitPaise"),0) AS "debitPaise",
+             COALESCE(SUM(jl."creditPaise"),0) AS "creditPaise",
+             rev."id" AS "reversalId"
+      FROM "JournalEntry" je
+      LEFT JOIN "JournalLine" jl ON jl."entryId"=je."id" AND jl."societyId"=je."societyId"
+      LEFT JOIN "JournalEntry" rev ON rev."reversalOfEntryId"=je."id" AND rev."societyId"=je."societyId"
+      WHERE je."id"=${journalId}::uuid AND je."societyId"=${societyId}::uuid AND je."sourceType"='OPENING_BALANCE'
+      GROUP BY je."id",je."status",rev."id"
+    `);
+    if (!result[0]) return { journalId, status: 'MISSING', balanced: false, debitPaise: 0, creditPaise: 0, reversalId: null };
+    const debitPaise = Number(result[0].debitPaise);
+    const creditPaise = Number(result[0].creditPaise);
+    return {
+      journalId,
+      status: result[0].status,
+      debitPaise,
+      creditPaise,
+      balanced: debitPaise === creditPaise && debitPaise > 0,
+      reversalId: result[0].reversalId,
+    };
+  }
+
+  private csv(value: unknown) {
+    const text = value == null ? '' : String(value);
+    return `"${text.replace(/"/g, '""')}"`;
   }
 
   validateReferences(

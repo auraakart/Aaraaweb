@@ -1,7 +1,7 @@
 # Aaraagate V4.3 — Competitor Migration and Society Onboarding
 
 Date: 2026-09-18
-Status: Implementation in progress
+Status: Complete on `develop` after V4.3 completion PR
 Baseline: V4.2-complete `develop`
 
 ## Goal
@@ -81,10 +81,10 @@ These tables are migration evidence, not a parallel operational store.
 4. Dependency-ordered commit engine. **Structural BUILDING/UNIT slice implemented**
 5. Rollback/undo boundary. **Structural BUILDING/UNIT slice implemented**
 6. Resident/vehicle/parking/workforce/vendor domain-safe commit adapters. **Implemented**
-7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary. **Cutover handoff implemented; reconciliation evidence remains**
-8. Admin onboarding checklist/progress surface.
-9. Migration evidence export.
-10. Large-import, invalid-data, duplicate, rollback and cross-society isolation regression evidence.
+7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary. **Complete**
+8. Admin onboarding checklist/progress surface. **Complete**
+9. Migration evidence export. **Complete**
+10. Large-import, invalid-data, duplicate, rollback and cross-society isolation regression evidence. **Complete**
 
 ## Safety invariants
 - Every request resolves an authenticated society tenant.
@@ -107,5 +107,13 @@ These tables are migration evidence, not a parallel operational store.
 - Cross-society references fail closed.
 - Migration evidence is never silently destroyed.
 
-## Remaining V4.3 acceptance work
-V4.3 remains open until reconciliation evidence, Admin onboarding/progress, evidence export and large-import/isolation regression evidence are complete.
+## V4.3 completion evidence
+- Batch detail returns opening-balance reconciliation evidence from the authoritative posted journal: debit total, credit total, balanced flag, journal status and reversal reference.
+- `GET /api/v1/migration/batches/:id/evidence.csv` exports society-scoped row evidence and finance reconciliation without bypassing tenant/permission guards.
+- Admin `/migration` provides onboarding checklist/progress, batch history/detail, evidence export and controlled commit/rollback actions for Society Admin/Super Admin.
+- Preview regression evidence accepts the documented 10,000-row boundary and rejects 10,001 rows.
+- Batch lookup/export regression evidence asserts the society scope is present in the batch lookup contract.
+- Invalid-data, duplicate, referential, commit and rollback cases remain covered by the focused V4.3 service suites.
+
+## V4.3 exit decision
+All planned V4.3 implementation acceptance items are represented in code/tests. External competitor source files can vary, but they map into the canonical import contract; no vendor-specific runtime dependency is required. Staging/main promotion remains deferred under the V4 release policy.

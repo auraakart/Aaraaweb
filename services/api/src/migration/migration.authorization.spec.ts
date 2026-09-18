@@ -20,6 +20,7 @@ describe('MigrationController authorization', () => {
       'createBatch',
       'listBatches',
       'getBatch',
+      'exportBatchEvidence',
       'commitBatch',
       'rollbackBatch',
     ] as const) {

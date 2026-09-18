@@ -14,6 +14,7 @@ import {
   Controller,
   ExecutionContext,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Post,
@@ -107,6 +108,16 @@ export class MigrationController {
     @Param('id', new ParseUUIDPipe()) batchId: string,
   ) {
     return this.batchService.getBatch(societyId, batchId);
+  }
+
+  @Get('batches/:id/evidence.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  exportBatchEvidence(
+    @CurrentTenant() societyId: string,
+    @Param('id', new ParseUUIDPipe()) batchId: string,
+  ) {
+    return this.batchService.exportEvidenceCsv(societyId, batchId);
   }
 
   @Post('batches/:id/commit')
