@@ -3,6 +3,7 @@ import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 const ALLOWED_FROM: Readonly<Record<ServiceBookingStatus, readonly ServiceBookingStatus[]>> = {
   [ServiceBookingStatus.REQUESTED]: [],
@@ -119,7 +120,7 @@ export class ConsumerFulfilmentService {
 
     if (toStatus === ServiceBookingStatus.CONFIRMED || toStatus === ServiceBookingStatus.CANCELLED) {
       void this.publishBookingStatus(bookingId, toStatus).catch((error: unknown) => {
-        this.logger.warn(`Consumer booking push failed for ${bookingId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+        this.logger.warn(`Consumer booking push failed for ${bookingId}: ${safeOperationalError(error)}`);
       });
     }
 

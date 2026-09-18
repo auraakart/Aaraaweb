@@ -3,6 +3,7 @@ import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
 
 type AssignmentRow = {
@@ -86,7 +87,7 @@ export class ConsumerServiceCompletionService {
 
     if (result.created) {
       void this.publishCompletionRequest(result.bookingId, result.assignmentId).catch((error: unknown) => {
-        this.logger.warn(`Completion request push failed for ${result.bookingId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+        this.logger.warn(`Completion request push failed for ${result.bookingId}: ${safeOperationalError(error)}`);
       });
     }
     return {
