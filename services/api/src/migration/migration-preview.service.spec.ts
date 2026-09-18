@@ -150,9 +150,13 @@ describe('MigrationPreviewService', () => {
     ]));
   });
 
-  it('rejects empty and oversized preview batches before processing', () => {
+  it('accepts the documented 10000-row boundary and rejects larger batches', () => {
     expect(() => service.preview('BUILDING', [])).toThrow(BadRequestException);
-    const rows = Array.from({ length: 10001 }, (_, index) => ({ code: `B${index}` }));
-    expect(() => service.preview('BUILDING', rows)).toThrow(BadRequestException);
+    const maxRows = Array.from({ length: 10000 }, (_, index) => ({ name: `Building ${index}`, code: `B${index}` }));
+    const accepted = service.preview('BUILDING', maxRows);
+    expect(accepted.totalRows).toBe(10000);
+    expect(accepted.invalidRows).toBe(0);
+    const oversized = [...maxRows, { name: 'Overflow', code: 'OVERFLOW' }];
+    expect(() => service.preview('BUILDING', oversized)).toThrow(BadRequestException);
   });
 });

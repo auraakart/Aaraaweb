@@ -85,6 +85,46 @@ describe('MigrationBatchService evidence', () => {
     ]));
   });
 
+  it('keeps batch lookup society-scoped and exports auditable CSV evidence', async () => {
+    const queries: unknown[] = [];
+    const prisma = {
+      $queryRaw: async (query: unknown) => {
+        queries.push(query);
+        if (queries.length === 1) return [{ id: 'batch-1', societyId: 'society-a', entityType: 'BUILDING', status: 'READY', checksum: 'abc' }];
+        if (queries.length === 2) return [{ id: 'row-1', rowNumber: 1, normalized: { code: 'A', name: 'Alpha' }, identityKey: 'a', valid: true, issues: [], targetType: null, targetId: null, committedAt: null, rolledBackAt: null }];
+        return [];
+      },
+    };
+    const scoped = new MigrationBatchService(prisma as never, {} as never);
+    const csv = await scoped.exportEvidenceCsv('society-a', 'batch-1');
+    const sql = String((queries[0] as { strings?: readonly string[] }).strings?.join('') ?? '');
+    expect(sql).toContain('"societyId"=');
+    expect(csv).toContain('"batch-1"');
+    expect(csv).toContain('"Alpha"');
+  });
+
+  it('reports opening-balance journal reconciliation from authoritative ledger rows', async () => {
+    const prisma = {
+      $queryRaw: (() => {
+        let call = 0;
+        return async () => {
+          call += 1;
+          if (call === 1) return [{ id: 'batch-1', societyId: 'society-a', entityType: 'OPENING_BALANCE', status: 'COMMITTED', checksum: 'abc' }];
+          if (call === 2) return [{ id: 'row-1', rowNumber: 1, normalized: {}, identityKey: '1100||', valid: true, issues: [], targetType: 'JournalEntry', targetId: '22222222-2222-2222-2222-222222222222', committedAt: new Date(), rolledBackAt: null }];
+          if (call === 3) return [];
+          return [{ id: '22222222-2222-2222-2222-222222222222', status: 'POSTED', debitPaise: 5000, creditPaise: 5000, reversalId: null }];
+        };
+      })(),
+    };
+    const scoped = new MigrationBatchService(prisma as never, {} as never);
+    const detail = await scoped.getBatch('society-a', 'batch-1') as { financeReconciliation: { balanced: boolean; debitPaise: number; creditPaise: number } };
+    expect(detail.financeReconciliation).toEqual(expect.objectContaining({
+      balanced: true,
+      debitPaise: 5000,
+      creditPaise: 5000,
+    }));
+  });
+
   it('creates a deterministic checksum independent of source key ordering', () => {
     const first = service.checksum('BUILDING', [{ code: 'A', name: 'Alpha' }]);
     const second = service.checksum('BUILDING', [{ name: 'Alpha', code: 'A' }]);

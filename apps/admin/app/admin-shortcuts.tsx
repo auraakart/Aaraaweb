@@ -59,6 +59,7 @@ export function AdminShortcuts(){
     if(role==='SOCIETY_ADMIN')add(property,{href:'/household-approvals',label:'Household approvals',description:'Review resident household requests'})
     if(societySetupRoles.has(role)){
       add(property,{href:'/property',label:'Property setup',description:'Buildings, units and society structure'})
+      add(property,{href:'/migration',label:'Migration center',description:'Validate imports, track onboarding and export evidence'})
       add(property,{href:'/roles',label:'People & roles',description:'Administrative memberships and access'})
       add(property,{href:'/parking',label:'Parking',description:'Parking inventory and assignments'})
     }
