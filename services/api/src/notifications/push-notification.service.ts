@@ -4,6 +4,7 @@ import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 import type { ResidentMessageEvent } from './notification-realtime.service';
 import { PushDeliveryOutboxService, type PushOutboxEnvelope } from './push-delivery-outbox.service';
 
@@ -59,7 +60,7 @@ export class PushNotificationService {
         credential: cert({ projectId: serviceAccount.project_id, clientEmail: serviceAccount.client_email, privateKey: serviceAccount.private_key }),
       }, 'aaraagate');
     } catch (error) {
-      this.logger.error('FCM disabled: FIREBASE_SERVICE_ACCOUNT_JSON is invalid', error instanceof Error ? error.stack : undefined);
+      this.logger.error(`FCM disabled: FIREBASE_SERVICE_ACCOUNT_JSON is invalid (${safeOperationalError(error)})`);
     }
   }
 
