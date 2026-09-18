@@ -8,6 +8,7 @@ export class ReliabilityMetricsService {
   private totalRequests = 0;
   private inflightRequests = 0;
   private responses2xx = 0;
+  private responses3xx = 0;
   private responses4xx = 0;
   private responses5xx = 0;
   private totalDurationMs = 0;
@@ -30,6 +31,7 @@ export class ReliabilityMetricsService {
   completeRequest(statusCode: number, durationMs: number) {
     this.inflightRequests = Math.max(0, this.inflightRequests - 1);
     if (statusCode >= 200 && statusCode < 300) this.responses2xx += 1;
+    else if (statusCode >= 300 && statusCode < 400) this.responses3xx += 1;
     else if (statusCode >= 400 && statusCode < 500) this.responses4xx += 1;
     else if (statusCode >= 500) this.responses5xx += 1;
     const duration = Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : 0;
@@ -47,13 +49,14 @@ export class ReliabilityMetricsService {
   }
 
   snapshot() {
-    const completed = this.responses2xx + this.responses4xx + this.responses5xx;
+    const completed = this.responses2xx + this.responses3xx + this.responses4xx + this.responses5xx;
     return {
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       totalRequests: this.totalRequests,
       inflightRequests: this.inflightRequests,
       completedResponses: completed,
       responses2xx: this.responses2xx,
+      responses3xx: this.responses3xx,
       responses4xx: this.responses4xx,
       responses5xx: this.responses5xx,
       errorRate5xx: completed ? Number((this.responses5xx / completed).toFixed(4)) : 0,
