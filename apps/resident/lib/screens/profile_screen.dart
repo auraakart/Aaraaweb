@@ -186,7 +186,7 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.privacy_tip_outlined,
                   title: 'Privacy & data use',
                   subtitle: 'See how current app features use your information',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyDataScreen())),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PrivacyDataScreen(apiClient: controller.repository.api))),
                 ),
                 Divider(height: 1, color: scheme.outlineVariant),
                 _ProfileTile(
