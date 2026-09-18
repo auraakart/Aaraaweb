@@ -118,8 +118,8 @@ export class ParkingService {
         `);
         if (!vehicles[0]) throw new NotFoundException('Active household vehicle not found');
 
-        const policy = await tx.$queryRaw<Array<{ maxActiveResidentVehicles: number }>>(Prisma.sql`
-          SELECT "maxActiveResidentVehicles" FROM "ParkingPolicy"
+        const policy = await tx.$queryRaw<Array<{ maxActiveResidentVehicles: number; requireCredential: boolean }>>(Prisma.sql`
+          SELECT "maxActiveResidentVehicles","requireCredential" FROM "ParkingPolicy"
           WHERE "societyId"=${societyId}::uuid
           LIMIT 1
         `);
@@ -133,6 +133,14 @@ export class ParkingService {
         `);
         if (Number(activeAllocations[0]?.count ?? 0) >= maxActiveResidentVehicles) {
           throw new ConflictException(`Household has reached the configured active parking allocation limit (${maxActiveResidentVehicles})`);
+        }
+        if (policy[0]?.requireCredential) {
+          const credentials = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "ParkingCredential"
+            WHERE "societyId"=${societyId}::uuid AND "vehicleId"=${input.vehicleId}::uuid AND "status"='ACTIVE'
+            LIMIT 1
+          `);
+          if (!credentials[0]) throw new ConflictException('Active parking credential is required by society policy');
         }
 
         const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
