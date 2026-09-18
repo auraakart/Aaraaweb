@@ -14,7 +14,6 @@ class GuardToolsScreen extends StatefulWidget {
 }
 
 class _GuardToolsScreenState extends State<GuardToolsScreen> {
-  String languageCode = 'en';
   String query = '';
 
   List<Map<String, dynamic>> get filteredUnits {
@@ -26,7 +25,7 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    final strings = GuardStrings(languageCode);
+    final strings = GuardStrings(c.languageCode);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final units = filteredUnits;
@@ -38,13 +37,22 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             DropdownButtonFormField<String>(
-              value: languageCode,
+              value: c.languageCode,
               decoration: InputDecoration(labelText: strings.get('language'), prefixIcon: const Icon(Icons.translate_rounded)),
               items: guardLanguages.map((language) => DropdownMenuItem(
                 value: language.code,
                 child: Text('${language.nativeLabel} · ${language.label}'),
               )).toList(),
-              onChanged: (value) => setState(() => languageCode = value ?? 'en'),
+              onChanged: (value) async { if (value == null) return; await c.setLanguage(value); if (mounted) setState(() {}); },
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: c.voiceEnabled,
+              onChanged: (enabled) async { await c.setVoiceEnabled(enabled); if (mounted) setState(() {}); },
+              title: Text(strings.get('voiceCues')),
+              subtitle: Text(strings.get('voiceCuesHelp')),
+              secondary: const Icon(Icons.record_voice_over_rounded),
             ),
             const SizedBox(height: 18),
             Text(strings.get('operationsOverview'), style: theme.textTheme.titleLarge),
@@ -75,7 +83,7 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
                     child: FilledButton.icon(
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardFieldOperationsScreen(controller: c))),
                       icon: const Icon(Icons.security_rounded),
-                      label: const Text('FIELD OPERATIONS'),
+                      label: Text(strings.get('fieldOperations').toUpperCase()),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -84,7 +92,7 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
                     child: OutlinedButton.icon(
                       onPressed: c.gateId == null || c.units.isEmpty ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuardSchoolTransportScreen(controller: c))),
                       icon: const Icon(Icons.directions_bus_rounded),
-                      label: const Text('SCHOOL TRANSPORT'),
+                      label: Text(strings.get('schoolTransport').toUpperCase()),
                     ),
                   ),
                 ],
