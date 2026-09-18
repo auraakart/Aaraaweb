@@ -133,8 +133,10 @@ export class ReportsController {
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('eventType') eventType?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    return this.reports.securityEventFeed(societyId, page ?? 1, pageSize ?? 50, eventType);
+    return this.reports.securityEventFeed(societyId, page ?? 1, pageSize ?? 50, eventType, from, to);
   }
 
   @Get('audit')

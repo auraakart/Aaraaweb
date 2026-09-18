@@ -1,7 +1,7 @@
 # Aaraagate V4.5 — Privacy, Security and Trust Controls
 
 Date: 2026-09-18
-Status: In progress
+Status: Repository implementation complete; hosted/operational evidence remains deployment-specific
 Baseline: V4.4 repository reliability complete on `develop`
 
 ## Goal
@@ -132,3 +132,30 @@ Implemented in this slice:
 This slice does not perform blanket or automatic destruction of user records. The retention registry expresses configured data-category policy, but Aaraagate does not yet have a safe record-level mapping from each category's retention trigger to every subject record. Destructive automation therefore remains out of scope and the workflow fails closed rather than inferring deletion eligibility.
 
 The next V4.5 slice is security-event reporting/retention completion and V4.5 closeout.
+
+
+## V4.5.7 — Security-event retention and closeout
+
+Implemented in this slice:
+- society security-event reporting now accepts optional validated `from` / `to` bounds while retaining tenant scoping, constrained event-type filters and bounded pagination;
+- added a dedicated `SecurityEventRetentionService` with bounded batched deletion by `occurredAt`;
+- automatic retention is disabled by default and only activates when `SECURITY_EVENT_RETENTION_AUTO_PURGE=true`;
+- configured retention must be an integer from 30 through 3650 days; unsafe values fail closed rather than silently shortening security evidence retention;
+- the default configured retention window is 365 days when auto-purge is explicitly enabled without an override;
+- each retention run is capped at 10 batches of 1000 rows so housekeeping cannot monopolize the database;
+- operational retention logs contain aggregate counts only, not user/session identifiers or event payloads;
+- added a time-ordered database index supporting retention cutoff scans;
+- added regression tests for date-scoped reporting, retention cutoff calculation and invalid retention configuration.
+
+### V4.5 repository closeout
+
+The V4.5 repository scope is complete after the following slices:
+1. session revocation/replay security events;
+2. resident and independent-home privacy self-service;
+3. privileged/admin audit visibility;
+4. sensitive operational logging redaction;
+5. document/file authorization regression;
+6. privacy retention/deletion enforcement with legal-hold interaction;
+7. security-event reporting and retention lifecycle.
+
+Repository completion does not establish production legal/compliance certification. Before enabling destructive privacy operations or security-event auto-purge in a hosted environment, operations must approve the configured retention period and preserve any external legal, dispute, accounting or incident-response evidence that applies. Hosted log-destination retention/access policy, real alert routing, production backup/PITR/restore evidence and deployment rollback evidence remain environment-specific acceptance evidence.

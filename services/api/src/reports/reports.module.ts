@@ -6,10 +6,11 @@ import { ReportsAnalyticsService } from './reports-analytics.service';
 import { ReportsController } from './reports.controller';
 import { ReportsExportService } from './reports-export.service';
 import { ReportsService } from './reports.service';
+import { SecurityEventRetentionService } from './security-event-retention.service';
 
 @Module({
   imports: [EntitlementsModule],
   controllers: [ReportsController, ReportsAnalyticsController],
-  providers: [ReportsService, ReportsAnalyticsService, ReportsExportService, PrismaService],
+  providers: [ReportsService, ReportsAnalyticsService, ReportsExportService, SecurityEventRetentionService, PrismaService],
 })
 export class ReportsModule {}
