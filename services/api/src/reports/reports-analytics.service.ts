@@ -114,12 +114,23 @@ export class ReportsAnalyticsService{
                 ),0),
               0
             ) AS "netBilledPaise",
-            COALESCE((
-              SELECT SUM(x."amountPaise")
-              FROM "ReceivableAllocation" x
-              WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                AND x."allocatedAt"<=${range.lte}
-            ),0) AS "allocatedPaise"
+            GREATEST(
+              COALESCE((
+                SELECT SUM(x."amountPaise")
+                FROM "ReceivableAllocation" x
+                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                  AND x."allocatedAt"<=${range.lte}
+              ),0)
+              - COALESCE((
+                SELECT SUM(rv."amountPaise")
+                FROM "ReceivableAllocationReversal" rv
+                JOIN "ReceivableAllocation" x
+                  ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                  AND rv."reversedAt"<=${range.lte}
+              ),0),
+              0
+            ) AS "allocatedPaise"
           FROM "Receivable" r
           WHERE r."societyId"=${societyId}::uuid
             AND r."issuedAt" BETWEEN ${range.gte} AND ${range.lte}
@@ -142,12 +153,23 @@ export class ReportsAnalyticsService{
                   WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
                     AND a."createdAt"<=${range.lte}
                 ),0)
-              - COALESCE((
-                  SELECT SUM(x."amountPaise")
-                  FROM "ReceivableAllocation" x
-                  WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
-                    AND x."allocatedAt"<=${range.lte}
-                ),0),
+              - GREATEST(
+                  COALESCE((
+                    SELECT SUM(x."amountPaise")
+                    FROM "ReceivableAllocation" x
+                    WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                      AND x."allocatedAt"<=${range.lte}
+                  ),0)
+                  - COALESCE((
+                    SELECT SUM(rv."amountPaise")
+                    FROM "ReceivableAllocationReversal" rv
+                    JOIN "ReceivableAllocation" x
+                      ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                    WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                      AND rv."reversedAt"<=${range.lte}
+                  ),0),
+                  0
+                ),
               0
             ) AS "outstandingPaise"
           FROM "Receivable" r
