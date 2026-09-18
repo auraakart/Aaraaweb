@@ -30,14 +30,14 @@ V4.17 closes occupancy and adjacent property-operations depth without changing l
 - existing authorization and lifecycle invariants preserved;
 - API and Admin regression coverage.
 
-### V4.17.2 — Occupancy readiness & handover evidence — in progress
+### V4.17.2 — Occupancy readiness & handover evidence — merged via #702
 
 - descriptive move readiness summary;
 - explicit mandatory versus optional checklist evidence;
 - access/vehicle/workforce handover visibility using existing repository data where available;
 - no legal or police-verification validity inference.
 
-### V4.17.3 — Resident move experience
+### V4.17.3 — Resident move experience — in progress
 
 - improve Resident self-service move-in/move-out visibility and status clarity;
 - property-scoped timeline and next-action guidance;
