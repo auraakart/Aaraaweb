@@ -14,6 +14,37 @@ permissions:
   contents: read
 
 jobs:
+  change-scope:
+    name: Change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect documentation-only pull request
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git diff --name-only "$BASE_SHA" "${{ github.sha }}" > /tmp/aaraagate-changed-files.txt
+
+          if [ ! -s /tmp/aaraagate-changed-files.txt ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          elif grep -Ev '^(docs/|[^/]+\.md$)' /tmp/aaraagate-changed-files.txt >/dev/null; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
   repository-structure:
     name: Repository structure
     runs-on: ubuntu-latest
@@ -86,8 +117,10 @@ jobs:
           NEXT_PUBLIC_AARAGATE_API_BASE_URL: https://api.example.com
         run: bash scripts/production-preflight.sh
 
-  api-validation:
-    name: API validation
+  api-validation-full:
+    name: API validation (full)
+    needs: change-scope
+    if: needs.change-scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -194,6 +227,32 @@ jobs:
       - name: Print production API logs on failure
         if: failure()
         run: cat /tmp/aaraagate-ci-api.log || true
+
+
+  api-validation:
+    name: API validation
+    needs: [change-scope, api-validation-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve required API validation status
+        env:
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          FULL_RESULT: ${{ needs.api-validation-full.result }}
+        run: |
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Documentation-only PR: full API validation is unchanged and intentionally skipped."
+            exit 0
+          fi
+
+          if [ "$FULL_RESULT" = "success" ]; then
+            echo "Full API validation passed."
+            exit 0
+          fi
+
+          echo "Full API validation result: $FULL_RESULT"
+          exit 1
 
   admin-validation:
     name: Admin validation
