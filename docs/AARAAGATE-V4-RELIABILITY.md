@@ -1,7 +1,7 @@
 # Aaraagate V4.4 — Production Reliability
 
 Date: 2026-09-18
-Status: In progress
+Status: Repository closeout in progress
 Baseline: V4.3 complete on `develop`
 
 ## Goal
@@ -105,8 +105,59 @@ Verified:
 
 No scheduler runtime rewrite was required; V4.4 adds explicit regression evidence around the existing controls.
 
-## Remaining V4.4 work
-Continue bounded audits for:
-1. object authorization regressions;
-2. backup/restore and rollback evidence consolidation;
-3. production metrics/reliability acceptance evidence.
+## V4.4.6 — Object authorization regression evidence
+
+Verified representative high-risk object boundaries:
+- billing payment creation refuses invoices that are outside the authenticated society/property relationship;
+- payment history/receipt access remains payer/verified-owner scoped, and webhook receipt inspection/replay remains society-scoped;
+- amenity booking creation rejects a unit outside the current resident property context;
+- External Services society-unit booking resolves access from current occupancy or verified ownership rather than trusting a client-supplied society id;
+- notice-delivery observability rejects a cross-tenant or missing notice before returning metrics;
+- privacy operations validate society relationship and list cases only inside the current society;
+- facility work-order event reads and status mutations fail closed when the object is not present in the current society; the V4.4 closeout adds direct negative regression tests for both paths.
+
+These checks complement TenantGuard/RBAC/permission enforcement; they do not treat controller permissions as a substitute for object scope.
+
+## V4.4.7 — Backup, restore and rollback evidence
+
+Repository evidence:
+- `Backup restore smoke` applies the complete Prisma migration chain to a clean PostgreSQL source;
+- the workflow writes a verification marker, creates a custom-format logical backup, restores it into a separate clean database, verifies restored data, migration history and schema presence, and uploads non-sensitive run evidence;
+- the V4.4 booking schema changes passed this restore drill on their exact PR head;
+- production startup/readiness CI verifies the API can build, start in production mode and satisfy dependency readiness after clean migrations;
+- the production runbook defines immutable-artifact rollback, migration safety, post-rollback health/database/critical-flow verification and incident recording.
+
+Still deployment-owned:
+- managed-provider automated backup configuration;
+- retention/PITR settings;
+- an isolated restore using the actual hosted provider;
+- a real application/readiness check against that restored hosted database.
+
+Repository CI must not be represented as proof that those provider controls are already enabled.
+
+## V4.4.8 — Production observability acceptance boundary
+
+Repository controls available:
+- unauthenticated `/api/v1/health`, `/api/v1/health/live` and dependency-aware `/api/v1/health/ready`;
+- release metadata includes environment, app version, commit SHA and uptime;
+- production preflight validates required production configuration without printing secret values;
+- domain observability exists for notice delivery and payment reconciliation;
+- durable retry/error evidence exists for push delivery, scheduled notices, gateway/webhook processing and related reliability paths.
+
+Hosted acceptance still requires real environment evidence for:
+- external health/availability checks;
+- API request latency and 5xx-rate monitoring;
+- process/container restart monitoring;
+- PostgreSQL availability, connection saturation and storage growth;
+- alert delivery/routing with severity and deployed commit/version;
+- provider backup/restore/PITR evidence;
+- actual deployment/rollback event evidence;
+- pilot traffic and real-device/role UAT.
+
+Aaraagate must not claim production-live observability merely because the repository contains health endpoints and runbooks.
+
+## V4.4 repository closeout
+
+V4.4 code/repository reliability work is complete once this closeout branch passes the standard exact-head gates. The milestone has hardened rate limiting, durable push delivery, payment webhook replay, booking retry/revocation, scheduled-work idempotency, object-scope regression coverage, backup/restore evidence and production-operability contracts.
+
+The **field/production evidence portion remains intentionally open** until hosted staging/pilot supplies the external evidence listed above. This does not block starting V4.5 development on `develop`; it does block claiming production-live readiness or completing V4.9 release acceptance.
