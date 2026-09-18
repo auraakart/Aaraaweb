@@ -92,7 +92,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 Expanded(child:OutlinedButton.icon(onPressed:_busy?null:_draftComplaint,icon:const Icon(Icons.edit_note_rounded),label:const Text('Complaint draft'))),
               ],
             ]),
-          ])),
+          ]))),
           if(_error!=null)Padding(padding:const EdgeInsets.only(top:12),child:Card(color:theme.colorScheme.errorContainer,child:Padding(padding:const EdgeInsets.all(14),child:Text(_error!,style:TextStyle(color:theme.colorScheme.onErrorContainer))))),
           if(_result!=null)Padding(padding:const EdgeInsets.only(top:12),child:Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text(_result!['answer']?.toString()??'Grounded result',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900)),
