@@ -14,6 +14,11 @@ class CreateSettlementDto{
   @IsUUID()
   providerId!:string;
 }
+class ResolveRecoveryDto{
+  @IsString()
+  @Length(3,200)
+  recoveryReference!:string;
+}
 class MarkSettlementPaidDto{
   @IsString()
   @Length(3,200)
@@ -40,6 +45,20 @@ export class ProviderSettlementPlatformController{
   @Get(':batchId/events')
   @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_READ)
   events(@Param('batchId',ParseUUIDPipe) batchId:string){ return this.settlements.events(batchId); }
+
+  @Get('recoveries')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_READ)
+  recoveries(){ return this.settlements.listRecoveries(); }
+
+  @Post('recoveries/:recoveryId/resolve')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_RECONCILE)
+  resolveRecovery(
+    @CurrentPlatformSettlementUser() actorUserId:string|undefined,
+    @Param('recoveryId',ParseUUIDPipe) recoveryId:string,
+    @Body() dto:ResolveRecoveryDto,
+  ){
+    return this.settlements.resolveRecovery(this.actor(actorUserId),recoveryId,dto.recoveryReference);
+  }
 
   @Post()
   @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_PAYMENT_RECONCILE)
