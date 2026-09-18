@@ -13,6 +13,7 @@ export type ProviderCommercialInput = {
   placementStartsAt?: string | null;
   placementEndsAt?: string | null;
   active?: boolean;
+  settlementCommissionBps?: number | null;
 };
 
 type ProviderCommercialRow = {
@@ -26,6 +27,7 @@ type ProviderCommercialRow = {
   active: boolean;
   subscriptionCurrent: boolean;
   placementCurrent: boolean;
+  settlementCommissionBps: number | null;
 };
 
 @Injectable()
@@ -44,6 +46,7 @@ export class ProviderCommercialService {
         cp."placementStartsAt",
         cp."placementEndsAt",
         COALESCE(cp."active", true) AS "active",
+        cp."settlementCommissionBps",
         (
           COALESCE(cp."active", true) = true
           AND COALESCE(cp."subscriptionTier", 'BASIC') <> 'BASIC'
@@ -68,11 +71,16 @@ export class ProviderCommercialService {
     await this.requireProvider(providerId);
     const subscription = this.window(input.subscriptionStartsAt, input.subscriptionEndsAt, input.subscriptionTier !== 'BASIC', 'subscription');
     const placement = this.window(input.placementStartsAt, input.placementEndsAt, input.placementType !== 'NONE', 'placement');
+    if (input.settlementCommissionBps !== undefined && input.settlementCommissionBps !== null) {
+      if (!Number.isInteger(input.settlementCommissionBps) || input.settlementCommissionBps < 0 || input.settlementCommissionBps > 10000) {
+        throw new BadRequestException('Settlement commission must be between 0 and 10000 basis points');
+      }
+    }
 
     await this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO "ConsumerProviderCommercialProfile" (
         "providerId", "subscriptionTier", "subscriptionStartsAt", "subscriptionEndsAt",
-        "placementType", "placementStartsAt", "placementEndsAt", "active", "createdAt", "updatedAt"
+        "placementType", "placementStartsAt", "placementEndsAt", "settlementCommissionBps", "active", "createdAt", "updatedAt"
       ) VALUES (
         ${providerId}::uuid,
         ${input.subscriptionTier},
@@ -81,6 +89,7 @@ export class ProviderCommercialService {
         ${input.placementType},
         ${placement.startsAt},
         ${placement.endsAt},
+        ${input.settlementCommissionBps ?? null},
         ${input.active ?? true},
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
@@ -92,6 +101,7 @@ export class ProviderCommercialService {
         "placementType" = EXCLUDED."placementType",
         "placementStartsAt" = EXCLUDED."placementStartsAt",
         "placementEndsAt" = EXCLUDED."placementEndsAt",
+        "settlementCommissionBps" = EXCLUDED."settlementCommissionBps",
         "active" = EXCLUDED."active",
         "updatedAt" = CURRENT_TIMESTAMP
     `);
