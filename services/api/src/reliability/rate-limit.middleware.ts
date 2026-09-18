@@ -1,6 +1,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { AuthStateStore } from '../auth/auth-state.store';
+import { ReliabilityMetricsService } from '../observability/reliability-metrics.service';
 
 type HeaderValue = string | string[] | undefined;
 
@@ -74,7 +75,7 @@ function clientHash(client: string) {
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RateLimitMiddleware.name);
 
-  constructor(private readonly authState: AuthStateStore) {}
+  constructor(private readonly authState: AuthStateStore, private readonly metrics?: ReliabilityMetricsService) {}
 
   async use(request: RateLimitRequest, response: RateLimitResponse, next: Next) {
     const policy = resolveRateLimitPolicy(request.method, pathOf(request));
@@ -94,6 +95,7 @@ export class RateLimitMiddleware implements NestMiddleware {
       response.setHeader('RateLimit-Reset', policy.windowSeconds);
 
       if (count > policy.limit) {
+        this.metrics?.recordRateLimited(policy.name);
         response.statusCode = 429;
         response.setHeader('Retry-After', policy.windowSeconds);
         response.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -106,6 +108,7 @@ export class RateLimitMiddleware implements NestMiddleware {
 
       next();
     } catch (error) {
+      this.metrics?.recordLimiterDegradation();
       this.logger.warn(`Rate limiter degraded for policy ${policy.name}: ${error instanceof Error ? error.message : 'unknown error'}`);
       next();
     }
