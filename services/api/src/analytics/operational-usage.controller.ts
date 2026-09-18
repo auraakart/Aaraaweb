@@ -1,5 +1,5 @@
 import { Body, Controller, ExecutionContext, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsIn, IsInt, Min } from 'class-validator';
+import { IsIn, IsInt, Max, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -10,11 +10,11 @@ import { OperationalUsageEventType, OperationalUsageService } from './operationa
 const CurrentPrincipal=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth);
 
 class GuardSyncDto {
-  @IsInt() @Min(0) considered!:number;
-  @IsInt() @Min(0) synced!:number;
-  @IsInt() @Min(0) retried!:number;
-  @IsInt() @Min(0) unresolved!:number;
-  @IsInt() @Min(0) reviewRequired!:number;
+  @IsInt() @Min(0) @Max(100000) considered!:number;
+  @IsInt() @Min(0) @Max(100000) synced!:number;
+  @IsInt() @Min(0) @Max(100000) retried!:number;
+  @IsInt() @Min(0) @Max(100000) unresolved!:number;
+  @IsInt() @Min(0) @Max(100000) reviewRequired!:number;
 }
 
 class UsageEventDto {
@@ -38,7 +38,7 @@ export class OperationalUsageController {
 
   @Post('usage')
   async record(@CurrentPrincipal() auth:AuthenticatedRequest['auth'],@Body() dto:UsageEventDto){
-    if(!auth?.userId) return {recorded:false};
+    if(!auth?.userId||!auth.societyId) return {recorded:false};
     await this.usage.record(auth.userId,auth.societyId,dto.eventType);
     return {recorded:true};
   }
