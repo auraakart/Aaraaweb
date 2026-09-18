@@ -1,0 +1,25 @@
+name: V4.11 Pilot Readiness Contract
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-v411-pilot-readiness:
+    name: Validate V4.11 pilot readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate V4.11 KPI and evidence contract
+        run: node scripts/check-v4.11-pilot-readiness.mjs

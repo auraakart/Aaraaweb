@@ -78,6 +78,27 @@ describe('V4.6 grounded AI assistant',()=>{
     }));
   });
 
+  it('builds only permission-authorized action cards and performs no mutations',async()=>{
+    const {prisma,operations,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{count:3,amountPaise:750000,over30:2}])
+      .mockResolvedValueOnce([{currentPaise:1000000,previousPaise:800000}]);
+    const result=await service.actionCentre('society-1',[AppRole.ACCOUNTANT]);
+    expect(result).toEqual(expect.objectContaining({grounded:true,mutationPerformed:false}));
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]).toMatchObject({id:'finance-overdue',domain:'FINANCE',severity:'HIGH'});
+    expect(operations.operationsSummary).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns no privileged action cards to a resident-only role',async()=>{
+    const {prisma,operations,service}=setup();
+    const result=await service.actionCentre('society-1',[AppRole.OWNER]);
+    expect(result.cards).toEqual([]);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(operations.operationsSummary).not.toHaveBeenCalled();
+  });
+
   it('returns notice copy for human approval without mutation',()=>{
     const {service}=setup();
     expect(service.noticeDraft('Water shutdown from 10 AM to 1 PM','en-IN','Tower A')).toEqual(expect.objectContaining({

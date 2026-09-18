@@ -60,6 +60,11 @@ class NoticeDraftDto {
 export class AiOperationsController {
   constructor(private readonly ai:AiOperationsService,private readonly assistant:AiAssistantService) {}
 
+  @Get('assistant/action-centre')
+  actionCentre(@CurrentTenant() societyId:string,@Req() request:AuthenticatedRequest){
+    return this.assistant.actionCentre(societyId,(request.auth?.roles??[]) as AppRole[]);
+  }
+
   @Post('assistant/query')
   assistantQuery(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Req() request:AuthenticatedRequest,@Body() dto:AssistantQueryDto){
     return this.assistant.query(societyId,this.user(userId),(request.auth?.roles??[]) as AppRole[],dto.message,dto.unitId);

@@ -14,6 +14,37 @@ permissions:
   contents: read
 
 jobs:
+  change-scope:
+    name: Change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect documentation-only pull request
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git diff --name-only "$BASE_SHA" "${{ github.sha }}" > /tmp/aaraagate-changed-files.txt
+
+          if [ ! -s /tmp/aaraagate-changed-files.txt ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          elif grep -Ev '^(docs/|[^/]+\.md$)' /tmp/aaraagate-changed-files.txt >/dev/null; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
   repository-structure:
     name: Repository structure
     runs-on: ubuntu-latest
@@ -40,6 +71,14 @@ jobs:
           test -f scripts/hosted-staging-smoke.sh
           test -f scripts/check-hosted-staging-contract.sh
           test -f scripts/check-staging-deployment-template.sh
+          test -f scripts/performance-smoke.mjs
+          test -f services/api/scripts/performance-seed.mjs
+          test -f .github/workflows/performance-regression.yml
+          test -f docs/PERFORMANCE-REGRESSION-EVIDENCE.md
+          test -f scripts/cross-role-e2e.mjs
+          test -f services/api/scripts/cross-role-e2e-seed.mjs
+          test -f .github/workflows/cross-role-e2e.yml
+          test -f docs/CROSS-ROLE-E2E-EVIDENCE.md
           test -f scripts/validate-hosted-health.mjs
           test -f scripts/check-v2-validation-manifest.mjs
           test -f docs/v2-validation-manifest.json
@@ -78,8 +117,10 @@ jobs:
           NEXT_PUBLIC_AARAGATE_API_BASE_URL: https://api.example.com
         run: bash scripts/production-preflight.sh
 
-  api-validation:
-    name: API validation
+  api-validation-full:
+    name: API validation (full)
+    needs: change-scope
+    if: needs.change-scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -187,8 +228,36 @@ jobs:
         if: failure()
         run: cat /tmp/aaraagate-ci-api.log || true
 
-  admin-validation:
-    name: Admin validation
+
+  api-validation:
+    name: API validation
+    needs: [change-scope, api-validation-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve required API validation status
+        env:
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          FULL_RESULT: ${{ needs.api-validation-full.result }}
+        run: |
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Documentation-only PR: full API validation is unchanged and intentionally skipped."
+            exit 0
+          fi
+
+          if [ "$FULL_RESULT" = "success" ]; then
+            echo "Full API validation passed."
+            exit 0
+          fi
+
+          echo "Full API validation result: $FULL_RESULT"
+          exit 1
+
+  admin-validation-full:
+    name: Admin validation (full)
+    needs: change-scope
+    if: needs.change-scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -213,8 +282,28 @@ jobs:
       - name: Build admin
         run: pnpm --filter @aaraagate/admin build
 
-  flutter-validation:
-    name: Flutter validation
+  admin-validation:
+    name: Admin validation
+    needs: [change-scope, admin-validation-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve required Admin validation status
+        env:
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          FULL_RESULT: ${{ needs.admin-validation-full.result }}
+        run: |
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Documentation-only PR: full Admin validation is unchanged and intentionally skipped."
+            exit 0
+          fi
+          test "$FULL_RESULT" = "success"
+
+  flutter-validation-full:
+    name: Flutter validation (full)
+    needs: change-scope
+    if: needs.change-scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -245,8 +334,28 @@ jobs:
         working-directory: apps/guard
         run: flutter test
 
-  dependency-security:
-    name: Dependency security
+  flutter-validation:
+    name: Flutter validation
+    needs: [change-scope, flutter-validation-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve required Flutter validation status
+        env:
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          FULL_RESULT: ${{ needs.flutter-validation-full.result }}
+        run: |
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Documentation-only PR: full Flutter validation is unchanged and intentionally skipped."
+            exit 0
+          fi
+          test "$FULL_RESULT" = "success"
+
+  dependency-security-full:
+    name: Dependency security (full)
+    needs: change-scope
+    if: needs.change-scope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -266,3 +375,22 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Audit high and critical npm vulnerabilities
         run: pnpm audit --audit-level high
+
+
+  dependency-security:
+    name: Dependency security
+    needs: [change-scope, dependency-security-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve required dependency security status
+        env:
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          FULL_RESULT: ${{ needs.dependency-security-full.result }}
+        run: |
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Documentation-only PR: dependency graph is unchanged and full audit is intentionally skipped."
+            exit 0
+          fi
+          test "$FULL_RESULT" = "success"

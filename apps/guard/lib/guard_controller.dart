@@ -5,14 +5,28 @@ import 'package:flutter/foundation.dart';
 import 'data/guard_api.dart';
 import 'data/guard_directory_cache.dart';
 import 'data/guard_session_store.dart';
+import 'data/guard_preferences.dart';
+import 'localization/guard_strings.dart';
+import 'voice/guard_voice.dart';
 import 'data/offline_action_queue.dart';
 
 class GuardController extends ChangeNotifier {
-  GuardController({required this.api, required this.sessions, required this.offlineQueue, this.directoryCache = const GuardDirectoryCache()});
+  GuardController({
+    required this.api,
+    required this.sessions,
+    required this.offlineQueue,
+    this.directoryCache = const GuardDirectoryCache(),
+    this.preferences = const MemoryGuardPreferences(),
+    GuardVoice? voice,
+    this.realtimeReconnectDelay = const Duration(seconds: 3),
+  }) : voice = voice ?? const SilentGuardVoice();
   final GuardApi api;
   final GuardSessionStore sessions;
   final OfflineActionQueue offlineQueue;
   final GuardDirectoryCache directoryCache;
+  final GuardPreferences preferences;
+  final GuardVoice voice;
+  final Duration realtimeReconnectDelay;
 
   bool booting = true;
   bool busy = false;
@@ -32,7 +46,10 @@ class GuardController extends ChangeNotifier {
   int queuedActions = 0;
   int reviewRequiredActions = 0;
   String? offlineSyncMessage;
+  String languageCode = 'en';
+  bool voiceEnabled = true;
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
+  Timer? _reconnectTimer;
   bool _disposed = false;
 
   bool get signedIn => session != null;
@@ -44,6 +61,9 @@ class GuardController extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     try {
+      final preferredLanguage = await preferences.readLanguage();
+      languageCode = guardLanguages.any((language) => language.code == preferredLanguage) ? preferredLanguage : 'en';
+      voiceEnabled = await preferences.readVoiceEnabled();
       final stored = await sessions.read();
       if (stored != null) {
         session = stored;
@@ -125,10 +145,14 @@ class GuardController extends ChangeNotifier {
   }
 
   void startRealtime() {
+    if (_disposed || !signedIn) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _gateEvents?.cancel();
     _gateEvents = api.gateEvents().listen((event) async {
+      if (_disposed || !signedIn) return;
       realtimeConnected = true;
-      if (event['type']?.toString() == 'CONNECTED') { if (!_disposed) notifyListeners(); return; }
+      if (event['type']?.toString() == 'CONNECTED') { notifyListeners(); return; }
       final eventGateId = event['gateId']?.toString();
       if (eventGateId != null && gateId != eventGateId) return;
       final requestId = event['requestId']?.toString();
@@ -137,15 +161,56 @@ class GuardController extends ChangeNotifier {
       }
       if (!_disposed) notifyListeners();
     }, onError: (_) {
-      realtimeConnected = false; _gateEvents = null;
-      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      realtimeConnected = false;
+      _gateEvents = null;
+      _scheduleRealtimeReconnect();
     }, onDone: () {
-      realtimeConnected = false; _gateEvents = null;
-      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      realtimeConnected = false;
+      _gateEvents = null;
+      _scheduleRealtimeReconnect();
     }, cancelOnError: true);
   }
 
+  void _scheduleRealtimeReconnect() {
+    if (_disposed || !signedIn || _reconnectTimer?.isActive == true) return;
+    _reconnectTimer = Timer(realtimeReconnectDelay, () {
+      _reconnectTimer = null;
+      if (!_disposed && signedIn) startRealtime();
+    });
+  }
+
   void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
+
+  Future<void> setLanguage(String code) async {
+    if (!guardLanguages.any((language) => language.code == code)) return;
+    languageCode = code;
+    await preferences.writeLanguage(code);
+    notifyListeners();
+  }
+
+  Future<void> setVoiceEnabled(bool enabled) async {
+    voiceEnabled = enabled;
+    if (!enabled) await voice.stop();
+    await preferences.writeVoiceEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> announce(String key) async {
+    if (!voiceEnabled) return;
+    await voice.speak(text: GuardStrings(languageCode).get(key), languageCode: languageCode);
+  }
+
+  Future<void> announceAccessResult() async {
+    final status = verifiedAccess?['status']?.toString();
+    if (status == null) return;
+    if (status == 'APPROVED' || status == 'CHECKED_IN') {
+      await announce('voiceAccessApproved');
+    } else if (status == 'PENDING') {
+      await announce('voiceWaitingApproval');
+    } else {
+      await announce('voiceAccessBlocked');
+    }
+  }
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
     walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
@@ -272,6 +337,8 @@ class GuardController extends ChangeNotifier {
   Future<void> signOut() async {
     final current = session;
     if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _gateEvents?.cancel();
     _gateEvents = null; realtimeConnected = false;
     await sessions.clear(); api.accessToken = '';
@@ -329,5 +396,13 @@ class GuardController extends ChangeNotifier {
   }
 
   @override
-  void dispose() { _disposed = true; _gateEvents?.cancel(); super.dispose(); }
+  void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _gateEvents?.cancel();
+    _gateEvents = null;
+    voice.stop();
+    super.dispose();
+  }
 }

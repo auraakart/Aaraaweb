@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/resident_data_controller.dart';
+import '../data/resident_error_message.dart';
 import '../localization/aaraagate_strings.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -113,7 +114,7 @@ class GateScreen extends StatelessWidget {
       if (!context.mounted) return;
       await _showPass(context, pass);
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -132,7 +133,7 @@ class GateScreen extends StatelessWidget {
       final label = subjectType == 'CAB' ? strings.text('cab') : subjectType == 'DELIVERY' ? strings.text('delivery') : strings.text('entry');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.format('approvedSecurity', {'label': label}))));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -140,7 +141,7 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.denyAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 
@@ -148,7 +149,7 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.cancelAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
     }
   }
 

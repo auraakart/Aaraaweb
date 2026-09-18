@@ -1,7 +1,8 @@
-import { Body, Controller, ExecutionContext, Get, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PrivacyService } from './privacy.service';
+import { PrivacySubjectDataService } from './privacy-subject-data.service';
 
 const CurrentPrivacyPrincipal = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   const auth = ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth;
@@ -26,7 +27,7 @@ class CreateSelfPrivacyRequestDto {
 @Controller('privacy/self')
 @UseGuards(BearerGuard)
 export class PrivacySelfController {
-  constructor(private readonly privacy: PrivacyService) {}
+  constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
 
   @Get('requests')
   list(
@@ -34,6 +35,15 @@ export class PrivacySelfController {
   ) {
     const current = this.requirePrincipal(principal);
     return this.privacy.listMine(current.userId, current.societyId);
+  }
+
+  @Get('requests/:caseId/export')
+  exportRequest(
+    @CurrentPrivacyPrincipal() principal: { userId: string; societyId?: string } | undefined,
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+  ) {
+    const current = this.requirePrincipal(principal);
+    return this.subjectData.exportMine(current.userId, current.societyId, caseId);
   }
 
   @Post('requests')

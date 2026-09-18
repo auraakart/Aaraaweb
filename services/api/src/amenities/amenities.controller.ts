@@ -47,6 +47,12 @@ class CreateAmenityBookingDto {
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
 }
 
+class JoinAmenityWaitlistDto {
+  @IsString() @Matches(/^[0-9a-f-]{36}$/i) unitId!: string;
+  @IsDateString() startsAt!: string;
+  @IsDateString() endsAt!: string;
+}
+
 class RevokeAmenityBookingDto {
   @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
@@ -81,6 +87,10 @@ class ReviewAmenityBookingDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 
+class AttendanceAmenityBookingDto {
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
 @Controller('amenities')
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.AMENITIES)
@@ -103,6 +113,37 @@ export class AmenitiesController {
     return this.amenities.listMine(societyId, this.requireUser(userId), unitId);
   }
 
+  @Get('waitlist/mine')
+  @RequiresPermissions(AppPermission.AMENITY_BOOK_OWN)
+  listWaitlistMine(
+    @CurrentTenant() societyId:string,
+    @CurrentUser() userId:string|undefined,
+    @Query('unitId',ParseUUIDPipe) unitId:string,
+  ){
+    return this.amenities.listWaitlistMine(societyId,this.requireUser(userId),unitId);
+  }
+
+  @Post(':amenityId/waitlist')
+  @RequiresPermissions(AppPermission.AMENITY_BOOK_OWN)
+  joinWaitlist(
+    @CurrentTenant() societyId:string,
+    @CurrentUser() userId:string|undefined,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:JoinAmenityWaitlistDto,
+  ){
+    return this.amenities.joinWaitlist(societyId,this.requireUser(userId),amenityId,dto);
+  }
+
+  @Patch('waitlist/:entryId/cancel')
+  @RequiresPermissions(AppPermission.AMENITY_BOOK_OWN)
+  cancelWaitlistMine(
+    @CurrentTenant() societyId:string,
+    @CurrentUser() userId:string|undefined,
+    @Param('entryId',ParseUUIDPipe) entryId:string,
+  ){
+    return this.amenities.cancelWaitlistMine(societyId,this.requireUser(userId),entryId);
+  }
+
   @Post(':amenityId/bookings')
   @RequiresPermissions(AppPermission.AMENITY_BOOK_OWN)
   createBooking(
@@ -122,6 +163,12 @@ export class AmenitiesController {
     @Param('bookingId', ParseUUIDPipe) bookingId: string,
   ) {
     return this.amenities.cancelMine(societyId, this.requireUser(userId), bookingId);
+  }
+
+  @Get('manage/analytics')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  analytics(@CurrentTenant() societyId:string) {
+    return this.amenities.analytics(societyId);
   }
 
   @Get('manage')
@@ -161,10 +208,43 @@ export class AmenitiesController {
   @RequiresPermissions(AppPermission.AMENITY_MANAGE)
   listBookingsManage(@CurrentTenant() societyId: string, @Query('status') status?: string) {
     const normalized = status?.trim().toUpperCase();
-    if (normalized && !['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED'].includes(normalized)) {
+    if (normalized && !['PENDING', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'REJECTED', 'CANCELLED'].includes(normalized)) {
       throw new BadRequestException('Invalid amenity booking status');
     }
     return this.amenities.listBookingsManage(societyId, normalized);
+  }
+
+  @Patch('manage/bookings/:bookingId/check-in')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  checkIn(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.checkIn(societyId, this.requireUser(userId), bookingId, dto.note);
+  }
+
+  @Patch('manage/bookings/:bookingId/complete')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  complete(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.complete(societyId, this.requireUser(userId), bookingId, dto.note);
+  }
+
+  @Patch('manage/bookings/:bookingId/no-show')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  markNoShow(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.markNoShow(societyId, this.requireUser(userId), bookingId, dto.note);
   }
 
   @Patch('manage/bookings/:bookingId/approve')
