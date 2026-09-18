@@ -8,9 +8,9 @@ ALTER TABLE "SocietyDocument"
   ADD CONSTRAINT "SocietyDocument_supersededByDocumentId_fkey"
   FOREIGN KEY ("supersededByDocumentId") REFERENCES "SocietyDocument"("id") ON DELETE RESTRICT;
 
-CREATE UNIQUE INDEX "SocietyDocument_supersedes_unique"
+CREATE UNIQUE INDEX "SocietyDocument_active_supersedes_unique"
   ON "SocietyDocument"("supersedesDocumentId")
-  WHERE "supersedesDocumentId" IS NOT NULL;
+  WHERE "supersedesDocumentId" IS NOT NULL AND "status" <> 'ARCHIVED';
 
 CREATE UNIQUE INDEX "SocietyDocument_supersededBy_unique"
   ON "SocietyDocument"("supersededByDocumentId")
