@@ -85,3 +85,25 @@ ALTER TABLE "ConsumerProviderSettlementEntry"
 ALTER TABLE "ConsumerProviderSettlementEntry"
   ADD CONSTRAINT "ConsumerProviderSettlementEntry_bookingId_fkey"
   FOREIGN KEY ("bookingId") REFERENCES "ConsumerServiceBooking"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+
+CREATE TABLE "ConsumerProviderSettlementEvent" (
+  "id" UUID NOT NULL,
+  "batchId" UUID NOT NULL,
+  "actorUserId" UUID NOT NULL,
+  "eventType" TEXT NOT NULL,
+  "fromStatus" TEXT,
+  "toStatus" TEXT,
+  "reference" TEXT,
+  "occurredAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ConsumerProviderSettlementEvent_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "ConsumerProviderSettlementEvent_type_check" CHECK ("eventType" IN ('CREATED','APPROVED','PAID','CANCELLED'))
+);
+CREATE INDEX "ConsumerProviderSettlementEvent_batch_time_idx"
+  ON "ConsumerProviderSettlementEvent"("batchId","occurredAt");
+ALTER TABLE "ConsumerProviderSettlementEvent"
+  ADD CONSTRAINT "ConsumerProviderSettlementEvent_batchId_fkey"
+  FOREIGN KEY ("batchId") REFERENCES "ConsumerProviderSettlementBatch"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ConsumerProviderSettlementEvent"
+  ADD CONSTRAINT "ConsumerProviderSettlementEvent_actorUserId_fkey"
+  FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
