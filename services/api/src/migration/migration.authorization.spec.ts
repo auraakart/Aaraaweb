@@ -14,8 +14,15 @@ describe('MigrationController authorization', () => {
     ]));
   });
 
-  it('requires society configuration management for preview and persisted batch evidence', () => {
-    for (const method of ['preview', 'createBatch', 'listBatches', 'getBatch'] as const) {
+  it('requires society configuration management across migration lifecycle operations', () => {
+    for (const method of [
+      'preview',
+      'createBatch',
+      'listBatches',
+      'getBatch',
+      'commitBatch',
+      'rollbackBatch',
+    ] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, MigrationController.prototype[method])).toEqual([
         AppPermission.SOCIETY_CONFIGURATION_MANAGE,
       ]);
