@@ -145,6 +145,10 @@ class AuthRepository {
     await _post('/api/v1/auth/logout', {'sessionId': current.sessionId, 'refreshToken': current.refreshToken});
   }
 
+  Future<void> recordUsage(ResidentSession current, String eventType) async {
+    await _authorized('POST', '/api/v1/analytics/usage', current.accessToken, {'eventType': eventType});
+  }
+
   List<SocietyMembershipOption> _parseMemberships(dynamic raw) {
     return (raw as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
