@@ -61,15 +61,18 @@ export class DocumentsService {
     const ownedUnits = ownership.map((row) => row.unitId);
     const owner = ownedUnits.length > 0;
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT * FROM "SocietyDocument"
-      WHERE "societyId" = ${societyId}::uuid
-        AND "status" = 'PUBLISHED'
+      SELECT d.*, u."number" AS "unitNumber", b."name" AS "buildingName"
+      FROM "SocietyDocument" d
+      LEFT JOIN "Unit" u ON u."id"=d."unitId" AND u."societyId"=d."societyId"
+      LEFT JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=d."societyId"
+      WHERE d."societyId" = ${societyId}::uuid
+        AND d."status" = 'PUBLISHED'
         AND (
-          "audience" = 'ALL_MEMBERS'
-          OR ("audience" = 'OWNERS_ONLY' AND ${owner})
-          OR ("audience" = 'PROPERTY_OWNER_ONLY' AND "unitId" IN (${Prisma.join(ownedUnits.length ? ownedUnits.map((id) => Prisma.sql`${id}::uuid`) : [Prisma.sql`NULL::uuid`])}))
+          d."audience" = 'ALL_MEMBERS'
+          OR (d."audience" = 'OWNERS_ONLY' AND ${owner})
+          OR (d."audience" = 'PROPERTY_OWNER_ONLY' AND d."unitId" IN (${Prisma.join(ownedUnits.length ? ownedUnits.map((id) => Prisma.sql`${id}::uuid`) : [Prisma.sql`NULL::uuid`])}))
         )
-      ORDER BY "publishedAt" DESC NULLS LAST, "createdAt" DESC
+      ORDER BY d."publishedAt" DESC NULLS LAST, d."createdAt" DESC
     `);
   }
 
