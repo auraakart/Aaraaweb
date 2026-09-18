@@ -10,6 +10,7 @@ describe('rate limit policy', () => {
   it('uses stricter OTP buckets and a broad API bucket', () => {
     expect(resolveRateLimitPolicy('POST', '/api/v1/auth/otp/request')).toEqual({ name: 'otp-request', limit: 5, windowSeconds: 300 });
     expect(resolveRateLimitPolicy('POST', '/api/v1/auth/otp/verify')).toEqual({ name: 'otp-verify', limit: 10, windowSeconds: 300 });
+    expect(resolveRateLimitPolicy('POST', '/api/v1/billing/payment-webhooks/gateway-adapter')).toEqual({ name: 'payment-webhook', limit: 600, windowSeconds: 60 });
     expect(resolveRateLimitPolicy('GET', '/api/v1/residents/me')).toEqual({ name: 'api', limit: 300, windowSeconds: 60 });
   });
 

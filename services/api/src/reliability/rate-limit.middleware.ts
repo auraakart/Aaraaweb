@@ -43,7 +43,7 @@ export function resolveRateLimitPolicy(method: string, path: string): RateLimitP
   if (normalizedMethod === 'POST' && path === '/api/v1/auth/refresh') {
     return { name: 'auth-refresh', limit: 30, windowSeconds: 60 };
   }
-  if (normalizedMethod === 'POST' && path === '/api/v1/billing/payment-webhooks') {
+  if (normalizedMethod === 'POST' && path.startsWith('/api/v1/billing/payment-webhooks/')) {
     return { name: 'payment-webhook', limit: 600, windowSeconds: 60 };
   }
   if (path.startsWith('/api/v1/')) {
