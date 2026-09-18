@@ -12,7 +12,8 @@ describe('request observability', () => {
   });
 
   it('returns the request id and logs only request metadata on finish', () => {
-    const middleware = new RequestObservabilityMiddleware();
+    const metrics = { beginRequest: vi.fn(), completeRequest: vi.fn() };
+    const middleware = new RequestObservabilityMiddleware(metrics as never);
     const log = vi.spyOn((middleware as unknown as { logger: { log: (message: string) => void } }).logger, 'log').mockImplementation(() => undefined);
     let finish: (() => void) | undefined;
     const request = {
@@ -33,6 +34,8 @@ describe('request observability', () => {
     finish?.();
 
     expect(response.setHeader).toHaveBeenCalledWith('X-Request-Id', 'client-req-1');
+    expect(metrics.beginRequest).toHaveBeenCalledOnce();
+    expect(metrics.completeRequest).toHaveBeenCalledWith(200, expect.any(Number));
     expect(next).toHaveBeenCalledOnce();
     expect(log).toHaveBeenCalledOnce();
     const payload = JSON.parse(log.mock.calls[0][0]) as Record<string, unknown>;
