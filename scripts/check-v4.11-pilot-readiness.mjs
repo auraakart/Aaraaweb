@@ -23,6 +23,7 @@ for (const kpi of plan.kpis) {
   }
   if (!statuses.has(kpi.status)) fail(`${kpi.id} has invalid status ${kpi.status}`);
   if (!Array.isArray(kpi.evidence)) fail(`${kpi.id}.evidence must be an array`);
+  if (kpi.evidence.some((item) => typeof item !== 'string' || item.trim().length === 0)) fail(`${kpi.id}.evidence must contain only non-empty references`);
   if (kpi.status === 'PASS' && kpi.evidence.length === 0) fail(`${kpi.id} cannot PASS without evidence`);
   if (kpi.evidenceType === 'FIELD' && kpi.status === 'PASS' && !plan.pilotSociety) fail(`${kpi.id} cannot PASS field evidence without a pilotSociety`);
 }
@@ -34,10 +35,12 @@ for (const role of ['GUARD','ACCOUNTANT','ADMIN_SUPPORT']) {
 for (const role of requiredSignOff) {
   const item = plan.signOff?.[role];
   if (!item || !signStatuses.has(item.status) || !Array.isArray(item.evidence)) fail(`invalid signOff.${role}`);
+  if (item.evidence.some((value) => typeof value !== 'string' || value.trim().length === 0)) fail(`signOff.${role}.evidence must contain only non-empty references`);
   if (item.status === 'SIGNED' && item.evidence.length === 0) fail(`${role} cannot be SIGNED without evidence`);
 }
 
 if (!plan.pilotSociety) {
+  if (plan.status !== 'REPOSITORY_READY_EXTERNAL_PENDING') fail('status must remain REPOSITORY_READY_EXTERNAL_PENDING before a pilot society is named');
   if (plan.kpis.some((kpi) => kpi.status !== 'PENDING_EXTERNAL')) fail('field KPI status must remain PENDING_EXTERNAL before a pilot society is named');
   if (plan.fieldEvidenceStatus !== 'NOT_STARTED') fail('fieldEvidenceStatus must remain NOT_STARTED before pilot execution');
 }
