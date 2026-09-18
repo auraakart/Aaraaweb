@@ -49,6 +49,14 @@ describe('V4.8 outcome analytics',()=>{
       billedPaise:1000000,collectedPaise:800000,collectionPercent:80,reconciliationExceptions:2,
     }));
     expect(result.finance?.outstandingAgeingPaise.days90Plus).toBe(50000);
+    const financeSql=(prisma.$queryRaw.mock.calls[0]?.[0] as {strings?:readonly string[]}).strings?.join(' ')??'';
+    const ageingSql=(prisma.$queryRaw.mock.calls[1]?.[0] as {strings?:readonly string[]}).strings?.join(' ')??'';
+    expect(financeSql).toContain('"Receivable"');
+    expect(financeSql).toContain('"ReceivableAllocation"');
+    expect(financeSql).toContain('"ReceivableAdjustment"');
+    expect(ageingSql).toContain('"Receivable"');
+    expect(financeSql).not.toContain('"MaintenanceInvoice"');
+    expect(ageingSql).not.toContain('"MaintenanceInvoice"');
   });
 
   it('reports independent-home engagement only from platform consumer evidence',async()=>{
