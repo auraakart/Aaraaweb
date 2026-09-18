@@ -109,7 +109,7 @@ class UpdatesScreen extends StatelessWidget {
             icon: Icons.home_repair_service_outlined,
             title: service?.isNotEmpty == true ? service! : 'Home service',
             subtitle: ServiceBookingLifecycle.labelFor(status),
-            when: _date(booking, ['updatedAt', 'createdAt', 'scheduledStart']),
+            when: _date(booking, ['updatedAt', 'createdAt', 'scheduledFrom']),
           ));
         }
       }

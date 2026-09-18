@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../data/resident_home_highlights.dart';
 import '../layout/resident_responsive_layout.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
@@ -47,6 +48,11 @@ class HomeScreen extends StatelessWidget {
     final household = controller.activeHousehold;
     final householdName = household?['displayName']?.toString() ?? 'Your home';
     final hasQuickActions = showGate || showServices || showAmenities || showHelpdesk || showSos;
+    final highlights = ResidentHomeHighlights.build(
+      invoices: showBilling ? controller.maintenanceInvoices : const [],
+      bookings: showServices ? controller.bookings : const [],
+      notices: showNotices ? controller.notices : const [],
+    );
 
     return SafeArea(
       child: RefreshIndicator(
@@ -182,26 +188,35 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ],
-            if (showNotices || showBilling) ...[
+            if (highlights.isNotEmpty) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              const PremiumSectionHeader(title: 'For your home'),
+              const PremiumSectionHeader(
+                title: 'Next for you',
+                supportingText: 'The most relevant items for this property right now.',
+              ),
               const SizedBox(height: AaraagateTokens.space3),
-              if (showNotices && controller.notices.isNotEmpty)
+              for (var i = 0; i < highlights.length; i++) ...[
                 _HomeSummaryRow(
-                  icon: Icons.campaign_outlined,
-                  title: controller.notices.first['title']?.toString() ?? 'Society notice',
-                  subtitle: 'Latest society update',
-                  onTap: onOpenNotices,
+                  icon: _highlightIcon(highlights[i].kind),
+                  title: highlights[i].title,
+                  subtitle: highlights[i].subtitle,
+                  onTap: () {
+                    switch (highlights[i].kind) {
+                      case ResidentHomeHighlightKind.billing:
+                        onOpenBilling();
+                        break;
+                      case ResidentHomeHighlightKind.service:
+                        onOpenServices();
+                        break;
+                      case ResidentHomeHighlightKind.notice:
+                        onOpenNotices();
+                        break;
+                    }
+                  },
                 ),
-              if (showNotices && controller.notices.isNotEmpty && showBilling)
-                const SizedBox(height: AaraagateTokens.space2),
-              if (showBilling)
-                _HomeSummaryRow(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Maintenance & payments',
-                  subtitle: 'Dues and payment history for your unit',
-                  onTap: onOpenBilling,
-                ),
+                if (i < highlights.length - 1)
+                  const SizedBox(height: AaraagateTokens.space2),
+              ],
             ],
             if (showGate) ...[
               const SizedBox(height: AaraagateTokens.space6),
@@ -236,6 +251,17 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static IconData _highlightIcon(ResidentHomeHighlightKind kind) {
+    switch (kind) {
+      case ResidentHomeHighlightKind.billing:
+        return Icons.receipt_long_outlined;
+      case ResidentHomeHighlightKind.service:
+        return Icons.home_repair_service_outlined;
+      case ResidentHomeHighlightKind.notice:
+        return Icons.campaign_outlined;
+    }
   }
 
   static IconData _iconFor(String? type) {
