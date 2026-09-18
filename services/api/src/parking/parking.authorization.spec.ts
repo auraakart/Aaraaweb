@@ -16,6 +16,14 @@ describe('Parking v2 authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.createPermit)).toEqual([AppPermission.PARKING_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.cancelPermit)).toEqual([AppPermission.PARKING_MANAGE]);
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.completePermit)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.policy)).toEqual([AppPermission.PARKING_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.credentials)).toEqual([AppPermission.PARKING_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.violations)).toEqual([AppPermission.PARKING_READ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.updatePolicy)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.issueCredential)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.revokeCredential)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.reportViolation)).toEqual([AppPermission.PARKING_MANAGE]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, ParkingController.prototype.resolveViolation)).toEqual([AppPermission.PARKING_MANAGE]);
   });
 
   it('keeps mutation authority with society operations roles and read-only committee/supervisor access', () => {
