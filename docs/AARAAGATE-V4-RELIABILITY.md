@@ -63,11 +63,24 @@ Implemented:
 - the scheduled cluster-owned sweep drains due direct-push work;
 - outbox payloads contain notification business data only; no auth/session secret is stored.
 
+## V4.4.3 — Payment webhook receipt and replay
+
+Implemented:
+- HMAC verification remains mandatory before a provider callback can create receipt evidence;
+- verified events are persisted in `PaymentWebhookReceipt` with provider event/order/payment ids, payload, SHA-256 digest, receive count and processing state;
+- provider event ids remain globally idempotent and a reused event id with different payment data is rejected;
+- successful payment mutation still runs through the existing locked `PaymentEvent` + `Payment` state transition contract;
+- processing failures are retained as FAILED receipts with bounded last-error evidence while the payment mutation is rolled back;
+- provider redelivery increments receive evidence and can safely retry a previously failed receipt;
+- finance administrators can list society-scoped webhook receipts and replay a failed receipt through the same state machine;
+- replay attempts retain actor/time/count audit evidence;
+- cross-society receipt lookup/replay fails closed;
+- the rate limiter now matches the real `/billing/payment-webhooks/gateway-adapter` route so signed provider traffic receives the intended webhook bucket rather than the general API limit.
+
 ## Remaining V4.4 work
 Continue bounded audits for:
-1. webhook replay/operational evidence;
-2. booking double-submit/revocation evidence;
-3. scheduled-job idempotency evidence;
-4. object authorization regressions;
-5. backup/restore and rollback evidence consolidation;
-6. production metrics/reliability acceptance evidence.
+1. booking double-submit/revocation evidence;
+2. scheduled-job idempotency evidence;
+3. object authorization regressions;
+4. backup/restore and rollback evidence consolidation;
+5. production metrics/reliability acceptance evidence.

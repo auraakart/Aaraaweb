@@ -6,6 +6,14 @@ import { NotificationRealtimeService } from '../notifications/notification-realt
 
 type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
 type PaymentWebhookRow = { id: string; invoiceId: string; societyId: string; status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' };
+export type PaymentWebhookEvent = { eventId: string; providerOrderId: string; providerPaymentId: string; status: 'CAPTURED' | 'FAILED' | 'REFUNDED' };
+type PaymentWebhookReceiptRow = {
+  id: string;
+  societyId: string;
+  paymentId: string;
+  payloadDigest: string;
+  processingStatus: 'RECEIVED' | 'PROCESSED' | 'FAILED';
+};
 
 @Injectable()
 export class BillingService {
@@ -224,39 +232,172 @@ export class BillingService {
     });
   }
 
-  async reconcile(signature: string | undefined, event: { eventId: string; providerOrderId: string; providerPaymentId: string; status: 'CAPTURED' | 'FAILED' | 'REFUNDED' }) {
+  listWebhookReceipts(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT r."id",r."paymentId",r."providerEventId",r."providerOrderId",r."providerPaymentId",
+             r."eventStatus",r."processingStatus",r."receiveCount",r."lastReceivedAt",r."processedAt",
+             r."lastError",r."replayCount",r."lastReplayedAt",r."lastReplayedByUserId",r."createdAt",
+             p."status" AS "paymentStatus",i."invoiceNumber"
+      FROM "PaymentWebhookReceipt" r
+      JOIN "Payment" p ON p."id"=r."paymentId" AND p."societyId"=r."societyId"
+      JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      WHERE r."societyId"=${societyId}::uuid
+      ORDER BY r."createdAt" DESC
+      LIMIT 200
+    `);
+  }
+
+  async replayWebhookReceipt(societyId: string, actorUserId: string, receiptId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ payload: PaymentWebhookEvent }>>(Prisma.sql`
+      UPDATE "PaymentWebhookReceipt"
+      SET "replayCount"="replayCount"+1,
+          "lastReplayedAt"=CURRENT_TIMESTAMP,
+          "lastReplayedByUserId"=${actorUserId}::uuid,
+          "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid
+      RETURNING "payload"
+    `);
+    if (!rows[0]) throw new NotFoundException('Payment webhook receipt not found');
+    return this.processWebhookReceipt(societyId, receiptId, rows[0].payload);
+  }
+
+  async reconcile(signature: string | undefined, event: PaymentWebhookEvent) {
+    const digest = this.verifyWebhookSignature(signature, event);
+    const orders = await this.prisma.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
+      SELECT "id","invoiceId","societyId","status"
+      FROM "Payment"
+      WHERE "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
+      LIMIT 1
+    `);
+    const order = orders[0];
+    if (!order) throw new NotFoundException('Payment order not found');
+
+    const receipts = await this.prisma.$queryRaw<PaymentWebhookReceiptRow[]>(Prisma.sql`
+      INSERT INTO "PaymentWebhookReceipt" (
+        "societyId","paymentId","providerEventId","providerOrderId","providerPaymentId",
+        "eventStatus","payload","payloadDigest"
+      ) VALUES (
+        ${order.societyId}::uuid,${order.id}::uuid,${event.eventId},${event.providerOrderId},
+        ${event.providerPaymentId},${event.status},CAST(${JSON.stringify(event)} AS jsonb),${digest}
+      )
+      ON CONFLICT ("providerEventId") DO UPDATE
+      SET "receiveCount"="PaymentWebhookReceipt"."receiveCount"+1,
+          "lastReceivedAt"=CURRENT_TIMESTAMP,
+          "updatedAt"=CURRENT_TIMESTAMP
+      RETURNING "id","societyId","paymentId","payloadDigest","processingStatus"
+    `);
+    const receipt = receipts[0];
+    if (!receipt) throw new BadRequestException('Payment webhook receipt could not be persisted');
+    if (receipt.payloadDigest !== digest || receipt.paymentId !== order.id || receipt.societyId !== order.societyId) {
+      throw new BadRequestException('Provider event id was reused with different payment data');
+    }
+    if (receipt.processingStatus === 'PROCESSED') return { duplicate: true, receiptId: receipt.id };
+
+    return this.processWebhookReceipt(order.societyId, receipt.id, event);
+  }
+
+  private verifyWebhookSignature(signature: string | undefined, event: PaymentWebhookEvent) {
     const secret = process.env.PAYMENT_WEBHOOK_SECRET;
     if (!secret) throw new UnauthorizedException('Payment webhook is not configured');
-    const canonical = `${event.eventId}|${event.providerOrderId}|${event.providerPaymentId}|${event.status}`;
+    const canonical = this.webhookCanonical(event);
     const expected = createHmac('sha256', secret).update(canonical).digest('hex');
-    if (!signature || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new UnauthorizedException('Invalid payment signature');
-    return this.prisma.$transaction(async (tx) => {
-      const orders = await tx.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
-        SELECT "id", "invoiceId", "societyId", "status" FROM "Payment"
-        WHERE "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
-        FOR UPDATE
-      `);
-      const order = orders[0];
-      if (!order) throw new NotFoundException('Payment order not found');
-      const claimed = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-        INSERT INTO "PaymentEvent" ("societyId","paymentId","providerEventId","type","payloadDigest")
-        VALUES (${order.societyId}::uuid,${order.id}::uuid,${event.eventId},${`WEBHOOK_${event.status}`},${createHash('sha256').update(canonical).digest('hex')})
-        ON CONFLICT ("providerEventId") DO NOTHING RETURNING "id"
-      `);
-      if (!claimed[0]) return { duplicate: true };
-      const rows = await tx.$queryRaw<{ id: string; invoiceId: string; societyId: string }[]>(Prisma.sql`
-        UPDATE "Payment" SET "status"=${event.status}::"PaymentStatus", "providerPaymentId"=${event.providerPaymentId},
-          "completedAt"=CASE WHEN ${event.status}='CAPTURED' THEN CURRENT_TIMESTAMP ELSE "completedAt" END, "updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${order.id}::uuid
-          AND ((${event.status} IN ('CAPTURED','FAILED') AND "status" IN ('CREATED','AUTHORIZED'))
-            OR (${event.status}='REFUNDED' AND "status"='CAPTURED'))
-        RETURNING "id","invoiceId","societyId"
-      `);
-      const payment = rows[0];
-      if (!payment) throw new BadRequestException('Invalid payment state transition');
-      if (event.status === 'CAPTURED') await tx.$executeRaw(Prisma.sql`UPDATE "MaintenanceInvoice" SET "status"='PAID',"paidAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='ISSUED'`);
-      if (event.status === 'REFUNDED') await tx.$executeRaw(Prisma.sql`UPDATE "MaintenanceInvoice" SET "status"='ISSUED',"paidAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='PAID'`);
-      return { ok: true, paymentId: payment.id, status: event.status };
-    });
+    if (!signature || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      throw new UnauthorizedException('Invalid payment signature');
+    }
+    return createHash('sha256').update(canonical).digest('hex');
   }
+
+  private webhookCanonical(event: PaymentWebhookEvent) {
+    return `${event.eventId}|${event.providerOrderId}|${event.providerPaymentId}|${event.status}`;
+  }
+
+  private async processWebhookReceipt(societyId: string, receiptId: string, event: PaymentWebhookEvent) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const receipts = await tx.$queryRaw<PaymentWebhookReceiptRow[]>(Prisma.sql`
+          SELECT "id","societyId","paymentId","payloadDigest","processingStatus"
+          FROM "PaymentWebhookReceipt"
+          WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid
+          FOR UPDATE
+        `);
+        const receipt = receipts[0];
+        if (!receipt) throw new NotFoundException('Payment webhook receipt not found');
+        if (receipt.processingStatus === 'PROCESSED') return { duplicate: true, receiptId };
+
+        const orders = await tx.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
+          SELECT "id","invoiceId","societyId","status"
+          FROM "Payment"
+          WHERE "id"=${receipt.paymentId}::uuid AND "societyId"=${societyId}::uuid
+            AND "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
+          FOR UPDATE
+        `);
+        const order = orders[0];
+        if (!order) throw new NotFoundException('Payment order not found');
+
+        const claimed = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+          INSERT INTO "PaymentEvent" ("societyId","paymentId","providerEventId","type","payloadDigest")
+          VALUES (
+            ${order.societyId}::uuid,${order.id}::uuid,${event.eventId},
+            ${`WEBHOOK_${event.status}`},${receipt.payloadDigest}
+          )
+          ON CONFLICT ("providerEventId") DO NOTHING RETURNING "id"
+        `);
+        if (!claimed[0]) {
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE "PaymentWebhookReceipt"
+            SET "processingStatus"='PROCESSED',"processedAt"=COALESCE("processedAt",CURRENT_TIMESTAMP),
+                "lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+            WHERE "id"=${receiptId}::uuid
+          `);
+          return { duplicate: true, receiptId };
+        }
+
+        const rows = await tx.$queryRaw<{ id: string; invoiceId: string; societyId: string }[]>(Prisma.sql`
+          UPDATE "Payment"
+          SET "status"=${event.status}::"PaymentStatus",
+              "providerPaymentId"=${event.providerPaymentId},
+              "completedAt"=CASE WHEN ${event.status}='CAPTURED' THEN CURRENT_TIMESTAMP ELSE "completedAt" END,
+              "updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${order.id}::uuid
+            AND ((${event.status} IN ('CAPTURED','FAILED') AND "status" IN ('CREATED','AUTHORIZED'))
+              OR (${event.status}='REFUNDED' AND "status"='CAPTURED'))
+          RETURNING "id","invoiceId","societyId"
+        `);
+        const payment = rows[0];
+        if (!payment) throw new BadRequestException('Invalid payment state transition');
+
+        if (event.status === 'CAPTURED') {
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE "MaintenanceInvoice"
+            SET "status"='PAID',"paidAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+            WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='ISSUED'
+          `);
+        }
+        if (event.status === 'REFUNDED') {
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE "MaintenanceInvoice"
+            SET "status"='ISSUED',"paidAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+            WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='PAID'
+          `);
+        }
+
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "PaymentWebhookReceipt"
+          SET "processingStatus"='PROCESSED',"processedAt"=CURRENT_TIMESTAMP,
+              "lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${receiptId}::uuid
+        `);
+        return { ok: true, paymentId: payment.id, status: event.status, receiptId };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown payment webhook processing error';
+      await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE "PaymentWebhookReceipt"
+        SET "processingStatus"='FAILED',"lastError"=${message},"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${receiptId}::uuid AND "societyId"=${societyId}::uuid AND "processingStatus"<>'PROCESSED'
+      `).catch(() => undefined);
+      throw error;
+    }
+  }
+
 }
