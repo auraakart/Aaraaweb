@@ -6,6 +6,23 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ProcurementAccountingLinkService {
   constructor(private readonly prisma: PrismaService) {}
 
+  listPurchaseOrdersForFinance(societyId: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT po."id",po."requestId",po."poNumber",po."amountPaise"::text AS "amountPaise",po."status",po."issuedAt",
+             pr."requestNumber",pr."title" AS "requestTitle",
+             v."code" AS "vendorCode",v."name" AS "vendorName",
+             l."expenseId",e."expenseNumber",e."status" AS "expenseStatus",l."createdAt" AS "linkedAt"
+      FROM "PurchaseOrder" po
+      JOIN "ProcurementRequest" pr ON pr."id"=po."requestId" AND pr."societyId"=po."societyId"
+      JOIN "SocietyVendor" v ON v."id"=po."vendorId" AND v."societyId"=po."societyId"
+      LEFT JOIN "ProcurementExpenseLink" l ON l."purchaseOrderId"=po."id" AND l."societyId"=po."societyId"
+      LEFT JOIN "SocietyExpense" e ON e."id"=l."expenseId" AND e."societyId"=l."societyId"
+      WHERE po."societyId"=${societyId}::uuid AND po."status"='ISSUED'
+      ORDER BY (l."id" IS NULL) DESC,po."issuedAt" DESC
+      LIMIT 250
+    `);
+  }
+
   async createExpenseDraftFromPurchaseOrder(
     societyId: string,
     actorUserId: string,
