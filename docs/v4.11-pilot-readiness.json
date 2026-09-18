@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "aaraagate.v4.11.pilot-readiness.v1",
+  "phase": "V4.11",
+  "status": "REPOSITORY_READY_EXTERNAL_PENDING",
+  "pilotSociety": null,
+  "fieldEvidenceStatus": "NOT_STARTED",
+  "kpis": [
+    {
+      "id": "V411-GATE-01",
+      "domain": "GUARD",
+      "owner": "SECURITY_SUPERVISOR",
+      "title": "Gate arrival handling time",
+      "source": "AccessRequest lifecycle audit plus pilot observation record",
+      "measurement": "Measure request creation to final approved/denied decision for delivery/cab/visitor arrivals during representative peak periods; report p50 and p95 separately.",
+      "threshold": "p95 <= 45 seconds for routine arrivals; no authorization bypass",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-GATE-02",
+      "domain": "GUARD",
+      "owner": "SECURITY_SUPERVISOR",
+      "title": "Voice quick-fill safe completion",
+      "source": "Guard voice quick-fill plus AccessRequest draft/submit audit",
+      "measurement": "Run representative eight-language short-command cases and record successful draft fill, manual fallback, ambiguity handling and review-before-submit.",
+      "threshold": "100% ambiguous destinations require manual selection; 0 voice-triggered auto approvals",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-FIN-01",
+      "domain": "FINANCE",
+      "owner": "ACCOUNTANT_TREASURER",
+      "title": "Bank reconciliation review quality",
+      "source": "GET /accounting/bank-reconciliation/review and candidate-review workflow",
+      "measurement": "Measure matched, unmatched and stale unmatched transactions after accountant review of a representative bank statement period.",
+      "threshold": "No duplicate journal match; stale unmatched items have explicit review disposition before period close",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-FIN-02",
+      "domain": "FINANCE",
+      "owner": "ACCOUNTANT_TREASURER",
+      "title": "Accounting export reconciliation",
+      "source": "Accounting export artifact hash plus downstream reconciliation worksheet",
+      "measurement": "Reconcile exported journal totals and row counts against the same pilot accounting period.",
+      "threshold": "100% period total agreement or documented accepted exception",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-AI-01",
+      "domain": "AI_ACTION_CENTRE",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Permission-scoped operational cards",
+      "source": "GET /ai-operations/assistant/action-centre plus role-boundary test record",
+      "measurement": "Validate finance/helpdesk/security/facility cards for representative roles and negative roles.",
+      "threshold": "0 unauthorized domain cards; 0 direct mutation from Action Centre",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-HLP-01",
+      "domain": "HELPDESK",
+      "owner": "FACILITY_MANAGER",
+      "title": "Helpdesk SLA attention",
+      "source": "HelpdeskTicket SLA state and Action Centre helpdesk card",
+      "measurement": "Track open, breached and unassigned tickets during the pilot and review escalation handling.",
+      "threshold": "Every breached ticket has an owner/escalation disposition within the society's configured operating policy",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-RES-01",
+      "domain": "RESIDENT",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Resident next-action usefulness",
+      "source": "Resident property-scoped Home highlights and Updates timeline",
+      "measurement": "Run resident tasks for maintenance, notice acknowledgement and active service booking across multiple-property test users.",
+      "threshold": "0 cross-property items; users can reach the relevant task from the surfaced highlight without dead-end navigation",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V411-OPS-01",
+      "domain": "PILOT_OPERATIONS",
+      "owner": "RELEASE_OWNER",
+      "title": "Support and escalation readiness",
+      "source": "V4.11 pilot playbook incident log and training attendance records",
+      "measurement": "Exercise one scripted support escalation and one rollback/incident communication tabletop before pilot start.",
+      "threshold": "Named owner, severity, response path and evidence recorded for every scripted exercise",
+      "evidenceType": "FIELD",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    }
+  ],
+  "training": {
+    "GUARD": [
+      "manual arrival and fallback",
+      "voice quick-fill review before submit",
+      "ambiguous destination handling",
+      "offline/retry state",
+      "incident escalation"
+    ],
+    "ACCOUNTANT": [
+      "candidate reconciliation review",
+      "manual reviewed journal fallback",
+      "stale unmatched review",
+      "export presets and artifact verification"
+    ],
+    "ADMIN_SUPPORT": [
+      "AI Action Centre permission boundaries",
+      "helpdesk/facility escalation",
+      "resident property-context support",
+      "incident severity and rollback escalation"
+    ]
+  },
+  "signOff": {
+    "SECURITY_SUPERVISOR": {
+      "status": "NOT_SIGNED",
+      "evidence": []
+    },
+    "ACCOUNTANT_TREASURER": {
+      "status": "NOT_SIGNED",
+      "evidence": []
+    },
+    "SOCIETY_ADMIN": {
+      "status": "NOT_SIGNED",
+      "evidence": []
+    },
+    "RELEASE_OWNER": {
+      "status": "NOT_SIGNED",
+      "evidence": []
+    }
+  }
+}
