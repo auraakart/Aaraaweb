@@ -64,6 +64,8 @@ Delivery rule: payment-gateway events remain distinct from accounting entries. F
 - Vehicle/workforce/access migration or revocation.
 - Atomic occupancy termination and session/permission reconciliation.
 
+Repository depth closure through V4.17 now includes typed Admin operator flows, registered-mobile move-in, property/occupancy selectors, descriptive handover evidence, Resident property-aware status/next-action/timeline UX, effective-date blocking and gate-authority revocation evidence. Real-society rental/police-verification policy acceptance and field UAT remain external.
+
 ### V2.1C — Governance core
 - Committee roster/tenure/handover.
 - AGM/SGM/committee meeting records.

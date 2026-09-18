@@ -1,25 +1,25 @@
 # Aaraagate V4 Competitive Scorecard
 
 Date: 2026-09-18  
-Status: Repository-only evidence re-score after V4.16 Society Vendor, Resident & Operations Depth closure
+Status: Repository-only evidence re-score after V4.17 Occupancy Lifecycle & Property Operations Depth closure
 
 This scorecard uses the V4 program's own categories and counts only implemented, tested repository capability. It is **not** an independent market survey, customer benchmark, legal certification or production-hosting certification.
 
 | Area | V4 target | Evidence score | Repository evidence |
 |---|---:|---:|---|
 | Gate and security | >= 9.0 | **9.3** | Offline guard operations, role/tenant controls, security events, manual fallback, eight-language critical gate localization, opt-out on-device status speech, deterministic review-before-submit voice quick-fill, and V4.13 cancellable realtime reconnect lifecycle that avoids duplicate scheduling and reconnect-after-sign-out/dispose |
-| Resident experience/features | >= 9.0 | **9.4** | Multi-property context, independent-home mode, premium flows, V4.11 next actions, V4.12 property-scoped amenity waitlist UX, V4.13 active-property SOS/parcel isolation and safe/accessibility hardening, plus V4.16 property-scoped daily action prioritization including helpdesk and a live Community hub backed by governance/community data |
+| Resident experience/features | >= 9.0 | **9.5** | Multi-property context, independent-home mode, premium flows, V4.11 next actions, V4.12 property-scoped amenity waitlist UX, V4.13 active-property SOS/parcel isolation and safe/accessibility hardening, V4.16 daily action prioritization/community hub, plus V4.17 property-aware move status, next-action guidance, readiness and event timeline |
 | Accounting/billing/ERP | >= 8.6 | **9.0** | Immutable receivables/ledger, allocations/reversals, reconciliation, ageing, collections, budget/funds and finance-role segregation, plus V4.14 tenant-scoped close readiness, race-safe irreversible period close, draft-journal blocking, accountant period-close/reporting workspace and typed bounded finance operator controls |
-| Administration/governance | >= 8.7 | **9.2** | Privacy/audit operations, reports, migration/onboarding controls, facilities/vendors and operational dashboards, V4.15 governance workflow depth, plus V4.16 operator-complete procurement quotation/PO flows, finance handoff, vendor contract/SLA lifecycle evidence and typed facilities inventory movement controls |
+| Administration/governance | >= 8.7 | **9.3** | Privacy/audit operations, reports, migration/onboarding controls, facilities/vendors and operational dashboards, V4.15 governance workflow depth, V4.16 procurement/vendor/facilities operator depth, plus V4.17 typed occupancy operations and descriptive handover/readiness evidence |
 | Amenities/community/services | >= 8.8 | **9.1** | Policy-controlled booking plus V4.12 attendance truth, no-show lifecycle, deterministic FIFO waitlist/promotion, explicit Resident queue UX and read-only 30-day operations/demand analytics, alongside the External Services marketplace |
 | Architecture/platform design | >= 9.0 | **9.1** | Tenant isolation, typed permissions, idempotency, auditable domain services, adapter boundaries, deterministic locked waitlist promotion, production-readiness and rollback controls |
 | Differentiation potential | >= 9.3 | **9.4** | Permission-aware AI operations, multi-property identity, independent-home services, vendor-neutral access integrations and deterministic amenity capacity recovery without opaque ranking |
 | Production/field readiness | >= 8.0 before pilot | **8.0** | CI/runtime/backup-restore repository evidence, staged release controls and pilot-readiness contracts; representative-device, real-society, provider and hosted-environment evidence remains external |
 
-**Overall repository evidence score: 9.06 / 10.**
+**Overall repository evidence score: 9.09 / 10.**
 
-The overall score is the simple arithmetic mean of the eight V4 program categories above: (9.3 + 9.4 + 9.0 + 9.2 + 9.1 + 9.1 + 9.4 + 8.0) / 8 = 9.0625, reported as 9.06. V4.16 increases Resident experience and Administration/governance only where materially new repository capability was added. Architecture remains unchanged because the integration-readiness slice machine-checks existing provider-neutral boundaries rather than adding a new production integration capability.
+The overall score is the simple arithmetic mean of the eight V4 program categories above: (9.3 + 9.5 + 9.0 + 9.3 + 9.1 + 9.1 + 9.4 + 8.0) / 8 = 9.0875, reported as 9.09. V4.17 increases Resident experience and Administration/governance only where materially new occupancy operator/readiness/resident capability was added. Architecture remains unchanged because V4.17 reuses existing tenancy, permission and lifecycle boundaries.
 
 ## Important boundary
 
-The 9.06 score reflects repository implementation and automated evidence only. Production/field readiness remains exactly 8.0. V4.16 does not prove real vendor onboarding, procurement-policy acceptance, contract legal validity, representative-device usability, hosted production behavior, real provider/hardware operation or field outcomes. Those require external evidence and remain outside this repository-only score.
+The 9.09 score reflects repository implementation and automated evidence only. Production/field readiness remains exactly 8.0. V4.17 does not prove real-society rental/police-verification policy acceptance, legal validity, representative-device usability, hosted production behavior or field move outcomes. Those require external evidence and remain outside this repository-only score.

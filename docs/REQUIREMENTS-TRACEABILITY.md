@@ -33,7 +33,7 @@ Status values below describe repository implementation only. **Human acceptance 
 |---|---|---|---|
 | V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
 | V2-FIN Full society accounting | P0 | **Implemented / hardened** | `services/api/src/accounting`, finance permissions, immutable ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds reconciliation review health, read-only exact-movement candidates and export date presets. V4.14 adds tenant-scoped close readiness, race-safe irreversible period close with draft-journal blocking and actor evidence, an accountant period-close/reporting workspace reusing the existing reporting engine, and typed bounded operator controls replacing raw UUID/browser-prompt actions. Accountant/Treasurer human acceptance remains. |
-| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
+| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented / hardened** | V4.17 adds tenant-scoped operator context, registered-mobile move-in, selector-based move-out, persistent review/checklist/document controls, descriptive readiness/handover evidence for checklist/documents/vehicles/workforce/parking/gate authority, and Resident property-aware status/next-action/timeline UX. Effective-date blocking, checklist readiness, ownership/occupancy separation and move-out gate-authority revocation remain server-authoritative. Real-society rental/police-verification/legal policy acceptance remains external. |
 | V2-GOV Society governance | P0/P1 | **Implemented / hardened** | `services/api/src/governance`, committee/governance permissions and Admin workflows are present. V4.15 adds typed committee/meeting operations, descriptive readiness/closure evidence, configurable quorum/approval/bye-law references, auditable action status/owner/due-date follow-through and overdue visibility. Society-specific bye-law/legal acceptance remains external. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
 | V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
@@ -174,3 +174,16 @@ The V4.16 repository cycle is complete on `develop`:
 8. **External boundary:** real vendor onboarding, procurement-policy acceptance, contract legal review, hosted infrastructure, live provider credentials/callbacks, physical device validation and representative-device/human UAT remain external.
 
 V4.16 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.17 Occupancy Lifecycle & Property Operations Depth closure
+
+The V4.17 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Operator ergonomics:** Admin move-in/move-out workflows use tenant-scoped unit/occupancy selectors, registered-mobile resident resolution, and persistent typed review/checklist/document controls instead of raw UUID entry or browser prompts.
+2. **Readiness and handover evidence:** authorized operators can inspect mandatory checklist completion, document verification, active vehicle/workforce/parking counts and current gate-authority state as descriptive handover signals. These signals do not independently determine legal or police-verification validity.
+3. **Resident move experience:** Resident self-service now shows property labels, status-aware next-action guidance, required-vs-total readiness and an event timeline while preserving server-side ownership/occupancy checks.
+4. **Lifecycle safety:** effective-date enforcement, required-checklist blocking and move-out revocation of primary gate contact, approval and notification authority remain unchanged and covered by regression tests.
+5. **External boundary:** real-society rental/police-verification policy acceptance, representative-device human UAT, hosted production behavior and field move outcomes remain external.
+
+V4.17 repository completion does **not** increase Production/field readiness without external evidence.
