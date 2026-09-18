@@ -56,6 +56,12 @@ export class DocumentsController {
     return this.storage.createDownloadIntent(societyId, document.storageKey);
   }
 
+  @Get('management/context')
+  @RequiresPermissions(AppPermission.DOCUMENTS_READ)
+  managementContext(@CurrentTenant() societyId: string) {
+    return this.documents.managementContext(societyId);
+  }
+
   @Get('management')
   @RequiresPermissions(AppPermission.DOCUMENTS_READ)
   management(@CurrentTenant() societyId: string) {
