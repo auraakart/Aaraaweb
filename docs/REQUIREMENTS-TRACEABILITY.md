@@ -120,3 +120,16 @@ Additional privacy requirements:
 
 ## Production truth
 A green V2 repository release does not mean the product is operationally live. Production still requires hosted API/Admin, production PostgreSQL/Redis, provider credentials, domains/TLS, managed backup/PITR and restore evidence, monitoring/alert ownership, signed Android/Play evidence and real-society pilot acceptance.
+
+
+## V4.13 Reliability, Accessibility & Product Polish closure
+
+The V4.13 repository cycle is complete on `develop`:
+
+1. **SOS property isolation and accessibility:** Resident SOS state is derived only from the active property, cross-property cancellation is blocked client-side, backend/internal error details are not surfaced raw, and emergency actions have semantic/large-text regression coverage.
+2. **Parcel property isolation:** Resident parcel data and pickup/collection actions are restricted to the selected unit; stale cross-property actions fail closed and demo fixtures remain unit-scoped.
+3. **Guard realtime resilience:** reconnect scheduling uses one cancellable timer, duplicate reconnects are avoided, and reconnect cannot restart after sign-out or controller disposal.
+4. **Resident safe errors and premium states:** a shared safe error mapper replaces raw exception text in high-frequency Gate and Community Poll flows; Poll loading/error/empty/status states use shared premium components with large-text/error-leak regression coverage.
+5. **Validation:** the latest functional feature head passed CI, Cross-role E2E, Security/Privacy, Role UAT, Policy Pilot, Pilot Acceptance, Staging Pilot and V4.11 Pilot Readiness contracts.
+
+V4.13 repository completion does **not** constitute representative-device accessibility acceptance, real low-bandwidth field acceptance, hosted staging acceptance, real-society role/policy acceptance, production-provider acceptance or customer-outcome evidence. Those remain external.
