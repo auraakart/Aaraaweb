@@ -141,6 +141,68 @@ export class BankReconciliationService {
     `);
   }
 
+  async suggestions(societyId:string,transactionId:string) {
+    const transactions=await this.prisma.$queryRaw<Array<{
+      id:string;status:string;transactionDate:Date;direction:string;amountPaise:bigint;ledgerAccountId:string;bankCode:string;
+    }>>(Prisma.sql`
+      SELECT t."id",t."status"::text AS "status",t."transactionDate",t."direction"::text AS "direction",
+             t."amountPaise",b."ledgerAccountId",b."code" AS "bankCode"
+      FROM "BankStatementTransaction" t
+      JOIN "SocietyBankAccount" b ON b."id"=t."bankAccountId" AND b."societyId"=t."societyId"
+      WHERE t."id"=${transactionId}::uuid AND t."societyId"=${societyId}::uuid
+      LIMIT 1
+    `);
+    const transaction=transactions[0];
+    if(!transaction) throw new NotFoundException('Bank transaction not found');
+    if(transaction.status!=='UNMATCHED') throw new ConflictException('Suggestions are available only for unmatched bank transactions');
+    const expected=transaction.direction==='CREDIT'?transaction.amountPaise:-transaction.amountPaise;
+    const candidates=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT je."id" AS "journalEntryId",je."entryNumber",je."entryDate",je."description",je."externalReference",
+             SUM(jl."debitPaise"-jl."creditPaise")::text AS "bankMovementPaise",
+             ABS(je."entryDate"-${transaction.transactionDate}::date)::int AS "dateDistanceDays"
+      FROM "JournalEntry" je
+      JOIN "JournalLine" jl ON jl."entryId"=je."id" AND jl."societyId"=je."societyId" AND jl."accountId"=${transaction.ledgerAccountId}::uuid
+      WHERE je."societyId"=${societyId}::uuid
+        AND je."status" IN ('POSTED','REVERSED')
+        AND je."entryDate" BETWEEN (${transaction.transactionDate}::date-INTERVAL '7 days') AND (${transaction.transactionDate}::date+INTERVAL '7 days')
+        AND NOT EXISTS (
+          SELECT 1 FROM "BankReconciliationMatch" m
+          WHERE m."societyId"=${societyId}::uuid AND m."journalEntryId"=je."id"
+        )
+      GROUP BY je."id",je."entryNumber",je."entryDate",je."description",je."externalReference"
+      HAVING SUM(jl."debitPaise"-jl."creditPaise")=${expected}
+      ORDER BY "dateDistanceDays",je."entryNumber"
+      LIMIT 12
+    `);
+    return {
+      transaction:{id:transaction.id,bankCode:transaction.bankCode,transactionDate:transaction.transactionDate,direction:transaction.direction,amountPaise:transaction.amountPaise.toString()},
+      candidates,
+      autoMatched:false,
+    };
+  }
+
+  async review(societyId:string,bankAccountId?:string) {
+    const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT COUNT(*)::int AS "transactionCount",
+             COUNT(*) FILTER (WHERE t."status"='MATCHED')::int AS "matchedCount",
+             COUNT(*) FILTER (WHERE t."status"='UNMATCHED')::int AS "unmatchedCount",
+             COUNT(*) FILTER (WHERE t."status"='IGNORED')::int AS "ignoredCount",
+             COUNT(*) FILTER (WHERE t."status"='UNMATCHED' AND t."transactionDate"<CURRENT_DATE-7)::int AS "staleUnmatchedCount",
+             COALESCE(SUM(t."amountPaise") FILTER (WHERE t."status"='UNMATCHED'),0)::text AS "unmatchedValuePaise",
+             CASE
+               WHEN COUNT(*) FILTER (WHERE t."status" IN ('MATCHED','UNMATCHED'))=0 THEN 0
+               ELSE ROUND(
+                 100.0*COUNT(*) FILTER (WHERE t."status"='MATCHED')/
+                 COUNT(*) FILTER (WHERE t."status" IN ('MATCHED','UNMATCHED')),1
+               )
+             END::float AS "matchRatePct"
+      FROM "BankStatementTransaction" t
+      WHERE t."societyId"=${societyId}::uuid
+        AND (${bankAccountId??null}::uuid IS NULL OR t."bankAccountId"=${bankAccountId??null}::uuid)
+    `);
+    return rows[0]??{transactionCount:0,matchedCount:0,unmatchedCount:0,ignoredCount:0,staleUnmatchedCount:0,unmatchedValuePaise:'0',matchRatePct:0};
+  }
+
   private rethrow(error:unknown,fallback:string):never {
     if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof NotFoundException) throw error;
     const code=typeof error==='object'&&error!==null&&'code' in error?String((error as {code?:unknown}).code):'';

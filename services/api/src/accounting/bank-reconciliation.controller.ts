@@ -66,5 +66,11 @@ export class BankReconciliationController {
   @Get('summary') @RequiresPermissions(AppPermission.FINANCE_READ)
   summary(@CurrentTenant() societyId:string,@Query('bankAccountId') bankAccountId?:string){return this.bank.summary(societyId,bankAccountId);}
 
+  @Get('review') @RequiresPermissions(AppPermission.FINANCE_READ)
+  review(@CurrentTenant() societyId:string,@Query('bankAccountId') bankAccountId?:string){return this.bank.review(societyId,bankAccountId);}
+
+  @Get('transactions/:id/suggestions') @RequiresPermissions(AppPermission.FINANCE_READ)
+  suggestions(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.bank.suggestions(societyId,id);}
+
   private user(userId?:string){if(!userId) throw new BadRequestException('Authenticated user is required');return userId;}
 }

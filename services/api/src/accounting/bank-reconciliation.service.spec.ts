@@ -100,4 +100,33 @@ describe('BankReconciliationService invariants', () => {
     const service = serviceWith({ $executeRaw: vi.fn().mockResolvedValue(0) });
     await expect(service.ignore('society-a', 'tx-matched')).rejects.toBeInstanceOf(ConflictException);
   });
+  it('returns tenant-scoped read-only candidate suggestions without auto matching', async () => {
+    const queryRaw = vi.fn()
+      .mockResolvedValueOnce([{ id:'tx-4',status:'UNMATCHED',transactionDate:new Date('2026-09-18'),direction:'CREDIT',amountPaise:50000n,ledgerAccountId:'ledger-bank',bankCode:'OPERATING' }])
+      .mockResolvedValueOnce([{ journalEntryId:'journal-4',entryNumber:'J-004',bankMovementPaise:'50000',dateDistanceDays:0 }]);
+    const executeRaw = vi.fn();
+    const service = serviceWith({ $queryRaw: queryRaw, $executeRaw: executeRaw });
+
+    const result = await service.suggestions('society-a','tx-4');
+    expect(result).toMatchObject({autoMatched:false,candidates:[{journalEntryId:'journal-4'}]});
+    expect(executeRaw).not.toHaveBeenCalled();
+    for (const call of queryRaw.mock.calls) {
+      expect((call[0] as {values?:unknown[]}).values).toContain('society-a');
+    }
+  });
+
+  it('rejects reconciliation suggestions after a transaction is no longer unmatched', async () => {
+    const service = serviceWith({ $queryRaw: vi.fn().mockResolvedValue([{id:'tx-5',status:'MATCHED',transactionDate:new Date(),direction:'CREDIT',amountPaise:100n,ledgerAccountId:'ledger',bankCode:'BANK'}]) });
+    await expect(service.suggestions('society-a','tx-5')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('returns an accountant review snapshot without mutating accounting data', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{transactionCount:10,matchedCount:7,unmatchedCount:2,ignoredCount:1,staleUnmatchedCount:1,unmatchedValuePaise:'123400',matchRatePct:77.8}]);
+    const executeRaw = vi.fn();
+    const service = serviceWith({$queryRaw:queryRaw,$executeRaw:executeRaw});
+    await expect(service.review('society-a')).resolves.toMatchObject({matchedCount:7,staleUnmatchedCount:1,matchRatePct:77.8});
+    expect(executeRaw).not.toHaveBeenCalled();
+    expect((queryRaw.mock.calls[0][0] as {values?:unknown[]}).values).toContain('society-a');
+  });
+
 });
