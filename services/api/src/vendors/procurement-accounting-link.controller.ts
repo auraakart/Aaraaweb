@@ -27,6 +27,12 @@ class CreateExpenseFromPoDto {
 export class ProcurementAccountingLinkController {
   constructor(private readonly links: ProcurementAccountingLinkService) {}
 
+  @Get('purchase-orders')
+  @RequiresPermissions(AppPermission.FINANCE_READ)
+  listPurchaseOrders(@CurrentTenant() societyId: string) {
+    return this.links.listPurchaseOrdersForFinance(societyId);
+  }
+
   @Get('links')
   @RequiresPermissions(AppPermission.FINANCE_READ)
   list(@CurrentTenant() societyId: string) {

@@ -9,6 +9,7 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
       <Link href="/finance/opening-balances">Opening balances</Link>
       <Link href="/finance/waivers">Waiver approvals</Link>
       <Link href="/finance/operations">Expenses, payables & budgets</Link>
+      <Link href="/finance/procurement">Procurement handoff</Link>
       <Link href="/finance/reconciliation">Payment reconciliation</Link>
       <Link href="/finance/bank-reconciliation">Bank reconciliation</Link>
       <Link href="/finance/statements">Financial statements</Link>
