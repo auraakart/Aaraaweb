@@ -29,6 +29,35 @@ describe('ScheduledWorkService', () => {
     expect(noticeDispatchRetryDelayMinutes(20)).toBe(60);
   });
 
+  it('skips an overlapping sweep in the same process before starting another transaction', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ locked: true }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => {
+        await gate;
+        return callback(tx);
+      }),
+      $executeRaw: vi.fn(),
+    };
+    const service = new ScheduledWorkService(prisma as never);
+
+    const firstRun = service.runOnce();
+    await Promise.resolve();
+    await expect(service.runOnce()).resolves.toEqual({ skipped: true, reason: 'local-run-active' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+
+    release();
+    await expect(firstRun).resolves.toMatchObject({ skipped: false });
+  });
+
   it('skips when another replica holds the transaction advisory lock', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValueOnce([{ locked: false }]) };
     const prisma = { $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)) };
@@ -68,6 +97,40 @@ describe('ScheduledWorkService', () => {
     const noticeSql = (tx.$queryRaw.mock.calls[4][0] as { strings: readonly string[] }).strings.join(' ');
     expect(noticeSql).toContain('"NoticeDispatch"');
     expect(noticeSql).toContain('FOR UPDATE OF nd SKIP LOCKED');
+  });
+
+  it('keeps repeated scheduled ticks state-idempotent at the database boundary', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ locked: true }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      $executeRaw: vi.fn(),
+    };
+    const service = new ScheduledWorkService(prisma as never);
+
+    await expect(service.runOnce()).resolves.toMatchObject({ skipped: false });
+    const changedSql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(changedSql).toContain('c."toState" <> c."fromState"');
+
+    const escalationSql = (tx.$queryRaw.mock.calls[2][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(escalationSql).toContain('ht."escalationLevel"=0');
+    expect(escalationSql).toContain('AND ht."escalationLevel"=0');
+
+    const sosSql = (tx.$queryRaw.mock.calls[3][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sosSql).toContain('si."autoEscalatedAt" IS NULL');
+    expect(sosSql).toContain('AND si."autoEscalatedAt" IS NULL');
+
+    const noticeSql = (tx.$queryRaw.mock.calls[4][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(noticeSql).toContain('nd."status"=\'PENDING\'');
+    expect(noticeSql).toContain('nd."status"=\'IN_FLIGHT\'');
+    expect(noticeSql).toContain('FOR UPDATE OF nd SKIP LOCKED');
+    expect(noticeSql).toContain('SET "status"=\'IN_FLIGHT\'');
   });
 
   it('drains durable direct-push work after the cluster-owned sweep', async () => {
@@ -121,5 +184,38 @@ describe('ScheduledWorkService', () => {
     }));
     const successSql = (prisma.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(successSql).toContain("'DISPATCHED'");
+    expect(successSql).toContain('"status"=\'IN_FLIGHT\'');
+  });
+
+  it('returns failed notice delivery to a durable retry state with backoff', async () => {
+    const dispatchId = '00000000-0000-4000-8000-000000000020';
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ locked: true }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{
+          dispatchId,
+          societyId: '00000000-0000-4000-8000-000000000021',
+          noticeId: '00000000-0000-4000-8000-000000000022',
+          userId: '00000000-0000-4000-8000-000000000023',
+          title: 'Retry notice',
+          body: 'Retry body',
+          attemptCount: 2,
+        }]),
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const realtime = { dispatchResident: vi.fn().mockRejectedValue(new Error('transport unavailable')) };
+    const service = new ScheduledWorkService(prisma as never, realtime as never);
+
+    await expect(service.runOnce()).resolves.toMatchObject({ noticeDispatched: 0, noticeDispatchFailed: 1 });
+    const retrySql = (prisma.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(retrySql).toContain('"status"=\'PENDING\'');
+    expect(retrySql).toContain('"nextAttemptAt"=CURRENT_TIMESTAMP + make_interval');
+    expect(retrySql).toContain('"status"=\'IN_FLIGHT\'');
   });
 });
