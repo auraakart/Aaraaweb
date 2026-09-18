@@ -35,11 +35,13 @@ class DeviceGuardSpeech implements GuardSpeech {
 
     try {
       await _speech.listen(
-        localeId: localeByLanguage[languageCode] ?? 'en_IN',
-        listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 2),
-        partialResults: false,
-        cancelOnError: true,
+        listenOptions: SpeechListenOptions(
+          localeId: localeByLanguage[languageCode] ?? 'en_IN',
+          listenFor: const Duration(seconds: 10),
+          pauseFor: const Duration(seconds: 2),
+          partialResults: false,
+          cancelOnError: true,
+        ),
         onResult: (result) {
           if (!result.finalResult || completer.isCompleted) return;
           final words = result.recognizedWords.trim();
