@@ -22,10 +22,21 @@ export class DocumentsService {
 
   listManagement(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT * FROM "SocietyDocument"
-      WHERE "societyId" = ${societyId}::uuid
-      ORDER BY "createdAt" DESC
+      SELECT d.*, u."number" AS "unitNumber", b."name" AS "buildingName"
+      FROM "SocietyDocument" d
+      LEFT JOIN "Unit" u ON u."id"=d."unitId" AND u."societyId"=d."societyId"
+      LEFT JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=d."societyId"
+      WHERE d."societyId" = ${societyId}::uuid
+      ORDER BY d."createdAt" DESC
     `);
+  }
+
+  managementContext(societyId: string) {
+    return this.prisma.unit.findMany({
+      where: { societyId },
+      select: { id: true, number: true, building: { select: { id: true, name: true, code: true } } },
+      orderBy: [{ buildingId: 'asc' }, { number: 'asc' }],
+    });
   }
 
   async listPublishedForUser(societyId: string, userId: string) {
