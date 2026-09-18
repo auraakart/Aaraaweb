@@ -21,7 +21,10 @@ for (const fragment of requiredFragments) {
 }
 
 const closeAction = source.indexOf('async function closeSelectedPeriod()');
-const closeCall = source.indexOf('/accounting/periods/${period.id}/close');
-if (closeAction < 0 || closeCall < closeAction) throw new Error('Period close must remain an explicit operator action.');
+if (closeAction < 0) throw new Error('Period close action is missing.');
+const closeActionBody = source.slice(closeAction, source.indexOf('\n\n  const overdue=', closeAction));
+if (!closeActionBody.includes('/accounting/periods/${period.id}/close`) || !closeActionBody.includes("{method:'POST'}")) {
+  throw new Error('Period close must remain an explicit POST operator action.');
+}
 
 console.log('Finance period-close workspace contract: PASS');
