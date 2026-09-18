@@ -13,6 +13,8 @@ type PrivacyCase={
   requestSummary:string
   legalHold:boolean
   retentionReason?:string|null
+  retentionDecision?:'ALLOW'|'BLOCK'|null
+  retentionDecisionReason?:string|null
   createdAt:string
   updatedAt:string
 }
@@ -31,6 +33,9 @@ export default function PlatformPrivacyPage(){
   useEffect(()=>{const x=getSession();setS(x);if(x?.role==='SUPER_ADMIN')void load(x);else setLoading(false)},[load])
 
   const setStatus=async(row:PrivacyCase,status:PrivacyCase['status'])=>{if(!s)return;const note=prompt(`Update ${row.requestType.toLowerCase()} request to ${status.toLowerCase().replaceAll('_',' ')}. Optional note:`,'');if(note===null)return;setBusy(row.id);setError('');try{await api(s,`/platform/privacy/cases/${row.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:note.trim()||undefined})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Privacy case status could not be updated')}finally{setBusy('')}}
+  const setRetentionReview=async(row:PrivacyCase)=>{if(!s||row.requestType!=='ERASURE')return;const decision=prompt('Retention decision: ALLOW or BLOCK',row.retentionDecision??'BLOCK')?.trim().toUpperCase();if(decision!=='ALLOW'&&decision!=='BLOCK')return;const reason=prompt('Retention decision reason:','')?.trim();if(!reason)return;setBusy(row.id);setError('');try{await api(s,`/platform/privacy/cases/${row.id}/retention-review`,{method:'PATCH',body:JSON.stringify({decision,reason})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Retention review could not be updated')}finally{setBusy('')}}
+  const showPlan=async(row:PrivacyCase)=>{if(!s||row.requestType!=='ERASURE')return;setBusy(row.id);setError('');try{const plan=await api<{executable:boolean;blockers:string[];erase:string[];retain:string[]}>(s,`/platform/privacy/cases/${row.id}/erasure-plan`);alert([`Executable: ${plan.executable?'YES':'NO'}`,`Blockers: ${plan.blockers.join(', ')||'none'}`,'','Erase/minimise:',...plan.erase.map(x=>`• ${x}`),'','Retain:',...plan.retain.map(x=>`• ${x}`)].join('\n'))}catch(e){setError(e instanceof Error?e.message:'Erasure plan could not be loaded')}finally{setBusy('')}}
+  const executeErasure=async(row:PrivacyCase)=>{if(!s||row.requestType!=='ERASURE'||!confirm('Execute the governed account erasure/minimisation plan?'))return;setBusy(row.id);setError('');try{await api(s,`/platform/privacy/cases/${row.id}/execute-erasure`,{method:'PATCH'});await load(s)}catch(e){setError(e instanceof Error?e.message:'Erasure execution failed')}finally{setBusy('')}}
   const setHold=async(row:PrivacyCase)=>{if(!s)return;const next=!row.legalHold;let retentionReason:string|undefined;if(next){const reason=prompt('Reason for retaining this data while the request is reviewed:','');if(reason===null)return;if(reason.trim().length<3){setError('Enter a retention reason of at least 3 characters.');return}retentionReason=reason.trim()}setBusy(row.id);setError('');try{await api(s,`/platform/privacy/cases/${row.id}/legal-hold`,{method:'PATCH',body:JSON.stringify({legalHold:next,retentionReason})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Legal-hold state could not be updated')}finally{setBusy('')}}
 
   if(loading)return <main style={{padding:32}}>Loading platform privacy requests…</main>
@@ -49,18 +54,18 @@ export default function PlatformPrivacyPage(){
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><b style={{fontSize:17}}>{row.requestType.replaceAll('_',' ')}</b><span style={pill}>{row.status.replaceAll('_',' ')}</span>{row.legalHold&&<span style={holdPill}>RETENTION HOLD</span>}</div>
             <div style={{marginTop:6}}>{row.requestSummary}</div>
             <small>{[row.subjectName,row.subjectPhone].filter(Boolean).join(' · ')||row.subjectUserId} · submitted {new Date(row.createdAt).toLocaleString('en-IN')}</small>
-            {row.legalHold&&row.retentionReason&&<p style={{margin:'8px 0 0'}}><small>Retention reason: {row.retentionReason}</small></p>}
+            {row.legalHold&&row.retentionReason&&<p style={{margin:'8px 0 0'}}><small>Retention reason: {row.retentionReason}</small></p>}{row.requestType==='ERASURE'&&<p style={{margin:'8px 0 0'}}><small>Retention review: <b>{row.retentionDecision??'PENDING'}</b>{row.retentionDecisionReason?` · ${row.retentionDecisionReason}`:''}</small></p>}
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
             {['OPEN','WAITING'].includes(row.status)&&<button disabled={!!busy} onClick={()=>void setStatus(row,'IN_REVIEW')} style={primary}>Review</button>}
             {!['COMPLETED','REJECTED','CANCELLED'].includes(row.status)&&<button disabled={!!busy} onClick={()=>void setStatus(row,'COMPLETED')} style={primary}>Complete</button>}
             {!['COMPLETED','REJECTED','CANCELLED'].includes(row.status)&&<button disabled={!!busy} onClick={()=>void setStatus(row,'REJECTED')} style={secondary}>Reject</button>}
-            {!['COMPLETED','REJECTED','CANCELLED'].includes(row.status)&&<button disabled={!!busy} onClick={()=>void setHold(row)} style={secondary}>{row.legalHold?'Release hold':'Add hold'}</button>}
+            {!['COMPLETED','REJECTED','CANCELLED'].includes(row.status)&&<button disabled={!!busy} onClick={()=>void setHold(row)} style={secondary}>{row.legalHold?'Release hold':'Add hold'}</button>}{row.requestType==='ERASURE'&&!['COMPLETED','REJECTED','CANCELLED'].includes(row.status)&&<><button disabled={!!busy} onClick={()=>void setRetentionReview(row)} style={secondary}>Retention review</button><button disabled={!!busy} onClick={()=>void showPlan(row)} style={secondary}>Preview plan</button><button disabled={!!busy||row.retentionDecision!=='ALLOW'||row.legalHold} onClick={()=>void executeErasure(row)} style={primary}>Execute erasure</button></>}
           </div>
         </article>)}
       </div>}
     </section>
-    <section style={note}><b>Control boundary</b><p style={{margin:'6px 0 0'}}>Completing an erasure request is blocked by the API while a legal hold is active. Completion records workflow resolution; it does not bypass retention or automatically delete records.</p></section>
+    <section style={note}><b>Control boundary</b><p style={{margin:'6px 0 0'}}>Erasure execution is blocked while a legal hold, unresolved retention review or active account relationship exists. The executor revokes runtime identity data and anonymises the canonical account only for eligible platform-wide cases while retaining auditable finance/security evidence.</p></section>
   </main>
 }
 const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}

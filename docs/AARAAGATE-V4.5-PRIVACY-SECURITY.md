@@ -159,3 +159,21 @@ The V4.5 repository scope is complete after the following slices:
 7. security-event reporting and retention lifecycle.
 
 Repository completion does not establish production legal/compliance certification. Before enabling destructive privacy operations or security-event auto-purge in a hosted environment, operations must approve the configured retention period and preserve any external legal, dispute, accounting or incident-response evidence that applies. Hosted log-destination retention/access policy, real alert routing, production backup/PITR/restore evidence and deployment rollback evidence remain environment-specific acceptance evidence.
+
+
+## Post-V4 privacy fulfilment closure
+
+The repository now closes the previously documented fulfilment gap without weakening retention controls:
+
+- a completed subject-owned ACCESS request can generate a structured JSON export for the authenticated subject in the same society/independent-home context;
+- exports deliberately exclude authentication hashes, credentials, provider secrets and unrelated third-party records;
+- ERASURE cases expose a deterministic preview plan before execution;
+- execution remains blocked unless the retention review is ALLOW, legal hold is clear and no active in-scope relationship exists;
+- society-scoped execution revokes sessions/device registrations and removes attributable pseudonymous usage events while preserving retained finance/security/audit references;
+- platform-wide execution additionally anonymises the canonical User identity and independent-home address data while preserving immutable booking/accounting references;
+- retained records continue to reference the opaque user UUID, not an active phone/email/name identity;
+- execution creates append-only ERASURE_EXECUTED evidence with aggregate action counts only;
+- Resident UI can share/download the structured export after an ACCESS case is completed;
+- Admin privacy workspaces now expose retention review, plan preview and governed execution controls.
+
+This closure is intentionally conservative. It does not claim that every retained record must be destroyed; records with accounting, security, dispute, legal-hold or audit obligations remain retained according to the configured review decision.
