@@ -73,8 +73,14 @@ export class AiAssistantService {
         throw new ForbiddenException('Resident assistant status is not permitted for this role');
       }
       await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.residentStatus(societyId,userId,unitId);
-      return this.response('RESIDENT_STATUS',facts,['MaintenanceInvoice','Payment','HelpdeskTicket','AmenityBooking','ServiceBooking'],'Grounded status for the selected property only.');
+      const facts=await this.residentStatus(societyId,userId,unitId,roles);
+      const sources=[
+        ...(hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)?['MaintenanceInvoice','Payment']:[]),
+        ...(hasPermission(roles,AppPermission.HELPDESK_READ_OWN)?['HelpdeskTicket']:[]),
+        ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
+        ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
+      ];
+      return this.response('RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
     }
 
     return this.response('UNSUPPORTED',{
@@ -209,27 +215,48 @@ export class AiAssistantService {
     return {amenities,services};
   }
 
-  private async residentStatus(societyId:string,userId:string,unitId:string){
-    const invoices=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","invoiceNumber","amountPaise","dueDate","status" FROM "MaintenanceInvoice"
-      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid ORDER BY "issuedAt" DESC LIMIT 20
-    `);
-    const tickets=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","title","priority","status","createdAt","resolvedAt" FROM "HelpdeskTicket"
-      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "createdById"=${userId}::uuid
-      ORDER BY "createdAt" DESC LIMIT 20
-    `);
-    const amenities=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","amenityId","startsAt","endsAt","status" FROM "AmenityBooking"
-      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "userId"=${userId}::uuid
-      ORDER BY "createdAt" DESC LIMIT 20
-    `);
-    const services=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","offeringId","scheduledFrom","scheduledUntil","status" FROM "ServiceBooking"
-      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "residentUserId"=${userId}::uuid
-      ORDER BY "createdAt" DESC LIMIT 20
-    `);
-    return {invoices,tickets,amenityBookings:amenities,serviceBookings:services};
+  private async residentStatus(societyId:string,userId:string,unitId:string,roles:readonly AppRole[]){
+    const invoices=hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)
+      ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          SELECT "id","invoiceNumber","amountPaise","dueDate","status" FROM "MaintenanceInvoice"
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid ORDER BY "issuedAt" DESC LIMIT 20
+        `)
+      : [];
+    const payments=hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)
+      ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          SELECT p."id",p."invoiceId",p."amountPaise",p."status",p."createdAt",p."completedAt"
+          FROM "Payment" p JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+          WHERE p."societyId"=${societyId}::uuid AND i."unitId"=${unitId}::uuid
+            AND (p."payerUserId"=${userId}::uuid OR EXISTS(
+              SELECT 1 FROM "UnitOwnership" ow WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid
+                AND ow."userId"=${userId}::uuid AND ow."active"=TRUE AND ow."verified"=TRUE
+                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+            ))
+          ORDER BY p."createdAt" DESC LIMIT 20
+        `)
+      : [];
+    const tickets=hasPermission(roles,AppPermission.HELPDESK_READ_OWN)
+      ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          SELECT "id","title","priority","status","createdAt","resolvedAt" FROM "HelpdeskTicket"
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "createdById"=${userId}::uuid
+          ORDER BY "createdAt" DESC LIMIT 20
+        `)
+      : [];
+    const amenities=hasPermission(roles,AppPermission.AMENITY_READ)
+      ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          SELECT "id","amenityId","startsAt","endsAt","status" FROM "AmenityBooking"
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "userId"=${userId}::uuid
+          ORDER BY "createdAt" DESC LIMIT 20
+        `)
+      : [];
+    const services=hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)
+      ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          SELECT "id","offeringId","scheduledFrom","scheduledUntil","status" FROM "ServiceBooking"
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "residentUserId"=${userId}::uuid
+          ORDER BY "createdAt" DESC LIMIT 20
+        `)
+      : [];
+    return {invoices,payments,tickets,amenityBookings:amenities,serviceBookings:services};
   }
 
   private async assertResidentUnit(societyId:string,userId:string,unitId:string){
