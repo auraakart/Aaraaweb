@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:resident_app/data/api_client.dart';
-import 'package:resident_app/screens/ai_assistant_screen.dart';
+import 'package:aaraagate_resident/data/api_client.dart';
+import 'package:aaraagate_resident/screens/ai_assistant_screen.dart';
 
 class FakeApiClient extends ApiClient {
   FakeApiClient():super(baseUrl:'http://example.test',accessToken:'token');
