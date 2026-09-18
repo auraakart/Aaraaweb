@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/access-regression.mjs && node scripts/v2-domain-reachability.mjs && node scripts/finance-close-workspace-regression.mjs"
+    "test": "node scripts/access-regression.mjs && node scripts/v2-domain-reachability.mjs && node scripts/finance-close-workspace-regression.mjs && node scripts/finance-operator-ergonomics-regression.mjs"
   },
   "dependencies": {
     "next": "15.5.24",
