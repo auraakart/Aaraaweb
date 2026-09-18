@@ -98,6 +98,19 @@ describe('MigrationPreviewService', () => {
     expect(duplicateVendors.issues).toContainEqual(expect.objectContaining({ row: 2, code: 'DUPLICATE' }));
   });
 
+  it('validates parking slot type and EV-ready flags', () => {
+    const result = service.preview('PARKING', [
+      { slot_code: 'P-101', slot_type: 'RESIDENT', ev_ready: 'yes' },
+      { slot_code: 'P-102', slot_type: 'GARAGE', ev_ready: 'maybe' },
+    ]);
+    expect(result.validRows).toBe(1);
+    expect(result.invalidRows).toBe(1);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 2, field: 'slot_type', code: 'INVALID' }),
+      expect.objectContaining({ row: 2, field: 'ev_ready', code: 'INVALID' }),
+    ]));
+  });
+
   it('rejects empty and oversized preview batches before processing', () => {
     expect(() => service.preview('BUILDING', [])).toThrow(BadRequestException);
     const rows = Array.from({ length: 10001 }, (_, index) => ({ code: `B${index}` }));
