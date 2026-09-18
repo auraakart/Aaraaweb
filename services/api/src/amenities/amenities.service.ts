@@ -25,6 +25,8 @@ type AmenityBookingRules = {
   maxAdvanceDays?: number;
   maxFutureBookingsPerUnit?: number;
   cancellationCutoffMinutes?: number;
+  checkInOpenMinutesBefore?: number;
+  noShowGraceMinutes?: number;
 };
 
 type AmenityUpdateInput = {
@@ -246,6 +248,90 @@ export class AmenitiesService {
     });
   }
 
+  async checkIn(societyId: string, actorUserId: string, bookingId: string, note?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ startsAt: Date; endsAt: Date; status: string; bookingRules: unknown }>>`
+        SELECT b."startsAt", b."endsAt", b."status"::text AS "status", a."bookingRules"
+        FROM "AmenityBooking" b
+        JOIN "Amenity" a ON a."id"=b."amenityId" AND a."societyId"=b."societyId"
+        WHERE b."id"=${bookingId}::uuid AND b."societyId"=${societyId}::uuid
+        FOR UPDATE OF b
+      `;
+      const booking = rows[0];
+      if (!booking) throw new NotFoundException('Amenity booking not found');
+      if (booking.status !== 'CONFIRMED') throw new ConflictException('Only confirmed amenity bookings can check in');
+      const rules = this.parseBookingRules(booking.bookingRules);
+      const opensAt = booking.startsAt.getTime() - (rules.checkInOpenMinutesBefore ?? 15) * 60000;
+      const now = Date.now();
+      if (now < opensAt) throw new ConflictException('Amenity check-in is not open yet');
+      if (now >= booking.endsAt.getTime()) throw new ConflictException('Amenity booking window has already ended');
+
+      const updated = await tx.$queryRaw`
+        UPDATE "AmenityBooking"
+        SET "status"='CHECKED_IN',
+            "checkedInAt"=CURRENT_TIMESTAMP,
+            "attendanceByUserId"=${actorUserId}::uuid,
+            "attendanceNote"=${note?.trim() || null},
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid AND "status"='CONFIRMED'
+        RETURNING *
+      `;
+      const result = Array.isArray(updated) ? updated[0] : updated;
+      if (!result) throw new ConflictException('Amenity booking changed; refresh and retry');
+      return result;
+    });
+  }
+
+  async complete(societyId: string, actorUserId: string, bookingId: string, note?: string) {
+    const rows = await this.prisma.$queryRaw`
+      UPDATE "AmenityBooking"
+      SET "status"='COMPLETED',
+          "completedAt"=CURRENT_TIMESTAMP,
+          "attendanceByUserId"=${actorUserId}::uuid,
+          "attendanceNote"=COALESCE(${note?.trim() || null}, "attendanceNote"),
+          "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${bookingId}::uuid
+        AND "societyId"=${societyId}::uuid
+        AND "status"='CHECKED_IN'
+      RETURNING *
+    `;
+    const booking = Array.isArray(rows) ? rows[0] : undefined;
+    if (!booking) throw new ConflictException('Only checked-in amenity bookings can be completed');
+    return booking;
+  }
+
+  async markNoShow(societyId: string, actorUserId: string, bookingId: string, note?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ startsAt: Date; status: string; bookingRules: unknown }>>`
+        SELECT b."startsAt", b."status"::text AS "status", a."bookingRules"
+        FROM "AmenityBooking" b
+        JOIN "Amenity" a ON a."id"=b."amenityId" AND a."societyId"=b."societyId"
+        WHERE b."id"=${bookingId}::uuid AND b."societyId"=${societyId}::uuid
+        FOR UPDATE OF b
+      `;
+      const booking = rows[0];
+      if (!booking) throw new NotFoundException('Amenity booking not found');
+      if (booking.status !== 'CONFIRMED') throw new ConflictException('Only confirmed amenity bookings can be marked no-show');
+      const rules = this.parseBookingRules(booking.bookingRules);
+      const eligibleAt = booking.startsAt.getTime() + (rules.noShowGraceMinutes ?? 15) * 60000;
+      if (Date.now() < eligibleAt) throw new ConflictException('No-show grace period has not elapsed');
+
+      const updated = await tx.$queryRaw`
+        UPDATE "AmenityBooking"
+        SET "status"='NO_SHOW',
+            "noShowAt"=CURRENT_TIMESTAMP,
+            "attendanceByUserId"=${actorUserId}::uuid,
+            "attendanceNote"=${note?.trim() || null},
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid AND "status"='CONFIRMED'
+        RETURNING *
+      `;
+      const result = Array.isArray(updated) ? updated[0] : updated;
+      if (!result) throw new ConflictException('Amenity booking changed; refresh and retry');
+      return result;
+    });
+  }
+
   async listManage(societyId: string) {
     return this.prisma.$queryRaw<AmenityRow[]>`
       SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
@@ -399,6 +485,8 @@ export class AmenitiesService {
       maxAdvanceDays: this.optionalPolicyInteger(source.maxAdvanceDays, 'maxAdvanceDays', 1),
       maxFutureBookingsPerUnit: this.optionalPolicyInteger(source.maxFutureBookingsPerUnit, 'maxFutureBookingsPerUnit', 1),
       cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
+      checkInOpenMinutesBefore: this.optionalPolicyInteger(source.checkInOpenMinutesBefore, 'checkInOpenMinutesBefore', 0),
+      noShowGraceMinutes: this.optionalPolicyInteger(source.noShowGraceMinutes, 'noShowGraceMinutes', 0),
     };
   }
 

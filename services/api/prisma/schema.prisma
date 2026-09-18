@@ -875,6 +875,11 @@ model AmenityBooking {
   currency         String               @default("INR")
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
+  checkedInAt      DateTime?            @db.Timestamptz(6)
+  completedAt      DateTime?            @db.Timestamptz(6)
+  noShowAt         DateTime?            @db.Timestamptz(6)
+  attendanceByUserId String?            @db.Uuid
+  attendanceNote   String?
   idempotencyKey   String?
   createdAt        DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
@@ -888,6 +893,9 @@ model AmenityBooking {
 enum AmenityBookingStatus {
   PENDING
   CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
   REJECTED
   CANCELLED
 }
