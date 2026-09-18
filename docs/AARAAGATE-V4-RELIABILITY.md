@@ -42,7 +42,7 @@ Implemented:
 
 ## Safety notes
 - Rate limiting is an abuse/reliability control, not an authentication or authorization boundary.
-- OTP verification remains protected by its existing challenge/verification logic in addition to rate limiting.
+- OTP request remains protected by the existing per-phone Redis/Valkey request window, while the middleware adds a client-level abuse layer. OTP verification retains its per-challenge attempt cap in addition to the client-level limiter.
 - Health/readiness probes remain available during traffic spikes.
 - Payment webhook limits are intentionally higher than user-facing limits; webhook signature/idempotency controls remain authoritative.
 - Enabling trusted proxy headers requires ingress configuration that overwrites client-supplied forwarding headers.
