@@ -175,21 +175,6 @@ export class ConsumerPaymentsService {
       `);
       const payment = rows[0];
 
-      if (input.status === 'REFUND_PENDING') {
-        await tx.$executeRaw(Prisma.sql`
-          INSERT INTO "ConsumerProviderSettlementRecovery" (
-            "id","providerId","paymentId","settlementEntryId","providerAmountPaise","status","reason","createdAt"
-          )
-          SELECT
-            ${randomUUID()}::uuid,e."providerId",e."paymentId",e."id",e."providerAmountPaise",'OPEN',
-            'Consumer payment entered refund flow after provider settlement',CURRENT_TIMESTAMP
-          FROM "ConsumerProviderSettlementEntry" e
-          JOIN "ConsumerProviderSettlementBatch" b ON b."id"=e."batchId"
-          WHERE e."paymentId"=${paymentId}::uuid AND b."status"='PAID'
-          ON CONFLICT ("paymentId") DO NOTHING
-        `);
-      }
-
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "ConsumerServicePaymentEvent" (
           "id", "paymentId", "actorUserId", "type", "fromStatus", "toStatus", "occurredAt"
@@ -273,6 +258,21 @@ export class ConsumerPaymentsService {
         RETURNING *
       `);
       if (!rows[0]) throw new BadRequestException('Payment changed concurrently; retry reconciliation');
+
+      if (input.status === 'REFUND_PENDING') {
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "ConsumerProviderSettlementRecovery" (
+            "id","providerId","paymentId","settlementEntryId","providerAmountPaise","status","reason","createdAt"
+          )
+          SELECT
+            ${randomUUID()}::uuid,e."providerId",e."paymentId",e."id",e."providerAmountPaise",'OPEN',
+            'Consumer payment entered refund flow after provider settlement',CURRENT_TIMESTAMP
+          FROM "ConsumerProviderSettlementEntry" e
+          JOIN "ConsumerProviderSettlementBatch" b ON b."id"=e."batchId"
+          WHERE e."paymentId"=${paymentId}::uuid AND b."status"='PAID'
+          ON CONFLICT ("paymentId") DO NOTHING
+        `);
+      }
 
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "ConsumerServicePaymentEvent" (
