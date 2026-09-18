@@ -28,6 +28,30 @@ extension ResidentAmenityActions on ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<List<Map<String, dynamic>>> amenityWaitlist(String unitId) async {
+    final value = await api.get('/api/v1/amenities/waitlist/mine?unitId=$unitId');
+    return _amenityList(value);
+  }
+
+  Future<Map<String, dynamic>> joinAmenityWaitlist({
+    required String amenityId,
+    required String unitId,
+    required DateTime startsAt,
+    required DateTime endsAt,
+  }) async {
+    final value=await api.post('/api/v1/amenities/$amenityId/waitlist',{
+      'unitId':unitId,
+      'startsAt':startsAt.toUtc().toIso8601String(),
+      'endsAt':endsAt.toUtc().toIso8601String(),
+    });
+    return Map<String,dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> cancelAmenityWaitlist(String entryId) async {
+    final value=await api.patch('/api/v1/amenities/waitlist/$entryId/cancel');
+    return Map<String,dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> cancelAmenityBooking(String bookingId) async {
     final value = await api.patch('/api/v1/amenities/bookings/$bookingId/cancel');
     return Map<String, dynamic>.from(value as Map);

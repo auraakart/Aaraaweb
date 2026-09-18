@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 type AmenityRow = {
@@ -144,7 +145,7 @@ export class AmenitiesService {
           WHERE "societyId" = ${societyId}::uuid
             AND "amenityId" = ${amenityId}::uuid
             AND "unitId" = ${input.unitId}::uuid
-            AND "status" IN ('PENDING', 'CONFIRMED')
+            AND "status" IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
             AND "endsAt" > CURRENT_TIMESTAMP
         `;
         if (Number(futureRows[0]?.count ?? 0) >= rules.maxFutureBookingsPerUnit) {
@@ -157,7 +158,7 @@ export class AmenitiesService {
         FROM "AmenityBooking"
         WHERE "societyId" = ${societyId}::uuid
           AND "amenityId" = ${amenityId}::uuid
-          AND "status" IN ('PENDING', 'CONFIRMED')
+          AND "status" IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
           AND "startsAt" < ${endsAt}
           AND "endsAt" > ${startsAt}
       `;
@@ -185,10 +186,134 @@ export class AmenitiesService {
     });
   }
 
+  async listWaitlistMine(societyId: string, userId: string, unitId: string) {
+    await this.assertUnitAccess(societyId, userId, unitId);
+    return this.prisma.$queryRaw`
+      SELECT w.*, a."name" AS "amenityName", a."code" AS "amenityCode",
+             CASE WHEN w."status"='WAITING' THEN (
+               SELECT COUNT(*)::int
+               FROM "AmenityWaitlistEntry" ahead
+               WHERE ahead."societyId"=w."societyId"
+                 AND ahead."amenityId"=w."amenityId"
+                 AND ahead."startsAt"=w."startsAt"
+                 AND ahead."endsAt"=w."endsAt"
+                 AND ahead."status"='WAITING'
+                 AND (ahead."joinedAt",ahead."id") <= (w."joinedAt",w."id")
+             ) ELSE NULL END AS "position"
+      FROM "AmenityWaitlistEntry" w
+      JOIN "Amenity" a ON a."id"=w."amenityId" AND a."societyId"=w."societyId"
+      WHERE w."societyId"=${societyId}::uuid
+        AND w."userId"=${userId}::uuid
+        AND w."unitId"=${unitId}::uuid
+      ORDER BY CASE WHEN w."status"='WAITING' THEN 0 ELSE 1 END, w."startsAt", w."joinedAt"
+    `;
+  }
+
+  async joinWaitlist(
+    societyId: string,
+    userId: string,
+    amenityId: string,
+    input: { unitId: string; startsAt: string; endsAt: string },
+  ) {
+    await this.assertUnitAccess(societyId, userId, input.unitId);
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || startsAt >= endsAt) {
+      throw new BadRequestException('A valid waitlist window is required');
+    }
+    const now = Date.now();
+    if (startsAt.getTime() <= now) throw new BadRequestException('Amenity waitlist entries must start in the future');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const amenities = await tx.$queryRaw<AmenityRow[]>`
+        SELECT "id","societyId","code","name","description","location","schedule","bookingRules",
+               "feePaise","currency","requiresApproval","slotMinutes","maxConcurrentBookings","active"
+        FROM "Amenity"
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+        LIMIT 1
+      `;
+      const amenity=amenities[0];
+      if(!amenity) throw new NotFoundException('Amenity not found');
+      if((endsAt.getTime()-startsAt.getTime())/60000!==amenity.slotMinutes){
+        throw new BadRequestException(`Waitlist duration must be exactly ${amenity.slotMinutes} minutes`);
+      }
+      const rules=this.parseBookingRules(amenity.bookingRules);
+      const minutesUntilStart=(startsAt.getTime()-now)/60000;
+      if(rules.minAdvanceMinutes!==undefined&&minutesUntilStart<rules.minAdvanceMinutes){
+        throw new BadRequestException(`Amenity must be joined at least ${rules.minAdvanceMinutes} minutes in advance`);
+      }
+      if(rules.maxAdvanceDays!==undefined&&minutesUntilStart>rules.maxAdvanceDays*24*60){
+        throw new BadRequestException(`Amenity cannot be joined more than ${rules.maxAdvanceDays} days in advance`);
+      }
+
+      const ownActive=await tx.$queryRaw<CountRow[]>`
+        SELECT COUNT(*)::int AS "count"
+        FROM "AmenityBooking"
+        WHERE "societyId"=${societyId}::uuid
+          AND "amenityId"=${amenityId}::uuid
+          AND "unitId"=${input.unitId}::uuid
+          AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+          AND "startsAt"<${endsAt} AND "endsAt">${startsAt}
+      `;
+      if(Number(ownActive[0]?.count??0)>0) throw new ConflictException('This unit already has an active booking in that amenity window');
+
+      const overlaps=await tx.$queryRaw<CountRow[]>`
+        SELECT COUNT(*)::int AS "count"
+        FROM "AmenityBooking"
+        WHERE "societyId"=${societyId}::uuid
+          AND "amenityId"=${amenityId}::uuid
+          AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+          AND "startsAt"<${endsAt} AND "endsAt">${startsAt}
+      `;
+      if(Number(overlaps[0]?.count??0)<amenity.maxConcurrentBookings){
+        throw new ConflictException('Amenity slot is currently available; book it directly');
+      }
+
+      try {
+        const rows=await tx.$queryRaw<Array<Record<string,unknown>>>`
+          INSERT INTO "AmenityWaitlistEntry" ("societyId","amenityId","unitId","userId","startsAt","endsAt")
+          VALUES (${societyId}::uuid,${amenityId}::uuid,${input.unitId}::uuid,${userId}::uuid,${startsAt},${endsAt})
+          RETURNING *
+        `;
+        const entry=rows[0];
+        const positions=await tx.$queryRaw<Array<{position:number}>>`
+          SELECT COUNT(*)::int AS "position"
+          FROM "AmenityWaitlistEntry"
+          WHERE "societyId"=${societyId}::uuid
+            AND "amenityId"=${amenityId}::uuid
+            AND "startsAt"=${startsAt}
+            AND "endsAt"=${endsAt}
+            AND "status"='WAITING'
+            AND ("joinedAt","id") <= (${entry?.joinedAt}::timestamptz,${entry?.id}::uuid)
+        `;
+        return {...entry,position:Number(positions[0]?.position??1)};
+      } catch(error) {
+        if(this.isUniqueViolation(error)) throw new ConflictException('This unit is already on the waitlist for that amenity window');
+        throw error;
+      }
+    });
+  }
+
+  async cancelWaitlistMine(societyId:string,userId:string,entryId:string) {
+    const rows=await this.prisma.$queryRaw`
+      UPDATE "AmenityWaitlistEntry"
+      SET "status"='CANCELLED',"cancelledAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${entryId}::uuid
+        AND "societyId"=${societyId}::uuid
+        AND "userId"=${userId}::uuid
+        AND "status"='WAITING'
+      RETURNING *
+    `;
+    const entry=Array.isArray(rows)?rows[0]:undefined;
+    if(!entry) throw new NotFoundException('Active amenity waitlist entry not found');
+    return entry;
+  }
+
   async cancelMine(societyId: string, userId: string, bookingId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const activeRows = await tx.$queryRaw<Array<{ startsAt: Date; bookingRules: unknown }>>`
-        SELECT b."startsAt", a."bookingRules"
+      const activeRows = await tx.$queryRaw<Array<{ amenityId:string; startsAt: Date; endsAt:Date; bookingRules: unknown }>>`
+        SELECT b."amenityId", b."startsAt", b."endsAt", a."bookingRules"
         FROM "AmenityBooking" b
         JOIN "Amenity" a ON a."id" = b."amenityId" AND a."societyId" = b."societyId"
         WHERE b."id" = ${bookingId}::uuid
@@ -219,6 +344,7 @@ export class AmenitiesService {
       `;
       const booking = Array.isArray(rows) ? rows[0] : undefined;
       if (!booking) throw new ConflictException('Booking changed; refresh and retry');
+      await this.promoteNextWaitlist(tx,societyId,active.amenityId,active.startsAt,active.endsAt);
       return booking;
     });
   }
@@ -227,7 +353,7 @@ export class AmenitiesService {
     const note = reason.trim();
     if (!note) throw new BadRequestException('Revocation reason is required');
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      const rows = await tx.$queryRaw<Array<{ id: string; amenityId:string; startsAt:Date; endsAt:Date }>>`
         UPDATE "AmenityBooking"
         SET "status"='CANCELLED',
             "reviewedByUserId"=${reviewerUserId}::uuid,
@@ -236,9 +362,11 @@ export class AmenitiesService {
         WHERE "id"=${bookingId}::uuid
           AND "societyId"=${societyId}::uuid
           AND "status" IN ('PENDING','CONFIRMED')
-        RETURNING "id"
+        RETURNING "id","amenityId","startsAt","endsAt"
       `;
-      if (!rows[0]) throw new ConflictException('Active amenity booking is missing or already closed');
+      const released=rows[0];
+      if (!released) throw new ConflictException('Active amenity booking is missing or already closed');
+      await this.promoteNextWaitlist(tx,societyId,released.amenityId,released.startsAt,released.endsAt);
       const booking = await tx.$queryRaw`
         SELECT * FROM "AmenityBooking"
         WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid
@@ -401,7 +529,7 @@ export class AmenitiesService {
           FROM "AmenityBooking"
           WHERE "societyId" = ${societyId}::uuid
             AND "amenityId" = ${amenityId}::uuid
-            AND "status" IN ('PENDING', 'CONFIRMED')
+            AND "status" IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
             AND "endsAt" > CURRENT_TIMESTAMP
         `;
         if (Number(futureRows[0]?.count ?? 0) > 0) {
@@ -460,20 +588,111 @@ export class AmenitiesService {
     nextStatus: 'CONFIRMED' | 'REJECTED',
     note?: string,
   ) {
-    const rows = await this.prisma.$queryRaw`
-      UPDATE "AmenityBooking"
-      SET "status" = ${nextStatus}::"AmenityBookingStatus",
-          "reviewedByUserId" = ${reviewerUserId}::uuid,
-          "reviewNote" = ${note?.trim() || null},
-          "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${bookingId}::uuid
-        AND "societyId" = ${societyId}::uuid
-        AND "status" = 'PENDING'
-      RETURNING *
+    return this.prisma.$transaction(async(tx)=>{
+      const rows = await tx.$queryRaw<Array<Record<string,unknown>&{amenityId:string;startsAt:Date;endsAt:Date}>>`
+        UPDATE "AmenityBooking"
+        SET "status" = ${nextStatus}::"AmenityBookingStatus",
+            "reviewedByUserId" = ${reviewerUserId}::uuid,
+            "reviewNote" = ${note?.trim() || null},
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${bookingId}::uuid
+          AND "societyId" = ${societyId}::uuid
+          AND "status" = 'PENDING'
+        RETURNING *
+      `;
+      const booking=rows[0];
+      if(!booking) throw new NotFoundException('Pending amenity booking not found');
+      if(nextStatus==='REJECTED') await this.promoteNextWaitlist(tx,societyId,booking.amenityId,booking.startsAt,booking.endsAt);
+      return booking;
+    });
+  }
+
+  private async promoteNextWaitlist(
+    tx:Prisma.TransactionClient,
+    societyId:string,
+    amenityId:string,
+    startsAt:Date,
+    endsAt:Date,
+  ) {
+    if(startsAt.getTime()<=Date.now()) return null;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+    const amenities=await tx.$queryRaw<AmenityRow[]>`
+      SELECT "id","societyId","code","name","description","location","schedule","bookingRules",
+             "feePaise","currency","requiresApproval","slotMinutes","maxConcurrentBookings","active"
+      FROM "Amenity"
+      WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+      LIMIT 1
     `;
-    const booking = Array.isArray(rows) ? rows[0] : undefined;
-    if (!booking) throw new NotFoundException('Pending amenity booking not found');
-    return booking;
+    const amenity=amenities[0];
+    if(!amenity) return null;
+    const overlaps=await tx.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::int AS "count"
+      FROM "AmenityBooking"
+      WHERE "societyId"=${societyId}::uuid
+        AND "amenityId"=${amenityId}::uuid
+        AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+        AND "startsAt"<${endsAt} AND "endsAt">${startsAt}
+    `;
+    if(Number(overlaps[0]?.count??0)>=amenity.maxConcurrentBookings) return null;
+
+    const waiters=await tx.$queryRaw<Array<{id:string;unitId:string;userId:string;startsAt:Date;endsAt:Date}>>`
+      SELECT w."id",w."unitId",w."userId",w."startsAt",w."endsAt"
+      FROM "AmenityWaitlistEntry" w
+      WHERE w."societyId"=${societyId}::uuid
+        AND w."amenityId"=${amenityId}::uuid
+        AND w."startsAt"=${startsAt}
+        AND w."endsAt"=${endsAt}
+        AND w."status"='WAITING'
+        AND EXISTS (
+          SELECT 1 FROM "Unit" u
+          WHERE u."id"=w."unitId" AND u."societyId"=w."societyId"
+            AND (
+              EXISTS (
+                SELECT 1 FROM "UnitOccupancy" o
+                WHERE o."societyId"=w."societyId" AND o."unitId"=w."unitId" AND o."userId"=w."userId"
+                  AND o."active"=true AND o."effectiveFrom"<=CURRENT_TIMESTAMP
+                  AND (o."effectiveTo" IS NULL OR o."effectiveTo">CURRENT_TIMESTAMP)
+              )
+              OR EXISTS (
+                SELECT 1 FROM "UnitOwnership" ow
+                WHERE ow."societyId"=w."societyId" AND ow."unitId"=w."unitId" AND ow."userId"=w."userId"
+                  AND ow."active"=true AND ow."verified"=true AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+                  AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+              )
+            )
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "AmenityBooking" b
+          WHERE b."societyId"=w."societyId"
+            AND b."amenityId"=w."amenityId"
+            AND b."unitId"=w."unitId"
+            AND b."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+            AND b."startsAt"<w."endsAt" AND b."endsAt">w."startsAt"
+        )
+      ORDER BY w."joinedAt",w."id"
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    `;
+    const waiter=waiters[0];
+    if(!waiter) return null;
+    const status=amenity.requiresApproval?'PENDING':'CONFIRMED';
+    const bookings=await tx.$queryRaw<Array<{id:string}>>`
+      INSERT INTO "AmenityBooking" (
+        "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency"
+      ) VALUES (
+        ${societyId}::uuid,${amenityId}::uuid,${waiter.unitId}::uuid,${waiter.userId}::uuid,
+        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${amenity.feePaise},${amenity.currency}
+      )
+      RETURNING "id"
+    `;
+    const promotedBooking=bookings[0];
+    if(!promotedBooking) return null;
+    await tx.$queryRaw`
+      UPDATE "AmenityWaitlistEntry"
+      SET "status"='PROMOTED',"promotedAt"=CURRENT_TIMESTAMP,"promotedBookingId"=${promotedBooking.id}::uuid
+      WHERE "id"=${waiter.id}::uuid AND "societyId"=${societyId}::uuid AND "status"='WAITING'
+    `;
+    return {entryId:waiter.id,bookingId:promotedBooking.id,status};
   }
 
   private parseBookingRules(value: unknown): AmenityBookingRules {

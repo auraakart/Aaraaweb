@@ -890,6 +890,24 @@ model AmenityBooking {
   @@unique([societyId, userId, idempotencyKey], map: "AmenityBooking_society_user_idempotency_key")
 }
 
+model AmenityWaitlistEntry {
+  id                String   @id @default(uuid()) @db.Uuid
+  societyId         String   @db.Uuid
+  amenityId         String   @db.Uuid
+  unitId            String   @db.Uuid
+  userId            String   @db.Uuid
+  startsAt          DateTime @db.Timestamptz(6)
+  endsAt            DateTime @db.Timestamptz(6)
+  status            String   @default("WAITING")
+  joinedAt          DateTime @default(now()) @db.Timestamptz(6)
+  promotedAt        DateTime? @db.Timestamptz(6)
+  cancelledAt       DateTime? @db.Timestamptz(6)
+  promotedBookingId String?  @db.Uuid
+
+  @@index([societyId, amenityId, startsAt, endsAt, status, joinedAt], map: "AmenityWaitlist_society_window_status_idx")
+  @@index([societyId, userId, unitId, joinedAt(sort: Desc)], map: "AmenityWaitlist_society_user_unit_idx")
+}
+
 enum AmenityBookingStatus {
   PENDING
   CONFIRMED
