@@ -32,7 +32,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | Requirement | Priority | Repository status | Current evidence / remaining non-production work |
 |---|---|---|---|
 | V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
-| V2-FIN Full society accounting | P0 | **Implemented baseline / hardened** | `services/api/src/accounting`, finance permissions, ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds tenant-scoped reconciliation review metrics, read-only exact-movement candidate suggestions and accountant export date presets without auto-posting. Accountant/Treasurer human acceptance remains. |
+| V2-FIN Full society accounting | P0 | **Implemented / hardened** | `services/api/src/accounting`, finance permissions, immutable ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds reconciliation review health, read-only exact-movement candidates and export date presets. V4.14 adds tenant-scoped close readiness, race-safe irreversible period close with draft-journal blocking and actor evidence, an accountant period-close/reporting workspace reusing the existing reporting engine, and typed bounded operator controls replacing raw UUID/browser-prompt actions. Accountant/Treasurer human acceptance remains. |
 | V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
 | V2-GOV Society governance | P0/P1 | **Implemented baseline / hardened** | `services/api/src/governance`, committee/governance permissions and Admin governance workflows are present. Bye-law-dependent configuration remains pilot evidence. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
@@ -133,3 +133,16 @@ The V4.13 repository cycle is complete on `develop`:
 5. **Validation:** the latest functional feature head passed CI, Cross-role E2E, Security/Privacy, Role UAT, Policy Pilot, Pilot Acceptance, Staging Pilot and V4.11 Pilot Readiness contracts.
 
 V4.13 repository completion does **not** constitute representative-device accessibility acceptance, real low-bandwidth field acceptance, hosted staging acceptance, real-society role/policy acceptance, production-provider acceptance or customer-outcome evidence. Those remain external.
+
+
+## V4.14 Finance Close & Operator Workflow closure
+
+The V4.14 repository cycle is complete on `develop`:
+
+1. **Period-close integrity:** authorized finance users can inspect tenant-scoped close readiness and close an OPEN accounting period only when draft journals are resolved and posted/reversed ledger totals balance. The close mutation locks the period, records actor/time evidence and preserves the existing irreversible closed-period invariant.
+2. **Close/reporting workspace:** Admin Finance exposes the selected period's close blockers and existing trial balance, income/expense, balance sheet and fund statement outputs in one accountant workflow. The reporting engine is reused rather than duplicated, and closing remains an explicit operator action.
+3. **Finance operator ergonomics:** high-frequency finance actions no longer depend on browser prompts or raw UUID entry where repository data is already available. Expense approval selects active liability accounts, payable settlement selects posted journals and is bounded by outstanding value, allocation reversal uses an explicit bounded amount/reason form, and reconciliation refund/resolution use persistent typed controls.
+4. **Regression protection:** Admin regression contracts fail if prompt-driven finance actions return or the typed close/operator contracts disappear. Functional heads passed the full source-change CI path plus cross-role, security/privacy and pilot contracts.
+5. **Accounting boundaries:** gateway truth remains separate from accounting truth; no automatic journal posting, matching, refund execution or financial adjustment was introduced.
+
+Repository completion does **not** constitute Accountant/Treasurer human acceptance, live-provider reconciliation/refund evidence, real-society accounting-policy acceptance, hosted-production evidence or field financial-outcome validation. Those remain external.
