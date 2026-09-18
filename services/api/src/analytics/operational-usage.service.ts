@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,7 +32,12 @@ export class OperationalUsageService {
   }
   async recordGuardSync(societyId:string,input:{considered:number;synced:number;retried:number;unresolved:number;reviewRequired:number}) {
     const values=[input.considered,input.synced,input.retried,input.unresolved,input.reviewRequired];
-    if(values.some(value=>!Number.isSafeInteger(value)||value<0)) return;
+    if(values.some(value=>!Number.isSafeInteger(value)||value<0||value>100000)){
+      throw new BadRequestException('Guard sync metrics must be safe non-negative integers up to 100000');
+    }
+    if(input.synced>input.considered||input.retried>input.considered||input.unresolved>input.considered||input.reviewRequired>input.unresolved){
+      throw new BadRequestException('Guard sync metric counts are inconsistent');
+    }
     await this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO "GuardOfflineSyncMetric" (
         "societyId","bucketDate","syncRuns","actionsConsidered","actionsSynced","actionsRetried","actionsUnresolved","reviewRequired"
