@@ -105,9 +105,23 @@ export class MigrationPreviewService {
         required('name');
         required('phone', ['mobile', 'mobile_number']);
         required('unit_ref', ['unit', 'flat_number']);
+        required('occupancy_type', ['resident_type', 'role']);
         const occupancy = this.value(row, 'occupancy_type', ['resident_type', 'role']).toUpperCase();
         if (occupancy && !['OWNER', 'TENANT', 'FAMILY_MEMBER'].includes(occupancy)) {
           issues.push({ row: rowNumber, field: 'occupancy_type', code: 'INVALID', message: 'occupancy_type must be OWNER, TENANT or FAMILY_MEMBER' });
+        }
+        for (const field of ['is_occupant', 'ownership_verified', 'verified_owner', 'primary_gate_contact', 'gate_approval_enabled', 'gate_notification_enabled']) {
+          const value = row[field]?.trim().toLowerCase();
+          if (value && !['true', 'false', '1', '0', 'yes', 'no'].includes(value)) {
+            issues.push({ row: rowNumber, field, code: 'INVALID', message: `${field} must be true/false, yes/no or 1/0` });
+          }
+        }
+        const escalation = row.escalation_order?.trim();
+        if (escalation && (!/^\d+$/.test(escalation) || Number(escalation) > 100000)) {
+          issues.push({ row: rowNumber, field: 'escalation_order', code: 'INVALID', message: 'escalation_order must be a non-negative integer' });
+        }
+        if (occupancy && occupancy !== 'OWNER' && ['false', '0', 'no'].includes((row.is_occupant ?? '').trim().toLowerCase())) {
+          issues.push({ row: rowNumber, field: 'is_occupant', code: 'INVALID', message: 'tenant and family rows must be active occupants' });
         }
         break;
       }
@@ -170,7 +184,7 @@ export class MigrationPreviewService {
     switch (entityType) {
       case 'BUILDING': return value('external_id') || value('code') || value('name');
       case 'UNIT': return `${value('building_ref', 'building', 'building_code')}|${value('unit_number', 'number', 'flat_number')}`;
-      case 'RESIDENT': return value('external_id') || value('phone', 'mobile', 'mobile_number');
+      case 'RESIDENT': return `${value('phone', 'mobile', 'mobile_number')}|${value('unit_ref', 'unit', 'flat_number')}`;
       case 'VEHICLE': return value('registration_number', 'vehicle_number', 'registration').replace(/\s+/g, '');
       case 'PARKING': return value('slot_code', 'parking_slot', 'slot');
       case 'WORKFORCE': return value('external_id') || value('phone', 'mobile', 'mobile_number');

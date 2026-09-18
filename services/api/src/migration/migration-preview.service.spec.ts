@@ -37,6 +37,31 @@ describe('MigrationPreviewService', () => {
     }));
   });
 
+  it('allows one resident identity across multiple units but rejects conflicting rows for the same unit', () => {
+    const result = service.preview('RESIDENT', [
+      { name: 'Anita Rao', mobile: '9000000001', unit: 'A/101', role: 'OWNER' },
+      { name: 'Anita Rao', mobile: '9000000001', unit: 'A/102', role: 'OWNER' },
+      { name: 'Anita Rao', mobile: '9000000001', unit: 'A/101', role: 'TENANT' },
+    ]);
+    expect(result.validRows).toBe(2);
+    expect(result.invalidRows).toBe(1);
+    expect(result.duplicateRows).toBe(1);
+  });
+
+  it('validates resident relationship flags before commit', () => {
+    const result = service.preview('RESIDENT', [
+      { name: 'Owner', mobile: '9000000010', unit: 'A/101', role: 'OWNER', is_occupant: 'no', ownership_verified: 'yes' },
+      { name: 'Tenant', mobile: '9000000011', unit: 'A/102', role: 'TENANT', is_occupant: 'no' },
+      { name: 'Family', mobile: '9000000012', unit: 'A/103', role: 'FAMILY_MEMBER', primary_gate_contact: 'maybe' },
+    ]);
+    expect(result.validRows).toBe(1);
+    expect(result.invalidRows).toBe(2);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 2, field: 'is_occupant', code: 'INVALID' }),
+      expect.objectContaining({ row: 3, field: 'primary_gate_contact', code: 'INVALID' }),
+    ]));
+  });
+
   it('validates opening balances in integer paise and debit-credit form', () => {
     const result = service.preview('OPENING_BALANCE', [
       { ledger_code: '1100', amount: '125000', debit_credit: 'DEBIT', flat_number: 'A-101' },
