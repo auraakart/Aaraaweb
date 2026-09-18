@@ -27,6 +27,9 @@ export class OperationalUsageService {
       await this.prisma.$executeRaw(Prisma.sql`
         INSERT INTO "OperationalUsageEvent" ("societyId","eventType","subjectHash","bucketDate")
         VALUES (NULL,${eventType},${subjectHash},CURRENT_DATE)
+        ON CONFLICT ("eventType","subjectHash","bucketDate")
+          WHERE "societyId" IS NULL
+        DO NOTHING
       `);
     }
   }
