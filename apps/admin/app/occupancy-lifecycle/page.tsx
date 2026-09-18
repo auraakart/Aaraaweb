@@ -11,6 +11,7 @@ type Building={id:string;name:string;code:string}
 type UnitOption={id:string;number:string;building:Building}
 type ActiveOccupancy={id:string;relation:string;effectiveFrom:string;user:{id:string;name:string;phone:string;status:string};unit:UnitOption}
 type OperatorContext={units:UnitOption[];occupancies:ActiveOccupancy[]}
+type ReadinessEvidence={requestId:string;kind:'MOVE_IN'|'MOVE_OUT';checklist:{total:number;required:number;completedRequired:number;mandatoryReady:boolean};documents:{total:number;verified:number};handover:{activeVehicles:number;activeWorkforceAssignments:number;activeParkingAllocations:number;gateAuthority:{primaryGateContact:boolean;gateApprovalEnabled:boolean;gateNotificationEnabled:boolean}|null};boundary:string}
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
@@ -24,7 +25,7 @@ const occupancyLabel=(o:ActiveOccupancy)=>`${o.user.name} · ${unitLabel(o.unit)
 export default function OccupancyLifecyclePage(){
  const s=typeof window==='undefined'?null:session()
  const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
- const[items,setItems]=useState<Lifecycle[]>([]),[context,setContext]=useState<OperatorContext>({units:[],occupancies:[]}),[selected,setSelected]=useState<Detail|null>(null),[error,setError]=useState(''),[success,setSuccess]=useState(''),[busy,setBusy]=useState(false)
+ const[items,setItems]=useState<Lifecycle[]>([]),[context,setContext]=useState<OperatorContext>({units:[],occupancies:[]}),[selected,setSelected]=useState<Detail|null>(null),[readinessEvidence,setReadinessEvidence]=useState<ReadinessEvidence|null>(null),[error,setError]=useState(''),[success,setSuccess]=useState(''),[busy,setBusy]=useState(false)
  const[unitId,setUnitId]=useState(''),[residentPhone,setResidentPhone]=useState('+91'),[relation,setRelation]=useState<'OWNER'|'TENANT'>('TENANT'),[moveInAt,setMoveInAt]=useState(''),[moveOutOccupancy,setMoveOutOccupancy]=useState(''),[moveOutAt,setMoveOutAt]=useState(''),[moveInReason,setMoveInReason]=useState(''),[moveOutReason,setMoveOutReason]=useState('')
  const[reviewNote,setReviewNote]=useState(''),[checklistNotes,setChecklistNotes]=useState<Record<string,string>>({}),[docKind,setDocKind]=useState('TENANCY_AGREEMENT'),[docReference,setDocReference]=useState(''),[docNote,setDocNote]=useState(''),[verifyNotes,setVerifyNotes]=useState<Record<string,string>>({})
 
@@ -34,7 +35,7 @@ export default function OccupancyLifecyclePage(){
  async function load(){if(!s||!canRead)return;setBusy(true);setError('');try{const[list,ctx]=await Promise.all([api<Lifecycle[]>(s,'/occupancy-lifecycle'),api<OperatorContext>(s,'/occupancy-lifecycle/operator-context')]);setItems(list);setContext(ctx)}catch(e){setError(e instanceof Error?e.message:'Could not load occupancy lifecycle')}finally{setBusy(false)}}
  useEffect(()=>{void load()},[])
 
- async function inspect(id:string){if(!s)return;setBusy(true);setError('');try{setSelected(await api<Detail>(s,`/occupancy-lifecycle/${id}`));setReviewNote('')}catch(e){setError(e instanceof Error?e.message:'Could not load lifecycle request')}finally{setBusy(false)}}
+ async function inspect(id:string){if(!s)return;setBusy(true);setError('');try{const[detail,evidence]=await Promise.all([api<Detail>(s,`/occupancy-lifecycle/${id}`),api<ReadinessEvidence>(s,`/occupancy-lifecycle/${id}/readiness`)]);setSelected(detail);setReadinessEvidence(evidence);setReviewNote('')}catch(e){setError(e instanceof Error?e.message:'Could not load lifecycle request')}finally{setBusy(false)}}
 
  async function moveIn(e:FormEvent){e.preventDefault();if(!s||!canManage)return;setBusy(true);setError('');setSuccess('');try{await api(s,'/occupancy-lifecycle/move-ins/by-phone',{method:'POST',body:JSON.stringify({unitId,tenantPhone:residentPhone.trim(),relation,effectiveAt:new Date(moveInAt).toISOString(),reason:moveInReason.trim()||undefined})});setUnitId('');setResidentPhone('+91');setMoveInAt('');setMoveInReason('');setSuccess('Move-in request created.');await load()}catch(e){setError(e instanceof Error?e.message:'Could not request move-in')}finally{setBusy(false)}}
 
@@ -85,6 +86,7 @@ export default function OccupancyLifecyclePage(){
    <div style={row}><div><h2 style={{marginBottom:4}}>Request detail</h2><small>{selected.id}</small></div><strong>{selected.status}</strong></div>
    <dl style={details}><dt>Type</dt><dd>{selected.kind.replace('_',' ')}</dd><dt>Relationship</dt><dd>{selected.relation.replaceAll('_',' ')}</dd><dt>Effective</dt><dd>{fmt(selected.effectiveAt)}</dd><dt>Unit</dt><dd>{unitNames.get(selected.unitId)??selected.unitId}</dd>{selected.occupancyId&&<><dt>Occupancy</dt><dd>{occupancyById.get(selected.occupancyId)?occupancyLabel(occupancyById.get(selected.occupancyId)!):selected.occupancyId}</dd></>}{selected.reason&&<><dt>Reason</dt><dd>{selected.reason}</dd></>}</dl>
    <div style={readinessBox}><b>Readiness {readiness}/{total}</b><span>{readiness===total&&total>0?'All mandatory checks complete':'Completion remains blocked until all mandatory checks are complete'}</span></div>
+   {readinessEvidence&&<section style={subpanel}><div style={row}><div><h3 style={{margin:'0 0 4px'}}>Operational handover evidence</h3><small>{readinessEvidence.boundary}</small></div><strong>{readinessEvidence.checklist.mandatoryReady?'MANDATORY CHECKS READY':'MANDATORY CHECKS OPEN'}</strong></div><div style={evidenceGrid}><div><b>{readinessEvidence.checklist.completedRequired}/{readinessEvidence.checklist.required}</b><span>Required checklist</span></div><div><b>{readinessEvidence.documents.verified}/{readinessEvidence.documents.total}</b><span>Verified documents</span></div><div><b>{readinessEvidence.handover.activeVehicles}</b><span>Active vehicles</span></div><div><b>{readinessEvidence.handover.activeWorkforceAssignments}</b><span>Active workforce</span></div><div><b>{readinessEvidence.handover.activeParkingAllocations}</b><span>Parking allocations</span></div><div><b>{readinessEvidence.handover.gateAuthority?readinessEvidence.handover.gateAuthority.gateApprovalEnabled?'ACTIVE':'LIMITED':'NONE'}</b><span>Current gate authority</span></div></div>{selected.kind==='MOVE_OUT'&&(readinessEvidence.handover.activeVehicles>0||readinessEvidence.handover.activeWorkforceAssignments>0||readinessEvidence.handover.activeParkingAllocations>0)&&<p style={warningBox}>Review active household vehicles, workforce assignments and parking allocations as part of move-out handover. These signals are descriptive and do not by themselves block completion.</p>}</section>}
 
    <h3>Move checklist</h3>
    {selected.checklist.length===0?<p>No checklist items.</p>:selected.checklist.map(item=><div key={item.id} style={event}><div style={{flex:1}}><b>{item.completedAt?'✓':'○'} {item.label}</b>{item.note?<><br/><small>{item.note}</small></>:null}{canManage&&<input aria-label={`Checklist note for ${item.label}`} placeholder="Operational note (optional)" value={checklistNotes[item.id]??''} onChange={e=>setChecklistNotes(current=>({...current,[item.id]:e.target.value}))} style={smallInput} maxLength={500}/>}</div>{canManage&&<button disabled={busy} onClick={()=>void checklist(item)} style={item.completedAt?secondary:button}>{item.completedAt?'Reopen':'Complete'}</button>}</div>)}
@@ -115,3 +117,6 @@ const event={display:'flex',justifyContent:'space-between',gap:12,alignItems:'ce
 const errorBox={padding:12,background:'#fee2e2',borderRadius:10} as const
 const successBox={padding:12,background:'#ecfdf5',color:'#065f46',borderRadius:10} as const
 const readinessBox={display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:14,background:'#f8fafc',borderRadius:12} as const
+
+const evidenceGrid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10} as const
+const warningBox={padding:12,background:'#fffbeb',color:'#92400e',border:'1px solid #fde68a',borderRadius:10} as const
