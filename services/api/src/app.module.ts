@@ -12,6 +12,7 @@ import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
 import { GuardOperationsModule } from './guard-operations/guard-operations.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { MigrationModule } from './migration/migration.module';
 import { NoticesModule } from './notices/notices.module';
 import { ParcelsModule } from './parcels/parcels.module';
 import { ParkingModule } from './parking/parking.module';
@@ -65,6 +66,7 @@ import { RequestObservabilityMiddleware } from './observability/request-observab
     BillingModule,
     AccountingModule,
     GovernanceModule,
+    MigrationModule,
     PrivacyModule,
     ReportsModule,
     UniversalSearchModule,
