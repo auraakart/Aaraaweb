@@ -13,18 +13,21 @@ class CommunityScreen extends StatefulWidget {
 class _CommunityScreenState extends State<CommunityScreen> {
   bool loading=true;
   String? error;
-  List<Map<String,dynamic>> meetings=const[], documents=const[], polls=const[];
+  List<Map<String,dynamic>> meetings=const[], documents=const[], polls=const[], _tickets=const[];
   @override void initState(){super.initState();_load();}
   Future<void> _load() async {
-    setState(()=>{loading=true,error=null});
+    setState(() { loading=true; error=null; });
     try {
       final results=await Future.wait([
         widget.controller.repository.communityMeetings(),
         widget.controller.repository.communityDocuments(),
         widget.controller.repository.communityPolls(),
+        widget.controller.repository.helpdeskTickets(),
       ]);
       if(!mounted)return;
-      setState(()=>{meetings=results[0],documents=results[1],polls=results[2]});
+      final unitId=widget.controller.primaryUnitId;
+      final scopedTickets=results[3].where((t)=>unitId!=null&&t['unitId']?.toString()==unitId).toList(growable:false);
+      setState(() { meetings=results[0]; documents=results[1]; polls=results[2]; _tickets=scopedTickets; });
     } catch (_) {
       if(mounted)setState(()=>error='Community information could not be loaded.');
     } finally { if(mounted)setState(()=>loading=false); }
@@ -32,7 +35,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override Widget build(BuildContext context){
     final theme=Theme.of(context), scheme=theme.colorScheme;
     final notices=widget.controller.notices.take(3).toList();
-    final openTickets=widget.controller.helpdeskTickets.where((t)=>!{'RESOLVED','CLOSED'}.contains((t['status']?.toString()??'').toUpperCase())).take(2).toList();
+    final openTickets=_tickets.where((t)=>!{'RESOLVED','CLOSED'}.contains((t['status']?.toString()??'').toUpperCase())).take(2).toList();
     return SafeArea(child:RefreshIndicator(onRefresh:() async{await widget.controller.load();await _load();},child:ListView(
       physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter,AaraagateTokens.space4,AaraagateTokens.pageGutter,AaraagateTokens.space8),children:[
       Text('Community',style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.w800)),
