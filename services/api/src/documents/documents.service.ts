@@ -185,7 +185,7 @@ export class DocumentsService {
 
       const existingReplacement = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "SocietyDocument"
-        WHERE "societyId"=${societyId}::uuid AND "supersedesDocumentId"=${documentId}::uuid
+        WHERE "societyId"=${societyId}::uuid AND "supersedesDocumentId"=${documentId}::uuid AND "status" <> 'ARCHIVED'
         LIMIT 1
       `);
       if (existingReplacement[0]) throw new BadRequestException('A replacement version already exists for this document');
