@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/amenity_actions.dart';
+import '../data/api_client.dart';
 import '../data/resident_repository.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
@@ -21,6 +22,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   String? _error;
   List<Map<String, dynamic>> _amenities = const [];
   List<Map<String, dynamic>> _bookings = const [];
+  List<Map<String, dynamic>> _waitlist = const [];
 
   @override
   void initState() {
@@ -34,11 +36,13 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       final results = await Future.wait([
         widget.repository.amenities(),
         widget.repository.amenityBookings(widget.unitId),
+        widget.repository.amenityWaitlist(widget.unitId),
       ]);
       if (!mounted) return;
       setState(() {
         _amenities = results[0];
         _bookings = results[1];
+        _waitlist = results[2];
         _loading = false;
       });
     } catch (error) {
@@ -84,9 +88,75 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
           : 'Amenity booked.');
       await _load();
     } catch (error) {
-      if (mounted) _showMessage(_friendlyError(error));
+      if (!mounted) return;
+      if (_isCapacityConflict(error)) {
+        final join = await _confirmWaitlist(amenity, startsAt);
+        if (join == true && mounted) {
+          try {
+            final entry = await widget.repository.joinAmenityWaitlist(
+              amenityId: amenity['id'].toString(),
+              unitId: widget.unitId,
+              startsAt: startsAt,
+              endsAt: endsAt,
+            );
+            if (!mounted) return;
+            final position = _asInt(entry['position'], fallback: 0);
+            _showMessage(position > 0 ? 'Added to waitlist · position $position.' : 'Added to waitlist.');
+            await _load();
+          } catch (waitlistError) {
+            if (mounted) _showMessage(_friendlyError(waitlistError));
+          }
+        }
+      } else {
+        _showMessage(_friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt) {
+    return showModalBottomSheet<bool>(
+      context:context,
+      useSafeArea:true,
+      builder:(sheetContext){
+        final theme=Theme.of(sheetContext);
+        return Padding(
+          padding:const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter,AaraagateTokens.space2,AaraagateTokens.pageGutter,AaraagateTokens.space6),
+          child:Column(
+            mainAxisSize:MainAxisSize.min,
+            crossAxisAlignment:CrossAxisAlignment.start,
+            children:[
+              Text('Slot just filled',style:theme.textTheme.headlineSmall),
+              const SizedBox(height:AaraagateTokens.space2),
+              Text('${amenity['name'] ?? 'Amenity'} · ${_formatDateTime(startsAt)}'),
+              const SizedBox(height:AaraagateTokens.space2),
+              const Text('You can join the first-in waitlist for this exact time. A cancellation may promote the oldest eligible resident automatically.'),
+              const SizedBox(height:AaraagateTokens.space5),
+              Row(children:[
+                Expanded(child:OutlinedButton(onPressed:()=>Navigator.pop(sheetContext,false),child:const Text('Choose another time'))),
+                const SizedBox(width:AaraagateTokens.space3),
+                Expanded(child:FilledButton(onPressed:()=>Navigator.pop(sheetContext,true),child:const Text('Join waitlist'))),
+              ]),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _cancelWaitlist(Map<String,dynamic> entry) async {
+    if(entry['status']?.toString()!='WAITING') return;
+    setState(()=>_submitting=true);
+    try{
+      await widget.repository.cancelAmenityWaitlist(entry['id'].toString());
+      if(!mounted)return;
+      _showMessage('Waitlist entry cancelled.');
+      await _load();
+    }catch(error){
+      if(mounted)_showMessage(_friendlyError(error));
+    }finally{
+      if(mounted)setState(()=>_submitting=false);
     }
   }
 
@@ -176,6 +246,29 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             ],
             const SizedBox(height: AaraagateTokens.space6),
             PremiumSectionHeader(
+              title:'Your waitlist',
+              supportingText:_waitlist.where((item)=>item['status']?.toString()=='WAITING').isEmpty
+                ? 'Full slots you join will appear here.'
+                : 'Queue position is first-in for this property and exact time.',
+              trailing:AaraagateStatusPill(
+                label:'${_waitlist.where((item)=>item['status']?.toString()=='WAITING').length}',
+                tone:AaraagateStatusTone.neutral,
+              ),
+            ),
+            const SizedBox(height:AaraagateTokens.space3),
+            if(!_loading&&_waitlist.isEmpty)
+              const AppStateCard(icon:Icons.hourglass_empty_rounded,message:'You are not waiting for any amenity slots for this property.')
+            else
+              for(final entry in _waitlist) ...[
+                _WaitlistCard(
+                  entry:entry,
+                  busy:_submitting,
+                  onCancel:entry['status']?.toString()=='WAITING'?()=>_cancelWaitlist(entry):null,
+                ),
+                const SizedBox(height:AaraagateTokens.space2),
+              ],
+            const SizedBox(height: AaraagateTokens.space6),
+            PremiumSectionHeader(
               title: 'Your bookings',
               supportingText: upcoming.isEmpty ? 'Confirmed and pending reservations will appear here.' : 'Upcoming reservations for this property.',
               trailing: AaraagateStatusPill(label: '${upcoming.length}', tone: AaraagateStatusTone.neutral),
@@ -206,6 +299,11 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  static bool _isCapacityConflict(Object error) =>
+      error is ApiException
+      && error.statusCode==409
+      && error.message.toLowerCase().contains('slot is no longer available');
 
   static String _friendlyError(Object error) {
     final text = error.toString();
@@ -472,6 +570,40 @@ class _AmenityCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _WaitlistCard extends StatelessWidget {
+  const _WaitlistCard({required this.entry,required this.busy,this.onCancel});
+  final Map<String,dynamic> entry;
+  final bool busy;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context){
+    final theme=Theme.of(context),scheme=theme.colorScheme;
+    final status=entry['status']?.toString()??'WAITING';
+    final position=_asInt(entry['position'],fallback:0);
+    final detail=status=='WAITING'&&position>0
+      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}'
+      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}';
+    return PremiumSurface(
+      padding:const EdgeInsets.fromLTRB(AaraagateTokens.space4,AaraagateTokens.space3,AaraagateTokens.space3,AaraagateTokens.space3),
+      child:Row(children:[
+        Container(
+          width:44,height:44,
+          decoration:BoxDecoration(color:scheme.surfaceContainer,borderRadius:BorderRadius.circular(AaraagateTokens.radiusSmall)),
+          child:Icon(status=='PROMOTED'?Icons.event_available_rounded:Icons.hourglass_top_rounded,color:scheme.primary),
+        ),
+        const SizedBox(width:AaraagateTokens.space3),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(entry['amenityName']?.toString()??'Amenity',style:theme.textTheme.titleMedium),
+          const SizedBox(height:AaraagateTokens.space1),
+          Text(detail,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
+        ])),
+        if(onCancel!=null)TextButton(onPressed:busy?null:onCancel,child:const Text('Leave')),
+      ]),
     );
   }
 }
