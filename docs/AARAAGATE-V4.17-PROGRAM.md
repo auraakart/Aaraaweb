@@ -21,7 +21,7 @@ V4.17 closes occupancy and adjacent property-operations depth without changing l
 
 ## Delivery slices
 
-### V4.17.1 — Occupancy operator ergonomics
+### V4.17.1 — Occupancy operator ergonomics — merged via #701
 
 - tenant-scoped operator context for units and active occupancies;
 - registered-mobile move-in flow without raw user UUID entry;
@@ -30,7 +30,7 @@ V4.17 closes occupancy and adjacent property-operations depth without changing l
 - existing authorization and lifecycle invariants preserved;
 - API and Admin regression coverage.
 
-### V4.17.2 — Occupancy readiness & handover evidence
+### V4.17.2 — Occupancy readiness & handover evidence — in progress
 
 - descriptive move readiness summary;
 - explicit mandatory versus optional checklist evidence;
