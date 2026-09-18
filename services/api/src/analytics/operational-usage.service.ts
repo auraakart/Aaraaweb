@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export type OperationalUsageEventType =
   | 'PROPERTY_CONTEXT_SWITCHED'
   | 'SERVICE_DISCOVERY_VIEWED'
+  | 'SERVICE_BOOKING_CREATED'
   | 'INDEPENDENT_HOME_ENTERED';
 
 @Injectable()
