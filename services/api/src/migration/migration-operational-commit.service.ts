@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { DomesticWorkerRole, Prisma, VehicleType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-type OperationalEntityType = 'VEHICLE' | 'WORKFORCE' | 'VENDOR';
+type OperationalEntityType = 'VEHICLE' | 'PARKING' | 'WORKFORCE' | 'VENDOR';
 type BatchHeader = { id: string; entityType: string; status: string; totalRows: number };
 type BatchRow = { id: string; rowNumber: number; normalized: Record<string, string>; valid: boolean; targetId: string | null };
 
@@ -11,7 +11,7 @@ export class MigrationOperationalCommitService {
   constructor(private readonly prisma: PrismaService) {}
 
   supports(entityType: string): entityType is OperationalEntityType {
-    return ['VEHICLE', 'WORKFORCE', 'VENDOR'].includes(entityType);
+    return ['VEHICLE', 'PARKING', 'WORKFORCE', 'VENDOR'].includes(entityType);
   }
 
   async commit(societyId: string, actorUserId: string, batchId: string) {
@@ -29,6 +29,9 @@ export class MigrationOperationalCommitService {
         if (batch.entityType === 'VEHICLE') {
           const targetId = await this.commitVehicle(tx, societyId, row.normalized);
           await this.markRowCommitted(tx, row.id, 'HouseholdVehicle', targetId);
+        } else if (batch.entityType === 'PARKING') {
+          const targetId = await this.commitParking(tx, societyId, actorUserId, row.normalized);
+          await this.markRowCommitted(tx, row.id, 'ParkingSlot', targetId);
         } else if (batch.entityType === 'WORKFORCE') {
           const targetId = await this.commitWorker(tx, societyId, row.normalized);
           await this.markRowCommitted(tx, row.id, 'DomesticWorker', targetId);
@@ -60,6 +63,7 @@ export class MigrationOperationalCommitService {
       if (targetIds.length !== rows.length) throw new ConflictException('Committed migration evidence is incomplete; rollback is blocked');
 
       if (batch.entityType === 'VEHICLE') await this.rollbackVehicles(tx, societyId, targetIds);
+      else if (batch.entityType === 'PARKING') await this.rollbackParking(tx, societyId, targetIds);
       else if (batch.entityType === 'WORKFORCE') await this.rollbackWorkers(tx, societyId, targetIds);
       else await this.rollbackVendors(tx, societyId, targetIds);
 
@@ -93,6 +97,35 @@ export class MigrationOperationalCommitService {
       },
     });
     return vehicle.id;
+  }
+
+  private async commitParking(
+    tx: Prisma.TransactionClient,
+    societyId: string,
+    actorUserId: string,
+    row: Record<string, string>,
+  ) {
+    const buildingRef = this.value(row, 'building_ref', 'building', 'building_code');
+    const buildingId = buildingRef ? (await this.resolveBuilding(tx, societyId, buildingRef)).id : null;
+    const code = this.value(row, 'slot_code', 'parking_slot', 'slot').toUpperCase();
+    const created = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO "ParkingSlot" ("societyId","buildingId","code","label","slotType","evReady","locationNote")
+      VALUES (
+        ${societyId}::uuid,
+        ${buildingId}::uuid,
+        ${code},
+        ${this.optional(row, 'label')},
+        ${this.value(row, 'slot_type', 'type').toUpperCase() || 'RESIDENT'},
+        ${this.parseBoolean(this.value(row, 'ev_ready', 'ev'))},
+        ${this.optional(row, 'location_note', 'location')}
+      )
+      RETURNING "id"
+    `);
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "ParkingEvent" ("societyId","slotId","actorUserId","action","note")
+      VALUES (${societyId}::uuid,${created[0].id}::uuid,${actorUserId}::uuid,'SLOT_CREATED','Imported by migration')
+    `);
+    return created[0].id;
   }
 
   private async commitWorker(tx: Prisma.TransactionClient, societyId: string, row: Record<string, string>) {
@@ -133,6 +166,23 @@ export class MigrationOperationalCommitService {
     await tx.householdVehicle.deleteMany({ where: { societyId, id: { in: targetIds } } });
   }
 
+  private async rollbackParking(tx: Prisma.TransactionClient, societyId: string, targetIds: string[]) {
+    const ids = Prisma.join(targetIds.map((id) => Prisma.sql`${id}::uuid`));
+    const blocked = await tx.$queryRaw<Array<{ blocked: boolean }>>(Prisma.sql`
+      SELECT EXISTS (
+        SELECT 1 FROM "ParkingAllocation"
+        WHERE "societyId"=${societyId}::uuid AND "slotId" IN (${ids})
+      ) AS "blocked"
+    `);
+    if (blocked[0]?.blocked) {
+      throw new ConflictException('Parking rollback is blocked because an allocation depends on a migrated slot');
+    }
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM "ParkingSlot"
+      WHERE "societyId"=${societyId}::uuid AND "id" IN (${ids})
+    `);
+  }
+
   private async rollbackWorkers(tx: Prisma.TransactionClient, societyId: string, targetIds: string[]) {
     const [assignments, ratings, suspensionEvents] = await Promise.all([
       tx.workforceAssignment.count({ where: { societyId, workerId: { in: targetIds } } }),
@@ -156,6 +206,19 @@ export class MigrationOperationalCommitService {
     `);
     if (blocked[0]?.blocked) throw new ConflictException('Vendor rollback is blocked because procurement records depend on a migrated vendor');
     await tx.$executeRaw(Prisma.sql`DELETE FROM "SocietyVendor" WHERE "societyId"=${societyId}::uuid AND "id" IN (${ids})`);
+  }
+
+  private async resolveBuilding(tx: Prisma.TransactionClient, societyId: string, rawRef: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "Building"
+      WHERE "societyId"=${societyId}::uuid
+        AND (LOWER("code")=LOWER(${rawRef.trim()}) OR LOWER("name")=LOWER(${rawRef.trim()}))
+      LIMIT 2
+    `);
+    if (rows.length !== 1) {
+      throw new ConflictException('Building reference must resolve to exactly one current-society building');
+    }
+    return rows[0];
   }
 
   private async resolveUnit(tx: Prisma.TransactionClient, societyId: string, rawRef: string) {
@@ -202,6 +265,11 @@ export class MigrationOperationalCommitService {
   private optional(row: Record<string, string>, ...keys: string[]) {
     const value = this.value(row, ...keys);
     return value || null;
+  }
+
+  private parseBoolean(value: string) {
+    if (!value) return false;
+    return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
   }
   private translateDatabaseConflict(error: unknown): never {
     if (error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException) throw error;
