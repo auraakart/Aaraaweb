@@ -5,14 +5,26 @@ import 'package:flutter/foundation.dart';
 import 'data/guard_api.dart';
 import 'data/guard_directory_cache.dart';
 import 'data/guard_session_store.dart';
+import 'data/guard_preferences.dart';
+import 'localization/guard_strings.dart';
+import 'voice/guard_voice.dart';
 import 'data/offline_action_queue.dart';
 
 class GuardController extends ChangeNotifier {
-  GuardController({required this.api, required this.sessions, required this.offlineQueue, this.directoryCache = const GuardDirectoryCache()});
+  GuardController({
+    required this.api,
+    required this.sessions,
+    required this.offlineQueue,
+    this.directoryCache = const GuardDirectoryCache(),
+    this.preferences = const GuardPreferences(),
+    GuardVoice? voice,
+  }) : voice = voice ?? DeviceGuardVoice();
   final GuardApi api;
   final GuardSessionStore sessions;
   final OfflineActionQueue offlineQueue;
   final GuardDirectoryCache directoryCache;
+  final GuardPreferences preferences;
+  final GuardVoice voice;
 
   bool booting = true;
   bool busy = false;
@@ -32,6 +44,8 @@ class GuardController extends ChangeNotifier {
   int queuedActions = 0;
   int reviewRequiredActions = 0;
   String? offlineSyncMessage;
+  String languageCode = 'en';
+  bool voiceEnabled = true;
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   bool _disposed = false;
 
@@ -44,6 +58,9 @@ class GuardController extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     try {
+      final preferredLanguage = await preferences.readLanguage();
+      languageCode = guardLanguages.any((language) => language.code == preferredLanguage) ? preferredLanguage : 'en';
+      voiceEnabled = await preferences.readVoiceEnabled();
       final stored = await sessions.read();
       if (stored != null) {
         session = stored;
@@ -146,6 +163,37 @@ class GuardController extends ChangeNotifier {
   }
 
   void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
+
+  Future<void> setLanguage(String code) async {
+    if (!guardLanguages.any((language) => language.code == code)) return;
+    languageCode = code;
+    await preferences.writeLanguage(code);
+    notifyListeners();
+  }
+
+  Future<void> setVoiceEnabled(bool enabled) async {
+    voiceEnabled = enabled;
+    if (!enabled) await voice.stop();
+    await preferences.writeVoiceEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> announce(String key) async {
+    if (!voiceEnabled) return;
+    await voice.speak(text: GuardStrings(languageCode).get(key), languageCode: languageCode);
+  }
+
+  Future<void> announceAccessResult() async {
+    final status = verifiedAccess?['status']?.toString();
+    if (status == null) return;
+    if (status == 'APPROVED' || status == 'CHECKED_IN') {
+      await announce('voiceAccessApproved');
+    } else if (status == 'PENDING') {
+      await announce('voiceWaitingApproval');
+    } else {
+      await announce('voiceAccessBlocked');
+    }
+  }
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
     walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
@@ -329,5 +377,5 @@ class GuardController extends ChangeNotifier {
   }
 
   @override
-  void dispose() { _disposed = true; _gateEvents?.cancel(); super.dispose(); }
+  void dispose() { _disposed = true; _gateEvents?.cancel(); voice.stop(); super.dispose(); }
 }
