@@ -13,7 +13,7 @@ describe('GovernanceController permission boundaries',()=>{
     expect(permissions('getMeeting')).toEqual([AppPermission.GOVERNANCE_READ]);
   });
   it('keeps governance mutations behind GOVERNANCE_MANAGE',()=>{
-    for(const method of ['createTenure','endTenure','createMeeting','outcome','agenda','resolution','action'] as const){
+    for(const method of ['createTenure','endTenure','createMeeting','outcome','agenda','resolution','action','actionStatus'] as const){
       expect(permissions(method)).toEqual([AppPermission.GOVERNANCE_MANAGE]);
     }
   });

@@ -16,6 +16,7 @@ class MeetingOutcomeDto{@IsIn(['SCHEDULED','HELD','CANCELLED']) status!:'SCHEDUL
 class AgendaDto{@IsInt() @Min(1) ordinal!:number;@IsString() @MinLength(1) @MaxLength(240) title!:string;@IsOptional() @IsString() @MaxLength(5000) description?:string;}
 class ResolutionDto{@IsOptional() @IsUUID() agendaItemId?:string;@IsString() @MinLength(1) @MaxLength(240) title!:string;@IsString() @MinLength(1) @MaxLength(10000) resolutionText!:string;@IsIn(['PROPOSED','PASSED','REJECTED','WITHDRAWN']) status!:'PROPOSED'|'PASSED'|'REJECTED'|'WITHDRAWN';@IsOptional() @IsInt() @Min(0) approvalRequired?:number;@IsOptional() @IsInt() @Min(0) approvalRecorded?:number;@IsOptional() @IsString() @MaxLength(500) approvalRuleReference?:string;@IsOptional() @IsString() @MaxLength(500) byeLawReference?:string;}
 class ActionDto{@IsOptional() @IsUUID() resolutionId?:string;@IsString() @MinLength(1) @MaxLength(240) title!:string;@IsOptional() @IsString() @MaxLength(5000) description?:string;@IsOptional() @IsUUID() ownerUserId?:string;@IsOptional() @IsISO8601() dueAt?:string;}
+class ActionStatusDto{@IsIn(['OPEN','IN_PROGRESS','COMPLETED','CANCELLED']) status!:'OPEN'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED';@IsOptional() @IsUUID() ownerUserId?:string;@IsOptional() @IsISO8601() dueAt?:string;}
 
 @Controller('governance')
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
@@ -31,5 +32,6 @@ export class GovernanceController{
   @Post('meetings/:id/agenda') @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE) agenda(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:AgendaDto){return this.governance.addAgenda(societyId,this.user(userId),id,dto);}
   @Post('meetings/:id/resolutions') @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE) resolution(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:ResolutionDto){return this.governance.addResolution(societyId,this.user(userId),id,dto);}
   @Post('meetings/:id/actions') @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE) action(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:ActionDto){return this.governance.addAction(societyId,this.user(userId),id,{...dto,dueAt:dto.dueAt?new Date(dto.dueAt):undefined});}
+  @Post('meetings/:id/actions/:actionId/status') @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE) actionStatus(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Param('actionId',new ParseUUIDPipe()) actionId:string,@Body() dto:ActionStatusDto){return this.governance.updateAction(societyId,this.user(userId),id,actionId,{...dto,dueAt:dto.dueAt?new Date(dto.dueAt):undefined});}
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
 }

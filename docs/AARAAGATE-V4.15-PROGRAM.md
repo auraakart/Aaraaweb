@@ -35,3 +35,17 @@ Repository-achievable closure evidence now includes:
 - A direct link from the governance workspace plus an Admin regression contract preventing accidental legal-validity claims or removal of the evidence surface.
 
 Boundary: this is an operational completeness aid. State law, registered society bye-laws, notice/voting procedures and external records remain authoritative outside repository truth.
+
+
+## V4.15.3 Governance action follow-through
+
+Status: implemented on stacked feature branch pending V4.15.2 merge.
+
+Repository-achievable action follow-through now includes:
+- Tenant-scoped action status transitions across OPEN, IN_PROGRESS, COMPLETED and CANCELLED.
+- Owner and due-date updates on existing governance actions.
+- Completion timestamps managed by the backend for completed actions.
+- Append-only ACTION_UPDATED evidence events recording status, owner and due-date follow-through.
+- Admin follow-up controls and descriptive overdue visibility without automated legal or policy interpretation.
+- Regression coverage for the follow-through operator surface and permission boundary.
+

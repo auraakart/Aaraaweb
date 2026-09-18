@@ -8,6 +8,7 @@ type MeetingOutcomeInput={status:'SCHEDULED'|'HELD'|'CANCELLED';heldAt?:Date;quo
 type AgendaInput={ordinal:number;title:string;description?:string;};
 type ResolutionInput={agendaItemId?:string;title:string;resolutionText:string;status:'PROPOSED'|'PASSED'|'REJECTED'|'WITHDRAWN';approvalRequired?:number;approvalRecorded?:number;approvalRuleReference?:string;byeLawReference?:string;};
 type ActionInput={resolutionId?:string;title:string;description?:string;ownerUserId?:string;dueAt?:Date;};
+type ActionStatusInput={status:'OPEN'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED';ownerUserId?:string;dueAt?:Date;};
 
 @Injectable()
 export class GovernanceService{
@@ -91,6 +92,18 @@ export class GovernanceService{
     await this.assertMeeting(societyId,meetingId);if(input.resolutionId){const r=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "GovernanceResolution" WHERE "id"=${input.resolutionId}::uuid AND "societyId"=${societyId}::uuid AND "meetingId"=${meetingId}::uuid LIMIT 1`);if(!r.length)throw new BadRequestException('Resolution does not belong to this meeting');}
     if(input.ownerUserId){const u=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "User" WHERE "id"=${input.ownerUserId}::uuid LIMIT 1`);if(!u.length)throw new BadRequestException('Action owner user not found');}
     const title=input.title.trim();if(!title)throw new BadRequestException('Action title is required');const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "GovernanceActionItem" ("societyId","meetingId","resolutionId","title","description","ownerUserId","dueAt","createdByUserId") VALUES (${societyId}::uuid,${meetingId}::uuid,${input.resolutionId??null}::uuid,${title},${input.description?.trim()||null},${input.ownerUserId??null}::uuid,${input.dueAt??null},${actorUserId}::uuid) RETURNING *`);await this.evidence(societyId,meetingId,actorUserId,'ACTION_CREATED',`Action created: ${title}`);return rows[0];
+  }
+
+  async updateAction(societyId:string,actorUserId:string,meetingId:string,actionId:string,input:ActionStatusInput){
+    return this.prisma.$transaction(async tx=>{
+      const current=await tx.$queryRaw<Array<{id:string;title:string;status:string;ownerUserId:string|null;dueAt:Date|null}>>(Prisma.sql`SELECT "id","title","status","ownerUserId","dueAt" FROM "GovernanceActionItem" WHERE "id"=${actionId}::uuid AND "societyId"=${societyId}::uuid AND "meetingId"=${meetingId}::uuid FOR UPDATE`);
+      if(!current.length)throw new NotFoundException('Governance action item not found');
+      if(input.ownerUserId){const u=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "User" WHERE "id"=${input.ownerUserId}::uuid LIMIT 1`);if(!u.length)throw new BadRequestException('Action owner user not found');}
+      const completedAt=input.status==='COMPLETED'?new Date():null;
+      const rows=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "GovernanceActionItem" SET "status"=${input.status},"ownerUserId"=COALESCE(${input.ownerUserId??null}::uuid,"ownerUserId"),"dueAt"=COALESCE(${input.dueAt??null},"dueAt"),"completedAt"=${completedAt},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${actionId}::uuid AND "societyId"=${societyId}::uuid AND "meetingId"=${meetingId}::uuid RETURNING *`);
+      await tx.$executeRaw(Prisma.sql`INSERT INTO "GovernanceEvidenceEvent" ("societyId","meetingId","eventType","actorUserId","summary","metadataJson") VALUES (${societyId}::uuid,${meetingId}::uuid,'ACTION_UPDATED',${actorUserId}::uuid,${`Action ${current[0].title} updated: ${current[0].status} → ${input.status}`},${JSON.stringify({actionId,status:input.status,ownerUserId:input.ownerUserId??current[0].ownerUserId,dueAt:(input.dueAt??current[0].dueAt)?.toISOString?.()??null})}::jsonb)`);
+      return rows[0];
+    });
   }
 
   private async assertMeeting(societyId:string,id:string){const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "GovernanceMeeting" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!rows.length)throw new NotFoundException('Governance meeting not found');}
