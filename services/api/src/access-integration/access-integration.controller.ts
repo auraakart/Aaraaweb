@@ -41,6 +41,10 @@ class EventDto {
 export class AccessIntegrationController {
   constructor(private readonly integrations:AccessIntegrationService) {}
 
+  @Get('compatibility')
+  @RequiresPermissions(AppPermission.GATE_READ)
+  compatibility(){ return this.integrations.compatibilityTargets(); }
+
   @Get('adapters')
   @RequiresPermissions(AppPermission.GATE_READ)
   adapters(@CurrentTenant() societyId:string){ return this.integrations.listAdapters(societyId); }
@@ -82,6 +86,12 @@ export class AccessIntegrationController {
     @Body() dto:CommandDto,
   ){
     return this.integrations.commandDevice(societyId,this.user(userId),id,dto);
+  }
+
+  @Get('devices/:id/commands')
+  @RequiresPermissions(AppPermission.GATE_READ)
+  commands(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
+    return this.integrations.listCommands(societyId,id);
   }
 
   @Get('devices/:id/events')
