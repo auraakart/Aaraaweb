@@ -165,7 +165,7 @@ export class MigrationPreviewService {
       case 'VEHICLE': return value('registration_number', 'vehicle_number', 'registration').replace(/\s+/g, '');
       case 'PARKING': return value('slot_code', 'parking_slot', 'slot');
       case 'WORKFORCE': return value('external_id') || value('phone', 'mobile', 'mobile_number');
-      case 'VENDOR': return value('external_id') || value('gstin') || value('name', 'vendor_name');
+      case 'VENDOR': return value('code') || value('gstin') || value('external_id') || value('name', 'vendor_name');
       case 'OPENING_BALANCE': return `${value('account_code', 'ledger_code', 'account')}|${value('unit_ref', 'unit', 'flat_number')}|${value('fund_ref', 'fund')}`;
     }
   }
