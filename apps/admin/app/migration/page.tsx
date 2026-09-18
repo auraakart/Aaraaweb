@@ -7,7 +7,7 @@ type Batch={id:string;entityType:string;sourceLabel?:string|null;status:string;c
 type BatchDetail=Batch&{rows:Array<{rowNumber:number;valid:boolean;identityKey?:string|null;targetType?:string|null;targetId?:string|null}>;financeReconciliation?:{status?:string;debitPaise?:number;creditPaise?:number;balanced?:boolean}|null}
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(base+'/api/v1'+path,{...init,headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.accessToken,...init.headers}});const t=await r.text();let b:any=null;try{b=t?JSON.parse(t):null}catch{b=t}if(!r.ok)throw new Error(b?.message??('Request failed ('+r.status+')'));return b as T}
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(base+'/api/v1'+path,{...init,headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.accessToken,...init.headers}});const t=await r.text();let b:unknown=null;try{b=t?JSON.parse(t):null}catch{b=t}if(!r.ok){const message=typeof b==='object'&&b!==null&&'message' in b?String((b as {message?:unknown}).message):('Request failed ('+r.status+')');throw new Error(message)}return b as T}
 const entityOrder=['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE']
 
 export default function MigrationPage(){
