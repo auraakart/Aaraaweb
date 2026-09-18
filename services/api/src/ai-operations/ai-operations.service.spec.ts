@@ -135,6 +135,13 @@ describe('AiOperationsService',()=>{
     await expect(service.confirm('society-1','user-1','proposal-2')).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects any runtime action outside the explicit AI mutation allow-list',async()=>{
+    const {service}=setup();
+    await expect((service as unknown as {createProposal:(s:string,u:string,a:string,p:unknown)=>Promise<unknown>}).createProposal(
+      'society-1','user-1','DELETE_PAYMENT',{},
+    )).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('marks a claimed proposal failed when the normal domain service rejects it',async()=>{
     const {prisma,helpdesk,service}=setup();
     prisma.$queryRaw.mockResolvedValueOnce([{
@@ -144,5 +151,9 @@ describe('AiOperationsService',()=>{
     helpdesk.createMine.mockRejectedValue(new BadRequestException('invalid unit'));
     await expect(service.confirm('society-1','user-1','proposal-1')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    const failureCall=prisma.$executeRaw.mock.calls[0]?.[0] as {values?:unknown[]};
+    expect(failureCall.values).not.toContain('invalid unit');
+    expect(failureCall.values).toContain('BadRequestException');
   });
 });
+
