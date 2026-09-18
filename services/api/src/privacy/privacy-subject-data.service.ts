@@ -166,7 +166,7 @@ export class PrivacySubjectDataService {
         homes=await tx.$executeRaw(Prisma.sql`
           UPDATE "ConsumerHome"
           SET "label"='Erased home',"addressLine1"='Erased',"addressLine2"=NULL,
-              "locality"='Erased',"city"='Erased',"state"='Erased',"postalCode"='000000',
+              "locality"='Erased',"city"='Erased',"state"='Erased',"postalCode"='999999',
               "latitude"=NULL,"longitude"=NULL,"active"=false,"updatedAt"=CURRENT_TIMESTAMP
           WHERE "userId"=${userId}::uuid
         `);
