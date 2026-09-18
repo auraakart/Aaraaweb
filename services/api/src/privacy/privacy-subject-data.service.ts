@@ -129,7 +129,7 @@ export class PrivacySubjectDataService {
         'active authentication sessions',
         'push notification device registrations',
         'pseudonymous product-usage events attributable to the subject',
-        ...(societyId?[]:['independent-home address records after booking references are detached','canonical account phone/email/name']),
+        ...(societyId?[]:['independent-home address records are anonymised while immutable booking references remain intact','canonical account phone/email/name']),
       ],
       retain:[
         'financial/accounting evidence',
@@ -163,11 +163,13 @@ export class PrivacySubjectDataService {
       let homes=0;
       let accountAnonymized=false;
       if(!societyId){
-        await tx.$executeRaw(Prisma.sql`
-          UPDATE "ConsumerServiceBooking" SET "homeId"=NULL
-          WHERE "userId"=${userId}::uuid AND "homeId" IS NOT NULL
+        homes=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ConsumerHome"
+          SET "label"='Erased home',"addressLine1"='Erased',"addressLine2"=NULL,
+              "locality"='Erased',"city"='Erased',"state"='Erased',"postalCode"='000000',
+              "latitude"=NULL,"longitude"=NULL,"active"=false,"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "userId"=${userId}::uuid
         `);
-        homes=await tx.$executeRaw(Prisma.sql`DELETE FROM "ConsumerHome" WHERE "userId"=${userId}::uuid`);
         await tx.$executeRaw(Prisma.sql`
           UPDATE "User" SET
             "phone"=${`erased:${userId}`},
@@ -190,7 +192,7 @@ export class PrivacySubjectDataService {
         RETURNING "id"
       `);
       if(!rows[0]) throw new BadRequestException('Privacy case changed; refresh and retry');
-      const evidence={scope:societyId?'SOCIETY':'PLATFORM',revokedSessions:revoked,deletedDeviceRegistrations:devices,deletedUsageEvents:usage,deletedConsumerHomes:homes,accountAnonymized,retainedCategories:plan.retain};
+      const evidence={scope:societyId?'SOCIETY':'PLATFORM',revokedSessions:revoked,deletedDeviceRegistrations:devices,deletedUsageEvents:usage,anonymisedConsumerHomes:homes,accountAnonymized,retainedCategories:plan.retain};
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "PrivacyRequestEvent" ("societyId","caseId","actorUserId","eventType","summary","metadataJson")
         VALUES (${societyId??null}::uuid,${caseId}::uuid,${actorUserId}::uuid,'ERASURE_EXECUTED',
