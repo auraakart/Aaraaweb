@@ -39,7 +39,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
 | V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. Human facility-role UAT remains. |
-| V2-VND Society vendors/procurement | P1 | **Implemented baseline** | Society-vendor bounded context and capability permissions are separate from consumer External Services. Pilot workflow evidence remains. |
+| V2-VND Society vendors/procurement | P1 | **Implemented / hardened** | Society-vendor bounded context remains separate from consumer External Services. V4.16 exposes request drill-down, quotation comparison/selection, PO issuance and append-only procurement history; adds finance-scoped PO handoff with FINANCE_READ/FINANCE_MANAGE segregation and one-PO/one-expense linkage; and adds tenant-scoped vendor contract/SLA/expiry records with descriptive lifecycle state and visible append-only event history. Real vendor onboarding, procurement-policy acceptance, contract/legal review and vendor-staff gate identity linkage remain external/deferred. |
 | V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
 | V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
@@ -158,3 +158,16 @@ The V4.15 repository cycle closes the documented governance operator-depth gap:
 4. **Legal boundary:** the repository does not determine statutory quorum, resolution validity, legal compliance or society-specific bye-law interpretation.
 5. **External acceptance remains:** committee human UAT, real-society bye-law/policy acceptance, representative browser/device acceptance and hosted production evidence remain outside repository completion.
 
+
+
+## V4.16 Society Vendor & Procurement Operations Depth closure
+
+The V4.16 repository cycle is complete on `develop`:
+
+1. **Procurement operator depth:** Admin exposes request drill-down, quotation entry/comparison, explicit quote selection, purchase-order issuance and append-only procurement event history. The UI makes the existing quote-selection-before-approval sequence explicit for PO-bound requests.
+2. **Finance handoff:** finance roles can inspect issued POs and accounting-link status through a FINANCE_READ-scoped view without gaining vendor-management permission. FINANCE_MANAGE users can create the existing SocietyExpense draft for the exact PO amount; the one-PO/one-expense invariant remains enforced.
+3. **Vendor lifecycle evidence:** society-vendor contracts record configurable type, dates, renewal-notice window, SLA/document references and operator status. Descriptive CURRENT / EXPIRING_SOON / EXPIRED / TERMINATED lifecycle state is exposed with tenant-scoped append-only event history.
+4. **Authorization and tenancy:** vendor lifecycle uses SOCIETY_VENDORS_READ/MANAGE, finance handoff uses FINANCE_READ/MANAGE, and service tests fail closed for cross-tenant vendor/contract access.
+5. **Boundaries:** the repository does not determine contract legal validity, statutory procurement compliance, renewal obligations or vendor suitability. Vendor-staff gate linkage remains deferred until workforce/gate identity is re-audited.
+
+Repository completion does **not** constitute real vendor onboarding, society procurement-policy acceptance, contract/legal acceptance, hosted-production evidence or field procurement outcomes.
