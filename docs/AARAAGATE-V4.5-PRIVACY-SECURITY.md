@@ -84,3 +84,18 @@ Implemented in this slice:
 - `ACCOUNTANT` and other roles without `AUDIT_READ` remain denied by the API permission guard even if a client attempts the endpoint directly.
 
 The next V4.5 slice is the sensitive-data logging/redaction review and tests, followed by document/file authorization regression review.
+
+
+## V4.5.4 — Sensitive-data logging redaction
+
+Implemented in this slice:
+- retained the existing metadata-only HTTP request log contract, which excludes query strings, authorization headers and request bodies;
+- introduced a shared `safeOperationalError` descriptor that emits only a constrained error name and safe provider/client error code;
+- removed raw exception messages and stacks from reviewed FCM, realtime notification, facilities automation, occupancy automation, payment reconciliation and External Services push-failure logs;
+- changed durable payment retry evidence so upstream gateway exception text is not persisted as `failureMessage`; only the safe descriptor is retained;
+- added unit tests proving secret-bearing exception messages/stacks are never reflected by the descriptor;
+- added source-regression coverage over the reviewed operational logging paths to prevent reintroduction of raw `.message`/`.stack` logging.
+
+This is a product security/privacy control, not a claim that every external infrastructure log sink is configured correctly. Hosted log retention, access control and destination policy remain deployment evidence.
+
+The next V4.5 slice is the document/file authorization regression review, followed by privacy retention/deletion enforcement and security-event retention/closeout.
