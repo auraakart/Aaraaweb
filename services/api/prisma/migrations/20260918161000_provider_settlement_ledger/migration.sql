@@ -107,3 +107,36 @@ ALTER TABLE "ConsumerProviderSettlementEvent"
 ALTER TABLE "ConsumerProviderSettlementEvent"
   ADD CONSTRAINT "ConsumerProviderSettlementEvent_actorUserId_fkey"
   FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+
+CREATE TABLE "ConsumerProviderSettlementRecovery" (
+  "id" UUID NOT NULL,
+  "providerId" UUID NOT NULL,
+  "paymentId" UUID NOT NULL,
+  "settlementEntryId" UUID NOT NULL,
+  "providerAmountPaise" INTEGER NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'OPEN',
+  "reason" TEXT NOT NULL,
+  "resolvedReference" TEXT,
+  "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "resolvedAt" TIMESTAMPTZ(6),
+  CONSTRAINT "ConsumerProviderSettlementRecovery_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "ConsumerProviderSettlementRecovery_status_check" CHECK ("status" IN ('OPEN','RESOLVED')),
+  CONSTRAINT "ConsumerProviderSettlementRecovery_amount_check" CHECK ("providerAmountPaise">=0),
+  CONSTRAINT "ConsumerProviderSettlementRecovery_resolved_check" CHECK (
+    "status"<>'RESOLVED' OR ("resolvedAt" IS NOT NULL AND length(trim(COALESCE("resolvedReference",'')))>=3)
+  )
+);
+CREATE UNIQUE INDEX "ConsumerProviderSettlementRecovery_payment_key"
+  ON "ConsumerProviderSettlementRecovery"("paymentId");
+CREATE INDEX "ConsumerProviderSettlementRecovery_provider_status_idx"
+  ON "ConsumerProviderSettlementRecovery"("providerId","status","createdAt" DESC);
+ALTER TABLE "ConsumerProviderSettlementRecovery"
+  ADD CONSTRAINT "ConsumerProviderSettlementRecovery_providerId_fkey"
+  FOREIGN KEY ("providerId") REFERENCES "ServiceProvider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ConsumerProviderSettlementRecovery"
+  ADD CONSTRAINT "ConsumerProviderSettlementRecovery_paymentId_fkey"
+  FOREIGN KEY ("paymentId") REFERENCES "ConsumerServicePayment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ConsumerProviderSettlementRecovery"
+  ADD CONSTRAINT "ConsumerProviderSettlementRecovery_settlementEntryId_fkey"
+  FOREIGN KEY ("settlementEntryId") REFERENCES "ConsumerProviderSettlementEntry"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
