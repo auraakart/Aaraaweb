@@ -71,6 +71,26 @@ describe('MigrationPreviewService', () => {
     ]));
   });
 
+  it('enforces domain-safe operational fields before a batch becomes READY', () => {
+    const vehicles = service.preview('VEHICLE', [
+      { vehicle_number: 'TN01AB1234', unit: 'A/101', vehicle_type: 'CAR' },
+      { vehicle_number: 'TN01AB1235', unit: 'A/101', vehicle_type: 'BUS' },
+    ]);
+    expect(vehicles.validRows).toBe(1);
+    expect(vehicles.issues).toContainEqual(expect.objectContaining({ row: 2, field: 'vehicle_type', code: 'INVALID' }));
+
+    const workers = service.preview('WORKFORCE', [
+      { name: 'Meena', mobile: '9000000001', worker_type: 'MAID' },
+      { name: 'Ravi', mobile: '9000000002', worker_type: 'PLUMBER' },
+    ]);
+    expect(workers.validRows).toBe(1);
+    expect(workers.issues).toContainEqual(expect.objectContaining({ row: 2, field: 'worker_type', code: 'INVALID' }));
+
+    const vendors = service.preview('VENDOR', [{ name: 'Lift Co' }, { code: 'V1', name: 'Lift Co', category: 'LIFT' }]);
+    expect(vendors.validRows).toBe(1);
+    expect(vendors.invalidRows).toBe(1);
+  });
+
   it('rejects empty and oversized preview batches before processing', () => {
     expect(() => service.preview('BUILDING', [])).toThrow(BadRequestException);
     const rows = Array.from({ length: 10001 }, (_, index) => ({ code: `B${index}` }));

@@ -111,20 +111,33 @@ export class MigrationPreviewService {
         }
         break;
       }
-      case 'VEHICLE':
+      case 'VEHICLE': {
         required('registration_number', ['vehicle_number', 'registration']);
         required('unit_ref', ['unit', 'flat_number']);
+        required('vehicle_type', ['type']);
+        const vehicleType = this.value(row, 'vehicle_type', ['type']).toUpperCase();
+        if (vehicleType && !['TWO_WHEELER', 'CAR', 'OTHER'].includes(vehicleType)) {
+          issues.push({ row: rowNumber, field: 'vehicle_type', code: 'INVALID', message: 'vehicle_type must be TWO_WHEELER, CAR or OTHER' });
+        }
         break;
+      }
       case 'PARKING':
         required('slot_code', ['parking_slot', 'slot']);
         break;
-      case 'WORKFORCE':
+      case 'WORKFORCE': {
         required('name');
         required('phone', ['mobile', 'mobile_number']);
         required('worker_type', ['type', 'category']);
+        const workerType = this.value(row, 'worker_type', ['type', 'category']).toUpperCase();
+        if (workerType && !['MAID', 'DRIVER', 'COOK', 'NANNY', 'OTHER'].includes(workerType)) {
+          issues.push({ row: rowNumber, field: 'worker_type', code: 'INVALID', message: 'worker_type must be MAID, DRIVER, COOK, NANNY or OTHER' });
+        }
         break;
+      }
       case 'VENDOR':
+        required('code');
         required('name', ['vendor_name']);
+        required('category');
         break;
       case 'OPENING_BALANCE': {
         required('account_code', ['ledger_code', 'account']);

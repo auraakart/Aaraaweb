@@ -28,7 +28,7 @@ import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { MigrationBatchService } from './migration-batch.service';
 import { MigrationEntityType, MigrationPreviewService } from './migration-preview.service';
-import { MigrationStructuralCommitService } from './migration-structural-commit.service';
+import { MigrationCommitCoordinator } from './migration-commit-coordinator.service';
 
 const CurrentUser = createParamDecorator((_data: unknown, context: ExecutionContext) =>
   context.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
@@ -67,7 +67,7 @@ export class MigrationController {
   constructor(
     private readonly previewService: MigrationPreviewService,
     private readonly batchService: MigrationBatchService,
-    private readonly structuralCommitService: MigrationStructuralCommitService,
+    private readonly commitCoordinator: MigrationCommitCoordinator,
   ) {}
 
   @Post('preview')
@@ -117,7 +117,7 @@ export class MigrationController {
     @CurrentUser() actorUserId?: string,
   ) {
     if (!actorUserId) throw new BadRequestException('Authenticated user is required');
-    return this.structuralCommitService.commit(societyId, actorUserId, batchId);
+    return this.commitCoordinator.commit(societyId, actorUserId, batchId);
   }
 
   @Post('batches/:id/rollback')
@@ -128,6 +128,6 @@ export class MigrationController {
     @CurrentUser() actorUserId?: string,
   ) {
     if (!actorUserId) throw new BadRequestException('Authenticated user is required');
-    return this.structuralCommitService.rollback(societyId, actorUserId, batchId);
+    return this.commitCoordinator.rollback(societyId, actorUserId, batchId);
   }
 }
