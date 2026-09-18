@@ -62,6 +62,27 @@ export class MigrationPreviewService {
       }
     });
 
+    if (entityType === 'OPENING_BALANCE') {
+      const dates = [...new Set(normalizedRows.map((row) => this.value(row, 'entry_date', ['cutover_date'])).filter(Boolean))];
+      if (dates.length > 1) {
+        issues.push({ row: 1, field: 'entry_date', code: 'INVALID', message: 'All opening-balance rows must use the same entry_date' });
+        invalid.add(1);
+      }
+      let debit = 0;
+      let credit = 0;
+      for (const row of normalizedRows) {
+        const amount = Number(this.value(row, 'amount_paise', ['amount']));
+        const side = this.value(row, 'side', ['debit_credit']).toUpperCase();
+        if (!Number.isSafeInteger(amount) || amount <= 0) continue;
+        if (side === 'DEBIT') debit += amount;
+        if (side === 'CREDIT') credit += amount;
+      }
+      if (debit !== credit) {
+        issues.push({ row: 1, field: 'amount_paise', code: 'INVALID', message: 'Opening-balance debits and credits must balance' });
+        invalid.add(1);
+      }
+    }
+
     return {
       entityType,
       totalRows: normalizedRows.length,
@@ -165,13 +186,19 @@ export class MigrationPreviewService {
       case 'OPENING_BALANCE': {
         required('account_code', ['ledger_code', 'account']);
         required('amount_paise', ['amount']);
+        required('side', ['debit_credit']);
+        required('entry_date', ['cutover_date']);
         const amount = this.value(row, 'amount_paise', ['amount']);
-        if (amount && !/^-?\d+$/.test(amount)) {
-          issues.push({ row: rowNumber, field: 'amount_paise', code: 'INVALID', message: 'amount_paise must be an integer number of paise' });
+        if (amount && !/^[1-9]\d*$/.test(amount)) {
+          issues.push({ row: rowNumber, field: 'amount_paise', code: 'INVALID', message: 'amount_paise must be a positive integer number of paise' });
         }
         const side = this.value(row, 'side', ['debit_credit']).toUpperCase();
         if (side && !['DEBIT', 'CREDIT'].includes(side)) {
           issues.push({ row: rowNumber, field: 'side', code: 'INVALID', message: 'side must be DEBIT or CREDIT' });
+        }
+        const entryDate = this.value(row, 'entry_date', ['cutover_date']);
+        if (entryDate && !this.isIsoDate(entryDate)) {
+          issues.push({ row: rowNumber, field: 'entry_date', code: 'INVALID', message: 'entry_date must be a valid YYYY-MM-DD date' });
         }
         break;
       }
@@ -191,6 +218,12 @@ export class MigrationPreviewService {
       case 'VENDOR': return value('code') || value('gstin') || value('external_id') || value('name', 'vendor_name');
       case 'OPENING_BALANCE': return `${value('account_code', 'ledger_code', 'account')}|${value('unit_ref', 'unit', 'flat_number')}|${value('fund_ref', 'fund')}`;
     }
+  }
+
+  private isIsoDate(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
   }
 
   private value(row: Record<string, string>, field: string, aliases: string[] = []) {
