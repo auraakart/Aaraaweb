@@ -30,6 +30,8 @@ void main(){
 
     await tester.pumpWidget(MaterialApp(home:CommunityScreen(controller:controller)));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Society documents'),300,scrollable:find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
 
     expect(find.text('Society documents'),findsOneWidget);
     expect(find.text('Parking policy'),findsOneWidget);
