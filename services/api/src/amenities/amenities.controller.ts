@@ -81,6 +81,10 @@ class ReviewAmenityBookingDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 
+class AttendanceAmenityBookingDto {
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
 @Controller('amenities')
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.AMENITIES)
@@ -161,10 +165,43 @@ export class AmenitiesController {
   @RequiresPermissions(AppPermission.AMENITY_MANAGE)
   listBookingsManage(@CurrentTenant() societyId: string, @Query('status') status?: string) {
     const normalized = status?.trim().toUpperCase();
-    if (normalized && !['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED'].includes(normalized)) {
+    if (normalized && !['PENDING', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'REJECTED', 'CANCELLED'].includes(normalized)) {
       throw new BadRequestException('Invalid amenity booking status');
     }
     return this.amenities.listBookingsManage(societyId, normalized);
+  }
+
+  @Patch('manage/bookings/:bookingId/check-in')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  checkIn(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.checkIn(societyId, this.requireUser(userId), bookingId, dto.note);
+  }
+
+  @Patch('manage/bookings/:bookingId/complete')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  complete(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.complete(societyId, this.requireUser(userId), bookingId, dto.note);
+  }
+
+  @Patch('manage/bookings/:bookingId/no-show')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  markNoShow(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: AttendanceAmenityBookingDto,
+  ) {
+    return this.amenities.markNoShow(societyId, this.requireUser(userId), bookingId, dto.note);
   }
 
   @Patch('manage/bookings/:bookingId/approve')
