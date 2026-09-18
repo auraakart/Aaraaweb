@@ -101,7 +101,7 @@ export class ProviderCommercialService {
         "placementType" = EXCLUDED."placementType",
         "placementStartsAt" = EXCLUDED."placementStartsAt",
         "placementEndsAt" = EXCLUDED."placementEndsAt",
-        "settlementCommissionBps" = EXCLUDED."settlementCommissionBps",
+        "settlementCommissionBps" = COALESCE(EXCLUDED."settlementCommissionBps", "ConsumerProviderCommercialProfile"."settlementCommissionBps"),
         "active" = EXCLUDED."active",
         "updatedAt" = CURRENT_TIMESTAMP
     `);
