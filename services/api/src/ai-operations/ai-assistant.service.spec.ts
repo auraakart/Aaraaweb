@@ -29,6 +29,24 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it('does not widen finance visibility through the combined resident status tool',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.FAMILY_MEMBER],
+      'Show my complaint status',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('RESIDENT_STATUS');
+    expect((result.facts as {invoices:unknown[]}).invoices).toEqual([]);
+    expect(result.sources).not.toContain('MaintenanceInvoice');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
   it('fails closed when the requested tool is outside the caller permissions',async()=>{
     const {prisma,service}=setup();
     await expect(service.query('society-1','user-1',[AppRole.OWNER],'Summarize security incidents')).rejects.toBeInstanceOf(ForbiddenException);
