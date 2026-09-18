@@ -6,8 +6,14 @@ import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 
 class ParcelsScreen extends StatefulWidget {
-  const ParcelsScreen({super.key, required this.repository, this.demoMode = false});
+  const ParcelsScreen({
+    super.key,
+    required this.repository,
+    required this.unitId,
+    this.demoMode = false,
+  });
   final ResidentRepository repository;
+  final String unitId;
   final bool demoMode;
 
   @override
@@ -32,8 +38,11 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     });
     try {
       final value = widget.demoMode ? _demoParcels() : await widget.repository.parcels();
+      final scoped = value
+          .where((parcel) => parcel['unitId']?.toString() == widget.unitId)
+          .toList(growable: false);
       if (!mounted) return;
-      setState(() => _parcels = value);
+      setState(() => _parcels = scoped);
     } catch (_) {
       if (mounted) setState(() => _error = 'Parcels could not be loaded.');
     } finally {
@@ -42,6 +51,10 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
   }
 
   Future<void> _pickupCode(Map<String, dynamic> parcel) async {
+    if (!_belongsToActiveProperty(parcel)) {
+      _showPropertyMismatch();
+      return;
+    }
     try {
       final result = widget.demoMode
           ? {'code': '482731', 'expiresAt': DateTime.now().add(const Duration(minutes: 10)).toIso8601String()}
@@ -80,6 +93,10 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
   }
 
   Future<void> _confirmCollection(Map<String, dynamic> parcel) async {
+    if (!_belongsToActiveProperty(parcel)) {
+      _showPropertyMismatch();
+      return;
+    }
     try {
       if (!widget.demoMode) await widget.repository.confirmParcelCollection(parcel['id'].toString());
       if (widget.demoMode) {
@@ -94,6 +111,16 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Collection could not be confirmed. Please try again.')));
     }
+  }
+
+  bool _belongsToActiveProperty(Map<String,dynamic> parcel) =>
+      parcel['unitId']?.toString() == widget.unitId;
+
+  void _showPropertyMismatch() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('This parcel belongs to another property.')),
+    );
   }
 
   @override
@@ -155,6 +182,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
   List<Map<String, dynamic>> _demoParcels() => [
         {
           'id': 'demo-parcel-1',
+          'unitId': widget.unitId,
           'courierName': 'Amazon',
           'trackingReference': 'AMZ-77421',
           'status': 'RECEIVED',
@@ -163,6 +191,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
         },
         {
           'id': 'demo-parcel-2',
+          'unitId': widget.unitId,
           'courierName': 'BlueDart',
           'trackingReference': 'BD-209184',
           'status': 'RECEIVED',
@@ -171,6 +200,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
         },
         {
           'id': 'demo-parcel-3',
+          'unitId': widget.unitId,
           'courierName': 'India Post',
           'trackingReference': 'INP-55108',
           'status': 'COLLECTED',
