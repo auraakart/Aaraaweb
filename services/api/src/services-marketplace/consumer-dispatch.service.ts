@@ -3,6 +3,7 @@ import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 export type ConsumerDispatchStatus = 'ASSIGNED' | 'ACCEPTED' | 'REJECTED' | 'EN_ROUTE' | 'ARRIVED' | 'RELEASED';
 type ConsumerDispatchNotificationStatus = 'ASSIGNED' | 'EN_ROUTE' | 'ARRIVED';
@@ -307,7 +308,7 @@ export class ConsumerDispatchService {
     void this.loadDispatchNotification(assignmentId)
       .then((event) => event && this.push.sendConsumerBookingEvent({ ...event, status }))
       .catch((error: unknown) => {
-        this.logger.warn(`Consumer dispatch push failed for ${assignmentId}: ${error instanceof Error ? error.message : 'unknown error'}`);
+        this.logger.warn(`Consumer dispatch push failed for ${assignmentId}: ${safeOperationalError(error)}`);
       });
   }
 
