@@ -90,9 +90,23 @@ Implemented:
 - the Resident service-request screen retains one request key across ambiguous submission failures, allowing safe direct retry; changing location or schedule explicitly resets the key;
 - existing provider availability locking remains authoritative for service-capacity concurrency, while consumer cancellation continues to use row locking plus compare-and-update semantics.
 
+## V4.4.5 — Scheduled-work idempotency evidence
+
+Verified:
+- a process-local running guard prevents overlapping scheduler ticks in one API process before a second database transaction starts;
+- a PostgreSQL transaction advisory lock ensures only one replica owns the shared operational sweep at a time;
+- helpdesk SLA state events are emitted only when the calculated state differs from the stored state;
+- automatic helpdesk escalation is guarded by `escalationLevel=0` both when selecting and updating candidates, preventing repeated first-escalation effects;
+- SOS acknowledgement escalation is guarded by `autoEscalatedAt IS NULL` both when selecting and updating candidates, preventing duplicate automatic escalation events;
+- scheduled notice recipients are claimed with `FOR UPDATE ... SKIP LOCKED` and moved to `IN_FLIGHT` before transport;
+- successful notice completion and failed retry transitions both require the dispatch to still be `IN_FLIGHT`;
+- failed notice delivery returns to durable `PENDING` state with bounded exponential backoff and retained error evidence;
+- durable direct-push work continues to use its separate outbox dedupe/claim/retry contract and is drained only after the cluster-owned sweep.
+
+No scheduler runtime rewrite was required; V4.4 adds explicit regression evidence around the existing controls.
+
 ## Remaining V4.4 work
 Continue bounded audits for:
-1. scheduled-job idempotency evidence;
-2. object authorization regressions;
-3. backup/restore and rollback evidence consolidation;
-4. production metrics/reliability acceptance evidence.
+1. object authorization regressions;
+2. backup/restore and rollback evidence consolidation;
+3. production metrics/reliability acceptance evidence.
