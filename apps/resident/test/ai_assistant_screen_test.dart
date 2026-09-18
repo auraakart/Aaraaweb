@@ -38,6 +38,8 @@ void main(){
     expect(find.text('Confirm complaint'),findsOneWidget);
     expect(api.posts.where((path)=>path.endsWith('/confirm')),isEmpty);
 
+    await tester.ensureVisible(find.text('Confirm complaint'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Confirm complaint'));
     await tester.pumpAndSettle();
     expect(api.posts.where((path)=>path.endsWith('/confirm')).length,1);
