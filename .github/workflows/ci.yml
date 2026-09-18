@@ -44,6 +44,10 @@ jobs:
           test -f services/api/scripts/performance-seed.mjs
           test -f .github/workflows/performance-regression.yml
           test -f docs/PERFORMANCE-REGRESSION-EVIDENCE.md
+          test -f scripts/cross-role-e2e.mjs
+          test -f services/api/scripts/cross-role-e2e-seed.mjs
+          test -f .github/workflows/cross-role-e2e.yml
+          test -f docs/CROSS-ROLE-E2E-EVIDENCE.md
           test -f scripts/validate-hosted-health.mjs
           test -f scripts/check-v2-validation-manifest.mjs
           test -f docs/v2-validation-manifest.json
