@@ -32,7 +32,7 @@ The first mutation-enabled slice deliberately supports only:
 
 A batch must be `READY`. Building rows require stable `name` and `code`; unit rows resolve a current-society building reference before insert. Every created target UUID and commit timestamp is recorded against the immutable source row. Commit is transaction-scoped and advisory-locked by batch id.
 
-Operational commit is additionally enabled for `VEHICLE`, `WORKFORCE` and `VENDOR`. `RESIDENT`, `PARKING` and `OPENING_BALANCE` remain protected until their dedicated adapters are implemented.
+Operational commit is additionally enabled for `VEHICLE`, `PARKING`, `WORKFORCE` and `VENDOR`. `RESIDENT` and `OPENING_BALANCE` remain protected until their dedicated adapters are implemented.
 
 ### Controlled structural rollback
 `POST /api/v1/migration/batches/:id/rollback`
@@ -80,7 +80,7 @@ These tables are migration evidence, not a parallel operational store.
 3. Persisted dry-run/checksum/audit evidence. **Complete**
 4. Dependency-ordered commit engine. **Structural BUILDING/UNIT slice implemented**
 5. Rollback/undo boundary. **Structural BUILDING/UNIT slice implemented**
-6. Resident/vehicle/parking/workforce/vendor domain-safe commit adapters. **VEHICLE/WORKFORCE/VENDOR implemented; RESIDENT/PARKING pending**
+6. Resident/vehicle/parking/workforce/vendor domain-safe commit adapters. **VEHICLE/PARKING/WORKFORCE/VENDOR implemented; RESIDENT pending**
 7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary.
 8. Admin onboarding checklist/progress surface.
 9. Migration evidence export.
@@ -93,7 +93,11 @@ These tables are migration evidence, not a parallel operational store.
 - A commit cannot run from PREVIEWED/invalid state.
 - No commit bypasses society ownership or database/domain constraints.
 - Rollback is blocked after downstream operational dependencies appear.
-- Vehicle commit requires an already-existing household for the referenced unit; migration never creates an untracked household as a side effect.\n- Workforce rollback is blocked once assignments/ratings/suspension evidence exists.\n- Vendor rollback is blocked once procurement records reference the migrated vendor.\n- Financial cutover will reuse V4.1 opening-balance logic rather than create a second balance store.
+- Vehicle commit requires an already-existing household for the referenced unit; migration never creates an untracked household as a side effect.
+- Parking commit reuses the live slot/event model; optional building references stay tenant-scoped, and rollback is blocked after any allocation.
+- Workforce rollback is blocked once assignments/ratings/suspension evidence exists.
+- Vendor rollback is blocked once procurement records reference the migrated vendor.
+- Financial cutover will reuse V4.1 opening-balance logic rather than create a second balance store.
 - Cross-society references fail closed.
 - Migration evidence is never silently destroyed.
 
