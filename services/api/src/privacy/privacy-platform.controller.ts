@@ -16,6 +16,7 @@ import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { PrivacyService } from './privacy.service';
+import { PrivacySubjectDataService } from './privacy-subject-data.service';
 
 const CurrentPlatformPrivacyUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   return ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId;
@@ -55,12 +56,27 @@ class SetPlatformPrivacyRetentionReviewDto {
 @Controller('platform/privacy')
 @UseGuards(BearerGuard, PermissionsGuard)
 export class PrivacyPlatformController {
-  constructor(private readonly privacy: PrivacyService) {}
+  constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
 
   @Get('cases')
   @RequiresPermissions(AppPermission.PLATFORM_PRIVACY_READ)
   listCases() {
     return this.privacy.listPlatformCases();
+  }
+
+  @Get('cases/:caseId/erasure-plan')
+  @RequiresPermissions(AppPermission.PLATFORM_PRIVACY_READ)
+  erasurePlan(@Param('caseId', ParseUUIDPipe) caseId: string) {
+    return this.subjectData.erasurePlan(undefined, caseId);
+  }
+
+  @Patch('cases/:caseId/execute-erasure')
+  @RequiresPermissions(AppPermission.PLATFORM_PRIVACY_MANAGE)
+  executeErasure(
+    @CurrentPlatformPrivacyUser() userId: string | undefined,
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+  ) {
+    return this.subjectData.executeErasure(undefined, this.requireUser(userId), caseId);
   }
 
   @Get('cases/:caseId/history')
