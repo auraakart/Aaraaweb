@@ -15,6 +15,7 @@ describe('MigrationBatchService evidence', () => {
     vehicles: [{ plateNumber: 'TN-01 AB 1234' }],
     workers: [{ phone: '9000000001' }],
     vendors: [{ code: 'V001', name: 'Lift Co', gstin: '33ABCDE1234F1Z5' }],
+    parkingSlots: [{ code: 'P-001' }],
   };
 
   it('fails missing building references and existing unit conflicts', () => {
@@ -49,6 +50,13 @@ describe('MigrationBatchService evidence', () => {
       .toContainEqual(expect.objectContaining({ code: 'EXISTING_CONFLICT', field: 'phone' }));
     expect(service.validateReferences('VENDOR', [{ code: 'v001' }], snapshot))
       .toContainEqual(expect.objectContaining({ code: 'EXISTING_CONFLICT', field: 'name' }));
+  });
+
+  it('validates parking building references and existing slot codes', () => {
+    expect(service.validateReferences('PARKING', [{ slot_code: 'P-002', building_ref: 'Z' }], snapshot))
+      .toContainEqual(expect.objectContaining({ code: 'REFERENCE_MISSING', field: 'building_ref' }));
+    expect(service.validateReferences('PARKING', [{ slot_code: 'p-001', building_ref: 'A' }], snapshot))
+      .toContainEqual(expect.objectContaining({ code: 'EXISTING_CONFLICT', field: 'slot_code' }));
   });
 
   it('creates a deterministic checksum independent of source key ordering', () => {

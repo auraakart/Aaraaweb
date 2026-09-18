@@ -121,9 +121,18 @@ export class MigrationPreviewService {
         }
         break;
       }
-      case 'PARKING':
+      case 'PARKING': {
         required('slot_code', ['parking_slot', 'slot']);
+        const slotType = this.value(row, 'slot_type', ['type']).toUpperCase();
+        if (slotType && !['RESIDENT', 'VISITOR', 'TEMPORARY', 'ACCESSIBLE', 'STAFF'].includes(slotType)) {
+          issues.push({ row: rowNumber, field: 'slot_type', code: 'INVALID', message: 'slot_type must be RESIDENT, VISITOR, TEMPORARY, ACCESSIBLE or STAFF' });
+        }
+        const evReady = this.value(row, 'ev_ready', ['ev']);
+        if (evReady && !['true', 'false', '1', '0', 'yes', 'no'].includes(evReady.toLowerCase())) {
+          issues.push({ row: rowNumber, field: 'ev_ready', code: 'INVALID', message: 'ev_ready must be true/false, yes/no or 1/0' });
+        }
         break;
+      }
       case 'WORKFORCE': {
         required('name');
         required('phone', ['mobile', 'mobile_number']);
