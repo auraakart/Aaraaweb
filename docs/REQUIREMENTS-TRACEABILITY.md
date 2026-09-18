@@ -38,8 +38,8 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
 | V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
-| V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. Human facility-role UAT remains. |
-| V2-VND Society vendors/procurement | P1 | **Implemented baseline** | Society-vendor bounded context and capability permissions are separate from consumer External Services. Pilot workflow evidence remains. |
+| V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. V4.16 removes prompt-driven inventory movements in favor of persistent typed controls while retaining stock-integrity guidance and work-order linkage. Human facility-role UAT remains. |
+| V2-VND Society vendors/procurement | P1 | **Implemented / hardened** | Society-vendor bounded context remains separate from consumer External Services. V4.16 exposes quotation comparison/selection, PO issuance, finance-scoped PO→expense-draft handoff with one-PO/one-expense protection, and tenant-scoped vendor contract/SLA/expiry lifecycle evidence with append-only events. Real vendor onboarding and society procurement-policy acceptance remain external. |
 | V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
 | V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
@@ -158,3 +158,19 @@ The V4.15 repository cycle closes the documented governance operator-depth gap:
 4. **Legal boundary:** the repository does not determine statutory quorum, resolution validity, legal compliance or society-specific bye-law interpretation.
 5. **External acceptance remains:** committee human UAT, real-society bye-law/policy acceptance, representative browser/device acceptance and hosted production evidence remain outside repository completion.
 
+
+
+## V4.16 Society Vendor, Resident & Operations Depth closure
+
+The V4.16 repository cycle is complete on `develop`:
+
+1. **Procurement operator depth:** Admin exposes request drill-down, quotation entry/comparison, explicit quote selection, PO issuance and append-only procurement request evidence with sequencing guidance.
+2. **Procurement/accounting handoff:** Finance users can inspect issued POs, distinguish pending versus linked accounting state and create the existing exact-amount SocietyExpense draft under FINANCE_MANAGE; one PO cannot create multiple linked expense drafts.
+3. **Vendor lifecycle evidence:** society-vendor contracts record type, dates, renewal notice, SLA/document references and ACTIVE/EXPIRED/TERMINATED state with append-only tenant-scoped lifecycle evidence and explicit no-legal-validity wording.
+4. **Resident daily brief:** property-scoped Home prioritization now includes active helpdesk work alongside billing, services and notices, with high/critical helpdesk work surfaced ahead of routine updates.
+5. **Facilities operator ergonomics:** inventory stock movements use persistent typed controls rather than browser prompts, preserve optional work-order linkage and keep stock-integrity guidance visible.
+6. **Resident Community hub:** Resident navigation includes a live Community surface backed by governance/community meetings, documents, notices/helpdesk context and existing community-poll capabilities rather than static placeholders.
+7. **Integration readiness boundaries:** automated contract tests verify payment, WhatsApp, smart-gate and object-storage provider ports stay vendor-neutral/fail-closed; this is repository readiness evidence, not real-provider acceptance.
+8. **External boundary:** real vendor onboarding, procurement-policy acceptance, contract legal review, hosted infrastructure, live provider credentials/callbacks, physical device validation and representative-device/human UAT remain external.
+
+V4.16 repository completion does **not** increase Production/field readiness without external evidence.
