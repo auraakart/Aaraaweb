@@ -17,7 +17,12 @@ export class ProviderSettlementService{
 
   list(){
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT b.*,p."businessName",
+      SELECT b."id",b."providerId",b."status",b."currency",
+        b."grossAmountPaise"::float8 AS "grossAmountPaise",
+        b."platformFeePaise"::float8 AS "platformFeePaise",
+        b."providerAmountPaise"::float8 AS "providerAmountPaise",
+        b."createdByUserId",b."approvedByUserId",b."approvedAt",b."paidByUserId",b."paidAt",b."paymentReference",b."createdAt",b."updatedAt",
+        p."businessName",
         (SELECT COUNT(*)::int FROM "ConsumerProviderSettlementEntry" e WHERE e."batchId"=b."id") AS "entryCount"
       FROM "ConsumerProviderSettlementBatch" b
       JOIN "ServiceProvider" p ON p."id"=b."providerId"
@@ -90,7 +95,11 @@ export class ProviderSettlementService{
           "id","providerId","status","currency","grossAmountPaise","platformFeePaise","providerAmountPaise","createdByUserId","createdAt","updatedAt"
         ) VALUES (
           ${id}::uuid,${providerId}::uuid,'DRAFT','INR',${gross},${fee},${provider},${actorUserId}::uuid,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-        ) RETURNING *
+        ) RETURNING "id","providerId","status","currency",
+          "grossAmountPaise"::float8 AS "grossAmountPaise",
+          "platformFeePaise"::float8 AS "platformFeePaise",
+          "providerAmountPaise"::float8 AS "providerAmountPaise",
+          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
       `);
       for(const row of eligible){
         await tx.$executeRaw(Prisma.sql`
@@ -124,7 +133,11 @@ export class ProviderSettlementService{
         UPDATE "ConsumerProviderSettlementBatch"
         SET "status"='APPROVED',"approvedByUserId"=${actorUserId}::uuid,"approvedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${batchId}::uuid AND "status"='DRAFT'
-        RETURNING *
+        RETURNING "id","providerId","status","currency",
+          "grossAmountPaise"::float8 AS "grossAmountPaise",
+          "platformFeePaise"::float8 AS "platformFeePaise",
+          "providerAmountPaise"::float8 AS "providerAmountPaise",
+          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
       `);
       if(!rows[0])throw new BadRequestException('Settlement changed concurrently');
       await this.event(tx,batchId,actorUserId,'APPROVED','DRAFT','APPROVED',null);
@@ -152,7 +165,11 @@ export class ProviderSettlementService{
         SET "status"='PAID',"paidByUserId"=${actorUserId}::uuid,"paidAt"=CURRENT_TIMESTAMP,
             "paymentReference"=${normalized},"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${batchId}::uuid AND "status"='APPROVED'
-        RETURNING *
+        RETURNING "id","providerId","status","currency",
+          "grossAmountPaise"::float8 AS "grossAmountPaise",
+          "platformFeePaise"::float8 AS "platformFeePaise",
+          "providerAmountPaise"::float8 AS "providerAmountPaise",
+          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
       `);
       if(!rows[0])throw new BadRequestException('Settlement changed concurrently');
       await this.event(tx,batchId,actorUserId,'PAID','APPROVED','PAID',normalized);
@@ -168,7 +185,11 @@ export class ProviderSettlementService{
         UPDATE "ConsumerProviderSettlementBatch"
         SET "status"='CANCELLED',"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${batchId}::uuid AND "status"='DRAFT'
-        RETURNING *
+        RETURNING "id","providerId","status","currency",
+          "grossAmountPaise"::float8 AS "grossAmountPaise",
+          "platformFeePaise"::float8 AS "platformFeePaise",
+          "providerAmountPaise"::float8 AS "providerAmountPaise",
+          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
       `);
       if(!rows[0])throw new BadRequestException('Settlement changed concurrently');
       await this.event(tx,batchId,actorUserId,'CANCELLED','DRAFT','CANCELLED',null);
@@ -196,7 +217,10 @@ export class ProviderSettlementService{
 
   listForProvider(providerId:string){
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT b."id",b."status",b."currency",b."grossAmountPaise",b."platformFeePaise",b."providerAmountPaise",
+      SELECT b."id",b."status",b."currency",
+             b."grossAmountPaise"::float8 AS "grossAmountPaise",
+             b."platformFeePaise"::float8 AS "platformFeePaise",
+             b."providerAmountPaise"::float8 AS "providerAmountPaise",
              b."approvedAt",b."paidAt",b."paymentReference",b."createdAt",
              (SELECT COUNT(*)::int FROM "ConsumerProviderSettlementEntry" e WHERE e."batchId"=b."id") AS "entryCount"
       FROM "ConsumerProviderSettlementBatch" b
@@ -208,10 +232,10 @@ export class ProviderSettlementService{
   providerSummary(providerId:string){
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT
-        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='PAID'),0)::bigint AS "paidPaise",
-        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='APPROVED'),0)::bigint AS "approvedPaise",
-        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='DRAFT'),0)::bigint AS "draftPaise",
-        (SELECT COALESCE(SUM("providerAmountPaise"),0)::bigint
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='PAID'),0)::float8 AS "paidPaise",
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='APPROVED'),0)::float8 AS "approvedPaise",
+        COALESCE(SUM("providerAmountPaise") FILTER (WHERE "status"='DRAFT'),0)::float8 AS "draftPaise",
+        (SELECT COALESCE(SUM("providerAmountPaise"),0)::float8
            FROM "ConsumerProviderSettlementRecovery"
            WHERE "providerId"=${providerId}::uuid AND "status"='OPEN') AS "openRecoveryPaise",
         (SELECT COUNT(*)::int FROM "ConsumerProviderSettlementRecovery"
@@ -250,9 +274,13 @@ export class ProviderSettlementService{
     if(normalized.length<3||normalized.length>200)throw new BadRequestException('Recovery reference must be between 3 and 200 characters');
     const rows=await this.prisma.$queryRaw(Prisma.sql`
       UPDATE "ConsumerProviderSettlementRecovery"
-      SET "status"='RESOLVED',"resolvedReference"=${normalized},"resolvedAt"=CURRENT_TIMESTAMP
+      SET "status"='RESOLVED',"resolvedReference"=${normalized},"resolvedByUserId"=${actorUserId}::uuid,"resolvedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${recoveryId}::uuid AND "status"='OPEN'
-      RETURNING *
+      RETURNING "id","providerId","status","currency",
+          "grossAmountPaise"::float8 AS "grossAmountPaise",
+          "platformFeePaise"::float8 AS "platformFeePaise",
+          "providerAmountPaise"::float8 AS "providerAmountPaise",
+          "createdByUserId","approvedByUserId","approvedAt","paidByUserId","paidAt","paymentReference","createdAt","updatedAt"
     `);
     if(!(rows as unknown[])[0])throw new NotFoundException('Open provider settlement recovery not found');
     return (rows as unknown[])[0];
