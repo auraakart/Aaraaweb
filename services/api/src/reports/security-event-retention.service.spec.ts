@@ -15,9 +15,9 @@ describe('SecurityEventRetentionService', () => {
     const result = await service.runOnce(new Date('2026-09-18T00:00:00.000Z'));
 
     expect(result.cutoff).toBe('2025-09-18T00:00:00.000Z');
-    const call = queryRaw.mock.calls[0]?.[0] as { strings?: readonly string[]; values?: readonly unknown[] };
-    expect((call.strings ?? []).join('?')).toContain('WHERE "occurredAt" < ?');
-    expect(call.values).toContainEqual(new Date('2025-09-18T00:00:00.000Z'));
+    const call = queryRaw.mock.calls[0] as unknown[];
+    expect(((call[0] as readonly string[]) ?? []).join('?')).toContain('WHERE "occurredAt" < ?');
+    expect(call).toContainEqual(new Date('2025-09-18T00:00:00.000Z'));
   });
 
   it('fails closed on unsafe retention configuration', async () => {
