@@ -32,9 +32,17 @@ export class OccupancyLifecycleService{
   ]);return {units,occupancies};}
 
   async selfContext(societyId:string,userId:string){const now=new Date();const [occupancies,ownerships]=await Promise.all([
-    this.prisma.unitOccupancy.findMany({where:{societyId,userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{id:true,unitId:true,relation:true,effectiveFrom:true},orderBy:{createdAt:'asc'}}),
-    this.prisma.unitOwnership.findMany({where:{societyId,userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{unitId:true,ownershipBps:true},orderBy:{createdAt:'asc'}})
-  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId)};}
+    this.prisma.unitOccupancy.findMany({
+      where:{societyId,userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+      select:{id:true,unitId:true,relation:true,effectiveFrom:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
+      orderBy:{createdAt:'asc'}
+    }),
+    this.prisma.unitOwnership.findMany({
+      where:{societyId,userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+      select:{unitId:true,ownershipBps:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
+      orderBy:{createdAt:'asc'}
+    })
+  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId),ownedUnits:ownerships};}
 
   async get(societyId:string,id:string){const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
     SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
