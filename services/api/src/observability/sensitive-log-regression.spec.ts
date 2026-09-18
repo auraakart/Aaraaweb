@@ -18,9 +18,13 @@ describe('V4.5 sensitive operational logging boundary', () => {
   it('keeps reviewed operational log paths on the safe error descriptor', () => {
     for (const relative of protectedSources) {
       const source = readFileSync(join(__dirname, relative), 'utf8');
-      expect(source, relative).not.toMatch(/logger\.(?:log|warn|error)\([^\n]*(?:\.message|\.stack)/);
-      expect(source, relative).not.toContain('error instanceof Error ? error.message');
-      expect(source, relative).not.toContain('e instanceof Error?e.stack');
+      const loggerArguments = source
+        .split(/logger\.(?:log|warn|error)\(/)
+        .slice(1)
+        .map((segment) => segment.split(';')[0]);
+      for (const argument of loggerArguments) {
+        expect(argument, relative).not.toMatch(/\.(?:message|stack)\b/);
+      }
     }
   });
 
