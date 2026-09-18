@@ -18,8 +18,8 @@ It requires `ADVANCED_REPORTS` plus `REPORTS_READ`. Finance values are included 
 
 ### KPI definitions
 
-- **Maintenance collection percentage** — paid value for non-void invoices issued in the selected range divided by billed value for those invoices, with payment bounded by the range end.
-- **Outstanding ageing** — current outstanding maintenance invoices grouped by current / 1–30 / 31–60 / 61–90 / 90+ day buckets.
+- **Maintenance collection percentage** — allocations recorded by the range end against the net economic value of authoritative `Receivable` records issued in the selected range. Net billed value includes append-only debit/credit/waiver adjustments recorded by the range end; receivables voided after the range end remain part of that historical cohort.
+- **Outstanding ageing** — authoritative receivable balance as of the selected range end (`Receivable` + append-only adjustments − allocations), grouped by current / 1–30 / 31–60 / 61–90 / 90+ day buckets.
 - **Reconciliation exceptions** — unresolved `PaymentReconciliationCase` records.
 - **Complaint SLA compliance** — resolved/closed helpdesk tickets with resolution evidence at or before their configured resolution due time divided by tickets with measurable SLA evidence.
 - **Gate processing time** — average visitor request creation-to-entry time for entries in the selected range.
