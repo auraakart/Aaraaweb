@@ -149,8 +149,15 @@ describe('AmenitiesService', () => {
   });
 
   it('allows an amenity manager to revoke an active booking with audit evidence', async () => {
+    const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
     const revoked = { id: '55555555-5555-4555-8555-555555555555', status: 'CANCELLED', reviewNote: 'Revoked: Maintenance closure' };
-    const txQueryRaw = vi.fn().mockResolvedValueOnce([{ id: revoked.id }]).mockResolvedValueOnce([revoked]);
+    const released = { id: revoked.id, amenityId: '33333333-3333-4333-8333-333333333333', startsAt, endsAt };
+    const txQueryRaw = vi.fn()
+      .mockResolvedValueOnce([released])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([revoked]);
     transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
 
     await expect(service.revoke(
