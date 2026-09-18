@@ -114,3 +114,21 @@ Implemented in this slice:
 The review found no need to redesign the current document service in this slice. Provider marketplace media remains a separate public-media model after approval and does not use the private society-document download path.
 
 The next V4.5 slice is privacy retention/deletion enforcement and legal-hold interaction, followed by security-event reporting/retention completion and V4.5 closeout.
+
+
+## V4.5.6 — Privacy retention/deletion enforcement
+
+Implemented in this slice:
+- ERASURE cases now require an explicit retention review decision before they can be marked COMPLETED;
+- retention review is constrained to ERASURE cases and records an auditable ALLOW or BLOCK decision, reason, reviewer and review timestamp;
+- an ALLOW decision is rejected while legal hold is active;
+- legal hold continues to block erasure completion independently of retention review;
+- any legal-hold state change invalidates the previous retention review so an old ALLOW decision cannot become stale after hold/release changes;
+- status updates, legal-hold updates and retention review updates use compare-and-set predicates to fail safely on concurrent changes;
+- both society privacy operations and society-less platform privacy operations expose the same governed retention-review action;
+- append-only privacy request history records RETENTION_REVIEWED evidence and records when a legal-hold change invalidates an earlier review;
+- database constraints ensure a stored retention decision cannot exist without its reason, reviewer and review timestamp.
+
+This slice does not perform blanket or automatic destruction of user records. The retention registry expresses configured data-category policy, but Aaraagate does not yet have a safe record-level mapping from each category's retention trigger to every subject record. Destructive automation therefore remains out of scope and the workflow fails closed rather than inferring deletion eligibility.
+
+The next V4.5 slice is security-event reporting/retention completion and V4.5 closeout.
