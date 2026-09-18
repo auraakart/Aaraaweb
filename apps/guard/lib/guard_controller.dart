@@ -18,6 +18,7 @@ class GuardController extends ChangeNotifier {
     this.directoryCache = const GuardDirectoryCache(),
     this.preferences = const MemoryGuardPreferences(),
     GuardVoice? voice,
+    this.realtimeReconnectDelay = const Duration(seconds: 3),
   }) : voice = voice ?? const SilentGuardVoice();
   final GuardApi api;
   final GuardSessionStore sessions;
@@ -25,6 +26,7 @@ class GuardController extends ChangeNotifier {
   final GuardDirectoryCache directoryCache;
   final GuardPreferences preferences;
   final GuardVoice voice;
+  final Duration realtimeReconnectDelay;
 
   bool booting = true;
   bool busy = false;
@@ -47,6 +49,7 @@ class GuardController extends ChangeNotifier {
   String languageCode = 'en';
   bool voiceEnabled = true;
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
+  Timer? _reconnectTimer;
   bool _disposed = false;
 
   bool get signedIn => session != null;
@@ -142,10 +145,14 @@ class GuardController extends ChangeNotifier {
   }
 
   void startRealtime() {
+    if (_disposed || !signedIn) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _gateEvents?.cancel();
     _gateEvents = api.gateEvents().listen((event) async {
+      if (_disposed || !signedIn) return;
       realtimeConnected = true;
-      if (event['type']?.toString() == 'CONNECTED') { if (!_disposed) notifyListeners(); return; }
+      if (event['type']?.toString() == 'CONNECTED') { notifyListeners(); return; }
       final eventGateId = event['gateId']?.toString();
       if (eventGateId != null && gateId != eventGateId) return;
       final requestId = event['requestId']?.toString();
@@ -154,12 +161,22 @@ class GuardController extends ChangeNotifier {
       }
       if (!_disposed) notifyListeners();
     }, onError: (_) {
-      realtimeConnected = false; _gateEvents = null;
-      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      realtimeConnected = false;
+      _gateEvents = null;
+      _scheduleRealtimeReconnect();
     }, onDone: () {
-      realtimeConnected = false; _gateEvents = null;
-      if (!_disposed && signedIn) Future<void>.delayed(const Duration(seconds: 3), startRealtime);
+      realtimeConnected = false;
+      _gateEvents = null;
+      _scheduleRealtimeReconnect();
     }, cancelOnError: true);
+  }
+
+  void _scheduleRealtimeReconnect() {
+    if (_disposed || !signedIn || _reconnectTimer?.isActive == true) return;
+    _reconnectTimer = Timer(realtimeReconnectDelay, () {
+      _reconnectTimer = null;
+      if (!_disposed && signedIn) startRealtime();
+    });
   }
 
   void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
@@ -320,6 +337,8 @@ class GuardController extends ChangeNotifier {
   Future<void> signOut() async {
     final current = session;
     if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _gateEvents?.cancel();
     _gateEvents = null; realtimeConnected = false;
     await sessions.clear(); api.accessToken = '';
@@ -377,5 +396,13 @@ class GuardController extends ChangeNotifier {
   }
 
   @override
-  void dispose() { _disposed = true; _gateEvents?.cancel(); voice.stop(); super.dispose(); }
+  void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _gateEvents?.cancel();
+    _gateEvents = null;
+    voice.stop();
+    super.dispose();
+  }
 }
