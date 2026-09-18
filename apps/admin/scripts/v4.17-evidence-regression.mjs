@@ -13,19 +13,25 @@ for(const token of [
   if(!trace.includes(token)) throw new Error(`V4.17 traceability evidence missing: ${token}`)
 }
 
-for(const token of [
-  'Resident experience/features | >= 9.0 | **9.5**',
-  'Administration/governance | >= 8.7 | **9.3**',
-  'Overall repository evidence score: 9.09 / 10',
-  'Production/field readiness remains exactly 8.0',
-]){
-  if(!score.includes(token)) throw new Error(`V4.17 score evidence missing: ${token}`)
+const scoreValue=(label)=>{
+  const row=score.split('\n').find(line=>line.startsWith(`| ${label} |`))
+  const match=row?.match(/\*\*([0-9]+(?:\.[0-9]+)?)\*\*/)
+  if(!match) throw new Error(`V4.17 live score row missing: ${label}`)
+  return Number(match[1])
 }
+const overallMatch=score.match(/Overall repository evidence score: ([0-9]+(?:\.[0-9]+)?) \/ 10/)
+if(!overallMatch) throw new Error('V4.17 live overall score missing')
+if(scoreValue('Resident experience/features')<9.5) throw new Error('V4.17 live Resident score regressed below 9.5')
+if(scoreValue('Administration/governance')<9.3) throw new Error('V4.17 live Administration/governance score regressed below 9.3')
+if(scoreValue('Production/field readiness')<8.0) throw new Error('V4.17 live Production/field readiness regressed below 8.0')
+if(Number(overallMatch[1])<9.09) throw new Error('V4.17 live overall score regressed below 9.09')
 
 for(const token of [
   'V4.17.1 merged via PR #701',
   'V4.17.2 merged via PR #702',
   'V4.17.3 merged via PR #703',
+  'Repository-only evidence score: **9.09 / 10**',
+  'Administration/governance: **9.2 → 9.3**',
   'Production/field readiness therefore remains exactly **8.0**',
 ]){
   if(!completion.includes(token)) throw new Error(`V4.17 completion evidence missing: ${token}`)

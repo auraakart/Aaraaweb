@@ -1,7 +1,7 @@
 # Aaraagate V4.18 Program — Document Repository & Records Governance Depth
 
 Date: 2026-09-18  
-Status: In progress  
+Status: Repository closure complete  
 Baseline: `develop` after V4.17 repository closure
 
 ## Why V4.18
@@ -23,7 +23,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 
 ## Delivery slices
 
-### V4.18.1 — Document operator depth — merged via #705 — merged via #705
+### V4.18.1 — Document operator depth — merged via #705
 
 - tenant-scoped property selector for property-owner-only documents;
 - fix Admin/API contract so required `unitId` is supplied;
@@ -31,7 +31,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 - expose append-only document lifecycle history in Admin;
 - API and Admin regression coverage.
 
-### V4.18.2 — Controlled supersession & version lineage — merged via #706 — in progress
+### V4.18.2 — Controlled supersession & version lineage — merged via #706
 
 - implement a bounded replacement flow using the existing `VERSION_REPLACED` event vocabulary;
 - preserve prior versions and immutable history;
@@ -39,13 +39,13 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 - expose current-versus-superseded lineage to operators;
 - no legal-validity inference.
 
-### V4.18.3 — Resident document clarity — in progress
+### V4.18.3 — Resident document clarity — merged via #707
 
 - improve published-document property/audience context;
 - version/current-document clarity where relevant;
 - preserve server-authorized audience/property filtering and download intents.
 
-### V4.18.4 — Evidence reconciliation
+### V4.18.4 — Evidence reconciliation — complete
 
 - full regression and CI;
 - requirements traceability and roadmap reconciliation;
@@ -56,3 +56,7 @@ V4.18 closes document-operations depth without claiming hosted object-storage ac
 ## Quality gates
 
 Tenant scoping, audience authorization, private object-storage boundaries, malware/safety scan verification, append-only evidence, typed operator inputs and full CI remain mandatory.
+
+## Repository closure
+
+V4.18 repository closure is complete when this evidence branch is merged to `develop`. The milestone hardens repository-backed document operations, version lineage and Resident access. Hosted object-storage acceptance, statutory/legal document validity, retention-law interpretation, representative-device UAT and field outcomes remain external.

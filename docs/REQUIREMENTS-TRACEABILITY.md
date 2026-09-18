@@ -40,7 +40,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
 | V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. V4.16 removes prompt-driven inventory movements in favor of persistent typed controls while retaining stock-integrity guidance and work-order linkage. Human facility-role UAT remains. |
 | V2-VND Society vendors/procurement | P1 | **Implemented / hardened** | Society-vendor bounded context remains separate from consumer External Services. V4.16 exposes quotation comparison/selection, PO issuance, finance-scoped PO→expense-draft handoff with one-PO/one-expense protection, and tenant-scoped vendor contract/SLA/expiry lifecycle evidence with append-only events. Real vendor onboarding and society procurement-policy acceptance remain external. |
-| V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
+| V2-DOC Document repository | P1 | **Implemented / hardened** | V4.18 adds tenant-scoped property targeting for property-owner-only documents, friendly management context, append-only lifecycle history, controlled supersession/version lineage that preserves prior published evidence, and Resident access to the real server-authorized published repository with current version/audience/property context and bounded download intents. Upload metadata verification and safety scanning remain required. Hosted object-storage acceptance and statutory/legal document validity remain external. |
 | V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
 | V2-AMN Amenity policy engine | P1 | **Implemented / hardened** | Capacity/booking rules, approval controls, attendance lifecycle, configurable check-in/no-show timing, society/property-scoped FIFO waitlist with deterministic promotion, explicit Resident waitlist consent/position/history, and tenant-scoped descriptive operations analytics are present. No-show penalties, physical check-in hardware, predictive allocation and real-society policy outcomes remain external/conditional. |
@@ -187,3 +187,16 @@ The V4.17 repository cycle is complete on `develop` after the closure branch mer
 5. **External boundary:** real-society rental/police-verification policy acceptance, representative-device human UAT, hosted production behavior and field move outcomes remain external.
 
 V4.17 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.18 Document Repository & Records Governance Depth closure
+
+The V4.18 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Operator depth:** Admin property-owner-only document publishing now requires a tenant-scoped property selector and supplies the server-required `unitId`; management rows expose friendly property context and append-only lifecycle history.
+2. **Controlled version lineage:** published documents can create at most one active replacement draft. Replacement drafts inherit classification/audience/property scope, increment version automatically, and publishing the replacement atomically publishes the new record, archives the prior published record and appends `VERSION_REPLACED` evidence. Prior document records are preserved rather than destructively overwritten.
+3. **Resident repository access:** Resident Community consumes the real server-authorized `/documents/published` repository, shows current version/audience/property context and obtains downloads only through authorized server-issued download intents. Governance document references remain a separate surface rather than being conflated with the society document repository.
+4. **Storage/security boundaries:** private object-storage prefixes, upload metadata verification, safety scanning, tenant scoping and audience/property authorization remain enforced server-side.
+5. **External boundary:** hosted object-storage acceptance, statutory/legal document validity, retention-law interpretation, representative-device UAT and field document outcomes remain external.
+
+V4.18 repository completion does **not** increase Production/field readiness without external evidence.

@@ -128,6 +128,8 @@ Separate from the consumer External Services marketplace:
 - Amenity capacity/quotas/windows/cooling-off/guest/pricing/deposit/blackout/approval rules.
 - Leave-at-gate parcel inventory, collection acknowledgement and escalation.
 
+Repository document depth closure through V4.18 now includes tenant-scoped property targeting, append-only lifecycle history, non-destructive controlled supersession/version lineage, private upload verification/safety scanning and Resident access to the server-authorized published repository with secure download intents. Hosted object-storage acceptance, statutory/legal validity and field document outcomes remain external.
+
 ## V2.3 — Optional / advanced modules
 - Advanced parking repository closure: allocation limits, visitor/temporary parking, credential lifecycle, incorrect-parking/violation handling and EV-readiness metadata are implemented. Physical ANPR/RFID/EV/access hardware remains external.
 - Meter and utility readings/tariffs/history/billing integration.
