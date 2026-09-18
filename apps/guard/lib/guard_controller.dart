@@ -214,6 +214,7 @@ class GuardController extends ChangeNotifier {
     }
     final remaining = <QueuedGateAction>[];
     final now = DateTime.now().toUtc();
+    final previouslyRetried = pending.where((action) => action.attemptCount > 0).length;
     var synced = 0, deferred = 0;
     for (var index = 0; index < pending.length; index++) {
       var action = pending[index];
@@ -243,6 +244,17 @@ class GuardController extends ChangeNotifier {
     await offlineQueue.replace([...otherSessions, ...remaining]);
     queuedActions = remaining.length;
     reviewRequiredActions = remaining.where((action) => action.reviewRequired).length;
+    try {
+      await api.reportOfflineSync(
+        considered: pending.length,
+        synced: synced,
+        retried: previouslyRetried,
+        unresolved: remaining.length,
+        reviewRequired: reviewRequiredActions,
+      );
+    } catch (_) {
+      // Metrics must never block gate operations or queue recovery.
+    }
     if (remaining.isEmpty) {
       offlineSyncMessage = '$synced offline ${synced == 1 ? 'action' : 'actions'} synced.';
     } else if (reviewRequiredActions > 0) {
