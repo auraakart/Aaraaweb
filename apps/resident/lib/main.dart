@@ -8,6 +8,7 @@ import 'data/demo_resident_repository.dart';
 import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/amenities_screen.dart';
+import 'screens/ai_assistant_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
@@ -32,6 +33,7 @@ const _demoFeatures = <String>{
   'MAINTENANCE_BILLING',
   'PAYMENTS',
   'AMENITIES',
+  'AI_ASSISTANT',
 };
 
 void main() {
@@ -215,6 +217,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         final showBilling = controller.hasFeature('MAINTENANCE_BILLING');
         final showAmenities = controller.hasFeature('AMENITIES');
         final showSos = controller.hasFeature('SOS');
+        final showAi = controller.hasFeature('AI_ASSISTANT');
 
         add(
           HomeScreen(
@@ -244,6 +247,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         }
         if (showServices) {
           add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
+        }
+        if (showAi) {
+          add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));
         }
         final profileIndex = pages.length;
         add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
