@@ -229,6 +229,31 @@ export class ReportsService {
     return { page, pageSize, total, items };
   }
 
+  async securityEventFeed(societyId: string, page = 1, pageSize = 50, eventType?: string) {
+    const paging = this.paging(page, pageSize);
+    const normalizedEventType = eventType?.trim() || null;
+    if (normalizedEventType && !/^[A-Z][A-Z0-9_]{2,63}$/.test(normalizedEventType)) {
+      throw new BadRequestException('eventType must be an uppercase security event identifier');
+    }
+
+    const countRows = await this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
+      SELECT COUNT(*)::int AS "count"
+      FROM "SecurityEvent"
+      WHERE "societyId" = ${societyId}::uuid
+        AND (${normalizedEventType}::text IS NULL OR "eventType" = ${normalizedEventType})
+    `;
+    const items = await this.prisma.$queryRaw`
+      SELECT "id","userId","sessionId","eventType","reason","occurredAt"
+      FROM "SecurityEvent"
+      WHERE "societyId" = ${societyId}::uuid
+        AND (${normalizedEventType}::text IS NULL OR "eventType" = ${normalizedEventType})
+      ORDER BY "occurredAt" DESC, "id" DESC
+      OFFSET ${paging.skip}
+      LIMIT ${paging.take}
+    `;
+    return { page, pageSize, total: Number(countRows[0]?.count ?? 0), items };
+  }
+
   async auditFeed(societyId: string, page = 1, pageSize = 50, event?: string, from?: string, to?: string) {
     const paging = this.paging(page, pageSize);
     const eventType = auditEventFilter(event);

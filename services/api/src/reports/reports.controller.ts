@@ -126,6 +126,17 @@ export class ReportsController {
     response.send(result.csv);
   }
 
+  @Get('security-events')
+  @RequiresPermissions(AppPermission.AUDIT_READ)
+  securityEvents(
+    @CurrentTenant() societyId: string,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+    @Query('eventType') eventType?: string,
+  ) {
+    return this.reports.securityEventFeed(societyId, page ?? 1, pageSize ?? 50, eventType);
+  }
+
   @Get('audit')
   @RequiresPermissions(AppPermission.AUDIT_READ)
   audit(
