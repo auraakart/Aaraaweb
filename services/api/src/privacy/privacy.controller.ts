@@ -33,6 +33,11 @@ class UpdatePrivacyLegalHoldDto {
   @IsOptional() @IsString() @MaxLength(1000) retentionReason?: string;
 }
 
+class UpdatePrivacyRetentionReviewDto {
+  @IsIn(['ALLOW', 'BLOCK']) decision!: 'ALLOW' | 'BLOCK';
+  @IsString() @MaxLength(1000) reason!: string;
+}
+
 @Controller('privacy')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class PrivacyController {
@@ -86,6 +91,17 @@ export class PrivacyController {
       dto.legalHold,
       dto.retentionReason,
     );
+  }
+
+  @Patch('cases/:caseId/retention-review')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_MANAGE)
+  updateRetentionReview(
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+    @Body() dto: UpdatePrivacyRetentionReviewDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.privacy.updateRetentionReview(societyId, this.requireUser(userId), caseId, dto.decision, dto.reason);
   }
 
   private requireUser(userId?: string) {
