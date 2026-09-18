@@ -9,6 +9,16 @@ describe('ProcurementAccountingLinkService', () => {
     return { tx, prisma, service: new ProcurementAccountingLinkService(prisma as never) };
   }
 
+  it('lists finance procurement POs with tenant-scoped linkage evidence', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValue([]);
+    await service.listPurchaseOrdersForFinance('society-1');
+    const sql = (prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sql).toContain('po."societyId"=');
+    expect(sql).toContain('LEFT JOIN "ProcurementExpenseLink"');
+    expect(sql).toContain('LEFT JOIN "SocietyExpense"');
+  });
+
   it('requires an issued purchase order before creating accounting state', async () => {
     const { tx, service } = setup();
     tx.$queryRaw.mockResolvedValueOnce([]);
