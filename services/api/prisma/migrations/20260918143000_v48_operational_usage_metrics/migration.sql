@@ -42,6 +42,12 @@ CREATE TABLE "GuardOfflineSyncMetric" (
   CONSTRAINT "GuardOfflineSyncMetric_nonnegative_check" CHECK (
     "syncRuns" >= 0 AND "actionsConsidered" >= 0 AND "actionsSynced" >= 0
     AND "actionsRetried" >= 0 AND "actionsUnresolved" >= 0 AND "reviewRequired" >= 0
+  ),
+  CONSTRAINT "GuardOfflineSyncMetric_consistency_check" CHECK (
+    "actionsSynced" <= "actionsConsidered"
+    AND "actionsRetried" <= "actionsConsidered"
+    AND "actionsUnresolved" <= "actionsConsidered"
+    AND "reviewRequired" <= "actionsUnresolved"
   )
 );
 CREATE UNIQUE INDEX "GuardOfflineSyncMetric_society_day_key"
