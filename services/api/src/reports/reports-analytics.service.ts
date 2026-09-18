@@ -172,7 +172,7 @@ export class ReportsAnalyticsService{
           (SELECT COUNT(*)::int FROM "Amenity" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE) AS "activeAmenities",
           COUNT(*) FILTER (WHERE b."status"='CONFIRMED')::int AS "confirmedBookings",
           COUNT(DISTINCT b."userId") FILTER (WHERE b."status"='CONFIRMED')::int AS "distinctUsers",
-          COALESCE(ROUND(SUM(EXTRACT(EPOCH FROM (b."endsAt"-b."startsAt"))/3600.0) FILTER (WHERE b."status"='CONFIRMED')::numeric,2),0)::float8 AS "bookingHours"
+          COALESCE(ROUND((SUM(EXTRACT(EPOCH FROM (b."endsAt"-b."startsAt"))/3600.0) FILTER (WHERE b."status"='CONFIRMED'))::numeric,2),0)::float8 AS "bookingHours"
         FROM "AmenityBooking" b
         WHERE b."societyId"=${societyId}::uuid AND b."startsAt" BETWEEN ${range.gte} AND ${range.lte}
       `),
@@ -211,9 +211,10 @@ export class ReportsAnalyticsService{
           ))::int AS "activeResidents"
         FROM eligible
       `),
-      this.prisma.$queryRaw<Array<{serviceDiscoverers:number;propertySwitchers:number}>>(Prisma.sql`
+      this.prisma.$queryRaw<Array<{serviceDiscoverers:number;serviceBookers:number;propertySwitchers:number}>>(Prisma.sql`
         SELECT
           COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_DISCOVERY_VIEWED')::int AS "serviceDiscoverers",
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='SERVICE_BOOKING_CREATED')::int AS "serviceBookers",
           COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PROPERTY_CONTEXT_SWITCHED')::int AS "propertySwitchers"
         FROM "OperationalUsageEvent"
         WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
@@ -226,7 +227,7 @@ export class ReportsAnalyticsService{
     const guard=guardRows[0]??{};
     const services=serviceRows[0]??{bookings:0,completed:0,cancelled:0,distinctBookers:0};
     const adoption=adoptionRows[0]??{eligibleResidents:0,activeResidents:0};
-    const usage=usageRows[0]??{serviceDiscoverers:0,propertySwitchers:0};
+    const usage=usageRows[0]??{serviceDiscoverers:0,serviceBookers:0,propertySwitchers:0};
     const number=(value:unknown)=>Number(value??0);
     const rate=(numerator:number,denominator:number)=>denominator>0?Math.round((numerator/denominator)*10000)/100:null;
 
@@ -264,7 +265,7 @@ export class ReportsAnalyticsService{
         completionPercent:rate(services.completed,services.bookings),
         cancellationPercent:rate(services.cancelled,services.bookings),
         serviceDiscoverers:usage.serviceDiscoverers,
-        discoveryToBookingPercent:rate(services.distinctBookers,usage.serviceDiscoverers),
+        discoveryToBookingPercent:rate(usage.serviceBookers,usage.serviceDiscoverers),
       },
       adoption:{
         ...adoption,
