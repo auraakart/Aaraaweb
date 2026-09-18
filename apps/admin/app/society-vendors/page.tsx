@@ -164,7 +164,7 @@ export default function SocietyVendorsPage(){
         <h1>Society vendors & procurement</h1>
         <p>{canManage?'Operate vendor, quotation and purchase-order workflows with auditable evidence.':'Read-only society vendor and procurement evidence.'}</p>
       </div>
-      <a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>
+      <div style={actions}><a href="/society-vendors/contracts">Vendor contracts & SLA →</a><a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a></div>
     </header>
 
     {error&&<p style={err}>{error}</p>}
