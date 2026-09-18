@@ -48,8 +48,9 @@ async function api<T>(session:Session,path:string,init:RequestInit={}):Promise<T
 
 export default function PrivacyOperationsPage(){
   const session=typeof window==='undefined'?null:getSession()
+  const s=session
   const allowed=!!session&&readRoles.has(session.role)
-  const canManage=session?.role==='SUPER_ADMIN'
+  const canManage=s?.role==='SUPER_ADMIN'
 
   const[cases,setCases]=useState<PrivacyCase[]>([])
   const[selectedId,setSelectedId]=useState('')
