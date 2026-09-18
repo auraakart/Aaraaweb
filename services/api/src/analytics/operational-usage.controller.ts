@@ -1,5 +1,5 @@
 import { Body, Controller, ExecutionContext, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsIn } from 'class-validator';
+import { IsIn, IsInt, Min } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -10,11 +10,11 @@ import { OperationalUsageEventType, OperationalUsageService } from './operationa
 const CurrentPrincipal=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth);
 
 class GuardSyncDto {
-  considered!:number;
-  synced!:number;
-  retried!:number;
-  unresolved!:number;
-  reviewRequired!:number;
+  @IsInt() @Min(0) considered!:number;
+  @IsInt() @Min(0) synced!:number;
+  @IsInt() @Min(0) retried!:number;
+  @IsInt() @Min(0) unresolved!:number;
+  @IsInt() @Min(0) reviewRequired!:number;
 }
 
 class UsageEventDto {
