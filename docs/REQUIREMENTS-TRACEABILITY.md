@@ -34,7 +34,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
 | V2-FIN Full society accounting | P0 | **Implemented / hardened** | `services/api/src/accounting`, finance permissions, immutable ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds reconciliation review health, read-only exact-movement candidates and export date presets. V4.14 adds tenant-scoped close readiness, race-safe irreversible period close with draft-journal blocking and actor evidence, an accountant period-close/reporting workspace reusing the existing reporting engine, and typed bounded operator controls replacing raw UUID/browser-prompt actions. Accountant/Treasurer human acceptance remains. |
 | V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
-| V2-GOV Society governance | P0/P1 | **Implemented baseline / hardened** | `services/api/src/governance`, committee/governance permissions and Admin governance workflows are present. Bye-law-dependent configuration remains pilot evidence. |
+| V2-GOV Society governance | P0/P1 | **Implemented / hardened** | `services/api/src/governance`, committee/governance permissions and Admin workflows are present. V4.15 adds typed committee/meeting operations, descriptive readiness/closure evidence, configurable quorum/approval/bye-law references, auditable action status/owner/due-date follow-through and overdue visibility. Society-specific bye-law/legal acceptance remains external. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
 | V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
@@ -146,3 +146,15 @@ The V4.14 repository cycle is complete on `develop`:
 5. **Accounting boundaries:** gateway truth remains separate from accounting truth; no automatic journal posting, matching, refund execution or financial adjustment was introduced.
 
 Repository completion does **not** constitute Accountant/Treasurer human acceptance, live-provider reconciliation/refund evidence, real-society accounting-policy acceptance, hosted-production evidence or field financial-outcome validation. Those remain external.
+
+
+## V4.15 Governance Operations & Committee Workflow Depth closure
+
+The V4.15 repository cycle closes the documented governance operator-depth gap:
+
+1. **Operator ergonomics:** browser-prompt governance actions are replaced with persistent typed controls for committee tenure, agenda, resolutions, action items and meeting outcome/minutes.
+2. **Readiness/closure evidence:** Admin can inspect descriptive meeting outcome, minutes, configured/recorded quorum values, rule/bye-law references, resolution approval evidence, unresolved proposed resolutions, action ownership gaps and append-only evidence events.
+3. **Action follow-through:** governance actions support tenant-scoped OPEN / IN_PROGRESS / COMPLETED / CANCELLED transitions, owner and due-date updates, backend completion timestamps, overdue visibility and append-only ACTION_UPDATED evidence.
+4. **Legal boundary:** the repository does not determine statutory quorum, resolution validity, legal compliance or society-specific bye-law interpretation.
+5. **External acceptance remains:** committee human UAT, real-society bye-law/policy acceptance, representative browser/device acceptance and hosted production evidence remain outside repository completion.
+
