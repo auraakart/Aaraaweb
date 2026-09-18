@@ -1,7 +1,7 @@
 # Aaraagate V4.16 Program — Society Vendor, Resident & Operations Depth
 
 Date: 2026-09-18  
-Status: Repository closure complete pending V4.16.8 evidence PR merge  
+Status: Repository closure complete  
 Baseline: `develop` after V4.15 release ancestry reconciliation
 
 ## Why V4.16
@@ -68,7 +68,7 @@ The post-V4.15 audit identified Society Vendor/Procurement as the clearest repos
 - explicitly separates repository readiness from real provider/hardware acceptance;
 - no score inflation for production/field readiness.
 
-### V4.16.8 — Evidence reconciliation — in progress
+### V4.16.8 — Evidence reconciliation — merged via #699
 - reconcile program history to merged PRs;
 - harden requirements traceability;
 - create V4.16 completion evidence;
@@ -81,4 +81,4 @@ Every functional slice preserves tenant/resource scoping, capability permissions
 
 ## Success condition
 
-V4.16 is complete when the evidence-reconciliation PR merges to `develop`. Production promotion remains a separate explicit decision.
+V4.16 repository closure is complete on `develop`. Production promotion remains a separate explicit decision.
