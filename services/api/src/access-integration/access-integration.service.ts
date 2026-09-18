@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AccessDeviceCommand, AccessDeviceKind } from './access-device.adapter';
+import { AccessDeviceCommand, AccessDeviceKind, AccessIntegrationCompatibilityContract } from './access-device.adapter';
 import { SimulatorAccessDeviceAdapter } from './simulator-access-device.adapter';
 
 const ADAPTER_KINDS:readonly AccessDeviceKind[]=['ANPR','BOOM_BARRIER','RFID'];
@@ -20,8 +20,17 @@ type DeviceRow={
 @Injectable()
 export class AccessIntegrationService {
   private readonly adapters=new Map<string,SimulatorAccessDeviceAdapter>();
+  private readonly compatibility:readonly AccessIntegrationCompatibilityContract[]=[
+    {target:'BIOMETRIC',requiredCapabilities:['IDENTIFY_CREDENTIAL','HEALTH_CHECK'],transportOwnedByAdapter:true,directDatabaseAccessAllowed:false,commandsRequireIdempotency:true,eventsRequireExternalDeduplicationKey:true,manualFallbackRequired:true},
+    {target:'SMART_LOCK',requiredCapabilities:['IDENTIFY_CREDENTIAL','READ_STATE','HEALTH_CHECK'],transportOwnedByAdapter:true,directDatabaseAccessAllowed:false,commandsRequireIdempotency:true,eventsRequireExternalDeduplicationKey:true,manualFallbackRequired:true},
+    {target:'INTERCOM_CCTV',requiredCapabilities:['READ_STATE','HEALTH_CHECK'],transportOwnedByAdapter:true,directDatabaseAccessAllowed:false,commandsRequireIdempotency:true,eventsRequireExternalDeduplicationKey:true,manualFallbackRequired:true},
+    {target:'LIFT_ACCESS',requiredCapabilities:['IDENTIFY_CREDENTIAL','READ_STATE','HEALTH_CHECK'],transportOwnedByAdapter:true,directDatabaseAccessAllowed:false,commandsRequireIdempotency:true,eventsRequireExternalDeduplicationKey:true,manualFallbackRequired:true},
+    {target:'EV_GATEWAY',requiredCapabilities:['IDENTIFY_VEHICLE','READ_STATE','HEALTH_CHECK'],transportOwnedByAdapter:true,directDatabaseAccessAllowed:false,commandsRequireIdempotency:true,eventsRequireExternalDeduplicationKey:true,manualFallbackRequired:true},
+  ];
 
   constructor(private readonly prisma?:PrismaService) {}
+
+  compatibilityTargets(){ return this.compatibility; }
 
   async listAdapters(societyId:string){
     return Promise.all(ADAPTER_KINDS.map(async kind=>({kind,...await this.adapter(societyId,kind).health()})));
@@ -108,12 +117,15 @@ export class AccessIntegrationService {
       RETURNING "id","status","result"
     `);
     if(!inserted[0]){
-      const existing=await db.$queryRaw<Array<{id:string;status:string;result:unknown}>>(Prisma.sql`
-        SELECT "id","status","result" FROM "AccessIntegrationCommand"
+      const existing=await db.$queryRaw<Array<{id:string;status:string;result:unknown;command:string;payload:unknown}>>(Prisma.sql`
+        SELECT "id","status","result","command","payload" FROM "AccessIntegrationCommand"
         WHERE "societyId"=${societyId}::uuid AND "deviceId"=${deviceId}::uuid AND "idempotencyKey"=${idempotencyKey}
         LIMIT 1
       `);
       if(!existing[0]) throw new BadRequestException('Command idempotency state could not be resolved');
+      if(existing[0].command!==input.command||JSON.stringify(existing[0].payload??{})!==JSON.stringify(input.payload??{})){
+        throw new BadRequestException('Idempotency key was already used for a different access command');
+      }
       return {...existing[0],deviceId,idempotent:true};
     }
     const result=await this.adapter(societyId,device.adapterKind).execute({...input,idempotencyKey});
@@ -130,7 +142,10 @@ export class AccessIntegrationService {
           "updatedAt"=CURRENT_TIMESTAMP
       WHERE "id"=${deviceId}::uuid AND "societyId"=${societyId}::uuid
     `);
-    return {id:inserted[0].id,deviceId,status,result,idempotent:false};
+    return {
+      id:inserted[0].id,deviceId,status,result,idempotent:false,
+      manualFallback: result.accepted ? null : {available:true,path:'MANUAL_GATE_OPERATION',reason:result.state},
+    };
   }
 
   async ingestEvent(societyId:string,deviceId:string,input:{externalEventId:string;eventType:string;payload?:Record<string,unknown>;occurredAt:string}){
@@ -158,12 +173,25 @@ export class AccessIntegrationService {
       `);
       return {...inserted[0],idempotent:false};
     }
-    const existing=await db.$queryRaw<Array<{id:string;externalEventId:string;eventType:string;occurredAt:Date}>>(Prisma.sql`
-      SELECT "id","externalEventId","eventType","occurredAt" FROM "AccessIntegrationEvent"
+    const existing=await db.$queryRaw<Array<{id:string;externalEventId:string;eventType:string;occurredAt:Date;payload:unknown}>>(Prisma.sql`
+      SELECT "id","externalEventId","eventType","occurredAt","payload" FROM "AccessIntegrationEvent"
       WHERE "societyId"=${societyId}::uuid AND "deviceId"=${deviceId}::uuid AND "externalEventId"=${externalEventId}
       LIMIT 1
     `);
+    if(!existing[0]) throw new BadRequestException('Event deduplication state could not be resolved');
+    if(existing[0].eventType!==eventType||existing[0].occurredAt.toISOString()!==occurredAt.toISOString()||JSON.stringify(existing[0].payload??{})!==JSON.stringify(input.payload??{})){
+      throw new BadRequestException('External event id was already used for different event evidence');
+    }
     return {...existing[0],idempotent:true};
+  }
+
+  listCommands(societyId:string,deviceId:string){
+    return this.device(societyId,deviceId).then(()=>this.db().$queryRaw(Prisma.sql`
+      SELECT "id","deviceId","actorUserId","idempotencyKey","command","status","result","createdAt","completedAt"
+      FROM "AccessIntegrationCommand"
+      WHERE "societyId"=${societyId}::uuid AND "deviceId"=${deviceId}::uuid
+      ORDER BY "createdAt" DESC,"id" DESC LIMIT 500
+    `));
   }
 
   listEvents(societyId:string,deviceId:string){
