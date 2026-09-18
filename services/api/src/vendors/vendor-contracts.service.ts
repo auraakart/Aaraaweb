@@ -25,6 +25,21 @@ export class VendorContractsService {
     `);
   }
 
+  async history(societyId:string,contractId:string){
+    const [contract]=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "SocietyVendorContract"
+      WHERE "id"=${contractId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1
+    `);
+    if(!contract)throw new NotFoundException('Society vendor contract not found');
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT e.*,u."name" AS "actorName"
+      FROM "SocietyVendorContractEvent" e
+      JOIN "User" u ON u."id"=e."actorUserId"
+      WHERE e."societyId"=${societyId}::uuid AND e."contractId"=${contractId}::uuid
+      ORDER BY e."createdAt" ASC
+    `);
+  }
+
   async createContract(societyId:string,actorUserId:string,input:{
     vendorId:string;contractNumber:string;title:string;contractType:'AMC'|'SERVICE_AGREEMENT'|'SUPPLY'|'OTHER';
     startsOn:string;endsOn:string;renewalNoticeDays:number;slaReference?:string;documentReference?:string;notes?:string;
