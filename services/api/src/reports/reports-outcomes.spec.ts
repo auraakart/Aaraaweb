@@ -54,7 +54,9 @@ describe('V4.8 outcome analytics',()=>{
     expect(financeSql).toContain('"Receivable"');
     expect(financeSql).toContain('"ReceivableAllocation"');
     expect(financeSql).toContain('"ReceivableAdjustment"');
+    expect(financeSql).toContain('"ReceivableAllocationReversal"');
     expect(ageingSql).toContain('"Receivable"');
+    expect(ageingSql).toContain('"ReceivableAllocationReversal"');
     expect(financeSql).not.toContain('"MaintenanceInvoice"');
     expect(ageingSql).not.toContain('"MaintenanceInvoice"');
   });
