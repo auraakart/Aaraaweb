@@ -15,6 +15,10 @@ type PrivacyCaseRow = {
   assignedToUserId: string | null;
   legalHold: boolean;
   retentionReason: string | null;
+  retentionDecision: 'ALLOW' | 'BLOCK' | null;
+  retentionDecisionReason: string | null;
+  retentionReviewedAt: Date | null;
+  retentionReviewedByUserId: string | null;
   dueAt: Date | null;
   closedAt: Date | null;
   createdByUserId: string;
@@ -187,8 +191,13 @@ export class PrivacyService {
       if (current.status === status) return current;
       throw new BadRequestException('Closed privacy request cases cannot change status');
     }
-    if (status === 'COMPLETED' && current.requestType === 'ERASURE' && current.legalHold) {
-      throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+    if (status === 'COMPLETED' && current.requestType === 'ERASURE') {
+      if (current.legalHold) {
+        throw new BadRequestException('Erasure case cannot be completed while legal hold is active');
+      }
+      if (current.retentionDecision !== 'ALLOW') {
+        throw new BadRequestException('Erasure case cannot be completed until retention review allows completion');
+      }
     }
     const closedAt = TERMINAL_STATUSES.includes(status) ? new Date() : null;
     const cleanNote = note?.trim() || 'Privacy case status updated';
@@ -203,6 +212,7 @@ export class PrivacyService {
           AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
           AND "status" = ${current.status}
           AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
         RETURNING *
       `);
       const updated = rows[0];
@@ -243,6 +253,10 @@ export class PrivacyService {
         UPDATE "PrivacyRequestCase"
         SET "legalHold" = ${legalHold},
             "retentionReason" = ${legalHold ? reason : null},
+            "retentionDecision" = NULL,
+            "retentionDecisionReason" = NULL,
+            "retentionReviewedAt" = NULL,
+            "retentionReviewedByUserId" = NULL,
             "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${caseId}::uuid
           AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
@@ -261,7 +275,61 @@ export class PrivacyService {
           ${actorUserId}::uuid,
           'LEGAL_HOLD_CHANGED',
           ${legalHold ? 'Legal hold enabled' : 'Legal hold released'},
-          ${JSON.stringify({ legalHold, retentionReason: legalHold ? reason : null })}::jsonb
+          ${JSON.stringify({ legalHold, retentionReason: legalHold ? reason : null, retentionReviewInvalidated: current.retentionDecision !== null })}::jsonb
+        )
+      `);
+      return updated;
+    });
+  }
+
+  async updateRetentionReview(
+    societyId: string | undefined,
+    actorUserId: string,
+    caseId: string,
+    decision: 'ALLOW' | 'BLOCK',
+    reasonRaw: string,
+  ) {
+    const current = await this.findCase(societyId, caseId);
+    if (!current) throw new NotFoundException('Privacy request case not found');
+    if (current.requestType !== 'ERASURE') {
+      throw new BadRequestException('Retention review is only valid for erasure cases');
+    }
+    if (TERMINAL_STATUSES.includes(current.status)) {
+      throw new BadRequestException('Closed privacy request cases cannot change retention review');
+    }
+    const reason = reasonRaw.trim();
+    if (!reason) throw new BadRequestException('Retention review reason is required');
+    if (decision === 'ALLOW' && current.legalHold) {
+      throw new BadRequestException('Retention review cannot allow erasure while legal hold is active');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+        UPDATE "PrivacyRequestCase"
+        SET "retentionDecision" = ${decision},
+            "retentionDecisionReason" = ${reason},
+            "retentionReviewedAt" = CURRENT_TIMESTAMP,
+            "retentionReviewedByUserId" = ${actorUserId}::uuid,
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${caseId}::uuid
+          AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
+          AND "status" = ${current.status}
+          AND "legalHold" = ${current.legalHold}
+          AND "retentionDecision" IS NOT DISTINCT FROM ${current.retentionDecision}
+        RETURNING *
+      `);
+      const updated = rows[0];
+      if (!updated) throw new BadRequestException('Privacy request case changed; refresh and retry');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "PrivacyRequestEvent" (
+          "societyId", "caseId", "actorUserId", "eventType", "summary", "metadataJson"
+        ) VALUES (
+          ${societyId ?? null}::uuid,
+          ${caseId}::uuid,
+          ${actorUserId}::uuid,
+          'RETENTION_REVIEWED',
+          ${decision === 'ALLOW' ? 'Retention review allows erasure completion' : 'Retention review blocks erasure completion'},
+          ${JSON.stringify({ decision, reason })}::jsonb
         )
       `);
       return updated;
