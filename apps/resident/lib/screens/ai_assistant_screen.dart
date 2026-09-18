@@ -97,7 +97,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           if(_result!=null)Padding(padding:const EdgeInsets.only(top:12),child:Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text(_result!['answer']?.toString()??'Grounded result',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900)),
             const SizedBox(height:10),
-            Text(const JsonEncoder.withIndent('  ').convert(_result!['facts']??{}),style:theme.textTheme.bodySmall),
+            Text(JsonEncoder.withIndent('  ').convert(_result!['facts']??{}),style:theme.textTheme.bodySmall),
             const SizedBox(height:10),
             Text('Sources: ${((_result!['sources'] as List?)??const []).join(', ')}',style:theme.textTheme.labelMedium),
           ])))),
