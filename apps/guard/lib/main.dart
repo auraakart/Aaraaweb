@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'data/guard_api.dart';
 import 'data/guard_session_store.dart';
+import 'data/guard_preferences.dart';
 import 'data/offline_action_queue.dart';
 import 'guard_controller.dart';
 import 'localization/guard_strings.dart';
@@ -11,6 +12,7 @@ import 'screens/guard_quick_arrival_screen.dart';
 import 'screens/guard_tools_screen.dart';
 import 'screens/guard_workforce_screen.dart';
 import 'theme/aaraagate_guard_theme.dart';
+import 'voice/guard_voice.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +21,8 @@ void main() {
     api: GuardApi(baseUrl: baseUrl),
     sessions: const GuardSessionStore(),
     offlineQueue: const OfflineActionQueue(),
+    preferences: const SecureGuardPreferences(),
+    voice: DeviceGuardVoice(),
   );
   runApp(AaraagateGuardApp(controller: controller));
   controller.bootstrap();
