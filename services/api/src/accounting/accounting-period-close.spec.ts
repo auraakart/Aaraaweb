@@ -43,9 +43,11 @@ describe('V4.14 accounting period close', () => {
       balanced: true,
     });
 
-    const calls = prisma.$queryRaw.mock.calls.flatMap((call) => call.slice(1));
-    expect(calls).toContain('11111111-1111-1111-1111-111111111111');
-    expect(calls).toContain('22222222-2222-2222-2222-222222222222');
+    const values = prisma.$queryRaw.mock.calls.flatMap(([query]) =>
+      Array.isArray((query as { values?: unknown[] }).values) ? (query as { values: unknown[] }).values : [],
+    );
+    expect(values).toContain('11111111-1111-1111-1111-111111111111');
+    expect(values).toContain('22222222-2222-2222-2222-222222222222');
   });
 
   it('closes an open period only after confirming there are no drafts and posted totals balance', async () => {
