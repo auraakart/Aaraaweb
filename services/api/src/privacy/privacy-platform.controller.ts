@@ -42,6 +42,16 @@ class SetPlatformPrivacyHoldDto {
   retentionReason?: string;
 }
 
+class SetPlatformPrivacyRetentionReviewDto {
+  @IsIn(['ALLOW', 'BLOCK'])
+  decision!: 'ALLOW' | 'BLOCK';
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(1000)
+  reason!: string;
+}
+
 @Controller('platform/privacy')
 @UseGuards(BearerGuard, PermissionsGuard)
 export class PrivacyPlatformController {
@@ -77,6 +87,16 @@ export class PrivacyPlatformController {
     @Body() dto: SetPlatformPrivacyHoldDto,
   ) {
     return this.privacy.updateLegalHold(undefined, this.requireUser(userId), caseId, dto.legalHold, dto.retentionReason);
+  }
+
+  @Patch('cases/:caseId/retention-review')
+  @RequiresPermissions(AppPermission.PLATFORM_PRIVACY_MANAGE)
+  setRetentionReview(
+    @CurrentPlatformPrivacyUser() userId: string | undefined,
+    @Param('caseId', ParseUUIDPipe) caseId: string,
+    @Body() dto: SetPlatformPrivacyRetentionReviewDto,
+  ) {
+    return this.privacy.updateRetentionReview(undefined, this.requireUser(userId), caseId, dto.decision, dto.reason);
   }
 
   private requireUser(userId?: string) {
