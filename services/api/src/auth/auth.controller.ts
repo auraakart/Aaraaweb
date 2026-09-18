@@ -1,6 +1,7 @@
 import { Body, Controller, ExecutionContext, Get, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsNotEmpty, IsPhoneNumber, IsString, IsUUID, Length } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { OperationalUsageService } from '../analytics/operational-usage.service';
 import { AuthService } from './auth.service';
 import { AuthenticatedRequest, BearerGuard } from './bearer.guard';
 import { SessionService } from './session.service';
@@ -33,7 +34,7 @@ type SocietyContext = {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService) {}
+  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService, private readonly usage: OperationalUsageService) {}
 
   @Post('otp/request') async requestOtp(@Body() dto: RequestOtpDto) {
     const challenge = await this.authService.requestOtp(dto.phone);
@@ -53,6 +54,7 @@ export class AuthController {
     const contexts = await this.listSocietyContexts(user.id, membershipRows);
 
     if (membershipRows.length === 0) {
+      await this.usage.record(user.id, undefined, 'INDEPENDENT_HOME_ENTERED');
       return {
         verified: true,
         userId: user.id,
@@ -111,7 +113,9 @@ export class AuthController {
   @UseGuards(BearerGuard)
   async switchSociety(@CurrentUser() userId: string, @Body() dto: SwitchSocietyDto) {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    return this.createSocietySession(userId, dto.societyId);
+    const result=await this.createSocietySession(userId, dto.societyId);
+    await this.usage.record(userId,dto.societyId,'PROPERTY_CONTEXT_SWITCHED');
+    return result;
   }
 
   @Post('refresh') refresh(@Body() dto: RefreshDto) { return this.sessions.refresh(dto.sessionId, dto.refreshToken); }
