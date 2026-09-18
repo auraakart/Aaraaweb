@@ -4,8 +4,10 @@ import { AmenitiesService } from '../amenities/amenities.service';
 import { HelpdeskService } from '../helpdesk/helpdesk.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitorService } from '../visitors/visitor.service';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 type AiAction = 'CREATE_HELPDESK_TICKET'|'BOOK_AMENITY'|'CREATE_VISITOR_PASS';
+const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS']);
 
 type HelpdeskProposalInput = {
   unitId: string;
@@ -204,6 +206,7 @@ export class AiOperationsService {
   }
 
   private async createProposal(societyId:string,userId:string,action:AiAction,payload:unknown) {
+    if(!ALLOWED_AI_ACTIONS.has(action)) throw new BadRequestException('AI action is not allow-listed');
     const rows=await this.prisma.$queryRaw<Array<{id:string;status:string;payload:unknown;createdAt:Date}>>(Prisma.sql`
       INSERT INTO "AiOperationProposal" ("societyId","actorUserId","action","payload")
       VALUES (${societyId}::uuid,${userId}::uuid,${action},${JSON.stringify(payload)}::jsonb)
@@ -243,7 +246,7 @@ export class AiOperationsService {
       `);
       return {proposalId:proposal.id,status:'EXECUTED',result};
     } catch(error) {
-      const message=error instanceof Error?error.message:'AI operation execution failed';
+      const message=safeOperationalError(error);
       await this.prisma.$executeRaw(Prisma.sql`
         UPDATE "AiOperationProposal"
         SET "status"='FAILED',"errorMessage"=${message.slice(0,1000)},"updatedAt"=CURRENT_TIMESTAMP
