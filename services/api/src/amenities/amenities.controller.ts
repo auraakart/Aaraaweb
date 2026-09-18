@@ -165,6 +165,12 @@ export class AmenitiesController {
     return this.amenities.cancelMine(societyId, this.requireUser(userId), bookingId);
   }
 
+  @Get('manage/analytics')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  analytics(@CurrentTenant() societyId:string) {
+    return this.amenities.analytics(societyId);
+  }
+
   @Get('manage')
   @RequiresPermissions(AppPermission.AMENITY_MANAGE)
   listManage(@CurrentTenant() societyId: string) {
