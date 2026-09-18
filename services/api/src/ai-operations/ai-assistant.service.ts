@@ -88,6 +88,71 @@ export class AiAssistantService {
     },[],'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.');
   }
 
+  async actionCentre(societyId:string,roles:readonly AppRole[]) {
+    const cards:Array<{
+      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;
+    }>=[];
+
+    if(hasPermission(roles,AppPermission.FINANCE_READ)){
+      const finance=await this.societyFinance(societyId,0);
+      cards.push({
+        id:'finance-overdue',domain:'FINANCE',
+        severity:finance.overdueOver30Days>0?'HIGH':finance.overdueCount>0?'MEDIUM':'LOW',
+        title:'Collections and overdue maintenance',
+        summary:finance.overdueCount>0
+          ? `${finance.overdueCount} overdue invoices · ${finance.overdueOver30Days} older than 30 days`
+          : 'No overdue maintenance invoices in current society data.',
+        prompt:'Show overdue maintenance and collection trend',
+        sources:['MaintenanceInvoice','Payment'],
+        metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collectionChangePercent:finance.collectionChangePercent},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.HELPDESK_REVIEW)){
+      const helpdesk=await this.operations.operationsSummary(societyId);
+      cards.push({
+        id:'helpdesk-sla',domain:'HELPDESK',
+        severity:helpdesk.breachedCount>0?'HIGH':helpdesk.unassignedCount>0?'MEDIUM':'LOW',
+        title:'Helpdesk SLA attention',
+        summary:helpdesk.breachedCount>0
+          ? `${helpdesk.breachedCount} breached · ${helpdesk.unassignedCount} unassigned`
+          : `${helpdesk.openCount} open · ${helpdesk.unassignedCount} unassigned`,
+        prompt:'Show helpdesk SLA breaches and unassigned tickets',
+        sources:['HelpdeskTicket'],
+        metrics:{openCount:helpdesk.openCount,breachedCount:helpdesk.breachedCount,unassignedCount:helpdesk.unassignedCount},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.AUDIT_READ)){
+      const security=await this.securitySummary(societyId);
+      const total=security.byType.reduce((sum,item)=>sum+Number(item.count),0);
+      cards.push({
+        id:'security-events',domain:'SECURITY',
+        severity:total>20?'HIGH':total>0?'MEDIUM':'LOW',
+        title:'Security events',
+        summary:total>0?`${total} privacy-minimal security events in the last 30 days`:'No security events recorded in the last 30 days.',
+        prompt:'Summarize recent security incidents and session events',
+        sources:['SecurityEvent'],
+        metrics:{eventCount30d:total},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.FACILITIES_READ)){
+      const facilities=await this.facilitiesSummary(societyId);
+      cards.push({
+        id:'facilities-risk',domain:'FACILITIES',
+        severity:facilities.overdueWorkOrders>0?'HIGH':facilities.maintenanceDue30d>0?'MEDIUM':'LOW',
+        title:'Facility maintenance',
+        summary:`${facilities.openWorkOrders} open work orders · ${facilities.overdueWorkOrders} overdue · ${facilities.maintenanceDue30d} plans due in 30 days`,
+        prompt:'Show facility work orders, overdue maintenance and AMCs',
+        sources:['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],
+        metrics:{openWorkOrders:facilities.openWorkOrders,overdueWorkOrders:facilities.overdueWorkOrders,maintenanceDue30d:facilities.maintenanceDue30d},
+      });
+    }
+
+    return {cards,grounded:true,mutationPerformed:false};
+  }
+
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
     const text=sourceText.trim();
     if(text.length<5||text.length>2000) throw new BadRequestException('Complaint text must be between 5 and 2000 characters');
