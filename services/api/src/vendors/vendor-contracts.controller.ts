@@ -33,6 +33,8 @@ export class VendorContractsController{
  constructor(private readonly contracts:VendorContractsService){}
  @Get() @RequiresPermissions(AppPermission.SOCIETY_VENDORS_READ)
  list(@CurrentTenant() societyId:string){return this.contracts.listContracts(societyId);}
+ @Get(':contractId/history') @RequiresPermissions(AppPermission.SOCIETY_VENDORS_READ)
+ history(@CurrentTenant() societyId:string,@Param('contractId',ParseUUIDPipe) contractId:string){return this.contracts.history(societyId,contractId);}
  @Post() @RequiresPermissions(AppPermission.SOCIETY_VENDORS_MANAGE)
  create(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateVendorContractDto){return this.contracts.createContract(societyId,this.user(userId),dto);}
  @Patch(':contractId/status') @RequiresPermissions(AppPermission.SOCIETY_VENDORS_MANAGE)
