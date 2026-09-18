@@ -33,7 +33,6 @@ const _demoFeatures = <String>{
   'MAINTENANCE_BILLING',
   'PAYMENTS',
   'AMENITIES',
-  'AI_ASSISTANT',
 };
 
 void main() {
