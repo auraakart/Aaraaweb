@@ -1,7 +1,7 @@
 # Aaraagate V4.4 — Production Reliability
 
 Date: 2026-09-18
-Status: Repository closeout in progress
+Status: Repository complete; hosted production evidence pending
 Baseline: V4.3 complete on `develop`
 
 ## Goal
@@ -158,6 +158,6 @@ Aaraagate must not claim production-live observability merely because the reposi
 
 ## V4.4 repository closeout
 
-V4.4 code/repository reliability work is complete once this closeout branch passes the standard exact-head gates. The milestone has hardened rate limiting, durable push delivery, payment webhook replay, booking retry/revocation, scheduled-work idempotency, object-scope regression coverage, backup/restore evidence and production-operability contracts.
+V4.4 code/repository reliability work is complete on `develop` after the closeout branch passed the standard exact-head gates. The milestone has hardened rate limiting, durable push delivery, payment webhook replay, booking retry/revocation, scheduled-work idempotency, object-scope regression coverage, backup/restore evidence and production-operability contracts.
 
 The **field/production evidence portion remains intentionally open** until hosted staging/pilot supplies the external evidence listed above. This does not block starting V4.5 development on `develop`; it does block claiming production-live readiness or completing V4.9 release acceptance.

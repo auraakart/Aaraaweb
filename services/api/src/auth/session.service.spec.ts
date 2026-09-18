@@ -93,6 +93,7 @@ describe('SessionService lifecycle security', () => {
     await expect(service.refresh('session-one', refreshToken)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.session.updateMany).toHaveBeenCalledTimes(2);
     expect(prisma.session.updateMany.mock.calls[1][0].data.revokedAt).toBeInstanceOf(Date);
+    expect(prisma.session.updateMany.mock.calls[1][0].data.revocationReason).toBe('REFRESH_REPLAY');
   });
 
   it('rejects refresh when the linked society is suspended before rotating tokens', async () => {
@@ -145,6 +146,7 @@ describe('SessionService lifecycle security', () => {
     await expect(service.refresh('session-two', refreshToken)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.session.updateMany.mock.calls[0][0].where.refreshTokenHash).toBe(hash(refreshToken));
     expect(prisma.session.updateMany.mock.calls[1][0].data.revokedAt).toBeInstanceOf(Date);
+    expect(prisma.session.updateMany.mock.calls[1][0].data.revocationReason).toBe('REFRESH_ROTATION_CONFLICT');
   });
 
   it('requires possession of the current refresh token to revoke a session', async () => {
@@ -157,5 +159,6 @@ describe('SessionService lifecycle security', () => {
     prisma.session.updateMany.mockResolvedValueOnce({ count: 1 });
     await expect(service.revoke('session-four', 'current-token')).resolves.toBeUndefined();
     expect(prisma.session.updateMany.mock.calls[0][0].data.revokedAt).toBeInstanceOf(Date);
+    expect(prisma.session.updateMany.mock.calls[0][0].data.revocationReason).toBe('LOGOUT');
   });
 });

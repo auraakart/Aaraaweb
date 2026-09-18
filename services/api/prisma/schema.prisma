@@ -634,6 +634,7 @@ model Session {
   expiresAt        DateTime
   refreshExpiresAt DateTime
   revokedAt        DateTime?
+  revocationReason String?   @db.VarChar(64)
   createdAt        DateTime  @default(now())
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   society          Society?  @relation(fields: [societyId], references: [id], onDelete: Cascade)

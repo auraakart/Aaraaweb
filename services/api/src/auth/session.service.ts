@@ -56,7 +56,7 @@ export class SessionService {
     const refreshTokenHash = hash(refreshToken);
     const used = await this.state.getJson<{ sessionId: string }>(replayKey(refreshTokenHash));
     if (used?.sessionId === sessionId) {
-      await this.revokeCompromised(sessionId);
+      await this.revokeCompromised(sessionId, 'REFRESH_REPLAY');
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
@@ -78,7 +78,7 @@ export class SessionService {
     const replayTtlSeconds = Math.max(1, Math.ceil((session.refreshExpiresAt.getTime() - Date.now()) / 1000));
     const claimed = await this.state.setIfAbsentJson(replayKey(refreshTokenHash), { sessionId }, replayTtlSeconds);
     if (!claimed) {
-      await this.revokeCompromised(sessionId);
+      await this.revokeCompromised(sessionId, 'REFRESH_ROTATION_CONFLICT');
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
@@ -90,7 +90,7 @@ export class SessionService {
       data: { accessTokenHash: hash(accessToken), refreshTokenHash: hash(nextRefresh), expiresAt },
     });
     if (rotated.count !== 1) {
-      await this.revokeCompromised(sessionId);
+      await this.revokeCompromised(sessionId, 'REFRESH_ROTATION_CONFLICT');
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
@@ -100,12 +100,15 @@ export class SessionService {
   async revoke(sessionId: string, refreshToken: string) {
     const result = await this.prisma.session.updateMany({
       where: { id: sessionId, revokedAt: null, refreshTokenHash: hash(refreshToken) },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), revocationReason: 'LOGOUT' },
     });
     if (result.count !== 1) throw new UnauthorizedException('Session is invalid or expired');
   }
 
-  private async revokeCompromised(sessionId: string) {
-    await this.prisma.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: new Date() } });
+  private async revokeCompromised(sessionId: string, reason: 'REFRESH_REPLAY' | 'REFRESH_ROTATION_CONFLICT') {
+    await this.prisma.session.updateMany({
+      where: { id: sessionId, revokedAt: null },
+      data: { revokedAt: new Date(), revocationReason: reason },
+    });
   }
 }
