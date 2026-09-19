@@ -71,4 +71,3 @@ const grid={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(360px,1fr
 const row={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap' as const}
 const item={display:'flex',justifyContent:'space-between',gap:12,padding:'13px 0',borderBottom:'1px solid #eef2f7'}
 const actions={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap' as const,justifyContent:'flex-end'}
-const stats={display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}
