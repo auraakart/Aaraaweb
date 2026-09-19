@@ -45,7 +45,6 @@ export function helpdeskSlaStateForSnapshotSql(ticket: {
 }) {
   return Prisma.sql`
     CASE
-      WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
       WHEN ${ticket.status} IN ('RESOLVED','CLOSED')
         AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
         THEN CASE
@@ -58,7 +57,9 @@ export function helpdeskSlaStateForSnapshotSql(ticket: {
         AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
         AND CURRENT_TIMESTAMP > ${ticket.resolutionDueAt}::timestamptz THEN 'RESOLUTION_BREACHED'
       WHEN ${ticket.firstRespondedAt}::timestamptz IS NULL
+        AND ${ticket.firstResponseDueAt}::timestamptz IS NOT NULL
         AND CURRENT_TIMESTAMP > ${ticket.firstResponseDueAt}::timestamptz THEN 'RESPONSE_BREACHED'
+      WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
       ELSE 'ON_TRACK'
     END::text
   `;
