@@ -12,34 +12,40 @@ class HomeScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.showGate,
+    required this.showStaff,
     required this.showServices,
     required this.showHelpdesk,
     required this.showNotices,
     required this.showBilling,
     required this.showAmenities,
     required this.showSos,
-    required this.onOpenGate,
+    required this.showAi,
+    required this.onOpenStaff,
     required this.onOpenServices,
     required this.onOpenHelpdesk,
     required this.onOpenNotices,
     required this.onOpenBilling,
     required this.onOpenAmenities,
+    required this.onOpenAi,
   });
 
   final ResidentDataController controller;
   final bool showGate;
+  final bool showStaff;
   final bool showServices;
   final bool showHelpdesk;
   final bool showNotices;
   final bool showBilling;
   final bool showAmenities;
   final bool showSos;
-  final VoidCallback onOpenGate;
+  final bool showAi;
+  final VoidCallback onOpenStaff;
   final VoidCallback onOpenServices;
   final VoidCallback onOpenHelpdesk;
   final VoidCallback onOpenNotices;
   final VoidCallback onOpenBilling;
   final VoidCallback onOpenAmenities;
+  final VoidCallback onOpenAi;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +53,7 @@ class HomeScreen extends StatelessWidget {
     final pending = controller.firstPendingAccess;
     final household = controller.activeHousehold;
     final householdName = household?['displayName']?.toString() ?? 'Your home';
-    final hasQuickActions = showGate || showServices || showAmenities || showHelpdesk || showSos;
+    final hasQuickActions = showStaff || showBilling || showAmenities || showHelpdesk;
     final highlights = ResidentHomeHighlights.build(
       invoices: showBilling ? controller.maintenanceInvoices : const [],
       bookings: showServices ? controller.bookings : const [],
@@ -67,6 +73,10 @@ class HomeScreen extends StatelessWidget {
             AaraagateTokens.space8,
           ),
           children: [
+            if (showAi) ...[
+              _AssistantEntryCard(onTap: onOpenAi),
+              const SizedBox(height: AaraagateTokens.space4),
+            ],
             _HomeHero(
               householdName: householdName,
               noticeCount: showNotices ? controller.notices.length : 0,
@@ -136,22 +146,22 @@ class HomeScreen extends StatelessWidget {
                     spacing: AaraagateTokens.space3,
                     runSpacing: AaraagateTokens.space3,
                     children: [
-                      if (showGate)
+                      if (showStaff)
                         SizedBox(
                           width: itemWidth,
                           child: _QuickAction(
-                            icon: Icons.person_add_alt_1_rounded,
-                            label: 'Invite guest',
-                            onTap: onOpenGate,
+                            icon: Icons.badge_outlined,
+                            label: 'Staff',
+                            onTap: onOpenStaff,
                           ),
                         ),
-                      if (showServices)
+                      if (showBilling)
                         SizedBox(
                           width: itemWidth,
                           child: _QuickAction(
-                            icon: Icons.home_repair_service_rounded,
-                            label: 'Book service',
-                            onTap: onOpenServices,
+                            icon: Icons.receipt_long_outlined,
+                            label: 'Billing',
+                            onTap: onOpenBilling,
                           ),
                         ),
                       if (showAmenities)
@@ -172,21 +182,19 @@ class HomeScreen extends StatelessWidget {
                             onTap: onOpenHelpdesk,
                           ),
                         ),
-                      if (showSos)
-                        SizedBox(
-                          width: itemWidth,
-                          child: _QuickAction(
-                            icon: Icons.sos_rounded,
-                            label: 'SOS',
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => SosScreen(controller: controller)),
-                            ),
-                            urgent: true,
-                          ),
-                        ),
                     ],
                   );
                 },
+              ),
+            ],
+            if (showSos) ...[
+              const SizedBox(height: AaraagateTokens.space4),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => SosScreen(controller: controller)),
+                ),
+                icon: const Icon(Icons.sos_rounded),
+                label: const Text('Emergency SOS'),
               ),
             ],
             if (highlights.isNotEmpty) ...[
@@ -283,6 +291,65 @@ class HomeScreen extends StatelessWidget {
       default:
         return Icons.person_outline_rounded;
     }
+  }
+}
+
+class _AssistantEntryCard extends StatelessWidget {
+  const _AssistantEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: 'Open Aaraagate Assistant',
+      elevated: true,
+      color: scheme.primaryContainer.withOpacity(.34),
+      padding: const EdgeInsets.all(AaraagateTokens.space4),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+            ),
+            child: Icon(Icons.auto_awesome_rounded, color: scheme.onPrimary),
+          ),
+          const SizedBox(width: AaraagateTokens.space4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AARAAGATE ASSISTANT',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .7,
+                  ),
+                ),
+                const SizedBox(height: AaraagateTokens.space1),
+                Text('Ask Aaraagate Assistant', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 2),
+                Text(
+                  'Dues, visitors, staff, amenities and society updates.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AaraagateTokens.space2),
+          Icon(Icons.arrow_forward_rounded, color: scheme.primary),
+        ],
+      ),
+    );
   }
 }
 
@@ -498,20 +565,18 @@ class _QuickAction extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.urgent = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool urgent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final background = urgent ? scheme.errorContainer.withOpacity(.55) : scheme.surfaceContainerLow;
-    final foreground = urgent ? scheme.error : scheme.primary;
+    final background = scheme.surfaceContainerLow;
+    final foreground = scheme.primary;
 
     return PremiumSurface(
       onTap: onTap,
