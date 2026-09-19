@@ -11,23 +11,7 @@ class FakeApiClient extends ApiClient {
     posts.add(path);
     if(path.endsWith('/assistant/query')){
       return {'intent':'RESIDENT_STATUS','answer':'Grounded status for the selected property only.','facts':{'tickets':[]},'sources':['HelpdeskTicket'],'grounded':true,'mutationPerformed':false};
-      testWidgets('demo assistant answers locally and never calls the API',(tester) async {
-    final api=FakeApiClient();
-    await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(apiClient:api,unitId:'demo-unit-1',demoMode:true)));
-    expect(find.textContaining('safe AI showcase'),findsOneWidget);
-    await tester.tap(find.text('What is my maintenance due?'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('₹4,250'),findsWidgets);
-    expect(api.posts,isEmpty);
-
-    await tester.enterText(find.byType(TextField),'Urgent water leak near kitchen');
-    await tester.tap(find.text('Complaint draft'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Demo safeguard'),findsOneWidget);
-    expect(find.text('Confirm complaint'),findsOneWidget);
-    expect(api.posts,isEmpty);
-  });
-}
+    }
     if(path.endsWith('/assistant/helpdesk-from-text')){
       return {'id':'11111111-1111-4111-8111-111111111111','status':'PROPOSED','requiresConfirmation':true};
     }
@@ -59,5 +43,22 @@ void main(){
     await tester.tap(find.text('Confirm complaint'));
     await tester.pumpAndSettle();
     expect(api.posts.where((path)=>path.endsWith('/confirm')).length,1);
+  });
+
+  testWidgets('demo assistant answers locally and never calls the API',(tester) async {
+    final api=FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(apiClient:api,unitId:'demo-unit-1',demoMode:true)));
+    expect(find.textContaining('safe AI showcase'),findsOneWidget);
+    await tester.tap(find.text('What is my maintenance due?'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('₹4,250'),findsWidgets);
+    expect(api.posts,isEmpty);
+
+    await tester.enterText(find.byType(TextField),'Urgent water leak near kitchen');
+    await tester.tap(find.text('Complaint draft'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Demo safeguard'),findsOneWidget);
+    expect(find.text('Confirm complaint'),findsOneWidget);
+    expect(api.posts,isEmpty);
   });
 }
