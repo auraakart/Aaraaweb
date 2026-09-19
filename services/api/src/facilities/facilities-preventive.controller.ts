@@ -48,6 +48,48 @@ export class FacilitiesPreventiveController{
     return rows[0];
   }
 
+  @Get(':id/evidence')
+  @RequiresPermissions(AppPermission.FACILITIES_READ)
+  async evidence(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){
+    const plans=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT p.*,a."code" AS "assetCode",a."name" AS "assetName",assignee."name" AS "assignedUserName"
+      FROM "FacilityMaintenancePlan" p
+      JOIN "FacilityAsset" a ON a."id"=p."assetId" AND a."societyId"=p."societyId"
+      LEFT JOIN "User" assignee ON assignee."id"=p."assignedUserId"
+      WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
+      LIMIT 1
+    `);
+    if(!plans.length)throw new BadRequestException('Maintenance plan not found');
+    const [workOrders,contracts,evidence]=await Promise.all([
+      this.prisma.$queryRaw(Prisma.sql`
+        SELECT w."id",w."title",w."priority",w."status",w."scheduledAt",w."dueAt",w."completedAt",w."completionNote",u."name" AS "assignedUserName"
+        FROM "FacilityWorkOrder" w
+        LEFT JOIN "User" u ON u."id"=w."assignedUserId"
+        WHERE w."societyId"=${societyId}::uuid AND w."maintenancePlanId"=${id}::uuid
+        ORDER BY w."scheduledAt" DESC NULLS LAST,w."createdAt" DESC
+      `),
+      this.prisma.$queryRaw(Prisma.sql`
+        SELECT c."id",c."title",c."contractType",c."status",c."startsAt",c."endsAt",p."businessName" AS "providerName"
+        FROM "FacilityServiceContract" c
+        JOIN "ServiceProvider" p ON p."id"=c."providerId"
+        WHERE c."societyId"=${societyId}::uuid AND c."maintenancePlanId"=${id}::uuid
+        ORDER BY c."endsAt" ASC
+      `),
+      this.prisma.$queryRaw(Prisma.sql`
+        SELECT e.*
+        FROM "FacilityEvidenceReference" e
+        WHERE e."societyId"=${societyId}::uuid
+          AND (
+            e."assetId"=(SELECT "assetId" FROM "FacilityMaintenancePlan" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid)
+            OR e."workOrderId" IN (SELECT "id" FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid AND "maintenancePlanId"=${id}::uuid)
+            OR e."serviceContractId" IN (SELECT "id" FROM "FacilityServiceContract" WHERE "societyId"=${societyId}::uuid AND "maintenancePlanId"=${id}::uuid)
+          )
+        ORDER BY e."createdAt" DESC
+      `)
+    ]);
+    return {plan:plans[0],workOrders,contracts,evidence,boundary:'Operational maintenance evidence only; contract references do not establish legal, warranty or AMC validity.'};
+  }
+
   @Post(':id/active')
   @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   async setActive(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PlanActiveDto){
