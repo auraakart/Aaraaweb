@@ -69,7 +69,11 @@ export class HelpdeskSlaService {
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
         CASE
           WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-            THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
+            THEN CASE
+              WHEN COALESCE(ht."resolvedAt", ht."closedAt") IS NULL THEN 'UNTRACKED'
+              WHEN COALESCE(ht."resolvedAt", ht."closedAt") <= ht."resolutionDueAt" THEN 'MET'
+              ELSE 'RESOLUTION_BREACHED'
+            END
           WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
           WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
           WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
@@ -106,7 +110,11 @@ export class HelpdeskSlaService {
              ht."escalationLevel",ht."escalatedToId",ht."resolutionCode",ht."closureCode",
              CASE
                WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-                 THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
+                 THEN CASE
+                   WHEN COALESCE(ht."resolvedAt", ht."closedAt") IS NULL THEN 'UNTRACKED'
+                   WHEN COALESCE(ht."resolvedAt", ht."closedAt") <= ht."resolutionDueAt" THEN 'MET'
+                   ELSE 'RESOLUTION_BREACHED'
+                 END
                WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
                     AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
                WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL
@@ -204,8 +212,8 @@ export class HelpdeskSlaService {
 
   async evaluate(societyId: string, actorUserId: string, ticketId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null; resolvedAt: Date | null }>>(Prisma.sql`
-        SELECT "id","status","slaState","firstRespondedAt","firstResponseDueAt","resolutionDueAt","resolvedAt"
+      const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null; resolvedAt: Date | null; closedAt: Date | null }>>(Prisma.sql`
+        SELECT "id","status","slaState","firstRespondedAt","firstResponseDueAt","resolutionDueAt","resolvedAt","closedAt"
         FROM "HelpdeskTicket" WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
       `);
       if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
@@ -213,7 +221,11 @@ export class HelpdeskSlaService {
         SELECT CASE
           WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
           WHEN ${ticket.status} IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
-            THEN CASE WHEN ${ticket.resolvedAt}::timestamptz <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
+            THEN CASE
+              WHEN COALESCE(${ticket.resolvedAt}::timestamptz, ${ticket.closedAt}::timestamptz) IS NULL THEN 'UNTRACKED'
+              WHEN COALESCE(${ticket.resolvedAt}::timestamptz, ${ticket.closedAt}::timestamptz) <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET'
+              ELSE 'RESOLUTION_BREACHED'
+            END
           WHEN ${ticket.status} NOT IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL AND CURRENT_TIMESTAMP > ${ticket.resolutionDueAt}::timestamptz THEN 'RESOLUTION_BREACHED'
           WHEN ${ticket.firstRespondedAt}::timestamptz IS NULL AND CURRENT_TIMESTAMP > ${ticket.firstResponseDueAt}::timestamptz THEN 'RESPONSE_BREACHED'
           ELSE 'ON_TRACK'
