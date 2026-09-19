@@ -96,6 +96,46 @@ export class PrivacyService {
     });
   }
 
+  operatorContext(societyId: string) {
+    return Promise.all([
+      this.prisma.$queryRaw<Array<{ id: string; name: string; phone: string; relationship: string }>>(Prisma.sql`
+        SELECT DISTINCT u."id", u."name", u."phone",
+          CASE
+            WHEN EXISTS (
+              SELECT 1 FROM "UnitOwnership" own
+              WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
+            ) THEN 'OWNER'
+            WHEN EXISTS (
+              SELECT 1 FROM "UnitOccupancy" occ
+              WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true AND occ."relation"='TENANT'
+            ) THEN 'TENANT'
+            ELSE 'MEMBER'
+          END AS "relationship"
+        FROM "User" u
+        WHERE EXISTS (
+          SELECT 1 FROM "SocietyMembership" sm
+          WHERE sm."societyId"=${societyId}::uuid AND sm."userId"=u."id" AND sm."active"=true
+        )
+        OR EXISTS (
+          SELECT 1 FROM "UnitOwnership" own
+          WHERE own."societyId"=${societyId}::uuid AND own."userId"=u."id" AND own."active"=true
+        )
+        OR EXISTS (
+          SELECT 1 FROM "UnitOccupancy" occ
+          WHERE occ."societyId"=${societyId}::uuid AND occ."userId"=u."id" AND occ."active"=true
+        )
+        ORDER BY u."name" ASC
+      `),
+      this.prisma.$queryRaw<Array<{ id: string; name: string; phone: string }>>(Prisma.sql`
+        SELECT DISTINCT u."id", u."name", u."phone"
+        FROM "User" u
+        JOIN "SocietyMembership" sm ON sm."userId"=u."id"
+        WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
+        ORDER BY u."name" ASC
+      `)
+    ]).then(([subjects, assignees]) => ({ subjects, assignees }));
+  }
+
   listCases(societyId: string) {
     return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT pc.*, subject."name" AS "subjectName", subject."phone" AS "subjectPhone",
