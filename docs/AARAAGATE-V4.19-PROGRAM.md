@@ -42,7 +42,7 @@ The repository already contains auditable privacy-request cases, retention/legal
 - show grievance/contact context where configured;
 - preserve authenticated self-only case access and server-authoritative export rules.
 
-### V4.19.4 — Evidence reconciliation — complete
+### V4.19.4 — Evidence reconciliation — complete — complete
 
 - full regression and CI;
 - requirements traceability and roadmap reconciliation;
