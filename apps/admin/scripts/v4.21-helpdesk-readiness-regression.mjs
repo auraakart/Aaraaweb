@@ -4,17 +4,18 @@ const page=fs.readFileSync(new URL('../app/helpdesk/page.tsx',import.meta.url),'
 
 for(const token of [
   '/readiness',
+  'ReadinessPanel',
   'Service-recovery readiness',
-  'Ownership',
-  'First response',
-  'SLA state',
-  'Recovery priority',
-  'Response / resolution target',
-  'Readiness blockers',
-  'Next actions',
+  "id:'ownership',label:'Ownership'",
+  "id:'first-response',label:'First response'",
+  "id:'sla-state',label:'SLA state'",
+  "id:'recovery-priority',label:'Recovery priority'",
+  "id:'response-resolution-target',label:'Response / resolution target'",
+  'blockers={readiness?.blockers',
+  'nextActions={readiness?.nextActions',
 ]){
   if(!page.includes(token)){
-    console.error(`Missing V4.21.2 helpdesk readiness token: ${token}`)
+    console.error(`Missing V4.21.2 helpdesk readiness contract: ${token}`)
     process.exit(1)
   }
 }
