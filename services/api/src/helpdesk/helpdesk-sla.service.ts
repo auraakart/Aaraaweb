@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { HELPDESK_TICKET_SLA_STATE_SQL, HelpdeskSlaState, helpdeskSlaStateForSnapshotSql } from './helpdesk-sla-state';
 
 type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-type SlaState = 'UNTRACKED' | 'ON_TRACK' | 'RESPONSE_BREACHED' | 'RESOLUTION_BREACHED' | 'MET';
+type SlaState = HelpdeskSlaState;
 
 @Injectable()
 export class HelpdeskSlaService {
@@ -67,28 +68,16 @@ export class HelpdeskSlaService {
   listQueue(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
-        CASE
-          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-            THEN CASE
-              WHEN COALESCE(ht."resolvedAt", ht."closedAt") IS NULL THEN 'UNTRACKED'
-              WHEN COALESCE(ht."resolvedAt", ht."closedAt") <= ht."resolutionDueAt" THEN 'MET'
-              ELSE 'RESOLUTION_BREACHED'
-            END
-          WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
-          WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
-          WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
-          ELSE 'ON_TRACK'
-        END AS "computedSlaState"
+${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
       JOIN "Building" b ON b."id"=u."buildingId"
       JOIN "User" creator ON creator."id"=ht."createdById"
       WHERE ht."societyId"=${societyId}::uuid
       ORDER BY
-        CASE
-          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND ht."resolvedAt" > ht."resolutionDueAt" THEN 0
-          WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 0
-          WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 1
+        CASE "computedSlaState"
+          WHEN 'RESOLUTION_BREACHED' THEN 0
+          WHEN 'RESPONSE_BREACHED' THEN 1
           ELSE 2
         END,
         ht."resolutionDueAt" NULLS LAST,
@@ -108,20 +97,7 @@ export class HelpdeskSlaService {
       SELECT ht."id",ht."priority",ht."status",ht."assignedToId",ht."firstRespondedAt",
              ht."firstResponseDueAt",ht."resolutionDueAt",ht."resolvedAt",ht."slaState",
              ht."escalationLevel",ht."escalatedToId",ht."resolutionCode",ht."closureCode",
-             CASE
-               WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-                 THEN CASE
-                   WHEN COALESCE(ht."resolvedAt", ht."closedAt") IS NULL THEN 'UNTRACKED'
-                   WHEN COALESCE(ht."resolvedAt", ht."closedAt") <= ht."resolutionDueAt" THEN 'MET'
-                   ELSE 'RESOLUTION_BREACHED'
-                 END
-               WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-                    AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
-               WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL
-                    AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
-               WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
-               ELSE 'ON_TRACK'
-             END AS "computedSlaState"
+             ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
       WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
       LIMIT 1
@@ -218,18 +194,7 @@ export class HelpdeskSlaService {
       `);
       if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
       const [calc] = await tx.$queryRaw<Array<{ state: SlaState }>>(Prisma.sql`
-        SELECT CASE
-          WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
-          WHEN ${ticket.status} IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
-            THEN CASE
-              WHEN COALESCE(${ticket.resolvedAt}::timestamptz, ${ticket.closedAt}::timestamptz) IS NULL THEN 'UNTRACKED'
-              WHEN COALESCE(${ticket.resolvedAt}::timestamptz, ${ticket.closedAt}::timestamptz) <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET'
-              ELSE 'RESOLUTION_BREACHED'
-            END
-          WHEN ${ticket.status} NOT IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL AND CURRENT_TIMESTAMP > ${ticket.resolutionDueAt}::timestamptz THEN 'RESOLUTION_BREACHED'
-          WHEN ${ticket.firstRespondedAt}::timestamptz IS NULL AND CURRENT_TIMESTAMP > ${ticket.firstResponseDueAt}::timestamptz THEN 'RESPONSE_BREACHED'
-          ELSE 'ON_TRACK'
-        END::text AS state
+        SELECT ${helpdeskSlaStateForSnapshotSql(ticket)} AS state
       `);
       if (calc.state === ticket.slaState) return { ticketId, slaState: ticket.slaState, changed: false };
       await tx.$executeRaw(Prisma.sql`
