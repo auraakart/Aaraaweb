@@ -109,6 +109,8 @@ V2.1 exit criteria:
 - Inspections, evidence, history and cost.
 - Critical maintenance escalation.
 
+Repository facilities-depth closure through V4.20 now includes typed assignee/operator controls, append-only work-order history, asset/work-order readiness and critical prioritization, service-contract ↔ preventive-plan linkage/expiry context, and preventive-plan → generated-work/contract/evidence drill-down. Real facility-team UAT, physical inspection outcomes and provider/AMC legal validity remain external.
+
 ### V2.2B — Society vendors / procurement
 Separate from the consumer External Services marketplace:
 - vendor master;

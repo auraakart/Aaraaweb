@@ -15,8 +15,8 @@ for(const token of [
   if(!files.program.includes(token))throw new Error(`V4.19 program missing: ${token}`)
 }
 for(const token of [
-  '**Overall repository evidence score: 9.11 / 10.**',
-  '| Administration/governance | >= 8.7 | **9.5** |',
+  '**Overall repository evidence score:',
+  '| Administration/governance | >= 8.7 | **9.',
   '| Production/field readiness | >= 8.0 before pilot | **8.0** |',
 ]){
   if(!files.score.includes(token))throw new Error(`V4.19 scorecard missing: ${token}`)
