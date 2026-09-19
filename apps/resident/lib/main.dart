@@ -34,6 +34,7 @@ const _demoFeatures = <String>{
   'MAINTENANCE_BILLING',
   'PAYMENTS',
   'AMENITIES',
+  'AI_ASSISTANT',
 };
 
 void main() {
@@ -252,7 +253,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           add(CommunityScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups_rounded), label: 'Community'));
         }
         if (showAi) {
-          add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));
+          add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));
         }
         final profileIndex = pages.length;
         add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
