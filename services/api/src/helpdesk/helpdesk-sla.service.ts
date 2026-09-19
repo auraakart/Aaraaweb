@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { HELPDESK_TICKET_SLA_STATE_SQL, HelpdeskSlaState, helpdeskSlaStateForSnapshotSql } from './helpdesk-sla-state';
+import { HELPDESK_TICKET_SLA_STATE_SQL, helpdeskSlaStateForSnapshotSql } from './helpdesk-sla-state';
+import type { HelpdeskSlaState } from './helpdesk-sla-state';
 
 type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 type SlaState = HelpdeskSlaState;
