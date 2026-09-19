@@ -2,6 +2,8 @@
 
 ## Purpose
 
+The dedicated [V4.22 Admin consolidation milestone](AARAAGATE-V4.22-PROGRAM.md) defines the shared component contracts and ordered module migrations. V4.22.0 implements the [shared Admin foundation and route inventory](ADMIN-DESIGN-SYSTEM.md); module migrations remain pending. This document remains the brand and visual-language baseline.
+
 Aaraagate adopts the colour language and visual energy of the supplied AaraaPlatforms logo while remaining an independently branded product. **Do not render the name “AaraaPlatforms” anywhere in the product UI.** The corporate logo is a palette and visual-language reference only.
 
 ## Product personality
