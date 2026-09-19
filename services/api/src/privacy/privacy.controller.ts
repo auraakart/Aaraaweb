@@ -44,6 +44,12 @@ class UpdatePrivacyRetentionReviewDto {
 export class PrivacyController {
   constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
 
+  @Get('operator-context')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  operatorContext(@CurrentTenant() societyId: string) {
+    return this.privacy.operatorContext(societyId);
+  }
+
   @Get('cases')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
   listCases(@CurrentTenant() societyId: string) {
@@ -58,6 +64,18 @@ export class PrivacyController {
     @CurrentUser() userId?: string,
   ) {
     return this.privacy.createCase(societyId, this.requireUser(userId), dto);
+  }
+
+  @Get('cases/:caseId/readiness')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  async readiness(@Param('caseId', ParseUUIDPipe) caseId: string, @CurrentTenant() societyId: string) {
+    const readiness = await this.privacy.caseReadiness(societyId, caseId);
+    if (readiness.requestType !== 'ERASURE') return readiness;
+    const erasure = await this.subjectData.erasurePlan(societyId, caseId);
+    return {
+      ...readiness,
+      erasure: { executable: erasure.executable, blockers: erasure.blockers },
+    };
   }
 
   @Get('cases/:caseId/erasure-plan')

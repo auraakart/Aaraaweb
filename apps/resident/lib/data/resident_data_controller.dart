@@ -30,6 +30,7 @@ class ResidentDataController extends ChangeNotifier {
   String? servicesError;
   String? workforceError;
   String? billingError;
+  String? helpdeskError;
   List<Map<String, dynamic>> households = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> notices = const [];
@@ -40,6 +41,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
+  List<Map<String, dynamic>> helpdeskTickets = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
   Map<String, dynamic>? latestNotificationEvent;
@@ -91,6 +93,7 @@ class ResidentDataController extends ChangeNotifier {
     servicesError = null;
     workforceError = null;
     billingError = null;
+    helpdeskError = null;
     notifyListeners();
 
     await _loadEntitlements();
@@ -129,6 +132,11 @@ class ResidentDataController extends ChangeNotifier {
         tasks.add(_loadMaintenanceInvoices());
       } else {
         maintenanceInvoices = const [];
+      }
+      if (hasFeature('HELPDESK')) {
+        tasks.add(_loadHelpdesk());
+      } else {
+        helpdeskTickets = const [];
       }
     } else {
       _clearUnitScopedData();
@@ -180,6 +188,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceLeaves = const [];
     workforceRatings = const [];
     maintenanceInvoices = const [];
+    helpdeskTickets = const [];
     latestAccessEvent = null;
     lastIssuedVisitorPass = null;
   }
@@ -379,6 +388,19 @@ class ResidentDataController extends ChangeNotifier {
       workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
     } catch (e) {
       _capture(e, (message) => workforceError = message);
+    }
+  }
+
+  Future<void> _loadHelpdesk() async {
+    if (!hasActiveProperty || !hasFeature('HELPDESK')) {
+      helpdeskTickets = const [];
+      return;
+    }
+    try {
+      final rows = await repository.helpdeskTickets();
+      helpdeskTickets = _filterByUnit(rows, (item) => item['unitId']);
+    } catch (e) {
+      _capture(e, (message) => helpdeskError = message);
     }
   }
 

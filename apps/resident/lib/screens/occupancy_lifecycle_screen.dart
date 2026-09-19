@@ -20,6 +20,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
   List<Map<String, dynamic>> requests = const [];
   List<Map<String, dynamic>> occupancies = const [];
   Set<String> ownedUnitIds = const {};
+  Map<String, String> unitLabels = const {};
 
   @override
   void initState() {
@@ -38,11 +39,27 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
       final context = Map<String, dynamic>.from(values[1] as Map);
       final rawOccupancies = context['occupancies'] as List? ?? const [];
       final rawOwned = context['ownedUnitIds'] as List? ?? const [];
+      final rawOwnedUnits = context['ownedUnits'] as List? ?? const [];
+      final labels = <String, String>{};
+      for (final raw in rawOccupancies) {
+        final occupancy = Map<String, dynamic>.from(raw as Map);
+        final unit = occupancy['unit'];
+        if (unit is Map) {
+          final mapped = Map<String, dynamic>.from(unit);
+          labels[occupancy['unitId'].toString()] = _unitLabel(mapped);
+        }
+      }
+      for (final raw in rawOwnedUnits) {
+        final ownership = Map<String, dynamic>.from(raw as Map);
+        final unit = ownership['unit'];
+        if (unit is Map) labels[ownership['unitId'].toString()] = _unitLabel(Map<String, dynamic>.from(unit));
+      }
       if (!mounted) return;
       setState(() {
         requests = rawRequests.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         occupancies = rawOccupancies.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         ownedUnitIds = rawOwned.map((e) => e.toString()).toSet();
+        unitLabels = labels;
       });
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
@@ -107,7 +124,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
         context: context,
         showDragHandle: true,
         isScrollControlled: true,
-        builder: (_) => _RequestDetail(detail: detail),
+        builder: (_) => _RequestDetail(detail: detail, unitLabel: unitLabels[detail['unitId']?.toString()]),
       );
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
@@ -164,7 +181,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space2),
                       leading: const Icon(Icons.logout_rounded),
                       title: const Text('Request move-out'),
-                      subtitle: Text('${myOccupancies[i]['relation']?.toString().replaceAll('_', ' ') ?? 'Resident'} · occupancy ${myOccupancies[i]['id']}'),
+                      subtitle: Text('${myOccupancies[i]['relation']?.toString().replaceAll('_', ' ') ?? 'Resident'} · ${unitLabels[myOccupancies[i]['unitId']?.toString()] ?? 'Selected property'}'),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       enabled: !submitting,
                       onTap: () => _requestMoveOut(myOccupancies[i]),
@@ -201,7 +218,7 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
                 const AppStateCard(icon: Icons.move_up_outlined, message: 'No move requests yet.')
               else
                 for (final request in requests) ...[
-                  _MoveRequestCard(request: request, onTap: () => _openRequest(request['id'].toString())),
+                  _MoveRequestCard(request: request, propertyLabel: unitLabels[request['unitId']?.toString()], onTap: () => _openRequest(request['id'].toString())),
                   const SizedBox(height: AaraagateTokens.space3),
                 ],
             ],
@@ -211,6 +228,15 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
     );
   }
 
+  String _unitLabel(Map<String, dynamic> unit) {
+    final buildingRaw = unit['building'];
+    final building = buildingRaw is Map ? Map<String, dynamic>.from(buildingRaw) : <String, dynamic>{};
+    final buildingName = building['name']?.toString().trim();
+    final number = unit['number']?.toString().trim();
+    if (buildingName != null && buildingName.isNotEmpty && number != null && number.isNotEmpty) return '$buildingName · $number';
+    if (number != null && number.isNotEmpty) return 'Unit $number';
+    return 'Property';
+  }
   Future<DateTime?> _pickEffectiveAt(String title) async {
     final now = DateTime.now();
     final date = await showDatePicker(context: context, firstDate: DateTime(now.year, now.month, now.day), lastDate: DateTime(now.year + 2), initialDate: now.add(const Duration(days: 1)), helpText: title);
@@ -236,8 +262,9 @@ class _OccupancyLifecycleScreenState extends State<OccupancyLifecycleScreen> {
 }
 
 class _MoveRequestCard extends StatelessWidget {
-  const _MoveRequestCard({required this.request, required this.onTap});
+  const _MoveRequestCard({required this.request, required this.propertyLabel, required this.onTap});
   final Map<String, dynamic> request;
+  final String? propertyLabel;
   final VoidCallback onTap;
 
   @override
@@ -261,6 +288,8 @@ class _MoveRequestCard extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(kind.replaceAll('_', ' ').isEmpty ? 'Move' : kind.replaceAll('_', ' '), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: AaraagateTokens.space1),
+          if (propertyLabel != null) Text(propertyLabel!, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+          if (propertyLabel != null) const SizedBox(height: AaraagateTokens.space1),
           Text('Effective ${_formatValue(request['effectiveAt'])}', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
           const SizedBox(height: AaraagateTokens.space3),
           AaraagateStatusPill(label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '), tone: _statusTone(status)),
@@ -285,8 +314,9 @@ class _MoveRequestCard extends StatelessWidget {
 }
 
 class _RequestDetail extends StatelessWidget {
-  const _RequestDetail({required this.detail});
+  const _RequestDetail({required this.detail, required this.unitLabel});
   final Map<String, dynamic> detail;
+  final String? unitLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -294,8 +324,12 @@ class _RequestDetail extends StatelessWidget {
     final scheme = theme.colorScheme;
     final checklist = (detail['checklist'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final documents = (detail['documents'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final events = (detail['events'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final required = checklist.where((item) => item['required'] == true).toList();
     final complete = checklist.where((item) => item['completedAt'] != null).length;
+    final requiredComplete = required.where((item) => item['completedAt'] != null).length;
     final status = detail['status']?.toString() ?? '';
+    final nextAction = _nextAction(status, requiredComplete, required.length, detail['effectiveAt']);
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -311,12 +345,26 @@ class _RequestDetail extends StatelessWidget {
               const SizedBox(width: AaraagateTokens.space2),
               AaraagateStatusPill(label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '), tone: _detailTone(status)),
             ]),
+            const SizedBox(height: AaraagateTokens.space2),
+            if (unitLabel != null) Text(unitLabel!, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: AaraagateTokens.space3),
+            PremiumSurface(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.route_rounded, color: scheme.primary),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Expanded(child: Text('What happens next', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
+                ]),
+                const SizedBox(height: AaraagateTokens.space2),
+                Text(nextAction, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+              ]),
+            ),
             const SizedBox(height: AaraagateTokens.space3),
             PremiumSurface(
               child: Row(children: [
                 Icon(Icons.fact_check_outlined, color: scheme.primary),
                 const SizedBox(width: AaraagateTokens.space3),
-                Expanded(child: Text('Readiness: $complete of ${checklist.length} items complete')),
+                Expanded(child: Text('Readiness: $complete of ${checklist.length} items complete · $requiredComplete of ${required.length} required')),
               ]),
             ),
             const SizedBox(height: AaraagateTokens.space4),
@@ -343,12 +391,47 @@ class _RequestDetail extends StatelessWidget {
                   subtitle: Text(doc['verifiedAt'] == null ? 'Awaiting verification' : 'Verified'),
                 ),
             ],
+            if (events.isNotEmpty) ...[
+              const SizedBox(height: AaraagateTokens.space4),
+              const PremiumSectionHeader(title: 'Request timeline'),
+              const SizedBox(height: AaraagateTokens.space2),
+              for (final event in events.reversed)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history_rounded),
+                  title: Text(event['eventType']?.toString().replaceAll('_', ' ') ?? 'Update'),
+                  subtitle: Text(_eventSubtitle(event)),
+                ),
+            ],
           ]),
         ),
       ),
     );
   }
 
+  String _nextAction(String status, int completeRequired, int totalRequired, dynamic effectiveAt) {
+    final normalized = status.toUpperCase();
+    if (normalized == 'REQUESTED') return 'Your society team is reviewing this request. You can track checklist and document updates here.';
+    if (normalized == 'REJECTED') return 'This request was not approved. Review the society note or contact the society office before submitting a new request.';
+    if (normalized == 'CANCELLED') return 'This request is closed. Submit a new request if your move plan changes.';
+    if (normalized == 'COMPLETED') return 'The move is complete. Property access and occupancy records now reflect the completed lifecycle change.';
+    if (normalized == 'APPROVED' && completeRequired < totalRequired) return 'The request is approved, but required society handover checks are still open.';
+    if (normalized == 'APPROVED') {
+      final date = DateTime.tryParse(effectiveAt?.toString() ?? '');
+      if (date != null && date.isAfter(DateTime.now())) return 'All required checks are complete. The move will be eligible for completion on the effective date.';
+      return 'All required checks are complete and the effective time has arrived. The society team can complete the move.';
+    }
+    return 'Track society review, readiness checks, and document verification here.';
+  }
+
+  String _eventSubtitle(Map<String, dynamic> event) {
+    final note = event['note']?.toString().trim();
+    final at = DateTime.tryParse(event['createdAt']?.toString() ?? '');
+    final when = at == null ? '' : '${at.toLocal().day}/${at.toLocal().month}/${at.toLocal().year} ${at.toLocal().hour.toString().padLeft(2, '0')}:${at.toLocal().minute.toString().padLeft(2, '0')}';
+    if (note != null && note.isNotEmpty && when.isNotEmpty) return '$note · $when';
+    if (note != null && note.isNotEmpty) return note;
+    return when.isEmpty ? 'Recorded update' : when;
+  }
   AaraagateStatusTone _detailTone(String status) => switch (status.toUpperCase()) {
         'APPROVED' || 'COMPLETED' || 'READY' => AaraagateStatusTone.success,
         'REJECTED' || 'CANCELLED' => AaraagateStatusTone.danger,

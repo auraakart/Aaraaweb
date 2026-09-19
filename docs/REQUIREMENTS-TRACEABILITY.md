@@ -1,6 +1,6 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-18
+Updated: 2026-09-19
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
@@ -22,7 +22,7 @@ Updated: 2026-09-18
 | External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
 | Billing / payments | Validated / hardened | Dues, eligible owner/tenant payment, signed reconciliation, exception handling and audit |
 | Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit and controlled exports |
-| Privacy UX / operations | Implemented baseline | Disclosure baseline plus V2 auditable privacy operations; human policy review remains separate |
+| Privacy UX / operations | Validated / hardened | Auditable privacy cases, typed operator workflows, retention/legal-hold controls, readiness/conflict evidence, registry/incident/grievance context and Resident self-service/export clarity; human privacy/legal review remains separate |
 | CI / release controls | Hardened | API/Admin/Flutter validation, dependency audit and release-control contracts |
 | Hosted production evidence | Pending external setup | Hosted infrastructure/provider/Play evidence remains operational work |
 
@@ -33,14 +33,14 @@ Status values below describe repository implementation only. **Human acceptance 
 |---|---|---|---|
 | V2-RBAC Administrative segregation of duties | P0 | **Implemented; human acceptance pending** | Explicit V2 permissions are consumed by domain APIs; restricted-role negative contract is green. Scoped `READ_ONLY_AUDITOR` responsibility and dedicated read-only workspace are implemented on the functional-closure branch. Human role-session UAT remains. |
 | V2-FIN Full society accounting | P0 | **Implemented / hardened** | `services/api/src/accounting`, finance permissions, immutable ledger/report/export/reconciliation controls and Admin finance surfaces are present. V4.11 adds reconciliation review health, read-only exact-movement candidates and export date presets. V4.14 adds tenant-scoped close readiness, race-safe irreversible period close with draft-journal blocking and actor evidence, an accountant period-close/reporting workspace reusing the existing reporting engine, and typed bounded operator controls replacing raw UUID/browser-prompt actions. Accountant/Treasurer human acceptance remains. |
-| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented baseline / hardened** | Occupancy lifecycle APIs/Admin flow, owner-versus-occupant authority separation and revocation behavior are present. Real-society policy configuration remains pilot evidence. |
+| V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented / hardened** | V4.17 adds tenant-scoped operator context, registered-mobile move-in, selector-based move-out, persistent review/checklist/document controls, descriptive readiness/handover evidence for checklist/documents/vehicles/workforce/parking/gate authority, and Resident property-aware status/next-action/timeline UX. Effective-date blocking, checklist readiness, ownership/occupancy separation and move-out gate-authority revocation remain server-authoritative. Real-society rental/police-verification/legal policy acceptance remains external. |
 | V2-GOV Society governance | P0/P1 | **Implemented / hardened** | `services/api/src/governance`, committee/governance permissions and Admin workflows are present. V4.15 adds typed committee/meeting operations, descriptive readiness/closure evidence, configurable quorum/approval/bye-law references, auditable action status/owner/due-date follow-through and overdue visibility. Society-specific bye-law/legal acceptance remains external. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
-| V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
+| V2-PRV Privacy/data lifecycle | P0 | **Implemented / hardened** | V4.19 replaces raw UUID/browser-dialog case operations with privacy-scoped subject/assignee context and persistent typed controls; adds read-only assignment/overdue/retention/legal-hold readiness evidence with active data-category, processor, incident and grievance-contact context; and improves Resident self-service with status-specific next actions, operational targets, active grievance contact and server-authorized completed ACCESS exports. Erasure remains governed by server-generated blockers and fail-closed execution. Jurisdiction-specific legal/privacy acceptance remains external. |
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
-| V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. Human facility-role UAT remains. |
-| V2-VND Society vendors/procurement | P1 | **Implemented baseline** | Society-vendor bounded context and capability permissions are separate from consumer External Services. Pilot workflow evidence remains. |
-| V2-DOC Document repository | P1 | **Implemented baseline / hardened** | `services/api/src/documents`, classified access and server-authorized document flow are present. Hosted object-storage evidence is productionization. |
+| V2-FAC Assets/AMCs/work orders | P1 | **Implemented / hardened** | V4.20 adds facilities-scoped active-assignee context, typed work-order/preventive-plan assignment, persistent completion/cancellation controls, append-only work-order history, read-only asset/work-order readiness and critical-work prioritization, contract-to-preventive-plan linkage/expiry clarity, plus plan-to-generated-work/contract/evidence drill-down. Existing controlled transitions, duplicate-safe preventive generation and tenant-scoped provider/evidence boundaries remain authoritative. Human facility-role UAT and physical/field maintenance outcomes remain external. |
+| V2-VND Society vendors/procurement | P1 | **Implemented / hardened** | Society-vendor bounded context remains separate from consumer External Services. V4.16 exposes quotation comparison/selection, PO issuance, finance-scoped PO→expense-draft handoff with one-PO/one-expense protection, and tenant-scoped vendor contract/SLA/expiry lifecycle evidence with append-only events. Real vendor onboarding and society procurement-policy acceptance remain external. |
+| V2-DOC Document repository | P1 | **Implemented / hardened** | V4.18 adds tenant-scoped property targeting for property-owner-only documents, friendly management context, append-only lifecycle history, controlled supersession/version lineage that preserves prior published evidence, and Resident access to the real server-authorized published repository with current version/audience/property context and bounded download intents. Upload metadata verification and safety scanning remain required. Hosted object-storage acceptance and statutory/legal document validity remain external. |
 | V2-HLP Helpdesk SLA/escalation | P1 | **Implemented / hardened** | SLA/TAT, assignment/escalation, notes/evidence/reopen/analytics support is present in `services/api/src/helpdesk`. Human helpdesk acceptance remains. |
 | V2-COM Communication governance | P1 | **Implemented / hardened** | Notice targeting, schedule/expiry, attachments, acknowledgement/delivery observability and metrics are implemented. Legal-delivery claims remain intentionally excluded. |
 | V2-AMN Amenity policy engine | P1 | **Implemented / hardened** | Capacity/booking rules, approval controls, attendance lifecycle, configurable check-in/no-show timing, society/property-scoped FIFO waitlist with deterministic promotion, explicit Resident waitlist consent/position/history, and tenant-scoped descriptive operations analytics are present. No-show penalties, physical check-in hardware, predictive allocation and real-society policy outcomes remain external/conditional. |
@@ -158,3 +158,71 @@ The V4.15 repository cycle closes the documented governance operator-depth gap:
 4. **Legal boundary:** the repository does not determine statutory quorum, resolution validity, legal compliance or society-specific bye-law interpretation.
 5. **External acceptance remains:** committee human UAT, real-society bye-law/policy acceptance, representative browser/device acceptance and hosted production evidence remain outside repository completion.
 
+
+
+## V4.16 Society Vendor, Resident & Operations Depth closure
+
+The V4.16 repository cycle is complete on `develop`:
+
+1. **Procurement operator depth:** Admin exposes request drill-down, quotation entry/comparison, explicit quote selection, PO issuance and append-only procurement request evidence with sequencing guidance.
+2. **Procurement/accounting handoff:** Finance users can inspect issued POs, distinguish pending versus linked accounting state and create the existing exact-amount SocietyExpense draft under FINANCE_MANAGE; one PO cannot create multiple linked expense drafts.
+3. **Vendor lifecycle evidence:** society-vendor contracts record type, dates, renewal notice, SLA/document references and ACTIVE/EXPIRED/TERMINATED state with append-only tenant-scoped lifecycle evidence and explicit no-legal-validity wording.
+4. **Resident daily brief:** property-scoped Home prioritization now includes active helpdesk work alongside billing, services and notices, with high/critical helpdesk work surfaced ahead of routine updates.
+5. **Facilities operator ergonomics:** inventory stock movements use persistent typed controls rather than browser prompts, preserve optional work-order linkage and keep stock-integrity guidance visible.
+6. **Resident Community hub:** Resident navigation includes a live Community surface backed by governance/community meetings, documents, notices/helpdesk context and existing community-poll capabilities rather than static placeholders.
+7. **Integration readiness boundaries:** automated contract tests verify payment, WhatsApp, smart-gate and object-storage provider ports stay vendor-neutral/fail-closed; this is repository readiness evidence, not real-provider acceptance.
+8. **External boundary:** real vendor onboarding, procurement-policy acceptance, contract legal review, hosted infrastructure, live provider credentials/callbacks, physical device validation and representative-device/human UAT remain external.
+
+V4.16 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.17 Occupancy Lifecycle & Property Operations Depth closure
+
+The V4.17 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Operator ergonomics:** Admin move-in/move-out workflows use tenant-scoped unit/occupancy selectors, registered-mobile resident resolution, and persistent typed review/checklist/document controls instead of raw UUID entry or browser prompts.
+2. **Readiness and handover evidence:** authorized operators can inspect mandatory checklist completion, document verification, active vehicle/workforce/parking counts and current gate-authority state as descriptive handover signals. These signals do not independently determine legal or police-verification validity.
+3. **Resident move experience:** Resident self-service now shows property labels, status-aware next-action guidance, required-vs-total readiness and an event timeline while preserving server-side ownership/occupancy checks.
+4. **Lifecycle safety:** effective-date enforcement, required-checklist blocking and move-out revocation of primary gate contact, approval and notification authority remain unchanged and covered by regression tests.
+5. **External boundary:** real-society rental/police-verification policy acceptance, representative-device human UAT, hosted production behavior and field move outcomes remain external.
+
+V4.17 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.18 Document Repository & Records Governance Depth closure
+
+The V4.18 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Operator depth:** Admin property-owner-only document publishing now requires a tenant-scoped property selector and supplies the server-required `unitId`; management rows expose friendly property context and append-only lifecycle history.
+2. **Controlled version lineage:** published documents can create at most one active replacement draft. Replacement drafts inherit classification/audience/property scope, increment version automatically, and publishing the replacement atomically publishes the new record, archives the prior published record and appends `VERSION_REPLACED` evidence. Prior document records are preserved rather than destructively overwritten.
+3. **Resident repository access:** Resident Community consumes the real server-authorized `/documents/published` repository, shows current version/audience/property context and obtains downloads only through authorized server-issued download intents. Governance document references remain a separate surface rather than being conflated with the society document repository.
+4. **Storage/security boundaries:** private object-storage prefixes, upload metadata verification, safety scanning, tenant scoping and audience/property authorization remain enforced server-side.
+5. **External boundary:** hosted object-storage acceptance, statutory/legal document validity, retention-law interpretation, representative-device UAT and field document outcomes remain external.
+
+V4.18 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.19 Privacy Operations & Data Lifecycle Depth closure
+
+The V4.19 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Privacy operator depth:** society privacy operations use privacy-scoped subject and assignee selectors, due dates and persistent typed controls for case status, legal hold and retention review; browser prompt/alert/confirm flows and raw subject UUID entry are removed.
+2. **Readiness/conflict evidence:** authorized operators can inspect descriptive assignment/overdue state, legal-hold and retention blockers, active data-category/processor counts, open privacy incidents, grievance-contact state and server erasure blockers without changing the underlying execution rules.
+3. **Resident self-service clarity:** authenticated subjects see status-specific next actions, operational target dates, retention-hold context, configured active grievance contact and completed ACCESS export availability. Export access remains self-only and server-authorized.
+4. **Safety boundaries:** tenant/resource permissions, subject ownership, append-only case evidence, retention/legal-hold blocking and governed erasure/minimisation remain server-authoritative.
+5. **External boundary:** jurisdiction-specific rights interpretation, qualified privacy/legal review, real-society policy acceptance, representative-device UAT, hosted production behavior and field privacy outcomes remain external.
+
+V4.19 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.20 Facilities, Assets & Work-Order Depth closure
+
+The V4.20 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Operator depth:** facilities work orders and preventive plans use tenant-scoped active-assignee selectors; work-order completion/cancellation uses persistent typed controls; append-only work-order history includes actor evidence.
+2. **Readiness evidence:** Admin exposes descriptive overdue, assignment, asset-state, evidence and critical-work signals with next-action guidance while preserving existing lifecycle transitions.
+3. **Contract/preventive depth:** service contracts expose linked preventive-plan title/state/next-due context; preventive-plan drill-down shows generated work orders, linked contracts and related maintenance evidence without changing generation or contract mutation rules.
+4. **Safety boundaries:** FACILITIES_READ/FACILITIES_MANAGE, tenant scoping, active-assignee validation, duplicate-safe preventive generation and controlled work-order transitions remain server-authoritative.
+5. **External boundary:** facility-team human UAT, physical inspection outcomes, provider/AMC legal validity, hosted production behavior and field maintenance outcomes remain external.
+
+V4.20 repository completion does **not** increase Production/field readiness without external evidence.

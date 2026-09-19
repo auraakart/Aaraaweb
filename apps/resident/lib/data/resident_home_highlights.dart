@@ -1,4 +1,4 @@
-enum ResidentHomeHighlightKind { billing, service, notice }
+enum ResidentHomeHighlightKind { billing, helpdesk, service, notice }
 
 class ResidentHomeHighlight {
   const ResidentHomeHighlight({
@@ -19,6 +19,7 @@ class ResidentHomeHighlights {
     required List<Map<String, dynamic>> invoices,
     required List<Map<String, dynamic>> bookings,
     required List<Map<String, dynamic>> notices,
+    List<Map<String, dynamic>> tickets = const [],
     DateTime? now,
   }) {
     final current = now ?? DateTime.now();
@@ -45,6 +46,31 @@ class ResidentHomeHighlights {
         title: title,
         subtitle: subtitle,
         priority: overdue ? 0 : 2,
+      ));
+    }
+
+    final activeTickets = tickets.where((ticket) {
+      final status = (ticket['status']?.toString() ?? '').toUpperCase();
+      return const {'OPEN', 'IN_PROGRESS', 'REOPENED'}.contains(status);
+    }).toList()
+      ..sort((a, b) {
+        final ap = _ticketPriority(a['priority']);
+        final bp = _ticketPriority(b['priority']);
+        if (ap != bp) return ap.compareTo(bp);
+        final aDate = _date(a['updatedAt'] ?? a['createdAt']) ?? DateTime(1970);
+        final bDate = _date(b['updatedAt'] ?? b['createdAt']) ?? DateTime(1970);
+        return bDate.compareTo(aDate);
+      });
+    if (activeTickets.isNotEmpty) {
+      final ticket = activeTickets.first;
+      final priority = (ticket['priority']?.toString() ?? 'NORMAL').toUpperCase();
+      items.add(ResidentHomeHighlight(
+        kind: ResidentHomeHighlightKind.helpdesk,
+        title: ticket['title']?.toString() ?? 'Helpdesk request',
+        subtitle: priority == 'CRITICAL' || priority == 'HIGH'
+            ? '${_display(priority)} priority · action in progress'
+            : 'Helpdesk request in progress',
+        priority: priority == 'CRITICAL' ? 0 : priority == 'HIGH' ? 1 : 3,
       ));
     }
 
@@ -88,6 +114,18 @@ class ResidentHomeHighlights {
     items.sort((a, b) => a.priority.compareTo(b.priority));
     return items.take(3).toList(growable: false);
   }
+
+  static int _ticketPriority(Object? value) {
+    switch ((value?.toString() ?? '').toUpperCase()) {
+      case 'CRITICAL': return 0;
+      case 'HIGH': return 1;
+      case 'NORMAL': return 2;
+      case 'LOW': return 3;
+      default: return 4;
+    }
+  }
+
+  static String _display(String value) => value.toLowerCase().split('_').map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}').join(' ');
 
   static DateTime? _date(Object? value) {
     final text = value?.toString();

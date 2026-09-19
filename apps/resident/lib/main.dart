@@ -10,6 +10,7 @@ import 'data/resident_repository.dart';
 import 'screens/amenities_screen.dart';
 import 'screens/ai_assistant_screen.dart';
 import 'screens/billing_screen.dart';
+import 'screens/community_screen.dart';
 import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
@@ -246,6 +247,9 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         }
         if (showServices) {
           add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
+        }
+        if (showNotices || showHelpdesk) {
+          add(CommunityScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups_rounded), label: 'Community'));
         }
         if (showAi) {
           add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));

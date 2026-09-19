@@ -4,12 +4,14 @@ import { ProcurementAccountingLinkController } from './procurement-accounting-li
 import { ProcurementAccountingLinkService } from './procurement-accounting-link.service';
 import { ProcurementCommercialController } from './procurement-commercial.controller';
 import { ProcurementCommercialService } from './procurement-commercial.service';
+import { VendorContractsController } from './vendor-contracts.controller';
+import { VendorContractsService } from './vendor-contracts.service';
 import { VendorsController } from './vendors.controller';
 import { VendorsService } from './vendors.service';
 
 @Module({
-  controllers: [VendorsController, ProcurementCommercialController, ProcurementAccountingLinkController],
-  providers: [PrismaService, VendorsService, ProcurementCommercialService, ProcurementAccountingLinkService],
-  exports: [VendorsService, ProcurementCommercialService, ProcurementAccountingLinkService],
+  controllers: [VendorsController, ProcurementCommercialController, ProcurementAccountingLinkController, VendorContractsController],
+  providers: [PrismaService, VendorsService, ProcurementCommercialService, ProcurementAccountingLinkService, VendorContractsService],
+  exports: [VendorsService, ProcurementCommercialService, ProcurementAccountingLinkService, VendorContractsService],
 })
 export class VendorsModule {}

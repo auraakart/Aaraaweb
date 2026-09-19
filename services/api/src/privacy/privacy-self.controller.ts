@@ -3,6 +3,7 @@ import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PrivacyService } from './privacy.service';
 import { PrivacySubjectDataService } from './privacy-subject-data.service';
+import { PrivacyIncidentService } from './privacy-incident.service';
 
 const CurrentPrivacyPrincipal = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   const auth = ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth;
@@ -27,7 +28,26 @@ class CreateSelfPrivacyRequestDto {
 @Controller('privacy/self')
 @UseGuards(BearerGuard)
 export class PrivacySelfController {
-  constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
+  constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService, private readonly incidents: PrivacyIncidentService) {}
+
+  @Get('context')
+  async context(
+    @CurrentPrivacyPrincipal() principal?: { userId: string; societyId?: string },
+  ) {
+    const current = this.requirePrincipal(principal);
+    if (!current.societyId) return { grievanceContact: null };
+    const rows = await this.incidents.getGrievanceContact(current.societyId);
+    const contact = rows[0] as { displayName?: string; email?: string | null; phone?: string | null; instructions?: string | null; active?: boolean } | undefined;
+    if (!contact?.active) return { grievanceContact: null };
+    return {
+      grievanceContact: {
+        displayName: contact.displayName ?? 'Privacy contact',
+        email: contact.email ?? null,
+        phone: contact.phone ?? null,
+        instructions: contact.instructions ?? null,
+      },
+    };
+  }
 
   @Get('requests')
   list(

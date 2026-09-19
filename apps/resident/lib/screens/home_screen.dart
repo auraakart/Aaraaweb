@@ -52,6 +52,7 @@ class HomeScreen extends StatelessWidget {
       invoices: showBilling ? controller.maintenanceInvoices : const [],
       bookings: showServices ? controller.bookings : const [],
       notices: showNotices ? controller.notices : const [],
+      tickets: showHelpdesk ? controller.helpdeskTickets : const [],
     );
 
     return SafeArea(
@@ -191,8 +192,8 @@ class HomeScreen extends StatelessWidget {
             if (highlights.isNotEmpty) ...[
               const SizedBox(height: AaraagateTokens.space6),
               const PremiumSectionHeader(
-                title: 'Next for you',
-                supportingText: 'The most relevant items for this property right now.',
+                title: 'Today for your home',
+                supportingText: 'Time-sensitive actions and updates, prioritized for this property.'
               ),
               const SizedBox(height: AaraagateTokens.space3),
               for (var i = 0; i < highlights.length; i++) ...[
@@ -204,6 +205,9 @@ class HomeScreen extends StatelessWidget {
                     switch (highlights[i].kind) {
                       case ResidentHomeHighlightKind.billing:
                         onOpenBilling();
+                        break;
+                      case ResidentHomeHighlightKind.helpdesk:
+                        onOpenHelpdesk();
                         break;
                       case ResidentHomeHighlightKind.service:
                         onOpenServices();
@@ -257,6 +261,8 @@ class HomeScreen extends StatelessWidget {
     switch (kind) {
       case ResidentHomeHighlightKind.billing:
         return Icons.receipt_long_outlined;
+      case ResidentHomeHighlightKind.helpdesk:
+        return Icons.support_agent_rounded;
       case ResidentHomeHighlightKind.service:
         return Icons.home_repair_service_outlined;
       case ResidentHomeHighlightKind.notice:
