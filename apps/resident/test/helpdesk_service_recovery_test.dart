@@ -63,6 +63,9 @@ void main(){
     expect(find.text('Resolution target'),findsOneWidget);
     expect(find.text('Resolution evidence'),findsOneWidget);
     expect(find.text('Fixed'),findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Reopened'),300,scrollable:find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.text('Reopened'),findsOneWidget);
 
     controller.dispose();
