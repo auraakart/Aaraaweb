@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { ActionBar, EmptyState, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField } from '../../../components/admin-ui'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type Account={id:string;code:string;name:string;type:string;active:boolean}
@@ -42,27 +43,26 @@ export default function OpeningBalancesPage(){
     try{const result=await api<{idempotent:boolean}>(session,'/accounting/opening-balances',{method:'POST',body:JSON.stringify({batchKey,periodId,entryNumber,entryDate,description,externalReference:externalReference||undefined,lines:payloadLines})});setSuccess(result.idempotent?'This exact cutover batch was already posted; no duplicate journal was created.':'Opening balances posted successfully.');await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not post opening balances')}finally{setBusy(false)}
   }
 
-  if(loading)return <main><p>Loading opening balances…</p></main>
-  if(!canRead)return <main><h1>Finance access required</h1><p>Finance read access is required.</p></main>
-  return <main>
-    <header><div><small>{session?.societyName??'Current society'} · V4 finance hardening</small><h1>Opening balances</h1><p>Establish migration-safe ledger balances before operational accounting starts. Every batch is society-scoped, balanced, idempotent and posted into an open accounting period.</p></div></header>
-    {error&&<div role="alert" style={{marginTop:16,padding:14,border:'1px solid #e5a7a7',background:'#fff6f6'}}>{error}</div>}
-    {success&&<div role="status" style={{marginTop:16,padding:14,border:'1px solid #9ed7c2',background:'#f3fff9'}}>{success}</div>}
+  if(loading)return <PageShell><PageHeader title="Opening balances" description="Loading cutover balances…"/></PageShell>
+  if(!canRead)return <PageShell><PageHeader title="Finance access required" description="Finance read access is required."/></PageShell>
+  return <PageShell>
+    <PageHeader context={`${session?.societyName??'Current society'} · V4 finance hardening`} title="Opening balances" description="Establish migration-safe ledger balances before operational accounting starts. Every batch is society-scoped, balanced, idempotent and posted into an open accounting period." actions={<a href="/finance">← Finance workspace</a>}/>
+    {error&&<ErrorState title="Opening-balance operation failed" description={error}/>}<ActionBar feedback={success} label="Opening-balance actions"><SecondaryButton disabled={busy} onClick={()=>session&&void load(session)}>Refresh</SecondaryButton></ActionBar>
     {!canManage&&<div style={{marginTop:16,padding:14,border:'1px solid #d5e8eb',background:'#f7fbfc'}}>Read-only finance access. Only Accountant/Treasurer or platform finance roles can post cutover balances.</div>}
 
     {canManage&&<section style={{marginTop:18,padding:20,border:'1px solid #d5e8eb'}}><h2 style={{marginTop:0}}>Post cutover batch</h2><p>Use a stable batch key from the migration source. Retrying the exact same batch is safe; reusing the key with changed content is rejected.</p><form onSubmit={submit}>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12}}>
-        <label>Batch key<input required value={batchKey} onChange={e=>setBatchKey(e.target.value)} placeholder="legacy-cutover-2026"/></label>
-        <label>Journal number<input required value={entryNumber} onChange={e=>setEntryNumber(e.target.value)} placeholder="OB-2026-001"/></label>
-        <label>Cutover date<input required type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)}/></label>
-        <label>Accounting period<select required value={periodId} onChange={e=>setPeriodId(e.target.value)}><option value="">Choose open period</option>{periods.filter(p=>p.status==='OPEN').map(p=><option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</select></label>
-        <label style={{gridColumn:'1 / -1'}}>Description<input required value={description} onChange={e=>setDescription(e.target.value)}/></label>
-        <label style={{gridColumn:'1 / -1'}}>Source reference (optional)<input value={externalReference} onChange={e=>setExternalReference(e.target.value)} placeholder="Legacy export file / migration reference"/></label>
+        <FormField label="Batch key" required value={batchKey} onChange={e=>setBatchKey(e.target.value)} placeholder="legacy-cutover-2026"/>
+        <FormField label="Journal number" required value={entryNumber} onChange={e=>setEntryNumber(e.target.value)} placeholder="OB-2026-001"/>
+        <FormField label="Cutover date" required type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)}/>
+        <SelectField label="Accounting period" required value={periodId} onChange={e=>setPeriodId(e.target.value)}><option value="">Choose open period</option>{periods.filter(p=>p.status==='OPEN').map(p=><option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</SelectField>
+        <FormField label="Description" required value={description} onChange={e=>setDescription(e.target.value)}/>
+        <FormField label="Source reference (optional)" value={externalReference} onChange={e=>setExternalReference(e.target.value)} placeholder="Legacy export file / migration reference"/>
       </div>
-      <h3>Balanced journal lines</h3><div style={{overflowX:'auto'}}><table><thead><tr><th>Account</th><th>Unit UUID (optional)</th><th>Fund UUID (optional)</th><th>Description</th><th>Debit ₹</th><th>Credit ₹</th><th></th></tr></thead><tbody>{lines.map((line,index)=><tr key={index}><td><select required value={line.accountId} onChange={e=>updateLine(index,'accountId',e.target.value)}><option value="">Choose</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></td><td><input value={line.unitId} onChange={e=>updateLine(index,'unitId',e.target.value)} placeholder="UUID"/></td><td><input value={line.fundId} onChange={e=>updateLine(index,'fundId',e.target.value)} placeholder="UUID"/></td><td><input value={line.description} onChange={e=>updateLine(index,'description',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.debit} onChange={e=>updateLine(index,'debit',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.credit} onChange={e=>updateLine(index,'credit',e.target.value)}/></td><td><button type="button" disabled={lines.length<=2} onClick={()=>removeLine(index)}>Remove</button></td></tr>)}</tbody></table></div>
-      <div style={{display:'flex',justifyContent:'space-between',gap:12,marginTop:14,flexWrap:'wrap'}}><button type="button" onClick={()=>setLines(current=>[...current,emptyLine()])}>Add line</button><button disabled={busy||!batchKey||!periodId||!entryNumber}>{busy?'Posting…':'Post opening balances'}</button></div>
+      <h3>Balanced journal lines</h3><div style={{overflowX:'auto'}}><table><thead><tr><th>Account</th><th>Unit UUID (optional)</th><th>Fund UUID (optional)</th><th>Description</th><th>Debit ₹</th><th>Credit ₹</th><th></th></tr></thead><tbody>{lines.map((line,index)=><tr key={index}><td><select required value={line.accountId} onChange={e=>updateLine(index,'accountId',e.target.value)}><option value="">Choose</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></td><td><input value={line.unitId} onChange={e=>updateLine(index,'unitId',e.target.value)} placeholder="UUID"/></td><td><input value={line.fundId} onChange={e=>updateLine(index,'fundId',e.target.value)} placeholder="UUID"/></td><td><input value={line.description} onChange={e=>updateLine(index,'description',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.debit} onChange={e=>updateLine(index,'debit',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.credit} onChange={e=>updateLine(index,'credit',e.target.value)}/></td><td><SecondaryButton type="button" disabled={lines.length<=2} onClick={()=>removeLine(index)}>Remove</SecondaryButton></td></tr>)}</tbody></table></div>
+      <div style={{display:'flex',justifyContent:'space-between',gap:12,marginTop:14,flexWrap:'wrap'}}><SecondaryButton type="button" onClick={()=>setLines(current=>[...current,emptyLine()])}>Add line</SecondaryButton><PrimaryButton type="submit" loading={busy} disabled={!batchKey||!periodId||!entryNumber}>Post opening balances</PrimaryButton></div>
     </form></section>}
 
-    <section style={{marginTop:18,padding:20,border:'1px solid #d5e8eb'}}><h2 style={{marginTop:0}}>Cutover history</h2>{batches.length===0?<p>No opening-balance batches posted.</p>:<div style={{overflowX:'auto'}}><table><thead><tr><th>Batch</th><th>Journal</th><th>Date</th><th>Status</th><th>Lines</th><th>Balanced total</th></tr></thead><tbody>{batches.map(b=><tr key={b.id}><td><b>{b.batchKey}</b><br/><small>{b.description}</small></td><td>{b.entryNumber}</td><td>{new Date(b.entryDate).toLocaleDateString('en-IN')}</td><td>{b.status}</td><td>{b.lineCount}</td><td>{money(b.debitPaise)}</td></tr>)}</tbody></table></div>}</section>
-  </main>
+    <section style={{marginTop:18,padding:20,border:'1px solid #d5e8eb'}}><h2 style={{marginTop:0}}>Cutover history</h2>{batches.length===0?<EmptyState title="No opening-balance batches posted"/>:<div style={{overflowX:'auto'}}><table><thead><tr><th>Batch</th><th>Journal</th><th>Date</th><th>Status</th><th>Lines</th><th>Balanced total</th></tr></thead><tbody>{batches.map(b=><tr key={b.id}><td><b>{b.batchKey}</b><br/><small>{b.description}</small></td><td>{b.entryNumber}</td><td>{new Date(b.entryDate).toLocaleDateString('en-IN')}</td><td>{b.status}</td><td>{b.lineCount}</td><td>{money(b.debitPaise)}</td></tr>)}</tbody></table></div>}</section>
+  </PageShell>
 }
