@@ -35,8 +35,18 @@ export class HelpdeskService {
 
   listMine(societyId: string, userId: string) {
     return this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
-      SELECT ht.*
+      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName",
+        CASE
+          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
+            THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
+          WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
+          WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
+          WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
+          ELSE 'ON_TRACK'
+        END AS "computedSlaState"
       FROM "HelpdeskTicket" ht
+      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId"
       WHERE ht."societyId" = ${societyId}::uuid
         AND EXISTS (
           SELECT 1 FROM "UnitOccupancy" uo
