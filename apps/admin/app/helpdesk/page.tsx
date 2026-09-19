@@ -1,6 +1,23 @@
 'use client'
 
-import { FormEvent,useCallback,useEffect,useMemo,useState } from 'react'
+import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
+import {
+  ActionBar,
+  DetailPanel,
+  EmptyState,
+  ErrorState,
+  EvidenceGrid,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+  QueuePanel,
+  ReadinessPanel,
+  SecondaryButton,
+  SelectField,
+  StatusPill,
+  Timeline,
+} from '../../components/admin-ui'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type Reviewer={id:string;name:string;phone:string}
@@ -28,20 +45,23 @@ async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
   return body as T
 }
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
+const human=(v?:string|null)=>v?.replaceAll('_',' ')??'Not recorded'
 
 export default function HelpdeskAdminPage(){
   const s=typeof window==='undefined'?null:session()
   const allowed=!!s&&allowedRoles.has(s.role)
   const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[selectedId,setSelectedId]=useState('')
   const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null)
-  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
+  const[queueLoading,setQueueLoading]=useState(false),[detailLoading,setDetailLoading]=useState(false),[mutationBusy,setMutationBusy]=useState(false)
+  const[queueError,setQueueError]=useState(''),[detailError,setDetailError]=useState(''),[operationError,setOperationError]=useState(''),[success,setSuccess]=useState('')
   const[assignedToId,setAssignedToId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
   const[comment,setComment]=useState(''),[internalNote,setInternalNote]=useState(''),[reopenNote,setReopenNote]=useState('')
   const[escalatedToId,setEscalatedToId]=useState(''),[escalationNote,setEscalationNote]=useState('')
+  const detailRequest=useRef(0)
 
   const selected=useMemo(()=>tickets.find(t=>t.id===selectedId)??null,[tickets,selectedId])
 
-  const load=useCallback(async()=>{if(!s||!allowed)return;setBusy(true);setError('')
+  const load=useCallback(async()=>{if(!s||!allowed)return;setQueueLoading(true);setQueueError('')
     try{
       const[queue,ctx]=await Promise.all([
         api<Ticket[]>(s,'/helpdesk/sla/queue'),
@@ -49,32 +69,39 @@ export default function HelpdeskAdminPage(){
       ])
       setTickets(queue);setReviewers(ctx)
       setSelectedId(current=>current&&queue.some(t=>t.id===current)?current:queue[0]?.id??'')
-    }catch(e){setError(e instanceof Error?e.message:'Helpdesk queue could not be loaded')}finally{setBusy(false)}
+    }catch(e){setQueueError(e instanceof Error?e.message:'Helpdesk queue could not be loaded')}finally{setQueueLoading(false)}
   },[s?.accessToken,allowed])
 
   const loadDetail=useCallback(async(id:string)=>{if(!s||!id)return
+    const requestId=++detailRequest.current
+    setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null)
     try{
       const[a,h,r]=await Promise.all([
         api<Activity[]>(s,`/helpdesk/review/${id}/activities`),
         api<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
         api<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
       ])
+      if(requestId!==detailRequest.current)return
       setActivities(a);setSlaHistory(h);setReadiness(r)
-    }catch(e){setError(e instanceof Error?e.message:'Helpdesk history could not be loaded')}
+    }catch(e){
+      if(requestId===detailRequest.current)setDetailError(e instanceof Error?e.message:'Helpdesk history could not be loaded')
+    }finally{
+      if(requestId===detailRequest.current)setDetailLoading(false)
+    }
   },[s?.accessToken])
 
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{if(selectedId)void loadDetail(selectedId)},[selectedId,loadDetail])
-  useEffect(()=>{if(!selected)return;setAssignedToId(selected.assignedToId??'');setStatus(selected.status==='OPEN'?'IN_PROGRESS':selected.status);setReasonCode('');setEscalatedToId(selected.escalatedToId??'')},[selectedId,selected?.status,selected?.assignedToId,selected?.escalatedToId])
+  useEffect(()=>{if(selectedId)void loadDetail(selectedId);else{detailRequest.current++;setActivities([]);setSlaHistory([]);setReadiness(null);setDetailError('');setDetailLoading(false)}},[selectedId,loadDetail])
+  useEffect(()=>{if(!selected)return;setAssignedToId(selected.assignedToId??'');setStatus(selected.status==='OPEN'?'IN_PROGRESS':selected.status);setReasonCode('');setEscalatedToId(selected.escalatedToId??'');setStatusNote('');setComment('');setInternalNote('');setReopenNote('');setEscalationNote('');setOperationError('');setSuccess('')},[selectedId,selected?.status,selected?.assignedToId,selected?.escalatedToId])
 
-  const run=async(task:()=>Promise<void>,message:string)=>{setBusy(true);setError('');setSuccess('')
+  const run=async(task:()=>Promise<void>,message:string)=>{setMutationBusy(true);setOperationError('');setSuccess('')
     try{await task();setSuccess(message);await load();if(selectedId)await loadDetail(selectedId)}
-    catch(e){setError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setBusy(false)}
+    catch(e){setOperationError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setMutationBusy(false)}
   }
 
   const assign=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>api(s,`/helpdesk/review/${selected.id}/assignment`,{method:'PATCH',body:JSON.stringify({assignedToId:assignedToId||null})}).then(()=>undefined),'Assignment updated.')}
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
-    if((status==='RESOLVED'||status==='CLOSED')&&!reasonCode){setError('Select a resolution/closure code.');return}
+    if((status==='RESOLVED'||status==='CLOSED')&&!reasonCode){setOperationError('Select a resolution/closure code.');return}
     void run(()=>api(s,`/helpdesk/review/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined,reasonCode:reasonCode||undefined})}).then(()=>undefined),'Status updated.')
   }
   const addComment=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!comment.trim())return;void run(()=>api(s,`/helpdesk/review/${selected.id}/comments`,{method:'POST',body:JSON.stringify({message:comment.trim()})}).then(()=>{setComment('')}),'Comment added.')}
@@ -84,75 +111,162 @@ export default function HelpdeskAdminPage(){
   const evaluate=()=>{if(!s||!selected)return;void run(()=>api(s,`/helpdesk/sla/${selected.id}/evaluate`,{method:'POST'}).then(()=>undefined),'SLA state evaluated.')}
   const escalate=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!escalatedToId)return;void run(()=>api(s,`/helpdesk/sla/${selected.id}/escalate`,{method:'POST',body:JSON.stringify({escalatedToId,note:escalationNote.trim()||undefined})}).then(()=>{setEscalationNote('')}),'Ticket escalated.')}
 
-  if(!s||!allowed)return <main style={page}><h1>Helpdesk review access required</h1><a href="/">Return to Admin</a></main>
+  if(!s||!allowed)return <PageShell><PageHeader title="Helpdesk review access required" description="Your current Admin role does not include Helpdesk review access." actions={<a href="/">Return to Admin</a>}/></PageShell>
 
-  return <main style={page}>
-    <header style={header}><div><small>{s.societyName??'Current society'} · {s.role.replaceAll('_',' ')}</small><h1>Helpdesk operations</h1><p>Review resident tickets, manage ownership, lifecycle and SLA escalation with auditable evidence.</p></div><a href="/">← Admin home</a></header>
-    {error&&<p style={err} role="alert">{error}</p>}{success&&<p style={ok} role="status">{success}</p>}
-    <div style={layout}>
-      <section style={panel}><div style={header}><h2 style={{margin:0}}>Prioritized queue</h2><button style={secondary} disabled={busy} onClick={()=>void load()}>Refresh</button></div>
-        {tickets.length===0?<p>No helpdesk tickets.</p>:tickets.map(t=><button key={t.id} onClick={()=>setSelectedId(t.id)} style={{...ticketButton,...(t.id===selectedId?selectedStyle:{})}}>
-          <b>{t.priority} · {t.status}</b><span>{t.title}</span><small>{t.buildingName??'Building'} · {t.unitNumber??'Unit'} · {t.createdByName??'Resident'}</small>
-          <small>SLA: {t.computedSlaState??t.slaState??'UNTRACKED'}{t.assignedToName?` · ${t.assignedToName}`:' · Unassigned'}</small>
-        </button>)}
-      </section>
+  const queueState=queueLoading?'loading':queueError?'error':tickets.length===0?'empty':'ready'
+  const detailState=detailLoading?'loading':detailError?'error':!selected?'empty':'ready'
 
-      <section style={panel}>{!selected?<p>Select a ticket.</p>:<>
-        <div style={header}><div><h2 style={{margin:0}}>{selected.title}</h2><p>{selected.description}</p></div><strong>{selected.computedSlaState??selected.slaState??'UNTRACKED'}</strong></div>
-        <dl style={details}><dt>Property</dt><dd>{selected.buildingName??'—'} · {selected.unitNumber??'—'}</dd><dt>Resident</dt><dd>{selected.createdByName??'—'}</dd><dt>Priority</dt><dd>{selected.priority}</dd><dt>First response due</dt><dd>{fmt(selected.firstResponseDueAt)}</dd><dt>Resolution due</dt><dd>{fmt(selected.resolutionDueAt)}</dd><dt>Escalation</dt><dd>Level {selected.escalationLevel??0}{selected.escalatedToName?` · ${selected.escalatedToName}`:''}</dd></dl>
+  return <PageShell>
+    <PageHeader
+      title="Helpdesk operations"
+      context={`${s.societyName??'Current society'} · ${human(s.role)}`}
+      description="Review resident tickets, manage ownership, lifecycle and SLA escalation with auditable evidence."
+      actions={<a href="/">← Admin home</a>}
+    />
 
-        {readiness&&<section style={readinessPanelStyle}>
-          <div style={header}><div><h3 style={{margin:0}}>Service-recovery readiness</h3><small>{readiness.boundary}</small></div><strong>{readiness.blockers.length===0?'READY':'ACTION REQUIRED'}</strong></div>
-          <div style={readinessGrid}>
-            <div><b>{readiness.assigned?'Assigned':'Unassigned'}</b><span>Ownership</span></div>
-            <div><b>{readiness.firstResponded?'Responded':'Awaiting response'}</b><span>First response</span></div>
-            <div><b>{readiness.computedSlaState.replaceAll('_',' ')}</b><span>SLA state</span></div>
-            <div><b>{readiness.escalated?'Level '+readiness.escalationLevel:'Not escalated'}</b><span>Escalation</span></div>
-            <div><b>{readiness.critical?'Critical':'Normal'}</b><span>Recovery priority</span></div>
-            <div><b>{readiness.policy?readiness.policy.firstResponseMinutes+'m / '+readiness.policy.resolutionMinutes+'m':'No active policy'}</b><span>Response / resolution target</span></div>
+    {operationError&&<ErrorState title="Helpdesk operation failed" description={operationError}/>}
+    <ActionBar feedback={success} label="Page actions">
+      <SecondaryButton disabled={queueLoading||mutationBusy} loading={queueLoading} loadingLabel="Refreshing…" onClick={()=>void load()}>Refresh queue</SecondaryButton>
+    </ActionBar>
+
+    <PageShell.Columns>
+      <QueuePanel
+        title="Prioritized queue"
+        count={tickets.length}
+        state={queueState}
+        loadingLabel="Loading helpdesk queue…"
+        error={<ErrorState title="Helpdesk queue unavailable" description={queueError} action={<SecondaryButton onClick={()=>void load()}>Retry queue</SecondaryButton>}/>}
+        empty={<EmptyState title="No helpdesk tickets" description="There are no tickets in the current SLA queue."/>}
+      >
+        <div style={queueList}>
+          {tickets.map(t=><button
+            key={t.id}
+            type="button"
+            aria-pressed={t.id===selectedId}
+            onClick={()=>setSelectedId(t.id)}
+            style={{...ticketButton,...(t.id===selectedId?selectedStyle:{})}}
+          >
+            <span style={row}><StatusPill label={human(t.priority)} tone={t.priority==='URGENT'?'danger':t.priority==='HIGH'?'warning':'neutral'}/><StatusPill label={human(t.status)} tone={t.status==='RESOLVED'||t.status==='CLOSED'?'success':'info'}/></span>
+            <strong>{t.title}</strong>
+            <small>{t.buildingName??'Building'} · {t.unitNumber??'Unit'} · {t.createdByName??'Resident'}</small>
+            <small>SLA: {human(t.computedSlaState??t.slaState??'UNTRACKED')}{t.assignedToName?` · ${t.assignedToName}`:' · Unassigned'}</small>
+          </button>)}
+        </div>
+      </QueuePanel>
+
+      <DetailPanel
+        title={selected?.title??'Selected ticket'}
+        state={detailState}
+        loadingLabel="Loading selected ticket…"
+        error={<ErrorState title="Ticket detail unavailable" description={detailError} action={selectedId?<SecondaryButton onClick={()=>void loadDetail(selectedId)}>Retry detail</SecondaryButton>:undefined}/>}
+        empty={<EmptyState title="Select a ticket" description="Choose a helpdesk ticket from the prioritized queue to review it."/>}
+        actions={selected?<StatusPill label={human(selected.computedSlaState??selected.slaState??'UNTRACKED')} tone={readiness?.critical?'danger':'info'}/>:undefined}
+      >
+        {selected&&<>
+          <p>{selected.description}</p>
+          <EvidenceGrid items={[
+            {id:'property',label:'Property',value:`${selected.buildingName??'—'} · ${selected.unitNumber??'—'}`},
+            {id:'resident',label:'Resident',value:selected.createdByName??'—'},
+            {id:'priority',label:'Priority',value:human(selected.priority)},
+            {id:'first-response-due',label:'First response due',value:fmt(selected.firstResponseDueAt)},
+            {id:'resolution-due',label:'Resolution due',value:fmt(selected.resolutionDueAt)},
+            {id:'escalation',label:'Escalation',value:`Level ${selected.escalationLevel??0}${selected.escalatedToName?` · ${selected.escalatedToName}`:''}`},
+          ]}/>
+
+          <ReadinessPanel
+            title="Service-recovery readiness"
+            status={{label:readiness?(readiness.blockers.length===0?'READY':'ACTION REQUIRED'):'Readiness unavailable',tone:readiness?.blockers.length===0?'success':'warning'}}
+            state={readiness?'ready':'loading'}
+            boundary={readiness?.boundary}
+            blockers={readiness?.blockers.map(human)??[]}
+            nextActions={readiness?.nextActions??[]}
+            checks={readiness?<EvidenceGrid items={[
+              {id:'ownership',label:'Ownership',value:readiness.assigned?'Assigned':'Unassigned'},
+              {id:'first-response',label:'First response',value:readiness.firstResponded?'Responded':'Awaiting response'},
+              {id:'sla-state',label:'SLA state',value:human(readiness.computedSlaState)},
+              {id:'escalation-state',label:'Escalation',value:readiness.escalated?`Level ${readiness.escalationLevel}`:'Not escalated'},
+              {id:'recovery-priority',label:'Recovery priority',value:readiness.critical?'Critical':'Normal'},
+              {id:'response-resolution-target',label:'Response / resolution target',value:readiness.policy?`${readiness.policy.firstResponseMinutes}m / ${readiness.policy.resolutionMinutes}m`:'No active policy'},
+            ]}/>:undefined}
+          />
+
+          <div style={formGrid}>
+            <form onSubmit={assign} style={formCard}>
+              <h3>Assignment</h3>
+              <SelectField label="Assignee" value={assignedToId} onChange={e=>setAssignedToId(e.target.value)}>
+                <option value="">Unassigned</option>{reviewers.map(r=><option key={r.id} value={r.id}>{r.name} · {r.phone}</option>)}
+              </SelectField>
+              <ActionBar feedback={success}><PrimaryButton type="submit" loading={mutationBusy}>Update assignment</PrimaryButton></ActionBar>
+            </form>
+
+            <form onSubmit={updateStatus} style={formCard}>
+              <h3>Ticket lifecycle</h3>
+              <SelectField label="Status" value={status} onChange={e=>{setStatus(e.target.value);setReasonCode('')}}>
+                {statusOptions.map(v=><option key={v}>{v}</option>)}
+              </SelectField>
+              {status==='RESOLVED'&&<SelectField label="Resolution code" value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{resolutionCodes.map(v=><option key={v}>{v}</option>)}</SelectField>}
+              {status==='CLOSED'&&<SelectField label="Closure code" value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{closureCodes.map(v=><option key={v}>{v}</option>)}</SelectField>}
+              <FormField label="Status note" multiline value={statusNote} onChange={e=>setStatusNote(e.target.value)} maxLength={1000}/>
+              <ActionBar feedback={success}><PrimaryButton type="submit" loading={mutationBusy}>Update status</PrimaryButton></ActionBar>
+            </form>
           </div>
-          {readiness.blockers.length>0&&<div><b>Readiness blockers</b><ul>{readiness.blockers.map(x=><li key={x}>{x.replaceAll('_',' ')}</li>)}</ul></div>}
-          {readiness.nextActions.length>0&&<div><b>Next actions</b><ul>{readiness.nextActions.map(x=><li key={x}>{x}</li>)}</ul></div>}
-        </section>}
 
-        <div style={grid}>
-          <form onSubmit={assign} style={subpanel}><h3>Assignment</h3><label style={label}>Assignee<select style={input} value={assignedToId} onChange={e=>setAssignedToId(e.target.value)}><option value="">Unassigned</option>{reviewers.map(r=><option key={r.id} value={r.id}>{r.name} · {r.phone}</option>)}</select></label><button style={primary} disabled={busy}>Update assignment</button></form>
-          <form onSubmit={updateStatus} style={subpanel}><h3>Ticket lifecycle</h3><label style={label}>Status<select style={input} value={status} onChange={e=>{setStatus(e.target.value);setReasonCode('')}}>{statusOptions.map(v=><option key={v}>{v}</option>)}</select></label>{status==='RESOLVED'&&<label style={label}>Resolution code<select style={input} value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{resolutionCodes.map(v=><option key={v}>{v}</option>)}</select></label>}{status==='CLOSED'&&<label style={label}>Closure code<select style={input} value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{closureCodes.map(v=><option key={v}>{v}</option>)}</select></label>}<label style={label}>Status note<textarea style={input} value={statusNote} onChange={e=>setStatusNote(e.target.value)} maxLength={1000}/></label><button style={primary} disabled={busy}>Update status</button></form>
-        </div>
+          <div style={formGrid}>
+            <form onSubmit={addComment} style={formCard}>
+              <h3>Resident-visible comment</h3>
+              <FormField label="Comment" multiline value={comment} onChange={e=>setComment(e.target.value)} maxLength={1000}/>
+              <ActionBar feedback={success}><SecondaryButton type="submit" loading={mutationBusy} disabled={!comment.trim()}>Add comment</SecondaryButton></ActionBar>
+            </form>
+            <form onSubmit={addInternal} style={formCard}>
+              <h3>Internal note</h3>
+              <FormField label="Internal note" multiline value={internalNote} onChange={e=>setInternalNote(e.target.value)} maxLength={1000}/>
+              <ActionBar feedback={success}><SecondaryButton type="submit" loading={mutationBusy} disabled={!internalNote.trim()}>Add internal note</SecondaryButton></ActionBar>
+            </form>
+          </div>
 
-        <div style={grid}>
-          <form onSubmit={addComment} style={subpanel}><h3>Resident-visible comment</h3><textarea style={input} value={comment} onChange={e=>setComment(e.target.value)} maxLength={1000}/><button style={secondary} disabled={busy||!comment.trim()}>Add comment</button></form>
-          <form onSubmit={addInternal} style={subpanel}><h3>Internal note</h3><textarea style={input} value={internalNote} onChange={e=>setInternalNote(e.target.value)} maxLength={1000}/><button style={secondary} disabled={busy||!internalNote.trim()}>Add internal note</button></form>
-        </div>
+          <section style={formCard} aria-labelledby="sla-controls-heading">
+            <h3 id="sla-controls-heading">SLA controls</h3>
+            <ActionBar feedback={success}>
+              <SecondaryButton loading={mutationBusy} onClick={applyPolicy}>Apply policy</SecondaryButton>
+              <SecondaryButton loading={mutationBusy} onClick={evaluate}>Evaluate SLA</SecondaryButton>
+            </ActionBar>
+            <form onSubmit={escalate} style={formGrid}>
+              <SelectField label="Escalation target" value={escalatedToId} onChange={e=>setEscalatedToId(e.target.value)} required>
+                <option value="">Select active member</option>{reviewers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+              </SelectField>
+              <FormField label="Escalation note" multiline value={escalationNote} onChange={e=>setEscalationNote(e.target.value)} maxLength={1000}/>
+              <ActionBar feedback={success}><PrimaryButton type="submit" loading={mutationBusy} disabled={!escalatedToId}>Escalate breached ticket</PrimaryButton></ActionBar>
+            </form>
+          </section>
 
-        <section style={subpanel}><div style={header}><h3 style={{margin:0}}>SLA controls</h3><div><button style={secondary} disabled={busy} onClick={applyPolicy}>Apply policy</button> <button style={secondary} disabled={busy} onClick={evaluate}>Evaluate SLA</button></div></div>
-          <form onSubmit={escalate} style={grid}><label style={label}>Escalation target<select style={input} value={escalatedToId} onChange={e=>setEscalatedToId(e.target.value)} required><option value="">Select active member</option>{reviewers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><label style={label}>Escalation note<textarea style={input} value={escalationNote} onChange={e=>setEscalationNote(e.target.value)} maxLength={1000}/></label><button style={primary} disabled={busy||!escalatedToId}>Escalate breached ticket</button></form>
-        </section>
+          {['RESOLVED','CLOSED'].includes(selected.status)&&<form onSubmit={reopen} style={formCard}>
+            <h3>Reopen ticket</h3>
+            <FormField label="Reopen note" multiline value={reopenNote} onChange={e=>setReopenNote(e.target.value)} required minLength={3} maxLength={1000}/>
+            <ActionBar feedback={success}><SecondaryButton type="submit" loading={mutationBusy} disabled={reopenNote.trim().length<3}>Reopen</SecondaryButton></ActionBar>
+          </form>}
 
-        {['RESOLVED','CLOSED'].includes(selected.status)&&<form onSubmit={reopen} style={subpanel}><h3>Reopen ticket</h3><textarea style={input} value={reopenNote} onChange={e=>setReopenNote(e.target.value)} required minLength={3} maxLength={1000}/><button style={secondary} disabled={busy||reopenNote.trim().length<3}>Reopen</button></form>}
+          <section aria-labelledby="activity-history-heading"><h3 id="activity-history-heading">Activity history</h3>
+            <Timeline label="Activity history" emptyLabel="No activity." events={activities.map(a=>({
+              id:a.id,label:human(a.type),actor:a.actorName??'Recorded actor',dateTime:a.occurredAt,timeLabel:fmt(a.occurredAt),
+              evidence:<>{a.message&&<div>{a.message}</div>}{(a.fromStatus||a.toStatus)&&<div>{a.fromStatus??''} → {a.toStatus??''}</div>}</>,
+            }))}/>
+          </section>
 
-        <h3>Activity history</h3>{activities.length===0?<p>No activity.</p>:activities.map(a=><article key={a.id} style={historyRow}><b>{a.type.replaceAll('_',' ')}</b><small>{a.actorName??'Recorded actor'} · {fmt(a.occurredAt)}</small>{a.message&&<span>{a.message}</span>}{(a.fromStatus||a.toStatus)&&<span>{a.fromStatus??''} → {a.toStatus??''}</span>}</article>)}
-        <h3>SLA history</h3>{slaHistory.length===0?<p>No SLA events.</p>:slaHistory.map(e=><article key={e.id} style={historyRow}><b>{e.eventType.replaceAll('_',' ')}</b><small>{e.actorName??'Recorded actor'} · {fmt(e.createdAt)}</small>{e.note&&<span>{e.note}</span>}{(e.fromState||e.toState)&&<span>{e.fromState??''} → {e.toState??''}</span>}{e.escalatedToName&&<span>Escalated to {e.escalatedToName}</span>}</article>)}
-      </>}</section>
-    </div>
-  </main>
+          <section aria-labelledby="sla-history-heading"><h3 id="sla-history-heading">SLA history</h3>
+            <Timeline label="SLA history" emptyLabel="No SLA events." events={slaHistory.map(e=>({
+              id:e.id,label:human(e.eventType),actor:e.actorName??'Recorded actor',dateTime:e.createdAt,timeLabel:fmt(e.createdAt),
+              evidence:<>{e.note&&<div>{e.note}</div>}{(e.fromState||e.toState)&&<div>{e.fromState??''} → {e.toState??''}</div>}{e.escalatedToName&&<div>Escalated to {e.escalatedToName}</div>}</>,
+            }))}/>
+          </section>
+        </>}
+      </DetailPanel>
+    </PageShell.Columns>
+  </PageShell>
 }
 
-const page:React.CSSProperties={maxWidth:1220,margin:'0 auto',padding:'28px 22px 80px'}
-const header:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:14,alignItems:'center',flexWrap:'wrap'}
-const layout:React.CSSProperties={display:'grid',gridTemplateColumns:'minmax(320px,.85fr) minmax(420px,1.6fr)',gap:18,alignItems:'start'}
-const panel:React.CSSProperties={marginTop:18,padding:18,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}
-const subpanel:React.CSSProperties={marginTop:14,padding:14,border:'1px solid #e2e8f0',borderRadius:12,background:'#f8fafc'}
-const grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12}
-const label:React.CSSProperties={display:'grid',gap:6,fontWeight:700}
-const input:React.CSSProperties={width:'100%',boxSizing:'border-box',padding:10,border:'1px solid #cbd5e1',borderRadius:9,font:'inherit'}
-const primary:React.CSSProperties={marginTop:10,padding:'10px 14px',border:0,borderRadius:9,background:'#0f766e',color:'white',fontWeight:800}
-const secondary:React.CSSProperties={padding:'9px 12px',border:'1px solid #cbd5e1',borderRadius:9,background:'white',fontWeight:700}
-const ticketButton:React.CSSProperties={display:'grid',gap:5,width:'100%',textAlign:'left',padding:12,marginTop:8,border:'1px solid #e2e8f0',borderRadius:12,background:'white'}
-const selectedStyle:React.CSSProperties={background:'#f0fdfa',borderColor:'#5eead4'}
-const details:React.CSSProperties={display:'grid',gridTemplateColumns:'150px 1fr',gap:'8px 12px'}
-const readinessPanelStyle:React.CSSProperties={marginTop:14,padding:14,border:'1px solid #99f6e4',borderRadius:12,background:'#f0fdfa',display:'grid',gap:12}
-const readinessGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}
-const historyRow:React.CSSProperties={display:'grid',gap:4,padding:'9px 0',borderBottom:'1px solid #e2e8f0'}
-const err:React.CSSProperties={padding:12,background:'#fef2f2',color:'#991b1b',borderRadius:10}
-const ok:React.CSSProperties={padding:12,background:'#ecfdf5',color:'#065f46',borderRadius:10}
+const queueList:React.CSSProperties={display:'grid',gap:8}
+const ticketButton:React.CSSProperties={display:'grid',gap:6,width:'100%',textAlign:'left',padding:12,border:'1px solid var(--line, #d5e8eb)',borderRadius:12,background:'var(--surface, #fff)',color:'var(--ink, #17323a)',font:'inherit',cursor:'pointer'}
+const selectedStyle:React.CSSProperties={background:'var(--neutral-soft, #eef6f7)',borderColor:'var(--brand, #05879a)',boxShadow:'inset 3px 0 0 var(--brand, #05879a)'}
+const row:React.CSSProperties={display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}
+const formGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))',gap:16,alignItems:'start'}
+const formCard:React.CSSProperties={display:'grid',gap:12,padding:16,border:'1px solid var(--line, #d5e8eb)',borderRadius:12,background:'var(--neutral-soft, #eef6f7)',minWidth:0}
