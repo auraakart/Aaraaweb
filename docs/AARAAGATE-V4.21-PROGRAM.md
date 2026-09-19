@@ -21,7 +21,7 @@ The repository already contains resident ticket creation/comments, reviewer queu
 
 ## Delivery slices
 
-### V4.21.1 — Helpdesk operator depth
+### V4.21.1 — Helpdesk operator depth — merged via #718
 
 - dedicated Admin Helpdesk workspace reachable from Management navigation;
 - tenant-scoped reviewer/escalation-target context;
@@ -30,7 +30,7 @@ The repository already contains resident ticket creation/comments, reviewer queu
 - existing prioritized SLA queue, activity history and SLA history exposed in Admin;
 - API and Admin regression coverage.
 
-### V4.21.2 — Helpdesk readiness & recovery evidence
+### V4.21.2 — Helpdesk readiness & recovery evidence — in progress
 
 - descriptive assignment, first-response, resolution, breach and escalation readiness;
 - overdue/critical ticket prioritization and next-action guidance;

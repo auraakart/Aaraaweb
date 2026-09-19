@@ -12,6 +12,7 @@ type Ticket={
 }
 type Activity={id:string;type:string;message?:string|null;fromStatus?:string|null;toStatus?:string|null;actorName?:string|null;occurredAt:string}
 type SlaEvent={id:string;eventType:string;fromState?:string|null;toState?:string|null;note?:string|null;actorName?:string|null;escalatedToName?:string|null;createdAt:string}
+type Readiness={ticketId:string;status:string;priority:string;assigned:boolean;computedSlaState:string;firstResponded:boolean;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;escalationLevel:number;escalated:boolean;critical:boolean;blockers:string[];nextActions:string[];policy?:{firstResponseMinutes:number;resolutionMinutes:number;escalationAfterMinutes:number;automaticEscalationEnabled:boolean;escalationTargetUserId?:string|null;escalationTargetName?:string|null}|null;boundary:string}
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const allowedRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
@@ -32,7 +33,7 @@ export default function HelpdeskAdminPage(){
   const s=typeof window==='undefined'?null:session()
   const allowed=!!s&&allowedRoles.has(s.role)
   const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[selectedId,setSelectedId]=useState('')
-  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([])
+  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null)
   const[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
   const[assignedToId,setAssignedToId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
   const[comment,setComment]=useState(''),[internalNote,setInternalNote]=useState(''),[reopenNote,setReopenNote]=useState('')
@@ -53,11 +54,12 @@ export default function HelpdeskAdminPage(){
 
   const loadDetail=useCallback(async(id:string)=>{if(!s||!id)return
     try{
-      const[a,h]=await Promise.all([
+      const[a,h,r]=await Promise.all([
         api<Activity[]>(s,`/helpdesk/review/${id}/activities`),
         api<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
+        api<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
       ])
-      setActivities(a);setSlaHistory(h)
+      setActivities(a);setSlaHistory(h);setReadiness(r)
     }catch(e){setError(e instanceof Error?e.message:'Helpdesk history could not be loaded')}
   },[s?.accessToken])
 
@@ -99,6 +101,20 @@ export default function HelpdeskAdminPage(){
         <div style={header}><div><h2 style={{margin:0}}>{selected.title}</h2><p>{selected.description}</p></div><strong>{selected.computedSlaState??selected.slaState??'UNTRACKED'}</strong></div>
         <dl style={details}><dt>Property</dt><dd>{selected.buildingName??'—'} · {selected.unitNumber??'—'}</dd><dt>Resident</dt><dd>{selected.createdByName??'—'}</dd><dt>Priority</dt><dd>{selected.priority}</dd><dt>First response due</dt><dd>{fmt(selected.firstResponseDueAt)}</dd><dt>Resolution due</dt><dd>{fmt(selected.resolutionDueAt)}</dd><dt>Escalation</dt><dd>Level {selected.escalationLevel??0}{selected.escalatedToName?` · ${selected.escalatedToName}`:''}</dd></dl>
 
+        {readiness&&<section style={readinessPanelStyle}>
+          <div style={header}><div><h3 style={{margin:0}}>Service-recovery readiness</h3><small>{readiness.boundary}</small></div><strong>{readiness.blockers.length===0?'READY':'ACTION REQUIRED'}</strong></div>
+          <div style={readinessGrid}>
+            <div><b>{readiness.assigned?'Assigned':'Unassigned'}</b><span>Ownership</span></div>
+            <div><b>{readiness.firstResponded?'Responded':'Awaiting response'}</b><span>First response</span></div>
+            <div><b>{readiness.computedSlaState.replaceAll('_',' ')}</b><span>SLA state</span></div>
+            <div><b>{readiness.escalated?'Level '+readiness.escalationLevel:'Not escalated'}</b><span>Escalation</span></div>
+            <div><b>{readiness.critical?'Critical':'Normal'}</b><span>Recovery priority</span></div>
+            <div><b>{readiness.policy?readiness.policy.firstResponseMinutes+'m / '+readiness.policy.resolutionMinutes+'m':'No active policy'}</b><span>Response / resolution target</span></div>
+          </div>
+          {readiness.blockers.length>0&&<div><b>Readiness blockers</b><ul>{readiness.blockers.map(x=><li key={x}>{x.replaceAll('_',' ')}</li>)}</ul></div>}
+          {readiness.nextActions.length>0&&<div><b>Next actions</b><ul>{readiness.nextActions.map(x=><li key={x}>{x}</li>)}</ul></div>}
+        </section>}
+
         <div style={grid}>
           <form onSubmit={assign} style={subpanel}><h3>Assignment</h3><label style={label}>Assignee<select style={input} value={assignedToId} onChange={e=>setAssignedToId(e.target.value)}><option value="">Unassigned</option>{reviewers.map(r=><option key={r.id} value={r.id}>{r.name} · {r.phone}</option>)}</select></label><button style={primary} disabled={busy}>Update assignment</button></form>
           <form onSubmit={updateStatus} style={subpanel}><h3>Ticket lifecycle</h3><label style={label}>Status<select style={input} value={status} onChange={e=>{setStatus(e.target.value);setReasonCode('')}}>{statusOptions.map(v=><option key={v}>{v}</option>)}</select></label>{status==='RESOLVED'&&<label style={label}>Resolution code<select style={input} value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{resolutionCodes.map(v=><option key={v}>{v}</option>)}</select></label>}{status==='CLOSED'&&<label style={label}>Closure code<select style={input} value={reasonCode} onChange={e=>setReasonCode(e.target.value)} required><option value="">Select</option>{closureCodes.map(v=><option key={v}>{v}</option>)}</select></label>}<label style={label}>Status note<textarea style={input} value={statusNote} onChange={e=>setStatusNote(e.target.value)} maxLength={1000}/></label><button style={primary} disabled={busy}>Update status</button></form>
@@ -135,6 +151,8 @@ const secondary:React.CSSProperties={padding:'9px 12px',border:'1px solid #cbd5e
 const ticketButton:React.CSSProperties={display:'grid',gap:5,width:'100%',textAlign:'left',padding:12,marginTop:8,border:'1px solid #e2e8f0',borderRadius:12,background:'white'}
 const selectedStyle:React.CSSProperties={background:'#f0fdfa',borderColor:'#5eead4'}
 const details:React.CSSProperties={display:'grid',gridTemplateColumns:'150px 1fr',gap:'8px 12px'}
+const readinessPanelStyle:React.CSSProperties={marginTop:14,padding:14,border:'1px solid #99f6e4',borderRadius:12,background:'#f0fdfa',display:'grid',gap:12}
+const readinessGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}
 const historyRow:React.CSSProperties={display:'grid',gap:4,padding:'9px 0',borderBottom:'1px solid #e2e8f0'}
 const err:React.CSSProperties={padding:12,background:'#fef2f2',color:'#991b1b',borderRadius:10}
 const ok:React.CSSProperties={padding:12,background:'#ecfdf5',color:'#065f46',borderRadius:10}
