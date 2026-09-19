@@ -28,7 +28,62 @@ export class FacilitiesController{
       ORDER BY u."name" ASC
     `);
   }
-    @Get('assets') @RequiresPermissions(AppPermission.FACILITIES_READ)
+    @Get('readiness') @RequiresPermissions(AppPermission.FACILITIES_READ)
+  async readiness(@CurrentTenant() societyId:string){
+    const rows=await this.prisma.$queryRaw<Array<{
+      id:string;title:string;priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';status:'OPEN'|'IN_PROGRESS';
+      dueAt:Date|null;assetId:string|null;assetCode:string|null;assetName:string|null;assetStatus:string|null;
+      assignedUserId:string|null;assignedUserName:string|null;evidenceCount:number;verifiedEvidenceCount:number;
+    }>>(Prisma.sql`
+      SELECT w."id",w."title",w."priority",w."status",w."dueAt",w."assetId",
+             a."code" AS "assetCode",a."name" AS "assetName",a."status" AS "assetStatus",
+             w."assignedUserId",assignee."name" AS "assignedUserName",
+             (SELECT COUNT(*)::int FROM "FacilityEvidenceReference" e
+               WHERE e."societyId"=w."societyId" AND e."workOrderId"=w."id") AS "evidenceCount",
+             (SELECT COUNT(*)::int FROM "FacilityEvidenceReference" e
+               WHERE e."societyId"=w."societyId" AND e."workOrderId"=w."id" AND e."verifiedAt" IS NOT NULL) AS "verifiedEvidenceCount"
+      FROM "FacilityWorkOrder" w
+      LEFT JOIN "FacilityAsset" a ON a."id"=w."assetId" AND a."societyId"=w."societyId"
+      LEFT JOIN "User" assignee ON assignee."id"=w."assignedUserId"
+      WHERE w."societyId"=${societyId}::uuid AND w."status" IN ('OPEN','IN_PROGRESS')
+      ORDER BY
+        CASE w."priority" WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
+        CASE WHEN w."dueAt" IS NOT NULL AND w."dueAt"<CURRENT_TIMESTAMP THEN 0 ELSE 1 END,
+        w."dueAt" ASC NULLS LAST,w."createdAt" ASC
+      LIMIT 250
+    `);
+    const now=Date.now();
+    const items=rows.map(row=>{
+      const overdue=!!row.dueAt&&row.dueAt.getTime()<now;
+      const signals:string[]=[];
+      if(row.priority==='CRITICAL')signals.push('PRIORITY_CRITICAL');
+      if(overdue)signals.push('WORK_ORDER_OVERDUE');
+      if(!row.assignedUserId)signals.push('ASSIGNEE_MISSING');
+      if(row.assetStatus==='OUT_OF_SERVICE')signals.push('ASSET_OUT_OF_SERVICE');
+      if(row.assetStatus==='RETIRED')signals.push('ASSET_RETIRED');
+      const nextActions:string[]=[];
+      if(!row.assignedUserId)nextActions.push('Assign an active society member to own this work order.');
+      if(overdue)nextActions.push('Review the overdue work and record current progress or completion.');
+      if(row.priority==='CRITICAL')nextActions.push('Prioritize operational response for this critical work order.');
+      if(row.assetStatus==='OUT_OF_SERVICE'||row.assetStatus==='RETIRED')nextActions.push('Confirm the work order remains appropriate for the current asset service state.');
+      if(row.evidenceCount===0)nextActions.push('Attach maintenance evidence when supporting records become available.');
+      if(nextActions.length===0)nextActions.push('Continue the planned work-order lifecycle and record evidence as work progresses.');
+      return {...row,overdue,signals,nextActions};
+    });
+    return {
+      summary:{
+        activeWorkOrders:items.length,
+        criticalActive:items.filter(item=>item.priority==='CRITICAL').length,
+        overdue:items.filter(item=>item.overdue).length,
+        unassigned:items.filter(item=>!item.assignedUserId).length,
+        outOfServiceAssetWork:items.filter(item=>item.assetStatus==='OUT_OF_SERVICE'||item.assetStatus==='RETIRED').length,
+      },
+      items,
+      boundary:'Operational readiness evidence only; this view does not certify maintenance quality, contract validity or physical asset condition.',
+    };
+  }
+
+  @Get('assets') @RequiresPermissions(AppPermission.FACILITIES_READ)
   listAssets(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT * FROM "FacilityAsset" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC`);}
   @Post('assets') @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   async createAsset(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateAssetDto){const actor=this.user(userId);const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "FacilityAsset" ("societyId","code","name","category","location","manufacturer","model","serialNumber","installedAt","warrantyEndsAt","notes","createdByUserId") VALUES (${societyId}::uuid,${dto.code.trim()},${dto.name.trim()},${dto.category.trim()},${dto.location?.trim()||null},${dto.manufacturer?.trim()||null},${dto.model?.trim()||null},${dto.serialNumber?.trim()||null},${dto.installedAt?new Date(dto.installedAt):null},${dto.warrantyEndsAt?new Date(dto.warrantyEndsAt):null},${dto.notes?.trim()||null},${actor}::uuid) RETURNING *`);return rows[0];}
