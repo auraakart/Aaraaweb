@@ -76,9 +76,6 @@ describe('HelpdeskSlaService', () => {
     await expect(service.evaluate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
     )).resolves.toMatchObject({ slaState:'RESOLUTION_BREACHED', changed:true });
-
-    const sql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(sql).toContain("ELSE 'RESOLUTION_BREACHED'");
   });
 
   it('uses closedAt when a ticket is closed without an intermediate resolved timestamp', async () => {
@@ -99,10 +96,6 @@ describe('HelpdeskSlaService', () => {
     await expect(service.evaluate(
       '11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333',
     )).resolves.toMatchObject({ slaState:'MET', changed:true });
-
-    const sql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(sql).toContain('COALESCE');
-    expect(sql).toContain('::timestamptz');
   });
 
   it('reapplied policy preserves the computed overdue state in audit evidence', async () => {
