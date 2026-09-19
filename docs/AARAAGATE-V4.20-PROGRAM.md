@@ -1,7 +1,7 @@
 # Aaraagate V4.20 Program — Facilities, Assets & Work-Order Depth
 
 Date: 2026-09-19  
-Status: In progress  
+Status: Repository closure complete  
 Baseline: `develop` after V4.19 repository closure
 
 ## Why V4.20
@@ -36,13 +36,13 @@ The repository already contains tenant-scoped facility assets, work orders, prev
 - critical-work prioritization and next-action guidance;
 - preserve lifecycle transition and evidence rules.
 
-### V4.20.3 — Contract / preventive maintenance depth — in progress
+### V4.20.3 — Contract / preventive maintenance depth — merged via #715
 
 - improve AMC/service-contract and preventive-plan linkage/expiry clarity;
 - expose plan-to-generated-work evidence and contract/evidence context;
 - preserve provider verification and tenant scoping.
 
-### V4.20.4 — Evidence reconciliation
+### V4.20.4 — Evidence reconciliation — complete
 
 - full regression and CI;
 - requirements traceability and roadmap reconciliation;
@@ -53,3 +53,9 @@ The repository already contains tenant-scoped facility assets, work orders, prev
 ## Quality gates
 
 Tenant isolation, facilities permissions, active-assignee validation, controlled work-order transitions, duplicate-safe preventive generation, append-only lifecycle evidence and full CI remain mandatory.
+
+## Repository closure
+
+V4.20 repository closure is complete when this evidence branch is merged to `develop`. The milestone hardens facilities operator workflows, asset/work-order readiness, contract/preventive linkage and plan-to-generated-work evidence while preserving tenant scoping, controlled transitions and duplicate-safe preventive generation.
+
+Real facility-team acceptance, physical inspection outcomes, provider/AMC legal validity, hosted production evidence and field maintenance outcomes remain external.
