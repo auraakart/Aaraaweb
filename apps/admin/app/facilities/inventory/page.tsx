@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent,useEffect,useMemo,useState } from 'react'
-import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField, StatusPill } from '../../../components/admin-ui'
+import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField } from '../../../components/admin-ui'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type InventoryItem={id:string;sku:string;name:string;category?:string|null;unit:string;reorderLevel:string|number;onHandQuantity:string|number;needsReorder:boolean}
