@@ -44,7 +44,7 @@ export class FacilitiesContractsController{
 
   @Get()
   @RequiresPermissions(AppPermission.FACILITIES_READ)
-  list(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT c.*,p."businessName" AS "providerName",a."code" AS "assetCode",a."name" AS "assetName" FROM "FacilityServiceContract" c JOIN "ServiceProvider" p ON p."id"=c."providerId" LEFT JOIN "FacilityAsset" a ON a."id"=c."assetId" WHERE c."societyId"=${societyId}::uuid ORDER BY c."endsAt" ASC`);}
+  list(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT c.*,p."businessName" AS "providerName",a."code" AS "assetCode",a."name" AS "assetName",mp."title" AS "maintenancePlanTitle",mp."active" AS "maintenancePlanActive",mp."nextDueAt" AS "maintenancePlanNextDueAt" FROM "FacilityServiceContract" c JOIN "ServiceProvider" p ON p."id"=c."providerId" LEFT JOIN "FacilityAsset" a ON a."id"=c."assetId" LEFT JOIN "FacilityMaintenancePlan" mp ON mp."id"=c."maintenancePlanId" AND mp."societyId"=c."societyId" WHERE c."societyId"=${societyId}::uuid ORDER BY c."endsAt" ASC`);}
 
   @Post()
   @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
