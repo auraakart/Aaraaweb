@@ -44,6 +44,12 @@ class UpdatePrivacyRetentionReviewDto {
 export class PrivacyController {
   constructor(private readonly privacy: PrivacyService, private readonly subjectData: PrivacySubjectDataService) {}
 
+  @Get('operator-context')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  operatorContext(@CurrentTenant() societyId: string) {
+    return this.privacy.operatorContext(societyId);
+  }
+
   @Get('cases')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
   listCases(@CurrentTenant() societyId: string) {
