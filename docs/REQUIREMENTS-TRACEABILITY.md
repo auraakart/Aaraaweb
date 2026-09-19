@@ -5,7 +5,7 @@ Updated: 2026-09-19
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
 ## V1 implementation baseline
-Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **Planned, not implemented**. Acceptance requires all 16 shared component contracts and sequentially validated migrations of Helpdesk, Privacy, Facilities, Documents, Occupancy and Finance/Governance. Domain acceptance below does not imply completion of this UI/UX milestone.
+Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **V4.22.0 foundation implemented and validating; migrations pending**. The [shared design system](ADMIN-DESIGN-SYSTEM.md) records all 16 contracts and the route inventory. Full acceptance still requires sequentially validated migrations of Helpdesk, Privacy, Facilities, Documents, Occupancy and Finance/Governance. Domain acceptance below does not imply completion of this UI/UX milestone.
 
 | Area | Status | Current acceptance state |
 |---|---|---|
