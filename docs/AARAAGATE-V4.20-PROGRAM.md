@@ -21,7 +21,7 @@ The repository already contains tenant-scoped facility assets, work orders, prev
 
 ## Delivery slices
 
-### V4.20.1 — Facilities operator depth
+### V4.20.1 — Facilities operator depth — merged via #713
 
 - facilities-scoped active-assignee context under FACILITIES_READ;
 - typed assignee selectors for work orders and preventive maintenance plans;
@@ -30,7 +30,7 @@ The repository already contains tenant-scoped facility assets, work orders, prev
 - append-only work-order history with actor names;
 - API and Admin regression coverage.
 
-### V4.20.2 — Asset / work-order readiness evidence
+### V4.20.2 — Asset / work-order readiness evidence — in progress
 
 - descriptive overdue, assignment, asset-state and evidence/readiness signals;
 - critical-work prioritization and next-action guidance;
