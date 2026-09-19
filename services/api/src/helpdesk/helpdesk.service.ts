@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { HELPDESK_TICKET_SLA_STATE_SQL } from './helpdesk-sla-state';
 
 type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 type TicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
@@ -35,8 +36,11 @@ export class HelpdeskService {
 
   listMine(societyId: string, userId: string) {
     return this.prisma.$queryRaw<TicketRow[]>(Prisma.sql`
-      SELECT ht.*
+      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName",
+        ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
+      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId"
       WHERE ht."societyId" = ${societyId}::uuid
         AND EXISTS (
           SELECT 1 FROM "UnitOccupancy" uo
