@@ -23,6 +23,7 @@ export default function OpeningBalancesPage(){
   const[accounts,setAccounts]=useState<Account[]>([]),[periods,setPeriods]=useState<Period[]>([]),[batches,setBatches]=useState<Batch[]>([])
   const[batchKey,setBatchKey]=useState(''),[periodId,setPeriodId]=useState(''),[entryNumber,setEntryNumber]=useState(''),[entryDate,setEntryDate]=useState(today()),[description,setDescription]=useState('Opening balances from legacy system'),[externalReference,setExternalReference]=useState('')
   const[lines,setLines]=useState<Line[]>([emptyLine(),emptyLine()])
+  const[postConfirmed,setPostConfirmed]=useState(false)
   const canRead=!!session&&readRoles.has(session.role),canManage=!!session&&manageRoles.has(session.role)
 
   const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[a,p,b]=await Promise.all([api<Account[]>(s,'/accounting/accounts'),api<Period[]>(s,'/accounting/periods'),api<Batch[]>(s,'/accounting/opening-balances')]);setAccounts(a.filter(x=>x.active));setPeriods(p);setBatches(b);setPeriodId(prev=>prev||p.find(x=>x.status==='OPEN')?.id||'')}catch(e){setError(e instanceof Error?e.message:'Could not load opening balances')}finally{setLoading(false)}},[])
@@ -38,9 +39,9 @@ export default function OpeningBalancesPage(){
     if(payloadLines.some(line=>!Number.isSafeInteger(line.debitPaise)||!Number.isSafeInteger(line.creditPaise))){setError('Amounts must resolve to whole paise values.');return}
     const debit=payloadLines.reduce((n,line)=>n+line.debitPaise,0),credit=payloadLines.reduce((n,line)=>n+line.creditPaise,0)
     if(debit<=0||debit!==credit){setError('Opening-balance debits and credits must be positive and exactly balanced.');return}
-    if(!confirm(`Post opening balances totalling ${money(debit)}? This creates an auditable posted journal and should represent the legacy cutover.`))return
+    if(!postConfirmed){setError('Confirm the auditable cutover posting before continuing.');return}
     setBusy(true)
-    try{const result=await api<{idempotent:boolean}>(session,'/accounting/opening-balances',{method:'POST',body:JSON.stringify({batchKey,periodId,entryNumber,entryDate,description,externalReference:externalReference||undefined,lines:payloadLines})});setSuccess(result.idempotent?'This exact cutover batch was already posted; no duplicate journal was created.':'Opening balances posted successfully.');await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not post opening balances')}finally{setBusy(false)}
+    try{const result=await api<{idempotent:boolean}>(session,'/accounting/opening-balances',{method:'POST',body:JSON.stringify({batchKey,periodId,entryNumber,entryDate,description,externalReference:externalReference||undefined,lines:payloadLines})});setPostConfirmed(false);setSuccess(result.idempotent?'This exact cutover batch was already posted; no duplicate journal was created.':'Opening balances posted successfully.');await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not post opening balances')}finally{setBusy(false)}
   }
 
   if(loading)return <PageShell><PageHeader title="Opening balances" description="Loading cutover balances…"/></PageShell>
@@ -60,9 +61,12 @@ export default function OpeningBalancesPage(){
         <FormField label="Source reference (optional)" value={externalReference} onChange={e=>setExternalReference(e.target.value)} placeholder="Legacy export file / migration reference"/>
       </div>
       <h3>Balanced journal lines</h3><div style={{overflowX:'auto'}}><table><thead><tr><th>Account</th><th>Unit UUID (optional)</th><th>Fund UUID (optional)</th><th>Description</th><th>Debit ₹</th><th>Credit ₹</th><th></th></tr></thead><tbody>{lines.map((line,index)=><tr key={index}><td><select required value={line.accountId} onChange={e=>updateLine(index,'accountId',e.target.value)}><option value="">Choose</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></td><td><input value={line.unitId} onChange={e=>updateLine(index,'unitId',e.target.value)} placeholder="UUID"/></td><td><input value={line.fundId} onChange={e=>updateLine(index,'fundId',e.target.value)} placeholder="UUID"/></td><td><input value={line.description} onChange={e=>updateLine(index,'description',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.debit} onChange={e=>updateLine(index,'debit',e.target.value)}/></td><td><input type="number" min="0" step="0.01" value={line.credit} onChange={e=>updateLine(index,'credit',e.target.value)}/></td><td><SecondaryButton type="button" disabled={lines.length<=2} onClick={()=>removeLine(index)}>Remove</SecondaryButton></td></tr>)}</tbody></table></div>
-      <div style={{display:'flex',justifyContent:'space-between',gap:12,marginTop:14,flexWrap:'wrap'}}><SecondaryButton type="button" onClick={()=>setLines(current=>[...current,emptyLine()])}>Add line</SecondaryButton><PrimaryButton type="submit" loading={busy} disabled={!batchKey||!periodId||!entryNumber}>Post opening balances</PrimaryButton></div>
+      <div style={{display:'flex',justifyContent:'space-between',gap:12,marginTop:14,flexWrap:'wrap'}}><SecondaryButton type="button" onClick={()=>setLines(current=>[...current,emptyLine()])}>Add line</SecondaryButton><div style={confirmation}><label style={confirmRow}><input type="checkbox" checked={postConfirmed} onChange={e=>setPostConfirmed(e.target.checked)}/><span>I confirm this creates an auditable posted journal and represents the legacy cutover.</span></label><PrimaryButton type="submit" loading={busy} disabled={!batchKey||!periodId||!entryNumber}>Post opening balances</PrimaryButton></div></div>
     </form></section>}
 
     <section style={{marginTop:18,padding:20,border:'1px solid #d5e8eb'}}><h2 style={{marginTop:0}}>Cutover history</h2>{batches.length===0?<EmptyState title="No opening-balance batches posted"/>:<div style={{overflowX:'auto'}}><table><thead><tr><th>Batch</th><th>Journal</th><th>Date</th><th>Status</th><th>Lines</th><th>Balanced total</th></tr></thead><tbody>{batches.map(b=><tr key={b.id}><td><b>{b.batchKey}</b><br/><small>{b.description}</small></td><td>{b.entryNumber}</td><td>{new Date(b.entryDate).toLocaleDateString('en-IN')}</td><td>{b.status}</td><td>{b.lineCount}</td><td>{money(b.debitPaise)}</td></tr>)}</tbody></table></div>}</section>
   </PageShell>
 }
+
+const confirmation:React.CSSProperties={display:'grid',gap:8,maxWidth:520}
+const confirmRow:React.CSSProperties={display:'grid',gridTemplateColumns:'auto 1fr',gap:8,alignItems:'start'}
