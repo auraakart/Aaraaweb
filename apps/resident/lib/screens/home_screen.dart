@@ -20,7 +20,6 @@ class HomeScreen extends StatelessWidget {
     required this.showAmenities,
     required this.showSos,
     required this.showAi,
-    required this.onOpenGate,
     required this.onOpenStaff,
     required this.onOpenServices,
     required this.onOpenHelpdesk,
@@ -40,7 +39,6 @@ class HomeScreen extends StatelessWidget {
   final bool showAmenities;
   final bool showSos;
   final bool showAi;
-  final VoidCallback onOpenGate;
   final VoidCallback onOpenStaff;
   final VoidCallback onOpenServices;
   final VoidCallback onOpenHelpdesk;
