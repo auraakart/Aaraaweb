@@ -27,7 +27,6 @@ async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
   return body as T
 }
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
-const labelText=(v:string)=>v.replaceAll('_',' ')
 
 export default function PrivacyOperationsPage(){
   const session=typeof window==='undefined'?null:getSession()
