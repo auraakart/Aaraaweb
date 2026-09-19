@@ -203,6 +203,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         }
 
         int? gateIndex;
+        int? servicesIndex;
         final pages = <Widget>[];
         final destinations = <NavigationDestination>[];
         void add(Widget page, NavigationDestination destination) {
@@ -224,18 +225,22 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           HomeScreen(
             controller: controller,
             showGate: showGate,
+            showStaff: showStaff,
             showServices: showServices,
             showHelpdesk: showHelpdesk,
             showNotices: showNotices,
             showBilling: showBilling,
             showAmenities: showAmenities,
             showSos: showSos,
+            showAi: showAi,
             onOpenGate: () { if (gateIndex != null) _open(gateIndex); },
-            onOpenServices: _openExternalServices,
+            onOpenStaff: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WorkforceScreen(controller: controller))),
+            onOpenServices: () { if (servicesIndex != null) _open(servicesIndex); },
             onOpenHelpdesk: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller))),
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
             onOpenAmenities: _openAmenities,
+            onOpenAi: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository))),
           ),
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
         );
@@ -243,17 +248,12 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           gateIndex = pages.length;
           add(GateScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'));
         }
-        if (showStaff) {
-          add(WorkforceScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'));
-        }
         if (showServices) {
+          servicesIndex = pages.length;
           add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
         }
         if (showNotices || showHelpdesk) {
           add(CommunityScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups_rounded), label: 'Community'));
-        }
-        if (showAi) {
-          add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));
         }
         final profileIndex = pages.length;
         add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
