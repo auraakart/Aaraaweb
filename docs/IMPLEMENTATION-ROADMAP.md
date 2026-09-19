@@ -1,6 +1,6 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-18
+Updated: 2026-09-19
 
 ## Current execution status
 Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
@@ -80,6 +80,8 @@ Repository depth closure through V4.17 now includes typed Admin operator flows, 
 - Privacy request case model, retention checks and audit trail.
 - Processor/vendor privacy register hooks.
 - Personal-data incident workflow.
+
+Repository privacy-depth closure through V4.19 now includes typed case operations, privacy-scoped subject/assignee context, descriptive readiness/conflict evidence, server-governed erasure blockers, registry/incident/grievance context and Resident self-service status/export clarity. Jurisdiction-specific rights interpretation and qualified legal/privacy acceptance remain external.
 
 ### V2.1E — Payment exception lifecycle
 - debited-but-unconfirmed;
