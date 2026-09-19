@@ -81,6 +81,8 @@ Repository depth closure through V4.17 now includes typed Admin operator flows, 
 - Processor/vendor privacy register hooks.
 - Personal-data incident workflow.
 
+Repository privacy depth closure through V4.19 now includes privacy-scoped operator context, typed case/legal-hold/retention workflows, read-only readiness/conflict evidence, governed erasure-plan visibility and Resident request-status/export/grievance clarity. Statutory compliance, jurisdiction-specific rights interpretation and field privacy acceptance remain external.
+
 Repository privacy-depth closure through V4.19 now includes typed case operations, privacy-scoped subject/assignee context, descriptive readiness/conflict evidence, server-governed erasure blockers, registry/incident/grievance context and Resident self-service status/export clarity. Jurisdiction-specific rights interpretation and qualified legal/privacy acceptance remain external.
 
 ### V2.1E — Payment exception lifecycle
