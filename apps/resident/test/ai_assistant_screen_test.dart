@@ -50,12 +50,16 @@ void main(){
     await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(apiClient:api,unitId:'demo-unit-1',demoMode:true)));
     expect(find.textContaining('safe AI showcase'),findsOneWidget);
     await tester.enterText(find.byType(TextField),'What is my maintenance due?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Your September maintenance bill is ₹4,250'),findsOneWidget);
     expect(api.posts,isEmpty);
 
     await tester.enterText(find.byType(TextField),'Urgent water leak near kitchen');
+    await tester.ensureVisible(find.text('Complaint draft'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Complaint draft'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Demo safeguard'),findsOneWidget);
