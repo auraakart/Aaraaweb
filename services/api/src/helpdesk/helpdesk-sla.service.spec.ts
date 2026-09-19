@@ -3,6 +3,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { HelpdeskSlaService } from './helpdesk-sla.service';
 
 describe('HelpdeskSlaService', () => {
+
+  it('orders the queue from the authoritative SLA expression instead of a select alias', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const service = new HelpdeskSlaService(prisma as never);
+    await service.listQueue('11111111-1111-4111-8111-111111111111');
+
+    const query = prisma.$queryRaw.mock.calls[0][0] as {
+      strings: readonly string[];
+      values?: readonly unknown[];
+    };
+    expect(query.strings.join(' ')).not.toContain('CASE "computedSlaState"');
+    const fragments = (query.values ?? []).filter(
+      (value): value is { strings: readonly string[] } =>
+        typeof value === 'object' && value !== null && 'strings' in value,
+    );
+    expect(fragments.filter(fragment => fragment.strings.join(' ').includes('COALESCE(ht."resolvedAt", ht."closedAt")')).length)
+      .toBeGreaterThanOrEqual(2);
+  });
+
   it('rejects invalid policy ordering', async () => {
     const service = new HelpdeskSlaService({} as never);
     await expect(service.upsertPolicy('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',{
