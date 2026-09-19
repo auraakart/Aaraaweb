@@ -15,7 +15,6 @@ import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/independent_home_shell.dart';
-import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -167,7 +166,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
   }
 
   void _open(int index) => setState(() => _index = index);
-  void _openExternalServices() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => IndependentServicesScreen(apiClient: widget.consumerApiClient, independentMode: false)));
   void _openAmenities() {
     final unitId = widget.controller.primaryUnitId;
     if (unitId == null) {
@@ -202,7 +200,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           return _SocietyOnlyShell(controller: controller, profile: _profile(controller), societyName: _currentSocietyName());
         }
 
-        int? gateIndex;
         int? servicesIndex;
         final pages = <Widget>[];
         final destinations = <NavigationDestination>[];
@@ -233,7 +230,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             showAmenities: showAmenities,
             showSos: showSos,
             showAi: showAi,
-            onOpenGate: () { if (gateIndex != null) _open(gateIndex); },
             onOpenStaff: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WorkforceScreen(controller: controller))),
             onOpenServices: () { if (servicesIndex != null) _open(servicesIndex); },
             onOpenHelpdesk: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller))),
@@ -245,7 +241,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
         );
         if (showGate) {
-          gateIndex = pages.length;
           add(GateScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'));
         }
         if (showServices) {
