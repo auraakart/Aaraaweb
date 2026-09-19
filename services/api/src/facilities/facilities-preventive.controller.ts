@@ -30,7 +30,7 @@ export class FacilitiesPreventiveController{
 
   @Get()
   @RequiresPermissions(AppPermission.FACILITIES_READ)
-  list(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT p.*,a."code" AS "assetCode",a."name" AS "assetName" FROM "FacilityMaintenancePlan" p JOIN "FacilityAsset" a ON a."id"=p."assetId" WHERE p."societyId"=${societyId}::uuid ORDER BY p."nextDueAt" ASC`);}
+  list(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT p.*,a."code" AS "assetCode",a."name" AS "assetName",assignee."name" AS "assignedUserName" FROM "FacilityMaintenancePlan" p JOIN "FacilityAsset" a ON a."id"=p."assetId" LEFT JOIN "User" assignee ON assignee."id"=p."assignedUserId" WHERE p."societyId"=${societyId}::uuid ORDER BY p."nextDueAt" ASC`);}
 
   @Get('metrics')
   @RequiresPermissions(AppPermission.FACILITIES_READ)
