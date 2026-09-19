@@ -9,16 +9,10 @@ describe('HelpdeskSlaService', () => {
     const service = new HelpdeskSlaService(prisma as never);
     await service.listQueue('11111111-1111-4111-8111-111111111111');
 
-    const query = prisma.$queryRaw.mock.calls[0][0] as {
-      strings: readonly string[];
-      values?: readonly unknown[];
-    };
-    expect(query.strings.join(' ')).not.toContain('CASE "computedSlaState"');
-    const fragments = (query.values ?? []).filter(
-      (value): value is { strings: readonly string[] } =>
-        typeof value === 'object' && value !== null && 'strings' in value,
-    );
-    expect(fragments.filter(fragment => fragment.strings.join(' ').includes('COALESCE(ht."resolvedAt", ht."closedAt")')).length)
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).not.toContain('CASE "computedSlaState"');
+    expect(sql.split('COALESCE(ht."resolvedAt", ht."closedAt")').length - 1)
       .toBeGreaterThanOrEqual(2);
   });
 
