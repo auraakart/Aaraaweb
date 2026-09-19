@@ -66,6 +66,18 @@ export class PrivacyController {
     return this.privacy.createCase(societyId, this.requireUser(userId), dto);
   }
 
+  @Get('cases/:caseId/readiness')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  async readiness(@Param('caseId', ParseUUIDPipe) caseId: string, @CurrentTenant() societyId: string) {
+    const readiness = await this.privacy.caseReadiness(societyId, caseId);
+    if (readiness.requestType !== 'ERASURE') return readiness;
+    const erasure = await this.subjectData.erasurePlan(societyId, caseId);
+    return {
+      ...readiness,
+      erasure: { executable: erasure.executable, blockers: erasure.blockers },
+    };
+  }
+
   @Get('cases/:caseId/erasure-plan')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
   erasurePlan(@Param('caseId', ParseUUIDPipe) caseId: string, @CurrentTenant() societyId: string) {
