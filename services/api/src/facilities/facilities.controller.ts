@@ -18,14 +18,24 @@ class WorkOrderStatusDto{@IsIn(['IN_PROGRESS','COMPLETED','CANCELLED']) status!:
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
 export class FacilitiesController{
   constructor(private readonly prisma:PrismaService){}
-  @Get('assets') @RequiresPermissions(AppPermission.FACILITIES_READ)
+  @Get('operator-context') @RequiresPermissions(AppPermission.FACILITIES_READ)
+  operatorContext(@CurrentTenant() societyId:string){
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT DISTINCT u."id",u."name",u."phone"
+      FROM "SocietyMembership" sm
+      JOIN "User" u ON u."id"=sm."userId"
+      WHERE sm."societyId"=${societyId}::uuid AND sm."active"=TRUE
+      ORDER BY u."name" ASC
+    `);
+  }
+    @Get('assets') @RequiresPermissions(AppPermission.FACILITIES_READ)
   listAssets(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT * FROM "FacilityAsset" WHERE "societyId"=${societyId}::uuid ORDER BY "createdAt" DESC`);}
   @Post('assets') @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   async createAsset(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateAssetDto){const actor=this.user(userId);const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "FacilityAsset" ("societyId","code","name","category","location","manufacturer","model","serialNumber","installedAt","warrantyEndsAt","notes","createdByUserId") VALUES (${societyId}::uuid,${dto.code.trim()},${dto.name.trim()},${dto.category.trim()},${dto.location?.trim()||null},${dto.manufacturer?.trim()||null},${dto.model?.trim()||null},${dto.serialNumber?.trim()||null},${dto.installedAt?new Date(dto.installedAt):null},${dto.warrantyEndsAt?new Date(dto.warrantyEndsAt):null},${dto.notes?.trim()||null},${actor}::uuid) RETURNING *`);return rows[0];}
   @Get('work-orders') @RequiresPermissions(AppPermission.FACILITIES_READ)
-  listWorkOrders(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT w.*,a."code" AS "assetCode",a."name" AS "assetName" FROM "FacilityWorkOrder" w LEFT JOIN "FacilityAsset" a ON a."id"=w."assetId" WHERE w."societyId"=${societyId}::uuid ORDER BY w."createdAt" DESC`);}
+  listWorkOrders(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT w.*,a."code" AS "assetCode",a."name" AS "assetName",assignee."name" AS "assignedUserName" FROM "FacilityWorkOrder" w LEFT JOIN "FacilityAsset" a ON a."id"=w."assetId" LEFT JOIN "User" assignee ON assignee."id"=w."assignedUserId" WHERE w."societyId"=${societyId}::uuid ORDER BY w."createdAt" DESC`);}
   @Get('work-orders/:id/events') @RequiresPermissions(AppPermission.FACILITIES_READ)
-  async listWorkOrderEvents(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){const work=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityWorkOrder" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!work.length)throw new BadRequestException('Facility work order not found');return this.prisma.$queryRaw(Prisma.sql`SELECT * FROM "FacilityWorkOrderEvent" WHERE "societyId"=${societyId}::uuid AND "workOrderId"=${id}::uuid ORDER BY "occurredAt" ASC`);}
+  async listWorkOrderEvents(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){const work=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityWorkOrder" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!work.length)throw new BadRequestException('Facility work order not found');return this.prisma.$queryRaw(Prisma.sql`SELECT e.*,actor."name" AS "actorName" FROM "FacilityWorkOrderEvent" e LEFT JOIN "User" actor ON actor."id"=e."actorUserId" WHERE e."societyId"=${societyId}::uuid AND e."workOrderId"=${id}::uuid ORDER BY e."occurredAt" ASC`);}
   @Post('work-orders') @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   async createWorkOrder(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateWorkOrderDto){const actor=this.user(userId);if(dto.assetId){const a=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityAsset" WHERE "id"=${dto.assetId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!a.length)throw new BadRequestException('Facility asset not found');}if(dto.assignedUserId)await this.assertActiveSocietyMember(societyId,dto.assignedUserId);const scheduled=dto.scheduledAt?new Date(dto.scheduledAt):null,due=dto.dueAt?new Date(dto.dueAt):null;if(scheduled&&due&&due<scheduled)throw new BadRequestException('Due time cannot precede scheduled time');return this.prisma.$transaction(async tx=>{const rows=await tx.$queryRaw<Array<Record<string,unknown>&{id:string}>>(Prisma.sql`INSERT INTO "FacilityWorkOrder" ("societyId","assetId","workType","priority","title","description","scheduledAt","dueAt","assignedUserId","createdByUserId") VALUES (${societyId}::uuid,${dto.assetId??null}::uuid,${dto.workType},${dto.priority},${dto.title.trim()},${dto.description?.trim()||null},${scheduled},${due},${dto.assignedUserId??null}::uuid,${actor}::uuid) RETURNING *`);const created=rows[0];await tx.$executeRaw(Prisma.sql`INSERT INTO "FacilityWorkOrderEvent" ("societyId","workOrderId","eventType","toStatus","actorUserId") VALUES (${societyId}::uuid,${created.id}::uuid,'CREATED','OPEN',${actor}::uuid)`);return created;});}
   @Post('work-orders/:id/status') @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
