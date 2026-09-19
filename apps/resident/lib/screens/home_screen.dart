@@ -208,8 +208,10 @@ class HomeScreen extends StatelessWidget {
                 supportingText: controller.notices.isEmpty
                     ? 'Society notices and updates will appear here.'
                     : 'Latest from your society.',
-                actionLabel: 'See all',
-                onAction: onOpenNotices,
+                trailing: TextButton(
+                  onPressed: onOpenNotices,
+                  child: const Text('See all'),
+                ),
               ),
               const SizedBox(height: AaraagateTokens.space3),
               if (controller.notices.isEmpty)
