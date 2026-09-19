@@ -565,20 +565,18 @@ class _QuickAction extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.urgent = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool urgent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final background = urgent ? scheme.errorContainer.withOpacity(.55) : scheme.surfaceContainerLow;
-    final foreground = urgent ? scheme.error : scheme.primary;
+    final background = scheme.surfaceContainerLow;
+    final foreground = scheme.primary;
 
     return PremiumSurface(
       onTap: onTap,
