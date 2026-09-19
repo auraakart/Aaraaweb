@@ -36,6 +36,10 @@ class AddInternalNoteDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
 }
 
+class AssignHelpdeskTicketDto {
+  @IsOptional() @IsUUID() assignedToId?: string | null;
+}
+
 class ReopenHelpdeskTicketDto {
   @IsString() @MinLength(3) @MaxLength(1000) note!: string;
 }
@@ -85,10 +89,27 @@ export class HelpdeskController {
     return this.helpdesk.activitiesMine(societyId, this.requireUser(userId), ticketId);
   }
 
+  @Get('review/context')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reviewContext(@CurrentTenant() societyId: string) {
+    return this.helpdesk.reviewContext(societyId);
+  }
+
   @Get('review/queue')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   queue(@CurrentTenant() societyId: string) {
     return this.helpdesk.listReview(societyId);
+  }
+
+  @Patch('review/:ticketId/assignment')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  assignment(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AssignHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.assign(societyId, this.requireUser(userId), ticketId, dto.assignedToId ?? null);
   }
 
   @Get('review/:ticketId/activities')
