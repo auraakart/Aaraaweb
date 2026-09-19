@@ -136,6 +136,64 @@ export class PrivacyService {
     ]).then(([subjects, assignees]) => ({ subjects, assignees }));
   }
 
+  async caseReadiness(societyId: string, caseId: string) {
+    const current = await this.findCase(societyId, caseId);
+    if (!current) throw new NotFoundException('Privacy request case not found');
+
+    const [categoryRows, processorRows, incidentRows, grievanceRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "count" FROM "PrivacyDataCategory"
+        WHERE "societyId"=${societyId}::uuid AND "active"=true
+      `),
+      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "count" FROM "PrivacyProcessorRegister"
+        WHERE "societyId"=${societyId}::uuid AND "active"=true
+      `),
+      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "count" FROM "PrivacySecurityIncident"
+        WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
+      `),
+      this.prisma.$queryRaw<Array<{ active: boolean }>>(Prisma.sql`
+        SELECT "active" FROM "PrivacyGrievanceContact"
+        WHERE "societyId"=${societyId}::uuid LIMIT 1
+      `),
+    ]);
+
+    const terminal = TERMINAL_STATUSES.includes(current.status);
+    const blockers: string[] = [];
+    if (!terminal && !current.assignedToUserId) blockers.push('ASSIGNEE_MISSING');
+    if (!terminal && current.dueAt && current.dueAt.getTime() < Date.now()) blockers.push('CASE_OVERDUE');
+    if (current.requestType === 'ERASURE') {
+      if (current.legalHold) blockers.push('LEGAL_HOLD_ACTIVE');
+      if (current.retentionDecision !== 'ALLOW') blockers.push('RETENTION_REVIEW_NOT_ALLOWED');
+    }
+
+    const nextActions: string[] = [];
+    if (blockers.includes('ASSIGNEE_MISSING')) nextActions.push('Assign an active society member to own the case.');
+    if (blockers.includes('CASE_OVERDUE')) nextActions.push('Review the overdue case and record the current handling status.');
+    if (blockers.includes('LEGAL_HOLD_ACTIVE')) nextActions.push('Resolve the documented legal/retention hold before erasure execution.');
+    if (blockers.includes('RETENTION_REVIEW_NOT_ALLOWED')) nextActions.push('Record an explicit retention review before erasure execution.');
+    if (!terminal && blockers.length === 0) nextActions.push('Continue case review and record evidence before closing the request.');
+
+    return {
+      caseId,
+      requestType: current.requestType,
+      status: current.status,
+      assigned: !!current.assignedToUserId,
+      dueAt: current.dueAt,
+      overdue: !terminal && !!current.dueAt && current.dueAt.getTime() < Date.now(),
+      blockers,
+      nextActions,
+      privacyProgramContext: {
+        activeDataCategories: categoryRows[0]?.count ?? 0,
+        activeProcessors: processorRows[0]?.count ?? 0,
+        openSecurityIncidents: incidentRows[0]?.count ?? 0,
+        grievanceContactActive: grievanceRows[0]?.active ?? false,
+      },
+      boundary: 'Operational readiness evidence only; this does not determine statutory rights, legal validity or jurisdiction-specific compliance.',
+    };
+  }
+
   listCases(societyId: string) {
     return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT pc.*, subject."name" AS "subjectName", subject."phone" AS "subjectPhone",
