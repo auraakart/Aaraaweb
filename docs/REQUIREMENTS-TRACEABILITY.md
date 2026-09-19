@@ -1,6 +1,6 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-18
+Updated: 2026-09-19
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
@@ -22,7 +22,7 @@ Updated: 2026-09-18
 | External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
 | Billing / payments | Validated / hardened | Dues, eligible owner/tenant payment, signed reconciliation, exception handling and audit |
 | Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit and controlled exports |
-| Privacy UX / operations | Implemented baseline | Disclosure baseline plus V2 auditable privacy operations; human policy review remains separate |
+| Privacy UX / operations | Validated / hardened | Auditable privacy cases, typed operator workflows, retention/legal-hold controls, readiness/conflict evidence, registry/incident/grievance context and Resident self-service/export clarity; human privacy/legal review remains separate |
 | CI / release controls | Hardened | API/Admin/Flutter validation, dependency audit and release-control contracts |
 | Hosted production evidence | Pending external setup | Hosted infrastructure/provider/Play evidence remains operational work |
 
@@ -36,7 +36,7 @@ Status values below describe repository implementation only. **Human acceptance 
 | V2-OCC Move-in/move-out and tenancy lifecycle | P0 | **Implemented / hardened** | V4.17 adds tenant-scoped operator context, registered-mobile move-in, selector-based move-out, persistent review/checklist/document controls, descriptive readiness/handover evidence for checklist/documents/vehicles/workforce/parking/gate authority, and Resident property-aware status/next-action/timeline UX. Effective-date blocking, checklist readiness, ownership/occupancy separation and move-out gate-authority revocation remain server-authoritative. Real-society rental/police-verification/legal policy acceptance remains external. |
 | V2-GOV Society governance | P0/P1 | **Implemented / hardened** | `services/api/src/governance`, committee/governance permissions and Admin workflows are present. V4.15 adds typed committee/meeting operations, descriptive readiness/closure evidence, configurable quorum/approval/bye-law references, auditable action status/owner/due-date follow-through and overdue visibility. Society-specific bye-law/legal acceptance remains external. |
 | V2-EMR Emergency/incident operations | P0/P1 | **Implemented / hardened** | SOS routing, fallback delivery, broadcast/acknowledgement, assignment, evidence, timeline and closure are implemented. Real-device emergency-response UAT remains. |
-| V2-PRV Privacy/data lifecycle | P0 | **Implemented baseline / hardened** | Privacy operations, retention/conflict controls, processor/vendor hooks and audit requirements are represented in the V2 implementation. Human policy/security review remains. |
+| V2-PRV Privacy/data lifecycle | P0 | **Implemented / hardened** | V4.19 replaces raw UUID/browser-dialog case operations with privacy-scoped subject/assignee context and persistent typed controls; adds read-only assignment/overdue/retention/legal-hold readiness evidence with active data-category, processor, incident and grievance-contact context; and improves Resident self-service with status-specific next actions, operational targets, active grievance contact and server-authorized completed ACCESS exports. Erasure remains governed by server-generated blockers and fail-closed execution. Jurisdiction-specific legal/privacy acceptance remains external. |
 | V2-PAY Payment exception hardening | P0 | **Implemented / hardened** | Gateway transaction truth remains separate from accounting; duplicate/idempotency/reconciliation/refund/exception controls and auditable events are implemented. Live provider E2E remains productionization. |
 | V2-FAC Assets/AMCs/work orders | P1 | **Implemented baseline / hardened** | `services/api/src/facilities` and Admin facilities, preventive maintenance, contracts/evidence and health/alert surfaces are present. V4.16 removes prompt-driven inventory movements in favor of persistent typed controls while retaining stock-integrity guidance and work-order linkage. Human facility-role UAT remains. |
 | V2-VND Society vendors/procurement | P1 | **Implemented / hardened** | Society-vendor bounded context remains separate from consumer External Services. V4.16 exposes quotation comparison/selection, PO issuance, finance-scoped PO→expense-draft handoff with one-PO/one-expense protection, and tenant-scoped vendor contract/SLA/expiry lifecycle evidence with append-only events. Real vendor onboarding and society procurement-policy acceptance remain external. |
@@ -200,3 +200,16 @@ The V4.18 repository cycle is complete on `develop` after the closure branch mer
 5. **External boundary:** hosted object-storage acceptance, statutory/legal document validity, retention-law interpretation, representative-device UAT and field document outcomes remain external.
 
 V4.18 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.19 Privacy Operations & Data Lifecycle Depth closure
+
+The V4.19 repository cycle is complete on `develop` after the closure branch merges:
+
+1. **Privacy operator depth:** society privacy operations use privacy-scoped subject and assignee selectors, due dates and persistent typed controls for case status, legal hold and retention review; browser prompt/alert/confirm flows and raw subject UUID entry are removed.
+2. **Readiness/conflict evidence:** authorized operators can inspect descriptive assignment/overdue state, legal-hold and retention blockers, active data-category/processor counts, open privacy incidents, grievance-contact state and server erasure blockers without changing the underlying execution rules.
+3. **Resident self-service clarity:** authenticated subjects see status-specific next actions, operational target dates, retention-hold context, configured active grievance contact and completed ACCESS export availability. Export access remains self-only and server-authorized.
+4. **Safety boundaries:** tenant/resource permissions, subject ownership, append-only case evidence, retention/legal-hold blocking and governed erasure/minimisation remain server-authoritative.
+5. **External boundary:** jurisdiction-specific rights interpretation, qualified privacy/legal review, real-society policy acceptance, representative-device UAT, hosted production behavior and field privacy outcomes remain external.
+
+V4.19 repository completion does **not** increase Production/field readiness without external evidence.
