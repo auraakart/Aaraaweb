@@ -99,16 +99,63 @@ export class HelpdeskService {
 
   listReview(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName"
+      SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
+             assignee."name" AS "assignedToName", escalated."name" AS "escalatedToName"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id" = ht."unitId"
       JOIN "Building" b ON b."id" = u."buildingId"
       JOIN "User" creator ON creator."id" = ht."createdById"
+      LEFT JOIN "User" assignee ON assignee."id" = ht."assignedToId"
+      LEFT JOIN "User" escalated ON escalated."id" = ht."escalatedToId"
       WHERE ht."societyId" = ${societyId}::uuid
         AND u."societyId" = ${societyId}::uuid
       ORDER BY CASE ht."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
                ht."createdAt" ASC
     `);
+  }
+
+  reviewContext(societyId: string) {
+    return this.prisma.$queryRaw<Array<{ id: string; name: string; phone: string }>>(Prisma.sql`
+      SELECT DISTINCT u."id", u."name", u."phone"
+      FROM "User" u
+      JOIN "SocietyMembership" sm ON sm."userId"=u."id"
+      WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
+      ORDER BY u."name" ASC
+    `);
+  }
+
+  async assign(societyId: string, actorUserId: string, ticketId: string, assignedToId: string | null) {
+    if (assignedToId) {
+      const membership = await this.prisma.societyMembership.findFirst({
+        where: { societyId, userId: assignedToId, active: true },
+        select: { id: true },
+      });
+      if (!membership) throw new BadRequestException('Assignee must be an active member of the current society');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT * FROM "HelpdeskTicket"
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if (!current) throw new NotFoundException('Helpdesk ticket not found');
+      if (['RESOLVED','CLOSED'].includes(current.status)) throw new BadRequestException('Resolved or closed tickets cannot be reassigned');
+
+      const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        UPDATE "HelpdeskTicket"
+        SET "assignedToId"=${assignedToId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
+        RETURNING *
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message")
+        VALUES (
+          ${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'ASSIGNED',
+          ${assignedToId ? `Assigned to ${assignedToId}` : 'Assignment cleared'}
+        )
+      `);
+      return updated;
+    });
   }
 
   async activitiesMine(societyId: string, userId: string, ticketId: string) {
