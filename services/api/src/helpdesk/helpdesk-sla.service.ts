@@ -76,7 +76,7 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       JOIN "User" creator ON creator."id"=ht."createdById"
       WHERE ht."societyId"=${societyId}::uuid
       ORDER BY
-        CASE "computedSlaState"
+        CASE ${HELPDESK_TICKET_SLA_STATE_SQL}
           WHEN 'RESOLUTION_BREACHED' THEN 0
           WHEN 'RESPONSE_BREACHED' THEN 1
           ELSE 2
