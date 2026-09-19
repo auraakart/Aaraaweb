@@ -22,6 +22,7 @@ describe('HelpdeskService resident recovery context', () => {
     expect(text).toContain('"unitNumber"');
     expect(text).toContain('"buildingName"');
     expect(text).toContain('"computedSlaState"');
+    expect(text).toContain('COALESCE(ht."resolvedAt", ht."closedAt")');
     expect(text).toContain('FROM "UnitOccupancy" uo');
     expect(text).toContain('uo."userId" =');
     expect(text).toContain('uo."active" = true');
