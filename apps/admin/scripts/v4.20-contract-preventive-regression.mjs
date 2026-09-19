@@ -21,7 +21,7 @@ for(const token of [
   'Generated work orders',
   'Linked contracts',
   'Maintenance evidence',
-  'Operational maintenance evidence',
+  'planEvidence.boundary',
 ]){
   if(!preventive.includes(token)){
     console.error(`Missing V4.20.3 preventive evidence token: ${token}`)
