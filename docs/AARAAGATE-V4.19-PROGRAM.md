@@ -29,14 +29,14 @@ The repository already contains auditable privacy-request cases, retention/legal
 - remove browser prompt/alert/confirm from society privacy operations;
 - API and Admin regression coverage.
 
-### V4.19.2 — Privacy readiness & conflict evidence — in progress
+### V4.19.2 — Privacy readiness & conflict evidence — merged via #710
 
 - explicit case-readiness view for retention/legal-hold conflicts;
 - processor/data-category and incident/grievance evidence where relevant;
 - descriptive blocker/next-action visibility without legal-validity inference;
 - preserve existing retention and erasure execution rules.
 
-### V4.19.3 — Resident privacy request clarity
+### V4.19.3 — Resident privacy request clarity — in progress
 
 - improve resident self-service request status, next-action and export availability;
 - show grievance/contact context where configured;
