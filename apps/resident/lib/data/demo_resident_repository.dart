@@ -190,24 +190,28 @@ class DemoResidentRepository extends ResidentRepository {
   Future<List<Map<String, dynamic>>> bookings() async => [
         {
           'id': 'demo-booking-1',
+          'unitId': 'demo-unit-1',
           'offeringId': 'demo-offering-1',
           'status': 'CONFIRMED',
           'offering': {'name': 'AC service'},
         },
         {
           'id': 'demo-booking-2',
+          'unitId': 'demo-unit-1',
           'offeringId': 'demo-offering-3',
           'status': 'REQUESTED',
           'offering': {'name': 'Electrician visit'},
         },
         {
           'id': 'demo-booking-3',
+          'unitId': 'demo-unit-1',
           'offeringId': 'demo-offering-2',
           'status': 'COMPLETED',
           'offering': {'name': 'Deep cleaning'},
         },
         {
           'id': 'demo-booking-4',
+          'unitId': 'demo-unit-1',
           'offeringId': 'demo-offering-4',
           'status': 'CANCELLED',
           'offering': {'name': 'Plumber visit'},
@@ -220,6 +224,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-workforce-1',
           'assignmentId': 'demo-workforce-1',
           'householdId': 'demo-household-1',
+          'household': {'unitId': 'demo-unit-1'},
           'name': 'Lakshmi',
           'phone': '+919800000001',
           'role': 'HOUSE_HELP',
@@ -229,6 +234,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-workforce-2',
           'assignmentId': 'demo-workforce-2',
           'householdId': 'demo-household-1',
+          'household': {'unitId': 'demo-unit-1'},
           'name': 'Ramesh',
           'phone': '+919800000002',
           'role': 'DRIVER',
@@ -238,6 +244,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-workforce-3',
           'assignmentId': 'demo-workforce-3',
           'householdId': 'demo-household-1',
+          'household': {'unitId': 'demo-unit-1'},
           'name': 'Savitri',
           'phone': '+919800000003',
           'role': 'COOK',
@@ -247,6 +254,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-workforce-4',
           'assignmentId': 'demo-workforce-4',
           'householdId': 'demo-household-1',
+          'household': {'unitId': 'demo-unit-1'},
           'name': 'Manoj',
           'phone': '+919800000004',
           'role': 'CAR_WASH',
@@ -256,6 +264,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-workforce-5',
           'assignmentId': 'demo-workforce-5',
           'householdId': 'demo-household-1',
+          'household': {'unitId': 'demo-unit-1'},
           'name': 'Asha',
           'phone': '+919800000005',
           'role': 'NANNY',
@@ -332,42 +341,58 @@ class DemoResidentRepository extends ResidentRepository {
         {
           'id': 'demo-invoice-1',
           'unitId': 'demo-unit-1',
-          'periodLabel': 'September 2026',
-          'amount': 4250,
-          'amountDue': 4250,
-          'status': 'DUE',
+          'billingPeriod': 'September 2026',
+          'invoiceNumber': 'INV-SEP-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 425000,
+          'dueDate': '2026-09-25T23:59:59Z',
+          'description': 'Monthly maintenance and common-area services',
+          'status': 'ISSUED',
         },
         {
           'id': 'demo-invoice-2',
           'unitId': 'demo-unit-1',
-          'periodLabel': 'August 2026',
-          'amount': 4250,
-          'amountDue': 0,
+          'billingPeriod': 'August 2026',
+          'invoiceNumber': 'INV-AUG-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 425000,
+          'dueDate': '2026-08-25T23:59:59Z',
           'status': 'PAID',
         },
         {
           'id': 'demo-invoice-3',
           'unitId': 'demo-unit-1',
-          'periodLabel': 'July 2026',
-          'amount': 4250,
-          'amountDue': 0,
+          'billingPeriod': 'July 2026',
+          'invoiceNumber': 'INV-JUL-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 425000,
+          'dueDate': '2026-07-25T23:59:59Z',
           'status': 'PAID',
         },
         {
           'id': 'demo-invoice-4',
           'unitId': 'demo-unit-1',
-          'periodLabel': 'June 2026',
-          'amount': 4100,
-          'amountDue': 0,
+          'billingPeriod': 'June 2026',
+          'invoiceNumber': 'INV-JUN-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 410000,
+          'dueDate': '2026-06-25T23:59:59Z',
           'status': 'PAID',
         },
         {
           'id': 'demo-invoice-5',
           'unitId': 'demo-unit-1',
-          'periodLabel': 'May 2026',
-          'amount': 4100,
-          'amountDue': 500,
-          'status': 'PARTIALLY_PAID',
+          'billingPeriod': 'May 2026',
+          'invoiceNumber': 'INV-MAY-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 410000,
+          'dueDate': '2026-05-25T23:59:59Z',
+          'status': 'PAID',
         },
       ];
 
@@ -376,34 +401,35 @@ class DemoResidentRepository extends ResidentRepository {
         {
           'id': 'demo-payment-1',
           'invoiceId': 'demo-invoice-2',
-          'amount': 4250,
-          'status': 'SUCCESS',
+          'invoiceNumber': 'INV-AUG-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 425000,
+          'status': 'CAPTURED',
           'mode': 'UPI',
           'paidAt': '2026-08-05T09:15:00Z',
         },
         {
           'id': 'demo-payment-2',
           'invoiceId': 'demo-invoice-3',
-          'amount': 4250,
-          'status': 'SUCCESS',
+          'invoiceNumber': 'INV-JUL-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 425000,
+          'status': 'CAPTURED',
           'mode': 'NET_BANKING',
           'paidAt': '2026-07-06T13:40:00Z',
         },
         {
           'id': 'demo-payment-3',
           'invoiceId': 'demo-invoice-4',
-          'amount': 4100,
-          'status': 'SUCCESS',
+          'invoiceNumber': 'INV-JUN-2026-A1204',
+          'buildingName': 'Maple Tower',
+          'unitNumber': 'A-1204',
+          'amountPaise': 410000,
+          'status': 'CAPTURED',
           'mode': 'UPI',
           'paidAt': '2026-06-04T06:20:00Z',
-        },
-        {
-          'id': 'demo-payment-4',
-          'invoiceId': 'demo-invoice-5',
-          'amount': 3600,
-          'status': 'SUCCESS',
-          'mode': 'CARD',
-          'paidAt': '2026-05-08T11:05:00Z',
         },
       ];
 
@@ -465,6 +491,146 @@ class DemoResidentRepository extends ResidentRepository {
     };
     _access.insert(0, request);
     return {'request': request, 'credential': 'DEMO-PASS'};
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> communityMeetings() async => [
+        {
+          'id': 'demo-meeting-1',
+          'title': 'September residents meeting',
+          'status': 'SCHEDULED',
+          'scheduledAt': '2026-09-27T11:00:00+05:30',
+        },
+        {
+          'id': 'demo-meeting-2',
+          'title': 'AGM 2026',
+          'status': 'CLOSED',
+          'scheduledAt': '2026-08-16T10:30:00+05:30',
+        },
+      ];
+
+  @override
+  Future<List<Map<String, dynamic>>> communityDocuments() async => [
+        {'id': 'demo-gov-doc-1', 'kind': 'MINUTES', 'note': 'AGM 2026 approved minutes'},
+        {'id': 'demo-gov-doc-2', 'kind': 'AGENDA', 'note': 'September residents meeting agenda'},
+      ];
+
+  @override
+  Future<List<Map<String, dynamic>>> societyDocuments() async => [
+        {
+          'id': 'demo-doc-1',
+          'title': 'Community handbook',
+          'category': 'POLICY',
+          'audience': 'OWNER_AND_OCCUPANTS',
+          'version': '3',
+        },
+        {
+          'id': 'demo-doc-2',
+          'title': 'Emergency preparedness guide',
+          'category': 'SAFETY',
+          'audience': 'OWNER_AND_OCCUPANTS',
+          'version': '2',
+        },
+        {
+          'id': 'demo-doc-3',
+          'title': 'Parking policy',
+          'category': 'PARKING',
+          'audience': 'OWNER_AND_OCCUPANTS',
+          'version': '4',
+        },
+      ];
+
+  @override
+  Future<Map<String, dynamic>> societyDocumentDownloadIntent(String documentId) async =>
+      {'id': documentId, 'url': 'https://example.com/aaraagate-demo-document.pdf'};
+
+  @override
+  Future<List<Map<String, dynamic>>> communityPolls() async => [
+        {
+          'id': 'demo-poll-1',
+          'question': 'Preferred timing for Sunday yoga?',
+          'status': 'OPEN',
+          'options': [
+            {'id': 'demo-option-1', 'label': '6:30 AM'},
+            {'id': 'demo-option-2', 'label': '7:30 AM'},
+            {'id': 'demo-option-3', 'label': '8:30 AM'},
+          ],
+        },
+        {
+          'id': 'demo-poll-2',
+          'question': 'Choose the clubhouse movie night genre',
+          'status': 'OPEN',
+          'options': [
+            {'id': 'demo-option-4', 'label': 'Family'},
+            {'id': 'demo-option-5', 'label': 'Comedy'},
+          ],
+        },
+      ];
+
+  @override
+  Future<Map<String, dynamic>> respondToCommunityPoll({required String pollId, required String optionId}) async =>
+      {'pollId': pollId, 'optionId': optionId, 'status': 'RECORDED'};
+
+  @override
+  Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async =>
+      {'id': 'demo-payment-order-1', 'providerOrderId': 'DEMO-UPI-ORDER-2026', 'invoiceId': invoiceId, 'status': 'CREATED'};
+
+  @override
+  Future<Map<String, dynamic>> maintenanceReceipt(String paymentId) async => {
+        'id': paymentId,
+        'receiptNumber': 'RCT-A1204-2026-08',
+        'amountPaise': 425000,
+        'societyName': 'Aaraagate Demo Residency',
+        'buildingName': 'Maple Tower',
+        'unitNumber': 'A-1204',
+        'invoiceNumber': 'INV-AUG-2026-A1204',
+        'status': 'CAPTURED',
+      };
+
+  @override
+  Future<Map<String, dynamic>> createHelpdeskTicket({
+    required String unitId,
+    required String title,
+    required String description,
+    String? category,
+    String priority = 'NORMAL',
+  }) async => {
+        'id': 'demo-ticket-created',
+        'unitId': unitId,
+        'title': title,
+        'description': description,
+        'category': category,
+        'priority': priority,
+        'status': 'OPEN',
+      };
+
+  @override
+  Future<void> addHelpdeskComment(String ticketId, String message) async {}
+
+  @override
+  Future<void> cancelAccess(String requestId) async {
+    _access.firstWhere((entry) => entry['id'] == requestId)['status'] = 'CANCELLED';
+  }
+
+  @override
+  Future<Map<String, dynamic>> createAccess({
+    required String unitId,
+    required String subjectType,
+    required String subjectName,
+    String? subjectPhone,
+    String? purpose,
+  }) async {
+    final request = <String, dynamic>{
+      'id': 'demo-access-${_access.length + 1}',
+      'unitId': unitId,
+      'subjectType': subjectType,
+      'subjectName': subjectName,
+      'subjectPhone': subjectPhone,
+      'purpose': purpose,
+      'status': 'PENDING',
+    };
+    _access.insert(0, request);
+    return request;
   }
 
   @override
