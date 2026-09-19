@@ -31,8 +31,9 @@ const labelText=(v:string)=>v.replaceAll('_',' ')
 
 export default function PrivacyOperationsPage(){
   const session=typeof window==='undefined'?null:getSession()
+  const s=session
   const allowed=!!session&&readRoles.has(session.role)
-  const canManage=session?.role==='SUPER_ADMIN'
+  const canManage=s?.role==='SUPER_ADMIN'
   const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null)
   const[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
   const[subjectUserId,setSubjectUserId]=useState(''),[requestType,setRequestType]=useState<PrivacyCase['requestType']>('ACCESS'),[summary,setSummary]=useState(''),[assignedToUserId,setAssignedToUserId]=useState(''),[dueAt,setDueAt]=useState('')
