@@ -1,7 +1,7 @@
 # Aaraagate V4.22 Admin UI and UX Consolidation
 
 Date: 2026-09-19  
-Status: Planned; component extraction and module migrations are not yet implemented  
+Status: V4.22.0 foundation implemented and validating; module migrations pending
 Planning baseline: `develop` at `9ee9655181c3bf167d9f79f13b8c360a29508877`  
 Execution dependency: reconcile V4.21 Helpdesk completion before migrating its Admin page
 
@@ -22,7 +22,7 @@ This is a dedicated consolidation milestone. Existing module delivery does not c
 
 ## Shared implementation boundary
 
-Create `apps/admin/components/admin-ui/` with a public `index.ts`, component implementations and scoped styles. Document usage in `docs/ADMIN-DESIGN-SYSTEM.md` during V4.22.0 and link it from `UI-UX-DESIGN-SYSTEM.md`. Extend existing CSS variables for spacing, typography, semantic tones, controls and responsive layout; do not introduce a second palette or global selectors that restyle unmigrated pages.
+V4.22.0 implements `apps/admin/components/admin-ui/` with a public `index.ts`, component implementations and scoped styles. Usage, ownership and the 25-route inventory are recorded in [ADMIN-DESIGN-SYSTEM.md](ADMIN-DESIGN-SYSTEM.md), linked from `UI-UX-DESIGN-SYSTEM.md`. Existing CSS variables supply the brand baseline; shared components add spacing, typography, semantic tones, controls and responsive layout without global selectors that restyle unmigrated pages.
 
 Components own presentation, accessible semantics and interaction affordances. Module pages retain API calls, domain types, permission decisions, form state, validation, lifecycle transitions and evidence interpretation. Avoid moving session access, API clients or business rules into the design system. Preserve Next.js client/server boundaries and use client components only where hooks or interaction require them.
 
@@ -103,4 +103,4 @@ Completion requires all 16 shared contracts, every in-scope route migrated or ex
 
 ## Exact next step
 
-V4.22.0: recheck the latest `develop` and V4.21 handoff, finalize the Admin route/style inventory and extract the shared foundation. Proceed to V4.22.1 Helpdesk only after its integrated baseline and foundation gates are ready.
+Finish V4.22.0 foundation validation and required PR checks. Then proceed to V4.22.1 Helpdesk after reconciling its V4.21 integrated baseline. Other module migrations remain pending in the established order.
