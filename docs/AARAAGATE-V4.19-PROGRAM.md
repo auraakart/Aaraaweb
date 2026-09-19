@@ -20,7 +20,7 @@ The repository already contains auditable privacy-request cases, retention/legal
 
 ## Delivery slices
 
-### V4.19.1 — Privacy operator depth
+### V4.19.1 — Privacy operator depth — merged via #709
 
 - privacy-scoped subject and assignee context under existing privacy-read permission;
 - typed subject/assignee/due-date case creation instead of raw UUID entry;
@@ -29,7 +29,7 @@ The repository already contains auditable privacy-request cases, retention/legal
 - remove browser prompt/alert/confirm from society privacy operations;
 - API and Admin regression coverage.
 
-### V4.19.2 — Privacy readiness & conflict evidence
+### V4.19.2 — Privacy readiness & conflict evidence — in progress
 
 - explicit case-readiness view for retention/legal-hold conflicts;
 - processor/data-category and incident/grievance evidence where relevant;
