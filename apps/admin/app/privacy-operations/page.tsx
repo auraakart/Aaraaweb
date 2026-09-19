@@ -14,6 +14,7 @@ type PrivacyCase={
 }
 type History={id:string;eventType?:string;action?:string;status?:string;summary?:string;note?:string|null;createdAt?:string;occurredAt?:string;actorName?:string|null;actorUserId?:string}
 type ErasurePlan={executable:boolean;blockers:string[];erase:string[];retain:string[]}
+type Readiness={caseId:string;requestType:string;status:string;assigned:boolean;dueAt?:string|null;overdue:boolean;blockers:string[];nextActions:string[];privacyProgramContext:{activeDataCategories:number;activeProcessors:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string;erasure?:{executable:boolean;blockers:string[]}}
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','AUDITOR'])
@@ -33,7 +34,7 @@ export default function PrivacyOperationsPage(){
   const s=session
   const allowed=!!session&&readRoles.has(session.role)
   const canManage=s?.role==='SUPER_ADMIN'
-  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null)
+  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null),[readiness,setReadiness]=useState<Readiness|null>(null)
   const[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
   const[subjectUserId,setSubjectUserId]=useState(''),[requestType,setRequestType]=useState<PrivacyCase['requestType']>('ACCESS'),[summary,setSummary]=useState(''),[assignedToUserId,setAssignedToUserId]=useState(''),[dueAt,setDueAt]=useState('')
   const[status,setStatus]=useState('IN_REVIEW'),[statusNote,setStatusNote]=useState('')
@@ -57,11 +58,16 @@ export default function PrivacyOperationsPage(){
     try{setHistory(await api<History[]>(session,`/privacy/cases/${id}/history`))}catch(e){setError(e instanceof Error?e.message:'Privacy case history could not be loaded')}
   },[session?.accessToken])
 
+  const loadReadiness=useCallback(async(id:string)=>{
+    if(!session||!id)return
+    try{setReadiness(await api<Readiness>(session,`/privacy/cases/${id}/readiness`))}catch(e){setError(e instanceof Error?e.message:'Privacy readiness evidence could not be loaded')}
+  },[session?.accessToken])
+
   useEffect(()=>{void load()},[load])
   useEffect(()=>{
-    setPlan(null);setErasureConfirmed(false)
-    if(selectedId)void loadHistory(selectedId)
-  },[selectedId,loadHistory])
+    setPlan(null);setReadiness(null);setErasureConfirmed(false)
+    if(selectedId){void loadHistory(selectedId);void loadReadiness(selectedId)}
+  },[selectedId,loadHistory,loadReadiness])
   useEffect(()=>{
     if(!selected)return
     setStatus(selected.status==='OPEN'?'IN_REVIEW':selected.status)
@@ -72,7 +78,7 @@ export default function PrivacyOperationsPage(){
 
   const run=async(task:()=>Promise<void>,message:string)=>{
     setBusy(true);setError('');setSuccess('')
-    try{await task();setSuccess(message);await load();if(selectedId)await loadHistory(selectedId)}
+    try{await task();setSuccess(message);await load();if(selectedId){await Promise.all([loadHistory(selectedId),loadReadiness(selectedId)])}}
     catch(e){setError(e instanceof Error?e.message:'Privacy operation failed')}
     finally{setBusy(false)}
   }
@@ -131,6 +137,21 @@ export default function PrivacyOperationsPage(){
         <div style={header}><div><h2 style={{margin:0}}>{selected.requestType}</h2><p>{selected.requestSummary}</p></div><b>{selected.status}</b></div>
         <dl style={details}><dt>Subject</dt><dd>{selected.subjectName??selected.subjectUserId}{selected.subjectPhone?` · ${selected.subjectPhone}`:''}</dd><dt>Assignee</dt><dd>{selected.assignedToName??'Unassigned'}</dd><dt>Due</dt><dd>{fmt(selected.dueAt)}</dd><dt>Legal hold</dt><dd>{selected.legalHold?'Yes':'No'}{selected.retentionReason?` · ${selected.retentionReason}`:''}</dd>{selected.requestType==='ERASURE'&&<><dt>Retention review</dt><dd>{selected.retentionDecision??'PENDING'}{selected.retentionDecisionReason?` · ${selected.retentionDecisionReason}`:''}</dd></>}</dl>
 
+        {readiness&&<section style={readinessPanelStyle}>
+          <div style={header}><div><h3 style={{margin:0}}>Case readiness</h3><small>{readiness.boundary}</small></div><strong>{readiness.blockers.length===0?'READY FOR REVIEW':'ACTION REQUIRED'}</strong></div>
+          <div style={readinessGrid}>
+            <div><b>{readiness.assigned?'Assigned':'Unassigned'}</b><span>Case ownership</span></div>
+            <div><b>{readiness.overdue?'Overdue':readiness.dueAt?fmt(readiness.dueAt):'No due date'}</b><span>Due status</span></div>
+            <div><b>{readiness.privacyProgramContext.activeDataCategories}</b><span>Active data categories</span></div>
+            <div><b>{readiness.privacyProgramContext.activeProcessors}</b><span>Active processors</span></div>
+            <div><b>{readiness.privacyProgramContext.openSecurityIncidents}</b><span>Open privacy incidents</span></div>
+            <div><b>{readiness.privacyProgramContext.grievanceContactActive?'Configured':'Not active'}</b><span>Grievance contact</span></div>
+          </div>
+          {readiness.blockers.length>0&&<div><b>Operational blockers</b><ul>{readiness.blockers.map(x=><li key={x}>{x.replaceAll('_',' ')}</li>)}</ul></div>}
+          {readiness.erasure&&readiness.erasure.blockers.length>0&&<div><b>Server erasure blockers</b><ul>{readiness.erasure.blockers.map(x=><li key={x}>{x.replaceAll('_',' ')}</li>)}</ul></div>}
+          {readiness.nextActions.length>0&&<div><b>Next actions</b><ul>{readiness.nextActions.map(x=><li key={x}>{x}</li>)}</ul></div>}
+        </section>}
+
         {canManage&&<div style={forms}>
           <form onSubmit={updateStatus} style={subpanel}><h3>Case decision</h3><label style={label}>Status<select style={input} value={status} onChange={e=>setStatus(e.target.value)}>{statuses.map(v=><option key={v}>{v}</option>)}</select></label><label style={label}>Decision/status note<textarea style={input} value={statusNote} onChange={e=>setStatusNote(e.target.value)} maxLength={1000}/></label><button style={primary} disabled={busy}>Update status</button></form>
 
@@ -162,6 +183,8 @@ const danger:React.CSSProperties={marginTop:12,padding:'10px 14px',border:0,bord
 const caseButton:React.CSSProperties={width:'100%',display:'grid',gap:5,textAlign:'left',padding:12,border:'1px solid #e2e8f0',borderRadius:12,background:'white',marginTop:8}
 const selectedCaseStyle:React.CSSProperties={background:'#ecfeff',borderColor:'#67e8f9'}
 const details:React.CSSProperties={display:'grid',gridTemplateColumns:'130px 1fr',gap:'8px 12px'}
+const readinessPanelStyle:React.CSSProperties={marginTop:16,padding:14,border:'1px solid #bae6fd',borderRadius:12,background:'#f0f9ff',display:'grid',gap:12}
+const readinessGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}
 const historyRow:React.CSSProperties={display:'grid',gap:4,padding:'9px 0',borderBottom:'1px solid #e2e8f0'}
 const err:React.CSSProperties={padding:12,background:'#fef2f2',color:'#991b1b',borderRadius:10}
 const ok:React.CSSProperties={padding:12,background:'#ecfdf5',color:'#065f46',borderRadius:10}
