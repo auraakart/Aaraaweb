@@ -38,7 +38,11 @@ export class HelpdeskService {
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName",
         CASE
           WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-            THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
+            THEN CASE
+              WHEN COALESCE(ht."resolvedAt", ht."closedAt") IS NULL THEN 'UNTRACKED'
+              WHEN COALESCE(ht."resolvedAt", ht."closedAt") <= ht."resolutionDueAt" THEN 'MET'
+              ELSE 'RESOLUTION_BREACHED'
+            END
           WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
           WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
           WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
