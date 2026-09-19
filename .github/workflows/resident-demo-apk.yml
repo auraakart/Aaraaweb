@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: resident-demo-apk-${{ github.ref }}
@@ -125,3 +125,20 @@ jobs:
           path: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish direct APK release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: resident-demo-latest
+          name: Aaraagate Resident Demo - Latest
+          body: |
+            Latest installable Resident Demo Showcase APK from the develop branch.
+            Download the .apk asset directly; no ZIP extraction is required.
+          artifacts: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          artifactContentType: application/vnd.android.package-archive
+          allowUpdates: true
+          replacesArtifacts: true
+          prerelease: true
+          makeLatest: false
+          token: ${{ secrets.GITHUB_TOKEN }}
