@@ -3,6 +3,8 @@
 Updated: 2026-09-19
 
 ## Current execution status
+The next dedicated Admin UI/UX consolidation milestone is [V4.22](AARAAGATE-V4.22-PROGRAM.md), planned after the V4.21 Helpdesk baseline is reconciled. It extracts 16 shared Admin components, then migrates Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance/Governance with a validation gate between modules. Component implementation and migrations are pending; existing domain completion does not count as UI consolidation completion.
+
 Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
 
 The authoritative v2 scope is `PRODUCT_REQUIREMENTS.md` plus `AARAAGATE-V2-PROGRAM.md`.
