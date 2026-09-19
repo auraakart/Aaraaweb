@@ -27,5 +27,6 @@ describe('helpdesk SLA state semantics', () => {
     expect(text).toContain("'UNTRACKED'");
     expect(text).toContain("'MET'");
     expect(text).toContain("'RESPONSE_BREACHED'");
+    expect(text.indexOf("IN ('RESOLVED','CLOSED')")).toBeLessThan(text.indexOf("firstResponseDueAt"));
   });
 });
