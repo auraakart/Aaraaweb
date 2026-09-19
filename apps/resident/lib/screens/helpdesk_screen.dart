@@ -326,7 +326,7 @@ class _TicketCard extends StatelessWidget {
                 if (building != null || unit != null) ...[
                   const SizedBox(height: AaraagateTokens.space2),
                   Text(
-                    [building, unit].where((value) => value != null && value!.trim().isNotEmpty).join(' · '),
+                    [building, unit].where((value) => value != null && value.trim().isNotEmpty).join(' · '),
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
@@ -453,7 +453,7 @@ class _TicketDetailState extends State<_TicketDetail> {
                 if (building != null || unit != null) ...[
                   const SizedBox(height: AaraagateTokens.space3),
                   Text(
-                    [building, unit].where((value) => value != null && value!.trim().isNotEmpty).join(' · '),
+                    [building, unit].where((value) => value != null && value.trim().isNotEmpty).join(' · '),
                     style: theme.textTheme.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
