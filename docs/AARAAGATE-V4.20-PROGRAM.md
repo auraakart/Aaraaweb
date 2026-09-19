@@ -30,13 +30,13 @@ The repository already contains tenant-scoped facility assets, work orders, prev
 - append-only work-order history with actor names;
 - API and Admin regression coverage.
 
-### V4.20.2 — Asset / work-order readiness evidence — in progress
+### V4.20.2 — Asset / work-order readiness evidence — merged via #714
 
 - descriptive overdue, assignment, asset-state and evidence/readiness signals;
 - critical-work prioritization and next-action guidance;
 - preserve lifecycle transition and evidence rules.
 
-### V4.20.3 — Contract / preventive maintenance depth
+### V4.20.3 — Contract / preventive maintenance depth — in progress
 
 - improve AMC/service-contract and preventive-plan linkage/expiry clarity;
 - expose plan-to-generated-work evidence and contract/evidence context;
