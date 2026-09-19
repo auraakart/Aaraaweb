@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "aaraagate.competitive-readiness.v1",
+  "program": "V4.23-V4.28",
+  "baseline": "1fafcc1f6c9d8bba9a458b8f089b962c7ffc5560",
+  "status": "ACTIVE",
+  "cycles": [
+    {
+      "id": "V4.23",
+      "area": "EXPERIENCE_CONSOLIDATION",
+      "dependsOn": [
+        "V4.22"
+      ],
+      "repositoryStatus": "IN_PROGRESS",
+      "fieldStatus": "NOT_APPLICABLE",
+      "requiredEvidence": [
+        "admin-ui-migration-evidence",
+        "accessibility-regression",
+        "admin-build"
+      ]
+    },
+    {
+      "id": "V4.24",
+      "area": "AI_ASSISTANT",
+      "dependsOn": [
+        "V4.23"
+      ],
+      "repositoryStatus": "PLANNED",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "tool-authorization-negative-tests",
+        "assistant-audit-evidence",
+        "confirmed-mutation-tests"
+      ]
+    },
+    {
+      "id": "V4.25",
+      "area": "PAYMENTS_ACCOUNTING",
+      "dependsOn": [
+        "V4.24"
+      ],
+      "repositoryStatus": "PLANNED",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "provider-adapter-tests",
+        "webhook-replay-tests",
+        "reconciliation-evidence"
+      ]
+    },
+    {
+      "id": "V4.26",
+      "area": "INTEGRATIONS",
+      "dependsOn": [
+        "V4.25"
+      ],
+      "repositoryStatus": "PLANNED",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "reference-adapter-tests",
+        "provider-failure-tests",
+        "integration-certification-checklist"
+      ]
+    },
+    {
+      "id": "V4.27",
+      "area": "ONBOARDING_MIGRATION",
+      "dependsOn": [
+        "V4.26"
+      ],
+      "repositoryStatus": "PLANNED",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "migration-fixture",
+        "preview-commit-regression",
+        "migration-audit-report"
+      ]
+    },
+    {
+      "id": "V4.28",
+      "area": "PILOT_EVIDENCE",
+      "dependsOn": [
+        "V4.27"
+      ],
+      "repositoryStatus": "PLANNED",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "pilot-kpi-evidence",
+        "role-signoff",
+        "release-sha",
+        "rollback-backup-evidence"
+      ]
+    }
+  ]
+}
