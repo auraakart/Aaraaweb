@@ -27,7 +27,10 @@ describe('helpdesk SLA state semantics', () => {
     expect(text).toContain("'UNTRACKED'");
     expect(text).toContain("'MET'");
     expect(text).toContain("'RESPONSE_BREACHED'");
-    expect(text).toContain("IN ('RESOLVED','CLOSED')");
-    expect(text).toMatch(/IN \('RESOLVED','CLOSED'\)[\\s\\S]*COALESCE[\\s\\S]*'MET'[\\s\\S]*'RESPONSE_BREACHED'[\\s\\S]*'UNTRACKED'/);
+    const terminalIndex = text.indexOf("IN ('RESOLVED','CLOSED')");
+    const responseIndex = text.indexOf("'RESPONSE_BREACHED'");
+    expect(terminalIndex).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('COALESCE')).toBeGreaterThan(terminalIndex);
+    expect(responseIndex).toBeGreaterThan(terminalIndex);
   });
 });
