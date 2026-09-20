@@ -15,6 +15,26 @@ export type AiAssistantIntent =
   | 'DISCOVERY'
   | 'UNSUPPORTED';
 
+export type AiAssistantToolId = Exclude<AiAssistantIntent,'UNSUPPORTED'>;
+
+type AiAssistantToolDefinition = {
+  id: AiAssistantToolId;
+  label: string;
+  context: 'SOCIETY'|'PROPERTY';
+  permissions: readonly AppPermission[];
+  permissionMode: 'ANY'|'ALL';
+};
+
+const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
+  {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
+  {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'HELPDESK_OPERATIONS',label:'Helpdesk operations',context:'SOCIETY',permissions:[AppPermission.HELPDESK_REVIEW],permissionMode:'ALL'},
+  {id:'SECURITY_EVENTS',label:'Security events',context:'SOCIETY',permissions:[AppPermission.AUDIT_READ],permissionMode:'ALL'},
+  {id:'FACILITIES',label:'Facilities',context:'SOCIETY',permissions:[AppPermission.FACILITIES_READ],permissionMode:'ALL'},
+  {id:'VENDORS',label:'Vendors and procurement',context:'SOCIETY',permissions:[AppPermission.SOCIETY_VENDORS_READ],permissionMode:'ALL'},
+  {id:'DISCOVERY',label:'Amenities and services',context:'SOCIETY',permissions:[AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+] as const;
+
 @Injectable()
 export class AiAssistantService {
   constructor(
@@ -22,56 +42,33 @@ export class AiAssistantService {
     private readonly operations: AiOperationsService,
   ) {}
 
+  tools(roles:readonly AppRole[]){
+    return {
+      tools:AI_ASSISTANT_TOOLS.filter(tool=>this.canUseTool(roles,tool)).map(tool=>({
+        id:tool.id,
+        label:tool.label,
+        context:tool.context,
+        readOnly:true,
+      })),
+      mutationAllowList:['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS'] as const,
+    };
+  }
+
   async query(societyId:string,userId:string,roles:readonly AppRole[],message:string,unitId?:string) {
     const text=message.trim();
     if(text.length<2||text.length>1000) throw new BadRequestException('Assistant message must be between 2 and 1000 characters');
     const normalized=text.toLowerCase();
 
-    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(normalized) && hasPermission(roles,AppPermission.FINANCE_READ)){
-      const thresholdPaise=this.amountThresholdPaise(text);
-      const facts=await this.societyFinance(societyId,thresholdPaise);
-      return this.response('SOCIETY_FINANCE',facts,[
-        'MaintenanceInvoice','Payment'
-      ],`Grounded finance summary from current society accounting data${thresholdPaise? ` for overdue amounts of at least ₹${(thresholdPaise/100).toLocaleString('en-IN')}`:''}.`);
+    if(this.promptInjectionAttempt(normalized)){
+      return this.auditedResponse(
+        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+        'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
+        'BLOCKED',
+      );
     }
 
-    if(/sla|helpdesk|complaint|ticket/.test(normalized) && hasPermission(roles,AppPermission.HELPDESK_REVIEW)){
-      const facts=await this.operations.operationsSummary(societyId);
-      return this.response('HELPDESK_OPERATIONS',facts,['HelpdeskTicket'],'Grounded helpdesk summary from open society tickets and SLA state.');
-    }
-
-    if(/security|incident|session|revocation|replay/.test(normalized)){
-      this.require(roles,AppPermission.AUDIT_READ);
-      const facts=await this.securitySummary(societyId);
-      return this.response('SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
-    }
-
-    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(normalized)){
-      this.require(roles,AppPermission.FACILITIES_READ);
-      const facts=await this.facilitiesSummary(societyId);
-      return this.response('FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
-    }
-
-    if(/vendor|procurement|purchase request|supplier/.test(normalized)){
-      this.require(roles,AppPermission.SOCIETY_VENDORS_READ);
-      const facts=await this.vendorSummary(societyId);
-      return this.response('VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
-    }
-
-    if(/amenity|service|provider|plumber|electrician|cleaning/.test(normalized)){
-      if(!hasPermission(roles,AppPermission.AMENITY_READ)&&!hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)){
-        throw new ForbiddenException('Assistant discovery is not permitted for this role');
-      }
-      if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.discovery(societyId);
-      return this.response('DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
-    }
-
-    if(/due|invoice|receipt|payment|booking|status|my complaint|my ticket/.test(normalized)){
-      if(!unitId) throw new BadRequestException('A current property context is required for resident assistant status');
-      if(!hasPermission(roles,AppPermission.HELPDESK_READ_OWN)&&!hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)&&!hasPermission(roles,AppPermission.AMENITY_READ)){
-        throw new ForbiddenException('Resident assistant status is not permitted for this role');
-      }
+    if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_STATUS');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentStatus(societyId,userId,unitId,roles);
       const sources=[
@@ -80,12 +77,57 @@ export class AiAssistantService {
         ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
         ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
       ];
-      return this.response('RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
     }
 
-    return this.response('UNSUPPORTED',{
-      supported:['maintenance/collection/arrears','helpdesk/SLA','security incidents','facilities/AMCs/work orders','vendors/procurement','amenities/services','resident payment/booking/complaint status'],
-    },[],'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.');
+    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(normalized)){
+      this.requireTool(roles,'SOCIETY_FINANCE');
+      const thresholdPaise=this.amountThresholdPaise(text);
+      const facts=await this.societyFinance(societyId,thresholdPaise);
+      return this.auditedResponse(
+        societyId,userId,unitId,'SOCIETY_FINANCE','SOCIETY_FINANCE',facts,['MaintenanceInvoice','Payment'],
+        `Grounded finance summary from current society accounting data${thresholdPaise? ` for overdue amounts of at least ₹${(thresholdPaise/100).toLocaleString('en-IN')}`:''}.`,
+      );
+    }
+
+    if(/sla|helpdesk|complaint|ticket/.test(normalized)){
+      this.requireTool(roles,'HELPDESK_OPERATIONS');
+      const facts=await this.operations.operationsSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'HELPDESK_OPERATIONS','HELPDESK_OPERATIONS',facts,['HelpdeskTicket'],'Grounded helpdesk summary from open society tickets and SLA state.');
+    }
+
+    if(/security|incident|session|revocation|replay/.test(normalized)){
+      this.requireTool(roles,'SECURITY_EVENTS');
+      const facts=await this.securitySummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'SECURITY_EVENTS','SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
+    }
+
+    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(normalized)){
+      this.requireTool(roles,'FACILITIES');
+      const facts=await this.facilitiesSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
+    }
+
+    if(/vendor|procurement|purchase request|supplier/.test(normalized)){
+      this.requireTool(roles,'VENDORS');
+      const facts=await this.vendorSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'VENDORS','VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
+    }
+
+    if(/amenity|service|provider|plumber|electrician|cleaning/.test(normalized)){
+      this.requireTool(roles,'DISCOVERY');
+      if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.discovery(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'DISCOVERY','DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
+    }
+
+    return this.auditedResponse(
+      societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',
+      {supported:this.tools(roles).tools.map(tool=>tool.label)},
+      [],
+      'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.',
+      'UNSUPPORTED',
+    );
   }
 
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
@@ -180,22 +222,75 @@ export class AiAssistantService {
     if(!Number.isSafeInteger(page)||page<1) throw new BadRequestException('page must be positive');
     if(!Number.isInteger(pageSize)||pageSize<1||pageSize>100) throw new BadRequestException('pageSize must be between 1 and 100');
     const offset=(page-1)*pageSize;
-    const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","actorUserId","action","status","confirmedAt","executedAt","createdAt","updatedAt"
-      FROM "AiOperationProposal"
-      WHERE "societyId"=${societyId}::uuid
-      ORDER BY "createdAt" DESC,"id" DESC
-      OFFSET ${offset} LIMIT ${pageSize}
-    `);
-    return {page,pageSize,items:rows};
+    const [items,retrievals]=await Promise.all([
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","actorUserId","action","status","confirmedAt","executedAt","createdAt","updatedAt"
+        FROM "AiOperationProposal"
+        WHERE "societyId"=${societyId}::uuid
+        ORDER BY "createdAt" DESC,"id" DESC
+        OFFSET ${offset} LIMIT ${pageSize}
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","actorUserId","toolId","intent","unitId","sources","status","createdAt"
+        FROM "AiAssistantRetrievalAudit"
+        WHERE "societyId"=${societyId}::uuid
+        ORDER BY "createdAt" DESC,"id" DESC
+        OFFSET ${offset} LIMIT ${pageSize}
+      `),
+    ]);
+    return {page,pageSize,items,retrievals};
   }
 
   private response(intent:AiAssistantIntent,facts:unknown,sources:string[],answer:string){
     return {intent,answer,facts,sources,grounded:true,mutationPerformed:false};
   }
 
-  private require(roles:readonly AppRole[],permission:AppPermission){
-    if(!hasPermission(roles,permission)) throw new ForbiddenException(`Assistant tool requires ${permission}`);
+  private async auditedResponse(
+    societyId:string,
+    userId:string,
+    unitId:string|undefined,
+    toolId:AiAssistantToolId|'UNSUPPORTED',
+    intent:AiAssistantIntent,
+    facts:unknown,
+    sources:string[],
+    answer:string,
+    status:'SUCCESS'|'UNSUPPORTED'|'BLOCKED'='SUCCESS',
+  ){
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "AiAssistantRetrievalAudit"
+        ("societyId","actorUserId","toolId","intent","unitId","sources","status")
+      VALUES (
+        ${societyId}::uuid,
+        ${userId}::uuid,
+        ${toolId},
+        ${intent},
+        ${unitId??null}::uuid,
+        ${JSON.stringify(sources)}::jsonb,
+        ${status}
+      )
+    `);
+    return this.response(intent,facts,sources,answer);
+  }
+
+  private tool(toolId:AiAssistantToolId){
+    const tool=AI_ASSISTANT_TOOLS.find(candidate=>candidate.id===toolId);
+    if(!tool) throw new BadRequestException('Assistant tool is not registered');
+    return tool;
+  }
+
+  private canUseTool(roles:readonly AppRole[],tool:AiAssistantToolDefinition){
+    return tool.permissionMode==='ALL'
+      ? tool.permissions.every(permission=>hasPermission(roles,permission))
+      : tool.permissions.some(permission=>hasPermission(roles,permission));
+  }
+
+  private requireTool(roles:readonly AppRole[],toolId:AiAssistantToolId){
+    const tool=this.tool(toolId);
+    if(!this.canUseTool(roles,tool)) throw new ForbiddenException(`Assistant tool ${toolId} is not permitted for this role`);
+  }
+
+  private promptInjectionAttempt(text:string){
+    return /system prompt|developer message|database credentials|direct database|execute sql|hidden tool|ignore.{0,40}(instructions?|permissions?|authorization|tool policy)|bypass.{0,40}(permissions?|authorization|confirmation|tool policy)|override.{0,40}(permissions?|authorization|confirmation|tool policy)/i.test(text);
   }
 
   private amountThresholdPaise(text:string){
