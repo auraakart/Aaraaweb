@@ -47,6 +47,8 @@ void main(){
     expect(find.text('Grounded status for the selected property only.'),findsOneWidget);
     expect(find.textContaining('tickets:'),findsOneWidget);
 
+    await tester.ensureVisible(find.text('Complaint draft'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Complaint draft'));
     await tester.pumpAndSettle();
     expect(find.text('Nothing is submitted until you confirm. Normal complaint authorization and validation still apply.'),findsOneWidget);
