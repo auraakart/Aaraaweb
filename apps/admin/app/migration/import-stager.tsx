@@ -20,9 +20,7 @@ function parseCsv(text:string){
     if(ch==='"'&&quoted&&next==='"'){field+='"';i++;continue}
     if(ch==='"'){quoted=!quoted;continue}
     if(ch===','&&!quoted){row.push(field);field='';continue}
-    if((ch==='
-'||ch==='\r')&&!quoted){if(ch==='\r'&&next==='
-')i++;row.push(field);field='';if(row.some(v=>v.trim()!==''))rows.push(row);row=[];continue}
+    if(((ch.charCodeAt(0)===10)||(ch.charCodeAt(0)===13))&&!quoted){if(ch.charCodeAt(0)===13&&next?.charCodeAt(0)===10)i++;row.push(field);field='';if(row.some(v=>v.trim()!==''))rows.push(row);row=[];continue}
     field+=ch
   }
   row.push(field);if(row.some(v=>v.trim()!==''))rows.push(row)
