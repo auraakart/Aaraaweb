@@ -45,7 +45,7 @@ export default function ReconciliationPage(){
 
   <PageShell.Columns>
    <QueuePanel title="Reconciliation cases" count={cases.length} state={cases.length?'ready':'empty'} empty={<EmptyState title="No reconciliation cases"/>}>
-    <div style={queueList}>{cases.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} onClick={()=>void selectCase(c)} style={{...caseButton,...(selected?.id===c.id?selectedCase:{})}}><span><strong>{c.paymentId}</strong><br/><small>{c.provider} · {c.priority} priority{c.reason?` · ${c.reason}`:''}</small></span><StatusPill label={c.status} tone={c.status==='RESOLVED'?'success':c.priority==='HIGH'?'error':'warning'}/></button>)}</div>
+    <div style={queueList}>{cases.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} onClick={()=>void selectCase(c)} style={{...caseButton,...(selected?.id===c.id?selectedCase:{})}}><span><strong>{c.paymentId}</strong><br/><small>{c.provider} · {c.priority} priority{c.reason?` · ${c.reason}`:''}</small></span><StatusPill label={c.status} tone={c.status==='RESOLVED'?'success':c.priority==='HIGH'?'danger':'warning'}/></button>)}</div>
    </QueuePanel>
    <DetailPanel title={selected?'Reconciliation evidence':'Selected reconciliation case'} state={selected?'ready':'empty'} empty={<EmptyState title="Select a reconciliation case" description="Choose a case to inspect provider evidence and gateway operations."/>} actions={selected?<StatusPill label={selected.status} tone={selected.status==='RESOLVED'?'success':'warning'}/>:undefined}>
     {selected&&<>
