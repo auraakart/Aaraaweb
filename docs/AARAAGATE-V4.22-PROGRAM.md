@@ -1,9 +1,9 @@
 # Aaraagate V4.22 Admin UI and UX Consolidation
 
-Date: 2026-09-19  
-Status: V4.22.0 foundation implemented and validating; module migrations pending
+Date: 2026-09-20  
+Status: Closed on `develop`; V4.22.0–V4.22.7 repository closure evidence reconciled
 Planning baseline: `develop` at `9ee9655181c3bf167d9f79f13b8c360a29508877`  
-Execution dependency: reconcile V4.21 Helpdesk completion before migrating its Admin page
+Functional closure baseline before this documentation-only reconciliation: `develop` at `b8349322d29a6439605ca68ee358fe70d80a1c79`
 
 ## Goal
 
@@ -82,6 +82,26 @@ The route inventory is finalized in V4.22.0 from the latest integrated code. Rel
 
 No database migration or API contract change is planned. If an existing race or lifecycle defect blocks safe migration, isolate and verify the narrow fix rather than hiding it inside a generic component. Backend authorization and society isolation remain authoritative, including permission-denied responses after the UI has loaded.
 
+## Closure evidence — 2026-09-20
+
+The Admin consolidation was delivered as independently reviewable slices. Finance and Governance were deliberately split into separate PRs inside V4.22.6 after the combined slice proved too broad for fast failure isolation. No API or database contract change was required for the consolidation.
+
+| Slice | Repository evidence | Validation evidence |
+| --- | --- | --- |
+| V4.22.0 shared foundation | Current `apps/admin/components/admin-ui/index.ts` exports all 16 required shared components. PR #723 (`bce9aa609b04410e99011e250db805a93b4724f3`) records the V4.22 foundation in the staging promotion history; it is not used as evidence of a new develop integration. | The shared package remains in current `develop`; later Admin CI repeatedly passed access-boundary, shared-component lint, browser interaction/accessibility, typecheck and production build gates. |
+| V4.22.1 Helpdesk | PR #732 → `2321321afad4a6eadc0c2dcae028bbefb482d42d` | Required CI green; V4.23 Helpdesk consolidation regression included in the Admin test chain. |
+| V4.22.2 Privacy | PR #733 → `f60e77ea3f1188418e40e37dba2af13156c6cf58` | Required CI green; society/platform boundaries, explicit erasure confirmation and stale-plan protection preserved. |
+| V4.22.3 Facilities | PR #734 → `e4d425b02c8b8839f0b8794a0e1fa7430d63fd83` | Required CI green after narrow type/build cleanup; all Facilities routes remain under the existing authorization/API contracts. |
+| V4.22.4 Documents | PR #735 → `5928e57a9a1173a46a2aa46c6aa207ff5df3396e` | Required CI green; secure upload/download, property targeting, history and supersession contracts preserved. |
+| V4.22.5 Occupancy | PR #736 → `f0a9b659fbe4b523405d5da8600fef56a1fa8f0e` | Required CI green; phone-based move-in, active-occupancy move-out, readiness and lifecycle boundaries preserved. |
+| V4.22.6 Finance | PR #737 → `07ae6d5379ff082d4c0bedbcf2ad18d613216047` | CI, Cross-role E2E, Security/Privacy, Role UAT, Pilot Acceptance, Policy, Staging Pilot and V4.11 readiness all green. Browser confirmations for high-impact finance actions were replaced with explicit persistent confirmation without changing accounting authority. |
+| V4.22.6 Governance | PR #738 → `b8349322d29a6439605ca68ee358fe70d80a1c79` | CI, Cross-role E2E, Security/Privacy, Role UAT, Pilot Acceptance, Policy, Staging Pilot and V4.11 readiness all green. Non-statutory poll and legal-readiness boundaries remain explicit. |
+| V4.22.7 closure | This documentation-only reconciliation records the integrated evidence above and the current Admin regression chain. | `apps/admin/package.json` includes all seven V4.23 consolidation regressions. Main/staging promotion, production acceptance and real-society evidence remain separate release/field activities. |
+
+The current Admin test chain contains the V4.23 Helpdesk, Privacy, Facilities, Documents, Occupancy, Finance and Governance consolidation regressions in addition to the pre-existing domain regressions. The CI Admin job also exercises access boundaries, shared component/browser contracts, interaction/accessibility, typecheck and production build.
+
+No production readiness, real provider availability, signed APK/Play release, physical hardware acceptance or real-society acceptance is claimed by this repository closure.
+
 ## Validation and completion accounting
 
 During extraction, add a rendered interaction harness using the repository-compatible test stack. Exercise label association, native submit behavior, pending double-click prevention, selection, error recovery and confirmation preservation. Screenshots alone do not prove these contracts.
@@ -90,17 +110,17 @@ Per-slice commands start with `pnpm --filter @aaraagate/admin lint`, `pnpm --fil
 
 Every slice records its commit/PR, tests actually run, results, screenshots, applicable interaction checks and known gaps. No tests, visual checks, human acceptance or production readiness may be credited merely because a plan exists.
 
-- [ ] V4.22.0 shared foundation validated
-- [ ] V4.22.1 Helpdesk migrated and validated
-- [ ] V4.22.2 Privacy migrated and validated
-- [ ] V4.22.3 Facilities migrated and validated
-- [ ] V4.22.4 Documents migrated and validated
-- [ ] V4.22.5 Occupancy migrated and validated
-- [ ] V4.22.6 Finance/Governance migrated and validated
-- [ ] V4.22.7 closure evidence reconciled
+- [x] V4.22.0 shared foundation validated
+- [x] V4.22.1 Helpdesk migrated and validated
+- [x] V4.22.2 Privacy migrated and validated
+- [x] V4.22.3 Facilities migrated and validated
+- [x] V4.22.4 Documents migrated and validated
+- [x] V4.22.5 Occupancy migrated and validated
+- [x] V4.22.6 Finance/Governance migrated and validated
+- [x] V4.22.7 closure evidence reconciled
 
 Completion requires all 16 shared contracts, every in-scope route migrated or explicitly justified as not applicable, no remaining duplicated equivalents in migrated pages, preserved behavior/security, green required checks and reviewed visual/interaction evidence. Staging/main promotion remains a separate release action; main requires explicit approval.
 
 ## Exact next step
 
-Finish V4.22.0 foundation validation and required PR checks. Then proceed to V4.22.1 Helpdesk after reconciling its V4.21 integrated baseline. Other module migrations remain pending in the established order.
+V4.22 repository consolidation is closed on `develop`. Continue with V4.24 permission-aware AI Assistant from the integrated baseline after this documentation-only closure PR is green and merged. Keep `main` untouched unless explicitly approved. Productionization, real provider activation and field acceptance remain separate evidence classes.
