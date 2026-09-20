@@ -11,7 +11,7 @@ CREATE TABLE "SocietyIntegrationConfiguration" (
   "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "SocietyIntegrationConfiguration_pkey" PRIMARY KEY ("societyId","family"),
-  CONSTRAINT "SocietyIntegrationConfiguration_family_valid" CHECK ("family" IN ('OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','ACCOUNTING_CONNECTOR')),
+  CONSTRAINT "SocietyIntegrationConfiguration_family_valid" CHECK ("family" IN ('OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR')),
   CONSTRAINT "SocietyIntegrationConfiguration_provider_key_valid" CHECK (length(btrim("providerKey")) BETWEEN 1 AND 80)
 );
 
@@ -30,7 +30,7 @@ CREATE TABLE "SocietyIntegrationConfigurationEvent" (
   "actorUserId" UUID NOT NULL,
   "occurredAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "SocietyIntegrationConfigurationEvent_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "SocietyIntegrationConfigurationEvent_family_valid" CHECK ("family" IN ('OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','ACCOUNTING_CONNECTOR')),
+  CONSTRAINT "SocietyIntegrationConfigurationEvent_family_valid" CHECK ("family" IN ('OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR')),
   CONSTRAINT "SocietyIntegrationConfigurationEvent_type_valid" CHECK ("eventType" IN ('CONFIGURED','PROVIDER_CHANGED','ENABLED','DISABLED'))
 );
 
