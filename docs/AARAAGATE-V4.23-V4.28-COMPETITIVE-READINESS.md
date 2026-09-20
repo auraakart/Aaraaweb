@@ -1,6 +1,6 @@
 # Aaraagate V4.23–V4.28 Competitive Product Readiness Program
 
-Date: 2026-09-19
+Date: 2026-09-20
 Baseline: `develop` at `1fafcc1f6c9d8bba9a458b8f089b962c7ffc5560`
 
 ## Goal
@@ -22,16 +22,16 @@ Repository implementation, field acceptance, hosted infrastructure and third-par
 
 ### V4.23 — Product experience consolidation
 
-V4.23 completes the already-approved V4.22 Admin consolidation before additional product-depth work is credited.
+**Current repository status:** the V4.22 Admin consolidation prerequisite is closed on `develop` through `b8349322d29a6439605ca68ee358fe70d80a1c79`. V4.23 now has only the remaining cross-surface consistency reconciliation to verify; the approved Resident mobile information architecture must not be reopened.
 
 Required work:
-- finish Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance/Governance migrations;
-- remove duplicated presentation equivalents after each migration is validated;
-- preserve domain authorization, API payloads and lifecycle behavior;
-- align Admin typography, spacing, forms, status, readiness/evidence and action patterns;
-- reconcile Resident and Guard shared presentation tokens where doing so does not reopen mobile information architecture;
-- preserve the Resident navigation baseline: Home, Gate, Services, Community, Profile;
-- keep AI as a contextual premium entry rather than a persistent bottom-navigation destination.
+- [x] finish Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance/Governance migrations;
+- [x] remove superseded presentation equivalents in the migrated Admin routes after validation;
+- [x] preserve domain authorization, API payloads and lifecycle behavior;
+- [x] align Admin typography, spacing, forms, status, readiness/evidence and action patterns;
+- [ ] reconcile any remaining Resident and Guard shared presentation-token drift where doing so does not reopen mobile information architecture;
+- [x] preserve the Resident navigation baseline: Home, Gate, Services, Community, Profile;
+- [x] keep AI as a contextual premium entry rather than a persistent bottom-navigation destination.
 
 Exit gate:
 - all V4.22 slices closed with rendered/behavior evidence;
