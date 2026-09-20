@@ -20,6 +20,7 @@ const documentRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','F
 const vendorRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 const privacyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const accessIntegrationRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
+const integrationReadinessRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
 
 type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
@@ -82,6 +83,7 @@ export function AdminShortcuts(){
     }
     if(emergencyRoles.has(role)&&features.has('SOS'))add(operations,{href:'/emergency-operations',label:'Emergency control room',description:'Acknowledge and resolve SOS incidents'})
     if(accessIntegrationRoles.has(role))add(operations,{href:'/access-integrations',label:'Access integrations',description:'ANPR, barrier, RFID health and fallback evidence'})
+    if(integrationReadinessRoles.has(role))add(operations,{href:'/integrations',label:'Integration readiness',description:'Provider capabilities, society selection and audit evidence'})
     if(privacyRoles.has(role))add(operations,{href:'/privacy-operations',label:'Privacy operations',description:'Privacy requests and operational controls'})
     if((emergencyRoles.has(role)&&features.has('SOS'))||privacyRoles.has(role)||role==='SUPER_ADMIN')add(operations,{href:'/operations-control',label:'Operations & control',description:'Emergency, privacy, audit and platform controls'})
     if(vendorRoles.has(role))add(operations,{href:'/society-vendors',label:'Vendors & procurement',description:'Vendor relationships and procurement'})
