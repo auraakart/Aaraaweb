@@ -109,7 +109,7 @@ export default function FinanceWorkspace(){
         state={periodLoading?'loading':closeReadiness?'ready':'error'}
         status={closeReadiness?{label:closeReadiness.readyToClose?'READY TO CLOSE':'BLOCKED',tone:closeReadiness.readyToClose?'success':'warning'}:undefined}
         blockers={closeReadiness?.blockers.map(b=>`${b.count} blocker${b.count===1?'':'s'}: ${b.message}`)??[]}
-        boundary={closeReadiness?'Closing is explicit, permissioned and irreversible. Closed periods cannot be reopened or materially edited.':undefined}
+        boundary={closeReadiness?'Closing is explicit and permissioned. This is irreversible. Closed periods cannot be reopened or materially edited.':undefined}
         checks={closeReadiness?<><EvidenceGrid items={[
           {id:'draft-journals',label:'Draft journals',value:String(closeReadiness.journalSummary.draftCount)},
           {id:'posted-journals',label:'Posted journals',value:String(closeReadiness.journalSummary.postedCount)},
