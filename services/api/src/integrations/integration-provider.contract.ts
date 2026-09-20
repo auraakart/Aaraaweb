@@ -14,6 +14,8 @@ export function integrationContractMetadata(family: string): IntegrationContract
   switch (family) {
     case 'PAYMENT_GATEWAY':
       return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'IDEMPOTENT_RETRY', retryOwner: 'AARAAGATE', degradationMode: 'Preserve accounting truth and move unresolved provider state to reconciliation.' };
+    case 'WHATSAPP':
+      return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'NO_AUTOMATIC_RETRY', retryOwner: 'OPERATOR', degradationMode: 'Fail the optional WhatsApp handoff without bypassing authentication or notification policy.' };
     case 'PUSH':
       return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'DURABLE_BACKOFF', retryOwner: 'AARAAGATE', degradationMode: 'Keep in-app state authoritative and retry durable notification handoff.' };
     case 'ACCESS_CONTROL':
