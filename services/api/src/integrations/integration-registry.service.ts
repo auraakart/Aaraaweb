@@ -3,6 +3,7 @@ import { integrationContractMetadata, IntegrationContractMetadata } from './inte
 
 export type IntegrationFamily =
   | 'OTP'
+  | 'WHATSAPP'
   | 'PUSH'
   | 'PAYMENT_GATEWAY'
   | 'ACCESS_CONTROL'
@@ -29,6 +30,7 @@ export class IntegrationRegistryService {
     void societyId;
     return [
       this.otp(),
+      this.whatsApp(),
       this.push(),
       this.paymentGateway(),
       this.accessControl(),
@@ -55,6 +57,18 @@ export class IntegrationRegistryService {
       health: configured ? 'READY' : 'UNCONFIGURED',
       capabilities: ['SMS_OTP', 'WHATSAPP_OTP_CONTRACT'],
       boundary: 'OTP credentials and provider templates are deployment configuration; no secret values are exposed.',
+    };
+  }
+
+  private whatsApp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+    return {
+      family: 'WHATSAPP',
+      provider: (process.env.WHATSAPP_DELIVERY_PROVIDER ?? 'unconfigured').trim().toLowerCase() || 'unconfigured',
+      configurationScope: 'DEPLOYMENT',
+      configured: false,
+      health: 'UNCONFIGURED',
+      capabilities: ['TEMPLATE_MESSAGE', 'OTP_DELIVERY_CONTRACT'],
+      boundary: 'WhatsApp remains a versioned provider contract until an approved transport/template configuration is wired; no fallback bypass is allowed.',
     };
   }
 
