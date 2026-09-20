@@ -44,6 +44,35 @@ export class PrivacyService {
     `);
   }
 
+  async selfContext(userId:string,societyId:string){
+    const [categories,consents]=await Promise.all([
+      this.prisma.$queryRaw<Array<{
+        code:string;name:string;purpose:string;retentionTrigger:string;retentionDays:number|null;
+      }>>(Prisma.sql`
+        SELECT "code","name","purpose","retentionTrigger","retentionDays"
+        FROM "PrivacyDataCategory"
+        WHERE "societyId"=${societyId}::uuid AND "active"=true
+        ORDER BY "name" ASC
+        LIMIT 50
+      `),
+      this.prisma.$queryRaw<Array<{
+        dataCategoryCode:string|null;purpose:string;status:'GRANTED'|'WITHDRAWN';grantedAt:Date;withdrawnAt:Date|null;
+      }>>(Prisma.sql`
+        SELECT "dataCategoryCode","purpose","status","grantedAt","withdrawnAt"
+        FROM "PrivacyConsentRecord"
+        WHERE "societyId"=${societyId}::uuid AND "subjectUserId"=${userId}::uuid
+        ORDER BY "grantedAt" DESC
+        LIMIT 100
+      `),
+    ]);
+    return {
+      categories,
+      consents,
+      activeConsentCount:consents.filter(item=>item.status==='GRANTED').length,
+      boundary:'This is product configuration and recorded consent evidence only; it does not determine statutory rights or legal compliance.',
+    };
+  }
+
   async createMine(
     userId: string,
     societyId: string | undefined,
