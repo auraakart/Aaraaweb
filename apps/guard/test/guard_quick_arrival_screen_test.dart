@@ -55,6 +55,8 @@ void main(){
     await tester.pump();
     await tester.enterText(find.widgetWithText(TextField,'Person / provider name'),'Swiggy rider');
     await tester.pump();
+    await tester.scrollUntilVisible(find.text('REQUEST APPROVAL'),300,scrollable:find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     final submit=tester.widget<FilledButton>(find.widgetWithText(FilledButton,'REQUEST APPROVAL'));
     expect(submit.onPressed,isNotNull);
   });
