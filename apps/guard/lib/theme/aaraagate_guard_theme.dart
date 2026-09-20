@@ -138,6 +138,18 @@ class AaraagateGuardTheme {
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(
+            AaraagateGuardTokens.minTouchTarget,
+            AaraagateGuardTokens.minTouchTarget,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSmall),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
@@ -157,9 +169,19 @@ class AaraagateGuardTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainer,
+        selectedColor: scheme.primaryContainer,
+        checkmarkColor: scheme.onPrimaryContainer,
         side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: AaraagateGuardTokens.space1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        labelStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+        secondaryLabelStyle: TextStyle(
+          color: scheme.onPrimaryContainer,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
@@ -179,6 +201,14 @@ class AaraagateGuardTheme {
         backgroundColor: scheme.inverseSurface,
         contentTextStyle: TextStyle(color: scheme.onInverseSurface, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl)),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSmall),
+        ),
+        textStyle: TextStyle(color: scheme.onInverseSurface),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );

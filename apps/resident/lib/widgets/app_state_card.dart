@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/aaraagate_theme.dart';
 
 class AppStateCard extends StatelessWidget {
   const AppStateCard({
@@ -27,10 +28,10 @@ class AppStateCard extends StatelessWidget {
       label: message,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space5, vertical: AaraagateTokens.space6),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
         ),
         child: Column(
           children: [
@@ -45,11 +46,11 @@ class AppStateCard extends StatelessWidget {
               )
             else
               Container(
-                width: 48,
-                height: 48,
+                width: AaraagateTokens.iconContainer,
+                height: AaraagateTokens.iconContainer,
                 decoration: BoxDecoration(
                   color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
                 ),
                 child: Icon(icon, size: 26, color: scheme.onPrimaryContainer),
               ),
@@ -63,7 +64,7 @@ class AppStateCard extends StatelessWidget {
               ),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space3),
               TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
