@@ -12,8 +12,31 @@ export class PaymentReconciliationService{
 
   listCases(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
     SELECT "id","paymentId","status","provider","providerPaymentId","observedProviderStatus","observedAmountPaise"::text AS "observedAmountPaise",
-           "expectedCapturedPaise"::text AS "expectedCapturedPaise","expectedRefundedPaise"::text AS "expectedRefundedPaise","reason","lastCheckedAt","resolvedAt","updatedAt"
-    FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid ORDER BY "updatedAt" DESC LIMIT 250
+           "expectedCapturedPaise"::text AS "expectedCapturedPaise","expectedRefundedPaise"::text AS "expectedRefundedPaise","reason","lastCheckedAt","resolvedAt","updatedAt",
+           CASE
+             WHEN "status"='ACTION_REQUIRED' THEN 'HIGH'
+             WHEN "status"='MISMATCH' THEN 'HIGH'
+             WHEN "status"='PENDING' AND ("lastCheckedAt" IS NULL OR "lastCheckedAt"<CURRENT_TIMESTAMP-INTERVAL '24 hours') THEN 'MEDIUM'
+             ELSE 'LOW'
+           END AS "priority",
+           CASE
+             WHEN "status"='ACTION_REQUIRED' THEN 'Review provider failure evidence and request a status query or refund only when supported by payment evidence.'
+             WHEN "status"='MISMATCH' THEN 'Compare provider evidence with the expected amount and status, then resolve the discrepancy with a reason.'
+             WHEN "status"='PENDING' THEN 'Request or await a provider status observation before resolving the case.'
+             WHEN "status"='MATCHED' THEN 'Review the matched evidence and resolve the case when verification is complete.'
+             WHEN "status"='RESOLVED' THEN 'No action required.'
+             ELSE 'Review reconciliation evidence.'
+           END AS "nextAction"
+    FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid
+    ORDER BY
+      CASE WHEN "status"='RESOLVED' THEN 1 ELSE 0 END,
+      CASE
+        WHEN "status" IN ('ACTION_REQUIRED','MISMATCH') THEN 0
+        WHEN "status"='PENDING' AND ("lastCheckedAt" IS NULL OR "lastCheckedAt"<CURRENT_TIMESTAMP-INTERVAL '24 hours') THEN 1
+        ELSE 2
+      END,
+      "updatedAt" ASC
+    LIMIT 250
   `);}
 
   async getCase(societyId:string,id:string){const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
