@@ -22,14 +22,14 @@ Repository implementation, field acceptance, hosted infrastructure and third-par
 
 ### V4.23 — Product experience consolidation
 
-**Current repository status:** the V4.22 Admin consolidation prerequisite is closed on `develop` through `b8349322d29a6439605ca68ee358fe70d80a1c79`. V4.23 now has only the remaining cross-surface consistency reconciliation to verify; the approved Resident mobile information architecture must not be reopened.
+**Current repository status:** **COMPLETE on `develop` through `d29b4e62ec8adcf334d9234ad5825aefd3662dfa`.** V4.22 Admin consolidation is closed and the remaining Resident/Guard presentation-token drift was reconciled without reopening the approved Resident mobile information architecture.
 
 Required work:
 - [x] finish Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance/Governance migrations;
 - [x] remove superseded presentation equivalents in the migrated Admin routes after validation;
 - [x] preserve domain authorization, API payloads and lifecycle behavior;
 - [x] align Admin typography, spacing, forms, status, readiness/evidence and action patterns;
-- [ ] reconcile any remaining Resident and Guard shared presentation-token drift where doing so does not reopen mobile information architecture;
+- [x] reconcile remaining Resident and Guard shared presentation-token drift without reopening mobile information architecture;
 - [x] preserve the Resident navigation baseline: Home, Gate, Services, Community, Profile;
 - [x] keep AI as a contextual premium entry rather than a persistent bottom-navigation destination.
 
@@ -39,6 +39,8 @@ Exit gate:
 - Admin lint/typecheck/build and affected domain regressions green.
 
 ### V4.24 — Permission-aware AI Assistant
+
+**Current repository status:** V4.24.1 tool-registry and retrieval-audit foundation implemented and validating. See [AARAAGATE-V4.24-AI-ASSISTANT.md](AARAAGATE-V4.24-AI-ASSISTANT.md).
 
 Build on the existing read-only AI Action Centre and resident demo assistant.
 
