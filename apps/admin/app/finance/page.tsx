@@ -137,7 +137,7 @@ const row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap
 const table:React.CSSProperties={width:'100%',borderCollapse:'collapse',marginTop:12}
 const right:React.CSSProperties={textAlign:'right'}
 const notice:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #f59e0b',borderRadius:10,background:'#fffbeb'}
-const twoCol:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(340px,1fr))',gap:24}
+const twoCol:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:24}
 
 const inlineForm:React.CSSProperties={display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:10,alignItems:'end'}
 const allocationForm:React.CSSProperties={display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(180px,1fr) auto',gap:10,alignItems:'end',marginTop:14}
