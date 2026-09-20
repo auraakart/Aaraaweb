@@ -9,7 +9,8 @@ function u32(view:DataView,offset:number){return view.getUint32(offset,true)}
 
 async function inflateRaw(data:Uint8Array){
   if(typeof DecompressionStream==='undefined')throw new Error('This browser cannot decompress XLSX files. Use UTF-8 CSV instead.')
-  const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
+  const input=data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength) as ArrayBuffer
+  const stream=new Blob([input]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
