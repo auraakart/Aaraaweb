@@ -28,7 +28,7 @@ function parseCsv(text:string){
   if(rows.length<2)throw new Error('CSV must contain a header row and at least one data row.')
   const headers=rows[0].map(v=>v.trim())
   if(headers.some(v=>!v))throw new Error('CSV contains an empty column header.')
-  return rows.slice(1).map((values,rowIndex)=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??'']))).map((item,index)=>({...item,__source_row:String(index+2)}))
+  return rows.slice(1).map(values=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??'']))).map((item,index)=>({...item,__source_row:String(index+2)}))
 }
 
 export function MigrationImportStager({session,onBatchCreated}:{session:MigrationSession;onBatchCreated:()=>void}){
