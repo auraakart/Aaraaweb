@@ -67,6 +67,7 @@ jobs:
           test -f scripts/production-preflight.sh
           test -f scripts/check-product-branding.sh
           test -f scripts/check-flutter-release-compatibility.sh
+          test -f scripts/check-v4.23-mobile-presentation.mjs
           test -f scripts/check-staging-release-contract.sh
           test -f scripts/hosted-staging-smoke.sh
           test -f scripts/check-hosted-staging-contract.sh
@@ -93,6 +94,8 @@ jobs:
         run: bash scripts/check-product-branding.sh
       - name: Check Flutter release compatibility patch
         run: bash scripts/check-flutter-release-compatibility.sh
+      - name: Check V4.23 mobile presentation contract
+        run: node scripts/check-v4.23-mobile-presentation.mjs
       - name: Check exact-SHA staging release contract
         run: bash scripts/check-staging-release-contract.sh
       - name: Check hosted staging acceptance contract
