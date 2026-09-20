@@ -1,4 +1,4 @@
-import { Body, Controller, ExecutionContext, Get, Put, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Put, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsBoolean, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
 import { BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -42,7 +42,7 @@ export class IntegrationRegistryController {
   @Put('configuration')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
   updateConfiguration(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:UpdateIntegrationConfigurationDto) {
-    if(!userId) throw new Error('Authenticated user is required');
+    if(!userId) throw new BadRequestException('Authenticated user is required');
     return this.configuration.update(societyId,userId,dto);
   }
 }
