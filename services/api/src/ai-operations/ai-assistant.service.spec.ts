@@ -132,6 +132,84 @@ describe('V4.6 grounded AI assistant',()=>{
     }));
   });
 
+  it('grounds resident notices only after selected-property authorization and preserves audience filtering',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{id:'notice-1',title:'Water shutdown',audience:'OWNER_AND_OCCUPANTS'}]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],
+      'Show society notices',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('NOTICE_STATUS');
+    expect(result.sources).toEqual(['Notice']);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    const noticeCall=prisma.$queryRaw.mock.calls[1]?.[0] as {strings?:readonly string[]};
+    const sql=(noticeCall.strings??[]).join('?');
+    expect(sql).toContain('"status"=\'PUBLISHED\'');
+    expect(sql).toContain('"audience"=\'OWNER_AND_OCCUPANTS\'');
+    expect(sql).toContain('"audience"=\'OWNER_ONLY\'');
+  });
+
+  it('grounds gate activity to both selected unit and signed-in resident',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{id:'visitor-1',status:'PENDING'}])
+      .mockResolvedValueOnce([{id:'access-1',status:'APPROVED'}]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],
+      'What is my gate and visitor status?',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('GATE_STATUS');
+    const gateSql=prisma.$queryRaw.mock.calls.slice(1,3).map((call)=>{
+      const sql=call[0] as {strings?:readonly string[]};
+      return (sql.strings??[]).join('?');
+    }).join('\n');
+    expect(gateSql).toContain('v."unitId"=?::uuid');
+    expect(gateSql).toContain('v."hostUserId"=?::uuid');
+    expect(gateSql).toContain('"unitId"=?::uuid');
+    expect(gateSql).toContain('"requestedById"=?::uuid');
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps governance assistant read-only, permissioned and explicitly non-legal',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{id:'meeting-1',status:'HELD'}])
+      .mockResolvedValueOnce([{id:'resolution-1',status:'PROPOSED'}])
+      .mockResolvedValueOnce([{id:'action-1',status:'OPEN'}]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.AUDITOR],
+      'Summarize governance meetings and resolutions',
+    );
+    expect(result.intent).toBe('GOVERNANCE');
+    expect(result.mutationPerformed).toBe(false);
+    expect(result.answer).toContain('does not determine legal validity or statutory compliance');
+    expect((result.facts as {boundary:string}).boundary).toContain('legal validity');
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose governance records to a resident role',async()=>{
+    const {prisma,service}=setup();
+    await expect(service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],
+      'Summarize governance meetings',
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('keeps AI audit history tenant scoped and excludes proposal/prompt payloads',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw
