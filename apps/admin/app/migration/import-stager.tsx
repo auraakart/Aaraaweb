@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'\nimport type { ChangeEvent } from 'react'
+import { useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { ActionBar, DetailPanel, ErrorState, FormField, PrimaryButton, SecondaryButton, StatusPill } from '../../components/admin-ui'
 
 export type MigrationSession={accessToken:string;role:string;societyName?:string}
@@ -19,7 +20,9 @@ function parseCsv(text:string){
     if(ch==='"'&&quoted&&next==='"'){field+='"';i++;continue}
     if(ch==='"'){quoted=!quoted;continue}
     if(ch===','&&!quoted){row.push(field);field='';continue}
-    if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&next==='\n')i++;row.push(field);field='';if(row.some(v=>v.trim()!==''))rows.push(row);row=[];continue}
+    if((ch==='
+'||ch==='\r')&&!quoted){if(ch==='\r'&&next==='
+')i++;row.push(field);field='';if(row.some(v=>v.trim()!==''))rows.push(row);row=[];continue}
     field+=ch
   }
   row.push(field);if(row.some(v=>v.trim()!==''))rows.push(row)
@@ -32,7 +35,7 @@ function parseCsv(text:string){
 
 export function MigrationImportStager({session,onBatchCreated}:{session:MigrationSession;onBatchCreated:()=>void}){
   const[entity,setEntity]=useState<Entity>('BUILDING'),[sourceLabel,setSourceLabel]=useState(''),[csv,setCsv]=useState(''),[preview,setPreview]=useState<Preview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[feedback,setFeedback]=useState('')
-  const rows=useMemo(()=>{try{return csv.trim()?parseCsv(csv):[]}catch{return[]}},[csv])
+
   const canPersist=!!preview&&preview.invalidRows===0&&preview.totalRows>0
 
   async function previewRows(){setBusy(true);setError('');setFeedback('');try{const parsed=parseCsv(csv);const result=await api<Preview>(session,'/migration/preview',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed})});setPreview(result);setFeedback(result.invalidRows===0?'Preview is clean and ready for a dry-run batch.':'Preview completed with row-level issues.')}catch(e){setPreview(null);setError(e instanceof Error?e.message:'Migration preview failed')}finally{setBusy(false)}}
