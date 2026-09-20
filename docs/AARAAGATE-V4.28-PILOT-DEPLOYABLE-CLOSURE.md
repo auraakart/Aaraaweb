@@ -135,11 +135,7 @@ Physical ANPR/RFID/boom-barrier validation remains external where deployed.
 
 ## Exact release SHA and rollback
 
-A production decision requires both:
-- `candidateSha` — exact immutable release candidate;
-- `rollbackSha` — previous known-good rollback target.
-
-Both must be 40-character commit SHAs. The existing release-readiness workflow records these automatically for a staging-to-main release PR; the V4.28 manifest remains the pilot/business evidence source of truth.
+The exact immutable release candidate SHA and previous known-good rollback SHA are recorded by the release-readiness workflow from Git history and retained in its release-evidence artifact. They are intentionally not required to equal values committed inside `docs/v4.28-pilot-evidence.json`, because a commit cannot contain its own final SHA. The V4.28 manifest remains the pilot/business acceptance source of truth; the release workflow remains the exact-SHA source of truth.
 
 ## Incident tabletop
 
@@ -174,7 +170,7 @@ A sign-off cannot become `SIGNED` without an evidence reference and a named pilo
 
 - `HOLD_EXTERNAL_EVIDENCE` — repository may be ready, but field/hosted evidence is incomplete.
 - `NO_GO` — evidence shows a failed acceptance condition or unresolved blocker.
-- `GO` — all nine KPIs PASS, all five role scripts PASS, all six external proofs PASS, candidate/rollback SHAs are recorded, no Sev-1/Sev-2 blockers remain, all required roles are signed, and overall status is COMPLETE.
+- `GO` — all nine KPIs PASS, all five role scripts PASS, all six external proofs PASS, no Sev-1/Sev-2 blockers remain, all required roles are signed, and overall status is COMPLETE. Exact candidate/rollback SHAs are recorded separately by the production release workflow.
 
 The checker in `scripts/check-v4.28-deployable-evidence.mjs` enforces these invariants.
 
