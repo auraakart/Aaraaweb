@@ -70,7 +70,6 @@ export default function SocietyOnboardingPage(){
   const migrationReady=requiredMigrationEntities.every(entity=>migrationCoverage.has(entity))
   const accessConfigured=integrations.some(row=>row.family==='ACCESS_CONTROL'&&row.enabled)
   const paymentConfigured=integrations.some(row=>row.family==='PAYMENT_GATEWAY'&&row.enabled)
-  const operationalRoles=new Set(roles.map(row=>row.role))
 
   const steps=useMemo<Step[]>(()=>[
     {
@@ -126,8 +125,8 @@ export default function SocietyOnboardingPage(){
       title:'7. Governance & society policy',
       description:'Review committee, quorum, approval, bye-law references and governance evidence in the existing governance module.',
       href:'/governance',
-      state:features.has('GOVERNANCE')?'REVIEW':'IN_PROGRESS',
-      evidence:features.has('GOVERNANCE')?'Governance feature enabled; society-specific policy acceptance remains separate':'Governance feature availability requires review',
+      state:'REVIEW',
+      evidence:'Review committee, quorum, approval and bye-law references; society-specific policy acceptance remains separate',
     },
     {
       id:'final',
