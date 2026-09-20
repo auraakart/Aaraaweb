@@ -96,6 +96,35 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
+  it('fails closed before notice retrieval when the selected property is unauthorized',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],
+      'Show society notices for my home',
+      '33333333-3333-4333-8333-333333333333',
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('fails closed without fabricating a result when authoritative notice retrieval fails',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockRejectedValueOnce(new Error('authoritative store unavailable'));
+    await expect(service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],
+      'Show society notices for my home',
+      '33333333-3333-4333-8333-333333333333',
+    )).rejects.toThrow('authoritative store unavailable');
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('grounds resident gate status without widening to other hosts',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw
