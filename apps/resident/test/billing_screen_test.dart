@@ -87,9 +87,34 @@ void main() {
     expect(find.text('Pay securely'), findsNothing);
   });
 
+  testWidgets('pending and failed payment attempts stay visible with recovery guidance', (tester) async {
+    final repository = _BillingRepositoryWithRecoveryStates();
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Payment activity'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('FAILED'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('CREATED'), findsOneWidget);
+    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.textContaining('Awaiting gateway confirmation'), findsOneWidget);
+    expect(find.textContaining('Retry from the outstanding bill'), findsOneWidget);
+    expect(find.text('Receipt'), findsNothing);
+  });
+
   testWidgets('owner opens a server-verified receipt from payment history', (tester) async {
     final repository = _BillingRepositoryWithPayment();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Receipt'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('Receipt'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Receipt'));
     await tester.pumpAndSettle();
@@ -103,5 +128,30 @@ class _BillingRepositoryWithPayment extends _BillingRepository {
   @override
   Future<List<Map<String, dynamic>>> maintenancePayments() async => [
     {'id': 'payment-1', 'invoiceNumber': '202609-A101', 'amountPaise': 125000, 'status': 'CAPTURED', 'buildingName': 'A Block', 'unitNumber': '101'},
+  ];
+}
+
+
+class _BillingRepositoryWithRecoveryStates extends _BillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> maintenancePayments() async => [
+    {
+      'id': 'payment-created',
+      'invoiceId': 'invoice-1',
+      'invoiceNumber': '202609-A101',
+      'amountPaise': 125000,
+      'status': 'CREATED',
+      'buildingName': 'A Block',
+      'unitNumber': '101',
+    },
+    {
+      'id': 'payment-failed',
+      'invoiceId': 'invoice-1',
+      'invoiceNumber': '202609-A101',
+      'amountPaise': 125000,
+      'status': 'FAILED',
+      'buildingName': 'A Block',
+      'unitNumber': '101',
+    },
   ];
 }
