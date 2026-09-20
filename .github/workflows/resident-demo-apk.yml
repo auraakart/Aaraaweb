@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: resident-demo-apk-${{ github.ref }}
@@ -78,6 +78,11 @@ jobs:
           grep -q "'membershipTier': 'PREMIUM'" apps/resident/lib/data/demo_resident_repository.dart
           grep -q "Sponsored · paid placement" apps/resident/lib/screens/services_screen.dart
           grep -q "Premium provider" apps/resident/lib/screens/services_screen.dart
+          grep -q "'AI_ASSISTANT'" apps/resident/lib/main.dart
+          grep -q "demoMode: controller.repository is DemoResidentRepository" apps/resident/lib/main.dart
+          grep -q "What do I need to take care of today?" apps/resident/lib/screens/ai_assistant_screen.dart
+          grep -q "September residents meeting" apps/resident/lib/data/demo_resident_repository.dart
+          grep -q "INV-SEP-2026-A1204" apps/resident/lib/data/demo_resident_repository.dart
 
       - name: Get dependencies
         working-directory: apps/resident
@@ -111,12 +116,29 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp apps/resident/build/app/outputs/flutter-apk/app-debug.apk dist/Aaraagate-Resident-Demo-Released-V1.apk
+          cp apps/resident/build/app/outputs/flutter-apk/app-debug.apk dist/Aaraagate-Resident-Demo-Showcase-V2.apk
 
       - name: Upload Resident APK
         uses: actions/upload-artifact@v4
         with:
-          name: aaraagate-resident-demo-released-v1-apk
-          path: dist/Aaraagate-Resident-Demo-Released-V1.apk
+          name: aaraagate-resident-demo-showcase-v2-apk
+          path: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish direct APK release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: resident-demo-latest
+          name: Aaraagate Resident Demo - Latest
+          body: |
+            Latest installable Resident Demo Showcase APK from the develop branch.
+            Download the .apk asset directly; no ZIP extraction is required.
+          artifacts: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          artifactContentType: application/vnd.android.package-archive
+          allowUpdates: true
+          replacesArtifacts: true
+          prerelease: true
+          makeLatest: false
+          token: ${{ secrets.GITHUB_TOKEN }}

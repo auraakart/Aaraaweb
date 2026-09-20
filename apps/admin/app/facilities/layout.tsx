@@ -3,11 +3,13 @@ import type { ReactNode } from 'react'
 import './facilities-workspace.css'
 
 const links = [
-  { href: '/facilities', label: 'Operations' },
+  { href: '/facilities', label: 'Assets & work orders' },
+  { href: '/facilities/operations', label: 'Housekeeping & staff' },
   { href: '/facilities/health', label: 'Health' },
   { href: '/facilities/preventive', label: 'Preventive maintenance' },
   { href: '/facilities/alerts', label: 'Alerts' },
   { href: '/facilities/contracts', label: 'AMC & contracts' },
+  { href: '/facilities/inventory', label: 'Inventory & spares' },
 ]
 
 export default function FacilitiesLayout({ children }: { children: ReactNode }) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/aaraagate_guard_theme.dart';
 
 class GuardStateCard extends StatelessWidget {
   const GuardStateCard({
@@ -33,10 +34,10 @@ class GuardStateCard extends StatelessWidget {
       label: loading ? 'Processing. $message' : message,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AaraagateGuardTokens.space5),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusCard),
         ),
         child: Column(
           children: [
@@ -46,7 +47,7 @@ class GuardStateCard extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: iconBackground,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl),
               ),
               child: loading
                   ? SizedBox.square(
@@ -55,7 +56,7 @@ class GuardStateCard extends StatelessWidget {
                     )
                   : Icon(icon, size: 28, color: iconForeground),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AaraagateGuardTokens.space3),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -66,7 +67,7 @@ class GuardStateCard extends StatelessWidget {
               ),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: AaraagateGuardTokens.space3),
               TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],

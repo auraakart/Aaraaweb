@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -31,6 +32,20 @@ class ImportBankTransactionDto {
   @IsOptional() @IsString() @MaxLength(160) reference?:string;
   @IsOptional() @IsString() @MaxLength(500) description?:string;
 }
+class BankStatementPreviewRowDto {
+  @IsString() @MinLength(1) @MaxLength(160) externalKey!:string;
+  @IsDateString() transactionDate!:string;
+  @IsOptional() @IsDateString() valueDate?:string;
+  @IsIn(['CREDIT','DEBIT']) direction!:'CREDIT'|'DEBIT';
+  @IsInt() @Min(1) amountPaise!:number;
+  @IsOptional() @IsString() @MaxLength(160) reference?:string;
+  @IsOptional() @IsString() @MaxLength(500) description?:string;
+}
+class BankStatementPreviewDto {
+  @IsUUID() bankAccountId!:string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(500) @ValidateNested({each:true}) @Type(()=>BankStatementPreviewRowDto)
+  rows!:BankStatementPreviewRowDto[];
+}
 class MatchBankTransactionDto {
   @IsUUID() journalEntryId!:string;
   @IsOptional() @IsString() @MaxLength(500) note?:string;
@@ -50,6 +65,9 @@ export class BankReconciliationController {
 
   @Get('transactions') @RequiresPermissions(AppPermission.FINANCE_READ)
   listTransactions(@CurrentTenant() societyId:string,@Query('bankAccountId') bankAccountId?:string,@Query('status') status?:string){return this.bank.listTransactions(societyId,bankAccountId,status);}
+
+  @Post('transactions/import/preview') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
+  previewImport(@CurrentTenant() societyId:string,@Body() dto:BankStatementPreviewDto){return this.bank.previewImport(societyId,dto.bankAccountId,dto.rows);}
 
   @Post('transactions/import') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
   importTransaction(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ImportBankTransactionDto){return this.bank.importTransaction(societyId,this.user(userId),dto);}

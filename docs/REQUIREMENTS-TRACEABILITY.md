@@ -1,11 +1,11 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
 ## V1 implementation baseline
-Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **V4.22.0 foundation implemented and validating; migrations pending**. The [shared design system](ADMIN-DESIGN-SYSTEM.md) records all 16 contracts and the route inventory. Full acceptance still requires sequentially validated migrations of Helpdesk, Privacy, Facilities, Documents, Occupancy and Finance/Governance. Domain acceptance below does not imply completion of this UI/UX milestone.
+Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **repository-complete on `develop` through `b8349322d29a6439605ca68ee358fe70d80a1c79`**. The [shared design system](ADMIN-DESIGN-SYSTEM.md) records all 16 contracts and the route inventory. Helpdesk, Privacy, Facilities, Documents, Occupancy, Finance and Governance were migrated sequentially through PRs #732–#738 after the V4.22.0 foundation in PR #722. This traceability status does not imply hosted production acceptance, representative-device/human UAT, or `main` promotion.
 
 | Area | Status | Current acceptance state |
 |---|---|---|
@@ -228,3 +228,76 @@ The V4.20 repository cycle is complete on `develop` after the closure branch mer
 5. **External boundary:** facility-team human UAT, physical inspection outcomes, provider/AMC legal validity, hosted production behavior and field maintenance outcomes remain external.
 
 V4.20 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.25 Payments & Accounting Field-readiness closure
+
+V4.25 is repository-complete on `develop` through `25897c0227808c5e0cc9e457adeec640f01bc8cf` before the closure PR:
+
+1. **Provider boundary/configuration:** existing provider-neutral gateway/reconciliation contracts remain authoritative; V4.25 separates sandbox/live reconciliation credentials and fails closed when live configuration is incomplete.
+2. **Bank reconciliation intake:** statement rows can be previewed before commit and classified as new, already imported, duplicate-in-batch or conflicting; preview is non-mutating and exact duplicates remain idempotent.
+3. **Reconciliation operations:** unresolved cases are prioritized from authoritative status/staleness and expose descriptive next-action guidance without automatic refund, resolution, journal posting or payment-state mutation.
+4. **Resident payment recovery:** pending and failed attempts remain visible with recovery guidance; only captured/refunded states expose verified receipts; client state never establishes payment success.
+5. **Optional tax configuration:** Admin Finance exposes the existing GST/TDS configuration boundary under existing finance permissions; the product does not infer statutory applicability or filing obligations.
+6. **Accounting integrity:** gateway/provider evidence remains separate from immutable accounting truth; corrections remain explicit/auditable rather than destructive history rewrites.
+7. **External boundary:** live merchant/provider certification, hosted callbacks/settlements/refunds, representative Accountant/Treasurer UAT, bank-specific production files and society-specific GST/TDS/legal validation remain external.
+
+V4.25 repository completion does **not** increase Production/field readiness without those external proofs.
+
+
+## V4.26 Integration ecosystem closure
+
+V4.26 is repository-complete on `develop` through `296f2e6aaeaf7ecdd5efe8e49584d8ae0dd83f8f` before the closure PR:
+
+1. **Versioned contract:** shared provider metadata is exposed as `aaraagate.integration.v1` with normalized retry ownership and degradation semantics.
+2. **Capability families:** OTP/SMS, WhatsApp, push, payment gateway, access control/ANPR/RFID, object storage, smart meter and accounting connector are represented in one registry.
+3. **Tenant-safe configuration:** society provider selections are permission-scoped, tenant-scoped and store provider identity plus enabled state only; credentials remain deployment configuration.
+4. **Auditability:** provider selection/configuration changes write append-only evidence while no-op updates avoid duplicate evidence.
+5. **Domain truth:** provider state cannot become accounting, authentication or access-control truth; fail-closed/manual-fallback boundaries remain explicit.
+6. **Operator readiness:** Admin can inspect capability health/version/retry/degradation, manage society selection only under society-configuration-manage authority and review audit history without any secret-entry UI.
+7. **Validation:** the final functional PR passed exact-head CI, Security/Privacy, Cross-role, Role UAT, Policy, Pilot Acceptance, Staging Pilot and V4.11 readiness contracts.
+8. **External boundary:** commercial certification, live credentials/templates/callbacks, physical hardware/site acceptance, hosted provider-health evidence and field outcomes remain external.
+
+V4.26 repository completion does **not** increase Production/field readiness without those external proofs.
+
+
+## V4.27 society onboarding and migration closure
+
+Repository status: **implemented / closure candidate for `develop`**.
+
+Evidence:
+- Admin Migration Center stages UTF-8 CSV and direct XLSX first-worksheet inputs before the existing non-mutating migration preview API.
+- Existing migration batches remain tenant-scoped, deterministic/idempotent, auditable and governed by dependency-aware commit/rollback boundaries.
+- The Society Onboarding workspace coordinates Property, Migration, People & Roles, Integration Readiness, Amenities, Finance and Governance without duplicating domain configuration.
+- Representative fixture coverage spans BUILDING, UNIT, RESIDENT, VEHICLE, PARKING, WORKFORCE, VENDOR and OPENING_BALANCE.
+- Fixture canonical SHA-256 is `4ec05ed9f9ae7ed7f2b76cd68e49fdac8417231eec2be6973b4e2d616633c9ac`.
+- `v4.27-onboarding-readiness-evidence-regression.mjs` enforces fixture coverage/checksum plus onboarding authority boundaries.
+- Detailed evidence: [AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md](AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md).
+
+Remaining external acceptance:
+- hosted infrastructure and production operations;
+- live provider credentials/certification;
+- physical access hardware;
+- real-society migration rehearsal and human operator UAT;
+- jurisdiction-specific policy/legal acceptance;
+- promotion to `main`.
+
+
+## V4.28 pilot evidence and deployable-product closure
+
+Repository implementation state: **closure candidate on the V4.28 branch; field evidence remains external**.
+
+Traceability:
+1. Pilot society definition and owners — represented in `docs/v4.28-pilot-evidence.json`; remains null/`PENDING_EXTERNAL` until a real pilot is named.
+2. Resident, Guard, Society Admin, Security Supervisor and Accountant acceptance — explicit role scripts and machine-checked status/evidence slots.
+3. KPI instrumentation contract — nine required pilot KPIs with owners, measurements, thresholds, status and evidence references.
+4. Training and escalation — role checklists plus incident/tabletop and support ownership in the V4.28 playbook.
+5. Exact release evidence — candidate and rollback SHA fields; production gate compares them with the exact release workflow SHAs.
+6. Backup/restore, monitoring, provider and incident evidence — explicit external proof records that cannot PASS without evidence.
+7. Release blockers — unresolved Sev-1/Sev-2 items prohibit production `GO`.
+8. Sign-off — Resident representative, Guard representative, Society Admin, Security Supervisor, Accountant/Treasurer and Release Owner must all be signed with evidence.
+9. Production decision — `staging → main` release readiness now invokes the V4.28 checker in `--require-go` mode, so repository-ready/pending-external state cannot be promoted as production-ready.
+
+Detailed contract: `docs/AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md`.
+
+This status does not claim a real-society pilot, hosted provider verification, physical hardware acceptance, signed Play release, legal/policy approval or production promotion.

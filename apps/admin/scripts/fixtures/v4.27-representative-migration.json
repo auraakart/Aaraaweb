@@ -1,0 +1,10 @@
+{
+  "BUILDING": [{"name":"Tower A","code":"A","__source_row":"2"}],
+  "UNIT": [{"building_code":"A","unit_number":"A-101","floor_name":"1","__source_row":"2"}],
+  "RESIDENT": [{"phone":"+919900000001","name":"Owner One","unit_reference":"A/A-101","relationship":"OWNER","__source_row":"2"}],
+  "VEHICLE": [{"phone":"+919900000001","unit_reference":"A/A-101","vehicle_number":"TN01AA1001","vehicle_type":"CAR","__source_row":"2"}],
+  "PARKING": [{"slot_code":"P-A-01","building_code":"A","unit_reference":"A/A-101","__source_row":"2"}],
+  "WORKFORCE": [{"phone":"+919900000010","name":"Housekeeping One","category":"HOUSEKEEPING","__source_row":"2"}],
+  "VENDOR": [{"name":"Sample Facility Vendor","phone":"+919900000020","category":"FACILITY","__source_row":"2"}],
+  "OPENING_BALANCE": [{"account_code":"1100","debit_paise":"10000","credit_paise":"0","cutover_date":"2026-04-01","__source_row":"2"}]
+}
