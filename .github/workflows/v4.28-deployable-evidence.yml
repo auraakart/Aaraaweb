@@ -1,0 +1,25 @@
+name: V4.28 Deployable Evidence Contract
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-v428-deployable-evidence:
+    name: Validate V4.28 deployable evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate V4.28 evidence contract
+        run: node scripts/check-v4.28-deployable-evidence.mjs

@@ -281,3 +281,23 @@ Remaining external acceptance:
 - real-society migration rehearsal and human operator UAT;
 - jurisdiction-specific policy/legal acceptance;
 - promotion to `main`.
+
+
+## V4.28 pilot evidence and deployable-product closure
+
+Repository implementation state: **closure candidate on the V4.28 branch; field evidence remains external**.
+
+Traceability:
+1. Pilot society definition and owners — represented in `docs/v4.28-pilot-evidence.json`; remains null/`PENDING_EXTERNAL` until a real pilot is named.
+2. Resident, Guard, Society Admin, Security Supervisor and Accountant acceptance — explicit role scripts and machine-checked status/evidence slots.
+3. KPI instrumentation contract — nine required pilot KPIs with owners, measurements, thresholds, status and evidence references.
+4. Training and escalation — role checklists plus incident/tabletop and support ownership in the V4.28 playbook.
+5. Exact release evidence — candidate and rollback SHA fields; production gate compares them with the exact release workflow SHAs.
+6. Backup/restore, monitoring, provider and incident evidence — explicit external proof records that cannot PASS without evidence.
+7. Release blockers — unresolved Sev-1/Sev-2 items prohibit production `GO`.
+8. Sign-off — Resident representative, Guard representative, Society Admin, Security Supervisor, Accountant/Treasurer and Release Owner must all be signed with evidence.
+9. Production decision — `staging → main` release readiness now invokes the V4.28 checker in `--require-go` mode, so repository-ready/pending-external state cannot be promoted as production-ready.
+
+Detailed contract: `docs/AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md`.
+
+This status does not claim a real-society pilot, hosted provider verification, physical hardware acceptance, signed Play release, legal/policy approval or production promotion.

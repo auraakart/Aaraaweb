@@ -135,23 +135,36 @@ Hosted infrastructure, live providers, physical access hardware, real-society mi
 
 ### V4.28 — Pilot evidence and deployable-product closure
 
-Convert repository capability into measurable field evidence.
+**Repository status: implementation complete on the V4.28 closure branch; field evidence remains `PENDING_EXTERNAL` until a named pilot is executed.**
 
-Required work:
-- pilot society definition and named operational owners;
-- Resident, Guard, Society Admin, Security Supervisor and Accountant acceptance scripts;
-- KPI instrumentation for gate handling time, visitor approval latency, resident activation, collection rate, payment failures, helpdesk SLA, amenity booking, crash-free sessions and support burden;
-- training records and escalation ownership;
-- exact release SHA evidence;
-- rollback, backup/restore and incident tabletop;
-- signed Android/Play candidate evidence when available;
-- hosted provider/monitoring evidence tracked separately from repository tests.
+Delivered repository controls:
+- machine-checked `docs/v4.28-pilot-evidence.json` evidence manifest;
+- acceptance scripts for Resident, Guard, Society Admin, Security Supervisor and Accountant/Treasurer;
+- nine field KPI definitions covering gate handling time, visitor approval latency, resident activation, collection rate, payment failure rate, helpdesk SLA, amenity booking, crash-free sessions and support burden;
+- training checklists and escalation ownership for all required pilot roles;
+- explicit hosted-staging, backup/restore, monitoring/alerts, incident-tabletop, live-provider and signed-Android/Play evidence slots;
+- candidate SHA and rollback SHA evidence fields;
+- Sev-1/Sev-2 blocker register and mandatory role sign-offs;
+- fail-closed production decision states: `HOLD_EXTERNAL_EVIDENCE`, `NO_GO`, `GO`;
+- dedicated `V4.28 Deployable Evidence Contract` workflow;
+- production release gate now requires `GO` plus exact candidate/rollback SHA matches before a `staging → main` release can pass.
 
-Exit gate:
-- no Sev-1/Sev-2 unresolved blocker;
-- agreed KPI thresholds have evidence;
-- required roles sign off;
-- production-readiness decision references evidence rather than repository status alone.
+Repository exit gate:
+- V4.28 evidence structure and invariants pass on the exact PR head;
+- no repository quality gate is weakened;
+- production `GO` cannot be inferred from repository status alone.
+
+Field/production exit gate remains external:
+- named pilot society;
+- all nine KPI targets evidenced;
+- all five role acceptance scripts PASS;
+- all hosted/provider/restore/monitoring/tabletop/Android proofs PASS where applicable;
+- no unresolved Sev-1/Sev-2 blocker;
+- Resident representative, Guard representative, Society Admin, Security Supervisor, Accountant/Treasurer and Release Owner sign-offs;
+- exact candidate and rollback SHAs recorded;
+- production-readiness decision based on evidence rather than repository status.
+
+Detailed evidence contract: [AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md](AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md).
 
 ## Cross-cycle rules
 
