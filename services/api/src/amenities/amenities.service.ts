@@ -508,10 +508,30 @@ export class AmenitiesService {
     };
     const attendanceEligible=summary.completedCount+summary.noShowCount;
     const attendanceRatePct=attendanceEligible===0?0:Math.round(summary.completedCount*1000/attendanceEligible)/10;
+    const cancellationRatePct=summary.bookingCount===0?0:Math.round(summary.cancelledCount*1000/summary.bookingCount)/10;
+    const noShowRatePct=attendanceEligible===0?0:Math.round(summary.noShowCount*1000/attendanceEligible)/10;
+    const waitlistTracked=summary.waitingCount+summary.promotedCount;
+    const waitlistPromotionRatePct=waitlistTracked===0?0:Math.round(summary.promotedCount*1000/waitlistTracked)/10;
+    const demandTotal=demandRows.reduce((sum,row)=>sum+row.bookingCount+row.waitlistJoinCount,0);
     return {
       periodDays:30,
-      summary:{...summary,attendanceEligibleCount:attendanceEligible,attendanceRatePct},
-      demand:demandRows.map((row)=>({...row,demandSignals:row.bookingCount+row.waitlistJoinCount})),
+      summary:{
+        ...summary,
+        attendanceEligibleCount:attendanceEligible,
+        attendanceRatePct,
+        cancellationRatePct,
+        noShowRatePct,
+        waitlistPromotionRatePct,
+      },
+      demand:demandRows.map((row,index)=>{
+        const demandSignals=row.bookingCount+row.waitlistJoinCount;
+        return {
+          ...row,
+          demandSignals,
+          demandRank:index+1,
+          demandSharePct:demandTotal===0?0:Math.round(demandSignals*1000/demandTotal)/10,
+        };
+      }),
       generatedAt:new Date().toISOString(),
       predictive:false,
     };
