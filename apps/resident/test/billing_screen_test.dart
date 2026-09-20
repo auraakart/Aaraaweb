@@ -93,6 +93,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Payment activity'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('FAILED'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('CREATED'), findsOneWidget);
     expect(find.text('FAILED'), findsOneWidget);
     expect(find.textContaining('Awaiting gateway confirmation'), findsOneWidget);
@@ -104,6 +109,11 @@ void main() {
     final repository = _BillingRepositoryWithPayment();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Receipt'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Receipt'));
     await tester.pumpAndSettle();
     expect(repository.receiptCalls, 1);
