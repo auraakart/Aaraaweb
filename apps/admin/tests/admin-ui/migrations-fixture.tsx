@@ -144,5 +144,5 @@ const pages={
   finance:<FinanceWorkspace/>,
   governance:<GovernancePage/>,
 }
-const page=pages[route]??pages.helpdesk
-createRoot(document.getElementById('root')).render(page)
+const page=route in pages?pages[route as keyof typeof pages]:pages.helpdesk
+createRoot(document.getElementById('root')!).render(page)
