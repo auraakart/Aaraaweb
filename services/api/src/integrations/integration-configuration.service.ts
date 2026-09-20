@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { IntegrationFamily } from './integration-registry.service';
 
-const FAMILIES: readonly IntegrationFamily[] = ['OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','ACCOUNTING_CONNECTOR'];
+const FAMILIES: readonly IntegrationFamily[] = ['OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR'];
 
 type ConfigurationRow = { societyId:string; family:IntegrationFamily; providerKey:string; enabled:boolean; updatedByUserId:string; createdAt:Date; updatedAt:Date };
 
