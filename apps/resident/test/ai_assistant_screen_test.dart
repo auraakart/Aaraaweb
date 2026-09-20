@@ -47,11 +47,12 @@ void main(){
     expect(find.text('Grounded status for the selected property only.'),findsOneWidget);
     expect(find.textContaining('tickets:'),findsOneWidget);
 
-    await tester.ensureVisible(find.text('Complaint draft'));
+    await tester.ensureVisible(find.text('Prepare complaint'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Complaint draft'));
+    await tester.tap(find.text('Prepare complaint'));
     await tester.pumpAndSettle();
-    expect(find.text('Nothing is submitted until you confirm. Normal complaint authorization and validation still apply.'),findsOneWidget);
+    expect(find.text('Aaraagate prepared this from your description. Review it first—nothing is submitted until you confirm.'),findsOneWidget);
+    expect(find.text('Review complaint before submitting'),findsOneWidget);
     expect(find.text('Confirm complaint'),findsOneWidget);
     expect(api.posts.where((path)=>path.endsWith('/confirm')),isEmpty);
 
@@ -75,9 +76,9 @@ void main(){
     expect(api.posts,isEmpty);
 
     await tester.enterText(find.byType(TextField),'Urgent water leak near kitchen');
-    await tester.ensureVisible(find.text('Complaint draft'));
+    await tester.ensureVisible(find.text('Prepare complaint'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Complaint draft'));
+    await tester.tap(find.text('Prepare complaint'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Demo safeguard'),findsOneWidget);
     expect(find.text('Confirm complaint'),findsOneWidget);
