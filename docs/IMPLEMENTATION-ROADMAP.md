@@ -1,11 +1,11 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 
 ## Current execution status
-The next competitive product-readiness program is [V4.23–V4.28](AARAAGATE-V4.23-V4.28-COMPETITIVE-READINESS.md). It concentrates delivery on six areas only: UI/UX consolidation, permission-aware AI, payment/accounting field-readiness, provider/hardware integration abstraction, society onboarding/migration, and measurable pilot evidence. V4.23 depends on closing the existing V4.22 Admin consolidation; later cycles remain planned and must not claim external provider or field completion from repository evidence alone.
+The next competitive product-readiness program is [V4.23–V4.28](AARAAGATE-V4.23-V4.28-COMPETITIVE-READINESS.md). It concentrates delivery on six areas only: UI/UX consolidation, permission-aware AI, payment/accounting field-readiness, provider/hardware integration abstraction, society onboarding/migration, and measurable pilot evidence. The repository portion of the V4.22 Admin consolidation is now closed on `develop` through `b8349322d29a6439605ca68ee358fe70d80a1c79`; V4.23 may now reconcile only the remaining cross-surface presentation-token consistency work before the V4.24 AI cycle. Later cycles remain planned and must not claim external provider or field completion from repository evidence alone.
 
-The dedicated Admin UI/UX consolidation milestone is [V4.22](AARAAGATE-V4.22-PROGRAM.md). V4.22.0 implements 16 shared Admin components, scoped styles, a route inventory and browser contracts. Foundation validation precedes Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance/Governance, with a validation gate between modules. Migrations remain pending, and Helpdesk requires reconciliation of the V4.21 baseline; existing domain completion does not count as UI consolidation completion.
+The dedicated Admin UI/UX consolidation milestone [V4.22](AARAAGATE-V4.22-PROGRAM.md) is **repository-complete**. V4.22.0 delivered the 16 shared Admin components, scoped styles, route inventory and browser contracts; Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance → Governance then migrated sequentially through PRs #732–#738 with required checks green before merge. Staging/main promotion and human/device acceptance remain separate release evidence.
 
 Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
 
