@@ -1,11 +1,11 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
 ## V1 implementation baseline
-Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **V4.22.0 foundation implemented and validating; migrations pending**. The [shared design system](ADMIN-DESIGN-SYSTEM.md) records all 16 contracts and the route inventory. Full acceptance still requires sequentially validated migrations of Helpdesk, Privacy, Facilities, Documents, Occupancy and Finance/Governance. Domain acceptance below does not imply completion of this UI/UX milestone.
+Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-PROGRAM.md). Status: **repository-complete on `develop` through `b8349322d29a6439605ca68ee358fe70d80a1c79`**. The [shared design system](ADMIN-DESIGN-SYSTEM.md) records all 16 contracts and the route inventory. Helpdesk, Privacy, Facilities, Documents, Occupancy, Finance and Governance were migrated sequentially through PRs #732–#738 after the V4.22.0 foundation in PR #722. This traceability status does not imply hosted production acceptance, representative-device/human UAT, or `main` promotion.
 
 | Area | Status | Current acceptance state |
 |---|---|---|
