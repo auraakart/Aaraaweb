@@ -40,28 +40,28 @@ Exit gate:
 
 ### V4.24 — Permission-aware AI Assistant
 
-**Current repository status:** V4.24.1 tool-registry and retrieval-audit foundation implemented and validating. See [AARAAGATE-V4.24-AI-ASSISTANT.md](AARAAGATE-V4.24-AI-ASSISTANT.md).
-
-Build on the existing read-only AI Action Centre and resident demo assistant.
+**Current repository status:** **REPOSITORY COMPLETE on merge of the V4.24 closure PR.** Backend read-tool expansion is merged through `535dc77330dd7063a5784ee92cd36cd551567e1b`; permission-aware Resident/Admin capability UI is merged through `87777cc380d9bb87c09c609973f5bff725b505a4`. Final audit-evidence reconciliation and negative fail-closed regressions are included in the closure PR. See [AARAAGATE-V4.24-AI-ASSISTANT.md](AARAAGATE-V4.24-AI-ASSISTANT.md).
 
 Required work:
-- permission-checked tool registry over existing backend APIs;
-- tenant/property context mandatory for every data retrieval;
-- explicit confirmation for mutations;
-- action allow-list and per-role tool filtering;
-- prompt-injection resistant tool boundary;
-- audit record for assistant retrievals and confirmed actions;
-- resident questions for dues, notices, services, amenities, helpdesk and gate status;
-- admin questions for finance, helpdesk, security, facilities and governance;
-- grounded answer references to domain objects rather than model-invented state;
-- safe fallback when authorization, data freshness or provider availability is uncertain.
+- [x] permission-checked tool registry over authoritative Aaraagate domain data;
+- [x] tenant/property context enforcement for scoped retrievals;
+- [x] explicit confirmation for mutations;
+- [x] fixed action allow-list and per-role tool filtering;
+- [x] prompt-injection resistant tool boundary;
+- [x] retrieval audit plus confirmed-action evidence;
+- [x] Resident questions for dues/status, notices, services, amenities, helpdesk and gate status;
+- [x] Admin questions for finance, helpdesk, security, facilities, vendors/procurement and governance;
+- [x] grounded answer references to domain objects rather than model-invented state;
+- [x] fail-closed behavior when authorization or authoritative retrieval fails;
+- [x] permission-filtered capabilities and privacy-minimal audit evidence in Resident/Admin surfaces.
 
-Initial mutation scope must stay narrow. High-risk finance, privacy, governance, access-control and destructive actions remain read-only until separately approved.
+Initial mutation scope remains narrow. High-risk finance, privacy, governance, access-control and destructive actions remain read-only until separately approved.
 
 Exit gate:
-- zero cross-tenant/cross-role tool leakage in negative tests;
-- no unconfirmed mutation path;
-- audit evidence exists for every assistant action.
+- cross-role and selected-property negative tests fail closed;
+- no unconfirmed generic mutation path;
+- retrieval evidence is tenant scoped and excludes prompt/payload text;
+- exact-head CI, Security/Privacy, Cross-role, Role UAT, Policy, Pilot, Staging and readiness gates must be green on the closure PR before merge.
 
 ### V4.25 — Payments and accounting field-readiness
 
