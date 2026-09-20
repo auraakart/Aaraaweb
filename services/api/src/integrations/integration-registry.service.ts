@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { integrationContractMetadata, IntegrationContractMetadata } from './integration-provider.contract';
 
 export type IntegrationFamily =
   | 'OTP'
@@ -6,12 +7,13 @@ export type IntegrationFamily =
   | 'PAYMENT_GATEWAY'
   | 'ACCESS_CONTROL'
   | 'OBJECT_STORAGE'
+  | 'SMART_METER'
   | 'ACCOUNTING_CONNECTOR';
 
 export type IntegrationHealth = 'READY' | 'DEGRADED' | 'UNCONFIGURED';
 export type IntegrationConfigurationScope = 'DEPLOYMENT' | 'SOCIETY';
 
-export type IntegrationCapabilityView = {
+export type IntegrationCapabilityView = IntegrationContractMetadata & {
   family: IntegrationFamily;
   provider: string;
   configurationScope: IntegrationConfigurationScope;
@@ -31,11 +33,12 @@ export class IntegrationRegistryService {
       this.paymentGateway(),
       this.accessControl(),
       this.objectStorage(),
+      this.smartMeter(),
       this.accountingConnector(),
-    ];
+    ].map((item) => ({ ...item, ...integrationContractMetadata(item.family) }));
   }
 
-  private otp(): IntegrationCapabilityView {
+  private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const environment = process.env.NODE_ENV ?? 'development';
     const provider = (process.env.OTP_DELIVERY_PROVIDER ?? '').trim().toLowerCase();
     const testFallback = environment === 'test' || (!provider && environment !== 'production');
@@ -55,7 +58,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private push(): IntegrationCapabilityView {
+  private push(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     let valid = false;
     if (raw) {
@@ -77,7 +80,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private paymentGateway(): IntegrationCapabilityView {
+  private paymentGateway(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const environment = (process.env.PAYMENT_GATEWAY_RECONCILIATION_ENVIRONMENT ?? 'sandbox').trim().toLowerCase();
     const provider = (process.env.PAYMENT_GATEWAY_RECONCILIATION_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const live = environment === 'live';
@@ -105,7 +108,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accessControl(): IntegrationCapabilityView {
+  private accessControl(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     return {
       family: 'ACCESS_CONTROL',
       provider: 'reference-adapters',
@@ -117,7 +120,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private objectStorage(): IntegrationCapabilityView {
+  private objectStorage(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const driver = (process.env.OBJECT_STORAGE_DRIVER ?? '').trim().toLowerCase();
     const configured =
       driver === 's3' &&
@@ -139,7 +142,19 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accountingConnector(): IntegrationCapabilityView {
+  private smartMeter(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+    return {
+      family: 'SMART_METER',
+      provider: 'utility-integration-v2',
+      configurationScope: 'SOCIETY',
+      configured: true,
+      health: 'READY',
+      capabilities: ['METER_READING_INGESTION', 'IDEMPOTENT_INGESTION', 'QUARANTINE', 'METER_MAPPING', 'KEY_ROTATION'],
+      boundary: 'Smart-meter providers submit through the existing utility integration boundary; raw provider credentials remain isolated from utility billing state.',
+    };
+  }
+
+  private accountingConnector(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const provider = (process.env.ACCOUNTING_CONNECTOR_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const configured = this.present('ACCOUNTING_CONNECTOR_BASE_URL');
     return {
