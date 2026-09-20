@@ -13,6 +13,9 @@ export type AiAssistantIntent =
   | 'FACILITIES'
   | 'VENDORS'
   | 'DISCOVERY'
+  | 'RESIDENT_NOTICES'
+  | 'RESIDENT_GATE'
+  | 'GOVERNANCE'
   | 'UNSUPPORTED';
 
 export type AiAssistantToolId = Exclude<AiAssistantIntent,'UNSUPPORTED'>;
@@ -33,6 +36,9 @@ const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'FACILITIES',label:'Facilities',context:'SOCIETY',permissions:[AppPermission.FACILITIES_READ],permissionMode:'ALL'},
   {id:'VENDORS',label:'Vendors and procurement',context:'SOCIETY',permissions:[AppPermission.SOCIETY_VENDORS_READ],permissionMode:'ALL'},
   {id:'DISCOVERY',label:'Amenities and services',context:'SOCIETY',permissions:[AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_NOTICES',label:'Resident notices',context:'PROPERTY',permissions:[AppPermission.NOTICE_READ],permissionMode:'ALL'},
+  {id:'RESIDENT_GATE',label:'Resident gate status',context:'PROPERTY',permissions:[AppPermission.VISITOR_READ_OWN,AppPermission.ACCESS_READ_OWN],permissionMode:'ANY'},
+  {id:'GOVERNANCE',label:'Governance',context:'SOCIETY',permissions:[AppPermission.GOVERNANCE_READ],permissionMode:'ALL'},
 ] as const;
 
 @Injectable()
@@ -65,6 +71,20 @@ export class AiAssistantService {
         'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
         'BLOCKED',
       );
+    }
+
+    if(unitId && /notice|announcement|society update|community update/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_NOTICES');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.residentNotices(societyId,userId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
+    }
+
+    if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_GATE');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.residentGateStatus(societyId,userId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
     if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(normalized)){
@@ -106,6 +126,12 @@ export class AiAssistantService {
       this.requireTool(roles,'FACILITIES');
       const facts=await this.facilitiesSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
+    }
+
+    if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(normalized)){
+      this.requireTool(roles,'GOVERNANCE');
+      const facts=await this.governanceSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'GOVERNANCE','GOVERNANCE',facts,['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],'Grounded governance summary from current society meeting, resolution and action evidence. This does not determine statutory validity.');
     }
 
     if(/vendor|procurement|purchase request|supplier/.test(normalized)){
@@ -359,6 +385,74 @@ export class AiAssistantService {
         (SELECT COUNT(*)::int FROM "ProcurementRequest" WHERE "societyId"=${societyId}::uuid AND "status"='APPROVED') AS "approvedRequests"
     `);
     return rows[0]??{activeVendors:0,submittedRequests:0,approvedRequests:0};
+  }
+
+  private async residentNotices(societyId:string,userId:string,unitId:string){
+    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT n."id",n."title",n."category",n."importance",n."requiresAcknowledgement",
+             n."publishedAt",n."expiresAt",nr."readAt",nr."acknowledgedAt"
+      FROM "Notice" n
+      LEFT JOIN "NoticeRecipient" nr
+        ON nr."noticeId"=n."id" AND nr."societyId"=n."societyId" AND nr."userId"=${userId}::uuid
+      WHERE n."societyId"=${societyId}::uuid
+        AND n."status"='PUBLISHED'
+        AND n."publishedAt"<=CURRENT_TIMESTAMP
+        AND (n."expiresAt" IS NULL OR n."expiresAt">CURRENT_TIMESTAMP)
+        AND (
+          n."targetUnitId"=${unitId}::uuid
+          OR (n."targetUnitId" IS NULL AND n."targetBuildingId" IS NULL)
+          OR nr."userId" IS NOT NULL
+        )
+        AND (
+          EXISTS(
+            SELECT 1 FROM "UnitOwnership" ow
+            WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid AND ow."userId"=${userId}::uuid
+              AND ow."active"=TRUE AND ow."verified"=TRUE AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+          )
+          OR (
+            n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS(
+              SELECT 1 FROM "UnitOccupancy" oc
+              WHERE oc."societyId"=${societyId}::uuid AND oc."unitId"=${unitId}::uuid AND oc."userId"=${userId}::uuid
+                AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+            )
+          )
+        )
+      ORDER BY CASE n."importance" WHEN 'CRITICAL' THEN 0 WHEN 'IMPORTANT' THEN 1 ELSE 2 END,n."publishedAt" DESC
+      LIMIT 20
+    `);
+  }
+
+  private async residentGateStatus(societyId:string,userId:string,unitId:string){
+    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT v."id",v."name",v."purpose",v."status",v."createdAt",
+             vp."id" AS "passId",vp."status" AS "passStatus",vp."validFrom",vp."validUntil",vp."checkedInAt",vp."checkedOutAt"
+      FROM "Visitor" v
+      LEFT JOIN "VisitorPass" vp ON vp."visitorId"=v."id" AND vp."societyId"=v."societyId"
+      WHERE v."societyId"=${societyId}::uuid AND v."unitId"=${unitId}::uuid AND v."hostUserId"=${userId}::uuid
+      ORDER BY v."createdAt" DESC,vp."createdAt" DESC
+      LIMIT 20
+    `);
+  }
+
+  private async governanceSummary(societyId:string){
+    const [meetings,resolutions,actions]=await Promise.all([
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingType","status","title","scheduledAt","heldAt","location","quorumRequired","quorumPresent"
+        FROM "GovernanceMeeting" WHERE "societyId"=${societyId}::uuid ORDER BY "scheduledAt" DESC LIMIT 20
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingId","title","status","approvalRequired","approvalRecorded","recordedAt"
+        FROM "GovernanceResolution" WHERE "societyId"=${societyId}::uuid ORDER BY "recordedAt" DESC LIMIT 20
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingId","title","status","ownerUserId","dueAt","completedAt"
+        FROM "GovernanceActionItem" WHERE "societyId"=${societyId}::uuid
+        ORDER BY COALESCE("dueAt","createdAt") DESC LIMIT 20
+      `),
+    ]);
+    return {meetings,resolutions,actions};
   }
 
   private async discovery(societyId:string){
