@@ -3,13 +3,10 @@
 Updated: 2026-09-20
 
 ## Current execution status
-The active competitive product-readiness program is [V4.23–V4.28](AARAAGATE-V4.23-V4.28-COMPETITIVE-READINESS.md). V4.23 UI consistency, V4.24 permission-aware AI, V4.25 payment/accounting field-readiness, V4.26 integration ecosystem and V4.27 society onboarding/migration are repository-complete. V4.27 adds CSV/XLSX staging, guided onboarding across authoritative configuration modules, deterministic representative migration evidence and explicit closure documentation without weakening existing tenant, authorization, finance or migration boundaries. The next repository milestone is V4.28 pilot evidence and deployable closure. Live provider certification, hosted production evidence, physical hardware validation, real-society migration rehearsal, human acceptance and `main` promotion remain separate and must not be inferred from repository completion.
+The V4.23–V4.28 competitive product-readiness program is repository-complete through the V4.28 closure branch. V4.28 adds a machine-checked pilot/deployable evidence contract, role acceptance scripts, nine field KPI definitions, training/escalation ownership, hosted/provider/restore/monitoring/tabletop proof slots, Sev-1/Sev-2 blocker controls and exact candidate/rollback SHA requirements. The production release gate requires an evidence-backed `GO` and exact SHA match before a `staging → main` promotion can pass.
 
-The dedicated Admin UI/UX consolidation milestone [V4.22](AARAAGATE-V4.22-PROGRAM.md) is **repository-complete**. V4.22.0 delivered the 16 shared Admin components, scoped styles, route inventory and browser contracts; Helpdesk → Privacy → Facilities → Documents → Occupancy → Finance → Governance then migrated sequentially through PRs #732–#738 with required checks green before merge. Staging/main promotion and human/device acceptance remain separate release evidence.
+Repository completion does not mean field or production completion. Until a named pilot society supplies evidence, the V4.28 manifest remains `REPOSITORY_READY_EXTERNAL_PENDING`, every field KPI and external proof remains `PENDING_EXTERNAL`, required role sign-offs remain unsigned, and `main` promotion remains blocked by the release gate.
 
-Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
-
-The authoritative v2 scope is `PRODUCT_REQUIREMENTS.md` plus `AARAAGATE-V2-PROGRAM.md`.
 
 ## V1 baseline — COMPLETE / CONTINUES TO BE HARDENED
 Validated foundations retained in V2:
