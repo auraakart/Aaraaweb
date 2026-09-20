@@ -217,6 +217,7 @@ describe('V4.6 grounded AI assistant',()=>{
       .mockResolvedValueOnce([{count:0,amountPaise:0,over30:0}])
       .mockResolvedValueOnce([{currentPaise:0,previousPaise:0}])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{activeAssets:3,openWorkOrders:0,overdueWorkOrders:0,maintenanceDue30d:0}])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -228,7 +229,7 @@ describe('V4.6 grounded AI assistant',()=>{
       expect.objectContaining({id:'governance-actions',domain:'GOVERNANCE',severity:'HIGH',metrics:expect.objectContaining({openActionItems:1,overdueActionItems:1})}),
       expect.objectContaining({id:'procurement-attention',domain:'PROCUREMENT',severity:'MEDIUM',metrics:expect.objectContaining({submittedRequests:2})}),
     ]));
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(8);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(9);
   });
 
   it('returns no privileged action cards to a resident-only role',async()=>{
