@@ -218,9 +218,45 @@ export class AiAssistantService {
       });
     }
 
+    if(hasPermission(roles,AppPermission.GOVERNANCE_READ)){
+      const governance=await this.governanceSummary(societyId);
+      const openActions=governance.actions.filter(action=>!['COMPLETED','CLOSED','CANCELLED'].includes(String(action.status??'').toUpperCase()));
+      const now=Date.now();
+      const overdueActions=openActions.filter(action=>{
+        const dueAt=action.dueAt;
+        if(!dueAt)return false;
+        const due=Date.parse(String(dueAt));
+        return Number.isFinite(due)&&due<now;
+      });
+      cards.push({
+        id:'governance-actions',domain:'GOVERNANCE',
+        severity:overdueActions.length>0?'HIGH':openActions.length>0?'MEDIUM':'LOW',
+        title:'Governance follow-through',
+        summary:openActions.length>0
+          ? `${openActions.length} open action items · ${overdueActions.length} overdue`
+          : 'No open governance action items in current society data.',
+        prompt:'Show governance action items needing follow-through',
+        sources:['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],
+        metrics:{openActionItems:openActions.length,overdueActionItems:overdueActions.length},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ)){
+      const vendors=await this.vendorSummary(societyId);
+      cards.push({
+        id:'procurement-attention',domain:'PROCUREMENT',
+        severity:vendors.submittedRequests>=5?'HIGH':vendors.submittedRequests>0?'MEDIUM':'LOW',
+        title:'Procurement and vendors',
+        summary:`${vendors.submittedRequests} submitted requests · ${vendors.approvedRequests} approved · ${vendors.activeVendors} active vendors`,
+        prompt:'Show vendor and procurement requests needing attention',
+        sources:['SocietyVendor','ProcurementRequest'],
+        metrics:{activeVendors:vendors.activeVendors,submittedRequests:vendors.submittedRequests,approvedRequests:vendors.approvedRequests},
+      });
+    }
+
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
     cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||a.domain.localeCompare(b.domain));
-    return {cards,grounded:true,mutationPerformed:false};
+    return {cards,generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false};
   }
 
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
