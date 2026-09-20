@@ -58,13 +58,18 @@ describe('IntegrationRegistryService', () => {
     const result = new IntegrationRegistryService().list('society-1');
     expect(result.map((item) => item.family)).toEqual([
       'OTP',
+      'WHATSAPP',
       'PUSH',
       'PAYMENT_GATEWAY',
       'ACCESS_CONTROL',
       'OBJECT_STORAGE',
+      'SMART_METER',
       'ACCOUNTING_CONNECTOR',
     ]);
-    expect(result.every((item) => item.health === 'READY')).toBe(true);
+    expect(result.filter((item) => item.family !== 'WHATSAPP').every((item) => item.health === 'READY')).toBe(true);
+    expect(result.find((item) => item.family === 'WHATSAPP')?.health).toBe('UNCONFIGURED');
+    expect(result.every((item) => item.contractVersion === 'aaraagate.integration.v1')).toBe(true);
+    expect(result.find((item) => item.family === 'SMART_METER')?.retryDisposition).toBe('IDEMPOTENT_RETRY');
     const serialized = JSON.stringify(result);
     for (const secret of ['otp-secret', 'push-secret', 'payment-secret', 'storage-secret']) {
       expect(serialized).not.toContain(secret);
@@ -86,6 +91,7 @@ describe('IntegrationRegistryService', () => {
 
     const byFamily = Object.fromEntries(new IntegrationRegistryService().list('society-1').map((item) => [item.family, item]));
     expect(byFamily.OTP.health).toBe('UNCONFIGURED');
+    expect(byFamily.WHATSAPP.health).toBe('UNCONFIGURED');
     expect(byFamily.PUSH.health).toBe('DEGRADED');
     expect(byFamily.PAYMENT_GATEWAY.health).toBe('UNCONFIGURED');
     expect(byFamily.OBJECT_STORAGE.health).toBe('DEGRADED');
