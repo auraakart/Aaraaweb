@@ -58,6 +58,7 @@ describe('IntegrationRegistryService', () => {
     const result = new IntegrationRegistryService().list('society-1');
     expect(result.map((item) => item.family)).toEqual([
       'OTP',
+      'WHATSAPP',
       'PUSH',
       'PAYMENT_GATEWAY',
       'ACCESS_CONTROL',
