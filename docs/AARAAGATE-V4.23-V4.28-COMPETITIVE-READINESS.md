@@ -111,24 +111,27 @@ Physical hardware installation, commercial vendor certification, live provider c
 
 ### V4.27 — Society onboarding and migration
 
-Make switching from spreadsheets or another society platform operationally practical.
+**Repository status: complete through V4.27.1–V4.27.4 closure scope.**
 
-Required work:
-- staged CSV/XLSX-compatible import contract for societies, blocks, units, residents, owners/tenants, vehicles, workforce and opening balances;
-- schema validation and row-level errors;
-- duplicate/conflict detection;
-- preview-before-commit;
-- idempotent/restartable migration batches;
-- rollback or compensating strategy before publish;
-- opening-balance reconciliation;
-- onboarding checklist and progress dashboard;
-- migration audit trail and exportable outcome report;
-- society configuration wizard for gates, amenities, billing, roles and policies.
+Delivered:
+- staged CSV upload/paste and direct XLSX first-worksheet import into the existing canonical migration contract;
+- schema validation, row-level errors and duplicate/conflict detection through the existing migration engine;
+- preview-before-commit with no operational mutation during preview;
+- deterministic/idempotent persisted dry-run batches;
+- dependency-aware commit/rollback and compensating boundaries;
+- opening-balance reconciliation through authoritative accounting;
+- migration audit history, row evidence and export;
+- guided Society Onboarding workspace spanning Property, Migration, Roles, Integrations, Amenities, Finance and Governance without a duplicate configuration store;
+- representative fixture covering BUILDING, UNIT, RESIDENT, VEHICLE, PARKING, WORKFORCE, VENDOR and OPENING_BALANCE;
+- deterministic fixture SHA-256 `4ec05ed9f9ae7ed7f2b76cd68e49fdac8417231eec2be6973b4e2d616633c9ac`;
+- explicit closure evidence in [AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md](AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md).
 
 Exit gate:
-- representative migration fixture passes with deterministic results;
-- invalid rows never partially corrupt published state;
-- every imported privileged relationship is auditable.
+- representative migration fixture deterministic: **repository evidence present**;
+- invalid rows never partially corrupt published state: **covered by preview/READY gating, transaction-scoped commits and existing V4.3 regression contracts**;
+- every imported privileged relationship auditable: **covered by migration batch/row and artifact evidence**.
+
+Hosted infrastructure, live providers, physical access hardware, real-society migration rehearsal, policy/legal acceptance and `main` promotion remain external and are not implied by repository closure.
 
 ### V4.28 — Pilot evidence and deployable-product closure
 
