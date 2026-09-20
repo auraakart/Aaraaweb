@@ -11,7 +11,7 @@ import { IntegrationFamily, IntegrationRegistryService } from './integration-reg
 
 const CurrentUser=createParamDecorator((_data:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<{auth?:{userId?:string}}>().auth?.userId);
 class UpdateIntegrationConfigurationDto {
-  @IsIn(['OTP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR']) family!:IntegrationFamily;
+  @IsIn(['OTP','WHATSAPP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR']) family!:IntegrationFamily;
   @IsString() @MinLength(1) @MaxLength(80) providerKey!:string;
   @IsBoolean() enabled!:boolean;
 }
