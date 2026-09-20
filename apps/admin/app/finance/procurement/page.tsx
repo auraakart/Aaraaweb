@@ -36,3 +36,11 @@ export default function ProcurementFinancePage(){
  {!selected.expenseId&&!canManage&&<p style={muted}>Read only. FINANCE_MANAGE permission is required to create the accounting draft.</p>}</section>}
  </PageShell>
 }
+
+const panel:React.CSSProperties={marginTop:18,padding:20,border:'1px solid var(--line,#dbe7ea)',borderRadius:16,background:'var(--surface,#fff)'}
+const list:React.CSSProperties={display:'grid',gap:10}
+const row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:12,border:'1px solid var(--line,#e2e8f0)',borderRadius:12,flexWrap:'wrap'}
+const stack:React.CSSProperties={display:'grid',gap:4}
+const form:React.CSSProperties={display:'grid',gap:12,marginTop:18,paddingTop:16,borderTop:'1px solid var(--line,#e2e8f0)'}
+const grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,220px),1fr))',gap:12}
+const muted:React.CSSProperties={color:'var(--muted,#475569)'}
