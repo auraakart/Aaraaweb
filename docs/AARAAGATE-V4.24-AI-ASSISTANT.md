@@ -1,36 +1,20 @@
 # Aaraagate V4.24 — Permission-aware AI Assistant
 
-Date: 2026-09-20
-Status: V4.24.1 foundation implemented and validating
-Baseline: `develop` at `d29b4e62ec8adcf334d9234ad5825aefd3662dfa`
+Date: 2026-09-20  
+Status: **REPOSITORY COMPLETE on merge of the V4.24 closure PR**  
+Implementation baseline: `develop` through `87777cc380d9bb87c09c609973f5bff725b505a4`
 
 ## Goal
 
-Extend the existing V4.6 deterministic, grounded assistant into an explicit permission-aware tool platform without giving AI direct database credentials or broad mutation authority.
+V4.24 extends the deterministic, grounded Aaraagate assistant into a permission-aware tool platform without giving AI direct database credentials or broad mutation authority.
 
-V4.24 builds on the existing AI entitlement, selected-property checks, grounded read tools, proposal/confirmation mutations and the fixed three-action mutation allow-list.
+The assistant remains an orchestration layer over authoritative Aaraagate domain data. Tenant scope, selected-property authorization, typed permissions and domain services remain authoritative.
 
-## V4.24.1 — Tool registry and retrieval audit
+## Completed capability
 
-This slice adds:
+### Permission-aware read tools
 
-- an explicit assistant tool registry with per-tool context and permission requirements;
-- a caller-visible `GET /ai-operations/assistant/tools` endpoint that returns only tools authorized for the caller's roles;
-- preservation of the existing mutation allow-list:
-  - `CREATE_HELPDESK_TICKET`
-  - `BOOK_AMENITY`
-  - `CREATE_VISITOR_PASS`;
-- tenant-scoped `AiAssistantRetrievalAudit` evidence for assistant read-tool responses;
-- privacy-minimal audit rows containing actor, society, tool, intent, selected unit when applicable, source identifiers, status and timestamp;
-- no free-form prompt text or returned domain payload in retrieval audit rows;
-- deterministic prompt-injection blocking before any domain retrieval when the prompt tries to override permissions, confirmation or tool policy;
-- selected-property routing ahead of society-level finance routing when an authenticated resident supplies a unit context.
-
-Confirmed mutations remain audited through `AiOperationProposal` and existing downstream domain audit trails.
-
-## Tool boundary
-
-Initial registered read tools remain:
+The server-side tool registry now exposes only tools authorized for the caller's roles:
 
 - Society finance
 - Resident property status
@@ -39,18 +23,95 @@ Initial registered read tools remain:
 - Facilities
 - Vendors and procurement
 - Amenities and services discovery
+- Resident notices
+- Resident gate status
+- Governance
 
-The registry does not add mutation authority. Unsupported prompts and injection attempts do not dynamically create tools or bypass role checks.
+Resident notice and gate queries require selected-property authorization. Gate retrieval is additionally constrained to the signed-in host and selected unit. Governance retrieval is society-scoped, descriptive and explicitly does not determine statutory validity.
 
-## Remaining V4.24 work
+### Mutation boundary
 
-After V4.24.1 validates:
+The fixed mutation allow-list remains:
 
-1. Add grounded resident notice and gate-status read tools.
-2. Add grounded Admin governance read tool.
-3. Surface permission-filtered tool availability in Resident/Admin UX.
-4. Reconcile retrieval and confirmed-action evidence in privileged audit UI.
-5. Add stronger negative tests for cross-role/cross-property leakage and stale/uncertain-data fallback.
-6. Close V4.24 only after full exact-head CI and security/role/policy/pilot gates are green.
+- `CREATE_HELPDESK_TICKET`
+- `BOOK_AMENITY`
+- `CREATE_VISITOR_PASS`
+
+These flows remain proposals that require explicit confirmation. No generic AI mutation endpoint was added. Finance, privacy, governance, access-control and destructive operations remain outside AI mutation authority.
+
+### Grounding and fail-closed behavior
+
+- supported requests are routed deterministically to registered tools;
+- unsupported requests return no invented domain answer;
+- prompt-injection attempts are blocked before domain retrieval;
+- property-scoped reads validate the selected resident property before retrieval;
+- authoritative-store errors propagate as failures instead of being converted into fabricated success;
+- grounded responses identify their authoritative domain sources.
+
+### Audit evidence
+
+Every assistant read response that reaches the response boundary records privacy-minimal `AiAssistantRetrievalAudit` evidence containing tenant, actor, tool, intent, optional selected unit, source identifiers, status and timestamp.
+
+Confirmed mutations remain traceable through `AiOperationProposal` and downstream domain audit trails.
+
+The privileged Admin Assistant now surfaces both:
+- retrieval evidence; and
+- confirmed-action evidence.
+
+Prompt text and returned domain payloads are intentionally excluded from the retrieval audit and from the privileged evidence UI.
+
+### Resident and Admin experience
+
+Resident and Admin Assistant surfaces call `GET /ai-operations/assistant/tools` and display only server-authorized capabilities. Property-vs-society scope is visible, and read tools are clearly marked read-only. Raw JSON fact dumps were replaced with readable evidence presentation.
+
+Resident navigation remains unchanged: **Home, Gate, Services, Community, Profile**. The AI Assistant remains a contextual Home entry rather than a persistent navigation destination.
+
+## Validation evidence
+
+Merged implementation slices:
+
+- PR #744 — permission-aware Resident Notices, Resident Gate and Governance read tools — merge `535dc77330dd7063a5784ee92cd36cd551567e1b`
+- PR #745 — Resident/Admin permission-aware capability UI — merge `87777cc380d9bb87c09c609973f5bff725b505a4`
+
+PR #745 exact-head validation passed:
+- repository structure and change scope;
+- full Flutter analyze/tests;
+- full Admin access, browser accessibility, typecheck and production build;
+- full API schema, migrations, lint, typecheck, tests, build and production readiness;
+- dependency security;
+- Security/Privacy review;
+- Cross-role E2E;
+- Role UAT;
+- Policy, Pilot Acceptance, Staging Pilot and V4.11 readiness contracts.
+
+The V4.24 closure slice adds regression coverage for:
+- retrieval evidence UI without prompt/payload leakage;
+- unauthorized selected-property fail-closed behavior before notice retrieval;
+- authoritative retrieval failure without fabricated assistant success.
+
+The closure PR must pass the same exact-head required gates before merge.
+
+## Exit-gate assessment
+
+- [x] permission-checked tool registry
+- [x] tenant/property context enforced for scoped retrievals
+- [x] explicit confirmation for every allowed mutation
+- [x] fixed action allow-list and per-role tool filtering
+- [x] prompt-injection resistant tool boundary
+- [x] tenant-scoped retrieval and confirmed-action evidence
+- [x] Resident grounding for dues/status, notices, services, amenities, helpdesk and gate status
+- [x] Admin grounding for finance, helpdesk, security, facilities, vendors/procurement and governance
+- [x] grounded source references rather than invented domain state
+- [x] fail-closed behavior for unauthorized property and authoritative data failure
+- [x] privileged UI reconciles retrieval and confirmed-action evidence
+- [x] no unconfirmed generic mutation path
+
+## Boundaries not claimed
+
+V4.24 repository closure does **not** claim hosted LLM-provider availability, production AI quality, external-provider uptime, or real-society field acceptance. Those remain deployment/pilot evidence and belong to later readiness work.
 
 High-risk finance, privacy, governance, access-control and destructive mutations remain read-only unless separately approved.
+
+## Next milestone
+
+After this closure PR merges, proceed to **V4.25 — Payments and accounting field-readiness**.
