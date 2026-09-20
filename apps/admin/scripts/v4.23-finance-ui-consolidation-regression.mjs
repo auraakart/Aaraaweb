@@ -51,7 +51,8 @@ for(const token of [
 const opening=sources.find(([path])=>path.includes('opening-balances'))[1]
 for(const token of [
   '/accounting/opening-balances',
-  'Stable batch key',
+  'Batch key',
+  'stable batch key',
   'I confirm this creates an auditable posted journal',
 ]){
   if(!opening.includes(token)){
