@@ -11,6 +11,7 @@ const requiredSignOff=['RESIDENT_REPRESENTATIVE','GUARD_REPRESENTATIVE','SOCIETY
 const fieldStatuses=new Set(['PENDING_EXTERNAL','PASS','FAIL','BLOCKED']);
 const signStatuses=new Set(['NOT_SIGNED','SIGNED','REJECTED']);
 const decisions=new Set(['HOLD_EXTERNAL_EVIDENCE','NO_GO','GO']);
+const requireGo=process.argv.includes('--require-go');
 
 if(plan.schemaVersion!=='aaraagate.v4.28.pilot-evidence.v1')fail('unexpected schemaVersion');
 if(plan.phase!=='V4.28')fail('phase must be V4.28');
@@ -59,6 +60,8 @@ for(const severity of ['sev1','sev2'])for(const blocker of plan.blockers[severit
 const shaOk=(value)=>typeof value==='string'&&/^[0-9a-f]{40}$/i.test(value);
 if(plan.candidateSha!==null&&!shaOk(plan.candidateSha))fail('candidateSha must be null or a 40-character commit SHA');
 if(plan.rollbackSha!==null&&!shaOk(plan.rollbackSha))fail('rollbackSha must be null or a 40-character commit SHA');
+if(process.env.EXPECTED_CANDIDATE_SHA&&plan.candidateSha!==process.env.EXPECTED_CANDIDATE_SHA)fail('candidateSha does not match exact release candidate');
+if(process.env.EXPECTED_ROLLBACK_SHA&&plan.rollbackSha!==process.env.EXPECTED_ROLLBACK_SHA)fail('rollbackSha does not match release rollback target');
 
 if(!plan.pilotSociety){
   if(plan.status!=='REPOSITORY_READY_EXTERNAL_PENDING')fail('status must remain REPOSITORY_READY_EXTERNAL_PENDING before a pilot society is named');
@@ -69,6 +72,8 @@ if(!plan.pilotSociety){
   if(Object.values(plan.signOff).some(item=>item.status!=='NOT_SIGNED'))fail('sign-offs must remain NOT_SIGNED before pilot execution');
   if(plan.productionDecision!=='HOLD_EXTERNAL_EVIDENCE')fail('productionDecision must remain HOLD_EXTERNAL_EVIDENCE before pilot execution');
 }
+
+if(requireGo&&plan.productionDecision!=='GO')fail('production release requires productionDecision GO');
 
 if(plan.productionDecision==='GO'){
   if(!plan.pilotSociety)fail('GO requires pilotSociety');
