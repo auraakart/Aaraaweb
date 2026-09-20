@@ -228,3 +228,18 @@ The V4.20 repository cycle is complete on `develop` after the closure branch mer
 5. **External boundary:** facility-team human UAT, physical inspection outcomes, provider/AMC legal validity, hosted production behavior and field maintenance outcomes remain external.
 
 V4.20 repository completion does **not** increase Production/field readiness without external evidence.
+
+
+## V4.25 Payments & Accounting Field-readiness closure
+
+V4.25 is repository-complete on `develop` through `25897c0227808c5e0cc9e457adeec640f01bc8cf` before the closure PR:
+
+1. **Provider boundary/configuration:** existing provider-neutral gateway/reconciliation contracts remain authoritative; V4.25 separates sandbox/live reconciliation credentials and fails closed when live configuration is incomplete.
+2. **Bank reconciliation intake:** statement rows can be previewed before commit and classified as new, already imported, duplicate-in-batch or conflicting; preview is non-mutating and exact duplicates remain idempotent.
+3. **Reconciliation operations:** unresolved cases are prioritized from authoritative status/staleness and expose descriptive next-action guidance without automatic refund, resolution, journal posting or payment-state mutation.
+4. **Resident payment recovery:** pending and failed attempts remain visible with recovery guidance; only captured/refunded states expose verified receipts; client state never establishes payment success.
+5. **Optional tax configuration:** Admin Finance exposes the existing GST/TDS configuration boundary under existing finance permissions; the product does not infer statutory applicability or filing obligations.
+6. **Accounting integrity:** gateway/provider evidence remains separate from immutable accounting truth; corrections remain explicit/auditable rather than destructive history rewrites.
+7. **External boundary:** live merchant/provider certification, hosted callbacks/settlements/refunds, representative Accountant/Treasurer UAT, bank-specific production files and society-specific GST/TDS/legal validation remain external.
+
+V4.25 repository completion does **not** increase Production/field readiness without those external proofs.
