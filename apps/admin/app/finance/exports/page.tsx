@@ -59,7 +59,6 @@ export default function AccountingExportsPage(){
   </PageShell>
 }
 
-React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}
 const panel:React.CSSProperties={marginTop:20,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'}
 const grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,alignItems:'end'}
 const table:React.CSSProperties={width:'100%',borderCollapse:'collapse'}
