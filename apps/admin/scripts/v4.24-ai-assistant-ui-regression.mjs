@@ -11,6 +11,9 @@ const required=[
   'Confirmed-action evidence',
   'setRetrievals(data.retrievals)',
   "item.sources.join(', ')",
+  'Daily operations briefing',
+  'centre.generatedAt',
+  'read only',
 ]
 for(const token of required){
   if(!source.includes(token)) throw new Error(`Missing V4.24 assistant UI contract: ${token}`)
