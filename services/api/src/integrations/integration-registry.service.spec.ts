@@ -62,9 +62,12 @@ describe('IntegrationRegistryService', () => {
       'PAYMENT_GATEWAY',
       'ACCESS_CONTROL',
       'OBJECT_STORAGE',
+      'SMART_METER',
       'ACCOUNTING_CONNECTOR',
     ]);
     expect(result.every((item) => item.health === 'READY')).toBe(true);
+    expect(result.every((item) => item.contractVersion === 'aaraagate.integration.v1')).toBe(true);
+    expect(result.find((item) => item.family === 'SMART_METER')?.retryDisposition).toBe('IDEMPOTENT_RETRY');
     const serialized = JSON.stringify(result);
     for (const secret of ['otp-secret', 'push-secret', 'payment-secret', 'storage-secret']) {
       expect(serialized).not.toContain(secret);
