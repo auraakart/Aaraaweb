@@ -22,7 +22,7 @@ for(const route of routes){
       if(route.openDetail){
         const candidate=page.getByRole('button').filter({hasText:route.openDetail}).first()
         await candidate.click()
-        if(route.key==='occupancy') await expect(page.getByText('Readiness & handover evidence',{exact:true})).toBeVisible()
+        if(route.key==='occupancy') await expect(page.getByText('Operational handover evidence',{exact:true})).toBeVisible()
         if(route.key==='governance') await expect(page.getByText('Minutes summary',{exact:true})).toBeVisible()
       }
 
