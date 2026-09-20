@@ -92,6 +92,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Payment activity'), findsOneWidget);
     expect(find.text('CREATED'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('FAILED'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.text('FAILED'), findsOneWidget);
     expect(find.textContaining('no amount is treated as paid yet'), findsOneWidget);
     expect(find.textContaining('no successful receipt is available'), findsOneWidget);
