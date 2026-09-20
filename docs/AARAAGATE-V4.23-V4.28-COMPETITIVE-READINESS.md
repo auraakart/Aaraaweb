@@ -63,27 +63,28 @@ Exit gate:
 - retrieval evidence is tenant scoped and excludes prompt/payload text;
 - exact-head CI, Security/Privacy, Cross-role, Role UAT, Policy, Pilot, Staging and readiness gates must be green on the closure PR before merge.
 
-### V4.25 — Payments and accounting field-readiness
+### V4.25 — Payments and accounting field-readiness — REPOSITORY COMPLETE
 
-Repository accounting is already deep; this cycle focuses on real operating workflows and provider boundaries.
+Implementation baseline: `develop` through `25897c0227808c5e0cc9e457adeec640f01bc8cf`. Detailed evidence: [AARAAGATE-V4.25-PAYMENTS-ACCOUNTING-FIELD-READINESS.md](AARAAGATE-V4.25-PAYMENTS-ACCOUNTING-FIELD-READINESS.md).
 
-Required work:
-- payment-provider adapter contract with idempotent order, webhook verification, refunds and reconciliation;
-- provider-independent transaction state model remains authoritative;
-- bank statement import/reconciliation preview and duplicate detection;
-- accountant-friendly exception queues;
-- receipts and failed-payment recovery;
-- configurable GST/TDS fields only where enabled;
-- payment/accounting reconciliation evidence suitable for pilot use;
-- sandbox/live credential separation and fail-closed configuration.
+Repository accounting was already deep; this cycle closed the remaining operator/readiness gaps without changing the boundary between provider transaction truth and Aaraagate accounting truth.
 
-Real provider credentials and external callbacks remain deployment evidence, not repository completion.
+Completed repository work:
+- [x] provider-neutral payment/reconciliation boundary retained with idempotent/replay-safe controls;
+- [x] sandbox/live credential separation and fail-closed live configuration;
+- [x] bank statement preview-before-commit and duplicate/conflict detection;
+- [x] accountant-friendly prioritized reconciliation exception queue;
+- [x] Resident pending/failed/completed payment activity and verified-receipt boundary;
+- [x] configurable GST/TDS settings only where enabled/applicable;
+- [x] repository validation evidence suitable for controlled pilot preparation.
 
 Exit gate:
-- replay-safe webhook tests;
-- duplicate payment protection;
-- accounting totals reconcile in fixture/sandbox evidence;
-- no client-trusted payment success.
+- [x] replay-safe webhook and duplicate-protection foundations remain covered;
+- [x] accounting totals/history remain separate from provider state;
+- [x] no client-trusted payment success;
+- [x] exact-head API/Admin/Flutter, security/privacy, cross-role, role-UAT, policy, pilot, staging and readiness gates passed on the final functional chain.
+
+Real provider credentials/callbacks, hosted reconciliation outcomes, accountant human acceptance and society-specific statutory/tax validation remain external evidence.
 
 ### V4.26 — Integration ecosystem
 
