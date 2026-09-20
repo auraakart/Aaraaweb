@@ -78,6 +78,70 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(sqlCalls.some((sql)=>sql.includes('FROM "Payment"'))).toBe(false);
   });
 
+  it('grounds resident notices to the selected authorized property',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{id:'notice-1',title:'Water shutdown',importance:'IMPORTANT'}]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],
+      'Show society notices for my home',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('RESIDENT_NOTICES');
+    expect(result.sources).toEqual(['Notice','NoticeRecipient']);
+    expect(result.facts).toEqual([expect.objectContaining({title:'Water shutdown'})]);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('grounds resident gate status without widening to other hosts',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{id:'visitor-1',name:'Amit',status:'PENDING'}]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],
+      'Who is waiting at the gate?',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('RESIDENT_GATE');
+    const sqlCalls=prisma.$queryRaw.mock.calls.map((call)=>{
+      const sql=call[0] as {strings?:readonly string[]};
+      return (sql.strings??[]).join('?');
+    });
+    expect(sqlCalls.some(sql=>sql.includes('v."hostUserId"=?::uuid'))).toBe(true);
+    expect(sqlCalls.some(sql=>sql.includes('v."unitId"=?::uuid'))).toBe(true);
+  });
+
+  it('allows governance read only to governance-readable roles',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{id:'meeting-1',title:'Committee review'}])
+      .mockResolvedValueOnce([{id:'resolution-1',title:'Lift AMC'}])
+      .mockResolvedValueOnce([{id:'action-1',title:'Collect quotations'}]);
+    const result=await service.query(
+      'society-1','user-1',[AppRole.COMMITTEE_MEMBER],
+      'Summarize governance meetings and open action items',
+    );
+    expect(result.intent).toBe('GOVERNANCE');
+    expect(result.mutationPerformed).toBe(false);
+    expect(result.sources).toEqual(['GovernanceMeeting','GovernanceResolution','GovernanceActionItem']);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails closed when governance is requested by a resident-only role',async()=>{
+    const {prisma,service}=setup();
+    await expect(service.query(
+      'society-1','user-1',[AppRole.OWNER],
+      'Summarize governance resolutions',
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('fails closed when the requested tool is outside the caller permissions',async()=>{
     const {prisma,service}=setup();
     await expect(service.query('society-1','user-1',[AppRole.OWNER],'Summarize security incidents')).rejects.toBeInstanceOf(ForbiddenException);
