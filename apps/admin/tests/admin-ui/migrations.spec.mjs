@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright'
 const routes=[
   {key:'helpdesk',title:'Helpdesk operations',ready:'Lift maintenance follow-up'},
   {key:'privacy',title:'Privacy request operations',ready:'Request a copy of account data'},
-  {key:'facilities',title:'Facilities operations',ready:'Tower B Lift'},
+  {key:'facilities',title:'Facilities operations',ready:'Operations summary'},
   {key:'documents',title:'Society document repository',ready:'Community maintenance policy'},
   {key:'occupancy',title:'Move-in & move-out',ready:'MOVE OUT',openDetail:'MOVE OUT'},
   {key:'finance',title:'Finance workspace',ready:'INV-2026-09-001'},
@@ -23,7 +23,7 @@ for(const route of routes){
         const candidate=page.getByRole('button').filter({hasText:route.openDetail}).first()
         await candidate.click()
         if(route.key==='occupancy') await expect(page.getByText('Operational handover evidence',{exact:true})).toBeVisible()
-        if(route.key==='governance') await expect(page.getByText('Minutes summary',{exact:true})).toBeVisible()
+        if(route.key==='governance') await expect(page.getByText('Reviewed maintenance, collections and resident communications.',{exact:true})).toBeVisible()
       }
 
       await expect(page.getByRole('main')).toHaveCount(1)
