@@ -87,6 +87,17 @@ void main() {
     expect(find.text('Pay securely'), findsNothing);
   });
 
+  testWidgets('pending and failed payment attempts stay visible without receipts', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: _BillingRepositoryWithRecoveryPayments())));
+    await tester.pumpAndSettle();
+    expect(find.text('Payment activity'), findsOneWidget);
+    expect(find.text('CREATED'), findsOneWidget);
+    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.textContaining('no amount is treated as paid yet'), findsOneWidget);
+    expect(find.textContaining('no successful receipt is available'), findsOneWidget);
+    expect(find.text('Receipt'), findsNothing);
+  });
+
   testWidgets('owner opens a server-verified receipt from payment history', (tester) async {
     final repository = _BillingRepositoryWithPayment();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
@@ -103,5 +114,13 @@ class _BillingRepositoryWithPayment extends _BillingRepository {
   @override
   Future<List<Map<String, dynamic>>> maintenancePayments() async => [
     {'id': 'payment-1', 'invoiceNumber': '202609-A101', 'amountPaise': 125000, 'status': 'CAPTURED', 'buildingName': 'A Block', 'unitNumber': '101'},
+  ];
+}
+
+class _BillingRepositoryWithRecoveryPayments extends _BillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> maintenancePayments() async => [
+    {'id':'payment-created','invoiceNumber':'202609-A101','amountPaise':125000,'status':'CREATED','buildingName':'A Block','unitNumber':'101'},
+    {'id':'payment-failed','invoiceNumber':'202609-A101','amountPaise':125000,'status':'FAILED','buildingName':'A Block','unitNumber':'101'},
   ];
 }

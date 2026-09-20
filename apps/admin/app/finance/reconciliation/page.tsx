@@ -19,6 +19,8 @@ export default function ReconciliationPage(){
  const[error,setError]=useState(''),[busy,setBusy]=useState(false),[success,setSuccess]=useState(''),[resolutionReason,setResolutionReason]=useState(''),[refundAmount,setRefundAmount]=useState('')
  const operationRequest=useRef(0)
  const canManage=!!s&&manageRoles.has(s.role)
+ const unresolvedCases=cases.filter(c=>c.status!=='RESOLVED')
+ const highPriorityCases=unresolvedCases.filter(c=>c.priority==='HIGH').length
 
  async function load(x:Session){setError('');try{const rows=await api<Case[]>(x,'/accounting/payment-reconciliation/cases');setCases(rows);if(selected)setSelected(rows.find(row=>row.id===selected.id)??selected)}catch(e){setError(e instanceof Error?e.message:'Could not load reconciliation cases')}}
  useEffect(()=>{const x=session();setS(x);if(x)void load(x)},[])
@@ -44,11 +46,12 @@ export default function ReconciliationPage(){
   {canManage&&<section style={panel}><h2>Open / refresh case</h2><form onSubmit={openCase} style={formGrid}><FormField label="Payment ID" value={paymentId} onChange={e=>setPaymentId(e.target.value)} placeholder="UUID"/><FormField label="Provider" value={provider} onChange={e=>setProvider(e.target.value)}/><PrimaryButton type="submit" loading={busy} disabled={!paymentId.trim()}>Open case</PrimaryButton></form></section>}
 
   <PageShell.Columns>
-   <QueuePanel title="Reconciliation cases" count={cases.length} state={cases.length?'ready':'empty'} empty={<EmptyState title="No reconciliation cases"/>}>
-    <div style={queueList}>{cases.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} onClick={()=>void selectCase(c)} style={{...caseButton,...(selected?.id===c.id?selectedCase:{})}}><span><strong>{c.paymentId}</strong><br/><small>{c.provider} · {c.priority} priority{c.reason?` · ${c.reason}`:''}</small></span><StatusPill label={c.status} tone={c.status==='RESOLVED'?'success':c.priority==='HIGH'?'danger':'warning'}/></button>)}</div>
+   <QueuePanel title={`Reconciliation cases · ${highPriorityCases} high priority`} count={unresolvedCases.length} state={cases.length?'ready':'empty'} empty={<EmptyState title="No reconciliation cases"/>}>
+    <div style={queueList}>{cases.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} onClick={()=>void selectCase(c)} style={{...caseButton,...(selected?.id===c.id?selectedCase:{})}}><span><strong>{c.paymentId}</strong><br/><small>{c.provider} · {c.priority} priority{c.reason?` · ${c.reason}`:''}</small><br/><small><b>Next:</b> {c.nextAction}</small></span><StatusPill label={c.status} tone={c.status==='RESOLVED'?'success':c.priority==='HIGH'?'danger':'warning'}/></button>)}</div>
    </QueuePanel>
    <DetailPanel title={selected?'Reconciliation evidence':'Selected reconciliation case'} state={selected?'ready':'empty'} empty={<EmptyState title="Select a reconciliation case" description="Choose a case to inspect provider evidence and gateway operations."/>} actions={selected?<StatusPill label={selected.status} tone={selected.status==='RESOLVED'?'success':'warning'}/>:undefined}>
     {selected&&<>
+     <div style={guidance}><strong>Recommended next step</strong><p>{selected.nextAction}</p><small>Provider state is evidence only; Aaraagate accounting history remains authoritative until an approved reconciliation action completes.</small></div>
      <EvidenceGrid items={[
       {id:'provider',label:'Provider',value:selected.provider},{id:'expected-captured',label:'Expected captured',value:money(selected.expectedCapturedPaise)},{id:'expected-refunded',label:'Expected refunded',value:money(selected.expectedRefundedPaise)},{id:'observed-status',label:'Observed status',value:selected.observedProviderStatus??'—'},{id:'observed-amount',label:'Observed amount',value:selected.observedAmountPaise?money(selected.observedAmountPaise):'—'},{id:'priority',label:'Queue priority',value:selected.priority},{id:'next-action',label:'Next action',value:selected.nextAction}
      ]}/>
@@ -66,3 +69,5 @@ const queueList:React.CSSProperties={display:'grid',gap:8}
 const caseButton:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',width:'100%',padding:12,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--surface,#fff)',color:'var(--ink,#17323a)',textAlign:'left',font:'inherit',cursor:'pointer'}
 const selectedCase:React.CSSProperties={background:'var(--neutral-soft,#eef6f7)',borderColor:'var(--brand,#05879a)',boxShadow:'inset 3px 0 0 var(--brand,#05879a)'}
 const item:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--line,#e5e7eb)',flexWrap:'wrap'}
+
+const guidance:React.CSSProperties={padding:14,border:'1px solid var(--line,#d5e8eb)',borderRadius:12,background:'var(--neutral-soft,#f8fafc)',marginBottom:12}

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 const source=fs.readFileSync(new URL('../app/finance/reconciliation/page.tsx',import.meta.url),'utf8')
-for(const token of ['Queue priority','Next action','priority} priority','selected.nextAction','selected.priority']){
+for(const token of ['Queue priority','Next action','priority} priority','selected.nextAction','selected.priority','Recommended next step','Provider state is evidence only','highPriorityCases','c.nextAction']){
   if(!source.includes(token)) throw new Error(`Missing V4.25 reconciliation queue contract: ${token}`)
 }
 if(!source.includes("c.status==='RESOLVED'?'success':c.priority==='HIGH'?'danger':'warning'")){
