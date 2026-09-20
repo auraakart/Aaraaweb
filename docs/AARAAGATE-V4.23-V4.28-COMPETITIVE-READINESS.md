@@ -86,26 +86,28 @@ Exit gate:
 
 Real provider credentials/callbacks, hosted reconciliation outcomes, accountant human acceptance and society-specific statutory/tax validation remain external evidence.
 
-### V4.26 — Integration ecosystem
+### V4.26 — Integration ecosystem — REPOSITORY COMPLETE
 
-Create an integration layer so Aaraagate can support Indian society deployment without coupling core domains to specific vendors.
+Implementation baseline: `develop` through `296f2e6aaeaf7ecdd5efe8e49584d8ae0dd83f8f`. Certification evidence: [AARAAGATE-V4.26-INTEGRATION-CERTIFICATION.md](AARAAGATE-V4.26-INTEGRATION-CERTIFICATION.md).
 
-Required work:
-- versioned provider interfaces for OTP/SMS, push, WhatsApp, payment gateway, access-control/ANPR/RFID and optional smart-meter providers;
-- capability discovery and per-society configuration;
-- normalized health/status and retry semantics;
-- secrets only from deployment configuration;
-- auditable provider changes;
-- graceful degradation when a provider is unavailable;
-- mock/reference adapters for repository validation;
-- integration certification checklist.
-
-Physical hardware installation and commercial vendor certification remain external.
+Completed repository work:
+- [x] versioned integration contract metadata under `aaraagate.integration.v1`;
+- [x] OTP/SMS, WhatsApp, push, payment gateway, access-control/ANPR/RFID, object storage, smart-meter and accounting-connector capability families;
+- [x] tenant-scoped capability discovery and per-society provider selection;
+- [x] normalized READY / DEGRADED / UNCONFIGURED health plus retry ownership and graceful-degradation semantics;
+- [x] deployment-only secret boundary; society configuration stores provider identity and enablement only;
+- [x] append-only provider-selection audit history;
+- [x] existing reference/simulator adapters reused for repository validation without making them production truth;
+- [x] Admin Integration readiness workspace using the shared Admin design system;
+- [x] integration certification checklist with authorization, idempotency, privacy, failure and domain-truth checks.
 
 Exit gate:
-- core business flows work with reference adapters;
-- provider failures do not bypass authorization or corrupt accounting/access state;
-- integration swap does not require domain rewrites.
+- [x] reference boundaries preserve authorization and domain truth;
+- [x] provider failures do not bypass authentication, gate authorization, payment verification or accounting integrity;
+- [x] provider selection is auditable and does not require domain rewrites;
+- [x] exact-head CI, Security/Privacy, Cross-role, Role UAT, Policy, Pilot, Staging and readiness gates passed on the final functional PR.
+
+Physical hardware installation, commercial vendor certification, live provider credentials/templates/callbacks, hosted health evidence and field acceptance remain external and are not implied by repository completion.
 
 ### V4.27 — Society onboarding and migration
 
