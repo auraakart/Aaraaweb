@@ -26,7 +26,7 @@ class AaraagateGuardTheme {
   // scanning and larger touch targets at the gate.
   static const Color brand = Color(0xFF0EABBE);
   static const Color brandDeep = Color(0xFF05879A);
-  static const Color canvas = Color(0xFFF2FAFB);
+  static const Color canvas = Color(0xFFF5FBFC);
   static const Color aquaSoft = Color(0xFFD4F2F4);
   static const Color ink = Color(0xFF17323A);
   static const Color line = Color(0xFFD5E8EB);
@@ -43,7 +43,7 @@ class AaraagateGuardTheme {
       surfaceContainerLowest: Colors.white,
       surfaceContainerLow: const Color(0xFFF8FCFD),
       surfaceContainer: const Color(0xFFF0F8F9),
-      surfaceContainerHigh: const Color(0xFFE7F3F5),
+      surfaceContainerHigh: const Color(0xFFE8F4F6),
       onSurface: ink,
       outline: line,
       outlineVariant: const Color(0xFFE7F1F3),
