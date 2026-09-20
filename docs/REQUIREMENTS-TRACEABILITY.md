@@ -259,3 +259,25 @@ V4.26 is repository-complete on `develop` through `296f2e6aaeaf7ecdd5efe8e49584d
 8. **External boundary:** commercial certification, live credentials/templates/callbacks, physical hardware/site acceptance, hosted provider-health evidence and field outcomes remain external.
 
 V4.26 repository completion does **not** increase Production/field readiness without those external proofs.
+
+
+## V4.27 society onboarding and migration closure
+
+Repository status: **implemented / closure candidate for `develop`**.
+
+Evidence:
+- Admin Migration Center stages UTF-8 CSV and direct XLSX first-worksheet inputs before the existing non-mutating migration preview API.
+- Existing migration batches remain tenant-scoped, deterministic/idempotent, auditable and governed by dependency-aware commit/rollback boundaries.
+- The Society Onboarding workspace coordinates Property, Migration, People & Roles, Integration Readiness, Amenities, Finance and Governance without duplicating domain configuration.
+- Representative fixture coverage spans BUILDING, UNIT, RESIDENT, VEHICLE, PARKING, WORKFORCE, VENDOR and OPENING_BALANCE.
+- Fixture canonical SHA-256 is `4ec05ed9f9ae7ed7f2b76cd68e49fdac8417231eec2be6973b4e2d616633c9ac`.
+- `v4.27-onboarding-readiness-evidence-regression.mjs` enforces fixture coverage/checksum plus onboarding authority boundaries.
+- Detailed evidence: [AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md](AARAAGATE-V4.27-SOCIETY-ONBOARDING-CLOSURE.md).
+
+Remaining external acceptance:
+- hosted infrastructure and production operations;
+- live provider credentials/certification;
+- physical access hardware;
+- real-society migration rehearsal and human operator UAT;
+- jurisdiction-specific policy/legal acceptance;
+- promotion to `main`.
