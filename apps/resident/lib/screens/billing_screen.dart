@@ -131,7 +131,7 @@ class _BillingScreenState extends State<BillingScreen> {
   @override
   Widget build(BuildContext context) {
     final outstanding = invoices.where((invoice) => invoice['status'] == 'ISSUED').toList();
-    final paymentActivity = payments.where((payment) => const {'CREATED', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'REFUNDED'}.contains(payment['status'])).toList();
+    final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     outstanding.sort((a, b) => (DateTime.tryParse(a['dueDate']?.toString() ?? '') ?? DateTime(9999)).compareTo(DateTime.tryParse(b['dueDate']?.toString() ?? '') ?? DateTime(9999)));
 
     return Scaffold(
@@ -167,22 +167,15 @@ class _BillingScreenState extends State<BillingScreen> {
               ],
               const SizedBox(height: AaraagateTokens.space5),
               PremiumSectionHeader(
-                title: 'Payment activity',
-                supportingText: paymentActivity.isEmpty
-                    ? 'Payment attempts and verified receipts will appear here.'
-                    : 'Track pending, failed and completed payments in one place.',
+                title: 'Payment history',
+                supportingText: completedPayments.isEmpty ? 'Verified payments will appear here.' : 'Receipts are available for completed payments.',
               ),
               const SizedBox(height: AaraagateTokens.space2),
-              if (paymentActivity.isEmpty)
-                const AppStateCard(icon: Icons.history_rounded, message: 'No payment activity yet.')
+              if (completedPayments.isEmpty)
+                const AppStateCard(icon: Icons.history_rounded, message: 'No completed payments yet.')
               else
-                for (final payment in paymentActivity) ...[
-                  _PaymentCard(
-                    payment: payment,
-                    onReceipt: payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED'
-                        ? () => _showReceipt(payment)
-                        : null,
-                  ),
+                for (final payment in completedPayments) ...[
+                  _PaymentCard(payment: payment, onReceipt: () => _showReceipt(payment)),
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               if (utilityCharges.isNotEmpty) ...[
@@ -366,58 +359,24 @@ class _InvoiceCard extends StatelessWidget {
 }
 
 class _PaymentCard extends StatelessWidget {
-  const _PaymentCard({required this.payment, this.onReceipt});
+  const _PaymentCard({required this.payment, required this.onReceipt});
   final Map<String, dynamic> payment;
-  final VoidCallback? onReceipt;
+  final VoidCallback onReceipt;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final status = payment['status']?.toString() ?? 'UNKNOWN';
-    final pending = status == 'CREATED' || status == 'AUTHORIZED';
-    final failed = status == 'FAILED';
-    final refunded = status == 'REFUNDED';
-    final tone = failed
-        ? AaraagateStatusTone.danger
-        : pending
-            ? AaraagateStatusTone.warning
-            : refunded
-                ? AaraagateStatusTone.neutral
-                : AaraagateStatusTone.success;
-    final icon = failed
-        ? Icons.error_outline_rounded
-        : pending
-            ? Icons.schedule_rounded
-            : refunded
-                ? Icons.undo_rounded
-                : Icons.check_rounded;
-    final message = failed
-        ? 'Payment failed · No successful charge is confirmed. Retry from the outstanding bill.'
-        : pending
-            ? 'Awaiting gateway confirmation · Pull to refresh for the latest status.'
-            : refunded
-                ? 'Refunded payment · Verified receipt available.'
-                : 'Payment confirmed · Verified receipt available.';
-
     return PremiumSurface(
       color: scheme.surfaceContainerLow,
       padding: EdgeInsets.zero,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-          child: Icon(icon, color: scheme.onPrimaryContainer),
-        ),
-        title: Row(children: [
-          Expanded(child: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall)),
-          AaraagateStatusPill(label: status, tone: tone),
-        ]),
-        subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}\n$message'),
-        isThreeLine: false,
-        trailing: onReceipt == null ? null : TextButton(onPressed: onReceipt, child: const Text('Receipt')),
+        leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)), child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer)),
+        title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall),
+        subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
+        isThreeLine: true,
+        trailing: TextButton(onPressed: onReceipt, child: const Text('Receipt')),
       ),
     );
   }

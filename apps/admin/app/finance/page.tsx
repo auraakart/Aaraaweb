@@ -80,7 +80,7 @@ export default function FinanceWorkspace(){
   if(loading)return <PageShell><PageHeader title="Finance workspace" description="Loading finance controls…"/></PageShell>
   if(!canRead(session))return <PageShell><PageHeader title="Finance access required" description="Accountant/Treasurer, Committee, Society Admin or platform finance access is required." actions={<a href="/">Return to Admin</a>}/></PageShell>
   return <PageShell>
-    <PageHeader context={`${session?.societyName??'Current society'} · ${session?.role.replaceAll('_',' ')}`} title="Finance workspace" description="Receivables, ageing, settlements, late fees and accounting controls." actions={<a href="/">← Admin console</a>}/>
+    <PageHeader context={`${session?.societyName??'Current society'} · ${session?.role.replaceAll('_',' ')}`} title="Finance workspace" description="Receivables, ageing, settlements, late fees and accounting controls." actions={<div style={{display:'flex',gap:14,flexWrap:'wrap'}}><a href="/finance/tax">GST / TDS settings</a><a href="/">← Admin console</a></div>}/>
     {error&&<ErrorState title="Finance operation failed" description={error}/>}
     <ActionBar label="Finance workspace actions"><SecondaryButton loading={loading} disabled={busy} onClick={()=>session&&void load(session)}>Refresh</SecondaryButton></ActionBar>
     {!canManage&&<div style={notice}>Read-only finance access. Posting, allocation and late-fee actions are restricted to Accountant/Treasurer or platform finance roles.</div>}
