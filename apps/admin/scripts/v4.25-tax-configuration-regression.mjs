@@ -8,7 +8,7 @@ const required = [
   'gstEnabled',
   'tdsEnabled',
   'Default TDS rate (%)',
-  'does not determine statutory applicability',
+  'do not determine statutory applicability',
   "manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])",
 ];
 for (const fragment of required) {
