@@ -26,6 +26,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   String? _error;
   Map<String, dynamic>? _result;
   Map<String, dynamic>? _proposal;
+  List<Map<String, dynamic>> _tools = const [];
+  bool _toolsBusy = false;
 
   static const _demoPrompts = <String>[
     'What do I need to take care of today?',
@@ -35,6 +37,30 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     'What amenities can I book?',
     'Summarize society updates',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.demoMode) _loadTools();
+  }
+
+  Future<void> _loadTools() async {
+    setState(() => _toolsBusy = true);
+    try {
+      final raw = await widget.apiClient.get('/api/v1/ai-operations/assistant/tools');
+      if (!mounted) return;
+      final body = Map<String, dynamic>.from(raw as Map);
+      final tools = (body['tools'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+      setState(() => _tools = tools);
+    } catch (_) {
+      // Capability discovery is additive; assistant queries remain available.
+    } finally {
+      if (mounted) setState(() => _toolsBusy = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -220,6 +246,25 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 ],
               ),
             ],
+            if (!widget.demoMode && (_toolsBusy || _tools.isNotEmpty)) ...[
+              const SizedBox(height: 14),
+              Text('Available for you', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              if (_toolsBusy)
+                const LinearProgressIndicator(minHeight: 2)
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tool in _tools)
+                      Chip(
+                        avatar: Icon(tool['context'] == 'PROPERTY' ? Icons.home_outlined : Icons.apartment_outlined, size: 18),
+                        label: Text(tool['label']?.toString() ?? tool['id']?.toString() ?? 'Assistant capability'),
+                      ),
+                  ],
+                ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
@@ -287,10 +332,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
-            Text(
-              JsonEncoder.withIndent('  ').convert(_result!['facts'] ?? {}),
-              style: theme.textTheme.bodySmall,
-            ),
+            _factsView(theme, _result!['facts']),
             const SizedBox(height: 10),
             Text(
               'Sources: ${sources.join(', ')}',
@@ -300,6 +342,38 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         ),
       ),
     );
+  }
+
+  Widget _factsView(ThemeData theme, dynamic facts) {
+    if (facts is Map) {
+      final entries = facts.entries.toList(growable: false);
+      if (entries.isEmpty) return Text('No additional records returned.', style: theme.textTheme.bodySmall);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('${entry.key}: ${_displayValue(entry.value)}', style: theme.textTheme.bodySmall),
+            ),
+        ],
+      );
+    }
+    if (facts is List) {
+      if (facts.isEmpty) return Text('No matching records found.', style: theme.textTheme.bodySmall);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [for (final item in facts.take(8)) Text('• ${_displayValue(item)}', style: theme.textTheme.bodySmall)],
+      );
+    }
+    return Text(_displayValue(facts), style: theme.textTheme.bodySmall);
+  }
+
+  String _displayValue(dynamic value) {
+    if (value == null) return '—';
+    if (value is List) return value.map(_displayValue).join(' · ');
+    if (value is Map) return value.entries.map((e) => '${e.key}: ${_displayValue(e.value)}').join(' · ');
+    return value.toString();
   }
 
   Widget _proposalCard() {
