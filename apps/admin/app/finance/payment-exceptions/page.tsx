@@ -29,7 +29,7 @@ export default function PaymentExceptions(){
  return <PageShell>
   <PageHeader context={`${s.societyName??'Current society'} · ${s.role.replaceAll('_',' ')}`} title="Payment exceptions" description="Auditable allocation reversals and refund recording. Captured payments are never rewritten." actions={<a href="/finance">← Finance workspace</a>}/>
   {error&&<ErrorState title="Payment exception operation failed" description={error}/>}
-  <ActionBar feedback={success} label="Payment exception actions"/>
+  <ActionBar feedback={success} label="Payment exception actions"><SecondaryButton disabled={busy||!snap} onClick={()=>void inspect()}>Refresh payment</SecondaryButton></ActionBar>
   <section style={panel}><form onSubmit={inspect} style={inlineForm}><FormField label="Payment ID" value={paymentId} onChange={e=>setPaymentId(e.target.value)} placeholder="UUID"/><SecondaryButton type="submit" loading={busy} disabled={!paymentId.trim()}>Inspect</SecondaryButton></form></section>
   {snap&&<>
    <section style={panel}><h2>Payment snapshot</h2><EvidenceGrid items={[
