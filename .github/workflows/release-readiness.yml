@@ -83,7 +83,7 @@ jobs:
           bash scripts/check-staging-release-contract.sh
           bash scripts/check-hosted-staging-contract.sh
           bash scripts/check-staging-deployment-template.sh
-          EXPECTED_CANDIDATE_SHA="$CANDIDATE_SHA" EXPECTED_ROLLBACK_SHA="$ROLLBACK_SHA" node scripts/check-v4.28-deployable-evidence.mjs --require-go
+          node scripts/check-v4.28-deployable-evidence.mjs --require-go
 
       - name: Validate production preflight control
         env:
