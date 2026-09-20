@@ -23,7 +23,8 @@ export type IntegrationCapabilityView = {
 
 @Injectable()
 export class IntegrationRegistryService {
-  list(_societyId: string): IntegrationCapabilityView[] {
+  list(societyId: string): IntegrationCapabilityView[] {
+    void societyId;
     return [
       this.otp(),
       this.push(),
