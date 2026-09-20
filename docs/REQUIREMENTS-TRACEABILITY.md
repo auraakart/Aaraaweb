@@ -243,3 +243,19 @@ V4.25 is repository-complete on `develop` through `25897c0227808c5e0cc9e457adeec
 7. **External boundary:** live merchant/provider certification, hosted callbacks/settlements/refunds, representative Accountant/Treasurer UAT, bank-specific production files and society-specific GST/TDS/legal validation remain external.
 
 V4.25 repository completion does **not** increase Production/field readiness without those external proofs.
+
+
+## V4.26 Integration ecosystem closure
+
+V4.26 is repository-complete on `develop` through `296f2e6aaeaf7ecdd5efe8e49584d8ae0dd83f8f` before the closure PR:
+
+1. **Versioned contract:** shared provider metadata is exposed as `aaraagate.integration.v1` with normalized retry ownership and degradation semantics.
+2. **Capability families:** OTP/SMS, WhatsApp, push, payment gateway, access control/ANPR/RFID, object storage, smart meter and accounting connector are represented in one registry.
+3. **Tenant-safe configuration:** society provider selections are permission-scoped, tenant-scoped and store provider identity plus enabled state only; credentials remain deployment configuration.
+4. **Auditability:** provider selection/configuration changes write append-only evidence while no-op updates avoid duplicate evidence.
+5. **Domain truth:** provider state cannot become accounting, authentication or access-control truth; fail-closed/manual-fallback boundaries remain explicit.
+6. **Operator readiness:** Admin can inspect capability health/version/retry/degradation, manage society selection only under society-configuration-manage authority and review audit history without any secret-entry UI.
+7. **Validation:** the final functional PR passed exact-head CI, Security/Privacy, Cross-role, Role UAT, Policy, Pilot Acceptance, Staging Pilot and V4.11 readiness contracts.
+8. **External boundary:** commercial certification, live credentials/templates/callbacks, physical hardware/site acceptance, hosted provider-health evidence and field outcomes remain external.
+
+V4.26 repository completion does **not** increase Production/field readiness without those external proofs.
