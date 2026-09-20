@@ -1,8 +1,8 @@
 # Aaraagate V4.24 — Permission-aware AI Assistant
 
 Date: 2026-09-20
-Status: V4.24.1 foundation implemented and validating
-Baseline: `develop` at `d29b4e62ec8adcf334d9234ad5825aefd3662dfa`
+Status: V4.24.1 merged; V4.24.2 domain grounding implemented and validating
+Baseline: `develop` at `5500fb28d44c1f087cd2a7835e448c2543493dad`
 
 ## Goal
 
@@ -42,15 +42,22 @@ Initial registered read tools remain:
 
 The registry does not add mutation authority. Unsupported prompts and injection attempts do not dynamically create tools or bypass role checks.
 
+## V4.24.2 — Resident/Admin domain grounding
+
+This slice adds three read-only registered tools:
+
+- Society notices, requiring `NOTICE_READ` plus selected-property authorization. Owner-only notices remain visible only to Owner roles; Tenant/Family Member visibility remains `OWNER_AND_OCCUPANTS`.
+- Gate and visitor status, requiring an own-scope gate permission plus selected-property authorization. Visitor/access rows are constrained by society, selected unit and signed-in resident.
+- Governance evidence, requiring `GOVERNANCE_READ`, returning descriptive meeting/resolution/action evidence only. The assistant explicitly does not determine legal validity or statutory compliance.
+
+All three tools use the V4.24.1 retrieval audit path and do not add mutation authority.
+
 ## Remaining V4.24 work
 
-After V4.24.1 validates:
-
-1. Add grounded resident notice and gate-status read tools.
-2. Add grounded Admin governance read tool.
-3. Surface permission-filtered tool availability in Resident/Admin UX.
-4. Reconcile retrieval and confirmed-action evidence in privileged audit UI.
-5. Add stronger negative tests for cross-role/cross-property leakage and stale/uncertain-data fallback.
-6. Close V4.24 only after full exact-head CI and security/role/policy/pilot gates are green.
+1. Surface permission-filtered tool availability in Resident/Admin UX.
+2. Reconcile retrieval and confirmed-action evidence in privileged audit UI.
+3. Add stronger negative tests for stale/uncertain-data fallback.
+4. Reconcile the existing Tenant finance-read permission with the approved owner/tenant dues model as a separate authorization correction.
+5. Close V4.24 only after full exact-head CI and security/role/policy/pilot gates are green.
 
 High-risk finance, privacy, governance, access-control and destructive mutations remain read-only unless separately approved.
