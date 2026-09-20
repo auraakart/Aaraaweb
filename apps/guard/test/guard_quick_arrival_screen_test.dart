@@ -57,7 +57,8 @@ void main(){
     await tester.pump();
     await tester.scrollUntilVisible(find.text('REQUEST APPROVAL'),300,scrollable:find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    final submit=tester.widget<FilledButton>(find.widgetWithText(FilledButton,'REQUEST APPROVAL'));
+    final submitFinder=find.ancestor(of:find.text('REQUEST APPROVAL'),matching:find.byWidgetPredicate((widget)=>widget is FilledButton));
+    final submit=tester.widget<FilledButton>(submitFinder);
     expect(submit.onPressed,isNotNull);
   });
 
