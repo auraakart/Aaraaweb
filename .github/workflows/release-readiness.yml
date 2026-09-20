@@ -66,6 +66,9 @@ jobs:
           test -f docs/UAT-PILOT-CHECKLIST.md
           test -f docs/STAGING-RELEASE-EVIDENCE.md
           test -f docs/HOSTED-STAGING-ACCEPTANCE.md
+          test -f docs/v4.28-pilot-evidence.json
+          test -f docs/AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md
+          test -f scripts/check-v4.28-deployable-evidence.mjs
           test -f scripts/production-preflight.sh
           test -f scripts/release-migration-gate.sh
           test -f scripts/check-staging-release-contract.sh
@@ -80,6 +83,7 @@ jobs:
           bash scripts/check-staging-release-contract.sh
           bash scripts/check-hosted-staging-contract.sh
           bash scripts/check-staging-deployment-template.sh
+          node scripts/check-v4.28-deployable-evidence.mjs
 
       - name: Validate production preflight control
         env:
