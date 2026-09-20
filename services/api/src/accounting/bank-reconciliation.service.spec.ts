@@ -19,7 +19,7 @@ describe('BankReconciliationService invariants', () => {
     const queryRaw = vi.fn()
       .mockResolvedValueOnce([{ id: 'bank-1' }])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'tx-1', bankAccountId: 'bank-1', externalKey: 'EXT-1', status: 'UNMATCHED' }]);
+      .mockResolvedValueOnce([{ id: 'tx-1', bankAccountId: 'bank-1', externalKey: 'EXT-1', transactionDate:'2026-09-17', direction:'CREDIT', amountPaise:'12500', status: 'UNMATCHED' }]);
     const service = serviceWith({ $queryRaw: queryRaw });
 
     const result = await service.importTransaction('society-a', 'user-a', {
@@ -28,6 +28,44 @@ describe('BankReconciliationService invariants', () => {
 
     expect(result).toMatchObject({ id: 'tx-1', externalKey: 'EXT-1', status: 'UNMATCHED' });
     expect(queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects an external key reused with different statement data', async () => {
+    const queryRaw = vi.fn()
+      .mockResolvedValueOnce([{ id: 'bank-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id:'tx-1',bankAccountId:'bank-1',externalKey:'EXT-1',transactionDate:'2026-09-17',direction:'CREDIT',amountPaise:'12500',status:'UNMATCHED' }]);
+    const service=serviceWith({$queryRaw:queryRaw});
+    await expect(service.importTransaction('society-a','user-a',{
+      bankAccountId:'bank-1',externalKey:'EXT-1',transactionDate:'2026-09-18',direction:'CREDIT',amountPaise:12500,
+    })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('previews statement rows and classifies database and in-batch duplicates without mutation', async () => {
+    const queryRaw=vi.fn()
+      .mockResolvedValueOnce([{id:'bank-1'}])
+      .mockResolvedValueOnce([{externalKey:'EXT-OLD',transactionDate:'2026-09-17',direction:'CREDIT',amountPaise:12500n}]);
+    const executeRaw=vi.fn();
+    const service=serviceWith({$queryRaw:queryRaw,$executeRaw:executeRaw});
+    const preview=await service.previewImport('society-a','bank-1',[
+      {externalKey:'EXT-NEW',transactionDate:'2026-09-18',direction:'DEBIT',amountPaise:5000},
+      {externalKey:'EXT-OLD',transactionDate:'2026-09-17',direction:'CREDIT',amountPaise:12500},
+      {externalKey:'EXT-NEW',transactionDate:'2026-09-18',direction:'DEBIT',amountPaise:5000},
+    ]);
+    expect(preview).toMatchObject({totalCount:3,newCount:1,alreadyImportedCount:1,duplicateInBatchCount:1,conflictCount:0,canCommit:false});
+    expect(preview.items.map(item=>item.status)).toEqual(['NEW','ALREADY_IMPORTED','DUPLICATE_IN_BATCH']);
+    expect(executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('flags an existing external-key payload mismatch as a preview conflict', async () => {
+    const queryRaw=vi.fn()
+      .mockResolvedValueOnce([{id:'bank-1'}])
+      .mockResolvedValueOnce([{externalKey:'EXT-OLD',transactionDate:'2026-09-17',direction:'CREDIT',amountPaise:12500n}]);
+    const preview=await serviceWith({$queryRaw:queryRaw}).previewImport('society-a','bank-1',[
+      {externalKey:'EXT-OLD',transactionDate:'2026-09-17',direction:'DEBIT',amountPaise:12500},
+    ]);
+    expect(preview).toMatchObject({conflictCount:1,canCommit:false});
+    expect(preview.items[0]).toMatchObject({externalKey:'EXT-OLD',status:'CONFLICT'});
   });
 
   it('rejects a bank account outside the active society boundary', async () => {
