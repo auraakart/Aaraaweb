@@ -16,6 +16,15 @@ importers:
 
   apps/admin:
     dependencies:
+      '@aaraagate/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@aaraagate/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@aaraagate/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)

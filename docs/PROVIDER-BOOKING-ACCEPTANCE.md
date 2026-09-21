@@ -1,3 +1,5 @@
+> **Current-state notice (2026-09-21):** Superseded for current-state review by V4.35 Services Marketplace Completion. This document is retained as historical milestone evidence. Use [CURRENT-CAPABILITY-INDEX.md](CURRENT-CAPABILITY-INDEX.md) for the current implementation state.
+
 # Provider booking queue and acceptance
 
 ## Goal

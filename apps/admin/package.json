@@ -14,6 +14,9 @@
     "lint:ui": "eslint components/admin-ui tests/admin-ui playwright.config.mjs"
   },
   "dependencies": {
+    "@aaraagate/api-client": "workspace:*",
+    "@aaraagate/config": "workspace:*",
+    "@aaraagate/types": "workspace:*",
     "lucide-react": "^0.468.0",
     "next": "15.5.24",
     "react": "18.3.1",

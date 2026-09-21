@@ -88,6 +88,10 @@ jobs:
           bash -n scripts/hosted-staging-smoke.sh
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
+      - name: Check V4.36 architecture convergence
+        run: node scripts/check-v4.36-architecture-convergence.mjs
+      - name: Generate and validate V4.36 API contract
+        run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
         run: bash scripts/check-product-branding.sh
       - name: Check Flutter release compatibility patch

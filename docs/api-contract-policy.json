@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "minimumLiteralOperations": 100,
+  "requiredRoots": [
+    "auth",
+    "accounting",
+    "helpdesk",
+    "governance",
+    "provider",
+    "consumer",
+    "access-requests",
+    "amenities",
+    "facilities",
+    "documents",
+    "privacy",
+    "reports",
+    "parking",
+    "parcels",
+    "utilities",
+    "workforce"
+  ],
+  "clientOnlyRoots": []
+}
