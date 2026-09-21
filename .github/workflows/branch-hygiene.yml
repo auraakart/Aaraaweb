@@ -32,8 +32,14 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       CLEANUP_BASE: develop
     steps:
-      - name: Checkout
+      - name: Checkout full repository history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branch refs for local ancestry checks
+        shell: bash
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
 
       - name: Decide cleanup mode
         id: mode
