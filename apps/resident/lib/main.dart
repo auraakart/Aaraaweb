@@ -253,12 +253,25 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                 ),
           _profile(controller),
         ];
-        const destinations = <NavigationDestination>[
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'),
-          NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups_rounded), label: 'Community'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+        final pendingGateCount = controller.accessRequests.where((request) => request['status']?.toString() == 'PENDING').length;
+        final openCommunityCount = controller.helpdeskTickets.where((ticket) {
+          final status = ticket['status']?.toString().toUpperCase() ?? '';
+          return status.isNotEmpty && status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
+        }).length;
+        final destinations = <NavigationDestination>[
+          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_outlined)),
+            selectedIcon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_rounded)),
+            label: 'Gate',
+          ),
+          const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_outlined)),
+            selectedIcon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_rounded)),
+            label: 'Community',
+          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
         ];
         const profileIndex = 4;
 
