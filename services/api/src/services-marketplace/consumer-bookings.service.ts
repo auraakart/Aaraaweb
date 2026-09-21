@@ -303,6 +303,12 @@ export class ConsumerBookingsService {
       `);
       if (!rows.length) throw new BadRequestException('Booking changed concurrently; retry cancellation');
 
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "ProviderBookingProposal"
+        SET "status"='WITHDRAWN'
+        WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING'
+      `);
+
       await tx.$queryRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceBookingEvent" (
           "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "occurredAt"
