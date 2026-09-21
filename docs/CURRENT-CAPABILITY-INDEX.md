@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.36 architecture-convergence cycle after V4.35 post-merge impact closure.  
+**Current-state review baseline:** V4.37 repository-integrity cycle building on V4.36 architecture convergence.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -37,7 +37,7 @@ Persistent bottom navigation remains **Home, Gate, Services, Community, Profile*
 
 Society-scoped authorization, RBAC/capabilities, segregation of duties, audit evidence, idempotency, Guard offline safety, privacy lifecycle controls and immutable financial/security evidence remain authoritative. UI visibility never substitutes for server authorization.
 
-V4.36 adds shared Admin contract adoption, typed Resident Services and Guard unit boundaries, a CI-generated OpenAPI route inventory and client/controller root drift checking. The remaining legacy per-page Admin API helper count is explicitly capped so future work can only converge further.
+V4.36 adds shared Admin contract adoption, typed Resident Services and Guard unit boundaries, a CI-generated OpenAPI route inventory and client/controller root drift checking. V4.37 adds a repository-integrity CI gate, grouped Admin regression suites, an explicit Admin console growth ceiling and a canonical `feature → develop → staging → main` promotion contract. The remaining legacy per-page Admin API helper count is explicitly capped so future work can only converge further.
 
 ## External evidence boundary
 
