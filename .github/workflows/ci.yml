@@ -57,7 +57,6 @@ jobs:
           test -f package.json
           test -f pnpm-workspace.yaml
           test -d apps/admin
-          test -d apps/web
           test -d apps/resident
           test -d apps/guard
           test -d services/api

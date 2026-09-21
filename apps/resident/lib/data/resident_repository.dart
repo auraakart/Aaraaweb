@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import 'models/resident_boundary_models.dart';
 
 class ResidentRepository {
   ResidentRepository(this.api);
@@ -47,7 +48,7 @@ class ResidentRepository {
 
   Future<List<Map<String, dynamic>>> accessRequests() async {
     final value = await api.get('/api/v1/access-requests/mine');
-    return _list(value);
+    return _list(value).map((row) => ResidentAccessRequest.fromJson(row).toJson()).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> notices() async {
@@ -144,12 +145,12 @@ class ResidentRepository {
 
   Future<List<Map<String, dynamic>>> helpdeskTickets() async {
     final value = await api.get('/api/v1/helpdesk/mine');
-    return _list(value);
+    return _list(value).map((row) => ResidentHelpdeskTicket.fromJson(row).toJson()).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
     final value = await api.get('/api/v1/billing/invoices/payable');
-    return _list(value);
+    return _list(value).map((row) => ResidentMaintenanceInvoice.fromJson(row).toJson()).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {

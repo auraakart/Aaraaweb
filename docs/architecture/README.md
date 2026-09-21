@@ -12,7 +12,6 @@ V2 retains the validated V1 gate/resident/services architecture and adds account
 - `apps/admin`: Next.js Admin/Operations application for society management, accounting, governance, facilities, procurement, privacy operations and platform administration.
 - `apps/resident`: Flutter consumer application. Keep the primary experience centered on Home, Gate, Payments, Services, Community/Helpdesk and Amenities.
 - `apps/guard`: Flutter security/gate application optimized for constrained gate workflows and intermittent connectivity.
-- `apps/web`: existing web surface retained where applicable; new operational administration follows the current Admin architecture instead of duplicating domain logic.
 
 Complex ERP-style functions must not be pushed into the Resident app merely because the backend supports them.
 

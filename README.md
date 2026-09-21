@@ -4,7 +4,7 @@ Aaraagate is a multi-tenant Society Operating System for gated communities, buil
 
 ## Current architecture baseline
 
-- **Web:** Next.js / React Admin/Operations and retained web surfaces
+- **Web:** Next.js / React Admin/Operations application
 - **Mobile:** Flutter resident app and Flutter guard/security gate app
 - **API:** NestJS + TypeScript modular monolith
 - **Database:** PostgreSQL
@@ -19,7 +19,6 @@ Aaraagate is a multi-tenant Society Operating System for gated communities, buil
 
 ```text
 apps/admin           Next.js Admin/Operations application
-apps/web             Existing web surface
 apps/resident        Flutter resident application
 apps/guard           Flutter security/gate application
 services/api         NestJS backend
