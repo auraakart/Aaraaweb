@@ -1,7 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('../app/', import.meta.url);
+const root = fileURLToPath(new URL('../app/', import.meta.url));
 const forbidden = [
   { label: 'native prompt', pattern: /(?:window\.)?prompt\s*\(/ },
   { label: 'native confirm', pattern: /(?:window\.)?confirm\s*\(/ },
