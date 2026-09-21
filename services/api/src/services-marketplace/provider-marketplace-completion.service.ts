@@ -199,7 +199,7 @@ export class ProviderMarketplaceCompletionService {
       SELECT "id","status" FROM "ConsumerServiceBooking" WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
     `);
     if(!rows[0]) throw new NotFoundException('Provider booking not found');
-    if(![ServiceBookingStatus.IN_PROGRESS,ServiceBookingStatus.COMPLETED].includes(rows[0].status)) throw new BadRequestException('Completion evidence requires an in-progress or completed booking');
+    if(rows[0].status!==ServiceBookingStatus.IN_PROGRESS&&rows[0].status!==ServiceBookingStatus.COMPLETED) throw new BadRequestException('Completion evidence requires an in-progress or completed booking');
     if(evidenceType==='REFERENCE'&&!reference?.trim()) throw new BadRequestException('Reference evidence requires a reference');
     const result=await this.prisma.$queryRaw<any[]>(Prisma.sql`
       INSERT INTO "ConsumerServiceCompletionEvidence" ("id","bookingId","providerId","actorUserId","evidenceType","reference","note")
@@ -216,7 +216,7 @@ export class ProviderMarketplaceCompletionService {
 
   async openDispute(userId:string,bookingId:string,reasonCode:string,detail:string){
     const booking=await this.assertConsumerBooking(userId,bookingId);
-    if(![ServiceBookingStatus.IN_PROGRESS,ServiceBookingStatus.COMPLETED].includes(booking.status)) throw new BadRequestException('A dispute can be opened only after service has started');
+    if(booking.status!==ServiceBookingStatus.IN_PROGRESS&&booking.status!==ServiceBookingStatus.COMPLETED) throw new BadRequestException('A dispute can be opened only after service has started');
     try{
       const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceDispute" ("id","bookingId","userId","providerId","reasonCode","detail")
