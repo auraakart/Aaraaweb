@@ -12,11 +12,11 @@ The current V2.4 source candidate is `26724d3b1b0da114a6fd3b71fa2f88eccae95fad`.
 
 1. Select the exact `develop` commit to validate.
 2. Open a PR from that candidate to `staging`; do not move the protected staging ref directly.
-3. Reconcile any diverged staging history back into `develop` through a reviewed PR before promotion.
+3. Verify that `staging` contains no source-only changes relative to its shared source merge-base with the current `develop` candidate. Release-merge ancestry alone does not require reconciliation.
 4. Record the current `main` SHA as rollback target.
 5. Merge only after the staging API smoke and backup/restore promotion gates are green.
 6. Record both identities: `developSha` is the source candidate; `stagingSha` is the governed staging merge commit.
-7. The staging merge commit must contain the source candidate as an ancestor and preserve its exact Git tree. Equality between the two commit SHAs is neither expected nor required.
+7. The governed staging merge commit must preserve the exact source-candidate tree. Equality between the two commit SHAs is neither expected nor required; release-merge-only ancestry divergence is permitted.
 
 ## Hosted staging evidence
 
@@ -28,7 +28,7 @@ The execution record uses these states:
 - `PILOT_IN_PROGRESS`: hosted staging is accepted and real pilot identities/accounts/devices are ready.
 - `COMPLETE`: all required execution evidence has been collected.
 
-The checker validates staging promotion by Git ancestry plus exact tree identity. For `STAGING_DEPLOYED` or later it additionally requires:
+The checker validates staging promotion by exact source identity and governed staging tree identity; release-merge-only ancestry divergence is permitted while source-only staging drift is rejected. For `STAGING_DEPLOYED` or later it additionally requires:
 - a full rollback `main` SHA;
 - an HTTPS hosted staging origin;
 - hosted staging acceptance evidence.
