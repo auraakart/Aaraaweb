@@ -66,8 +66,8 @@ for(const base of ['apps/admin','apps/resident/lib','apps/guard/lib']){
   for(const file of walk(path.join(root,base)).filter(file=>/\.(ts|tsx|dart)$/.test(file))){
     for(const line of fs.readFileSync(file,'utf8').split('\n')){
       if(!/(fetch\(|adminApi|\bapi[<(]|_send\(|apiClient\.(get|post|put|patch|delete))/.test(line))continue;
-      const matches=line.matchAll(/['"`](\/api\/v1\/|\/)([a-z][a-z0-9-]+)/g);
-      for(const match of matches)clientRoots.add(match[2]);
+      const matches=line.matchAll(/['"`]\/api\/v1\/([a-z][a-z0-9-]+)/g);
+      for(const match of matches)clientRoots.add(match[1]);
     }
   }
 }
