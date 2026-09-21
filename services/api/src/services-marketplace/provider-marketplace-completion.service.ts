@@ -1,9 +1,43 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ServiceBookingStatus } from '@prisma/client';
+import { Prisma, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+
+
+type ProviderApplicationRow = {
+  id: string; applicantUserId: string; providerId: string | null; businessName: string; contactName: string | null;
+  phone: string; email: string | null; description: string | null; requestedCategoryIds: unknown; evidenceRefs: unknown;
+  status: string; reviewNote: string | null; reviewedByUserId: string | null; submittedAt: Date | null; reviewedAt: Date | null;
+  createdAt: Date; updatedAt: Date; applicantName?: string | null; applicantPhone?: string | null;
+};
+type OfferingEventRow = { action: string; snapshotJson: unknown; occurredAt: Date };
+type BookingProposalRow = {
+  id: string; bookingId: string; providerId: string; proposedFrom: Date; proposedUntil: Date; note: string | null;
+  status: string; createdByUserId: string; respondedByUserId: string | null; respondedAt: Date | null; createdAt: Date;
+};
+type ConsumerBookingRow = {
+  id: string; userId: string; providerId: string; offeringId: string; status: ServiceBookingStatus;
+  addressSnapshot: { postalCode?: unknown } | null;
+};
+type CompletionEvidenceRow = {
+  id: string; bookingId: string; providerId: string; actorUserId: string; evidenceType: string;
+  reference: string | null; note: string | null; occurredAt: Date;
+};
+type ServiceDisputeRow = {
+  id: string; bookingId: string; userId: string; providerId: string; reasonCode: string; detail: string; status: string;
+  resolutionNote: string | null; resolvedByUserId: string | null; resolvedAt: Date | null; createdAt: Date; updatedAt: Date;
+  providerName?: string; offeringName?: string;
+};
+type AvailabilityExceptionRow = {
+  id: string; offeringId: string; serviceDate: Date; closed: boolean; slotCapacity: number | null; note: string | null;
+  active: boolean; createdAt: Date; updatedAt: Date;
+};
+type ProviderReadinessRow = {
+  activeOfferings: number; activeServiceAreas: number; activeAgents: number; pendingProposals: number;
+  openDisputes: number; activeAvailabilityWindows: number;
+};
 
 export type ProviderApplicationInput = {
   businessName: string; contactName?: string; phone: string; email?: string; description?: string;
@@ -21,7 +55,7 @@ export class ProviderMarketplaceCompletionService {
   ) {}
 
   async getMyApplication(userId: string) {
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
       SELECT * FROM "ProviderOnboardingApplication" WHERE "applicantUserId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1
     `);
     return rows[0] ?? null;
@@ -40,7 +74,7 @@ export class ProviderMarketplaceCompletionService {
     }
     const evidence=Array.from(new Set((input.evidenceRefs??[]).map(v=>v.trim()).filter(Boolean))).slice(0,20);
     if(active[0]){
-      const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      const rows=await this.prisma.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
         UPDATE "ProviderOnboardingApplication" SET
           "businessName"=${input.businessName.trim()},"contactName"=${input.contactName?.trim()||null},
           "phone"=${input.phone.trim()},"email"=${input.email?.trim()||null},"description"=${input.description?.trim()||null},
@@ -48,7 +82,7 @@ export class ProviderMarketplaceCompletionService {
         WHERE "id"=${active[0].id}::uuid RETURNING *
       `); return rows[0];
     }
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
       INSERT INTO "ProviderOnboardingApplication" ("id","applicantUserId","businessName","contactName","phone","email","description","requestedCategoryIds","evidenceRefs")
       VALUES (${randomUUID()}::uuid,${userId}::uuid,${input.businessName.trim()},${input.contactName?.trim()||null},${input.phone.trim()},${input.email?.trim()||null},
         ${input.description?.trim()||null},${JSON.stringify(categories)}::jsonb,${JSON.stringify(evidence)}::jsonb) RETURNING *
@@ -56,7 +90,7 @@ export class ProviderMarketplaceCompletionService {
   }
 
   async submitMyApplication(userId:string){
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
       UPDATE "ProviderOnboardingApplication" SET "status"='SUBMITTED',"submittedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
       WHERE "applicantUserId"=${userId}::uuid AND "status"='DRAFT' RETURNING *
     `);
@@ -65,7 +99,7 @@ export class ProviderMarketplaceCompletionService {
   }
 
   listApplications(status?:string){
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`
+    return this.prisma.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
       SELECT a.*,u."name" AS "applicantName",u."phone" AS "applicantPhone"
       FROM "ProviderOnboardingApplication" a JOIN "User" u ON u."id"=a."applicantUserId"
       WHERE (${status??null}::text IS NULL OR a."status"=${status??null})
@@ -75,13 +109,13 @@ export class ProviderMarketplaceCompletionService {
 
   async reviewApplication(reviewerUserId:string,applicationId:string,decision:'APPROVE'|'REJECT',note:string){
     return this.prisma.$transaction(async tx=>{
-      const rows=await tx.$queryRaw<any[]>(Prisma.sql`SELECT * FROM "ProviderOnboardingApplication" WHERE "id"=${applicationId}::uuid FOR UPDATE`);
+      const rows=await tx.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`SELECT * FROM "ProviderOnboardingApplication" WHERE "id"=${applicationId}::uuid FOR UPDATE`);
       const app=rows[0]; if(!app) throw new NotFoundException('Provider application not found');
       if(!['SUBMITTED','UNDER_REVIEW'].includes(app.status)) throw new BadRequestException('Provider application is not reviewable');
       let providerId:string|null=app.providerId??null;
       if(decision==='APPROVE'&&!providerId){
         const provider=await tx.serviceProvider.create({data:{
-          businessName:app.businessName,contactName:app.contactName,phone:app.phone,email:app.email,description:app.description,active:true,
+          businessName:app.businessName,contactName:app.contactName,phone:app.phone,email:app.email,description:app.description,verification:ProviderVerificationStatus.VERIFIED,active:true,
         },select:{id:true}});
         providerId=provider.id;
         await tx.$executeRaw(Prisma.sql`
@@ -90,7 +124,7 @@ export class ProviderMarketplaceCompletionService {
           ON CONFLICT ("providerId","userId") DO UPDATE SET "active"=true,"updatedAt"=CURRENT_TIMESTAMP
         `);
       }
-      const updated=await tx.$queryRaw<any[]>(Prisma.sql`
+      const updated=await tx.$queryRaw<ProviderApplicationRow[]>(Prisma.sql`
         UPDATE "ProviderOnboardingApplication" SET "status"=${decision==='APPROVE'?'APPROVED':'REJECTED'},"providerId"=${providerId}::uuid,
           "reviewNote"=${note.trim()},"reviewedByUserId"=${reviewerUserId}::uuid,"reviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${applicationId}::uuid RETURNING *
@@ -136,7 +170,7 @@ export class ProviderMarketplaceCompletionService {
     const provider=await this.operators.resolveProvider(userId);
     const exists=await this.prisma.serviceOffering.findFirst({where:{id:offeringId,providerId:provider.providerId},select:{id:true}});
     if(!exists) throw new NotFoundException('Provider offering not found');
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`SELECT "action","snapshotJson","occurredAt" FROM "ServiceOfferingProviderEvent" WHERE "offeringId"=${offeringId}::uuid ORDER BY "occurredAt" DESC`);
+    return this.prisma.$queryRaw<OfferingEventRow[]>(Prisma.sql`SELECT "action","snapshotJson","occurredAt" FROM "ServiceOfferingProviderEvent" WHERE "offeringId"=${offeringId}::uuid ORDER BY "occurredAt" DESC`);
   }
 
   async proposeBookingTime(userId:string,bookingId:string,proposedFrom:Date,proposedUntil:Date,note?:string){
@@ -148,7 +182,7 @@ export class ProviderMarketplaceCompletionService {
     if(!rows[0]) throw new NotFoundException('Provider booking not found');
     if(rows[0].status!==ServiceBookingStatus.REQUESTED) throw new BadRequestException('Only requested bookings can receive a provider counter-proposal');
     try{
-      const result=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      const result=await this.prisma.$queryRaw<BookingProposalRow[]>(Prisma.sql`
         INSERT INTO "ProviderBookingProposal" ("id","bookingId","providerId","proposedFrom","proposedUntil","note","createdByUserId")
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
         RETURNING *
@@ -158,18 +192,18 @@ export class ProviderMarketplaceCompletionService {
 
   async listConsumerProposals(userId:string,bookingId:string){
     await this.assertConsumerBooking(userId,bookingId);
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`SELECT * FROM "ProviderBookingProposal" WHERE "bookingId"=${bookingId}::uuid ORDER BY "createdAt" DESC`);
+    return this.prisma.$queryRaw<BookingProposalRow[]>(Prisma.sql`SELECT * FROM "ProviderBookingProposal" WHERE "bookingId"=${bookingId}::uuid ORDER BY "createdAt" DESC`);
   }
 
   async respondToProposal(userId:string,bookingId:string,proposalId:string,decision:'ACCEPT'|'REJECT'){
     return this.prisma.$transaction(async tx=>{
-      const bookingRows=await tx.$queryRaw<any[]>(Prisma.sql`
+      const bookingRows=await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         SELECT "id","userId","providerId","offeringId","status","addressSnapshot" FROM "ConsumerServiceBooking"
         WHERE "id"=${bookingId}::uuid AND "userId"=${userId}::uuid FOR UPDATE
       `);
       const booking=bookingRows[0]; if(!booking) throw new NotFoundException('Booking not found');
       if(booking.status!==ServiceBookingStatus.REQUESTED) throw new BadRequestException('Booking is no longer awaiting provider confirmation');
-      const proposalRows=await tx.$queryRaw<any[]>(Prisma.sql`
+      const proposalRows=await tx.$queryRaw<BookingProposalRow[]>(Prisma.sql`
         SELECT * FROM "ProviderBookingProposal" WHERE "id"=${proposalId}::uuid AND "bookingId"=${bookingId}::uuid AND "status"='PENDING' FOR UPDATE
       `);
       const proposal=proposalRows[0]; if(!proposal) throw new NotFoundException('Pending proposal not found');
@@ -186,7 +220,7 @@ export class ProviderMarketplaceCompletionService {
             ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",CURRENT_TIMESTAMP)
         `);
       }
-      const updated=await tx.$queryRaw<any[]>(Prisma.sql`
+      const updated=await tx.$queryRaw<BookingProposalRow[]>(Prisma.sql`
         UPDATE "ProviderBookingProposal" SET "status"=${decision==='ACCEPT'?'ACCEPTED':'REJECTED'},"respondedByUserId"=${userId}::uuid,"respondedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${proposalId}::uuid RETURNING *
       `); return updated[0];
@@ -201,7 +235,7 @@ export class ProviderMarketplaceCompletionService {
     if(!rows[0]) throw new NotFoundException('Provider booking not found');
     if(rows[0].status!==ServiceBookingStatus.IN_PROGRESS&&rows[0].status!==ServiceBookingStatus.COMPLETED) throw new BadRequestException('Completion evidence requires an in-progress or completed booking');
     if(evidenceType==='REFERENCE'&&!reference?.trim()) throw new BadRequestException('Reference evidence requires a reference');
-    const result=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const result=await this.prisma.$queryRaw<CompletionEvidenceRow[]>(Prisma.sql`
       INSERT INTO "ConsumerServiceCompletionEvidence" ("id","bookingId","providerId","actorUserId","evidenceType","reference","note")
       VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,${userId}::uuid,${evidenceType},${reference?.trim()||null},${note?.trim()||null}) RETURNING *
     `); return result[0];
@@ -209,8 +243,8 @@ export class ProviderMarketplaceCompletionService {
 
   async listConsumerEvidence(userId:string,bookingId:string){
     await this.assertConsumerBooking(userId,bookingId);
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT "id","evidenceType","reference","note","occurredAt" FROM "ConsumerServiceCompletionEvidence" WHERE "bookingId"=${bookingId}::uuid ORDER BY "occurredAt" ASC
+    return this.prisma.$queryRaw<CompletionEvidenceRow[]>(Prisma.sql`
+      SELECT "id","bookingId","providerId","actorUserId","evidenceType","reference","note","occurredAt" FROM "ConsumerServiceCompletionEvidence" WHERE "bookingId"=${bookingId}::uuid ORDER BY "occurredAt" ASC
     `);
   }
 
@@ -218,7 +252,7 @@ export class ProviderMarketplaceCompletionService {
     const booking=await this.assertConsumerBooking(userId,bookingId);
     if(booking.status!==ServiceBookingStatus.IN_PROGRESS&&booking.status!==ServiceBookingStatus.COMPLETED) throw new BadRequestException('A dispute can be opened only after service has started');
     try{
-      const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      const rows=await this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceDispute" ("id","bookingId","userId","providerId","reasonCode","detail")
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,${booking.providerId}::uuid,${reasonCode.trim()},${detail.trim()}) RETURNING *
       `); return rows[0];
@@ -227,11 +261,11 @@ export class ProviderMarketplaceCompletionService {
 
   async listMyDisputes(userId:string){
     const provider=await this.operators.resolveProvider(userId);
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`SELECT * FROM "ConsumerServiceDispute" WHERE "providerId"=${provider.providerId}::uuid ORDER BY "createdAt" DESC`);
+    return this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`SELECT * FROM "ConsumerServiceDispute" WHERE "providerId"=${provider.providerId}::uuid ORDER BY "createdAt" DESC`);
   }
 
   listPlatformDisputes(status?:string){
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`
+    return this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`
       SELECT d.*,p."businessName" AS "providerName",o."name" AS "offeringName"
       FROM "ConsumerServiceDispute" d JOIN "ConsumerServiceBooking" b ON b."id"=d."bookingId"
       JOIN "ServiceProvider" p ON p."id"=d."providerId" JOIN "ServiceOffering" o ON o."id"=b."offeringId"
@@ -240,7 +274,7 @@ export class ProviderMarketplaceCompletionService {
   }
 
   async resolveDispute(reviewerUserId:string,disputeId:string,status:'RESOLVED'|'DISMISSED',resolutionNote:string){
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`
       UPDATE "ConsumerServiceDispute" SET "status"=${status},"resolutionNote"=${resolutionNote.trim()},"resolvedByUserId"=${reviewerUserId}::uuid,
         "resolvedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${disputeId}::uuid AND "status" IN ('OPEN','UNDER_REVIEW') RETURNING *
     `);
@@ -249,7 +283,7 @@ export class ProviderMarketplaceCompletionService {
 
   async listAvailabilityExceptions(userId:string,offeringId:string){
     await this.assertOwnedOffering(userId,offeringId);
-    return this.prisma.$queryRaw<any[]>(Prisma.sql`SELECT * FROM "ConsumerOfferingAvailabilityException" WHERE "offeringId"=${offeringId}::uuid ORDER BY "serviceDate" ASC`);
+    return this.prisma.$queryRaw<AvailabilityExceptionRow[]>(Prisma.sql`SELECT * FROM "ConsumerOfferingAvailabilityException" WHERE "offeringId"=${offeringId}::uuid ORDER BY "serviceDate" ASC`);
   }
 
   async setAvailabilityException(userId:string,offeringId:string,input:AvailabilityExceptionInput){
@@ -257,7 +291,7 @@ export class ProviderMarketplaceCompletionService {
     const serviceDate=input.serviceDate.slice(0,10);
     const d=new Date(`${serviceDate}T00:00:00.000Z`); if(Number.isNaN(d.getTime())) throw new BadRequestException('Invalid service date');
     if(!input.closed && input.slotCapacity===undefined) throw new BadRequestException('Open date override requires slot capacity');
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<AvailabilityExceptionRow[]>(Prisma.sql`
       INSERT INTO "ConsumerOfferingAvailabilityException" ("id","offeringId","serviceDate","closed","slotCapacity","note","active")
       VALUES (${randomUUID()}::uuid,${offeringId}::uuid,${serviceDate}::date,${input.closed},${input.slotCapacity??null},${input.note?.trim()||null},${input.active??true})
       ON CONFLICT ("offeringId","serviceDate") DO UPDATE SET "closed"=EXCLUDED."closed","slotCapacity"=EXCLUDED."slotCapacity","note"=EXCLUDED."note","active"=EXCLUDED."active","updatedAt"=CURRENT_TIMESTAMP
@@ -267,7 +301,7 @@ export class ProviderMarketplaceCompletionService {
 
   async getProviderReadiness(userId:string){
     const p=await this.operators.resolveProvider(userId);
-    const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<ProviderReadinessRow[]>(Prisma.sql`
       SELECT
         (SELECT COUNT(*)::int FROM "ServiceOffering" WHERE "providerId"=${p.providerId}::uuid AND "active"=true) AS "activeOfferings",
         (SELECT COUNT(*)::int FROM "ConsumerProviderServiceArea" WHERE "providerId"=${p.providerId}::uuid AND "active"=true) AS "activeServiceAreas",

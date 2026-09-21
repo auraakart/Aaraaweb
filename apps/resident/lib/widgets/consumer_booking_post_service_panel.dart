@@ -50,17 +50,27 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       final results = await Future.wait<dynamic>([
         widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion'),
         widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/rating'),
-        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals'),
-        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion-evidence'),
       ]);
+      dynamic proposalsRaw;
+      dynamic evidenceRaw;
+      try {
+        proposalsRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals');
+      } catch (_) {
+        proposalsRaw = const <dynamic>[];
+      }
+      try {
+        evidenceRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion-evidence');
+      } catch (_) {
+        evidenceRaw = const <dynamic>[];
+      }
       if (!mounted) return;
       setState(() {
         _completion = results[0] is Map<String, dynamic> ? results[0] as Map<String, dynamic> : null;
         _rating = results[1] is Map<String, dynamic> ? results[1] as Map<String, dynamic> : null;
         _stars = (_rating?['stars'] as num?)?.toInt() ?? 0;
         _comment.text = _rating?['comment']?.toString() ?? '';
-        _proposals = (results[2] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-        _evidence = (results[3] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _proposals = (proposalsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _evidence = (evidenceRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
