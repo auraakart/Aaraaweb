@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { adminApi, getAdminAdminSession, type AdminAdminSession } from '../../lib/aaraagate-api'
+import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagate-api'
 import { ActionBar, DangerButton, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, ReadinessPanel, SecondaryButton, SelectField, StatusPill } from '../../components/admin-ui'
 
 type Receivable={id:string;unitId:string;receivableNumber:string;billingPeriod:string;description:string;amountPaise:string;outstandingPaise:string;dueDate:string;status:string;issuedAt:string}

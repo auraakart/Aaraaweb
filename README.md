@@ -41,3 +41,9 @@ See `docs/USER-CONTEXT-MODEL.md` for the security and UX rules.
 - `develop` — active integration branch
 
 See `docs/architecture/README.md` for the architecture baseline.
+
+
+## Current implementation references
+
+- [Current capability index](docs/CURRENT-CAPABILITY-INDEX.md)
+- [API contract policy](docs/api-contract-policy.json)
