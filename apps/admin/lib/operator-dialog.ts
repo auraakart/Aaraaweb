@@ -1,15 +1,5 @@
 'use client'
 
-type PromptOptions = {
-  title: string;
-  message?: string;
-  defaultValue?: string;
-  required?: boolean;
-  minLength?: number;
-  confirmLabel?: string;
-  multiline?: boolean;
-};
-
 function createDialogShell(title: string, message?: string) {
   const dialog = document.createElement('dialog');
   dialog.setAttribute('aria-label', title);

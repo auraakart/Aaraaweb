@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent,useCallback,useEffect,useMemo,useState } from 'react'
-import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
+import { operatorPrompt } from '../../lib/operator-dialog'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type Incident={id:string;status:'ACTIVE'|'ACKNOWLEDGED'|'RESOLVED'|'CANCELLED';category:string;severity:'CRITICAL'|'HIGH'|'MEDIUM';message?:string|null;residentName:string;residentPhone:string;buildingName:string;unitNumber:string;createdAt:string;assignedToUserId?:string|null;assignedToName?:string|null;assignedAt?:string|null;evidenceCount?:number|null;escalatedAt?:string|null}

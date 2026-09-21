@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
+import { operatorPrompt } from '../../lib/operator-dialog'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type Parcel={id:string;unitNumber?:string;recipientName?:string;courierName?:string|null;trackingReference?:string|null;notes?:string|null;receivedAt:string;overdue?:boolean}

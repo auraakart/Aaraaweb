@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
+import { operatorConfirm } from '../../lib/operator-dialog'
 
 type Session={accessToken:string;role:string;societyName?:string}
 type Membership={id:string;role:string;createdAt:string;user:{id:string;name?:string|null;phone:string;email?:string|null;status:string}}

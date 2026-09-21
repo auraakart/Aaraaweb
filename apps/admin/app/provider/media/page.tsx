@@ -1,7 +1,7 @@
 'use client'
 
 import { ChangeEvent, useCallback, useEffect, useState } from 'react'
-import { operatorConfirm, operatorPrompt } from '../../../lib/operator-dialog'
+import { operatorConfirm } from '../../../lib/operator-dialog'
 
 type AuthSession={sessionId:string;accessToken:string;refreshToken:string}
 type ProviderMedia={id:string;providerId:string;kind:'LOGO'|'GALLERY';publicUrl?:string|null;altText?:string|null;sortOrder:number;status:'PENDING'|'APPROVED'|'REJECTED'|'REMOVED';contentType?:string|null;contentLengthBytes?:number|null;originalFileName?:string|null;uploadedAt?:string|null;reviewedAt?:string|null;reviewNote?:string|null;createdAt:string;updatedAt:string}

@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
+import { operatorConfirm } from '../../lib/operator-dialog'
 
 type Session={accessToken:string;role:string}
 type Society={id:string;name:string;code:string;status:'ACTIVE'|'SUSPENDED';productTier:'STARTER'|'PROFESSIONAL'|'PREMIUM'|'ENTERPRISE';featureOverrides:Record<string,boolean>;_count:{memberships:number;buildings:number;gates:number}}
