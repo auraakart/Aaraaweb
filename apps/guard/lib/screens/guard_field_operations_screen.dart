@@ -23,7 +23,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     final theme=Theme.of(context);
     return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
       if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
-      _metrics(),const SizedBox(height:18),
+      _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
       _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x)=>_tile('${x['subjectName']??'Visitor'} · ${x['buildingName']??''} ${x['unitNumber']??''}','${x['minutesInside']??0} min inside',Icons.schedule_rounded)),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
       const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
       const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x)=>Card(child:ListTile(title:Text('${x['referenceCode']} · ${x['movementType']}'),subtitle:Text('${x['subjectName']} · ${x['itemDescription']}'),trailing:x['status']=='OPEN'?FilledButton(onPressed:busy?null:()=>run(()=>client.processPass(x['id'].toString()).then((_){})),child:const Text('PROCESS')):Text(x['status']?.toString()??'')))),if(passes.isEmpty)_empty('No gate passes recorded.'),
@@ -34,6 +34,30 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   }
 
   Widget _metrics()=>GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric('Overstays',summary['overstayCount']),_metric('Watchlist',summary['watchlistCount']),_metric('Open passes',summary['openPassCount']),_metric('Incidents',summary['openIncidentCount']),_metric('Checkpoints',summary['activeCheckpointCount'])]));
+  Widget _attentionNow(){
+    final overstayCount=(summary['overstayCount'] as num?)?.toInt()??0;
+    final watchCount=(summary['watchlistCount'] as num?)?.toInt()??0;
+    final incidentCount=(summary['openIncidentCount'] as num?)?.toInt()??0;
+    final handoverCount=handovers.where((x)=>x['status']=='OPEN').length;
+    final urgent=overstayCount+watchCount+incidentCount+handoverCount;
+    final theme=Theme.of(context),scheme=theme.colorScheme;
+    return GuardOperationSurface(
+      semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
+      color: urgent==0?scheme.primaryContainer.withOpacity(.28):scheme.errorContainer.withOpacity(.40),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
+        const SizedBox(height:8),
+        Text(urgent==0?'No overstays, watchlist matches, open incidents or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+        if(urgent>0)...[const SizedBox(height:10),Wrap(spacing:8,runSpacing:8,children:[
+          if(overstayCount>0)_attentionChip(Icons.timer_outlined,'$overstayCount overstay${overstayCount==1?'':'s'}'),
+          if(watchCount>0)_attentionChip(Icons.policy_outlined,'$watchCount watchlist'),
+          if(incidentCount>0)_attentionChip(Icons.report_problem_outlined,'$incidentCount incident${incidentCount==1?'':'s'}'),
+          if(handoverCount>0)_attentionChip(Icons.handshake_outlined,'$handoverCount handover${handoverCount==1?'':'s'}'),
+        ])],
+      ])
+    );
+  }
+  Widget _attentionChip(IconData icon,String label)=>Chip(avatar:Icon(icon,size:18),label:Text(label,style:const TextStyle(fontWeight:FontWeight.w700)));
   Widget _metric(String label,dynamic value)=>SizedBox(width:128,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:Theme.of(context).textTheme.labelMedium),Text('${value??0}',style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900))]));
   Widget _heading(String text,IconData icon)=>_sectionHeader(text,icon,const SizedBox.shrink());
   Widget _sectionHeader(String text,IconData icon,Widget action)=>Row(children:[Icon(icon),const SizedBox(width:8),Expanded(child:Text(text,style:Theme.of(context).textTheme.titleLarge)),action]);
