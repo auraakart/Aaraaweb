@@ -10,11 +10,11 @@ import 'data/resident_repository.dart';
 import 'screens/amenities_screen.dart';
 import 'screens/ai_assistant_screen.dart';
 import 'screens/billing_screen.dart';
+import 'screens/community_screen.dart';
 import 'screens/gate_screen.dart';
 import 'screens/helpdesk_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/independent_home_shell.dart';
-import 'screens/independent_services_screen.dart';
 import 'screens/notices_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
@@ -33,6 +33,7 @@ const _demoFeatures = <String>{
   'MAINTENANCE_BILLING',
   'PAYMENTS',
   'AMENITIES',
+  'AI_ASSISTANT',
 };
 
 void main() {
@@ -165,7 +166,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
   }
 
   void _open(int index) => setState(() => _index = index);
-  void _openExternalServices() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => IndependentServicesScreen(apiClient: widget.consumerApiClient, independentMode: false)));
   void _openAmenities() {
     final unitId = widget.controller.primaryUnitId;
     if (unitId == null) {
@@ -200,14 +200,6 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           return _SocietyOnlyShell(controller: controller, profile: _profile(controller), societyName: _currentSocietyName());
         }
 
-        int? gateIndex;
-        final pages = <Widget>[];
-        final destinations = <NavigationDestination>[];
-        void add(Widget page, NavigationDestination destination) {
-          pages.add(page);
-          destinations.add(destination);
-        }
-
         final showGate = controller.hasFeature('VISITOR_MANAGEMENT') || controller.hasFeature('DELIVERY_MANAGEMENT') || controller.hasFeature('DOMESTIC_HELP') || controller.hasFeature('HOUSEHOLD_SERVICES');
         final showStaff = controller.hasFeature('DOMESTIC_HELP');
         final showServices = controller.hasFeature('HOUSEHOLD_SERVICES');
@@ -218,40 +210,70 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         final showSos = controller.hasFeature('SOS');
         final showAi = controller.hasFeature('AI_ASSISTANT');
 
-        add(
+        final pages = <Widget>[
           HomeScreen(
             controller: controller,
             showGate: showGate,
+            showStaff: showStaff,
             showServices: showServices,
             showHelpdesk: showHelpdesk,
             showNotices: showNotices,
             showBilling: showBilling,
             showAmenities: showAmenities,
             showSos: showSos,
-            onOpenGate: () { if (gateIndex != null) _open(gateIndex); },
-            onOpenServices: _openExternalServices,
+            showAi: showAi,
+            onOpenStaff: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WorkforceScreen(controller: controller))),
+            onOpenServices: () => _open(2),
             onOpenHelpdesk: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller))),
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
             onOpenAmenities: _openAmenities,
+            onOpenAi: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository))),
           ),
+          showGate
+              ? GateScreen(controller: controller)
+              : const _UnavailableFeatureScreen(
+                  icon: Icons.shield_outlined,
+                  title: 'Gate',
+                  message: 'Gate access is not enabled for this society yet.',
+                ),
+          showServices
+              ? ServicesScreen(controller: controller)
+              : const _UnavailableFeatureScreen(
+                  icon: Icons.handyman_outlined,
+                  title: 'Services',
+                  message: 'Household services are not enabled for this society yet.',
+                ),
+          (showNotices || showHelpdesk)
+              ? CommunityScreen(controller: controller)
+              : const _UnavailableFeatureScreen(
+                  icon: Icons.groups_outlined,
+                  title: 'Community',
+                  message: 'Community features are not enabled for this society yet.',
+                ),
+          _profile(controller),
+        ];
+        final pendingGateCount = controller.accessRequests.where((request) => request['status']?.toString() == 'PENDING').length;
+        final openCommunityCount = controller.helpdeskTickets.where((ticket) {
+          final status = ticket['status']?.toString().toUpperCase() ?? '';
+          return status.isNotEmpty && status != 'RESOLVED' && status != 'CLOSED' && status != 'CANCELLED';
+        }).length;
+        final destinations = <NavigationDestination>[
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-        );
-        if (showGate) {
-          gateIndex = pages.length;
-          add(GateScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Gate'));
-        }
-        if (showStaff) {
-          add(WorkforceScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'));
-        }
-        if (showServices) {
-          add(ServicesScreen(controller: controller), const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'));
-        }
-        if (showAi) {
-          add(AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId), const NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Assistant'));
-        }
-        final profileIndex = pages.length;
-        add(_profile(controller), const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'));
+          NavigationDestination(
+            icon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_outlined)),
+            selectedIcon: Badge(isLabelVisible: pendingGateCount > 0, label: Text(pendingGateCount > 99 ? '99+' : '$pendingGateCount'), child: const Icon(Icons.shield_rounded)),
+            label: 'Gate',
+          ),
+          const NavigationDestination(icon: Icon(Icons.handyman_outlined), selectedIcon: Icon(Icons.handyman_rounded), label: 'Services'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_outlined)),
+            selectedIcon: Badge(isLabelVisible: openCommunityCount > 0, label: Text(openCommunityCount > 99 ? '99+' : '$openCommunityCount'), child: const Icon(Icons.groups_rounded)),
+            label: 'Community',
+          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+        ];
+        const profileIndex = 4;
 
         final membership = _currentMembership();
         final property = _currentProperty(membership);
@@ -349,6 +371,44 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
       if (membership.societyId == widget.currentSocietyId) return membership.name;
     }
     return 'Current society';
+  }
+}
+
+class _UnavailableFeatureScreen extends StatelessWidget {
+  const _UnavailableFeatureScreen({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 44, color: theme.colorScheme.primary),
+              const SizedBox(height: 14),
+              Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

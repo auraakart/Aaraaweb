@@ -16,7 +16,7 @@ describe('V3.2 finance authorization', () => {
       expect(Reflect.getMetadata(PERMISSIONS_KEY,BankReconciliationController.prototype[method])).toEqual([AppPermission.FINANCE_READ]);
     });
   }
-  for(const method of ['createAccount','importTransaction','match','unmatch','ignore'] as const){
+  for(const method of ['createAccount','previewImport','importTransaction','match','unmatch','ignore'] as const){
     it(`bank ${method} requires FINANCE_MANAGE`,()=>{
       expect(Reflect.getMetadata(PERMISSIONS_KEY,BankReconciliationController.prototype[method])).toEqual([AppPermission.FINANCE_MANAGE]);
     });

@@ -13,7 +13,33 @@ export type AiAssistantIntent =
   | 'FACILITIES'
   | 'VENDORS'
   | 'DISCOVERY'
+  | 'RESIDENT_NOTICES'
+  | 'RESIDENT_GATE'
+  | 'GOVERNANCE'
   | 'UNSUPPORTED';
+
+export type AiAssistantToolId = Exclude<AiAssistantIntent,'UNSUPPORTED'>;
+
+type AiAssistantToolDefinition = {
+  id: AiAssistantToolId;
+  label: string;
+  context: 'SOCIETY'|'PROPERTY';
+  permissions: readonly AppPermission[];
+  permissionMode: 'ANY'|'ALL';
+};
+
+const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
+  {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
+  {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'HELPDESK_OPERATIONS',label:'Helpdesk operations',context:'SOCIETY',permissions:[AppPermission.HELPDESK_REVIEW],permissionMode:'ALL'},
+  {id:'SECURITY_EVENTS',label:'Security events',context:'SOCIETY',permissions:[AppPermission.AUDIT_READ],permissionMode:'ALL'},
+  {id:'FACILITIES',label:'Facilities',context:'SOCIETY',permissions:[AppPermission.FACILITIES_READ],permissionMode:'ALL'},
+  {id:'VENDORS',label:'Vendors and procurement',context:'SOCIETY',permissions:[AppPermission.SOCIETY_VENDORS_READ],permissionMode:'ALL'},
+  {id:'DISCOVERY',label:'Amenities and services',context:'SOCIETY',permissions:[AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_NOTICES',label:'Resident notices',context:'PROPERTY',permissions:[AppPermission.NOTICE_READ],permissionMode:'ALL'},
+  {id:'RESIDENT_GATE',label:'Resident gate status',context:'PROPERTY',permissions:[AppPermission.VISITOR_READ_OWN,AppPermission.ACCESS_READ_OWN],permissionMode:'ANY'},
+  {id:'GOVERNANCE',label:'Governance',context:'SOCIETY',permissions:[AppPermission.GOVERNANCE_READ],permissionMode:'ALL'},
+] as const;
 
 @Injectable()
 export class AiAssistantService {
@@ -22,56 +48,47 @@ export class AiAssistantService {
     private readonly operations: AiOperationsService,
   ) {}
 
+  tools(roles:readonly AppRole[]){
+    return {
+      tools:AI_ASSISTANT_TOOLS.filter(tool=>this.canUseTool(roles,tool)).map(tool=>({
+        id:tool.id,
+        label:tool.label,
+        context:tool.context,
+        readOnly:true,
+      })),
+      mutationAllowList:['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS'] as const,
+    };
+  }
+
   async query(societyId:string,userId:string,roles:readonly AppRole[],message:string,unitId?:string) {
     const text=message.trim();
     if(text.length<2||text.length>1000) throw new BadRequestException('Assistant message must be between 2 and 1000 characters');
     const normalized=text.toLowerCase();
 
-    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(normalized) && hasPermission(roles,AppPermission.FINANCE_READ)){
-      const thresholdPaise=this.amountThresholdPaise(text);
-      const facts=await this.societyFinance(societyId,thresholdPaise);
-      return this.response('SOCIETY_FINANCE',facts,[
-        'MaintenanceInvoice','Payment'
-      ],`Grounded finance summary from current society accounting data${thresholdPaise? ` for overdue amounts of at least ₹${(thresholdPaise/100).toLocaleString('en-IN')}`:''}.`);
+    if(this.promptInjectionAttempt(normalized)){
+      return this.auditedResponse(
+        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+        'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
+        'BLOCKED',
+      );
     }
 
-    if(/sla|helpdesk|complaint|ticket/.test(normalized) && hasPermission(roles,AppPermission.HELPDESK_REVIEW)){
-      const facts=await this.operations.operationsSummary(societyId);
-      return this.response('HELPDESK_OPERATIONS',facts,['HelpdeskTicket'],'Grounded helpdesk summary from open society tickets and SLA state.');
+    if(unitId && /notice|announcement|society update|community update/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_NOTICES');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.residentNotices(societyId,userId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
     }
 
-    if(/security|incident|session|revocation|replay/.test(normalized)){
-      this.require(roles,AppPermission.AUDIT_READ);
-      const facts=await this.securitySummary(societyId);
-      return this.response('SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
+    if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_GATE');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.residentGateStatus(societyId,userId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
-    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(normalized)){
-      this.require(roles,AppPermission.FACILITIES_READ);
-      const facts=await this.facilitiesSummary(societyId);
-      return this.response('FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
-    }
-
-    if(/vendor|procurement|purchase request|supplier/.test(normalized)){
-      this.require(roles,AppPermission.SOCIETY_VENDORS_READ);
-      const facts=await this.vendorSummary(societyId);
-      return this.response('VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
-    }
-
-    if(/amenity|service|provider|plumber|electrician|cleaning/.test(normalized)){
-      if(!hasPermission(roles,AppPermission.AMENITY_READ)&&!hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)){
-        throw new ForbiddenException('Assistant discovery is not permitted for this role');
-      }
-      if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.discovery(societyId);
-      return this.response('DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
-    }
-
-    if(/due|invoice|receipt|payment|booking|status|my complaint|my ticket/.test(normalized)){
-      if(!unitId) throw new BadRequestException('A current property context is required for resident assistant status');
-      if(!hasPermission(roles,AppPermission.HELPDESK_READ_OWN)&&!hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)&&!hasPermission(roles,AppPermission.AMENITY_READ)){
-        throw new ForbiddenException('Resident assistant status is not permitted for this role');
-      }
+    if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(normalized)){
+      this.requireTool(roles,'RESIDENT_STATUS');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentStatus(societyId,userId,unitId,roles);
       const sources=[
@@ -80,12 +97,63 @@ export class AiAssistantService {
         ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
         ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
       ];
-      return this.response('RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
     }
 
-    return this.response('UNSUPPORTED',{
-      supported:['maintenance/collection/arrears','helpdesk/SLA','security incidents','facilities/AMCs/work orders','vendors/procurement','amenities/services','resident payment/booking/complaint status'],
-    },[],'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.');
+    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(normalized)){
+      this.requireTool(roles,'SOCIETY_FINANCE');
+      const thresholdPaise=this.amountThresholdPaise(text);
+      const facts=await this.societyFinance(societyId,thresholdPaise);
+      return this.auditedResponse(
+        societyId,userId,unitId,'SOCIETY_FINANCE','SOCIETY_FINANCE',facts,['MaintenanceInvoice','Payment'],
+        `Grounded finance summary from current society accounting data${thresholdPaise? ` for overdue amounts of at least ₹${(thresholdPaise/100).toLocaleString('en-IN')}`:''}.`,
+      );
+    }
+
+    if(/sla|helpdesk|complaint|ticket/.test(normalized)){
+      this.requireTool(roles,'HELPDESK_OPERATIONS');
+      const facts=await this.operations.operationsSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'HELPDESK_OPERATIONS','HELPDESK_OPERATIONS',facts,['HelpdeskTicket'],'Grounded helpdesk summary from open society tickets and SLA state.');
+    }
+
+    if(/security|incident|session|revocation|replay/.test(normalized)){
+      this.requireTool(roles,'SECURITY_EVENTS');
+      const facts=await this.securitySummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'SECURITY_EVENTS','SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
+    }
+
+    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(normalized)){
+      this.requireTool(roles,'FACILITIES');
+      const facts=await this.facilitiesSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
+    }
+
+    if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(normalized)){
+      this.requireTool(roles,'GOVERNANCE');
+      const facts=await this.governanceSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'GOVERNANCE','GOVERNANCE',facts,['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],'Grounded governance summary from current society meeting, resolution and action evidence. This does not determine statutory validity.');
+    }
+
+    if(/vendor|procurement|purchase request|supplier/.test(normalized)){
+      this.requireTool(roles,'VENDORS');
+      const facts=await this.vendorSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'VENDORS','VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
+    }
+
+    if(/amenity|service|provider|plumber|electrician|cleaning/.test(normalized)){
+      this.requireTool(roles,'DISCOVERY');
+      if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.discovery(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'DISCOVERY','DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
+    }
+
+    return this.auditedResponse(
+      societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',
+      {supported:this.tools(roles).tools.map(tool=>tool.label)},
+      [],
+      'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.',
+      'UNSUPPORTED',
+    );
   }
 
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
@@ -150,9 +218,45 @@ export class AiAssistantService {
       });
     }
 
+    if(hasPermission(roles,AppPermission.GOVERNANCE_READ)){
+      const governance=await this.governanceSummary(societyId);
+      const openActions=governance.actions.filter(action=>!['COMPLETED','CLOSED','CANCELLED'].includes(String(action.status??'').toUpperCase()));
+      const now=Date.now();
+      const overdueActions=openActions.filter(action=>{
+        const dueAt=action.dueAt;
+        if(!dueAt)return false;
+        const due=Date.parse(String(dueAt));
+        return Number.isFinite(due)&&due<now;
+      });
+      cards.push({
+        id:'governance-actions',domain:'GOVERNANCE',
+        severity:overdueActions.length>0?'HIGH':openActions.length>0?'MEDIUM':'LOW',
+        title:'Governance follow-through',
+        summary:openActions.length>0
+          ? `${openActions.length} open action items · ${overdueActions.length} overdue`
+          : 'No open governance action items in current society data.',
+        prompt:'Show governance action items needing follow-through',
+        sources:['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],
+        metrics:{openActionItems:openActions.length,overdueActionItems:overdueActions.length},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ)){
+      const vendors=await this.vendorSummary(societyId);
+      cards.push({
+        id:'procurement-attention',domain:'PROCUREMENT',
+        severity:vendors.submittedRequests>=5?'HIGH':vendors.submittedRequests>0?'MEDIUM':'LOW',
+        title:'Procurement and vendors',
+        summary:`${vendors.submittedRequests} submitted requests · ${vendors.approvedRequests} approved · ${vendors.activeVendors} active vendors`,
+        prompt:'Show vendor and procurement requests needing attention',
+        sources:['SocietyVendor','ProcurementRequest'],
+        metrics:{activeVendors:vendors.activeVendors,submittedRequests:vendors.submittedRequests,approvedRequests:vendors.approvedRequests},
+      });
+    }
+
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
     cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||a.domain.localeCompare(b.domain));
-    return {cards,grounded:true,mutationPerformed:false};
+    return {cards,generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false};
   }
 
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
@@ -180,22 +284,75 @@ export class AiAssistantService {
     if(!Number.isSafeInteger(page)||page<1) throw new BadRequestException('page must be positive');
     if(!Number.isInteger(pageSize)||pageSize<1||pageSize>100) throw new BadRequestException('pageSize must be between 1 and 100');
     const offset=(page-1)*pageSize;
-    const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","actorUserId","action","status","confirmedAt","executedAt","createdAt","updatedAt"
-      FROM "AiOperationProposal"
-      WHERE "societyId"=${societyId}::uuid
-      ORDER BY "createdAt" DESC,"id" DESC
-      OFFSET ${offset} LIMIT ${pageSize}
-    `);
-    return {page,pageSize,items:rows};
+    const [items,retrievals]=await Promise.all([
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","actorUserId","action","status","confirmedAt","executedAt","createdAt","updatedAt"
+        FROM "AiOperationProposal"
+        WHERE "societyId"=${societyId}::uuid
+        ORDER BY "createdAt" DESC,"id" DESC
+        OFFSET ${offset} LIMIT ${pageSize}
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","actorUserId","toolId","intent","unitId","sources","status","createdAt"
+        FROM "AiAssistantRetrievalAudit"
+        WHERE "societyId"=${societyId}::uuid
+        ORDER BY "createdAt" DESC,"id" DESC
+        OFFSET ${offset} LIMIT ${pageSize}
+      `),
+    ]);
+    return {page,pageSize,items,retrievals};
   }
 
   private response(intent:AiAssistantIntent,facts:unknown,sources:string[],answer:string){
     return {intent,answer,facts,sources,grounded:true,mutationPerformed:false};
   }
 
-  private require(roles:readonly AppRole[],permission:AppPermission){
-    if(!hasPermission(roles,permission)) throw new ForbiddenException(`Assistant tool requires ${permission}`);
+  private async auditedResponse(
+    societyId:string,
+    userId:string,
+    unitId:string|undefined,
+    toolId:AiAssistantToolId|'UNSUPPORTED',
+    intent:AiAssistantIntent,
+    facts:unknown,
+    sources:string[],
+    answer:string,
+    status:'SUCCESS'|'UNSUPPORTED'|'BLOCKED'='SUCCESS',
+  ){
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "AiAssistantRetrievalAudit"
+        ("societyId","actorUserId","toolId","intent","unitId","sources","status")
+      VALUES (
+        ${societyId}::uuid,
+        ${userId}::uuid,
+        ${toolId},
+        ${intent},
+        ${unitId??null}::uuid,
+        ${JSON.stringify(sources)}::jsonb,
+        ${status}
+      )
+    `);
+    return this.response(intent,facts,sources,answer);
+  }
+
+  private tool(toolId:AiAssistantToolId){
+    const tool=AI_ASSISTANT_TOOLS.find(candidate=>candidate.id===toolId);
+    if(!tool) throw new BadRequestException('Assistant tool is not registered');
+    return tool;
+  }
+
+  private canUseTool(roles:readonly AppRole[],tool:AiAssistantToolDefinition){
+    return tool.permissionMode==='ALL'
+      ? tool.permissions.every(permission=>hasPermission(roles,permission))
+      : tool.permissions.some(permission=>hasPermission(roles,permission));
+  }
+
+  private requireTool(roles:readonly AppRole[],toolId:AiAssistantToolId){
+    const tool=this.tool(toolId);
+    if(!this.canUseTool(roles,tool)) throw new ForbiddenException(`Assistant tool ${toolId} is not permitted for this role`);
+  }
+
+  private promptInjectionAttempt(text:string){
+    return /system prompt|developer message|database credentials|direct database|execute sql|hidden tool|ignore.{0,40}(instructions?|permissions?|authorization|tool policy)|bypass.{0,40}(permissions?|authorization|confirmation|tool policy)|override.{0,40}(permissions?|authorization|confirmation|tool policy)/i.test(text);
   }
 
   private amountThresholdPaise(text:string){
@@ -264,6 +421,74 @@ export class AiAssistantService {
         (SELECT COUNT(*)::int FROM "ProcurementRequest" WHERE "societyId"=${societyId}::uuid AND "status"='APPROVED') AS "approvedRequests"
     `);
     return rows[0]??{activeVendors:0,submittedRequests:0,approvedRequests:0};
+  }
+
+  private async residentNotices(societyId:string,userId:string,unitId:string){
+    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT n."id",n."title",n."category",n."importance",n."requiresAcknowledgement",
+             n."publishedAt",n."expiresAt",nr."readAt",nr."acknowledgedAt"
+      FROM "Notice" n
+      LEFT JOIN "NoticeRecipient" nr
+        ON nr."noticeId"=n."id" AND nr."societyId"=n."societyId" AND nr."userId"=${userId}::uuid
+      WHERE n."societyId"=${societyId}::uuid
+        AND n."status"='PUBLISHED'
+        AND n."publishedAt"<=CURRENT_TIMESTAMP
+        AND (n."expiresAt" IS NULL OR n."expiresAt">CURRENT_TIMESTAMP)
+        AND (
+          n."targetUnitId"=${unitId}::uuid
+          OR (n."targetUnitId" IS NULL AND n."targetBuildingId" IS NULL)
+          OR nr."userId" IS NOT NULL
+        )
+        AND (
+          EXISTS(
+            SELECT 1 FROM "UnitOwnership" ow
+            WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid AND ow."userId"=${userId}::uuid
+              AND ow."active"=TRUE AND ow."verified"=TRUE AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+          )
+          OR (
+            n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS(
+              SELECT 1 FROM "UnitOccupancy" oc
+              WHERE oc."societyId"=${societyId}::uuid AND oc."unitId"=${unitId}::uuid AND oc."userId"=${userId}::uuid
+                AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+            )
+          )
+        )
+      ORDER BY CASE n."importance" WHEN 'CRITICAL' THEN 0 WHEN 'IMPORTANT' THEN 1 ELSE 2 END,n."publishedAt" DESC
+      LIMIT 20
+    `);
+  }
+
+  private async residentGateStatus(societyId:string,userId:string,unitId:string){
+    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT v."id",v."name",v."purpose",v."status",v."createdAt",
+             vp."id" AS "passId",vp."status" AS "passStatus",vp."validFrom",vp."validUntil",vp."checkedInAt",vp."checkedOutAt"
+      FROM "Visitor" v
+      LEFT JOIN "VisitorPass" vp ON vp."visitorId"=v."id" AND vp."societyId"=v."societyId"
+      WHERE v."societyId"=${societyId}::uuid AND v."unitId"=${unitId}::uuid AND v."hostUserId"=${userId}::uuid
+      ORDER BY v."createdAt" DESC,vp."createdAt" DESC
+      LIMIT 20
+    `);
+  }
+
+  private async governanceSummary(societyId:string){
+    const [meetings,resolutions,actions]=await Promise.all([
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingType","status","title","scheduledAt","heldAt","location","quorumRequired","quorumPresent"
+        FROM "GovernanceMeeting" WHERE "societyId"=${societyId}::uuid ORDER BY "scheduledAt" DESC LIMIT 20
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingId","title","status","approvalRequired","approvalRecorded","recordedAt"
+        FROM "GovernanceResolution" WHERE "societyId"=${societyId}::uuid ORDER BY "recordedAt" DESC LIMIT 20
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","meetingId","title","status","ownerUserId","dueAt","completedAt"
+        FROM "GovernanceActionItem" WHERE "societyId"=${societyId}::uuid
+        ORDER BY COALESCE("dueAt","createdAt") DESC LIMIT 20
+      `),
+    ]);
+    return {meetings,resolutions,actions};
   }
 
   private async discovery(societyId:string){

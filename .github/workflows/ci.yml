@@ -277,6 +277,19 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test Admin access boundaries
         run: pnpm --filter @aaraagate/admin test
+      - name: Lint shared Admin components and browser contracts
+        run: pnpm --filter @aaraagate/admin lint:ui
+      - name: Install Admin browser test runtime
+        run: pnpm --filter @aaraagate/admin exec playwright install --with-deps chromium
+      - name: Test shared Admin component interactions and accessibility
+        run: pnpm --filter @aaraagate/admin test:ui
+      - name: Retain Admin component visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-ui-contract-evidence
+          path: apps/admin/test-results/
+          if-no-files-found: ignore
       - name: Typecheck admin
         run: pnpm --filter @aaraagate/admin typecheck
       - name: Build admin

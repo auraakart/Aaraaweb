@@ -13,6 +13,7 @@ import { FacilitiesModule } from './facilities/facilities.module';
 import { GovernanceModule } from './governance/governance.module';
 import { GuardOperationsModule } from './guard-operations/guard-operations.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { MigrationModule } from './migration/migration.module';
 import { NoticesModule } from './notices/notices.module';
 import { ParcelsModule } from './parcels/parcels.module';
@@ -50,6 +51,7 @@ import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
     HouseholdsModule,
     WorkforceModule,
     HelpdeskModule,
+    IntegrationsModule,
     AiOperationsModule,
     NoticesModule,
     ParcelsModule,

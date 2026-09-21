@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { HELPDESK_TICKET_SLA_STATE_SQL, helpdeskSlaStateForSnapshotSql } from './helpdesk-sla-state';
+import type { HelpdeskSlaState } from './helpdesk-sla-state';
 
 type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-type SlaState = 'UNTRACKED' | 'ON_TRACK' | 'RESPONSE_BREACHED' | 'RESOLUTION_BREACHED' | 'MET';
+type SlaState = HelpdeskSlaState;
 
 @Injectable()
 export class HelpdeskSlaService {
@@ -67,24 +69,16 @@ export class HelpdeskSlaService {
   listQueue(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
-        CASE
-          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL
-            THEN CASE WHEN ht."resolvedAt" <= ht."resolutionDueAt" THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
-          WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 'RESOLUTION_BREACHED'
-          WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 'RESPONSE_BREACHED'
-          WHEN ht."firstResponseDueAt" IS NULL THEN 'UNTRACKED'
-          ELSE 'ON_TRACK'
-        END AS "computedSlaState"
+${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
       JOIN "Building" b ON b."id"=u."buildingId"
       JOIN "User" creator ON creator."id"=ht."createdById"
       WHERE ht."societyId"=${societyId}::uuid
       ORDER BY
-        CASE
-          WHEN ht."status" IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND ht."resolvedAt" > ht."resolutionDueAt" THEN 0
-          WHEN ht."status" NOT IN ('RESOLVED','CLOSED') AND ht."resolutionDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."resolutionDueAt" THEN 0
-          WHEN ht."firstRespondedAt" IS NULL AND ht."firstResponseDueAt" IS NOT NULL AND CURRENT_TIMESTAMP > ht."firstResponseDueAt" THEN 1
+        CASE ${HELPDESK_TICKET_SLA_STATE_SQL}
+          WHEN 'RESOLUTION_BREACHED' THEN 0
+          WHEN 'RESPONSE_BREACHED' THEN 1
           ELSE 2
         END,
         ht."resolutionDueAt" NULLS LAST,
@@ -92,6 +86,70 @@ export class HelpdeskSlaService {
         ht."createdAt" ASC
       LIMIT 500
     `);
+  }
+
+  async readiness(societyId: string, ticketId: string) {
+    const [ticket] = await this.prisma.$queryRaw<Array<{
+      id: string; priority: Priority; status: string; assignedToId: string | null;
+      firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null;
+      resolvedAt: Date | null; slaState: SlaState; escalationLevel: number; escalatedToId: string | null;
+      resolutionCode: string | null; closureCode: string | null; computedSlaState: SlaState;
+    }>>(Prisma.sql`
+      SELECT ht."id",ht."priority",ht."status",ht."assignedToId",ht."firstRespondedAt",
+             ht."firstResponseDueAt",ht."resolutionDueAt",ht."resolvedAt",ht."slaState",
+             ht."escalationLevel",ht."escalatedToId",ht."resolutionCode",ht."closureCode",
+             ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
+      FROM "HelpdeskTicket" ht
+      WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
+      LIMIT 1
+    `);
+    if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
+
+    const [policy] = await this.prisma.$queryRaw<Array<{
+      firstResponseMinutes: number; resolutionMinutes: number; escalationAfterMinutes: number;
+      automaticEscalationEnabled: boolean; escalationTargetUserId: string | null; escalationTargetName: string | null;
+    }>>(Prisma.sql`
+      SELECT p."firstResponseMinutes",p."resolutionMinutes",p."escalationAfterMinutes",
+             p."automaticEscalationEnabled",p."escalationTargetUserId",target."name" AS "escalationTargetName"
+      FROM "HelpdeskSlaPolicy" p
+      LEFT JOIN "User" target ON target."id"=p."escalationTargetUserId"
+      WHERE p."societyId"=${societyId}::uuid AND p."priority"=${ticket.priority} AND p."active"=true
+      LIMIT 1
+    `);
+
+    const terminal = ['RESOLVED','CLOSED'].includes(ticket.status);
+    const breached = ['RESPONSE_BREACHED','RESOLUTION_BREACHED'].includes(ticket.computedSlaState);
+    const blockers: string[] = [];
+    if (!terminal && !ticket.assignedToId) blockers.push('ASSIGNEE_MISSING');
+    if (!terminal && ticket.computedSlaState === 'UNTRACKED') blockers.push('SLA_UNTRACKED');
+    if (!terminal && breached && !ticket.escalatedToId) blockers.push('BREACH_NOT_ESCALATED');
+    if (ticket.status === 'RESOLVED' && !ticket.resolutionCode) blockers.push('RESOLUTION_CODE_MISSING');
+    if (ticket.status === 'CLOSED' && !ticket.closureCode) blockers.push('CLOSURE_CODE_MISSING');
+
+    const nextActions: string[] = [];
+    if (blockers.includes('ASSIGNEE_MISSING')) nextActions.push('Assign an active society reviewer to own the ticket.');
+    if (blockers.includes('SLA_UNTRACKED')) nextActions.push('Apply the active SLA policy for this ticket priority.');
+    if (blockers.includes('BREACH_NOT_ESCALATED')) nextActions.push('Escalate the breached ticket to an active society member.');
+    if (!terminal && !breached && ticket.computedSlaState === 'ON_TRACK') nextActions.push('Continue resolution work before the service target is breached.');
+    if (terminal && blockers.length === 0) nextActions.push('Review closure evidence and retain the activity/SLA history for audit.');
+
+    return {
+      ticketId,
+      status: ticket.status,
+      priority: ticket.priority,
+      assigned: !!ticket.assignedToId,
+      computedSlaState: ticket.computedSlaState,
+      firstResponded: !!ticket.firstRespondedAt,
+      firstResponseDueAt: ticket.firstResponseDueAt,
+      resolutionDueAt: ticket.resolutionDueAt,
+      escalationLevel: ticket.escalationLevel,
+      escalated: !!ticket.escalatedToId,
+      critical: ticket.priority === 'URGENT' || breached,
+      blockers,
+      nextActions,
+      policy: policy ?? null,
+      boundary: 'Operational service-readiness evidence only; lifecycle transitions, SLA evaluation and escalation eligibility remain server-authoritative.',
+    };
   }
 
   async applyPolicy(societyId: string, actorUserId: string, ticketId: string) {
@@ -131,20 +189,13 @@ export class HelpdeskSlaService {
 
   async evaluate(societyId: string, actorUserId: string, ticketId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null; resolvedAt: Date | null }>>(Prisma.sql`
-        SELECT "id","status","slaState","firstRespondedAt","firstResponseDueAt","resolutionDueAt","resolvedAt"
+      const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string; slaState: SlaState; firstRespondedAt: Date | null; firstResponseDueAt: Date | null; resolutionDueAt: Date | null; resolvedAt: Date | null; closedAt: Date | null }>>(Prisma.sql`
+        SELECT "id","status","slaState","firstRespondedAt","firstResponseDueAt","resolutionDueAt","resolvedAt","closedAt"
         FROM "HelpdeskTicket" WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
       `);
       if (!ticket) throw new NotFoundException('Helpdesk ticket not found');
       const [calc] = await tx.$queryRaw<Array<{ state: SlaState }>>(Prisma.sql`
-        SELECT CASE
-          WHEN ${ticket.firstResponseDueAt}::timestamptz IS NULL THEN 'UNTRACKED'
-          WHEN ${ticket.status} IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL
-            THEN CASE WHEN ${ticket.resolvedAt}::timestamptz <= ${ticket.resolutionDueAt}::timestamptz THEN 'MET' ELSE 'RESOLUTION_BREACHED' END
-          WHEN ${ticket.status} NOT IN ('RESOLVED','CLOSED') AND ${ticket.resolutionDueAt}::timestamptz IS NOT NULL AND CURRENT_TIMESTAMP > ${ticket.resolutionDueAt}::timestamptz THEN 'RESOLUTION_BREACHED'
-          WHEN ${ticket.firstRespondedAt}::timestamptz IS NULL AND CURRENT_TIMESTAMP > ${ticket.firstResponseDueAt}::timestamptz THEN 'RESPONSE_BREACHED'
-          ELSE 'ON_TRACK'
-        END::text AS state
+        SELECT ${helpdeskSlaStateForSnapshotSql(ticket)} AS state
       `);
       if (calc.state === ticket.slaState) return { ticketId, slaState: ticket.slaState, changed: false };
       await tx.$executeRaw(Prisma.sql`

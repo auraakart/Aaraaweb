@@ -1,11 +1,12 @@
 # Aaraagate Implementation Roadmap
 
-Updated: 2026-09-18
+Updated: 2026-09-20
 
 ## Current execution status
-Commercial V1 has reached a validated code baseline and is now the foundation for **Aaraagate V2**. V2 expands Aaraagate from a gated-community application into a broader Indian residential-community operating platform without reopening proven V1 tenancy, security, owner/occupant, External Services or release controls.
+The V4.23–V4.28 competitive product-readiness program is repository-complete through the V4.28 closure branch. V4.28 adds a machine-checked pilot/deployable evidence contract, role acceptance scripts, nine field KPI definitions, training/escalation ownership, hosted/provider/restore/monitoring/tabletop proof slots, Sev-1/Sev-2 blocker controls and exact candidate/rollback SHA requirements. The production release gate requires an evidence-backed `GO` and exact SHA match before a `staging → main` promotion can pass.
 
-The authoritative v2 scope is `PRODUCT_REQUIREMENTS.md` plus `AARAAGATE-V2-PROGRAM.md`.
+Repository completion does not mean field or production completion. Until a named pilot society supplies evidence, the V4.28 manifest remains `REPOSITORY_READY_EXTERNAL_PENDING`, every field KPI and external proof remains `PENDING_EXTERNAL`, required role sign-offs remain unsigned, and `main` promotion remains blocked by the release gate.
+
 
 ## V1 baseline — COMPLETE / CONTINUES TO BE HARDENED
 Validated foundations retained in V2:
@@ -64,6 +65,8 @@ Delivery rule: payment-gateway events remain distinct from accounting entries. F
 - Vehicle/workforce/access migration or revocation.
 - Atomic occupancy termination and session/permission reconciliation.
 
+Repository depth closure through V4.17 now includes typed Admin operator flows, registered-mobile move-in, property/occupancy selectors, descriptive handover evidence, Resident property-aware status/next-action/timeline UX, effective-date blocking and gate-authority revocation evidence. Real-society rental/police-verification policy acceptance and field UAT remain external.
+
 ### V2.1C — Governance core
 - Committee roster/tenure/handover.
 - AGM/SGM/committee meeting records.
@@ -78,6 +81,10 @@ Delivery rule: payment-gateway events remain distinct from accounting entries. F
 - Privacy request case model, retention checks and audit trail.
 - Processor/vendor privacy register hooks.
 - Personal-data incident workflow.
+
+Repository privacy depth closure through V4.19 now includes privacy-scoped operator context, typed case/legal-hold/retention workflows, read-only readiness/conflict evidence, governed erasure-plan visibility and Resident request-status/export/grievance clarity. Statutory compliance, jurisdiction-specific rights interpretation and field privacy acceptance remain external.
+
+Repository privacy-depth closure through V4.19 now includes typed case operations, privacy-scoped subject/assignee context, descriptive readiness/conflict evidence, server-governed erasure blockers, registry/incident/grievance context and Resident self-service status/export clarity. Jurisdiction-specific rights interpretation and qualified legal/privacy acceptance remain external.
 
 ### V2.1E — Payment exception lifecycle
 - debited-but-unconfirmed;
@@ -103,6 +110,8 @@ V2.1 exit criteria:
 - Inspections, evidence, history and cost.
 - Critical maintenance escalation.
 
+Repository facilities-depth closure through V4.20 now includes typed assignee/operator controls, append-only work-order history, asset/work-order readiness and critical prioritization, service-contract ↔ preventive-plan linkage/expiry context, and preventive-plan → generated-work/contract/evidence drill-down. Real facility-team UAT, physical inspection outcomes and provider/AMC legal validity remain external.
+
 ### V2.2B — Society vendors / procurement
 Separate from the consumer External Services marketplace:
 - vendor master;
@@ -125,6 +134,8 @@ Separate from the consumer External Services marketplace:
 - Classified society document repository.
 - Amenity capacity/quotas/windows/cooling-off/guest/pricing/deposit/blackout/approval rules.
 - Leave-at-gate parcel inventory, collection acknowledgement and escalation.
+
+Repository document depth closure through V4.18 now includes tenant-scoped property targeting, append-only lifecycle history, non-destructive controlled supersession/version lineage, private upload verification/safety scanning and Resident access to the server-authorized published repository with secure download intents. Hosted object-storage acceptance, statutory/legal validity and field document outcomes remain external.
 
 ## V2.3 — Optional / advanced modules
 - Advanced parking repository closure: allocation limits, visitor/temporary parking, credential lifecycle, incorrect-parking/violation handling and EV-readiness metadata are implemented. Physical ANPR/RFID/EV/access hardware remains external.

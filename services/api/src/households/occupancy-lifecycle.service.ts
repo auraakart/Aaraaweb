@@ -26,10 +26,23 @@ export class OccupancyLifecycleService{
     ORDER BY r."createdAt" DESC LIMIT 100
   `);}
 
+  async operatorContext(societyId:string){const now=new Date();const [units,occupancies]=await Promise.all([
+    this.prisma.unit.findMany({where:{building:{societyId}},select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}},orderBy:{number:'asc'}}),
+    this.prisma.unitOccupancy.findMany({where:{societyId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{id:true,relation:true,effectiveFrom:true,user:{select:{id:true,name:true,phone:true,status:true}},unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},orderBy:{createdAt:'desc'}})
+  ]);return {units,occupancies};}
+
   async selfContext(societyId:string,userId:string){const now=new Date();const [occupancies,ownerships]=await Promise.all([
-    this.prisma.unitOccupancy.findMany({where:{societyId,userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{id:true,unitId:true,relation:true,effectiveFrom:true},orderBy:{createdAt:'asc'}}),
-    this.prisma.unitOwnership.findMany({where:{societyId,userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},select:{unitId:true,ownershipBps:true},orderBy:{createdAt:'asc'}})
-  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId)};}
+    this.prisma.unitOccupancy.findMany({
+      where:{societyId,userId,active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+      select:{id:true,unitId:true,relation:true,effectiveFrom:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
+      orderBy:{createdAt:'asc'}
+    }),
+    this.prisma.unitOwnership.findMany({
+      where:{societyId,userId,active:true,verified:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},
+      select:{unitId:true,ownershipBps:true,unit:{select:{id:true,number:true,building:{select:{id:true,name:true,code:true}}}}},
+      orderBy:{createdAt:'asc'}
+    })
+  ]);return {occupancies,ownedUnitIds:ownerships.map(item=>item.unitId),ownedUnits:ownerships};}
 
   async get(societyId:string,id:string){const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
     SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
@@ -38,6 +51,58 @@ export class OccupancyLifecycleService{
     this.prisma.$queryRaw(Prisma.sql`SELECT "id","code","label","required","completedAt","completedByUserId","note","createdAt","updatedAt" FROM "OccupancyLifecycleChecklistItem" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`),
     this.prisma.$queryRaw(Prisma.sql`SELECT "id","kind","fileReference","uploadedByUserId","verifiedAt","verifiedByUserId","note","createdAt" FROM "OccupancyLifecycleDocument" WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid ORDER BY "createdAt"`)
   ]);return {...rows[0],events,checklist,documents};}
+
+  async readiness(societyId:string,id:string){
+    const rows=await this.prisma.$queryRaw<LifecycleRow[]>(Prisma.sql`
+      SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid LIMIT 1
+    `);
+    const row=rows[0];
+    if(!row)throw new NotFoundException('Occupancy lifecycle request not found');
+    const [checklist,documents,household,currentOccupancy]=await Promise.all([
+      this.prisma.$queryRaw<Array<{total:bigint;required:bigint;completedRequired:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total",
+               COUNT(*) FILTER (WHERE "required"=true)::bigint AS "required",
+               COUNT(*) FILTER (WHERE "required"=true AND "completedAt" IS NOT NULL)::bigint AS "completedRequired"
+        FROM "OccupancyLifecycleChecklistItem"
+        WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
+      `),
+      this.prisma.$queryRaw<Array<{total:bigint;verified:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total",
+               COUNT(*) FILTER (WHERE "verifiedAt" IS NOT NULL)::bigint AS "verified"
+        FROM "OccupancyLifecycleDocument"
+        WHERE "societyId"=${societyId}::uuid AND "requestId"=${id}::uuid
+      `),
+      this.prisma.household.findFirst({where:{societyId,unitId:row.unitId},select:{id:true}}),
+      this.prisma.unitOccupancy.findFirst({where:{societyId,unitId:row.unitId,userId:row.userId,active:true},select:{id:true,primaryGateContact:true,gateApprovalEnabled:true,gateNotificationEnabled:true}})
+    ]);
+    const householdId=household?.id;
+    const [activeVehicles,activeWorkforce,activeParkingAllocations]=householdId?await Promise.all([
+      this.prisma.householdVehicle.count({where:{societyId,householdId,active:true}}),
+      this.prisma.workforceAssignment.count({where:{societyId,householdId,active:true}}),
+      this.prisma.$queryRaw<Array<{count:bigint}>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "count" FROM "ParkingAllocation"
+        WHERE "societyId"=${societyId}::uuid AND "householdId"=${householdId}::uuid AND "endedAt" IS NULL
+      `)
+    ]):[0,0,[{count:0n}]];
+    const required=Number(checklist[0]?.required??0n),completedRequired=Number(checklist[0]?.completedRequired??0n);
+    return {
+      requestId:id,
+      kind:row.kind,
+      checklist:{total:Number(checklist[0]?.total??0n),required,completedRequired,mandatoryReady:required===completedRequired},
+      documents:{total:Number(documents[0]?.total??0n),verified:Number(documents[0]?.verified??0n)},
+      handover:{
+        activeVehicles,
+        activeWorkforceAssignments:activeWorkforce,
+        activeParkingAllocations:Number(activeParkingAllocations[0]?.count??0n),
+        gateAuthority:currentOccupancy?{
+          primaryGateContact:currentOccupancy.primaryGateContact,
+          gateApprovalEnabled:currentOccupancy.gateApprovalEnabled,
+          gateNotificationEnabled:currentOccupancy.gateNotificationEnabled
+        }:null
+      },
+      boundary:'Operational readiness evidence only; this does not determine legal, police-verification, rental-policy or ownership validity.'
+    };
+  }
 
   async getMine(societyId:string,userId:string,id:string){const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT "id" FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid AND ("requestedByUserId"=${userId}::uuid OR "userId"=${userId}::uuid) LIMIT 1
@@ -49,6 +114,8 @@ export class OccupancyLifecycleService{
     const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`INSERT INTO "OccupancyLifecycleRequest" ("societyId","unitId","userId","kind","relation","effectiveAt","reason","requestedByUserId") VALUES (${societyId}::uuid,${input.unitId}::uuid,${input.userId}::uuid,'MOVE_IN',${input.relation}::"UnitRelation",${input.effectiveAt},${input.reason?.trim()||null},${actorUserId}::uuid) RETURNING "id"`);
     await this.seedChecklist(tx,societyId,rows[0].id,'MOVE_IN');await this.event(tx,societyId,rows[0].id,'REQUESTED',actorUserId,input.reason);return this.getTx(tx,societyId,rows[0].id);
   }).catch(e=>this.rethrow(e));}
+
+  async requestMoveInByPhone(societyId:string,actorUserId:string,input:{unitId:string;tenantPhone:string;relation:UnitRelation;effectiveAt:Date;reason?:string}){const phone=this.normalizePhone(input.tenantPhone);if(!phone)throw new BadRequestException('Resident mobile number is required');const user=await this.prisma.user.findUnique({where:{phone},select:{id:true}});if(!user)throw new BadRequestException('Resident must register with this mobile number before move-in can be requested');return this.requestMoveIn(societyId,actorUserId,{unitId:input.unitId,userId:user.id,relation:input.relation,effectiveAt:input.effectiveAt,reason:input.reason});}
 
   async requestMoveOut(societyId:string,actorUserId:string,input:CreateMoveOut){return this.prisma.$transaction(async tx=>{
     const occupancy=await tx.unitOccupancy.findFirst({where:{id:input.occupancyId,societyId,active:true}});if(!occupancy)throw new NotFoundException('Active occupancy not found');
@@ -82,5 +149,6 @@ export class OccupancyLifecycleService{
   private async lock(tx:Prisma.TransactionClient,societyId:string,id:string){const rows=await tx.$queryRaw<LifecycleRow[]>(Prisma.sql`SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid FOR UPDATE`);if(!rows.length)throw new NotFoundException('Occupancy lifecycle request not found');return rows[0];}
   private event(tx:Prisma.TransactionClient,societyId:string,requestId:string,eventType:string,actorUserId:string,note?:string){return tx.$executeRaw(Prisma.sql`INSERT INTO "OccupancyLifecycleEvent" ("societyId","requestId","eventType","actorUserId","note") VALUES (${societyId}::uuid,${requestId}::uuid,${eventType},${actorUserId}::uuid,${note?.trim()||null})`);}
   private async getTx(tx:Prisma.TransactionClient,societyId:string,id:string){const rows=await tx.$queryRaw<LifecycleRow[]>(Prisma.sql`SELECT * FROM "OccupancyLifecycleRequest" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid`);return rows[0];}
+  private normalizePhone(phone:string){return phone.trim().replace(/[\s()-]+/g,'');}
   private rethrow(error:unknown):never{if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof NotFoundException)throw error;const message=error instanceof Error?error.message:'';if(message.includes('unique')||message.includes('duplicate key'))throw new ConflictException('An active lifecycle request already exists');throw error;}
 }

@@ -17,7 +17,7 @@ export class PaymentReconciliationRunner implements OnModuleInit,OnModuleDestroy
   private running=false;
   constructor(private readonly prisma:PrismaService,private readonly adapter:ConfiguredHttpPaymentGatewayAdapter,private readonly reconciliation:PaymentReconciliationService){}
 
-  onModuleInit(){if(!(process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL??'').trim()){this.logger.log('Payment reconciliation runner disabled: gateway bridge not configured');return;}this.timer=setInterval(()=>void this.runOnce(),this.intervalMs);this.timer.unref();void this.runOnce();}
+  onModuleInit(){if(!this.adapter.isConfigured()){this.logger.log(`Payment reconciliation runner disabled: ${this.adapter.environment} gateway bridge not configured`);return;}this.timer=setInterval(()=>void this.runOnce(),this.intervalMs);this.timer.unref();void this.runOnce();}
   onModuleDestroy(){if(this.timer)clearInterval(this.timer);}
 
   async runOnce(){if(this.running)return;this.running=true;try{await this.processOperations();await this.refreshCases();}catch(error){this.logger.error(`Payment reconciliation cycle failed: ${safeOperationalError(error)}`);}finally{this.running=false;}}

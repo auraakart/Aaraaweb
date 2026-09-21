@@ -18,6 +18,14 @@ class DocumentUploadIntentDto {
   @IsInt() @Min(1) @Max(5 * 1024 * 1024) contentLengthBytes!: number;
 }
 
+class ReplacementDocumentDto {
+  @IsString() @MaxLength(500) storageKey!: string;
+  @IsString() @MaxLength(255) fileName!: string;
+  @IsString() @MaxLength(120) mimeType!: string;
+  @IsInt() @Min(1) @Max(5 * 1024 * 1024) sizeBytes!: number;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+}
+
 class CreateDocumentDto {
   @IsOptional() @IsUUID() unitId?: string;
   @IsIn(['BYLAW','POLICY','MEETING_MINUTES','CIRCULAR','COMPLIANCE','CONTRACT','AMC','FINANCE','PROPERTY','OTHER']) category!: string;
@@ -56,6 +64,12 @@ export class DocumentsController {
     return this.storage.createDownloadIntent(societyId, document.storageKey);
   }
 
+  @Get('management/context')
+  @RequiresPermissions(AppPermission.DOCUMENTS_READ)
+  managementContext(@CurrentTenant() societyId: string) {
+    return this.documents.managementContext(societyId);
+  }
+
   @Get('management')
   @RequiresPermissions(AppPermission.DOCUMENTS_READ)
   management(@CurrentTenant() societyId: string) {
@@ -81,6 +95,22 @@ export class DocumentsController {
       contentLengthBytes: dto.sizeBytes,
     });
     return this.documents.createDraft(societyId, this.requireUser(userId), dto);
+  }
+
+  @Post('management/:documentId/replacement')
+  @RequiresPermissions(AppPermission.DOCUMENTS_MANAGE)
+  async replacement(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId: string | undefined,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() dto: ReplacementDocumentDto,
+  ) {
+    await this.storage.verifyAndScanUpload(societyId, {
+      storageKey: dto.storageKey,
+      contentType: dto.mimeType,
+      contentLengthBytes: dto.sizeBytes,
+    });
+    return this.documents.createReplacementDraft(societyId, this.requireUser(userId), documentId, dto);
   }
 
   @Get('management/:documentId/download-intent')

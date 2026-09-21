@@ -17,6 +17,8 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
   bool _submitting = false;
   String? _error;
   List<Map<String, dynamic>> _requests = const [];
+  Map<String, dynamic>? _grievanceContact;
+  Map<String, dynamic>? _privacyProgram;
   String? _pendingFingerprint;
   String? _pendingRequestKey;
 
@@ -34,12 +36,22 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
       _error = null;
     });
     try {
-      final raw = await api.get('/api/v1/privacy/self/requests');
+      final results = await Future.wait([
+        api.get('/api/v1/privacy/self/requests'),
+        api.get('/api/v1/privacy/self/context'),
+      ]);
       if (!mounted) return;
+      final raw = results[0];
+      final context = results[1];
       setState(() {
         _requests = (raw as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .toList();
+        final mapped = context is Map ? Map<String, dynamic>.from(context) : <String, dynamic>{};
+        final contact = mapped['grievanceContact'];
+        final program = mapped['privacyProgram'];
+        _grievanceContact = contact is Map ? Map<String, dynamic>.from(contact) : null;
+        _privacyProgram = program is Map ? Map<String, dynamic>.from(program) : null;
       });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -181,6 +193,43 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               title: 'Household services & staff',
               body: 'Bookings, provider assignments, domestic-help activity and ratings are used to operate the services you request for the selected property.',
             ),
+            if (_privacyProgram != null) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Row(children: [
+                      Icon(Icons.policy_outlined),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('Privacy controls snapshot', style: TextStyle(fontWeight: FontWeight.w900))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('${(_privacyProgram!['categories'] as List? ?? const []).length} active data categories · ${_privacyProgram!['activeConsentCount'] ?? 0} active consent records'),
+                    const SizedBox(height: 10),
+                    for (final raw in (_privacyProgram!['categories'] as List? ?? const []).take(4))
+                      if (raw is Map) Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '${raw['name'] ?? raw['code'] ?? 'Data category'} · ${raw['purpose'] ?? 'Configured purpose'} · Retention: ${raw['retentionTrigger'] ?? 'configured trigger'}${raw['retentionDays'] == null ? '' : ' + ${raw['retentionDays']} days'}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    if ((_privacyProgram!['consents'] as List? ?? const []).isNotEmpty) ...[
+                      const Text('Recorded consent evidence', style: TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      for (final raw in (_privacyProgram!['consents'] as List? ?? const []).take(4))
+                        if (raw is Map) Text(
+                          '${raw['status'] ?? 'UNKNOWN'} · ${raw['dataCategoryCode'] ?? 'General'} · ${raw['purpose'] ?? ''}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(_privacyProgram!['boundary']?.toString() ?? 'Configuration and recorded consent evidence only.', style: theme.textTheme.bodySmall),
+                  ]),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Card(
               child: Padding(
@@ -247,6 +296,38 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
                 ),
               ),
             ),
+            if (_grievanceContact != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.support_agent_outlined),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Privacy help & grievance contact', style: TextStyle(fontWeight: FontWeight.w900))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_grievanceContact!['displayName']?.toString() ?? 'Privacy contact'),
+                      if ((_grievanceContact!['email']?.toString() ?? '').isNotEmpty)
+                        Text(_grievanceContact!['email'].toString()),
+                      if ((_grievanceContact!['phone']?.toString() ?? '').isNotEmpty)
+                        Text(_grievanceContact!['phone'].toString()),
+                      if ((_grievanceContact!['instructions']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(_grievanceContact!['instructions'].toString()),
+                      ],
+                      const SizedBox(height: 6),
+                      Text('This is the configured society contact for privacy questions. It does not determine legal rights or case outcomes.', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (widget.apiClient != null) ...[
               Row(
@@ -318,6 +399,8 @@ class _RequestCardState extends State<_RequestCard> {
     final status = request['status']?.toString() ?? 'OPEN';
     final legalHold = request['legalHold'] == true;
     final created = DateTime.tryParse(request['createdAt']?.toString() ?? '')?.toLocal();
+    final dueAt = DateTime.tryParse(request['dueAt']?.toString() ?? '')?.toLocal();
+    final nextAction = _nextAction(type, status, legalHold);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -335,12 +418,28 @@ class _RequestCardState extends State<_RequestCard> {
               const SizedBox(height: 6),
               Text('Submitted ${created.day}/${created.month}/${created.year}', style: Theme.of(context).textTheme.bodySmall),
             ],
+            const SizedBox(height: 8),
+            Text(nextAction, style: const TextStyle(fontWeight: FontWeight.w700)),
+            if (dueAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Operational target: ${dueAt.day}/${dueAt.month}/${dueAt.year}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if(type=='ACCESS'&&status=='COMPLETED') ...[
               const SizedBox(height:10),
               OutlinedButton.icon(
                 onPressed:_exporting?null:_shareExport,
                 icon:_exporting?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.ios_share_outlined),
                 label:Text(_exporting?'Preparing export…':'Share my data export'),
+              ),
+            ],
+            if(type=='ACCESS'&&status!='COMPLETED') ...[
+              const SizedBox(height:8),
+              Text(
+                'Data export becomes available after this ACCESS request is completed.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
             if (legalHold) ...[
@@ -354,6 +453,26 @@ class _RequestCardState extends State<_RequestCard> {
         ),
       ),
     );
+  }
+
+  static String _nextAction(String type, String status, bool legalHold) {
+    if (legalHold) return 'Retention/legal-hold review is active before this request can be completed.';
+    switch (status) {
+      case 'OPEN':
+        return 'Submitted and waiting for privacy-team review.';
+      case 'IN_REVIEW':
+        return 'Your request is being reviewed.';
+      case 'WAITING':
+        return 'The privacy team is waiting on additional review or information.';
+      case 'COMPLETED':
+        return type == 'ACCESS' ? 'Completed. Your data export is available below.' : 'Completed. No further action is required in the app.';
+      case 'REJECTED':
+        return 'The request was not completed. Contact the configured privacy contact for clarification if needed.';
+      case 'CANCELLED':
+        return 'This request is closed. Submit a new request if your needs have changed.';
+      default:
+        return 'Track this request here for status changes.';
+    }
   }
 
   static String _typeLabel(String type) {

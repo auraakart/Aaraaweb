@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "aaraagate.v4.28.pilot-evidence.v1",
+  "phase": "V4.28",
+  "status": "REPOSITORY_READY_EXTERNAL_PENDING",
+  "pilotSociety": null,
+  "candidateSha": null,
+  "rollbackSha": null,
+  "fieldEvidenceStatus": "NOT_STARTED",
+  "productionDecision": "HOLD_EXTERNAL_EVIDENCE",
+  "repositoryEvidence": [
+    "CI",
+    "V2 Security Privacy Review",
+    "Cross-role E2E Journeys",
+    "V2 Role UAT Contract",
+    "V2 Policy Pilot Contract",
+    "V2 Pilot Acceptance Contract",
+    "V2 Staging Pilot Execution Contract",
+    "V4.11 Pilot Readiness Contract",
+    "V4.28 Deployable Evidence Contract"
+  ],
+  "kpis": [
+    {
+      "id": "V428-GATE-01",
+      "domain": "GATE",
+      "owner": "SECURITY_SUPERVISOR",
+      "title": "Gate handling time",
+      "measurement": "Measure routine arrival creation to final approved or denied gate decision during representative peak periods; report p50 and p95.",
+      "threshold": "Pilot target: p95 <= 45 seconds for routine arrivals and zero authorization bypasses.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-VIS-01",
+      "domain": "VISITOR_APPROVAL",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Visitor approval latency",
+      "measurement": "Measure visitor approval request creation to resident approval or denial for reachable current occupants.",
+      "threshold": "Pilot target: p95 <= 60 seconds for reachable occupants; stale or unauthorized occupants must never receive authority.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-RES-01",
+      "domain": "RESIDENT_ACTIVATION",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Resident activation",
+      "measurement": "Measure invited pilot households that complete sign-in and active-property setup within seven days of invitation.",
+      "threshold": "Pilot target: >= 80% activation within seven days, with unresolved activation failures dispositioned.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-COL-01",
+      "domain": "COLLECTION",
+      "owner": "ACCOUNTANT_TREASURER",
+      "title": "Maintenance collection rate",
+      "measurement": "Measure amount collected against pilot-period amount due using Aaraagate accounting truth, excluding approved waivers or formally deferred balances.",
+      "threshold": "Pilot target: >= 90% collection by the agreed pilot cut-off, or documented society-approved exception.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-PAY-01",
+      "domain": "PAYMENT",
+      "owner": "ACCOUNTANT_TREASURER",
+      "title": "Payment failure rate",
+      "measurement": "Measure attempted provider-backed payments that end failed or unresolved, separately identifying provider, user and reconciliation causes.",
+      "threshold": "Pilot target: <= 2% unexplained or provider-attributable failure rate after reconciliation; zero client-trusted success.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-HLP-01",
+      "domain": "HELPDESK",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Helpdesk SLA attainment",
+      "measurement": "Measure pilot helpdesk tickets resolved or formally escalated within their configured SLA/TAT.",
+      "threshold": "Pilot target: >= 90% SLA attainment and every breach has an owner and disposition.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-AMN-01",
+      "domain": "AMENITIES",
+      "owner": "SOCIETY_ADMIN",
+      "title": "Amenity booking completion",
+      "measurement": "Measure valid booking attempts that reach confirmed or waitlisted outcomes without technical failure, excluding policy/capacity rejections.",
+      "threshold": "Pilot target: >= 95% technically successful valid attempts; zero cross-property booking leakage.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-CRASH-01",
+      "domain": "APP_STABILITY",
+      "owner": "RELEASE_OWNER",
+      "title": "Crash-free sessions",
+      "measurement": "Measure Resident and Guard crash-free session percentage on representative pilot devices using the selected monitoring provider.",
+      "threshold": "Pilot target: >= 99.5% crash-free sessions for both Resident and Guard during the acceptance window.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    },
+    {
+      "id": "V428-SUP-01",
+      "domain": "SUPPORT",
+      "owner": "RELEASE_OWNER",
+      "title": "Support burden",
+      "measurement": "Track pilot support incidents per active household and classify product defect, training, policy and provider causes.",
+      "threshold": "Pilot target: <= 0.25 support incidents per active household per week and zero unresolved Sev-1/Sev-2 blockers.",
+      "status": "PENDING_EXTERNAL",
+      "evidence": []
+    }
+  ],
+  "acceptanceScripts": {
+    "RESIDENT": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "GUARD": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "SOCIETY_ADMIN": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "SECURITY_SUPERVISOR": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "ACCOUNTANT": {"status": "PENDING_EXTERNAL", "evidence": []}
+  },
+  "training": {
+    "RESIDENT": ["sign-in and active-property selection", "visitor approval and gate status", "dues/payment and helpdesk navigation"],
+    "GUARD": ["arrival processing and credential checks", "offline/retry recovery", "incident escalation and fallback"],
+    "SOCIETY_ADMIN": ["onboarding/readiness workspace", "roles/notices/helpdesk governance", "provider and incident escalation"],
+    "SECURITY_SUPERVISOR": ["gate queue oversight", "access integration degradation/fallback", "security incident escalation"],
+    "ACCOUNTANT": ["dues and payment exception review", "bank reconciliation and export verification", "period-close and tax-configuration boundaries"]
+  },
+  "externalProofs": {
+    "HOSTED_STAGING": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "BACKUP_RESTORE": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "MONITORING_ALERTS": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "INCIDENT_TABLETOP": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "LIVE_PROVIDERS": {"status": "PENDING_EXTERNAL", "evidence": []},
+    "ANDROID_SIGNED_PLAY": {"status": "PENDING_EXTERNAL", "evidence": []}
+  },
+  "blockers": {
+    "sev1": [],
+    "sev2": []
+  },
+  "signOff": {
+    "RESIDENT_REPRESENTATIVE": {"status": "NOT_SIGNED", "evidence": []},
+    "GUARD_REPRESENTATIVE": {"status": "NOT_SIGNED", "evidence": []},
+    "SOCIETY_ADMIN": {"status": "NOT_SIGNED", "evidence": []},
+    "SECURITY_SUPERVISOR": {"status": "NOT_SIGNED", "evidence": []},
+    "ACCOUNTANT_TREASURER": {"status": "NOT_SIGNED", "evidence": []},
+    "RELEASE_OWNER": {"status": "NOT_SIGNED", "evidence": []}
+  }
+}

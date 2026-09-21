@@ -1,27 +1,248 @@
 'use client'
 
-import {FormEvent,useCallback,useEffect,useState} from 'react'
+import {FormEvent,useCallback,useEffect,useRef,useState} from 'react'
+import {
+  ActionBar,EmptyState,ErrorState,FormField,PageHeader,PageShell,PrimaryButton,
+  SecondaryButton,SelectField,StatusPill,Timeline,
+} from '../../components/admin-ui'
 
 type Session={accessToken:string;role:string;societyName?:string}
-type DocumentRow={id:string;title:string;description?:string|null;category:string;audience:string;status:string;fileName:string;mimeType:string;sizeBytes:number;version?:number;createdAt?:string;publishedAt?:string|null}
+type DocumentRow={id:string;title:string;description?:string|null;category:string;audience:string;status:string;fileName:string;mimeType:string;sizeBytes:number;version?:number;createdAt?:string;publishedAt?:string|null;unitId?:string|null;unitNumber?:string|null;buildingName?:string|null;supersedesDocumentId?:string|null;supersededByDocumentId?:string|null}
+type UnitOption={id:string;number:string;building:{id:string;name:string;code:string}}
+type DocumentEvent={id:string;eventType:string;fromStatus?:string|null;toStatus?:string|null;note?:string|null;actorName?:string|null;createdAt:string}
 type UploadIntent={storageKey:string;uploadUrl:string;method:string;headers?:Record<string,string>;expiresAt?:string}
 type DownloadIntent={downloadUrl?:string;url?:string;expiresAt?:string}
+
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
+const categories=['BYLAW','POLICY','MEETING_MINUTES','CIRCULAR','COMPLIANCE','CONTRACT','AMC','FINANCE','PROPERTY','OTHER']
+const audiences=['MANAGEMENT','ALL_MEMBERS','OWNERS_ONLY','PROPERTY_OWNER_ONLY']
+
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
-export default function DocumentsPage(){
- const s=typeof window==='undefined'?null:getSession(),allowed=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
- const[rows,setRows]=useState<DocumentRow[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
- const[title,setTitle]=useState(''),[description,setDescription]=useState(''),[category,setCategory]=useState('POLICY'),[audience,setAudience]=useState('MANAGEMENT'),[file,setFile]=useState<File|null>(null)
- const load=useCallback(async()=>{if(!s||!allowed)return;setLoading(true);setError('');try{setRows(await api<DocumentRow[]>(s,'/documents/management'))}catch(e){setError(e instanceof Error?e.message:'Documents could not be loaded')}finally{setLoading(false)}},[s?.accessToken,allowed])
- useEffect(()=>{void load()},[load])
- const run=async(fn:()=>Promise<void>,message:string)=>{setBusy(true);setError('');setSuccess('');try{await fn();setSuccess(message);await load()}catch(e){setError(e instanceof Error?e.message:'Document operation failed')}finally{setBusy(false)}}
- const upload=(e:FormEvent)=>{e.preventDefault();if(!s||!canManage||!file)return;void run(async()=>{const intent=await api<UploadIntent>(s,'/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:file.type,contentLengthBytes:file.size})});const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':file.type},body:file});if(!put.ok)throw new Error(`Secure document upload failed (${put.status})`);await api(s,'/documents/management',{method:'POST',body:JSON.stringify({category,audience,title:title.trim(),description:description.trim()||undefined,storageKey:intent.storageKey,fileName:file.name,mimeType:file.type,sizeBytes:file.size})});setTitle('');setDescription('');setFile(null)},'Document uploaded as a draft after server verification and safety scanning.')}
- const mutate=(id:string,action:'publish'|'archive')=>{if(!s||!canManage)return;void run(()=>api(s,`/documents/management/${id}/${action}`,{method:'PATCH',body:'{}'}).then(()=>undefined),`Document ${action} recorded.`)}
- const download=async(id:string)=>{if(!s)return;setError('');try{const intent=await api<DownloadIntent>(s,`/documents/management/${id}/download-intent`);const url=intent.downloadUrl??intent.url;if(!url)throw new Error('Download intent did not include a URL');window.open(url,'_blank','noopener,noreferrer')}catch(e){setError(e instanceof Error?e.message:'Download could not be started')}}
- if(!s||!allowed)return <main style={page}><h1>Document repository access required</h1><a href={s?.role==='AUDITOR'?'/audit':'/'}>Return</a></main>
- return <main style={page}><header style={header}><div><small>{s.societyName??'Current society'} · {s.role.replaceAll('_',' ')}</small><h1>Society document repository</h1><p>{canManage?'Upload, publish, archive and review society-controlled documents.':'Read-only society document evidence.'}</p></div><a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a></header>{error&&<p style={err}>{error}</p>}{success&&<p style={ok}>{success}</p>}{canManage&&<form onSubmit={upload} style={panel}><h2>Upload draft</h2><div style={grid}><label style={label}>Title<input style={input} value={title} onChange={e=>setTitle(e.target.value)} required maxLength={180}/></label><label style={label}>Category<select style={input} value={category} onChange={e=>setCategory(e.target.value)}>{['BYLAW','POLICY','MEETING_MINUTES','CIRCULAR','COMPLIANCE','CONTRACT','AMC','FINANCE','PROPERTY','OTHER'].map(v=><option key={v}>{v}</option>)}</select></label><label style={label}>Audience<select style={input} value={audience} onChange={e=>setAudience(e.target.value)}>{['MANAGEMENT','ALL_MEMBERS','OWNERS_ONLY','PROPERTY_OWNER_ONLY'].map(v=><option key={v}>{v}</option>)}</select></label><label style={label}>File<input style={input} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]??null)} required/></label></div><label style={label}>Description<textarea style={input} value={description} onChange={e=>setDescription(e.target.value)} maxLength={2000}/></label><button style={primary} disabled={busy||!file}>Upload securely</button><p style={muted}>PDF/JPEG/PNG/WebP, maximum 5 MB. The API validates society scope, object metadata and safety scan before creating the draft.</p></form>}<section style={panel}><h2>Management repository</h2>{loading?<p>Loading…</p>:rows.length===0?<p>No documents.</p>:<div style={list}>{rows.map(d=><article key={d.id} style={row}><div><b>{d.title}</b><span>{d.category.replaceAll('_',' ')} · {d.audience.replaceAll('_',' ')} · {d.status}</span><small>{d.fileName} · {(d.sizeBytes/1024).toFixed(0)} KB{d.version?` · v${d.version}`:''}</small>{d.description&&<p style={{margin:'5px 0 0'}}>{d.description}</p>}</div><div style={actions}><button style={secondary} onClick={()=>void download(d.id)}>Download</button>{canManage&&d.status==='DRAFT'&&<button style={primary} disabled={busy} onClick={()=>mutate(d.id,'publish')}>Publish</button>}{canManage&&d.status!=='ARCHIVED'&&<button style={secondary} disabled={busy} onClick={()=>mutate(d.id,'archive')}>Archive</button>}</div></article>)}</div>}</section></main>
+async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
+  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
+  const text=await r.text();const body=text?JSON.parse(text):null
+  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
+  return body as T
 }
-const page:React.CSSProperties={maxWidth:1180,margin:'0 auto',padding:'28px 22px 80px'},header:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'},panel:React.CSSProperties={marginTop:18,padding:20,border:'1px solid #dbe7ea',borderRadius:16,background:'white'},grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12},label:React.CSSProperties={display:'grid',gap:6,marginTop:10,fontWeight:700},input:React.CSSProperties={padding:10,border:'1px solid #cbd5e1',borderRadius:10,font:'inherit'},primary:React.CSSProperties={padding:'10px 14px',border:0,borderRadius:10,background:'#05879A',color:'white',fontWeight:800},secondary:React.CSSProperties={padding:'9px 12px',border:'1px solid #cbd5e1',borderRadius:10,background:'white',fontWeight:700},list:React.CSSProperties={display:'grid',gap:10},row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:14,alignItems:'center',padding:12,border:'1px solid #e2e8f0',borderRadius:12,flexWrap:'wrap'},actions:React.CSSProperties={display:'flex',gap:8,flexWrap:'wrap'},muted:React.CSSProperties={color:'#64748b',fontSize:13},err:React.CSSProperties={padding:12,background:'#fef2f2',color:'#991b1b',borderRadius:10},ok:React.CSSProperties={padding:12,background:'#ecfdf5',color:'#065f46',borderRadius:10}
+const human=(v:string)=>v.replaceAll('_',' ')
+const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
+
+export default function DocumentsPage(){
+  const s=typeof window==='undefined'?null:getSession()
+  const allowed=!!s&&readRoles.has(s.role)
+  const canManage=!!s&&manageRoles.has(s.role)
+  const[rows,setRows]=useState<DocumentRow[]>([])
+  const[units,setUnits]=useState<UnitOption[]>([])
+  const[history,setHistory]=useState<DocumentEvent[]>([])
+  const[historyDocumentId,setHistoryDocumentId]=useState('')
+  const[loading,setLoading]=useState(true)
+  const[historyLoading,setHistoryLoading]=useState(false)
+  const[busy,setBusy]=useState(false)
+  const[error,setError]=useState('')
+  const[success,setSuccess]=useState('')
+  const[title,setTitle]=useState('')
+  const[description,setDescription]=useState('')
+  const[category,setCategory]=useState('POLICY')
+  const[audience,setAudience]=useState('MANAGEMENT')
+  const[unitId,setUnitId]=useState('')
+  const[file,setFile]=useState<File|null>(null)
+  const[replacementDocumentId,setReplacementDocumentId]=useState('')
+  const[replacementFile,setReplacementFile]=useState<File|null>(null)
+  const[replacementDescription,setReplacementDescription]=useState('')
+  const historyRequest=useRef(0)
+
+  const load=useCallback(async()=>{
+    if(!s||!allowed)return
+    setLoading(true);setError('')
+    try{
+      const[docs,ctx]=await Promise.all([
+        api<DocumentRow[]>(s,'/documents/management'),
+        api<UnitOption[]>(s,'/documents/management/context'),
+      ])
+      setRows(docs);setUnits(ctx)
+      if(replacementDocumentId&&!docs.some(row=>row.id===replacementDocumentId&&row.status==='PUBLISHED'&&!row.supersededByDocumentId)){
+        setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')
+      }
+    }catch(e){setError(e instanceof Error?e.message:'Documents could not be loaded')}
+    finally{setLoading(false)}
+  },[s?.accessToken,allowed,replacementDocumentId])
+
+  useEffect(()=>{void load()},[load])
+
+  const run=async(fn:()=>Promise<void>,message:string)=>{
+    setBusy(true);setError('');setSuccess('')
+    try{await fn();setSuccess(message);await load()}
+    catch(e){setError(e instanceof Error?e.message:'Document operation failed')}
+    finally{setBusy(false)}
+  }
+
+  const upload=(e:FormEvent)=>{
+    e.preventDefault()
+    if(!s||!canManage||!file)return
+    if(audience==='PROPERTY_OWNER_ONLY'&&!unitId){setError('Select the property for a property-owner-only document.');return}
+    void run(async()=>{
+      const intent=await api<UploadIntent>(s,'/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:file.type,contentLengthBytes:file.size})})
+      const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':file.type},body:file})
+      if(!put.ok)throw new Error(`Secure document upload failed (${put.status})`)
+      await api(s,'/documents/management',{method:'POST',body:JSON.stringify({
+        category,audience,title:title.trim(),description:description.trim()||undefined,
+        unitId:audience==='PROPERTY_OWNER_ONLY'?unitId:undefined,storageKey:intent.storageKey,
+        fileName:file.name,mimeType:file.type,sizeBytes:file.size,
+      })})
+      setTitle('');setDescription('');setUnitId('');setFile(null)
+    },'Document uploaded as a draft after server verification and safety scanning.')
+  }
+
+  const mutate=(id:string,action:'publish'|'archive')=>{
+    if(!s||!canManage)return
+    void run(()=>api(s,`/documents/management/${id}/${action}`,{method:'PATCH',body:'{}'}).then(()=>undefined),`Document ${action} recorded.`)
+  }
+
+  const download=async(id:string)=>{
+    if(!s)return
+    setError('')
+    try{
+      const intent=await api<DownloadIntent>(s,`/documents/management/${id}/download-intent`)
+      const url=intent.downloadUrl??intent.url
+      if(!url)throw new Error('Download intent did not include a URL')
+      window.open(url,'_blank','noopener,noreferrer')
+    }catch(e){setError(e instanceof Error?e.message:'Download could not be started')}
+  }
+
+  const openHistory=async(id:string)=>{
+    if(!s)return
+    const requestId=++historyRequest.current
+    setHistoryDocumentId(id);setHistory([]);setHistoryLoading(true);setError('')
+    try{
+      const next=await api<DocumentEvent[]>(s,`/documents/management/${id}/history`)
+      if(requestId===historyRequest.current)setHistory(next)
+    }catch(e){
+      if(requestId===historyRequest.current)setError(e instanceof Error?e.message:'Document history could not be loaded')
+    }finally{
+      if(requestId===historyRequest.current)setHistoryLoading(false)
+    }
+  }
+
+  const closeHistory=()=>{
+    historyRequest.current++
+    setHistoryDocumentId('');setHistory([]);setHistoryLoading(false)
+  }
+
+  const replaceVersion=(e:FormEvent)=>{
+    e.preventDefault()
+    if(!s||!canManage||!replacementDocumentId||!replacementFile)return
+    void run(async()=>{
+      const intent=await api<UploadIntent>(s,'/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:replacementFile.type,contentLengthBytes:replacementFile.size})})
+      const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':replacementFile.type},body:replacementFile})
+      if(!put.ok)throw new Error(`Secure replacement upload failed (${put.status})`)
+      await api(s,`/documents/management/${replacementDocumentId}/replacement`,{method:'POST',body:JSON.stringify({
+        storageKey:intent.storageKey,fileName:replacementFile.name,mimeType:replacementFile.type,
+        sizeBytes:replacementFile.size,description:replacementDescription.trim()||undefined,
+      })})
+      setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')
+    },'Replacement draft created. Publish it to atomically archive the prior version.')
+  }
+
+  if(!s||!allowed)return <PageShell><PageHeader title="Document repository access required" actions={<a href={s?.role==='AUDITOR'?'/audit':'/'}>Return</a>}/></PageShell>
+
+  return <PageShell>
+    <PageHeader
+      context={`${s.societyName??'Current society'} · ${human(s.role)}`}
+      title="Society document repository"
+      description={canManage?'Upload, publish, archive and review society-controlled documents.':'Read-only society document evidence.'}
+      actions={<a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>}
+    />
+    {error&&<ErrorState title="Document operation failed" description={error}/>}
+    <ActionBar feedback={success} label="Document repository actions">
+      <SecondaryButton loading={loading} disabled={busy} onClick={()=>void load()}>Refresh repository</SecondaryButton>
+    </ActionBar>
+
+    {canManage&&<form onSubmit={upload} style={panel}>
+      <h2>Upload draft</h2>
+      <div style={grid}>
+        <FormField label="Title" value={title} onChange={e=>setTitle(e.target.value)} required maxLength={180}/>
+        <SelectField label="Category" value={category} onChange={e=>setCategory(e.target.value)}>
+          {categories.map(v=><option key={v}>{v}</option>)}
+        </SelectField>
+        <SelectField label="Audience" value={audience} onChange={e=>{setAudience(e.target.value);if(e.target.value!=='PROPERTY_OWNER_ONLY')setUnitId('')}}>
+          {audiences.map(v=><option key={v}>{v}</option>)}
+        </SelectField>
+        {audience==='PROPERTY_OWNER_ONLY'&&<SelectField label="Property" value={unitId} onChange={e=>setUnitId(e.target.value)} required>
+          <option value="">Select property</option>{units.map(u=><option key={u.id} value={u.id}>{u.building.name} · {u.number}</option>)}
+        </SelectField>}
+        <FormField label="File" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]??null)} required/>
+      </div>
+      <FormField label="Description" multiline value={description} onChange={e=>setDescription(e.target.value)} maxLength={2000}/>
+      <ActionBar feedback={success}><PrimaryButton type="submit" loading={busy} disabled={!file}>Upload securely</PrimaryButton></ActionBar>
+      <p style={muted}>PDF/JPEG/PNG/WebP, maximum 5 MB. The API validates society scope, object metadata and safety scan before creating the draft.</p>
+    </form>}
+
+    <section style={panel} aria-labelledby="management-repository-heading">
+      <h2 id="management-repository-heading">Management repository</h2>
+      {loading?<p>Loading documents…</p>:rows.length===0?<EmptyState title="No documents" description="No society-controlled documents are available in this workspace."/>:<div style={list}>
+        {rows.map(d=>{
+          const replacementPending=d.status==='PUBLISHED'&&rows.some(candidate=>candidate.supersedesDocumentId===d.id&&candidate.status!=='ARCHIVED')
+          return <article key={d.id} style={row}>
+            <div style={documentMeta}>
+              <div style={statusRow}>
+                <strong>{d.title}</strong>
+                <StatusPill label={human(d.status)} tone={d.status==='PUBLISHED'?'success':d.status==='ARCHIVED'?'neutral':'info'}/>
+                <StatusPill label={human(d.category)} tone="neutral"/>
+                {replacementPending&&<StatusPill label="Replacement pending" tone="warning"/>}
+              </div>
+              <span>{human(d.audience)}</span>
+              <small>{d.fileName} · {(d.sizeBytes/1024).toFixed(0)} KB{d.version?` · v${d.version}`:''}{d.unitNumber?` · ${d.buildingName??'Property'} ${d.unitNumber}`:''}{d.supersedesDocumentId?' · replacement draft':''}{d.supersededByDocumentId?' · superseded':''}</small>
+              {d.description&&<p>{d.description}</p>}
+            </div>
+            <div style={actions}>
+              <SecondaryButton disabled={busy} onClick={()=>void openHistory(d.id)}>History</SecondaryButton>
+              <SecondaryButton onClick={()=>void download(d.id)}>Download</SecondaryButton>
+              {canManage&&d.status==='PUBLISHED'&&!d.supersededByDocumentId&&!replacementPending&&<SecondaryButton disabled={busy} onClick={()=>{setReplacementDocumentId(d.id);setReplacementDescription(d.description??'')}}>Replace version</SecondaryButton>}
+              {canManage&&d.status==='DRAFT'&&<PrimaryButton disabled={busy} onClick={()=>mutate(d.id,'publish')}>Publish</PrimaryButton>}
+              {canManage&&d.status!=='ARCHIVED'&&<SecondaryButton disabled={busy} onClick={()=>mutate(d.id,'archive')}>Archive</SecondaryButton>}
+            </div>
+          </article>
+        })}
+      </div>}
+    </section>
+
+    {replacementDocumentId&&canManage&&<form onSubmit={replaceVersion} style={panel}>
+      <div style={sectionHeader}><div>
+        <h2>Replace published version</h2>
+        <p style={muted}>Creates a new draft. The current published document stays live until the replacement draft is explicitly published.</p>
+      </div><SecondaryButton type="button" onClick={()=>{setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')}}>Cancel</SecondaryButton></div>
+      <FormField label="Replacement file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setReplacementFile(e.target.files?.[0]??null)} required/>
+      <FormField label="Version note" multiline value={replacementDescription} onChange={e=>setReplacementDescription(e.target.value)} maxLength={2000}/>
+      <ActionBar feedback={success}><PrimaryButton type="submit" loading={busy} disabled={!replacementFile}>Create replacement draft</PrimaryButton></ActionBar>
+      <p style={muted}>Publishing the replacement will atomically archive the prior published version and retain both records with append-only version evidence.</p>
+    </form>}
+
+    {historyDocumentId&&<section style={panel} aria-labelledby="document-history-heading">
+      <div style={sectionHeader}><div>
+        <h2 id="document-history-heading">Document history</h2>
+        <p style={muted}>Append-only lifecycle evidence for the selected document.</p>
+      </div><SecondaryButton onClick={closeHistory}>Close</SecondaryButton></div>
+      {historyLoading?<p>Loading document history…</p>:<Timeline
+        label="Document history"
+        emptyLabel="No history events."
+        events={history.map(e=>({
+          id:e.id,label:human(e.eventType),actor:e.actorName??'Recorded actor',
+          dateTime:e.createdAt,timeLabel:fmt(e.createdAt),
+          evidence:<>{(e.fromStatus||e.toStatus)&&<div>{e.fromStatus?`${e.fromStatus} → `:''}{e.toStatus??''}</div>}{e.note&&<div>{e.note}</div>}</>,
+        }))}
+      />}
+    </section>}
+  </PageShell>
+}
+
+const panel:React.CSSProperties={display:'grid',gap:14,padding:20,border:'1px solid var(--line, #d5e8eb)',borderRadius:16,background:'var(--surface, #fff)'}
+const grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,220px),1fr))',gap:12}
+const list:React.CSSProperties={display:'grid',gap:10}
+const row:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:14,alignItems:'center',padding:14,border:'1px solid var(--line, #d5e8eb)',borderRadius:12,flexWrap:'wrap',minWidth:0}
+const documentMeta:React.CSSProperties={display:'grid',gap:6,flex:'1 1 520px',minWidth:0}
+const statusRow:React.CSSProperties={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}
+const actions:React.CSSProperties={display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}
+const sectionHeader:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start',flexWrap:'wrap'}
+const muted:React.CSSProperties={color:'var(--muted, #64748b)',fontSize:13,margin:0}

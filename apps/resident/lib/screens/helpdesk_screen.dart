@@ -278,6 +278,9 @@ class _TicketCard extends StatelessWidget {
     final status = ticket['status']?.toString() ?? 'OPEN';
     final priority = ticket['priority']?.toString() ?? 'NORMAL';
     final category = ticket['category']?.toString().trim() ?? '';
+    final sla = ticket['computedSlaState']?.toString() ?? ticket['slaState']?.toString() ?? 'UNTRACKED';
+    final building = ticket['buildingName']?.toString();
+    final unit = ticket['unitNumber']?.toString();
 
     return PremiumSurface(
       onTap: onTap,
@@ -320,6 +323,15 @@ class _TicketCard extends StatelessWidget {
                       AaraagateStatusPill(label: category, tone: AaraagateStatusTone.neutral),
                   ],
                 ),
+                if (building != null || unit != null) ...[
+                  const SizedBox(height: AaraagateTokens.space2),
+                  Text(
+                    [building, unit].where((value) => value != null && value.trim().isNotEmpty).join(' · '),
+                    style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: AaraagateTokens.space2),
+                AaraagateStatusPill(label: 'SLA ${_displayLabel(sla)}', tone: _slaTone(sla)),
               ],
             ),
           ),
@@ -404,6 +416,12 @@ class _TicketDetailState extends State<_TicketDetail> {
     final scheme = theme.colorScheme;
     final status = widget.ticket['status']?.toString() ?? 'OPEN';
     final priority = widget.ticket['priority']?.toString() ?? 'NORMAL';
+    final sla = widget.ticket['computedSlaState']?.toString() ?? widget.ticket['slaState']?.toString() ?? 'UNTRACKED';
+    final building = widget.ticket['buildingName']?.toString();
+    final unit = widget.ticket['unitNumber']?.toString();
+    final nextAction = _ticketNextAction(widget.ticket);
+    final resolutionCode = widget.ticket['resolutionCode']?.toString();
+    final closureCode = widget.ticket['closureCode']?.toString();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Complaint details')),
@@ -432,12 +450,52 @@ class _TicketDetailState extends State<_TicketDetail> {
                     AaraagateStatusPill(label: _displayLabel(priority), tone: _priorityTone(priority)),
                   ],
                 ),
+                if (building != null || unit != null) ...[
+                  const SizedBox(height: AaraagateTokens.space3),
+                  Text(
+                    [building, unit].where((value) => value != null && value.trim().isNotEmpty).join(' · '),
+                    style: theme.textTheme.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: AaraagateTokens.space3),
+                AaraagateStatusPill(label: 'SLA ${_displayLabel(sla)}', tone: _slaTone(sla)),
                 if ((widget.ticket['description']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: AaraagateTokens.space4),
                   Text(
                     widget.ticket['description'].toString(),
                     style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                   ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AaraagateTokens.space6),
+          const PremiumSectionHeader(
+            title: 'Service recovery',
+            supportingText: 'Current target dates and what to expect next.',
+          ),
+          const SizedBox(height: AaraagateTokens.space3),
+          PremiumSurface(
+            color: scheme.surfaceContainerLow,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('What happens next', style: theme.textTheme.titleMedium),
+                const SizedBox(height: AaraagateTokens.space2),
+                Text(nextAction, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: AaraagateTokens.space4),
+                _RecoveryRow(label: 'First response target', value: _formatTarget(widget.ticket['firstResponseDueAt'])),
+                const SizedBox(height: AaraagateTokens.space2),
+                _RecoveryRow(label: 'Resolution target', value: _formatTarget(widget.ticket['resolutionDueAt'])),
+                if (resolutionCode != null || closureCode != null) ...[
+                  const SizedBox(height: AaraagateTokens.space4),
+                  Text('Resolution evidence', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AaraagateTokens.space2),
+                  if (resolutionCode != null) _RecoveryRow(label: 'Resolution code', value: _displayLabel(resolutionCode)),
+                  if (closureCode != null) ...[
+                    if (resolutionCode != null) const SizedBox(height: AaraagateTokens.space2),
+                    _RecoveryRow(label: 'Closure code', value: _displayLabel(closureCode)),
+                  ],
                 ],
               ],
             ),
@@ -503,6 +561,25 @@ class _TicketDetailState extends State<_TicketDetail> {
   }
 }
 
+class _RecoveryRow extends StatelessWidget {
+  const _RecoveryRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+        const SizedBox(width: AaraagateTokens.space3),
+        Flexible(child: Text(value, textAlign: TextAlign.right, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
+      ],
+    );
+  }
+}
+
 class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.item});
   final Map<String, dynamic> item;
@@ -548,6 +625,43 @@ class _ActivityRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+String _ticketNextAction(Map<String, dynamic> ticket) {
+  final status = ticket['status']?.toString().toUpperCase() ?? 'OPEN';
+  final sla = ticket['computedSlaState']?.toString().toUpperCase() ?? ticket['slaState']?.toString().toUpperCase() ?? 'UNTRACKED';
+  if (status == 'CLOSED') return 'This complaint is closed. The activity timeline keeps the recorded resolution and any reopen history.';
+  if (status == 'RESOLVED') return 'The society team has marked this resolved. Review the recorded resolution and add a comment if more context is needed.';
+  if (sla == 'RESOLUTION_BREACHED') return 'The resolution target has passed. The society team can review or escalate the ticket under its SLA process.';
+  if (sla == 'RESPONSE_BREACHED') return 'The first-response target has passed. Your complaint remains active and visible to the society helpdesk team.';
+  if (status == 'IN_PROGRESS') return 'The society team is working on this complaint. Add any new details in the same thread.';
+  if (sla == 'UNTRACKED') return 'Your complaint is open. A service target may appear after the society applies its helpdesk SLA policy.';
+  return 'Your complaint is open and currently within its configured service target.';
+}
+
+String _formatTarget(dynamic raw) {
+  final date = DateTime.tryParse(raw?.toString() ?? '');
+  if (date == null) return 'Not set';
+  final local = date.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$day/$month/${local.year} · $hour:$minute';
+}
+
+AaraagateStatusTone _slaTone(String state) {
+  switch (state.toUpperCase()) {
+    case 'MET':
+      return AaraagateStatusTone.success;
+    case 'RESPONSE_BREACHED':
+    case 'RESOLUTION_BREACHED':
+      return AaraagateStatusTone.danger;
+    case 'ON_TRACK':
+      return AaraagateStatusTone.info;
+    default:
+      return AaraagateStatusTone.neutral;
   }
 }
 

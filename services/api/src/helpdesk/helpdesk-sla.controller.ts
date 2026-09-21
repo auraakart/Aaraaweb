@@ -53,6 +53,12 @@ export class HelpdeskSlaController {
     return this.sla.listQueue(societyId);
   }
 
+  @Get(':ticketId/readiness')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  readiness(@CurrentTenant() societyId: string, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
+    return this.sla.readiness(societyId, ticketId);
+  }
+
   @Post(':ticketId/apply-policy')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   applyPolicy(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
