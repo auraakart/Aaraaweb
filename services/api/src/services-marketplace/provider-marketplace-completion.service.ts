@@ -62,6 +62,11 @@ export class ProviderMarketplaceCompletionService {
   }
 
   async saveMyApplication(userId: string,input: ProviderApplicationInput) {
+    const providerMappings=await this.prisma.$queryRaw<Array<{providerId:string}>>(Prisma.sql`
+      SELECT "providerId" FROM "ConsumerProviderOperator"
+      WHERE "userId"=${userId}::uuid AND "active"=true LIMIT 1
+    `);
+    if(providerMappings[0]) throw new BadRequestException('User already has an active provider operator mapping');
     const active=await this.prisma.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`
       SELECT "id","status" FROM "ProviderOnboardingApplication"
       WHERE "applicantUserId"=${userId}::uuid AND "status" IN ('DRAFT','SUBMITTED','UNDER_REVIEW') LIMIT 1
@@ -114,6 +119,12 @@ export class ProviderMarketplaceCompletionService {
       if(!['SUBMITTED','UNDER_REVIEW'].includes(app.status)) throw new BadRequestException('Provider application is not reviewable');
       let providerId:string|null=app.providerId??null;
       if(decision==='APPROVE'&&!providerId){
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${app.applicantUserId}::text))`);
+        const activeMappings=await tx.$queryRaw<Array<{providerId:string}>>(Prisma.sql`
+          SELECT "providerId" FROM "ConsumerProviderOperator"
+          WHERE "userId"=${app.applicantUserId}::uuid AND "active"=true LIMIT 1
+        `);
+        if(activeMappings[0]) throw new BadRequestException('Applicant already has an active provider operator mapping');
         const provider=await tx.serviceProvider.create({data:{
           businessName:app.businessName,contactName:app.contactName,phone:app.phone,email:app.email,description:app.description,verification:ProviderVerificationStatus.VERIFIED,active:true,
         },select:{id:true}});
@@ -210,7 +221,7 @@ export class ProviderMarketplaceCompletionService {
       if(decision==='ACCEPT'){
         const postalCode=booking.addressSnapshot?.postalCode;
         if(typeof postalCode!=='string') throw new BadRequestException('Booking delivery postal code is unavailable');
-        await this.availability.lockAndAssertBookable(tx,booking.offeringId,booking.providerId,postalCode,new Date(proposal.proposedFrom),new Date(proposal.proposedUntil));
+        await this.availability.lockAndAssertBookable(tx,booking.offeringId,booking.providerId,postalCode,new Date(proposal.proposedFrom),new Date(proposal.proposedUntil),bookingId);
         await tx.$executeRaw(Prisma.sql`
           UPDATE "ConsumerServiceBooking" SET "scheduledFrom"=${proposal.proposedFrom},"scheduledUntil"=${proposal.proposedUntil},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${bookingId}::uuid
         `);

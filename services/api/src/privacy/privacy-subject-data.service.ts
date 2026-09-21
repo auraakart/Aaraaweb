@@ -22,7 +22,7 @@ export class PrivacySubjectDataService {
     if(privacyCase.requestType!=='ACCESS') throw new BadRequestException('Only completed ACCESS requests can generate a data export');
     if(privacyCase.status!=='COMPLETED') throw new BadRequestException('Data export becomes available after the ACCESS request is completed');
 
-    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings]=await Promise.all([
+    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,offeringEvents]=await Promise.all([
       this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","phone","email","name","status","createdAt","updatedAt"
         FROM "User" WHERE "id"=${userId}::uuid LIMIT 1
@@ -71,10 +71,39 @@ export class PrivacySubjectDataService {
                "scheduledFrom","scheduledUntil","servicePricePaise","notes","createdAt","updatedAt"
         FROM "ConsumerServiceBooking" WHERE "userId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT "id","providerId","businessName","contactName","phone","email","description","requestedCategoryIds","evidenceRefs","status",
+               "reviewNote","submittedAt","reviewedAt","createdAt","updatedAt"
+        FROM "ProviderOnboardingApplication" WHERE "applicantUserId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 100
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT p."id",p."bookingId",p."providerId",p."proposedFrom",p."proposedUntil",p."note",p."status",p."createdAt",p."respondedAt"
+        FROM "ProviderBookingProposal" p
+        LEFT JOIN "ConsumerServiceBooking" b ON b."id"=p."bookingId"
+        WHERE b."userId"=${userId}::uuid OR p."createdByUserId"=${userId}::uuid OR p."respondedByUserId"=${userId}::uuid
+        ORDER BY p."createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT e."id",e."bookingId",e."providerId",e."evidenceType",e."reference",e."note",e."occurredAt"
+        FROM "ConsumerServiceCompletionEvidence" e
+        LEFT JOIN "ConsumerServiceBooking" b ON b."id"=e."bookingId"
+        WHERE b."userId"=${userId}::uuid OR e."actorUserId"=${userId}::uuid
+        ORDER BY e."occurredAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT d."id",d."bookingId",d."providerId",d."reasonCode",d."detail",d."status",d."resolutionNote",d."resolvedAt",d."createdAt",d."updatedAt"
+        FROM "ConsumerServiceDispute" d
+        WHERE d."userId"=${userId}::uuid OR d."resolvedByUserId"=${userId}::uuid
+        ORDER BY d."createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"
+        FROM "ServiceOfferingProviderEvent" WHERE "actorUserId"=${userId}::uuid ORDER BY "occurredAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
     ]);
 
     return {
-      schemaVersion:'2026-09-18',
+      schemaVersion:'2026-09-21-v435',
       generatedAt:new Date().toISOString(),
       requestId:caseId,
       context:{societyId:societyId??null},
@@ -86,6 +115,11 @@ export class PrivacySubjectDataService {
       payments,
       consumerHomes,
       consumerServiceBookings:consumerBookings,
+      providerOnboardingApplications:providerApplications,
+      consumerServiceBookingProposals:bookingProposals,
+      consumerServiceCompletionEvidence:completionEvidence,
+      consumerServiceDisputes:serviceDisputes,
+      serviceOfferingProviderEvents:offeringEvents,
       privacyRequests,
       exclusions:[
         'Authentication token hashes, credentials, secrets and third-party processor secrets are never included.',
@@ -129,7 +163,12 @@ export class PrivacySubjectDataService {
         'active authentication sessions',
         'push notification device registrations',
         'pseudonymous product-usage events attributable to the subject',
-        ...(societyId?[]:['independent-home address records are anonymised while immutable booking references remain intact','canonical account phone/email/name']),
+        ...(societyId?[]:[
+          'independent-home address records are anonymised while immutable booking references remain intact',
+          'provider-onboarding contact and evidence-reference fields',
+          'consumer-service proposal/evidence/dispute free-text fields',
+          'canonical account phone/email/name',
+        ]),
       ],
       retain:[
         'financial/accounting evidence',
@@ -161,6 +200,10 @@ export class PrivacySubjectDataService {
       `);
 
       let homes=0;
+      let providerApplicationsMinimised=0;
+      let bookingProposalsMinimised=0;
+      let completionEvidenceMinimised=0;
+      let serviceDisputesMinimised=0;
       let accountAnonymized=false;
       if(!societyId){
         homes=await tx.$executeRaw(Prisma.sql`
@@ -168,6 +211,28 @@ export class PrivacySubjectDataService {
           SET "label"='Erased home',"addressLine1"='Erased',"addressLine2"=NULL,
               "locality"='Erased',"city"='Erased',"state"='Erased',"postalCode"='999999',
               "latitude"=NULL,"longitude"=NULL,"active"=false,"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "userId"=${userId}::uuid
+        `);
+        providerApplicationsMinimised=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ProviderOnboardingApplication"
+          SET "contactName"=NULL,"phone"=${`erased:${userId}`},"email"=NULL,"description"=NULL,"evidenceRefs"='[]'::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "applicantUserId"=${userId}::uuid
+        `);
+        bookingProposalsMinimised=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ProviderBookingProposal" p
+          SET "note"=NULL
+          WHERE p."createdByUserId"=${userId}::uuid OR p."respondedByUserId"=${userId}::uuid
+             OR EXISTS (SELECT 1 FROM "ConsumerServiceBooking" b WHERE b."id"=p."bookingId" AND b."userId"=${userId}::uuid)
+        `);
+        completionEvidenceMinimised=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ConsumerServiceCompletionEvidence" e
+          SET "reference"=NULL,"note"=NULL
+          WHERE e."actorUserId"=${userId}::uuid
+             OR EXISTS (SELECT 1 FROM "ConsumerServiceBooking" b WHERE b."id"=e."bookingId" AND b."userId"=${userId}::uuid)
+        `);
+        serviceDisputesMinimised=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ConsumerServiceDispute"
+          SET "detail"='Erased by privacy request',"resolutionNote"=NULL,"updatedAt"=CURRENT_TIMESTAMP
           WHERE "userId"=${userId}::uuid
         `);
         await tx.$executeRaw(Prisma.sql`
@@ -192,7 +257,19 @@ export class PrivacySubjectDataService {
         RETURNING "id"
       `);
       if(!rows[0]) throw new BadRequestException('Privacy case changed; refresh and retry');
-      const evidence={scope:societyId?'SOCIETY':'PLATFORM',revokedSessions:revoked,deletedDeviceRegistrations:devices,deletedUsageEvents:usage,anonymisedConsumerHomes:homes,accountAnonymized,retainedCategories:plan.retain};
+      const evidence={
+        scope:societyId?'SOCIETY':'PLATFORM',
+        revokedSessions:revoked,
+        deletedDeviceRegistrations:devices,
+        deletedUsageEvents:usage,
+        anonymisedConsumerHomes:homes,
+        providerApplicationsMinimised,
+        bookingProposalsMinimised,
+        completionEvidenceMinimised,
+        serviceDisputesMinimised,
+        accountAnonymized,
+        retainedCategories:plan.retain,
+      };
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "PrivacyRequestEvent" ("societyId","caseId","actorUserId","eventType","summary","metadataJson")
         VALUES (${societyId??null}::uuid,${caseId}::uuid,${actorUserId}::uuid,'ERASURE_EXECUTED',
