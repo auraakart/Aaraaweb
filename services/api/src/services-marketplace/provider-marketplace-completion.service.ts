@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -153,7 +153,7 @@ export class ProviderMarketplaceCompletionService {
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
         RETURNING *
       `); return result[0];
-    }catch(e){throw new BadRequestException('A pending proposal already exists for this booking');}
+    }catch{throw new BadRequestException('A pending proposal already exists for this booking');}
   }
 
   async listConsumerProposals(userId:string,bookingId:string){
@@ -222,7 +222,7 @@ export class ProviderMarketplaceCompletionService {
         INSERT INTO "ConsumerServiceDispute" ("id","bookingId","userId","providerId","reasonCode","detail")
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,${booking.providerId}::uuid,${reasonCode.trim()},${detail.trim()}) RETURNING *
       `); return rows[0];
-    }catch(e){throw new BadRequestException('An open dispute already exists for this booking');}
+    }catch{throw new BadRequestException('An open dispute already exists for this booking');}
   }
 
   async listMyDisputes(userId:string){
@@ -254,11 +254,12 @@ export class ProviderMarketplaceCompletionService {
 
   async setAvailabilityException(userId:string,offeringId:string,input:AvailabilityExceptionInput){
     await this.assertOwnedOffering(userId,offeringId);
-    const d=new Date(`${input.serviceDate}T00:00:00.000Z`); if(Number.isNaN(d.getTime())) throw new BadRequestException('Invalid service date');
+    const serviceDate=input.serviceDate.slice(0,10);
+    const d=new Date(`${serviceDate}T00:00:00.000Z`); if(Number.isNaN(d.getTime())) throw new BadRequestException('Invalid service date');
     if(!input.closed && input.slotCapacity===undefined) throw new BadRequestException('Open date override requires slot capacity');
     const rows=await this.prisma.$queryRaw<any[]>(Prisma.sql`
       INSERT INTO "ConsumerOfferingAvailabilityException" ("id","offeringId","serviceDate","closed","slotCapacity","note","active")
-      VALUES (${randomUUID()}::uuid,${offeringId}::uuid,${input.serviceDate}::date,${input.closed},${input.slotCapacity??null},${input.note?.trim()||null},${input.active??true})
+      VALUES (${randomUUID()}::uuid,${offeringId}::uuid,${serviceDate}::date,${input.closed},${input.slotCapacity??null},${input.note?.trim()||null},${input.active??true})
       ON CONFLICT ("offeringId","serviceDate") DO UPDATE SET "closed"=EXCLUDED."closed","slotCapacity"=EXCLUDED."slotCapacity","note"=EXCLUDED."note","active"=EXCLUDED."active","updatedAt"=CURRENT_TIMESTAMP
       RETURNING *
     `); return rows[0];
