@@ -27,22 +27,27 @@ const roots=new Set();
 let literalOperations=0;
 for(const file of files){
   const source=fs.readFileSync(file,'utf8');
-  const controller=source.match(/@Controller\(\s*['"`]([^'"`]+)['"`]\s*\)/);
-  if(!controller)continue;
-  const prefix=controller[1];
-  roots.add(prefix.split('/')[0]);
-  const methods=/@(Get|Post|Put|Patch|Delete)\(\s*(?:['"`]([^'"`]*)['"`])?\s*\)/g;
-  let match;
-  while((match=methods.exec(source))){
-    const method=match[1].toLowerCase();
-    const route=routePath(prefix,match[2]||'');
-    const key=`${method.toUpperCase()} ${route}`;
-    if(routes.has(key)){
-      console.error(`Duplicate literal API route: ${key} in ${path.relative(root,file)} and ${routes.get(key)}`);
-      process.exit(1);
+  const controllers=[...source.matchAll(/@Controller\(\s*['"`]([^'"`]+)['"`]\s*\)/g)];
+  for(let index=0;index<controllers.length;index++){
+    const controller=controllers[index];
+    const prefix=controller[1];
+    roots.add(prefix.split('/')[0]);
+    const start=controller.index??0;
+    const end=index+1<controllers.length?(controllers[index+1].index??source.length):source.length;
+    const segment=source.slice(start,end);
+    const methods=/@(Get|Post|Put|Patch|Delete)\(\s*(?:['"`]([^'"`]*)['"`])?\s*\)/g;
+    let match;
+    while((match=methods.exec(segment))){
+      const method=match[1].toLowerCase();
+      const route=routePath(prefix,match[2]||'');
+      const key=`${method.toUpperCase()} ${route}`;
+      if(routes.has(key)){
+        console.error(`Duplicate literal API route: ${key} in ${path.relative(root,file)} and ${routes.get(key)}`);
+        process.exit(1);
+      }
+      routes.set(key,path.relative(root,file));
+      literalOperations++;
     }
-    routes.set(key,path.relative(root,file));
-    literalOperations++;
   }
 }
 if(literalOperations<policy.minimumLiteralOperations){
