@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../data/guard_api.dart';
+import '../data/models/guard_boundary_models.dart';
 import '../data/workforce_offline_queue.dart';
 import '../guard_controller.dart';
 import '../widgets/guard_state_card.dart';
@@ -17,7 +18,7 @@ class GuardWorkforceScreen extends StatefulWidget {
 class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   final _search = TextEditingController();
   final _queue = const WorkforceOfflineQueue();
-  List<Map<String, dynamic>> _workers = const [];
+  List<GuardWorkforceAssignment> _workers = const [];
   int _queued = 0;
   bool _busy = false;
   String? _error;
@@ -134,10 +135,10 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     return base64Url.encode(bytes).replaceAll('=', '');
   }
 
-  Future<void> _mutate(Map<String, dynamic> assignment, String type) async {
+  Future<void> _mutate(GuardWorkforceAssignment assignment, String type) async {
     final gateId = widget.controller.gateId;
-    final assignmentId = assignment['id']?.toString();
-    if (gateId == null || assignmentId == null || assignmentId.isEmpty) return;
+    final assignmentId = assignment.id;
+    if (gateId == null || assignmentId.isEmpty) return;
     final key = _idempotencyKey();
     final session = widget.controller.session;
     if (session == null) {
@@ -181,13 +182,6 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  String _unitLabel(Map<String, dynamic> assignment) {
-    final household = assignment['household'] is Map ? Map<String, dynamic>.from(assignment['household'] as Map) : const <String, dynamic>{};
-    final unit = household['unit'] is Map ? Map<String, dynamic>.from(household['unit'] as Map) : const <String, dynamic>{};
-    final building = unit['building'] is Map ? Map<String, dynamic>.from(unit['building'] as Map) : const <String, dynamic>{};
-    return '${building['name'] ?? building['code'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}';
   }
 
   @override
@@ -254,9 +248,8 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
               if (!_busy && _workers.isEmpty)
                 const GuardStateCard(icon: Icons.person_search_outlined, message: 'No eligible workers found for the current schedule.'),
               ..._workers.map((assignment) {
-                final worker = assignment['worker'] is Map ? Map<String, dynamic>.from(assignment['worker'] as Map) : const <String, dynamic>{};
-                final name = worker['name']?.toString() ?? 'Worker';
-                final role = worker['role']?.toString().replaceAll('_', ' ') ?? 'STAFF';
+                final name = assignment.workerName;
+                final role = assignment.workerRole.replaceAll('_', ' ');
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Material(
@@ -278,7 +271,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                               const SizedBox(height: 3),
-                              Text('$role · ${_unitLabel(assignment)}', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                              Text('$role · ${assignment.buildingName} · ${assignment.unitNumber}', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
                             ])),
                             Icon(Icons.verified_rounded, color: scheme.primary),
                           ]),

@@ -37,8 +37,11 @@ See `docs/USER-CONTEXT-MODEL.md` for the security and UX rules.
 
 ## Branching
 
-- `main` — stable baseline
+- `main` — stable promoted baseline
+- `staging` — release-candidate validation and promotion branch
 - `develop` — active integration branch
+
+Canonical promotion flow: `feature/* → develop → staging → main`. Avoid ancestry-repair branches during normal delivery; use them only for explicit recovery.
 
 See `docs/architecture/README.md` for the architecture baseline.
 

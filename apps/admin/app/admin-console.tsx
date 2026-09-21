@@ -2,13 +2,13 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { operatorConfirm, operatorPrompt } from '../lib/operator-dialog'
+import { adminRoles, viewsForRole, type AdminView as View } from '../lib/admin-access'
 
 type Session={sessionId:string;accessToken:string;refreshToken:string;societyId:string;role:string;societyName:string}
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
 type Ticket={id:string;title:string;description:string;category?:string;priority:string;status:string;buildingName?:string;unitNumber?:string;createdByName?:string}
 type Activity={id:string;type:string;message?:string;actorName?:string;occurredAt:string}
 type Notice={id:string;title:string;body:string;category?:string;audience:'OWNER_ONLY'|'OWNER_AND_OCCUPANTS';status:string;createdAt:string}
-type View='overview'|'residents'|'gates'|'workforce'|'marketplace'|'sos'|'helpdesk'|'notices'|'billing'
 type Building={id:string;name:string;code:string}
 type Unit={id:string;number:string;buildingId:string}
 type Person={id:string;name:string;status:string}
@@ -32,18 +32,6 @@ type ServiceBooking={id:string;status:'REQUESTED'|'CONFIRMED'|'CANCELLED'|'IN_PR
 type SosIncident={id:string;status:'ACTIVE'|'ACKNOWLEDGED'|'RESOLVED'|'CANCELLED';message?:string|null;latitude?:number|null;longitude?:number|null;unitNumber:string;buildingName:string;residentName:string;residentPhone:string;acknowledgedAt?:string|null;resolvedAt?:string|null;createdAt:string}
 type SosEvent={id:string;action:string;fromStatus?:string|null;toStatus:string;note?:string|null;actorName:string;occurredAt:string}
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
-const roleViews:Readonly<Record<string,readonly View[]>>={
-  SUPER_ADMIN:['overview','residents','gates','workforce','marketplace','sos','helpdesk','notices','billing'],
-  SOCIETY_ADMIN:['overview','residents','gates','workforce','marketplace','sos','helpdesk','notices','billing'],
-  COMMITTEE_MEMBER:['overview','gates','sos','helpdesk','notices'],
-  FACILITY_MANAGER:['overview','gates','workforce','marketplace','sos','helpdesk','notices'],
-  ACCOUNTANT:['billing'],
-  SECURITY_SUPERVISOR:['gates','sos'],
-}
-const adminRoles=new Set(Object.keys(roleViews))
-
-function viewsForRole(role:string):View[]{return [...(roleViews[role]??[])]}
-
 async function api<T>(path:string,init:RequestInit={},session?:Session):Promise<T>{
   const response=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`} : {}),...init.headers}})
   const text=await response.text();const body=text?JSON.parse(text) as unknown:null

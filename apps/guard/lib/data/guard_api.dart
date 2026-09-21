@@ -152,12 +152,12 @@ class GuardApi {
   Future<Map<String, dynamic>> returnParcel(String parcelId, String reason) async =>
       Map<String, dynamic>.from(await _send('PATCH', '/parcels/desk/$parcelId/return', body: {'reason': reason.trim()}) as Map);
 
-  Future<List<Map<String, dynamic>>> eligibleWorkforce({String? query}) async {
+  Future<List<GuardWorkforceAssignment>> eligibleWorkforce({String? query}) async {
     final normalized = query?.trim();
     final suffix = normalized == null || normalized.isEmpty ? '' : '?query=${Uri.encodeQueryComponent(normalized)}';
     final value = await _send('GET', '/workforce/gate/eligible$suffix');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardWorkforceAssignment.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> workforceCheckIn({required String gateId, required String assignmentId, required String idempotencyKey}) async =>
