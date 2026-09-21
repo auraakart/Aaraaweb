@@ -47,6 +47,19 @@ Provider:
 Platform:
 - `POST /api/v1/platform/services/providers/:providerId/operators`
 
-## Deliberately deferred
+## V4.35 extension
 
-Provider onboarding application workflow, KYC/document upload, provider-side price edits, provider-side catalogue creation, agent login, booking acceptance, dispatch transitions, payout/settlement, tax configuration, live GPS, masked calling and production gateway integration remain separate milestones.
+V4.35 extends this foundation with:
+- authenticated provider onboarding draft/submission using non-sensitive evidence references;
+- platform review under `PLATFORM_PROVIDER_VERIFY` before provider verification;
+- provider-created and provider-updated catalogue offerings with category validation and append-only offering events;
+- provider booking acceptance plus schedule counter-proposals requiring explicit consumer acceptance;
+- date-specific closure/capacity exceptions layered onto weekly availability;
+- provider readiness across catalogue, coverage, availability and active agents;
+- existing agent login/dispatch and settlement-readiness capabilities retained.
+
+Provider verification remains a distinct platform decision. Application approval creates the provider/operator relationship but does not itself claim live KYC certification.
+
+## Still external / deferred
+
+Live KYC/document-verification providers, production payment gateway behavior, bank payout execution, tax-filing/compliance integrations, live GPS and masked calling remain outside repository completion.
