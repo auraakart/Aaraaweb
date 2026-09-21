@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../models/service_catalog_models.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
@@ -37,6 +38,11 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> serviceCategories = const [];
   List<Map<String, dynamic>> serviceOfferings = const [];
   List<Map<String, dynamic>> bookings = const [];
+
+  List<ServiceOfferingSummary> get serviceOfferingModels => serviceOfferings
+      .map(ServiceOfferingSummary.tryParse)
+      .whereType<ServiceOfferingSummary>()
+      .toList(growable: false);
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];

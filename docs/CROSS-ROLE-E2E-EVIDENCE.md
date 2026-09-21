@@ -35,3 +35,17 @@ It does **not** claim physical-device UI automation, network/radio behavior, pus
 ## Failure policy
 
 Any non-2xx HTTP response, unexpected state, idempotency mismatch, tenant/role authorization failure, or missing Admin evidence fails the workflow and blocks the exact candidate.
+
+
+## V4.34 cross-app contract expansion
+
+V4.34 adds a repository source-contract check before the live HTTP visitor journey. It verifies that six high-value business journeys retain aligned client, API and operator boundaries:
+
+- Gate: Resident invite → Guard verify/check-in → API Access → Admin reporting.
+- Payments: Resident payable/payment paths → Billing → Accounting → Admin Finance.
+- Occupancy: Resident lifecycle visibility → Residents/occupancy API → Admin occupancy lifecycle.
+- Helpdesk: Resident ticket paths → Helpdesk API → Admin Helpdesk.
+- Amenities: Resident booking paths → Amenities API → Admin Amenities.
+- Parcels: Resident parcel paths → Guard Parcel Desk → Parcels API → Admin Parcel Desk.
+
+This contract is intentionally not described as field E2E for the five non-visitor journeys. The existing visitor journey remains the production-mode HTTP/database/Redis multi-role E2E. The added source contract prevents endpoint/client/operator drift while domain API tests, authorization tests and UI tests continue to validate behavior within each bounded context.

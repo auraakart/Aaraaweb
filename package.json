@@ -8,7 +8,9 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check:competitive-readiness": "node scripts/check-competitive-readiness.mjs"
+    "check:competitive-readiness": "node scripts/check-competitive-readiness.mjs",
+    "check:api-contract": "node scripts/check-v4.36-api-contract.mjs",
+    "check:v4.36": "node scripts/check-v4.36-architecture-convergence.mjs && node scripts/check-v4.36-api-contract.mjs"
   },
   "pnpm": {
     "overrides": {

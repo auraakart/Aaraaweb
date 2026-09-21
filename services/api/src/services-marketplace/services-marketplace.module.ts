@@ -45,6 +45,14 @@ import { ProviderSettlementService } from './provider-settlement.service';
 import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
 import { ProviderTrustReviewController } from './provider-trust-review.controller';
 import { ProviderTrustReviewService } from './provider-trust-review.service';
+import {
+  ConsumerMarketplaceCompletionController,
+  PlatformMarketplaceCompletionController,
+  PlatformProviderApplicationController,
+  ProviderMarketplaceCompletionController,
+  ProviderOnboardingController,
+} from './provider-marketplace-completion.controller';
+import { ProviderMarketplaceCompletionService } from './provider-marketplace-completion.service';
 import { ServiceBookingAccessService } from './service-booking-access.service';
 import { ServiceBookingHistoryController } from './service-booking-history.controller';
 import { ServiceBookingHistoryService } from './service-booking-history.service';
@@ -85,6 +93,11 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ProviderOfferingContinuityController,
     ProviderSettlementPlatformController,
     ProviderSettlementSelfServiceController,
+    ProviderOnboardingController,
+    PlatformProviderApplicationController,
+    ProviderMarketplaceCompletionController,
+    ConsumerMarketplaceCompletionController,
+    PlatformMarketplaceCompletionController,
   ],
   providers: [
     PrismaService,
@@ -114,6 +127,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ProviderMediaService,
     ProviderOfferingContinuityService,
     ProviderSettlementService,
+    ProviderMarketplaceCompletionService,
     ProviderTrustReviewService,
   ],
   exports: [ServicesMarketplaceService],

@@ -1,3 +1,5 @@
+> **Current-state notice (2026-09-21):** Superseded for current-state review by V4.35 Services Marketplace Completion. This document is retained as historical milestone evidence. Use [CURRENT-CAPABILITY-INDEX.md](CURRENT-CAPABILITY-INDEX.md) for the current implementation state.
+
 # Consumer service payment readiness
 
 ## Objective
@@ -77,11 +79,9 @@ Exact commercial refund windows/penalties remain deferred until product policy i
 
 ## Settlement boundary
 
-Provider payout/settlement is not implemented in this milestone.
+The original readiness milestone did not implement settlement. The repository now contains a separate append-only provider-settlement ledger and provider read-only earnings/settlement views. That later implementation does not change the payment aggregate described here and does not execute bank payouts.
 
-The schema reserves a provider-attributable amount field so a later settlement ledger can snapshot approved commercial economics without recomputing or mutating captured payment history.
-
-Future settlement must be append-only/auditable.
+V4.35 preserves this boundary: catalogue edits, schedule proposals, completion evidence and disputes cannot rewrite captured payment or settlement truth.
 
 ## Audit events
 

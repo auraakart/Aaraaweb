@@ -1,3 +1,5 @@
+> **Current-state notice (2026-09-21):** Superseded for current-state review by V4.35 Services Marketplace Completion. This document is retained as historical milestone evidence. Use [CURRENT-CAPABILITY-INDEX.md](CURRENT-CAPABILITY-INDEX.md) for the current implementation state.
+
 # Consumer service completion handoff
 
 ## Objective
@@ -48,6 +50,17 @@ Payment state is intentionally unchanged. This milestone does not invent payment
 
 The completion path is Bearer-authenticated external-marketplace functionality. It does not use `TenantGuard`, does not grant society or gate permissions, and works identically whether the service delivery location is an independent home or a society unit.
 
-## Deferred
+## V4.35 extension
 
-Completion rejection/dispute workflow, proof-of-work media, OTP/signature confirmation, ratings/reviews, push notifications, GPS/ETA, masked calling, automatic society gate-entry linkage, provider payouts and production payment-gateway behavior remain separate milestones.
+V4.35 adds:
+- append-only provider completion evidence using bounded note/reference metadata;
+- consumer access to completion evidence before confirmation;
+- consumer dispute initiation after service has started;
+- platform dispute resolution with an explicit resolution note;
+- no implicit payment, settlement or booking-state mutation from dispute resolution.
+
+Ratings/reviews and completion-request push notifications already exist elsewhere in the marketplace module and remain separate from the dispute record.
+
+## Still external / deferred
+
+Proof-of-work binary media capture, OTP/signature completion, live GPS/ETA, masked calling, production payout execution and production payment-gateway behavior remain external or later product scope.

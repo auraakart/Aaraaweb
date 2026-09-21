@@ -8,6 +8,7 @@ function sqlValues(call: unknown): unknown[] {
 function setup() {
   const prisma = {
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn().mockResolvedValue(0),
     serviceProvider: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
     serviceOffering: { findMany: vi.fn(), findFirst: vi.fn() },
@@ -170,6 +171,7 @@ describe('ConsumerProviderOperatorService', () => {
       'Accepted by provider',
       'PROVIDER_ACCEPTED',
     );
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose another providers booking through the response action', async () => {

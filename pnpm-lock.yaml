@@ -16,6 +16,15 @@ importers:
 
   apps/admin:
     dependencies:
+      '@aaraagate/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@aaraagate/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@aaraagate/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)
@@ -56,6 +65,12 @@ importers:
       typescript-eslint:
         specifier: ^8.0.0
         version: 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+
+  packages/api-client: {}
+
+  packages/config: {}
+
+  packages/types: {}
 
   services/api:
     dependencies:
