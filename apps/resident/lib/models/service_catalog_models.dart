@@ -60,7 +60,7 @@ class ServiceOfferingSummary {
     final name = json['name']?.toString() ?? '';
     final providerRaw = json['provider'];
     final categoryRaw = json['category'];
-    if (id.isEmpty || categoryId.isEmpty || name.isEmpty || providerRaw is! Map || categoryRaw is! Map) return null;
+    if (id.isEmpty || categoryId.isEmpty || name.isEmpty || providerRaw is! Map) return null;
     return ServiceOfferingSummary(
       raw: Map<String, dynamic>.unmodifiable(json),
       id: id,
@@ -70,7 +70,9 @@ class ServiceOfferingSummary {
       pricePaise: (json['pricePaise'] as num?)?.toInt() ?? 0,
       durationMinutes: (json['durationMinutes'] as num?)?.toInt(),
       provider: ServiceProviderSummary.fromJson(Map<String, dynamic>.from(providerRaw)),
-      category: ServiceCategorySummary.fromJson(Map<String, dynamic>.from(categoryRaw)),
+      category: categoryRaw is Map
+          ? ServiceCategorySummary.fromJson(Map<String, dynamic>.from(categoryRaw))
+          : ServiceCategorySummary(id: categoryId, name: ''),
     );
   }
 
