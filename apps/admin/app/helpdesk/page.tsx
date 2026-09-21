@@ -36,12 +36,11 @@ const statusOptions=['OPEN','IN_PROGRESS','RESOLVED','CLOSED']
 const resolutionCodes=['FIXED','WORKAROUND','DUPLICATE','NOT_REPRODUCIBLE','REQUEST_WITHDRAWN','OTHER']
 const closureCodes=['RESOLVED_CONFIRMED','RESIDENT_CONFIRMED','DUPLICATE','INVALID_REQUEST','REQUEST_WITHDRAWN','OTHER']
 
-function session():AdminSession|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 const human=(v?:string|null)=>v?.replaceAll('_',' ')??'Not recorded'
 
 export default function HelpdeskAdminPage(){
-  const s=typeof window==='undefined'?null:session()
+  const s=typeof window==='undefined'?null:getAdminSession()
   const allowed=!!s&&allowedRoles.has(s.role)
   const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[selectedId,setSelectedId]=useState('')
   const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null)
