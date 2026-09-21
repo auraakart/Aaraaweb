@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release-readiness:
-    name: Production release gate
+    name: Main promotion gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate
@@ -83,9 +83,9 @@ jobs:
           bash scripts/check-staging-release-contract.sh
           bash scripts/check-hosted-staging-contract.sh
           bash scripts/check-staging-deployment-template.sh
-          node scripts/check-v4.28-deployable-evidence.mjs --require-go
+          node scripts/check-v4.28-deployable-evidence.mjs --require-main-promotable
 
-      - name: Validate production preflight control
+      - name: Validate production preflight control contract
         env:
           NODE_ENV: production
           APP_VERSION: release-readiness-test
