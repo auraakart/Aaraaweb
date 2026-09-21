@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, ErrorState, PageHeader, PageShell, ReadinessPanel, StatusPill } from '../../components/admin-ui'
+import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagate-api'
 
-type StoredSession={role?:string;accessToken?:string;societyName?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
 type Card={href:string;title:string;description:string}
 type AttentionCard={
@@ -17,7 +17,6 @@ type AttentionCard={
   metrics:Record<string,number|string|null>
 }
 type ActionCentre={cards:AttentionCard[];generatedAt?:string;grounded:boolean;mutationPerformed:boolean}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const emergencyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
 const privacyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const domainHref:Record<string,string>={
@@ -33,16 +32,9 @@ const domainHref:Record<string,string>={
 }
 const severityTone=(severity:AttentionCard['severity'])=>severity==='HIGH'?'danger':severity==='MEDIUM'?'warning':'info'
 
-async function json<T>(token:string,path:string):Promise<T>{
- const r=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'application/json',Authorization:`Bearer ${token}`}})
- const text=await r.text();let body:unknown=null;try{body=text?JSON.parse(text):null}catch{body=text}
- if(!r.ok){const message=body&&typeof body==='object'&&'message' in body?(body as {message?:unknown}).message:null;throw new Error(typeof message==='string'?message:`Request failed (${r.status})`)}
- return body as T
-}
-
 export default function OperationsControlPage(){
- const[session,setSession]=useState<StoredSession|null>(null),[features,setFeatures]=useState<Set<string>>(new Set()),[centre,setCentre]=useState<ActionCentre|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
- useEffect(()=>{let active=true;const load=async()=>{setLoading(true);setError('');try{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return;const current=JSON.parse(raw) as StoredSession;if(!active)return;setSession(current);if(!current.accessToken)return;const entitlementPromise=json<CurrentEntitlements>(current.accessToken,'/entitlements/current');const centrePromise=json<ActionCentre>(current.accessToken,'/ai-operations/assistant/action-centre');const[entitlements,attention]=await Promise.allSettled([entitlementPromise,centrePromise]);if(!active)return;if(entitlements.status==='fulfilled')setFeatures(new Set(entitlements.value.enabledFeatures??[]));if(attention.status==='fulfilled')setCentre(attention.value);else setError(attention.reason instanceof Error?attention.reason.message:'Operational attention could not be loaded')}catch(e){if(active)setError(e instanceof Error?e.message:'Operations control could not be loaded')}finally{if(active)setLoading(false)}};void load();return()=>{active=false}},[])
+ const[session,setSession]=useState<AdminSession|null>(null),[features,setFeatures]=useState<Set<string>>(new Set()),[centre,setCentre]=useState<ActionCentre|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
+ useEffect(()=>{let active=true;const load=async()=>{setLoading(true);setError('');try{const current=getAdminSession();if(!current)return;if(!active)return;setSession(current);const entitlementPromise=adminApi<CurrentEntitlements>(current,'/entitlements/current');const centrePromise=adminApi<ActionCentre>(current,'/ai-operations/assistant/action-centre');const[entitlements,attention]=await Promise.allSettled([entitlementPromise,centrePromise]);if(!active)return;if(entitlements.status==='fulfilled')setFeatures(new Set(entitlements.value.enabledFeatures??[]));if(attention.status==='fulfilled')setCentre(attention.value);else setError(attention.reason instanceof Error?attention.reason.message:'Operational attention could not be loaded')}catch(e){if(active)setError(e instanceof Error?e.message:'Operations control could not be loaded')}finally{if(active)setLoading(false)}};void load();return()=>{active=false}},[])
  const role=session?.role??''
  const cards=useMemo(()=>{const items:Card[]=[];if(emergencyRoles.has(role)&&features.has('SOS'))items.push({href:'/emergency-operations',title:'Emergency control',description:'Acknowledge, coordinate and resolve SOS incidents.'});if(privacyRoles.has(role))items.push({href:'/privacy-operations',title:'Privacy operations',description:'Handle privacy requests and operational controls.'});if(role==='AUDITOR')items.push({href:'/audit',title:'Audit workspace',description:'Review read-only operational and financial evidence.'});if(role==='SUPER_ADMIN')items.push({href:'/platform',title:'Platform administration',description:'Manage cross-society platform configuration and operations.'});return items},[features,role])
  const attention=centre?.cards??[]

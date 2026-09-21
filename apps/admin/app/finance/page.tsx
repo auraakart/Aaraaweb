@@ -1,9 +1,9 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { adminApi, getAdminAdminSession, type AdminAdminSession } from '../../lib/aaraagate-api'
 import { ActionBar, DangerButton, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, ReadinessPanel, SecondaryButton, SelectField, StatusPill } from '../../components/admin-ui'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Receivable={id:string;unitId:string;receivableNumber:string;billingPeriod:string;description:string;amountPaise:string;outstandingPaise:string;dueDate:string;status:string;issuedAt:string}
 type Ageing={currentPaise:string;days1To30Paise:string;days31To60Paise:string;days61To90Paise:string;days90PlusPaise:string}
 type Rule={id:string;code:string;name:string;frequency:string;amountPaise:string;lateFeeMode:string;graceDays:number;active:boolean}
@@ -20,16 +20,13 @@ type Unapplied={paymentCount?:number;totalCapturedPaise?:string;totalAllocatedPa
 type PaymentAvailability={paymentId:string;status:string;amountPaise:string;allocatedPaise:string;unallocatedPaise:string}
 type Allocation={id:string;receivableId:string;amountPaise:string;allocatedAt:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
-function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const t=await r.text();const b=t?JSON.parse(t):null;if(!r.ok)throw new Error(Array.isArray(b?.message)?b.message.join(', '):b?.message??`Request failed (${r.status})`);return b as T}
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const money=(v:string|number|undefined)=>`₹${(Number(v??0)/100).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`
 const today=()=>new Date().toISOString().slice(0,10)
 
 export default function FinanceWorkspace(){
-  const[session,setSession]=useState<Session|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const[session,setAdminSession]=useState<AdminSession|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const[receivables,setReceivables]=useState<Receivable[]>([]),[ageing,setAgeing]=useState<Ageing|null>(null),[rules,setRules]=useState<Rule[]>([]),[journals,setJournals]=useState<Journal[]>([]),[periods,setPeriods]=useState<Period[]>([])
   const[selectedPeriodId,setSelectedPeriodId]=useState(''),[closeReadiness,setCloseReadiness]=useState<CloseReadiness|null>(null),[trialBalance,setTrialBalance]=useState<TrialBalanceRow[]>([]),[incomeExpense,setIncomeExpense]=useState<IncomeExpenseRow[]>([]),[balanceSheet,setBalanceSheet]=useState<BalanceSheet|null>(null),[fundStatement,setFundStatement]=useState<FundStatementRow[]>([]),[periodLoading,setPeriodLoading]=useState(false)
   const[latePreview,setLatePreview]=useState<LatePreview>([]),[batches,setBatches]=useState<LateBatch[]>([]),[unapplied,setUnapplied]=useState<Unapplied|null>(null)
@@ -37,23 +34,23 @@ export default function FinanceWorkspace(){
   const[allocationReceivable,setAllocationReceivable]=useState(''),[allocationAmount,setAllocationAmount]=useState('')
   const[closeConfirmed,setCloseConfirmed]=useState(false),[lateFeeConfirmed,setLateFeeConfirmed]=useState(false)
   const periodRequest=useRef(0)
-  const canRead=(s:Session|null)=>!!s&&readRoles.has(s.role), canManage=!!session&&manageRoles.has(session.role)
+  const canRead=(s:AdminSession|null)=>!!s&&readRoles.has(s.role), canManage=!!session&&manageRoles.has(session.role)
 
-  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[r,a,cr,j,p,lb,u]=await Promise.all([
-    api<Receivable[]>(s,'/accounting/receivables'),api<Ageing>(s,`/accounting/receivables/ageing?asOf=${today()}`),api<Rule[]>(s,'/accounting/receivables/charge-rules'),api<Journal[]>(s,'/accounting/journals'),api<Period[]>(s,'/accounting/periods'),api<LateBatch[]>(s,'/accounting/late-fees/batches'),api<Unapplied>(s,'/accounting/late-fees/unapplied-cash')]);setReceivables(r);setAgeing(a);setRules(cr);setJournals(j);setPeriods(p);setSelectedPeriodId(current=>current&&p.some(period=>period.id===current)?current:(p.find(period=>period.status==='OPEN')??p[0])?.id??'');setBatches(lb);setUnapplied(u)}catch(e){setError(e instanceof Error?e.message:'Could not load finance workspace')}finally{setLoading(false)}},[])
-  useEffect(()=>{const s=getSession();setSession(s);if(s&&canRead(s))void load(s);else setLoading(false)},[load])
+  const load=useCallback(async(s:AdminSession)=>{setLoading(true);setError('');try{const[r,a,cr,j,p,lb,u]=await Promise.all([
+    adminApi<Receivable[]>(s,'/accounting/receivables'),adminApi<Ageing>(s,`/accounting/receivables/ageing?asOf=${today()}`),adminApi<Rule[]>(s,'/accounting/receivables/charge-rules'),adminApi<Journal[]>(s,'/accounting/journals'),adminApi<Period[]>(s,'/accounting/periods'),adminApi<LateBatch[]>(s,'/accounting/late-fees/batches'),adminApi<Unapplied>(s,'/accounting/late-fees/unapplied-cash')]);setReceivables(r);setAgeing(a);setRules(cr);setJournals(j);setPeriods(p);setSelectedPeriodId(current=>current&&p.some(period=>period.id===current)?current:(p.find(period=>period.status==='OPEN')??p[0])?.id??'');setBatches(lb);setUnapplied(u)}catch(e){setError(e instanceof Error?e.message:'Could not load finance workspace')}finally{setLoading(false)}},[])
+  useEffect(()=>{const s=getAdminSession();setAdminSession(s);if(s&&canRead(s))void load(s);else setLoading(false)},[load])
 
-  const loadPeriodWorkspace=useCallback(async(s:Session,period:Period)=>{
+  const loadPeriodWorkspace=useCallback(async(s:AdminSession,period:Period)=>{
     const requestId=++periodRequest.current
     setPeriodLoading(true);setError('');setCloseReadiness(null);setTrialBalance([]);setIncomeExpense([]);setBalanceSheet(null);setFundStatement([]);setCloseConfirmed(false)
     try{
       const from=period.startsOn.slice(0,10),to=period.endsOn.slice(0,10)
       const[ready,tb,ie,bs,fs]=await Promise.all([
-        api<CloseReadiness>(s,`/accounting/periods/${period.id}/close-readiness`),
-        api<TrialBalanceRow[]>(s,`/accounting/reports/trial-balance?asOf=${to}`),
-        api<IncomeExpenseRow[]>(s,`/accounting/reports/income-expense?from=${from}&to=${to}`),
-        api<BalanceSheet>(s,`/accounting/reports/balance-sheet?asOf=${to}`),
-        api<FundStatementRow[]>(s,`/accounting/reports/fund-statement?from=${from}&to=${to}`),
+        adminApi<CloseReadiness>(s,`/accounting/periods/${period.id}/close-readiness`),
+        adminApi<TrialBalanceRow[]>(s,`/accounting/reports/trial-balance?asOf=${to}`),
+        adminApi<IncomeExpenseRow[]>(s,`/accounting/reports/income-expense?from=${from}&to=${to}`),
+        adminApi<BalanceSheet>(s,`/accounting/reports/balance-sheet?asOf=${to}`),
+        adminApi<FundStatementRow[]>(s,`/accounting/reports/fund-statement?from=${from}&to=${to}`),
       ])
       if(requestId!==periodRequest.current)return
       setCloseReadiness(ready);setTrialBalance(tb);setIncomeExpense(ie);setBalanceSheet(bs);setFundStatement(fs)
@@ -66,7 +63,7 @@ export default function FinanceWorkspace(){
 
   useEffect(()=>{if(!session||!selectedPeriodId)return;const period=periods.find(p=>p.id===selectedPeriodId);if(period)void loadPeriodWorkspace(session,period)},[session,selectedPeriodId,periods,loadPeriodWorkspace])
 
-  async function closeSelectedPeriod(){if(!session||!canManage||!closeReadiness?.readyToClose||closeReadiness.period.status!=='OPEN'||!closeConfirmed)return;const period=closeReadiness.period;setBusy(true);setError('');try{await api(session,`/accounting/periods/${period.id}/close`,{method:'POST'});setCloseConfirmed(false);await load(session);await loadPeriodWorkspace(session,{...period,status:'CLOSED'})}catch(e){setError(e instanceof Error?e.message:'Could not close accounting period')}finally{setBusy(false)}}
+  async function closeSelectedPeriod(){if(!session||!canManage||!closeReadiness?.readyToClose||closeReadiness.period.status!=='OPEN'||!closeConfirmed)return;const period=closeReadiness.period;setBusy(true);setError('');try{await adminApi(session,`/accounting/periods/${period.id}/close`,{method:'POST'});setCloseConfirmed(false);await load(session);await loadPeriodWorkspace(session,{...period,status:'CLOSED'})}catch(e){setError(e instanceof Error?e.message:'Could not close accounting period')}finally{setBusy(false)}}
 
   const overdue=useMemo(()=>receivables.filter(r=>Number(r.outstandingPaise)>0&&r.dueDate.slice(0,10)<today()),[receivables])
   const totalOutstanding=useMemo(()=>receivables.reduce((n,r)=>n+Math.max(0,Number(r.outstandingPaise)),0),[receivables])
@@ -78,10 +75,10 @@ export default function FinanceWorkspace(){
     closeReadiness&&!closeReadiness.readyToClose?{id:'period',label:'Period close blocked',detail:`${closeReadiness.blockers.reduce((n,b)=>n+b.count,0)} blocker${closeReadiness.blockers.reduce((n,b)=>n+b.count,0)===1?'':'s'} remain`,href:'#period-close'}:null,
   ].filter(Boolean) as {id:string;label:string;detail:string;href:string}[]
 
-  async function previewLateFees(){if(!session)return;setBusy(true);setError('');try{setLatePreview(await api<LatePreview>(session,`/accounting/late-fees/preview?asOf=${asOf}`))}catch(e){setError(e instanceof Error?e.message:'Could not preview late fees')}finally{setBusy(false)}}
-  async function applyLateFees(){if(!session||!canManage||!lateFeeConfirmed||latePreview.length===0)return;setBusy(true);setError('');try{await api(session,'/accounting/late-fees/apply',{method:'POST',body:JSON.stringify({asOfDate:asOf,entryDate:today(),idempotencyKey:`late-fee-${asOf}`,journalPrefix:`LF-${asOf.replaceAll('-','')}`})});setLatePreview([]);setLateFeeConfirmed(false);await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not apply late fees')}finally{setBusy(false)}}
-  async function inspectPayment(e:FormEvent){e.preventDefault();if(!session||!paymentId.trim())return;setBusy(true);setError('');try{const[p,a]=await Promise.all([api<PaymentAvailability>(session,`/accounting/settlements/payments/${paymentId.trim()}/availability`),api<Allocation[]>(session,`/accounting/settlements/payments/${paymentId.trim()}/allocations`)]);setPayment(p);setAllocations(a)}catch(e){setPayment(null);setAllocations([]);setError(e instanceof Error?e.message:'Could not inspect payment')}finally{setBusy(false)}}
-  async function allocate(e:FormEvent){e.preventDefault();if(!session||!canManage||!payment||!allocationReceivable)return;const rupees=Number(allocationAmount);if(!Number.isFinite(rupees)||rupees<=0){setError('Enter a positive allocation amount.');return}setBusy(true);setError('');try{await api(session,`/accounting/settlements/receivables/${allocationReceivable}/allocate`,{method:'POST',body:JSON.stringify({paymentId:payment.paymentId,amountPaise:Math.round(rupees*100),idempotencyKey:`admin-${payment.paymentId}-${allocationReceivable}-${Math.round(rupees*100)}`})});setAllocationAmount('');await inspectPayment({preventDefault(){}} as FormEvent);await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not allocate payment')}finally{setBusy(false)}}
+  async function previewLateFees(){if(!session)return;setBusy(true);setError('');try{setLatePreview(await adminApi<LatePreview>(session,`/accounting/late-fees/preview?asOf=${asOf}`))}catch(e){setError(e instanceof Error?e.message:'Could not preview late fees')}finally{setBusy(false)}}
+  async function applyLateFees(){if(!session||!canManage||!lateFeeConfirmed||latePreview.length===0)return;setBusy(true);setError('');try{await adminApi(session,'/accounting/late-fees/apply',{method:'POST',body:JSON.stringify({asOfDate:asOf,entryDate:today(),idempotencyKey:`late-fee-${asOf}`,journalPrefix:`LF-${asOf.replaceAll('-','')}`})});setLatePreview([]);setLateFeeConfirmed(false);await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not apply late fees')}finally{setBusy(false)}}
+  async function inspectPayment(e:FormEvent){e.preventDefault();if(!session||!paymentId.trim())return;setBusy(true);setError('');try{const[p,a]=await Promise.all([adminApi<PaymentAvailability>(session,`/accounting/settlements/payments/${paymentId.trim()}/availability`),adminApi<Allocation[]>(session,`/accounting/settlements/payments/${paymentId.trim()}/allocations`)]);setPayment(p);setAllocations(a)}catch(e){setPayment(null);setAllocations([]);setError(e instanceof Error?e.message:'Could not inspect payment')}finally{setBusy(false)}}
+  async function allocate(e:FormEvent){e.preventDefault();if(!session||!canManage||!payment||!allocationReceivable)return;const rupees=Number(allocationAmount);if(!Number.isFinite(rupees)||rupees<=0){setError('Enter a positive allocation amount.');return}setBusy(true);setError('');try{await adminApi(session,`/accounting/settlements/receivables/${allocationReceivable}/allocate`,{method:'POST',body:JSON.stringify({paymentId:payment.paymentId,amountPaise:Math.round(rupees*100),idempotencyKey:`admin-${payment.paymentId}-${allocationReceivable}-${Math.round(rupees*100)}`})});setAllocationAmount('');await inspectPayment({preventDefault(){}} as FormEvent);await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not allocate payment')}finally{setBusy(false)}}
 
   if(loading)return <PageShell><PageHeader title="Finance workspace" description="Loading finance controls…"/></PageShell>
   if(!canRead(session))return <PageShell><PageHeader title="Finance access required" description="Accountant/Treasurer, Committee, Society Admin or platform finance access is required." actions={<a href="/">Return to Admin</a>}/></PageShell>
