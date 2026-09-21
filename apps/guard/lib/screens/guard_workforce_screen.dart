@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../data/guard_api.dart';
+import '../data/models/guard_boundary_models.dart';
 import '../data/workforce_offline_queue.dart';
 import '../guard_controller.dart';
 import '../widgets/guard_state_card.dart';
