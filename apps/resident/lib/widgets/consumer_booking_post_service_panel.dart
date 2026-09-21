@@ -19,9 +19,13 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   bool _loading = true;
   bool _confirming = false;
   bool _submittingRating = false;
+  bool _respondingProposal = false;
+  bool _openingDispute = false;
   String? _error;
   Map<String, dynamic>? _completion;
   Map<String, dynamic>? _rating;
+  List<Map<String, dynamic>> _proposals = const [];
+  List<Map<String, dynamic>> _evidence = const [];
   int _stars = 0;
   final TextEditingController _comment = TextEditingController();
 
@@ -46,6 +50,8 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       final results = await Future.wait<dynamic>([
         widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion'),
         widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/rating'),
+        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals'),
+        widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/completion-evidence'),
       ]);
       if (!mounted) return;
       setState(() {
@@ -53,6 +59,8 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         _rating = results[1] is Map<String, dynamic> ? results[1] as Map<String, dynamic> : null;
         _stars = (_rating?['stars'] as num?)?.toInt() ?? 0;
         _comment.text = _rating?['comment']?.toString() ?? '';
+        _proposals = (results[2] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _evidence = (results[3] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -76,6 +84,69 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _confirming = false);
+    }
+  }
+
+  Future<void> _respondToProposal(Map<String, dynamic> proposal, String decision) async {
+    if (_respondingProposal) return;
+    setState(() => _respondingProposal = true);
+    try {
+      await widget.apiClient.post(
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/proposals/${proposal['id']}/respond',
+        {'decision': decision},
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(decision == 'ACCEPT' ? 'New service time accepted.' : 'Suggested time declined.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _respondingProposal = false);
+    }
+  }
+
+  Future<void> _openDispute() async {
+    if (_openingDispute) return;
+    final reason = TextEditingController(text: 'SERVICE_NOT_COMPLETE');
+    final detail = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report a service issue'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: reason, maxLength: 80, decoration: const InputDecoration(labelText: 'Reason code')),
+            TextField(controller: detail, maxLength: 2000, maxLines: 4, decoration: const InputDecoration(labelText: 'What went wrong?')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Submit issue')),
+        ],
+      ),
+    );
+    if (submitted != true || detail.text.trim().length < 5 || !mounted) {
+      reason.dispose();
+      detail.dispose();
+      return;
+    }
+    setState(() => _openingDispute = true);
+    try {
+      await widget.apiClient.post(
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes',
+        {'reasonCode': reason.text.trim(), 'detail': detail.text.trim()},
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service issue submitted for review.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      reason.dispose();
+      detail.dispose();
+      if (mounted) setState(() => _openingDispute = false);
     }
   }
 
@@ -130,8 +201,12 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     final confirmedAt = _completion?['confirmedAt'];
     final completionPending = bookingStatus == 'IN_PROGRESS' && requestedAt != null && confirmedAt == null;
     final completed = bookingStatus == 'COMPLETED' || confirmedAt != null;
+    Map<String, dynamic>? pendingProposal;
+    for (final proposal in _proposals) {
+      if (proposal['status']?.toString() == 'PENDING') { pendingProposal = proposal; break; }
+    }
 
-    if (!completionPending && !completed) return const SizedBox.shrink();
+    if (!completionPending && !completed && pendingProposal == null && _evidence.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     return Column(
@@ -140,6 +215,49 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         const SizedBox(height: 18),
         Text('Complete & review', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 10),
+        if (pendingProposal != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Provider suggested another time', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  Text('${pendingProposal['proposedFrom']} → ${pendingProposal['proposedUntil']}'),
+                  if ((pendingProposal['note']?.toString() ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(pendingProposal['note'].toString()),
+                  ],
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: OutlinedButton(onPressed: _respondingProposal ? null : () => _respondToProposal(pendingProposal!, 'REJECT'), child: const Text('Decline time'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: FilledButton(onPressed: _respondingProposal ? null : () => _respondToProposal(pendingProposal!, 'ACCEPT'), child: const Text('Accept time'))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (_evidence.isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Provider completion evidence', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  ..._evidence.take(5).map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text([e['note'], e['reference']].where((v) => (v?.toString() ?? '').isNotEmpty).join(' · ')),
+                  )),
+                ],
+              ),
+            ),
+          ),
         if (completionPending)
           Card(
             child: Padding(
@@ -170,6 +288,15 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.verified_rounded),
                       label: const Text('Confirm service completed'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _openingDispute ? null : _openDispute,
+                      icon: const Icon(Icons.report_problem_outlined),
+                      label: const Text('Report an issue instead'),
                     ),
                   ),
                 ],
