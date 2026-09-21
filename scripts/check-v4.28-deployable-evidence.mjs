@@ -12,6 +12,7 @@ const fieldStatuses=new Set(['PENDING_EXTERNAL','PASS','FAIL','BLOCKED']);
 const signStatuses=new Set(['NOT_SIGNED','SIGNED','REJECTED']);
 const decisions=new Set(['HOLD_EXTERNAL_EVIDENCE','NO_GO','GO']);
 const requireGo=process.argv.includes('--require-go');
+const requireMainPromotable=process.argv.includes('--require-main-promotable');
 
 if(plan.schemaVersion!=='aaraagate.v4.28.pilot-evidence.v1')fail('unexpected schemaVersion');
 if(plan.phase!=='V4.28')fail('phase must be V4.28');
@@ -72,6 +73,17 @@ if(!plan.pilotSociety){
 }
 
 if(requireGo&&plan.productionDecision!=='GO')fail('production release requires productionDecision GO');
+
+if(requireMainPromotable){
+  const productionReady=plan.productionDecision==='GO';
+  const repositoryReadyExternalPending=
+    plan.status==='REPOSITORY_READY_EXTERNAL_PENDING' &&
+    plan.fieldEvidenceStatus==='NOT_STARTED' &&
+    plan.productionDecision==='HOLD_EXTERNAL_EVIDENCE';
+  if(!productionReady&&!repositoryReadyExternalPending){
+    fail('main promotion requires either productionDecision GO or repository-ready external-pending status');
+  }
+}
 
 if(plan.productionDecision==='GO'){
   if(!plan.pilotSociety)fail('GO requires pilotSociety');
