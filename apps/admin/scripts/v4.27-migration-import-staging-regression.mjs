@@ -23,4 +23,11 @@ for(const fragment of [
   '__source_row',
 ]) if(!xlsx.includes(fragment)) throw new Error(`Missing V4.27 XLSX safety contract: ${fragment}`);
 if(!page.includes('<MigrationImportStager')) throw new Error('Migration center must expose import staging.');
+for(const fragment of [
+  'Cutover readiness',
+  'Migration action confirmation',
+  'ACTION REQUIRED',
+  'production cutover and external source completeness remain separate',
+]) if(!page.includes(fragment)) throw new Error(`Missing migration cutover-readiness contract: ${fragment}`);
+if(page.includes('confirm(')) throw new Error('Migration center must use in-page confirmation instead of browser confirm().');
 console.log('V4.27 migration CSV/XLSX staging regression passed');
