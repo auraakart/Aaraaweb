@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
 
 type Session={accessToken:string;role:string}
 type Society={id:string;name:string;code:string;status:'ACTIVE'|'SUSPENDED';productTier:'STARTER'|'PROFESSIONAL'|'PREMIUM'|'ENTERPRISE';featureOverrides:Record<string,boolean>;_count:{memberships:number;buildings:number;gates:number}}
@@ -27,7 +28,7 @@ export default function PlatformPage(){
   const setOverride=(feature:string,value:'INHERIT'|'ON'|'OFF')=>{if(!current)return;const overrides={...(current.featureOverrides??{})};if(value==='INHERIT')delete overrides[feature];else overrides[feature]=value==='ON';void mutate(()=>api(session,`/platform/societies/${current.id}/entitlements`,{method:'PATCH',body:JSON.stringify({featureOverrides:overrides})}))}
   const toggleStatus=()=>current&&mutate(()=>api(session,`/platform/societies/${current.id}/status`,{method:'PATCH',body:JSON.stringify({status:current.status==='ACTIVE'?'SUSPENDED':'ACTIVE'})}))
   const provision=(e:FormEvent)=>{e.preventDefault();if(!current)return;void mutate(async()=>{await api(session,`/platform/societies/${current.id}/admins/provision`,{method:'POST',body:JSON.stringify({phone:phone.trim(),name:name.trim()})});setPhone('+91');setName('')})}
-  const deactivate=(userId:string)=>current&&confirm('Deactivate this Society Admin and revoke active sessions?')&&mutate(()=>api(session,`/platform/societies/${current.id}/admins/${userId}/deactivate`,{method:'PATCH',body:'{}'}))
+  const deactivate=async(userId:string)=>current&&await operatorConfirm('Deactivate this Society Admin and revoke active sessions?')&&mutate(()=>api(session,`/platform/societies/${current.id}/admins/${userId}/deactivate`,{method:'PATCH',body:'{}'}))
   return <main style={{maxWidth:1180,margin:'0 auto',padding:'28px 22px 80px'}}>
     <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small>SUPER ADMIN</small><h1 style={{margin:'4px 0'}}>Aaraagate platform</h1><p style={{margin:0}}>Society lifecycle, SaaS plans, feature overrides and Society Admin provisioning.</p></div><a href="/">← Admin console</a></div>
     {error&&<div style={{marginTop:18,padding:12,border:'1px solid #ef4444',borderRadius:10}}>{error}</div>}

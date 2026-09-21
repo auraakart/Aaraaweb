@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { operatorConfirm, operatorPrompt } from '../../../lib/operator-dialog'
 
 type Session = { accessToken: string; role: string; societyName?: string }
 type Integration = {
@@ -198,7 +199,7 @@ export default function UtilityIntegrationsPage() {
 
   async function revoke(integration: Integration) {
     if (!session || !canManage || integration.status !== 'ACTIVE') return
-    if (!confirm(`Revoke ${integration.code}? Its key will stop accepting readings immediately.`)) return
+    if (!await operatorConfirm(`Revoke ${integration.code}? Its key will stop accepting readings immediately.`)) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -216,7 +217,7 @@ export default function UtilityIntegrationsPage() {
 
   async function rotateKey(integration: Integration) {
     if (!session || !canManage || integration.status !== 'ACTIVE') return
-    if (!confirm(`Rotate the key for ${integration.code}? The current key will stop working immediately.`)) return
+    if (!await operatorConfirm(`Rotate the key for ${integration.code}? The current key will stop working immediately.`)) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -235,7 +236,7 @@ export default function UtilityIntegrationsPage() {
 
   async function retireMapping(mapping: Mapping) {
     if (!session || !canManage || !mapping.active) return
-    if (!confirm(`Retire mapping ${mapping.externalMeterId} → ${mapping.meterCode}? New readings will quarantine until a replacement is active.`)) return
+    if (!await operatorConfirm(`Retire mapping ${mapping.externalMeterId} → ${mapping.meterCode}? New readings will quarantine until a replacement is active.`)) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -252,7 +253,7 @@ export default function UtilityIntegrationsPage() {
 
   async function replaceMapping(mapping: Mapping) {
     if (!session || !canManage || !mapping.active) return
-    const meterId = prompt('Enter the replacement Aaraagate meter UUID. The existing mapping will be retained as retired history.')?.trim()
+    const meterId = await operatorPrompt('Enter the replacement Aaraagate meter UUID. The existing mapping will be retained as retired history.')?.trim()
     if (!meterId) return
     setBusy(true)
     setError('')
@@ -273,11 +274,11 @@ export default function UtilityIntegrationsPage() {
 
   async function resolveReceipt(receipt: Receipt, action: 'dismiss' | 'reprocess') {
     if (!session || !canManage || receipt.status !== 'QUARANTINED') return
-    const note = prompt(action === 'dismiss'
+    const note = await operatorPrompt(action === 'dismiss'
       ? 'Record why this quarantined receipt is being dismissed (required).'
       : 'Optional reprocessing note. A new immutable receipt will be created; the original will not change.')?.trim()
     if (note === undefined || (action === 'dismiss' && !note)) return
-    if (action === 'reprocess' && !confirm('Reprocess this payload against the current active mapping? This creates a new receipt but never a bill.')) return
+    if (action === 'reprocess' && !await operatorConfirm('Reprocess this payload against the current active mapping? This creates a new receipt but never a bill.')) return
     setBusy(true)
     setError('')
     setMessage('')

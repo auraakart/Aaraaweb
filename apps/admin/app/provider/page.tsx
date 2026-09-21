@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { operatorConfirm, operatorPrompt } from '../../lib/operator-dialog'
 
 type AuthSession={sessionId:string;accessToken:string;refreshToken:string}
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
@@ -60,7 +61,7 @@ function ProviderConsole({session,onLogout}:{session:AuthSession;onLogout:()=>Pr
 
 function Bookings({session,bookings,agents,reload}:{session:AuthSession;bookings:Booking[];agents:Agent[];reload:()=>Promise<void>}){
   const[busy,setBusy]=useState(''),[error,setError]=useState(''),[assignments,setAssignments]=useState<Record<string,Assignment[]>>({})
-  const respond=async(b:Booking,decision:'ACCEPT'|'DECLINE')=>{const note=prompt(decision==='ACCEPT'?'Optional acceptance note':'Optional decline note')??undefined;setBusy(b.id);setError('');try{await api(`/provider/services/bookings/${b.id}/respond`,{method:'POST',body:JSON.stringify({decision,note})},session);await reload()}catch(e){setError(e instanceof Error?e.message:'Booking could not be updated')}finally{setBusy('')}}
+  const respond=async(b:Booking,decision:'ACCEPT'|'DECLINE')=>{const note=await operatorPrompt(decision==='ACCEPT'?'Optional acceptance note':'Optional decline note')??undefined;setBusy(b.id);setError('');try{await api(`/provider/services/bookings/${b.id}/respond`,{method:'POST',body:JSON.stringify({decision,note})},session);await reload()}catch(e){setError(e instanceof Error?e.message:'Booking could not be updated')}finally{setBusy('')}}
   const loadAssignments=async(id:string)=>{setBusy(id);setError('');try{const rows=await api<Assignment[]>(`/provider/services/bookings/${id}/assignments`,{},session);setAssignments(x=>({...x,[id]:rows}))}catch(e){setError(e instanceof Error?e.message:'Assignments could not be loaded')}finally{setBusy('')}}
   const assign=async(bookingId:string,agentId:string)=>{if(!agentId)return;setBusy(bookingId);setError('');try{await api(`/provider/services/bookings/${bookingId}/assignments`,{method:'POST',body:JSON.stringify({agentId})},session);await loadAssignments(bookingId)}catch(e){setError(e instanceof Error?e.message:'Agent could not be assigned')}finally{setBusy('')}}
   const transition=async(bookingId:string,assignment:Assignment,status:string)=>{setBusy(assignment.id);setError('');try{await api(`/provider/services/assignments/${assignment.id}/status`,{method:'POST',body:JSON.stringify({status})},session);await loadAssignments(bookingId)}catch(e){setError(e instanceof Error?e.message:'Dispatch status could not be updated')}finally{setBusy('')}}
