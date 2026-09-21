@@ -209,7 +209,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
               AND (
                 (nd."status"='PENDING' AND (nd."nextAttemptAt" IS NULL OR nd."nextAttemptAt" <= CURRENT_TIMESTAMP))
                 OR
-                (nd."status"='IN_FLIGHT' AND nd."lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${NOTICE_IN_FLIGHT_STALE_MINUTES}))
+                (nd."status"='IN_FLIGHT' AND nd."lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${NOTICE_IN_FLIGHT_STALE_MINUTES}::int))
               )
             ORDER BY COALESCE(nd."nextAttemptAt", n."publishedAt"), nd."createdAt"
             LIMIT ${NOTICE_DISPATCH_BATCH_SIZE}
@@ -294,7 +294,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
         await this.prisma.$executeRaw(Prisma.sql`
           UPDATE "NoticeDispatch"
           SET "status"='PENDING',
-              "nextAttemptAt"=CURRENT_TIMESTAMP + make_interval(mins => ${retryDelay}),
+              "nextAttemptAt"=CURRENT_TIMESTAMP + make_interval(mins => ${retryDelay}::int),
               "lastError"=${message},
               "updatedAt"=CURRENT_TIMESTAMP
           WHERE "id"=${item.dispatchId}::uuid AND "status"='IN_FLIGHT'

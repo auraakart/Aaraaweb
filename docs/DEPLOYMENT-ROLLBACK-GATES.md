@@ -12,7 +12,7 @@ Production promotion remains:
 
 A production candidate must reach `main` only from `staging`. The release candidate SHA and the current `main` SHA must be recorded before merge so the application rollback target is explicit.
 
-A staging candidate must originate from `develop`, and existing `staging` history must be an ancestor of that candidate. The staging workflow checks out and validates the pull-request head SHA directly rather than GitHub's synthetic merge ref. See `docs/STAGING-RELEASE-EVIDENCE.md`.
+A staging candidate must be the exact current `develop` head. `staging` may retain governed release-merge history, so the workflow does not require the staging merge commit itself to be an ancestor of the next candidate. Instead it proves that the existing staging tree contains no source-only changes relative to the shared source merge-base, then validates the exact `develop` candidate SHA directly rather than GitHub's synthetic merge ref. This removes ancestry-only reconciliation commits without weakening source-drift protection. See `docs/STAGING-RELEASE-EVIDENCE.md`.
 
 ## Immutable release identity
 
