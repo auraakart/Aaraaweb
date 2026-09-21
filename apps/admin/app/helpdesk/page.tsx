@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
-import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagate-api'
+import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
 import {
   ActionBar,
   DetailPanel,
