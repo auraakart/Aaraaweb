@@ -40,6 +40,7 @@ class GuardController extends ChangeNotifier {
   List<Map<String, dynamic>> memberships = const [];
   List<Map<String, dynamic>> gates = const [];
   List<Map<String, dynamic>> units = const [];
+  List<GuardUnitSummary> get unitModels => units.map(GuardUnitSummary.tryParse).whereType<GuardUnitSummary>().toList(growable:false);
   String? gateId;
   Map<String, dynamic>? verifiedAccess;
   Map<String, dynamic>? walkInAccess;

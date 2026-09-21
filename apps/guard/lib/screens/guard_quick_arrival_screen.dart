@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/guard_recent_arrival_store.dart';
 import '../guard_controller.dart';
+import '../models/guard_unit_summary.dart';
 import '../voice/guard_arrival_voice_parser.dart';
 import '../voice/guard_speech.dart';
 
@@ -29,14 +30,14 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
 
   @override void initState(){super.initState();speech=widget.speech??DeviceGuardSpeech();_loadRecent();}
   @override void dispose(){speech.stop();search.dispose();name.dispose();phone.dispose();vehicle.dispose();note.dispose();super.dispose();}
-  List<Map<String,dynamic>> get units {final q=search.text.trim().toLowerCase();final all=widget.controller.units;if(q.isEmpty)return all.take(30).toList();return all.where((u)=>_label(u).toLowerCase().contains(q)).take(30).toList();}
+  List<GuardUnitSummary> get units {final q=search.text.trim().toLowerCase();final all=widget.controller.unitModels;if(q.isEmpty)return all.take(30).toList();return all.where((u)=>u.label.toLowerCase().contains(q)).take(30).toList();}
   List<String> get providers=>subjectType=='DELIVERY'?deliveryProviders:cabProviders;
 
   Future<void> _loadRecent() async {
     final session=widget.controller.session;
     if(session==null)return;
     final rows=await widget.recentStore.readFor(societyId:session.societyId,guardUserId:session.userId);
-    if(mounted)setState(()=>recent=rows.where((item)=>widget.controller.units.any((u)=>u['id']?.toString()==item.unitId)).toList(growable:false));
+    if(mounted)setState(()=>recent=rows.where((item)=>widget.controller.unitModels.any((u)=>u.id==item.unitId)).toList(growable:false));
   }
 
   void _applyRecent(GuardRecentArrival item){
@@ -62,7 +63,7 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
       const SizedBox(height:8),
       Text('Reuse a recent destination and provider in one tap.',style:Theme.of(context).textTheme.bodyMedium),
       const SizedBox(height:8),
-      Wrap(spacing:8,runSpacing:8,children:recent.take(6).map((item){final unit=widget.controller.units.firstWhere((u)=>u['id']?.toString()==item.unitId);final label='${item.provider??item.name} · ${_label(unit)}';return ActionChip(avatar:Icon(item.subjectType=='CAB'?Icons.local_taxi_rounded:Icons.delivery_dining_rounded,size:18),label:Text(label),onPressed:()=>_applyRecent(item));}).toList()),
+      Wrap(spacing:8,runSpacing:8,children:recent.take(6).map((item){final unit=widget.controller.unitModels.firstWhere((u)=>u.id==item.unitId);final label='${item.provider??item.name} · ${unit.label}';return ActionChip(avatar:Icon(item.subjectType=='CAB'?Icons.local_taxi_rounded:Icons.delivery_dining_rounded,size:18),label:Text(label),onPressed:()=>_applyRecent(item));}).toList()),
       const SizedBox(height:18),
     ],
     SegmentedButton<String>(segments:const [ButtonSegment(value:'DELIVERY',label:Text('Delivery'),icon:Icon(Icons.delivery_dining_rounded)),ButtonSegment(value:'CAB',label:Text('Cab'),icon:Icon(Icons.local_taxi_rounded))],selected:{subjectType},onSelectionChanged:(value)=>setState((){subjectType=value.first;provider='';name.clear();})),
@@ -70,7 +71,7 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
     if(voiceStatus!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text(voiceStatus!,style:Theme.of(context).textTheme.bodySmall)),
     const SizedBox(height:14),Text('Provider',style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:providers.map((p)=>ChoiceChip(label:Text(p),selected:provider==p,onSelected:(_)=>setState((){provider=p;name.text=p;}))).toList()),
     const SizedBox(height:18),TextField(controller:search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(labelText:'Find building / unit',prefixIcon:Icon(Icons.search_rounded))),const SizedBox(height:8),
-    if(unitId==null)...units.map((u)=>Card(child:ListTile(dense:true,title:Text(_label(u),style:const TextStyle(fontWeight:FontWeight.w800)),onTap:()=>setState(()=>unitId=u['id']?.toString())))) else Card(child:ListTile(leading:const Icon(Icons.apartment_rounded),title:Text(_label(widget.controller.units.firstWhere((u)=>u['id']?.toString()==unitId))),trailing:IconButton(icon:const Icon(Icons.close_rounded),onPressed:()=>setState(()=>unitId=null)))),
+    if(unitId==null)...units.map((u)=>Card(child:ListTile(dense:true,title:Text(u.label,style:const TextStyle(fontWeight:FontWeight.w800)),onTap:()=>setState(()=>unitId=u.id)))) else Card(child:ListTile(leading:const Icon(Icons.apartment_rounded),title:Text(widget.controller.unitModels.firstWhere((u)=>u.id==unitId).label),trailing:IconButton(icon:const Icon(Icons.close_rounded),onPressed:()=>setState(()=>unitId=null)))),
     const SizedBox(height:12),TextField(controller:name,onChanged:(_)=>setState((){}),textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'Person / provider name')),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone (optional)')),TextField(controller:vehicle,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Vehicle (optional)')),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)')),
     if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),const SizedBox(height:16),FilledButton.icon(onPressed:busy||unitId==null||name.text.trim().isEmpty?null:_submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(64)),icon:const Icon(Icons.send_rounded),label:Text(busy?'SENDING…':'REQUEST APPROVAL',style:const TextStyle(fontWeight:FontWeight.w900))),
   ])));
@@ -83,7 +84,7 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
       setState((){listening=false;voiceStatus=null;error='Voice input was not available. Continue with the manual fields.';});
       return;
     }
-    final draft=GuardArrivalVoiceParser.parse(transcript:transcript,units:widget.controller.units);
+    final draft=GuardArrivalVoiceParser.parse(transcript:transcript,units:widget.controller.unitModels.map((u)=>u.raw).toList(growable:false));
     setState((){
       listening=false;
       subjectType=draft.subjectType;
@@ -120,7 +121,6 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
   }
 }
 
-String _label(Map<String,dynamic> unit){final b=unit['building'] is Map?Map<String,dynamic>.from(unit['building'] as Map):const <String,dynamic>{};return '${b['name']??b['code']??'Building'} · ${unit['number']??'Unit'}';}
 String? _optional(String value){final text=value.trim();return text.isEmpty?null:text;}
 
 
