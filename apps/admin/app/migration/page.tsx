@@ -31,7 +31,16 @@ async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
   return b as T
 }
 
-const entityOrder=['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE']
+const migrationStages=[
+  {entity:'BUILDING',label:'1. Buildings',description:'Import the society structure first.'},
+  {entity:'UNIT',label:'2. Units',description:'Units depend on committed buildings.'},
+  {entity:'RESIDENT',label:'3. Residents',description:'Residents depend on committed units.'},
+  {entity:'VEHICLE',label:'4. Vehicles',description:'Vehicle ownership depends on residents and units.'},
+  {entity:'PARKING',label:'5. Parking',description:'Parking assignments depend on units and vehicles.'},
+  {entity:'WORKFORCE',label:'6. Workforce',description:'Import staff and domestic-help identities.'},
+  {entity:'VENDOR',label:'7. Vendors',description:'Import operational vendors before launch.'},
+  {entity:'OPENING_BALANCE',label:'8. Opening balances',description:'Reconcile finance only after society structure is stable.'},
+] as const
 
 export default function MigrationPage(){
   const[session,setSession]=useState<Session|null>(null)
@@ -106,17 +115,23 @@ export default function MigrationPage(){
     }
   }
 
-  const progress=useMemo(()=>entityOrder.map(entity=>{
-    const batches=rows.filter(row=>row.entityType===entity)
-    return{
-      entity,
-      status:batches.some(row=>row.status==='COMMITTED')
-        ?'Committed'
-        :batches.some(row=>row.status==='READY')
-          ?'Ready'
-          :'Pending',
-    }
-  }),[rows])
+  const progress=useMemo(()=>{
+    let previousCommitted=true
+    return migrationStages.map(stage=>{
+      const batches=rows.filter(row=>row.entityType===stage.entity)
+      const committed=batches.some(row=>row.status==='COMMITTED')
+      const ready=batches.some(row=>row.status==='READY')
+      const blocked=!previousCommitted&&stage.entity!=='BUILDING'
+      const status=committed?'Committed':ready?(blocked?'Blocked':'Ready'):'Pending'
+      const result={...stage,status,committed,ready,blocked}
+      previousCommitted=previousCommitted&&committed
+      return result
+    })
+  },[rows])
+
+  const committedStages=progress.filter(item=>item.committed).length
+  const nextStage=progress.find(item=>!item.committed)
+  const onboardingComplete=committedStages===progress.length
 
   const blockers=useMemo(()=>{
     if(!detail)return[] as string[]
@@ -150,13 +165,33 @@ export default function MigrationPage(){
 
       <MigrationImportStager session={session!} onBatchCreated={()=>void load(session!)}/>
 
+      <section style={panel} aria-label="Migration onboarding readiness">
+        <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'start',flexWrap:'wrap'}}>
+          <div>
+            <h2 style={{margin:'0 0 4px'}}>Onboarding readiness</h2>
+            <small>Complete imports in dependency order before society launch.</small>
+          </div>
+          <strong>{onboardingComplete?'READY FOR LAUNCH':committedStages+'/'+progress.length+' STAGES COMMITTED'}</strong>
+        </div>
+        <div style={{marginTop:14,padding:14,border:'1px solid #dbe7ea',borderRadius:12,background:'#f8fbfc'}}>
+          {onboardingComplete
+            ?<><b>Repository migration sequence complete</b><p style={{margin:'6px 0 0'}}>All migration stages are committed. Production cutover, external-source completeness and live launch approval remain separate controls.</p></>
+            :<><b>Next required step: {nextStage?.label}</b><p style={{margin:'6px 0 0'}}>{nextStage?.blocked?'Commit the preceding migration stage before this stage can proceed.':nextStage?.ready?'Review clean evidence and explicitly commit the ready batch.':nextStage?.description}</p></>}
+        </div>
+      </section>
+
       <section style={panel}>
         <h2>Onboarding checklist</h2>
         <div style={grid}>
           {progress.map(item=>(
-            <article key={item.entity} style={card}>
-              <b>{item.entity.replaceAll('_',' ')}</b>
-              <span>{item.status}</span>
+            <article key={item.entity} style={{...card,opacity:item.blocked?.72:1}}>
+              <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}>
+                <b>{item.label}</b>
+                <span>{item.status}</span>
+              </div>
+              <small>{item.description}</small>
+              {item.blocked&&<small>Blocked until the previous stage is committed.</small>}
+              {!item.blocked&&item.ready&&!item.committed&&<small>Evidence is ready for operator review and explicit commit.</small>}
             </article>
           ))}
         </div>
