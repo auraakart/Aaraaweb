@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "aaraagate.v4.29.pilot-evidence-record.v1",
+  "evidenceClass": "SYNTHETIC_EXAMPLE",
+  "evidenceType": "KPI",
+  "pilotIdentifier": "SYNTHETIC_PILOT_EXAMPLE",
+  "candidateSha": "1111111111111111111111111111111111111111",
+  "referenceId": "V428-GATE-01",
+  "ownerRole": "SECURITY_SUPERVISOR",
+  "windowStart": "2026-09-20T08:00:00.000Z",
+  "windowEnd": "2026-09-20T10:00:00.000Z",
+  "expectedThreshold": "Synthetic example only; copy the threshold from the canonical manifest for real field evidence.",
+  "observedResult": "Synthetic example only; replace with a non-sensitive aggregate observation.",
+  "disposition": "EXAMPLE_ONLY",
+  "artifactReference": "synthetic://example-only",
+  "notes": "Example structure only. Do not reference this file as pilot evidence."
+}

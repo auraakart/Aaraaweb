@@ -131,6 +131,7 @@ class _BillingScreenState extends State<BillingScreen> {
   @override
   Widget build(BuildContext context) {
     final outstanding = invoices.where((invoice) => invoice['status'] == 'ISSUED').toList();
+    final recoveryPayments = payments.where((payment) { final status = payment['status']?.toString(); return status == 'CREATED' || status == 'AUTHORIZED' || status == 'FAILED'; }).toList();
     final completedPayments = payments.where((payment) => payment['status'] == 'CAPTURED' || payment['status'] == 'REFUNDED').toList();
     outstanding.sort((a, b) => (DateTime.tryParse(a['dueDate']?.toString() ?? '') ?? DateTime(9999)).compareTo(DateTime.tryParse(b['dueDate']?.toString() ?? '') ?? DateTime(9999)));
 
@@ -164,6 +165,18 @@ class _BillingScreenState extends State<BillingScreen> {
               ] else ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
+              ],
+              if (recoveryPayments.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space5),
+                const PremiumSectionHeader(
+                  title: 'Payment activity',
+                  supportingText: 'Pending and failed attempts remain visible until the gateway confirms the final state.',
+                ),
+                const SizedBox(height: AaraagateTokens.space2),
+                for (final payment in recoveryPayments) ...[
+                  _PaymentRecoveryCard(payment: payment),
+                  const SizedBox(height: AaraagateTokens.space2),
+                ],
               ],
               const SizedBox(height: AaraagateTokens.space5),
               PremiumSectionHeader(
@@ -353,6 +366,40 @@ class _InvoiceCard extends StatelessWidget {
             label: Text(busy ? 'Preparing payment…' : 'Pay securely'),
           ),
         ),
+      ]),
+    );
+  }
+}
+
+class _PaymentRecoveryCard extends StatelessWidget {
+  const _PaymentRecoveryCard({required this.payment});
+  final Map<String, dynamic> payment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final status = payment['status']?.toString() ?? 'CREATED';
+    final failed = status == 'FAILED';
+    final authorized = status == 'AUTHORIZED';
+    final message = failed
+        ? 'Payment was not confirmed. Retry from the outstanding bill; no successful receipt is available.'
+        : authorized
+            ? 'Gateway authorization received. Waiting for captured confirmation before marking the bill paid.'
+            : 'Payment order created. Complete the gateway step; no amount is treated as paid yet.';
+    return PremiumSurface(
+      color: failed ? scheme.errorContainer.withOpacity(.45) : scheme.surfaceContainerLow,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(failed ? Icons.error_outline_rounded : Icons.schedule_rounded, color: failed ? scheme.error : scheme.primary),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall)),
+            AaraagateStatusPill(label: status, tone: failed ? AaraagateStatusTone.danger : AaraagateStatusTone.warning),
+          ]),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(message, style: theme.textTheme.bodySmall?.copyWith(color: failed ? scheme.onErrorContainer : scheme.onSurfaceVariant)),
+        ])),
       ]),
     );
   }

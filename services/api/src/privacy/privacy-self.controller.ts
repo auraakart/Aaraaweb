@@ -35,17 +35,20 @@ export class PrivacySelfController {
     @CurrentPrivacyPrincipal() principal?: { userId: string; societyId?: string },
   ) {
     const current = this.requirePrincipal(principal);
-    if (!current.societyId) return { grievanceContact: null };
-    const rows = await this.incidents.getGrievanceContact(current.societyId);
+    if (!current.societyId) return { grievanceContact: null, privacyProgram: null };
+    const [rows,privacyProgram]=await Promise.all([
+      this.incidents.getGrievanceContact(current.societyId),
+      this.privacy.selfContext(current.userId,current.societyId),
+    ]);
     const contact = rows[0] as { displayName?: string; email?: string | null; phone?: string | null; instructions?: string | null; active?: boolean } | undefined;
-    if (!contact?.active) return { grievanceContact: null };
     return {
-      grievanceContact: {
+      grievanceContact: contact?.active ? {
         displayName: contact.displayName ?? 'Privacy contact',
         email: contact.email ?? null,
         phone: contact.phone ?? null,
         instructions: contact.instructions ?? null,
-      },
+      } : null,
+      privacyProgram,
     };
   }
 

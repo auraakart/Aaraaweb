@@ -18,6 +18,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
   String? _error;
   List<Map<String, dynamic>> _requests = const [];
   Map<String, dynamic>? _grievanceContact;
+  Map<String, dynamic>? _privacyProgram;
   String? _pendingFingerprint;
   String? _pendingRequestKey;
 
@@ -48,7 +49,9 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
             .toList();
         final mapped = context is Map ? Map<String, dynamic>.from(context) : <String, dynamic>{};
         final contact = mapped['grievanceContact'];
+        final program = mapped['privacyProgram'];
         _grievanceContact = contact is Map ? Map<String, dynamic>.from(contact) : null;
+        _privacyProgram = program is Map ? Map<String, dynamic>.from(program) : null;
       });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -190,6 +193,43 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               title: 'Household services & staff',
               body: 'Bookings, provider assignments, domestic-help activity and ratings are used to operate the services you request for the selected property.',
             ),
+            if (_privacyProgram != null) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Row(children: [
+                      Icon(Icons.policy_outlined),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('Privacy controls snapshot', style: TextStyle(fontWeight: FontWeight.w900))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('${(_privacyProgram!['categories'] as List? ?? const []).length} active data categories · ${_privacyProgram!['activeConsentCount'] ?? 0} active consent records'),
+                    const SizedBox(height: 10),
+                    for (final raw in (_privacyProgram!['categories'] as List? ?? const []).take(4))
+                      if (raw is Map) Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '${raw['name'] ?? raw['code'] ?? 'Data category'} · ${raw['purpose'] ?? 'Configured purpose'} · Retention: ${raw['retentionTrigger'] ?? 'configured trigger'}${raw['retentionDays'] == null ? '' : ' + ${raw['retentionDays']} days'}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    if ((_privacyProgram!['consents'] as List? ?? const []).isNotEmpty) ...[
+                      const Text('Recorded consent evidence', style: TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      for (final raw in (_privacyProgram!['consents'] as List? ?? const []).take(4))
+                        if (raw is Map) Text(
+                          '${raw['status'] ?? 'UNKNOWN'} · ${raw['dataCategoryCode'] ?? 'General'} · ${raw['purpose'] ?? ''}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(_privacyProgram!['boundary']?.toString() ?? 'Configuration and recorded consent evidence only.', style: theme.textTheme.bodySmall),
+                  ]),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Card(
               child: Padding(

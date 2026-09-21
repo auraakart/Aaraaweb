@@ -28,6 +28,16 @@ GuardController controller()=>GuardController(api:GuardApi(baseUrl:'http://local
   ];
 
 void main(){
+  testWidgets('quick arrival makes queued offline work explicit',(tester)async{
+    final c=controller();
+    c.queuedActions=2;
+    c.offlineSyncMessage='2 actions remain queued.';
+    await tester.pumpWidget(MaterialApp(home:GuardQuickArrivalScreen(controller:c,recentStore:_MemoryRecentStore([]))));
+    await tester.pump();
+    expect(find.text('2 actions waiting to sync'),findsOneWidget);
+    expect(find.text('RETRY SAFE SYNC'),findsOneWidget);
+  });
+
   testWidgets('quick arrival searches large societies and offers delivery presets',(tester)async{
     final c=controller();
     await tester.pumpWidget(MaterialApp(home:GuardQuickArrivalScreen(controller:c,recentStore:_MemoryRecentStore([]))));
@@ -41,6 +51,15 @@ void main(){
     await tester.tap(find.text('Swiggy'));
     await tester.pump();
     expect(find.widgetWithText(TextField,'Person / provider name'),findsOneWidget);
+    await tester.tap(find.text('Alpha · A-101'));
+    await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField,'Person / provider name'),'Swiggy rider');
+    await tester.pump();
+    await tester.scrollUntilVisible(find.text('REQUEST APPROVAL'),300,scrollable:find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    final submitFinder=find.ancestor(of:find.text('REQUEST APPROVAL'),matching:find.byWidgetPredicate((widget)=>widget is FilledButton));
+    final submit=tester.widget<FilledButton>(submitFinder);
+    expect(submit.onPressed,isNotNull);
   });
 
   testWidgets('repeat arrival restores destination and provider in one tap',(tester)async{

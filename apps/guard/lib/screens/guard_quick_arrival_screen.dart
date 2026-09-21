@@ -53,6 +53,10 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
   }
 
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Quick arrival')),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[
+    if(widget.controller.queuedActions>0)...[
+      _QuickArrivalSyncStatus(controller:widget.controller),
+      const SizedBox(height:14),
+    ],
     if(recent.isNotEmpty)...[
       Row(children:[const Icon(Icons.history_rounded),const SizedBox(width:8),Text('Repeat arrival',style:Theme.of(context).textTheme.titleMedium)]),
       const SizedBox(height:8),
@@ -67,8 +71,8 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
     const SizedBox(height:14),Text('Provider',style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:providers.map((p)=>ChoiceChip(label:Text(p),selected:provider==p,onSelected:(_)=>setState((){provider=p;name.text=p;}))).toList()),
     const SizedBox(height:18),TextField(controller:search,onChanged:(_)=>setState((){}),decoration:const InputDecoration(labelText:'Find building / unit',prefixIcon:Icon(Icons.search_rounded))),const SizedBox(height:8),
     if(unitId==null)...units.map((u)=>Card(child:ListTile(dense:true,title:Text(_label(u),style:const TextStyle(fontWeight:FontWeight.w800)),onTap:()=>setState(()=>unitId=u['id']?.toString())))) else Card(child:ListTile(leading:const Icon(Icons.apartment_rounded),title:Text(_label(widget.controller.units.firstWhere((u)=>u['id']?.toString()==unitId))),trailing:IconButton(icon:const Icon(Icons.close_rounded),onPressed:()=>setState(()=>unitId=null)))),
-    const SizedBox(height:12),TextField(controller:name,decoration:const InputDecoration(labelText:'Person / provider name')),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone (optional)')),TextField(controller:vehicle,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Vehicle (optional)')),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)')),
-    if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),const SizedBox(height:16),FilledButton.icon(onPressed:busy||unitId==null||name.text.trim().isEmpty?null:_submit,icon:const Icon(Icons.send_rounded),label:Text(busy?'SENDING…':'REQUEST APPROVAL')),
+    const SizedBox(height:12),TextField(controller:name,onChanged:(_)=>setState((){}),textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'Person / provider name')),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone (optional)')),TextField(controller:vehicle,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Vehicle (optional)')),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)')),
+    if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),const SizedBox(height:16),FilledButton.icon(onPressed:busy||unitId==null||name.text.trim().isEmpty?null:_submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(64)),icon:const Icon(Icons.send_rounded),label:Text(busy?'SENDING…':'REQUEST APPROVAL',style:const TextStyle(fontWeight:FontWeight.w900))),
   ])));
 
   Future<void> _captureVoice()async{
@@ -118,3 +122,38 @@ class _GuardQuickArrivalScreenState extends State<GuardQuickArrivalScreen>{
 
 String _label(Map<String,dynamic> unit){final b=unit['building'] is Map?Map<String,dynamic>.from(unit['building'] as Map):const <String,dynamic>{};return '${b['name']??b['code']??'Building'} · ${unit['number']??'Unit'}';}
 String? _optional(String value){final text=value.trim();return text.isEmpty?null:text;}
+
+
+class _QuickArrivalSyncStatus extends StatelessWidget {
+  const _QuickArrivalSyncStatus({required this.controller});
+  final GuardController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme=Theme.of(context);
+    final count=controller.queuedActions;
+    return Card(
+      child:Padding(
+        padding:const EdgeInsets.all(14),
+        child:Column(
+          crossAxisAlignment:CrossAxisAlignment.stretch,
+          children:[
+            Row(children:[
+              Icon(Icons.cloud_off_outlined,color:theme.colorScheme.error),
+              const SizedBox(width:10),
+              Expanded(child:Text('$count ${count==1?'action':'actions'} waiting to sync',style:theme.textTheme.titleSmall?.copyWith(fontWeight:FontWeight.w900))),
+            ]),
+            const SizedBox(height:6),
+            Text(controller.offlineSyncMessage??'You can keep working. Saved actions will retry safely when connectivity returns.',style:theme.textTheme.bodySmall),
+            const SizedBox(height:10),
+            OutlinedButton.icon(
+              onPressed:controller.busy?null:controller.retryQueuedActions,
+              icon:const Icon(Icons.sync_rounded),
+              label:const Text('RETRY SAFE SYNC'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

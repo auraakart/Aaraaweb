@@ -210,6 +210,28 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
+  it('builds a permission-aware daily briefing with governance and procurement attention',async()=>{
+    const {prisma,operations,service}=setup();
+    operations.operationsSummary.mockResolvedValue({openCount:1,breachedCount:0,unassignedCount:0});
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{count:0,amountPaise:0,over30:0}])
+      .mockResolvedValueOnce([{currentPaise:0,previousPaise:0}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{activeAssets:3,openWorkOrders:0,overdueWorkOrders:0,maintenanceDue30d:0}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{id:'action-1',title:'Renew lift AMC',status:'OPEN',dueAt:'2020-01-01T00:00:00.000Z'}])
+      .mockResolvedValueOnce([{activeVendors:4,submittedRequests:2,approvedRequests:1}]);
+    const result=await service.actionCentre('society-1',[AppRole.COMMITTEE_MEMBER]);
+    expect(result).toEqual(expect.objectContaining({grounded:true,mutationPerformed:false,generatedAt:expect.any(String)}));
+    expect(result.cards).toEqual(expect.arrayContaining([
+      expect.objectContaining({id:'governance-actions',domain:'GOVERNANCE',severity:'HIGH',metrics:expect.objectContaining({openActionItems:1,overdueActionItems:1})}),
+      expect.objectContaining({id:'procurement-attention',domain:'PROCUREMENT',severity:'MEDIUM',metrics:expect.objectContaining({submittedRequests:2})}),
+    ]));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(9);
+  });
+
   it('returns no privileged action cards to a resident-only role',async()=>{
     const {prisma,operations,service}=setup();
     const result=await service.actionCentre('society-1',[AppRole.OWNER]);

@@ -291,7 +291,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _busy ? null : _draftComplaint,
                       icon: const Icon(Icons.edit_note_rounded),
-                      label: const Text('Complaint draft'),
+                      label: const Text('Prepare complaint'),
                     ),
                   ),
                 ],
@@ -383,18 +383,31 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Complaint action proposal',
+              'Review complaint before submitting',
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
             ),
             const SizedBox(height: 6),
-            Text('Status: $status'),
+            Text(status == 'PROPOSED' ? 'Ready for your review' : status == 'EXECUTED' || status == 'CONFIRMED' ? 'Complaint submitted' : status == 'CANCELLED' ? 'Complaint cancelled' : 'Status: $status'),
             const SizedBox(height: 6),
             Text(
               widget.demoMode
-                  ? 'Demo safeguard: this simulates confirm/cancel and does not submit external data.'
-                  : 'Nothing is submitted until you confirm. Normal complaint authorization and validation still apply.',
+                  ? 'Demo safeguard: this simulates review and confirmation and does not submit external data.'
+                  : status == 'PROPOSED'
+                      ? 'Aaraagate prepared this from your description. Review it first—nothing is submitted until you confirm.'
+                      : status == 'EXECUTED' || status == 'CONFIRMED'
+                          ? 'Your complaint has been submitted through the normal authorized helpdesk workflow.'
+                          : status == 'CANCELLED'
+                              ? 'This proposal was cancelled and no complaint was submitted.'
+                              : 'Normal complaint authorization and validation still apply.',
             ),
             if (status == 'PROPOSED') ...[
+              const SizedBox(height: 12),
+              if ((_proposal!['title']?.toString().trim().isNotEmpty ?? false))
+                Text('Title: ${_proposal!['title']}'),
+              if ((_proposal!['category']?.toString().trim().isNotEmpty ?? false))
+                Text('Category: ${_proposal!['category']}'),
+              if ((_proposal!['priority']?.toString().trim().isNotEmpty ?? false))
+                Text('Priority: ${_proposal!['priority']}'),
               const SizedBox(height: 14),
               Row(
                 children: [
