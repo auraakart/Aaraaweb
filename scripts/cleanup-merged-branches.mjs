@@ -43,15 +43,19 @@ const branches = await paginate(`/repos/${owner}/${repo}/branches`);
 const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
 const closedPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=closed`);
 const openHeads = new Set(openPulls.map((pr) => pr.head?.ref).filter(Boolean));
-const mergedDevelopHeadShas = new Map();
+const mergedCanonicalHeadShas = new Map();
 for (const pr of closedPulls) {
-  if (!pr.merged_at || pr.base?.ref !== baseBranch || !pr.head?.ref || !pr.head?.sha) continue;
-  if (!mergedDevelopHeadShas.has(pr.head.ref)) mergedDevelopHeadShas.set(pr.head.ref, new Set());
-  mergedDevelopHeadShas.get(pr.head.ref).add(pr.head.sha);
+  if (!pr.merged_at || !canonical.has(pr.base?.ref) || !pr.head?.ref || !pr.head?.sha) continue;
+  if (!mergedCanonicalHeadShas.has(pr.head.ref)) mergedCanonicalHeadShas.set(pr.head.ref, new Set());
+  mergedCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
 }
-const base = branches.find((branch) => branch.name === baseBranch);
-if (!base) throw new Error(`Base branch ${baseBranch} was not found`);
-const developSha = base.commit.sha;
+const canonicalTargets = new Map();
+for (const name of canonical) {
+  const target = branches.find((branch) => branch.name === name);
+  if (!target) throw new Error(`Canonical branch ${name} was not found`);
+  canonicalTargets.set(name, target.commit.sha);
+}
+const developSha = canonicalTargets.get(baseBranch);
 
 const records = [];
 let index = 0;
@@ -90,26 +94,33 @@ async function classify(branch) {
     return record;
   }
 
-  const compare = await request(`/repos/${owner}/${repo}/compare/${branch.commit.sha}...${developSha}`);
-  record.compare = {
-    status: compare.status,
-    ahead_by: compare.ahead_by,
-    behind_by: compare.behind_by,
-    total_commits: compare.total_commits
-  };
+  record.compare = {};
+  let containedIn = null;
+  for (const [targetName, targetSha] of canonicalTargets) {
+    const compare = await request(`/repos/${owner}/${repo}/compare/${branch.commit.sha}...${targetSha}`);
+    record.compare[targetName] = {
+      status: compare.status,
+      ahead_by: compare.ahead_by,
+      behind_by: compare.behind_by,
+      total_commits: compare.total_commits
+    };
+    if ((compare.status === 'ahead' || compare.status === 'identical') && compare.behind_by === 0) {
+      containedIn = targetName;
+      break;
+    }
+  }
 
-  const fullyContained = (compare.status === 'ahead' || compare.status === 'identical') && compare.behind_by === 0;
-  const exactMergedHead = mergedDevelopHeadShas.get(name)?.has(branch.commit.sha) === true;
-  if (!fullyContained && !exactMergedHead) {
+  const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
+  if (!containedIn && !exactMergedHead) {
     record.decision = 'review';
-    record.reason = 'branch contains commits not proven contained in develop and current head does not exactly match a merged develop PR';
+    record.reason = 'branch contains commits not proven contained in a canonical branch and current head does not exactly match a PR merged into a canonical branch';
     return record;
   }
 
   record.decision = dryRun ? 'delete-dry-run' : 'delete';
-  record.reason = fullyContained
-    ? 'branch head is fully contained in develop'
-    : 'current branch head exactly matches a pull request head already merged into develop';
+  record.reason = containedIn
+    ? `branch head is fully contained in ${containedIn}`
+    : 'current branch head exactly matches a pull request head already merged into a canonical branch';
 
   if (!dryRun) {
     const ref = name.split('/').map(encodeURIComponent).join('/');
