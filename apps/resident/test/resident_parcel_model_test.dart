@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:resident_app/data/models/resident_parcel.dart';
+import 'package:aaraagate_resident/data/models/resident_parcel.dart';
 
 void main() {
   test('ResidentParcel parses API payloads into typed state', () {
