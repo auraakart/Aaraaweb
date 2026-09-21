@@ -1,8 +1,16 @@
 {
-  "schemaVersion": "aaraagate.competitive-readiness.v1",
-  "program": "V4.23-V4.28",
-  "baseline": "1fafcc1f6c9d8bba9a458b8f089b962c7ffc5560",
-  "status": "ACTIVE",
+  "schemaVersion": "aaraagate.competitive-readiness.v2",
+  "program": "V4.23-V4.33",
+  "baseline": "1546e06c372ac89e5de73af3ac2dbfea0df6cc53",
+  "asOf": "2026-09-21",
+  "status": "REPOSITORY_READY_EXTERNAL_PENDING",
+  "externalBoundary": [
+    "Production deployment and live pilot execution",
+    "Physical hardware/vendor certification",
+    "Live payment/provider certification",
+    "Hosted monitoring and backup-restore evidence",
+    "Pilot KPI observations and role sign-off"
+  ],
   "cycles": [
     {
       "id": "V4.23",
@@ -10,7 +18,7 @@
       "dependsOn": [
         "V4.22"
       ],
-      "repositoryStatus": "IN_PROGRESS",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "NOT_APPLICABLE",
       "requiredEvidence": [
         "admin-ui-migration-evidence",
@@ -24,7 +32,7 @@
       "dependsOn": [
         "V4.23"
       ],
-      "repositoryStatus": "PLANNED",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "PENDING_EXTERNAL",
       "requiredEvidence": [
         "tool-authorization-negative-tests",
@@ -38,7 +46,7 @@
       "dependsOn": [
         "V4.24"
       ],
-      "repositoryStatus": "PLANNED",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "PENDING_EXTERNAL",
       "requiredEvidence": [
         "provider-adapter-tests",
@@ -52,7 +60,7 @@
       "dependsOn": [
         "V4.25"
       ],
-      "repositoryStatus": "PLANNED",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "PENDING_EXTERNAL",
       "requiredEvidence": [
         "reference-adapter-tests",
@@ -66,7 +74,7 @@
       "dependsOn": [
         "V4.26"
       ],
-      "repositoryStatus": "PLANNED",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "PENDING_EXTERNAL",
       "requiredEvidence": [
         "migration-fixture",
@@ -80,13 +88,82 @@
       "dependsOn": [
         "V4.27"
       ],
-      "repositoryStatus": "PLANNED",
+      "repositoryStatus": "COMPLETE",
       "fieldStatus": "PENDING_EXTERNAL",
       "requiredEvidence": [
         "pilot-kpi-evidence",
         "role-signoff",
-        "release-sha",
         "rollback-backup-evidence"
+      ]
+    },
+    {
+      "id": "V4.29",
+      "area": "PRIVACY_SAFE_EVIDENCE_CAPTURE",
+      "dependsOn": [
+        "V4.28"
+      ],
+      "repositoryStatus": "COMPLETE",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "synthetic-evidence-contract",
+        "privacy-safe-record-schema",
+        "pilot-evidence-capture-workflow"
+      ]
+    },
+    {
+      "id": "V4.30",
+      "area": "COMPETITIVE_CLOSURE",
+      "dependsOn": [
+        "V4.29"
+      ],
+      "repositoryStatus": "COMPLETE",
+      "fieldStatus": "NOT_APPLICABLE",
+      "requiredEvidence": [
+        "gate-attention-queue",
+        "finance-attention-queue",
+        "resident-navigation-attention"
+      ]
+    },
+    {
+      "id": "V4.31",
+      "area": "MIGRATION_ONBOARDING_EXCELLENCE",
+      "dependsOn": [
+        "V4.30"
+      ],
+      "repositoryStatus": "COMPLETE",
+      "fieldStatus": "NOT_APPLICABLE",
+      "requiredEvidence": [
+        "ordered-onboarding-workflow",
+        "dependency-gating",
+        "migration-readiness-signal"
+      ]
+    },
+    {
+      "id": "V4.32",
+      "area": "INTEGRATION_READINESS",
+      "dependsOn": [
+        "V4.31"
+      ],
+      "repositoryStatus": "COMPLETE",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "adapter-health-summary",
+        "device-mapping-readiness",
+        "hardware-certification-boundary"
+      ]
+    },
+    {
+      "id": "V4.33",
+      "area": "READINESS_RECONCILIATION",
+      "dependsOn": [
+        "V4.32"
+      ],
+      "repositoryStatus": "COMPLETE",
+      "fieldStatus": "PENDING_EXTERNAL",
+      "requiredEvidence": [
+        "competitive-readiness-v2",
+        "competitive-readiness-contract",
+        "v4.33-readiness-workflow"
       ]
     }
   ]
