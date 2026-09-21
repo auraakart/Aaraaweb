@@ -253,7 +253,7 @@ export default function UtilityIntegrationsPage() {
 
   async function replaceMapping(mapping: Mapping) {
     if (!session || !canManage || !mapping.active) return
-    const meterId = await operatorPrompt('Enter the replacement Aaraagate meter UUID. The existing mapping will be retained as retired history.')?.trim()
+    const meterId = (await operatorPrompt('Enter the replacement Aaraagate meter UUID. The existing mapping will be retained as retired history.'))?.trim()
     if (!meterId) return
     setBusy(true)
     setError('')
@@ -274,9 +274,9 @@ export default function UtilityIntegrationsPage() {
 
   async function resolveReceipt(receipt: Receipt, action: 'dismiss' | 'reprocess') {
     if (!session || !canManage || receipt.status !== 'QUARANTINED') return
-    const note = await operatorPrompt(action === 'dismiss'
+    const note = (await operatorPrompt(action === 'dismiss'
       ? 'Record why this quarantined receipt is being dismissed (required).'
-      : 'Optional reprocessing note. A new immutable receipt will be created; the original will not change.')?.trim()
+      : 'Optional reprocessing note. A new immutable receipt will be created; the original will not change.'))?.trim()
     if (note === undefined || (action === 'dismiss' && !note)) return
     if (action === 'reprocess' && !await operatorConfirm('Reprocess this payload against the current active mapping? This creates a new receipt but never a bill.')) return
     setBusy(true)
