@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const token = process.env.GITHUB_TOKEN;
@@ -36,6 +37,18 @@ async function paginate(path) {
   }
 }
 
+function isAncestor(ancestorSha, targetBranch) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestorSha, `refs/remotes/origin/${targetBranch}`], {
+      stdio: 'ignore'
+    });
+    return true;
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw error;
+  }
+}
+
 const canonical = new Set(['main', 'staging', 'develop']);
 const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^|[-_.])(backup|recovery|archive|snapshot)([-_.]|$)/i;
 
@@ -44,11 +57,13 @@ const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
 const closedPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=closed`);
 const openHeads = new Set(openPulls.map((pr) => pr.head?.ref).filter(Boolean));
 const mergedCanonicalHeadShas = new Map();
+
 for (const pr of closedPulls) {
   if (!pr.merged_at || !canonical.has(pr.base?.ref) || !pr.head?.ref || !pr.head?.sha) continue;
   if (!mergedCanonicalHeadShas.has(pr.head.ref)) mergedCanonicalHeadShas.set(pr.head.ref, new Set());
   mergedCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
 }
+
 const canonicalTargets = new Map();
 for (const name of canonical) {
   const target = branches.find((branch) => branch.name === name);
@@ -59,7 +74,7 @@ const developSha = canonicalTargets.get(baseBranch);
 
 const records = [];
 let index = 0;
-const concurrency = 6;
+const deleteConcurrency = 8;
 
 async function classify(branch) {
   const name = branch.name;
@@ -69,7 +84,7 @@ async function classify(branch) {
     protected: Boolean(branch.protected),
     decision: 'review',
     reason: null,
-    compare: null,
+    ancestry: {},
     deleted: false
   };
 
@@ -94,17 +109,11 @@ async function classify(branch) {
     return record;
   }
 
-  record.compare = {};
   let containedIn = null;
-  for (const [targetName, targetSha] of canonicalTargets) {
-    const compare = await request(`/repos/${owner}/${repo}/compare/${branch.commit.sha}...${targetSha}`);
-    record.compare[targetName] = {
-      status: compare.status,
-      ahead_by: compare.ahead_by,
-      behind_by: compare.behind_by,
-      total_commits: compare.total_commits
-    };
-    if ((compare.status === 'ahead' || compare.status === 'identical') && compare.behind_by === 0) {
+  for (const targetName of canonical) {
+    const contained = isAncestor(branch.commit.sha, targetName);
+    record.ancestry[targetName] = contained;
+    if (contained) {
       containedIn = targetName;
       break;
     }
@@ -121,24 +130,29 @@ async function classify(branch) {
   record.reason = containedIn
     ? `branch head is fully contained in ${containedIn}`
     : 'current branch head exactly matches a pull request head already merged into a canonical branch';
-
-  if (!dryRun) {
-    const ref = name.split('/').map(encodeURIComponent).join('/');
-    await request(`/repos/${owner}/${repo}/git/refs/heads/${ref}`, { method: 'DELETE' });
-    record.deleted = true;
-  }
   return record;
 }
 
-async function worker() {
+for (const branch of branches) {
+  records.push(await classify(branch));
+}
+
+async function deleteWorker(deleteQueue) {
   while (true) {
     const current = index++;
-    if (current >= branches.length) return;
-    records[current] = await classify(branches[current]);
+    if (current >= deleteQueue.length) return;
+    const record = deleteQueue[current];
+    const ref = record.branch.split('/').map(encodeURIComponent).join('/');
+    await request(`/repos/${owner}/${repo}/git/refs/heads/${ref}`, { method: 'DELETE' });
+    record.deleted = true;
   }
 }
 
-await Promise.all(Array.from({ length: concurrency }, () => worker()));
+const deleteQueue = dryRun ? [] : records.filter((record) => record.decision === 'delete');
+if (deleteQueue.length) {
+  index = 0;
+  await Promise.all(Array.from({ length: deleteConcurrency }, () => deleteWorker(deleteQueue)));
+}
 
 const counts = records.reduce((acc, record) => {
   acc[record.decision] = (acc[record.decision] || 0) + 1;
@@ -151,6 +165,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   baseBranch,
   developSha,
   dryRun,
+  classificationMode: 'local-git-ancestry',
   generatedAt: new Date().toISOString(),
   counts,
   records
@@ -167,6 +182,7 @@ const md = [
   `- Repository: ${repository}`,
   `- Base branch: ${baseBranch}`,
   `- Base SHA: ${developSha}`,
+  `- Classification: local git ancestry`,
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,
@@ -176,7 +192,7 @@ const md = [
   '',
   '## Needs review',
   '',
-  ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; compare=${JSON.stringify(r.compare)}`),
+  ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; ancestry=${JSON.stringify(r.ancestry)}`),
   '',
   '## Deleted / planned',
   '',
@@ -185,4 +201,4 @@ const md = [
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, classificationMode: 'local-git-ancestry' }, null, 2));
