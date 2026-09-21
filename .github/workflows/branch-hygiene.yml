@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [develop]
     types: [closed]
+  push:
+    branches: [develop]
   workflow_dispatch:
     inputs:
       dry_run:
