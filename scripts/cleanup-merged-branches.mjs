@@ -41,7 +41,14 @@ const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^
 
 const branches = await paginate(`/repos/${owner}/${repo}/branches`);
 const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
+const closedPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=closed`);
 const openHeads = new Set(openPulls.map((pr) => pr.head?.ref).filter(Boolean));
+const mergedDevelopHeadShas = new Map();
+for (const pr of closedPulls) {
+  if (!pr.merged_at || pr.base?.ref !== baseBranch || !pr.head?.ref || !pr.head?.sha) continue;
+  if (!mergedDevelopHeadShas.has(pr.head.ref)) mergedDevelopHeadShas.set(pr.head.ref, new Set());
+  mergedDevelopHeadShas.get(pr.head.ref).add(pr.head.sha);
+}
 const base = branches.find((branch) => branch.name === baseBranch);
 if (!base) throw new Error(`Base branch ${baseBranch} was not found`);
 const developSha = base.commit.sha;
@@ -92,14 +99,17 @@ async function classify(branch) {
   };
 
   const fullyContained = (compare.status === 'ahead' || compare.status === 'identical') && compare.behind_by === 0;
-  if (!fullyContained) {
+  const exactMergedHead = mergedDevelopHeadShas.get(name)?.has(branch.commit.sha) === true;
+  if (!fullyContained && !exactMergedHead) {
     record.decision = 'review';
-    record.reason = 'branch contains commits not proven contained in develop';
+    record.reason = 'branch contains commits not proven contained in develop and current head does not exactly match a merged develop PR';
     return record;
   }
 
   record.decision = dryRun ? 'delete-dry-run' : 'delete';
-  record.reason = 'branch head is fully contained in develop';
+  record.reason = fullyContained
+    ? 'branch head is fully contained in develop'
+    : 'current branch head exactly matches a pull request head already merged into develop';
 
   if (!dryRun) {
     const ref = name.split('/').map(encodeURIComponent).join('/');
