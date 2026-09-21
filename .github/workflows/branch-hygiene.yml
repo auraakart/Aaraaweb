@@ -3,14 +3,7 @@ name: Branch hygiene
 on:
   pull_request:
     branches: [develop]
-    paths:
-      - 'scripts/cleanup-merged-branches.mjs'
-      - '.github/workflows/branch-hygiene.yml'
-  push:
-    branches: [develop]
-    paths:
-      - 'scripts/cleanup-merged-branches.mjs'
-      - '.github/workflows/branch-hygiene.yml'
+    types: [closed]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -25,6 +18,7 @@ permissions:
 
 jobs:
   branch-hygiene:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -35,6 +29,7 @@ jobs:
       - name: Checkout full repository history
         uses: actions/checkout@v4
         with:
+          ref: develop
           fetch-depth: 0
 
       - name: Fetch all branch refs for local ancestry checks
@@ -45,9 +40,7 @@ jobs:
         id: mode
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "dry_run=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
           else
             echo "dry_run=false" >> "$GITHUB_OUTPUT"
