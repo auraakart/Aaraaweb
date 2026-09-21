@@ -4,6 +4,7 @@ import { ConsumerBookingsService } from './consumer-bookings.service';
 function setup() {
   const tx = {
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn().mockResolvedValue(0),
     serviceOffering: { findFirst: vi.fn() },
   };
   const prisma = {
@@ -281,6 +282,7 @@ describe('ConsumerBookingsService', () => {
     );
 
     expect(result.status).toBe('CANCELLED');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
   });
 });
