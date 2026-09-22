@@ -120,4 +120,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+
+  test('demo workforce mirrors production assignment shape', () async {
+    final rows = await DemoResidentRepository().workforce();
+    expect(rows, isNotEmpty);
+    final first = rows.first;
+    expect(first['status'], isNotNull);
+    expect(first['worker'], isA<Map>());
+    final worker = Map<String, dynamic>.from(first['worker'] as Map);
+    expect(worker['name'], isNotNull);
+    expect(worker['role'], isNotNull);
+    expect(worker['verification'], isNotNull);
+    final household = Map<String, dynamic>.from(first['household'] as Map);
+    expect(household['unitId'], 'demo-unit-1');
+    expect(household['unit'], isA<Map>());
+  });
+
 }
