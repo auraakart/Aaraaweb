@@ -443,8 +443,8 @@ model SocietyWorkerLeave {
   society           Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
   worker            SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
 
-  @@index([societyId, workerId, active, startsOn, endsOn])
-  @@index([societyId, active, startsOn, endsOn])
+  @@index([societyId, workerId, active, startsOn, endsOn], map: "SocietyWorkerLeave_scope_worker_dates_idx")
+  @@index([societyId, active, startsOn, endsOn], map: "SocietyWorkerLeave_scope_dates_idx")
 }
 
 model SocietyWorkerEvent {
