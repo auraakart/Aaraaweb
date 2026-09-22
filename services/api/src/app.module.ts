@@ -28,6 +28,7 @@ import { GatesModule } from './gates/gates.module';
 import { VisitorsModule } from './visitors/visitors.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WorkforceModule } from './workforce/workforce.module';
+import { SocietyWorkforceModule } from './society-workforce/society-workforce.module';
 import { BillingModule } from './billing/billing.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { ReportsModule } from './reports/reports.module';
@@ -50,6 +51,7 @@ import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
     PropertiesModule,
     HouseholdsModule,
     WorkforceModule,
+    SocietyWorkforceModule,
     HelpdeskModule,
     IntegrationsModule,
     AiOperationsModule,

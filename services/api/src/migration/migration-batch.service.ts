@@ -111,6 +111,47 @@ export class MigrationBatchService {
     });
   }
 
+  async readiness(societyId: string) {
+    const batches = await this.listBatches(societyId) as Array<{
+      entityType: MigrationEntityType;
+      status: string;
+      invalidRows: number;
+      duplicateRows: number;
+      referentialIssueCount: number;
+      createdAt: Date;
+    }>;
+    const stages: MigrationEntityType[] = ['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE'];
+    let previousCommitted = true;
+    const items = stages.map((entityType) => {
+      const matches = batches.filter((batch) => batch.entityType === entityType);
+      const committed = matches.some((batch) => batch.status === 'COMMITTED');
+      const readyBatch = matches.find((batch) => batch.status === 'READY');
+      const latest = matches[0];
+      const blockedByDependency = entityType !== 'BUILDING' && !previousCommitted;
+      const blockers: string[] = [];
+      if (latest && latest.invalidRows > 0) blockers.push(`${latest.invalidRows} invalid rows`);
+      if (latest && latest.duplicateRows > 0) blockers.push(`${latest.duplicateRows} duplicate rows`);
+      if (latest && latest.referentialIssueCount > 0) blockers.push(`${latest.referentialIssueCount} reference issues`);
+      if (blockedByDependency) blockers.push('Previous migration stage is not committed');
+      const status = committed ? 'COMMITTED' : readyBatch && !blockedByDependency ? 'READY' : blockers.length > 0 ? 'BLOCKED' : 'PENDING';
+      previousCommitted = previousCommitted && committed;
+      return { entityType, status, committed, ready: !!readyBatch, blockedByDependency, blockers };
+    });
+    const committedStages = items.filter((item) => item.committed).length;
+    const blockedStages = items.filter((item) => item.status === 'BLOCKED').length;
+    const readyStages = items.filter((item) => item.status === 'READY').length;
+    const nextStage = items.find((item) => !item.committed)?.entityType ?? null;
+    return {
+      totalStages: stages.length,
+      committedStages,
+      blockedStages,
+      readyStages,
+      complete: committedStages === stages.length,
+      nextStage,
+      stages: items,
+    };
+  }
+
   listBatches(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT "id","entityType","sourceLabel","status","checksum","totalRows","validRows","invalidRows",

@@ -303,4 +303,49 @@ describe('AmenitiesService', () => {
 
     expect(txQueryRaw).toHaveBeenCalledTimes(3);
   });
+
+  it('enforces a per-unit daily amenity booking limit', async () => {
+    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
+    const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const txQueryRaw = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'COURT', name: 'Court',
+        description: null, location: null, schedule: {}, bookingRules: { maxBookingsPerDayPerUnit: 1 }, feePaise: 0, currency: 'INR',
+        requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 2, active: true,
+      }])
+      .mockResolvedValueOnce([{ count: 1 }]);
+    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+
+    await expect(service.createBooking(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+      { unitId: '44444444-4444-4444-8444-444444444444', startsAt: start.toISOString(), endsAt: end.toISOString() },
+    )).rejects.toThrow('daily booking limit');
+  });
+
+  it('enforces cooldown time between bookings by the same unit', async () => {
+    queryRaw.mockResolvedValueOnce([{ allowed: true }]);
+    const start = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const txQueryRaw = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: '33333333-3333-4333-8333-333333333333', societyId: '11111111-1111-4111-8111-111111111111', code: 'GYM', name: 'Gym',
+        description: null, location: null, schedule: {}, bookingRules: { cooldownMinutes: 120 }, feePaise: 0, currency: 'INR',
+        requiresApproval: false, slotMinutes: 60, maxConcurrentBookings: 5, active: true,
+      }])
+      .mockResolvedValueOnce([{ count: 1 }]);
+    transaction.mockImplementationOnce(async (callback: (tx: { $queryRaw: typeof txQueryRaw }) => Promise<unknown>) => callback({ $queryRaw: txQueryRaw }));
+
+    await expect(service.createBooking(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+      { unitId: '44444444-4444-4444-8444-444444444444', startsAt: start.toISOString(), endsAt: end.toISOString() },
+    )).rejects.toThrow('at least 120 minutes');
+  });
+
 });

@@ -14,30 +14,10 @@ class WorkforceScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Household staff', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                      SizedBox(height: 4),
-                      Text('Attendance, leave and ratings in one place.'),
-                    ],
-                  ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: controller.households.isEmpty ? null : () => _openAddSheet(context),
-                  tooltip: 'Add household staff',
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: controller.refreshWorkforce,
-                  tooltip: 'Refresh staff',
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
+            _WorkforceHeader(
+              canAdd: controller.households.isNotEmpty,
+              onAdd: () => _openAddSheet(context),
+              onRefresh: controller.refreshWorkforce,
             ),
             const SizedBox(height: 18),
             if (controller.workforceError != null)
@@ -77,6 +57,89 @@ class WorkforceScreen extends StatelessWidget {
     if (submitted == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment submitted for society review.')));
     }
+  }
+}
+
+class _WorkforceHeader extends StatelessWidget {
+  const _WorkforceHeader({
+    required this.canAdd,
+    required this.onAdd,
+    required this.onRefresh,
+  });
+
+  final bool canAdd;
+  final VoidCallback onAdd;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final systemScale = MediaQuery.textScalerOf(context).scale(1);
+    final titleScale = systemScale.clamp(1.0, 1.45).toDouble();
+    final supportingScale = systemScale.clamp(1.0, 1.6).toDouble();
+
+    Widget copy() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Household staff',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.linear(titleScale),
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Attendance, leave and ratings in one place.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.linear(supportingScale),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        );
+
+    Widget actions() => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton.filledTonal(
+              onPressed: canAdd ? onAdd : null,
+              tooltip: 'Add household staff',
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              onPressed: onRefresh,
+              tooltip: 'Refresh staff',
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 420 || systemScale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy(),
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerRight, child: actions()),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy()),
+            const SizedBox(width: 12),
+            actions(),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -198,13 +261,23 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final worker = assignment['worker'] is Map ? Map<String, dynamic>.from(assignment['worker'] as Map) : const <String, dynamic>{};
+    final worker = assignment['worker'] is Map
+        ? Map<String, dynamic>.from(assignment['worker'] as Map)
+        : <String, dynamic>{
+            'name': assignment['name'],
+            'phone': assignment['phone'],
+            'role': assignment['role'],
+            'verification': assignment['verification'],
+          };
     final household = assignment['household'] is Map ? Map<String, dynamic>.from(assignment['household'] as Map) : const <String, dynamic>{};
     final unit = household['unit'] is Map ? Map<String, dynamic>.from(household['unit'] as Map) : const <String, dynamic>{};
     final building = unit['building'] is Map ? Map<String, dynamic>.from(unit['building'] as Map) : const <String, dynamic>{};
     final assignmentId = assignment['id']?.toString() ?? '';
-    final status = assignment['status']?.toString() ?? 'PENDING';
-    final verification = worker['verification']?.toString() ?? 'PENDING';
+    final status = assignment['status']?.toString() ?? (assignment['active'] == false ? 'SUSPENDED' : 'PENDING');
+    final verification = worker['verification']?.toString() ?? (assignment['active'] == false ? 'SUSPENDED' : 'PENDING');
+    final workerName = worker['name']?.toString().trim();
+    final workerRole = worker['role']?.toString().trim();
+    final workerPhone = worker['phone']?.toString().trim();
     final present = controller.isWorkforcePresent(assignmentId);
     final rating = controller.ratingFor(assignmentId);
     final leaves = controller.leavesFor(assignmentId);
@@ -222,16 +295,23 @@ class _StaffCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  child: Text(_initials(worker['name']?.toString() ?? 'Staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  child: Text(_initials(workerName?.isNotEmpty == true ? workerName! : 'Staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(worker['name']?.toString() ?? 'Household staff', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                      Text(
+                        workerName?.isNotEmpty == true ? workerName! : 'Staff name unavailable',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                      ),
                       const SizedBox(height: 3),
-                      Text(_friendly(worker['role']?.toString() ?? 'OTHER')),
+                      Text(workerRole?.isNotEmpty == true ? _friendly(workerRole!) : 'Role not specified'),
+                      if (workerPhone?.isNotEmpty == true) ...[
+                        const SizedBox(height: 2),
+                        Text(workerPhone!, style: Theme.of(context).textTheme.bodySmall),
+                      ],
                       if (building['name'] != null || unit['number'] != null) ...[
                         const SizedBox(height: 3),
                         Text('${building['name'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}', style: Theme.of(context).textTheme.bodySmall),
@@ -253,8 +333,9 @@ class _StaffCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: _friendly(status), icon: Icons.assignment_turned_in_outlined),
-                _StatusChip(label: _friendly(verification), icon: Icons.verified_user_outlined),
+                _StatusChip(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
+                _StatusChip(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
+                _StatusChip(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
                 if (rating != null)
                   _StatusChip(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
               ],
@@ -355,6 +436,14 @@ class _StaffCard extends StatelessWidget {
     } catch (error) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  static String _gateAccessLabel(String assignmentStatus, String verificationStatus) {
+    if (assignmentStatus == 'SUSPENDED' || verificationStatus == 'SUSPENDED') return 'Gate access: Suspended';
+    if (assignmentStatus == 'REJECTED' || verificationStatus == 'REJECTED') return 'Gate access: Not allowed';
+    if (assignmentStatus != 'APPROVED') return 'Gate access: Awaiting assignment approval';
+    if (verificationStatus != 'VERIFIED') return 'Gate access: Awaiting verification';
+    return 'Gate access: Allowed';
   }
 
   static String _initials(String name) {

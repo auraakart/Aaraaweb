@@ -1,4 +1,5 @@
 enum ResidentHomeHighlightKind { billing, helpdesk, service, notice }
+enum ResidentHomeUrgency { immediate, soon, info }
 
 class ResidentHomeHighlight {
   const ResidentHomeHighlight({
@@ -6,12 +7,14 @@ class ResidentHomeHighlight {
     required this.title,
     required this.subtitle,
     required this.priority,
+    required this.urgency,
   });
 
   final ResidentHomeHighlightKind kind;
   final String title;
   final String subtitle;
   final int priority;
+  final ResidentHomeUrgency urgency;
 }
 
 class ResidentHomeHighlights {
@@ -46,6 +49,7 @@ class ResidentHomeHighlights {
         title: title,
         subtitle: subtitle,
         priority: overdue ? 0 : 2,
+        urgency: overdue ? ResidentHomeUrgency.immediate : ResidentHomeUrgency.soon,
       ));
     }
 
@@ -71,6 +75,7 @@ class ResidentHomeHighlights {
             ? '${_display(priority)} priority · action in progress'
             : 'Helpdesk request in progress',
         priority: priority == 'CRITICAL' ? 0 : priority == 'HIGH' ? 1 : 3,
+        urgency: priority == 'CRITICAL' ? ResidentHomeUrgency.immediate : priority == 'HIGH' ? ResidentHomeUrgency.soon : ResidentHomeUrgency.info,
       ));
     }
 
@@ -93,6 +98,7 @@ class ResidentHomeHighlights {
         title: name?.trim().isNotEmpty == true ? name! : 'Upcoming home service',
         subtitle: scheduled == null ? 'Service booking in progress' : 'Scheduled ' + _dateLabel(scheduled),
         priority: 3,
+        urgency: ResidentHomeUrgency.info,
       ));
     }
 
@@ -108,6 +114,7 @@ class ResidentHomeHighlights {
         title: notice['title']?.toString() ?? 'Society notice',
         subtitle: notice['requiresAcknowledgement'] == true ? 'Acknowledgement requested' : 'Latest society update',
         priority: notice['requiresAcknowledgement'] == true ? 1 : 4,
+        urgency: notice['requiresAcknowledgement'] == true ? ResidentHomeUrgency.soon : ResidentHomeUrgency.info,
       ));
     }
 

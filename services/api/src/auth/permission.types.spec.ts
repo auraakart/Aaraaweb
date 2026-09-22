@@ -72,10 +72,28 @@ describe('permission matrix', () => {
 
   it('keeps the dedicated auditor read-only across privileged domains', () => {
     expect(hasPermission([AppRole.AUDITOR], AppPermission.AUDIT_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.GATE_READ)).toBe(false);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_READ)).toBe(true);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_MANAGE)).toBe(false);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.FINANCE_MANAGE)).toBe(false);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_CONFIGURATION_MANAGE)).toBe(false);
+  });
+
+
+  it('separates society workforce management from gate attendance processing', () => {
+    expect(hasPermission([AppRole.SOCIETY_ADMIN], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.FACILITY_MANAGER], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(true);
+    expect(hasPermission([AppRole.COMMITTEE_MEMBER], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(true);
+    expect(hasPermission([AppRole.COMMITTEE_MEMBER], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.SECURITY_SUPERVISOR], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(true);
+    expect(hasPermission([AppRole.SECURITY_SUPERVISOR], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.SECURITY_GUARD], AppPermission.GATE_ACCESS_PROCESS)).toBe(true);
+    expect(hasPermission([AppRole.SECURITY_GUARD], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(false);
+    expect(hasPermission([AppRole.SECURITY_GUARD], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.OWNER], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(false);
+    expect(hasPermission([AppRole.TENANT], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
   });
 
   it('keeps unmapped operational permissions denied by default', () => {

@@ -8,11 +8,13 @@ class AiAssistantScreen extends StatefulWidget {
     required this.apiClient,
     required this.unitId,
     this.demoMode = false,
+    this.initialPrompt,
   });
 
   final ApiClient apiClient;
   final String? unitId;
   final bool demoMode;
+  final String? initialPrompt;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -39,6 +41,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialPrompt?.trim().isNotEmpty == true) {
+      _controller.text = widget.initialPrompt!.trim();
+    }
     if (!widget.demoMode) _loadTools();
   }
 
@@ -276,26 +281,35 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _busy ? null : _ask,
-                    icon: const Icon(Icons.send_rounded),
-                    label: Text(_busy ? 'Checking…' : 'Ask'),
-                  ),
-                ),
-                if (widget.unitId != null) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _draftComplaint,
-                      icon: const Icon(Icons.edit_note_rounded),
-                      label: const Text('Prepare complaint'),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1.0);
+                final stacked = constraints.maxWidth < 420 || scale > 1.3;
+                final width = stacked ? constraints.maxWidth : (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: FilledButton.icon(
+                        onPressed: _busy ? null : _ask,
+                        icon: const Icon(Icons.send_rounded),
+                        label: Text(_busy ? 'Checking…' : 'Ask'),
+                      ),
                     ),
-                  ),
-                ],
-              ],
+                    if (widget.unitId != null)
+                      SizedBox(
+                        width: width,
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _draftComplaint,
+                          icon: const Icon(Icons.edit_note_rounded),
+                          label: const Text('Prepare complaint'),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),

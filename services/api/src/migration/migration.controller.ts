@@ -95,6 +95,12 @@ export class MigrationController {
     );
   }
 
+  @Get('readiness')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
+  readiness(@CurrentTenant() societyId: string) {
+    return this.batchService.readiness(societyId);
+  }
+
   @Get('batches')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
   listBatches(@CurrentTenant() societyId: string) {

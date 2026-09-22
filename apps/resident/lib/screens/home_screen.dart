@@ -44,7 +44,7 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onOpenNotices;
   final VoidCallback onOpenBilling;
   final VoidCallback onOpenAmenities;
-  final VoidCallback onOpenAi;
+  final ValueChanged<String?> onOpenAi;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +54,7 @@ class HomeScreen extends StatelessWidget {
     final highlights = ResidentHomeHighlights.build(
       invoices: showBilling ? controller.maintenanceInvoices : const [],
       bookings: showServices ? controller.bookings : const [],
-      notices: const [],
+      notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],
     );
 
@@ -71,7 +71,10 @@ class HomeScreen extends StatelessWidget {
           ),
           children: [
             if (showAi) ...[
-              _AssistantEntryCard(onTap: onOpenAi),
+              _AssistantEntryCard(
+                summary: _assistantSummary(pending, highlights),
+                onTap: () => onOpenAi(_assistantPrompt(pending, highlights)),
+              ),
               const SizedBox(height: AaraagateTokens.space5),
             ],
             if (hasQuickActions) ...[
@@ -180,6 +183,7 @@ class HomeScreen extends StatelessWidget {
                   icon: _highlightIcon(highlights[i].kind),
                   title: highlights[i].title,
                   subtitle: highlights[i].subtitle,
+                  urgency: highlights[i].urgency,
                   onTap: () {
                     switch (highlights[i].kind) {
                       case ResidentHomeHighlightKind.billing:
@@ -270,6 +274,36 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  static String _assistantSummary(Map<String, dynamic>? pending, List<ResidentHomeHighlight> highlights) {
+    if (pending != null) return 'A visitor is waiting. Ask what needs your attention before you decide.';
+    if (highlights.isEmpty) return 'Ask about dues, staff, services, amenities or society updates.';
+    switch (highlights.first.kind) {
+      case ResidentHomeHighlightKind.billing:
+        return 'You have a billing item that needs attention. Ask for the amount, due date and payment context.';
+      case ResidentHomeHighlightKind.helpdesk:
+        return 'You have an active helpdesk item. Ask for its latest status and next action.';
+      case ResidentHomeHighlightKind.service:
+        return 'You have an upcoming service. Ask for timing, provider and booking status.';
+      case ResidentHomeHighlightKind.notice:
+        return 'A society update needs attention. Ask for the important details and any action required.';
+    }
+  }
+
+  static String? _assistantPrompt(Map<String, dynamic>? pending, List<ResidentHomeHighlight> highlights) {
+    if (pending != null) return 'What do I need to know about the visitor waiting at the gate?';
+    if (highlights.isEmpty) return null;
+    switch (highlights.first.kind) {
+      case ResidentHomeHighlightKind.billing:
+        return 'What is my maintenance due and when should I pay it?';
+      case ResidentHomeHighlightKind.helpdesk:
+        return 'What is the latest status of my open helpdesk request?';
+      case ResidentHomeHighlightKind.service:
+        return 'What home service do I have coming up and what should I know?';
+      case ResidentHomeHighlightKind.notice:
+        return 'Summarize the society update that needs my attention.';
+    }
+  }
+
   static IconData _highlightIcon(ResidentHomeHighlightKind kind) {
     switch (kind) {
       case ResidentHomeHighlightKind.billing:
@@ -300,9 +334,10 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _AssistantEntryCard extends StatelessWidget {
-  const _AssistantEntryCard({required this.onTap});
+  const _AssistantEntryCard({required this.onTap, required this.summary});
 
   final VoidCallback onTap;
+  final String summary;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +377,7 @@ class _AssistantEntryCard extends StatelessWidget {
                 Text('Ask Aaraagate Assistant', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 2),
                 Text(
-                  'Dues, visitors, staff, amenities and society updates.',
+                  summary,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -621,11 +656,13 @@ class _HomeSummaryRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    required this.urgency,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final ResidentHomeUrgency urgency;
   final VoidCallback onTap;
 
   @override
@@ -655,11 +692,22 @@ class _HomeSummaryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      AaraagateStatusPill(
+                        label: urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info',
+                        tone: urgency == ResidentHomeUrgency.immediate ? AaraagateStatusTone.danger : urgency == ResidentHomeUrgency.soon ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(

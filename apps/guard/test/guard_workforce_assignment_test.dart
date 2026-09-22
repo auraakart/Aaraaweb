@@ -21,6 +21,39 @@ void main() {
     expect(assignment.buildingName, 'Tower A');
   });
 
+  test('GuardSocietyWorker parses society-scoped gate eligibility', () {
+    final worker = GuardSocietyWorker.fromJson({
+      'id': 'worker-1',
+      'name': 'Ravi Kumar',
+      'role': 'GARDENER',
+      'department': 'GARDENING',
+      'employer': 'GreenCare Services',
+      'present': true,
+    });
+
+    expect(worker.id, 'worker-1');
+    expect(worker.name, 'Ravi Kumar');
+    expect(worker.role, 'GARDENER');
+    expect(worker.department, 'GARDENING');
+    expect(worker.employer, 'GreenCare Services');
+    expect(worker.present, isTrue);
+  });
+
+  test('GuardSocietyWorker parses blocked gate eligibility reason', () {
+    final worker = GuardSocietyWorker.fromJson({
+      'id': 'worker-2',
+      'name': 'Ravi Kumar',
+      'role': 'TECHNICIAN',
+      'department': 'MAINTENANCE',
+      'present': false,
+      'eligible': false,
+      'reason': 'Worker is on approved leave',
+    });
+
+    expect(worker.eligible, isFalse);
+    expect(worker.reason, 'Worker is on approved leave');
+  });
+
   test('GuardWorkforceAssignment rejects missing relationship structure', () {
     expect(
       () => GuardWorkforceAssignment.fromJson({'id': 'assignment-1'}),

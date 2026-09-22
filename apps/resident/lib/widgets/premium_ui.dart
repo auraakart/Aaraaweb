@@ -89,32 +89,57 @@ class PremiumSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
+    final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: theme.textTheme.titleMedium),
-              if (supportingText != null) ...[
-                const SizedBox(height: AaraagateTokens.space1),
-                Text(
-                  supportingText!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ],
-          ),
+        Text(
+          title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
+          style: theme.textTheme.titleMedium,
         ),
-        if (trailing != null) ...[
-          const SizedBox(width: AaraagateTokens.space3),
-          trailing!,
+        if (supportingText != null) ...[
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(
+            supportingText!,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
         ],
       ],
+    );
+
+    if (trailing == null) return copy;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final stacked = constraints.maxWidth < 420 || scale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy,
+              const SizedBox(height: AaraagateTokens.space2),
+              Align(alignment: Alignment.centerLeft, child: trailing!),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy),
+            const SizedBox(width: AaraagateTokens.space3),
+            trailing!,
+          ],
+        );
+      },
     );
   }
 }
