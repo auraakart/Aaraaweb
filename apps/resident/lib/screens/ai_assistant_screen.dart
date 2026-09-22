@@ -8,11 +8,13 @@ class AiAssistantScreen extends StatefulWidget {
     required this.apiClient,
     required this.unitId,
     this.demoMode = false,
+    this.initialPrompt,
   });
 
   final ApiClient apiClient;
   final String? unitId;
   final bool demoMode;
+  final String? initialPrompt;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -39,6 +41,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialPrompt?.trim().isNotEmpty == true) {
+      _controller.text = widget.initialPrompt!.trim();
+    }
     if (!widget.demoMode) _loadTools();
   }
 
