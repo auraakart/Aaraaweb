@@ -71,6 +71,20 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
                         ? strings.get('noQueuedActions')
                         : '${c.queuedActions} ${strings.get('pendingActions')} · ${c.oldestQueuedMinutes}m',
                   ),
+                  const Divider(height: 24),
+                  _StatusRow(
+                    icon: c.reviewRequiredActions > 0
+                        ? Icons.supervisor_account_outlined
+                        : c.queuedActions > 0
+                            ? Icons.sync_rounded
+                            : Icons.check_circle_outline_rounded,
+                    label: strings.get('nextAction'),
+                    value: c.reviewRequiredActions > 0
+                        ? strings.get('reviewRequired')
+                        : c.queuedActions > 0
+                            ? strings.get('retrySync')
+                            : strings.get('onlineClear'),
+                  ),
                   if (c.reviewRequiredActions > 0) ...[
                     const Divider(height: 24),
                     _StatusRow(icon: Icons.rule_folder_outlined, label: strings.get('reviewRequired'), value: '${c.reviewRequiredActions}'),
