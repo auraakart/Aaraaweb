@@ -72,6 +72,9 @@ describe('permission matrix', () => {
 
   it('keeps the dedicated auditor read-only across privileged domains', () => {
     expect(hasPermission([AppRole.AUDITOR], AppPermission.AUDIT_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_WORKFORCE_READ)).toBe(true);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.SOCIETY_WORKFORCE_MANAGE)).toBe(false);
+    expect(hasPermission([AppRole.AUDITOR], AppPermission.GATE_READ)).toBe(false);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_READ)).toBe(true);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.PRIVACY_OPERATIONS_MANAGE)).toBe(false);
     expect(hasPermission([AppRole.AUDITOR], AppPermission.FINANCE_MANAGE)).toBe(false);
