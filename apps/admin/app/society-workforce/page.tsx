@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent,useEffect,useMemo,useState } from 'react'
-import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField, StatusPill } from '../../components/admin-ui'
+import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, StatusPill } from '../../components/admin-ui'
 import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagate-api'
 
 type Gate={id:string;name:string;code:string;active:boolean}
