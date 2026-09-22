@@ -371,7 +371,15 @@ class _Badge extends StatelessWidget {
           children: [
             Icon(icon, size: 15),
             const SizedBox(width: 4),
-            Text(label, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6).toDouble()),
+                style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
       ),
