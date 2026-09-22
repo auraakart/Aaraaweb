@@ -77,4 +77,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+
+  testWidgets('staff card shows identity and unambiguous workflow statuses', (tester) async {
+    final controller = ResidentDataController(
+      DemoResidentRepository(),
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    controller.workforceAssignments = [
+      {
+        'id': 'assignment-1',
+        'status': 'PENDING',
+        'household': {
+          'unitId': 'demo-unit-1',
+          'unit': {
+            'number': 'A-1204',
+            'building': {'name': 'Maple Tower'},
+          },
+        },
+        'worker': {
+          'name': 'Lakshmi R.',
+          'phone': '+919800000001',
+          'role': 'MAID',
+          'verification': 'VERIFIED',
+        },
+      },
+    ];
+
+    await tester.pumpWidget(MaterialApp(home: WorkforceScreen(controller: controller)));
+    await tester.pump();
+
+    expect(find.text('Lakshmi R.'), findsOneWidget);
+    expect(find.text('Maid'), findsOneWidget);
+    expect(find.text('+919800000001'), findsOneWidget);
+    expect(find.text('Assignment: Pending'), findsOneWidget);
+    expect(find.text('Verification: Verified'), findsOneWidget);
+    expect(find.text('Gate access: Awaiting assignment approval'), findsOneWidget);
+    expect(find.text('Household staff'), findsOneWidget);
+    expect(find.text('Other'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
 }
