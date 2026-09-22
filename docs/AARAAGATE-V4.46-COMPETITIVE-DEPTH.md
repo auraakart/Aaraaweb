@@ -14,6 +14,7 @@ Close high-value competitive depth gaps identified during the repository/market 
 2. **Guard operational excellence**
    - Secure offline gate actions now expose oldest queued age and deferred-retry counts.
    - Guard Tools shows queue age and deferred retry state alongside existing pending/review-required counts.
+   - A localized **Next action** row now tells guards whether to retry safe sync, seek supervisor review, or continue with online operations.
    - Existing encrypted/local queue, idempotency, review-required and retry/backoff semantics remain unchanged.
 
 3. **Amenity policy depth**
@@ -21,6 +22,7 @@ Close high-value competitive depth gaps identified during the repository/market 
    - Daily limits use the Asia/Kolkata society-day boundary.
    - Cooldown applies to the same unit/amenity across active/completed bookings.
    - Existing capacity, approval, waitlist, cancellation cutoff, attendance and no-show behavior remains authoritative.
+   - Admin can configure the daily per-unit limit and cooldown when creating or editing an amenity, and the active policy is visible in the amenity summary.
 
 4. **Migration/onboarding readiness**
    - Adds `GET /api/v1/migration/readiness` under the existing society-configuration management permission.
@@ -35,6 +37,7 @@ Close high-value competitive depth gaps identified during the repository/market 
      - pending amenity approvals; and
      - migration/onboarding blockers.
    - Optional domain failures are isolated and do not collapse the core overview.
+   - Authorized operators get direct links from the overview to Finance Operations, Amenity Operations and Society Onboarding so exception signals are actionable without duplicating domain mutations.
 
 ## Boundaries
 
