@@ -64,10 +64,20 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
                   const Divider(height: 24),
                   _StatusRow(icon: c.realtimeConnected ? Icons.wifi_rounded : Icons.wifi_off_rounded, label: strings.get('realtime'), value: strings.get(c.realtimeConnected ? 'connected' : 'disconnected')),
                   const Divider(height: 24),
-                  _StatusRow(icon: c.queuedActions > 0 ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, label: strings.get('offlineQueue'), value: '${c.queuedActions} ${strings.get('pendingActions')}'),
+                  _StatusRow(
+                    icon: c.queuedActions > 0 ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
+                    label: strings.get('offlineQueue'),
+                    value: c.queuedActions == 0
+                        ? strings.get('noQueuedActions')
+                        : '${c.queuedActions} ${strings.get('pendingActions')} · ${c.oldestQueuedMinutes}m',
+                  ),
                   if (c.reviewRequiredActions > 0) ...[
                     const Divider(height: 24),
                     _StatusRow(icon: Icons.rule_folder_outlined, label: strings.get('reviewRequired'), value: '${c.reviewRequiredActions}'),
+                  ],
+                  if (c.deferredRetryActions > 0) ...[
+                    const Divider(height: 24),
+                    _StatusRow(icon: Icons.schedule_rounded, label: strings.get('retrySync'), value: '${c.deferredRetryActions}'),
                   ],
                   if (c.directoryFromCache) ...[
                     const Divider(height: 24),
