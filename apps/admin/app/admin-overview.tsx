@@ -42,12 +42,12 @@ export function AdminOverview({session,open,allowedViews}:{session:Session;open:
   const agedReceivablesPaise=ageing?Number(ageing.days1To30Paise)+Number(ageing.days31To60Paise)+Number(ageing.days61To90Paise)+Number(ageing.days90PlusPaise):0
   const openReconciliation=reconciliation.filter(item=>item.status!=='RESOLVED')
   const highReconciliation=openReconciliation.filter(item=>item.priority==='HIGH')
-  const money=(paise:number)=>'₹'+(paise/100).toLocaleString('en-IN',{maximumFractionDigits:0})
+  const agedReceivablesRupees=Math.round(agedReceivablesPaise/100)
 return <><Header title="Operations overview" society={session.societyName}/>{error&&<div className="error">{error}</div>}{loading?<section className="panel"><Empty text="Loading operational summary…"/></section>:<><div className="grid"><Metric label="Open helpdesk" value={active.length}/><Metric label="Urgent tickets" value={active.filter(t=>['URGENT','CRITICAL','HIGH'].includes(t.priority)).length}/><Metric label="Published notices" value={notices.filter(n=>n.status==='PUBLISHED').length}/><Metric label="Draft notices" value={notices.filter(n=>n.status==='DRAFT').length}/>{workforce&&<><Metric label="Workforce inside now" value={workforce.inside}/><Metric label="Workforce on leave" value={workforce.onLeave}/><Metric label="Workforce pending verification" value={workforce.pendingVerification}/><Metric label="Long-open attendance" value={workforce.longOpenAttendance.length}/></>}{canOpen('billing')&&<Metric label="Overdue invoices" value={overdue}/>}
-{ageing&&<Metric label="Aged receivables" value={money(agedReceivablesPaise)}/>}
+{ageing&&<Metric label="Aged receivables (₹)" value={agedReceivablesRupees}/>} 
 {reconciliation.length>0&&<Metric label="Open reconciliation" value={openReconciliation.length}/>}
 {amenityPending.length>0&&<Metric label="Amenity approvals" value={amenityPending.length}/>}
-{migration&&<Metric label="Onboarding stages" value={migration.complete?'Complete':migration.committedStages+'/'+migration.totalStages}/>}
+{migration&&<Metric label={`Onboarding stages (${migration.totalStages})`} value={migration.committedStages}/>} 
 </div>
 {(workforce?.longOpenAttendance.length||highReconciliation.length||amenityPending.length||migration?.blockedStages)&&<section className="panel"><b>Needs operations review</b>
 {workforce&&workforce.longOpenAttendance.length>0&&<p>{workforce.longOpenAttendance.slice(0,5).map(x=>x.name).join(', ')} have long-open workforce attendance records.</p>}
