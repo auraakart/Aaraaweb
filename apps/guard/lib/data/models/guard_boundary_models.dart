@@ -94,6 +94,8 @@ class GuardSocietyWorker {
     required this.department,
     required this.present,
     this.employer,
+    this.eligible = true,
+    this.reason,
   });
 
   final String id;
@@ -102,6 +104,8 @@ class GuardSocietyWorker {
   final String department;
   final bool present;
   final String? employer;
+  final bool eligible;
+  final String? reason;
 
   factory GuardSocietyWorker.fromJson(Map<String, dynamic> json) => GuardSocietyWorker(
         id: _requiredString(json, 'id'),
@@ -110,6 +114,8 @@ class GuardSocietyWorker {
         department: _requiredString(json, 'department'),
         present: json['present'] == true,
         employer: json['employer']?.toString(),
+        eligible: json['eligible'] != false,
+        reason: json['reason']?.toString(),
       );
 }
 
