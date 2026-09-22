@@ -374,7 +374,7 @@ class GuardController extends ChangeNotifier {
     deferredRetryActions = actions.where((action) => !action.reviewRequired && action.nextAttemptAt?.isAfter(now) == true).length;
     oldestQueuedMinutes = actions.isEmpty
         ? 0
-        : actions.map((action) => now.difference(action.createdAt).inMinutes.clamp(0, 99999)).reduce((a, b) => a > b ? a : b);
+        : actions.map((action) => now.difference(action.createdAt).inMinutes.clamp(0, 99999).toInt()).reduce((a, b) => a > b ? a : b);
   }
 
   String _requireGate() { if (gateId == null) throw StateError('Select an active gate'); return gateId!; }
