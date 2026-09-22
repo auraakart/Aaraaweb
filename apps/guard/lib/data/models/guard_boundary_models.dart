@@ -33,16 +33,56 @@ class GuardUnit {
 }
 
 class GuardParcel {
-  GuardParcel._(this.raw, this.id);
-  final Map<String, dynamic> raw;
+  GuardParcel({
+    required this.id,
+    required this.unitNumber,
+    required this.recipientName,
+    required this.overdue,
+    this.courierName,
+    this.trackingReference,
+  });
+
   final String id;
+  final String unitNumber;
+  final String recipientName;
+  final bool overdue;
+  final String? courierName;
+  final String? trackingReference;
 
-  factory GuardParcel.fromJson(Map<String, dynamic> json) => GuardParcel._(
-        Map<String, dynamic>.from(json),
-        _requiredString(json, 'id'),
+  factory GuardParcel.fromJson(Map<String, dynamic> json) => GuardParcel(
+        id: _requiredString(json, 'id'),
+        unitNumber: (json['unitNumber'] ?? 'Unit').toString(),
+        recipientName: (json['recipientName'] ?? 'Resident').toString(),
+        overdue: json['overdue'] == true,
+        courierName: json['courierName']?.toString(),
+        trackingReference: json['trackingReference']?.toString(),
       );
+}
 
-  Map<String, dynamic> toJson() => {...raw, 'id': id};
+class GuardParcelRecipient {
+  GuardParcelRecipient({
+    required this.unitId,
+    required this.userId,
+    required this.unitNumber,
+    required this.name,
+    required this.buildingLabel,
+  });
+
+  final String unitId;
+  final String userId;
+  final String unitNumber;
+  final String name;
+  final String buildingLabel;
+
+  String get selectionKey => '$unitId:$userId';
+
+  factory GuardParcelRecipient.fromJson(Map<String, dynamic> json) => GuardParcelRecipient(
+        unitId: _requiredString(json, 'unitId'),
+        userId: _requiredString(json, 'userId'),
+        unitNumber: _requiredString(json, 'unitNumber'),
+        name: _requiredString(json, 'name'),
+        buildingLabel: (json['buildingName'] ?? json['buildingCode'] ?? 'Building').toString(),
+      );
 }
 
 
