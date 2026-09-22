@@ -320,7 +320,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                 ..._societyLookup.map((worker) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Material(
-                    color: scheme.errorContainer.withValues(alpha: 0.45),
+                    color: scheme.errorContainer.withOpacity(0.45),
                     borderRadius: BorderRadius.circular(18),
                     child: ListTile(
                       leading: const Icon(Icons.block_rounded),
