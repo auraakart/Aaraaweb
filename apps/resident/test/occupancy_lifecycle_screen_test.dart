@@ -73,4 +73,28 @@ void main() {
     expect(find.text('APPROVED'), findsWidgets);
     expect(find.textContaining('Moving next week'), findsOneWidget);
   });
+
+  testWidgets('move detail header remains stable with large accessibility text', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(3.0)),
+          child: OccupancyLifecycleScreen(api:_OccupancyApi(),activeUnitId:'unit-1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MOVE OUT'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('MOVE OUT'), findsWidgets);
+    expect(find.text('APPROVED'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
 }
