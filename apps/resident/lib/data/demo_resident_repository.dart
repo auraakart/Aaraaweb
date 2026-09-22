@@ -222,53 +222,98 @@ class DemoResidentRepository extends ResidentRepository {
   Future<List<Map<String, dynamic>>> workforce() async => [
         {
           'id': 'demo-workforce-1',
-          'assignmentId': 'demo-workforce-1',
+          'status': 'APPROVED',
           'householdId': 'demo-household-1',
-          'household': {'unitId': 'demo-unit-1'},
-          'name': 'Lakshmi',
-          'phone': '+919800000001',
-          'role': 'HOUSE_HELP',
-          'active': true,
+          'household': {
+            'unitId': 'demo-unit-1',
+            'unit': {
+              'number': 'A-1204',
+              'building': {'name': 'Maple Tower'}
+            }
+          },
+          'worker': {
+            'id': 'demo-worker-1',
+            'name': 'Lakshmi R.',
+            'phone': '+919800000001',
+            'role': 'MAID',
+            'verification': 'VERIFIED',
+          },
         },
         {
           'id': 'demo-workforce-2',
-          'assignmentId': 'demo-workforce-2',
+          'status': 'APPROVED',
           'householdId': 'demo-household-1',
-          'household': {'unitId': 'demo-unit-1'},
-          'name': 'Ramesh',
-          'phone': '+919800000002',
-          'role': 'DRIVER',
-          'active': true,
+          'household': {
+            'unitId': 'demo-unit-1',
+            'unit': {
+              'number': 'A-1204',
+              'building': {'name': 'Maple Tower'}
+            }
+          },
+          'worker': {
+            'id': 'demo-worker-2',
+            'name': 'Ramesh K.',
+            'phone': '+919800000002',
+            'role': 'DRIVER',
+            'verification': 'VERIFIED',
+          },
         },
         {
           'id': 'demo-workforce-3',
-          'assignmentId': 'demo-workforce-3',
+          'status': 'APPROVED',
           'householdId': 'demo-household-1',
-          'household': {'unitId': 'demo-unit-1'},
-          'name': 'Savitri',
-          'phone': '+919800000003',
-          'role': 'COOK',
-          'active': true,
+          'household': {
+            'unitId': 'demo-unit-1',
+            'unit': {
+              'number': 'A-1204',
+              'building': {'name': 'Maple Tower'}
+            }
+          },
+          'worker': {
+            'id': 'demo-worker-3',
+            'name': 'Savitri M.',
+            'phone': '+919800000003',
+            'role': 'COOK',
+            'verification': 'VERIFIED',
+          },
         },
         {
           'id': 'demo-workforce-4',
-          'assignmentId': 'demo-workforce-4',
+          'status': 'PENDING',
           'householdId': 'demo-household-1',
-          'household': {'unitId': 'demo-unit-1'},
-          'name': 'Manoj',
-          'phone': '+919800000004',
-          'role': 'CAR_WASH',
-          'active': true,
+          'household': {
+            'unitId': 'demo-unit-1',
+            'unit': {
+              'number': 'A-1204',
+              'building': {'name': 'Maple Tower'}
+            }
+          },
+          'worker': {
+            'id': 'demo-worker-4',
+            'name': 'Manoj P.',
+            'phone': '+919800000004',
+            'role': 'OTHER',
+            'verification': 'VERIFIED',
+          },
         },
         {
           'id': 'demo-workforce-5',
-          'assignmentId': 'demo-workforce-5',
+          'status': 'SUSPENDED',
           'householdId': 'demo-household-1',
-          'household': {'unitId': 'demo-unit-1'},
-          'name': 'Asha',
-          'phone': '+919800000005',
-          'role': 'NANNY',
-          'active': false,
+          'household': {
+            'unitId': 'demo-unit-1',
+            'unit': {
+              'number': 'A-1204',
+              'building': {'name': 'Maple Tower'}
+            }
+          },
+          'worker': {
+            'id': 'demo-worker-5',
+            'name': 'Asha S.',
+            'phone': '+919800000005',
+            'role': 'NANNY',
+            'verification': 'SUSPENDED',
+          },
         },
       ];
 
