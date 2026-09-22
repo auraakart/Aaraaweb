@@ -261,13 +261,23 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final worker = assignment['worker'] is Map ? Map<String, dynamic>.from(assignment['worker'] as Map) : const <String, dynamic>{};
+    final worker = assignment['worker'] is Map
+        ? Map<String, dynamic>.from(assignment['worker'] as Map)
+        : <String, dynamic>{
+            'name': assignment['name'],
+            'phone': assignment['phone'],
+            'role': assignment['role'],
+            'verification': assignment['verification'],
+          };
     final household = assignment['household'] is Map ? Map<String, dynamic>.from(assignment['household'] as Map) : const <String, dynamic>{};
     final unit = household['unit'] is Map ? Map<String, dynamic>.from(household['unit'] as Map) : const <String, dynamic>{};
     final building = unit['building'] is Map ? Map<String, dynamic>.from(unit['building'] as Map) : const <String, dynamic>{};
     final assignmentId = assignment['id']?.toString() ?? '';
-    final status = assignment['status']?.toString() ?? 'PENDING';
-    final verification = worker['verification']?.toString() ?? 'PENDING';
+    final status = assignment['status']?.toString() ?? (assignment['active'] == false ? 'SUSPENDED' : 'PENDING');
+    final verification = worker['verification']?.toString() ?? (assignment['active'] == false ? 'SUSPENDED' : 'PENDING');
+    final workerName = worker['name']?.toString().trim();
+    final workerRole = worker['role']?.toString().trim();
+    final workerPhone = worker['phone']?.toString().trim();
     final present = controller.isWorkforcePresent(assignmentId);
     final rating = controller.ratingFor(assignmentId);
     final leaves = controller.leavesFor(assignmentId);
@@ -285,16 +295,23 @@ class _StaffCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  child: Text(_initials(worker['name']?.toString() ?? 'Staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  child: Text(_initials(workerName?.isNotEmpty == true ? workerName! : 'Staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(worker['name']?.toString() ?? 'Household staff', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                      Text(
+                        workerName?.isNotEmpty == true ? workerName! : 'Staff name unavailable',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                      ),
                       const SizedBox(height: 3),
-                      Text(_friendly(worker['role']?.toString() ?? 'OTHER')),
+                      Text(workerRole?.isNotEmpty == true ? _friendly(workerRole!) : 'Role not specified'),
+                      if (workerPhone?.isNotEmpty == true) ...[
+                        const SizedBox(height: 2),
+                        Text(workerPhone!, style: Theme.of(context).textTheme.bodySmall),
+                      ],
                       if (building['name'] != null || unit['number'] != null) ...[
                         const SizedBox(height: 3),
                         Text('${building['name'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}', style: Theme.of(context).textTheme.bodySmall),
@@ -316,8 +333,9 @@ class _StaffCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: _friendly(status), icon: Icons.assignment_turned_in_outlined),
-                _StatusChip(label: _friendly(verification), icon: Icons.verified_user_outlined),
+                _StatusChip(label: 'Assignment: ${_friendly(status)}', icon: Icons.assignment_turned_in_outlined),
+                _StatusChip(label: 'Verification: ${_friendly(verification)}', icon: Icons.verified_user_outlined),
+                _StatusChip(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
                 if (rating != null)
                   _StatusChip(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
               ],
@@ -418,6 +436,14 @@ class _StaffCard extends StatelessWidget {
     } catch (error) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  static String _gateAccessLabel(String assignmentStatus, String verificationStatus) {
+    if (assignmentStatus == 'SUSPENDED' || verificationStatus == 'SUSPENDED') return 'Gate access: Suspended';
+    if (assignmentStatus == 'REJECTED' || verificationStatus == 'REJECTED') return 'Gate access: Not allowed';
+    if (assignmentStatus != 'APPROVED') return 'Gate access: Awaiting assignment approval';
+    if (verificationStatus != 'VERIFIED') return 'Gate access: Awaiting verification';
+    return 'Gate access: Allowed';
   }
 
   static String _initials(String name) {
