@@ -7,10 +7,12 @@ import { SocietyWorkforceController } from './society-workforce.controller';
 
 describe('SocietyWorkforceController authorization', () => {
   it('requires dedicated society workforce permissions for roster operations', () => {
-    expect(Reflect.getMetadata(PERMISSIONS_KEY, SocietyWorkforceController.prototype.list)).toEqual([
-      AppPermission.SOCIETY_WORKFORCE_READ,
-    ]);
-    for (const method of ['create', 'configure', 'verify', 'reject', 'suspend', 'reactivate'] as const) {
+    for (const method of ['list', 'summary', 'attendance', 'leaves', 'timeline'] as const) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, SocietyWorkforceController.prototype[method])).toEqual([
+        AppPermission.SOCIETY_WORKFORCE_READ,
+      ]);
+    }
+    for (const method of ['create', 'configure', 'verify', 'reject', 'suspend', 'reactivate', 'addLeave', 'cancelLeave', 'correctAttendance'] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, SocietyWorkforceController.prototype[method])).toEqual([
         AppPermission.SOCIETY_WORKFORCE_MANAGE,
       ]);
@@ -18,7 +20,7 @@ describe('SocietyWorkforceController authorization', () => {
   });
 
   it('keeps gate attendance behind gate-processing permission and assigned-gate enforcement', () => {
-    for (const method of ['gateEligible', 'checkIn', 'checkOut'] as const) {
+    for (const method of ['gateEligible', 'gateLookup', 'checkIn', 'checkOut'] as const) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, SocietyWorkforceController.prototype[method])).toEqual([
         AppPermission.GATE_ACCESS_PROCESS,
       ]);
