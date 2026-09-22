@@ -39,6 +39,21 @@ void main() {
     expect(worker.present, isTrue);
   });
 
+  test('GuardSocietyWorker parses blocked gate eligibility reason', () {
+    final worker = GuardSocietyWorker.fromJson({
+      'id': 'worker-2',
+      'name': 'Ravi Kumar',
+      'role': 'TECHNICIAN',
+      'department': 'MAINTENANCE',
+      'present': false,
+      'eligible': false,
+      'reason': 'Worker is on approved leave',
+    });
+
+    expect(worker.eligible, isFalse);
+    expect(worker.reason, 'Worker is on approved leave');
+  });
+
   test('GuardWorkforceAssignment rejects missing relationship structure', () {
     expect(
       () => GuardWorkforceAssignment.fromJson({'id': 'assignment-1'}),
