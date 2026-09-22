@@ -5,32 +5,8 @@ import { operatorConfirm, operatorPrompt } from '../lib/operator-dialog'
 import { api, type Session } from '../lib/admin-client'
 import { AdminLogin } from './admin-login'
 import { adminRoles, viewsForRole, type AdminView as View } from '../lib/admin-access'
+import type { Activity, BillableUnit, Building, Gate, GateAudit, Invoice, Notice, Occupancy, Ownership, PaymentAudit, Person, ServiceBooking, ServiceCatalog, ServiceCategory, ServiceOffering, ServiceProvider, ServiceProviderApproval, SosEvent, SosIncident, Ticket, Unit, UnitRef, WorkforceAssignment, WorkforceLeave, WorkforceRating } from '../lib/admin-domain-types'
 
-type Ticket={id:string;title:string;description:string;category?:string;priority:string;status:string;buildingName?:string;unitNumber?:string;createdByName?:string}
-type Activity={id:string;type:string;message?:string;actorName?:string;occurredAt:string}
-type Notice={id:string;title:string;body:string;category?:string;audience:'OWNER_ONLY'|'OWNER_AND_OCCUPANTS';status:string;createdAt:string}
-type Building={id:string;name:string;code:string}
-type Unit={id:string;number:string;buildingId:string}
-type Person={id:string;name:string;status:string}
-type UnitRef={id:string;number:string;building:Building}
-type Occupancy={id:string;active:boolean;relation:'OWNER'|'TENANT'|'FAMILY';effectiveFrom:string;effectiveTo?:string|null;primaryGateContact:boolean;gateApprovalEnabled:boolean;gateNotificationEnabled:boolean;escalationOrder:number;user:Person;unit:UnitRef}
-type Ownership={id:string;active:boolean;verified:boolean;ownershipBps:number;effectiveFrom:string;effectiveTo?:string|null;user:Person;unit:UnitRef}
-type BillableUnit={id:string;unitNumber:string;buildingName:string}
-type Invoice={id:string;invoiceNumber:string;billingPeriod:string;description?:string|null;amountPaise:number;dueDate:string;status:'ISSUED'|'PAID'|'VOID';unitNumber:string;buildingName:string;paidAt?:string|null}
-type PaymentAudit={id:string;providerOrderId:string;providerPaymentId?:string|null;amountPaise:number;status:'CREATED'|'AUTHORIZED'|'CAPTURED'|'FAILED'|'REFUNDED';createdAt:string;completedAt?:string|null;invoiceNumber:string;unitNumber:string;buildingName:string;events:{type:string;occurredAt:string;providerEventId?:string|null}[]}
-type WorkforceAssignment={id:string;status:'PENDING'|'APPROVED'|'REJECTED'|'SUSPENDED';worker:{id:string;name:string;phone:string;role:string;verification:'PENDING'|'VERIFIED'|'REJECTED'|'SUSPENDED'};household:{unit:{number:string;building:{name:string}}}}
-type WorkforceLeave={id:string;assignmentId:string;startsOn:string;endsOn:string;reason?:string|null}
-type WorkforceRating={workerId:string;workerName:string;workerRole:string;ratingCount:number;averageScore:number|null}
-type Gate={id:string;name:string;code:string;active:boolean;createdAt:string}
-type GateAudit={id:string;gateId?:string|null;event:string;actorUserId?:string|null;occurredAt:string}
-type ServiceCategory={id:string;name:string;slug:string}
-type ServiceProviderApproval={status:'PENDING'|'APPROVED'|'REJECTED'|'SUSPENDED';commissionBps:number}
-type ServiceProvider={id:string;businessName:string;contactName?:string|null;phone:string;email?:string|null;description?:string|null;verification:'PENDING'|'VERIFIED'|'REJECTED'|'SUSPENDED';societies:ServiceProviderApproval[]}
-type ServiceOffering={id:string;name:string;pricePaise:number;durationMinutes?:number|null;category:ServiceCategory;provider:{id:string;businessName:string}}
-type ServiceCatalog={categories:ServiceCategory[];providers:ServiceProvider[];offerings:ServiceOffering[]}
-type ServiceBooking={id:string;status:'REQUESTED'|'CONFIRMED'|'CANCELLED'|'IN_PROGRESS'|'COMPLETED';scheduledFrom:string;scheduledUntil:string;servicePricePaise:number;commissionPaise:number;notes?:string|null;createdAt:string;unit:{number:string;building:{name:string}};residentUser:{name:string;phone:string};provider:{businessName:string;phone:string};offering:{name:string;category:ServiceCategory}}
-type SosIncident={id:string;status:'ACTIVE'|'ACKNOWLEDGED'|'RESOLVED'|'CANCELLED';message?:string|null;latitude?:number|null;longitude?:number|null;unitNumber:string;buildingName:string;residentName:string;residentPhone:string;acknowledgedAt?:string|null;resolvedAt?:string|null;createdAt:string}
-type SosEvent={id:string;action:string;fromStatus?:string|null;toStatus:string;note?:string|null;actorName:string;occurredAt:string}
 export function AdminConsole(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true),[view,setView]=useState<View>('overview')
   useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw)as Session;api<Record<string,unknown>>('/auth/refresh',{method:'POST',body:JSON.stringify({sessionId:stored.sessionId,refreshToken:stored.refreshToken})}).then(next=>{const fresh={...stored,sessionId:String(next.sessionId),accessToken:String(next.accessToken),refreshToken:String(next.refreshToken)};if(!adminRoles.has(fresh.role)||viewsForRole(fresh.role).length===0)throw new Error('Stored role no longer has console access');sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(fresh));setSession(fresh)}).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
