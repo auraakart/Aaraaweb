@@ -94,6 +94,8 @@ jobs:
         run: node scripts/check-v4.37-repository-integrity.mjs
       - name: Check V4.40 stabilization contracts
         run: node scripts/check-v4.40-stabilization.mjs
+      - name: Check V4.41 maintainability contracts
+        run: node scripts/check-v4.41-maintainability.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary

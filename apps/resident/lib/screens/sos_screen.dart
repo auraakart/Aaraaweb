@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_data_controller.dart';
 import '../data/sos_repository_extension.dart';
+import '../data/models/resident_sos_incident.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -18,7 +19,7 @@ class _SosScreenState extends State<SosScreen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
-  List<Map<String, dynamic>> _incidents = const [];
+  List<ResidentSosIncident> _incidents = const [];
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _SosScreenState extends State<SosScreen> {
     }
     try {
       final incidents = await widget.controller.repository.sosIncidents();
-      final scoped = incidents.where((incident) => incident['unitId']?.toString() == unitId).toList(growable: false);
+      final scoped = incidents.where((incident) => incident.unitId == unitId).toList(growable: false);
       if (!mounted) return;
       setState(() => _incidents = scoped);
     } catch (e) {
@@ -56,10 +57,9 @@ class _SosScreenState extends State<SosScreen> {
     }
   }
 
-  Map<String, dynamic>? get _activeIncident {
+  ResidentSosIncident? get _activeIncident {
     for (final incident in _incidents) {
-      final status = incident['status']?.toString();
-      if (status == 'TRIGGERED' || status == 'ACKNOWLEDGED') return incident;
+      if (incident.isActive) return incident;
     }
     return null;
   }
@@ -100,9 +100,9 @@ class _SosScreenState extends State<SosScreen> {
     }
   }
 
-  Future<void> _cancel(Map<String, dynamic> incident) async {
+  Future<void> _cancel(ResidentSosIncident incident) async {
     final unitId = widget.controller.primaryUnitId;
-    if (unitId == null || incident['unitId']?.toString() != unitId) {
+    if (unitId == null || incident.unitId != unitId) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('This SOS belongs to another property.')),
@@ -124,7 +124,7 @@ class _SosScreenState extends State<SosScreen> {
     if (confirmed != true) return;
     setState(() => _submitting = true);
     try {
-      await widget.controller.repository.cancelSos(incident['id'].toString(), note: 'Cancelled by resident');
+      await widget.controller.repository.cancelSos(incident.id, note: 'Cancelled by resident');
       await _load();
     } catch (error) {
       if (mounted) {
@@ -243,7 +243,7 @@ class _SosScreenState extends State<SosScreen> {
                           color: theme.colorScheme.surfaceContainer,
                           borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
                         ),
-                        child: Icon(_statusIcon(incident['status']?.toString()), color: theme.colorScheme.primary),
+                        child: Icon(_statusIcon(incident.status), color: theme.colorScheme.primary),
                       ),
                       const SizedBox(width: AaraagateTokens.space3),
                       Expanded(
@@ -251,12 +251,12 @@ class _SosScreenState extends State<SosScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _statusLabel(incident['status']?.toString()),
+                              _statusLabel(incident.status),
                               style: theme.textTheme.titleMedium,
                             ),
                             const SizedBox(height: AaraagateTokens.space1),
                             Text(
-                              incident['message']?.toString() ?? 'Emergency SOS',
+                              incident.message ?? 'Emergency SOS',
                               style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                             ),
                           ],
