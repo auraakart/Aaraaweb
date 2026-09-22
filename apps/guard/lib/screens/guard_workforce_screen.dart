@@ -19,6 +19,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   final _search = TextEditingController();
   final _queue = const WorkforceOfflineQueue();
   List<GuardWorkforceAssignment> _workers = const [];
+  List<GuardSocietyWorker> _societyWorkers = const [];
   int _queued = 0;
   bool _busy = false;
   String? _error;
@@ -48,8 +49,15 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     try {
       await _syncQueue();
       final results = await widget.controller.api.eligibleWorkforce(query: _search.text);
+      final societyResults = await widget.controller.api.eligibleSocietyWorkforce(
+        gateId: widget.controller.gateId!,
+        query: _search.text,
+      );
       if (!mounted) return;
-      setState(() => _workers = results);
+      setState(() {
+        _workers = results;
+        _societyWorkers = societyResults;
+      });
     } on GuardApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -184,6 +192,40 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     }
   }
 
+  Future<void> _mutateSociety(GuardSocietyWorker worker) async {
+    final gateId = widget.controller.gateId;
+    if (gateId == null || worker.id.isEmpty || _busy) return;
+    final key = _idempotencyKey();
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      if (worker.present) {
+        await widget.controller.api.societyWorkforceCheckOut(
+          gateId: gateId,
+          workerId: worker.id,
+          idempotencyKey: key,
+        );
+      } else {
+        await widget.controller.api.societyWorkforceCheckIn(
+          gateId: gateId,
+          workerId: worker.id,
+          idempotencyKey: key,
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(worker.present ? 'Society worker checked out' : 'Society worker checked in')),
+      );
+      await _load();
+    } on GuardApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -243,10 +285,75 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                 GuardStateCard(icon: Icons.error_outline_rounded, message: _error!, error: true, actionLabel: 'Retry', onAction: _busy ? null : _load),
               ],
               const SizedBox(height: 18),
-              Text('Eligible now', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              Text('Society workforce', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(
+                'Common-area workers verified by Society Admin or Facility Manager for this gate and shift.',
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 10),
+              if (!_busy && _societyWorkers.isEmpty)
+                const GuardStateCard(icon: Icons.badge_outlined, message: 'No society workers are eligible at this gate right now.'),
+              ..._societyWorkers.map((worker) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(22),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
+                              child: Icon(Icons.engineering_rounded, color: scheme.onPrimaryContainer),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(worker.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${worker.role.replaceAll('_', ' ')} · ${worker.department.replaceAll('_', ' ')}',
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                                ),
+                                if (worker.employer != null && worker.employer!.trim().isNotEmpty)
+                                  Text(worker.employer!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                              ]),
+                            ),
+                            Badge(
+                              label: Text(worker.present ? 'INSIDE' : 'OUTSIDE'),
+                              backgroundColor: worker.present ? scheme.primaryContainer : scheme.surfaceContainerHighest,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        FilledButton.icon(
+                          onPressed: _busy ? null : () => _mutateSociety(worker),
+                          icon: Icon(worker.present ? Icons.logout_rounded : Icons.login_rounded),
+                          label: Text(worker.present ? 'EXIT' : 'ENTER', style: const TextStyle(fontWeight: FontWeight.w900)),
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )),
+              const SizedBox(height: 12),
+              Text('Household staff', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(
+                'Domestic staff approved for a resident household and eligible for the current schedule.',
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
               const SizedBox(height: 10),
               if (!_busy && _workers.isEmpty)
-                const GuardStateCard(icon: Icons.person_search_outlined, message: 'No eligible workers found for the current schedule.'),
+                const GuardStateCard(icon: Icons.person_search_outlined, message: 'No household staff are eligible for the current schedule.'),
               ..._workers.map((assignment) {
                 final name = assignment.workerName;
                 final role = assignment.workerRole.replaceAll('_', ' ');
