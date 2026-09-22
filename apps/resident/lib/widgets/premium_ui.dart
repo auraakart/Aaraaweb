@@ -92,11 +92,20 @@ class PremiumSectionHeader extends StatelessWidget {
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.textTheme.titleMedium),
+        Text(
+          title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
+          style: theme.textTheme.titleMedium,
+        ),
         if (supportingText != null) ...[
           const SizedBox(height: AaraagateTokens.space1),
           Text(
             supportingText!,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               height: 1.35,
