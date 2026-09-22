@@ -251,6 +251,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<AppRole, readonly AppPermission[]
     AppPermission.GATE_VISITOR_CHECK_IN_OUT,
     AppPermission.GATE_ACCESS_PROCESS,
     AppPermission.GATE_SUPERVISE,
+    AppPermission.SOCIETY_WORKFORCE_READ,
     AppPermission.PARCEL_PROCESS,
     AppPermission.SOS_RESPOND,
     AppPermission.AUDIT_READ,
