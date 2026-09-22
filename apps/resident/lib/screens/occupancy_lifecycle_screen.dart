@@ -340,11 +340,35 @@ class _RequestDetail extends StatelessWidget {
         ),
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: Text('${detail['kind']?.toString().replaceAll('_', ' ') ?? 'Move'} · $status', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
-              const SizedBox(width: AaraagateTokens.space2),
-              AaraagateStatusPill(label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '), tone: _detailTone(status)),
-            ]),
+            LayoutBuilder(builder: (context, constraints) {
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final stacked = constraints.maxWidth < 420 || scale > 1.3;
+              final title = Text(
+                '${detail['kind']?.toString().replaceAll('_', ' ') ?? 'Move'} · $status',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              );
+              final pill = AaraagateStatusPill(
+                label: status.isEmpty ? 'Pending' : status.replaceAll('_', ' '),
+                tone: _detailTone(status),
+              );
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: AaraagateTokens.space2),
+                    pill,
+                  ],
+                );
+              }
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: title),
+                const SizedBox(width: AaraagateTokens.space2),
+                pill,
+              ]);
+            }),
             const SizedBox(height: AaraagateTokens.space2),
             if (unitLabel != null) Text(unitLabel!, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: AaraagateTokens.space3),

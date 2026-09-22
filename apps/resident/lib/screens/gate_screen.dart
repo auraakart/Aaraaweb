@@ -28,26 +28,52 @@ class GateScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(strings.text('gateTitle'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
-                      const SizedBox(height: 4),
-                      Text(strings.text('gateSubtitle'), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton.filledTonal(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final stacked = constraints.maxWidth < 420 || scale > 1.3;
+                final copy = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.text('gateTitle'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.text('gateSubtitle'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                );
+                final action = IconButton.filledTonal(
                   tooltip: strings.text('inviteGuest'),
                   onPressed: () => _invite(context),
                   icon: const Icon(Icons.person_add_alt_1_rounded),
-                ),
-              ],
+                );
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      copy,
+                      const SizedBox(height: 10),
+                      Align(alignment: Alignment.centerRight, child: action),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: copy),
+                    const SizedBox(width: 12),
+                    action,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 20),
             _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
@@ -67,11 +93,23 @@ class GateScreen extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(child: Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
-                TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite'))),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final title = Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800));
+                final invite = TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite')));
+                if (constraints.maxWidth < 420 || scale > 1.3) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      title,
+                      const SizedBox(height: 6),
+                      Align(alignment: Alignment.centerRight, child: invite),
+                    ],
+                  );
+                }
+                return Row(children: [Expanded(child: title), invite]);
+              },
             ),
             const SizedBox(height: 8),
             if (controller.loading && requests.isEmpty)
@@ -436,37 +474,96 @@ class _AccessCard extends StatelessWidget {
         elevated: prominent,
         color: prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
-              child: Icon(icon, color: scheme.onPrimaryContainer),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(detail.isEmpty ? type : '$type · $detail', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-            ])),
-            const SizedBox(width: 8),
-            AaraagateStatusPill(
-              label: status,
-              tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
-            ),
-          ]),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final stacked = constraints.maxWidth < 420 || scale > 1.3;
+              final identity = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
+                    child: Icon(icon, color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(detail.isEmpty ? type : '$type · $detail', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                    ]),
+                  ),
+                ],
+              );
+              final statusPill = AaraagateStatusPill(
+                label: status,
+                tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+              );
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerLeft, child: statusPill),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: identity),
+                  const SizedBox(width: 8),
+                  statusPill,
+                ],
+              );
+            },
+          ),
           if (approvalHint != null) ...[
             const SizedBox(height: 10),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ],
           if (onApprove != null || onDeny != null || onCancel != null) ...[
             const SizedBox(height: 16),
-            Row(children: [
-              if (onDeny != null) Expanded(child: OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')))),
-              if (onDeny != null && onApprove != null) const SizedBox(width: 12),
-              if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')))),
-              if (onCancel != null) Expanded(child: OutlinedButton.icon(onPressed: onCancel, icon: const Icon(Icons.close_rounded), label: Text(strings.text('cancelPass')))),
-            ]),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final deny = onDeny == null ? null : OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')));
+                final approve = onApprove == null
+                    ? null
+                    : FilledButton(
+                        onPressed: onApprove,
+                        child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
+                      );
+                final cancel = onCancel == null
+                    ? null
+                    : OutlinedButton.icon(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close_rounded),
+                        label: Text(strings.text('cancelPass')),
+                      );
+                if (constraints.maxWidth < 420 || scale > 1.3) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (deny != null) deny,
+                      if (deny != null && approve != null) const SizedBox(height: 8),
+                      if (approve != null) approve,
+                      if ((deny != null || approve != null) && cancel != null) const SizedBox(height: 8),
+                      if (cancel != null) cancel,
+                    ],
+                  );
+                }
+                return Row(children: [
+                  if (deny != null) Expanded(child: deny),
+                  if (deny != null && approve != null) const SizedBox(width: 12),
+                  if (approve != null) Expanded(child: approve),
+                  if (cancel != null) Expanded(child: cancel),
+                ]);
+              },
+            ),
           ],
         ]),
       ),

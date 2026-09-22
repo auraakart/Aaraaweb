@@ -14,30 +14,10 @@ class WorkforceScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Household staff', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                      SizedBox(height: 4),
-                      Text('Attendance, leave and ratings in one place.'),
-                    ],
-                  ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: controller.households.isEmpty ? null : () => _openAddSheet(context),
-                  tooltip: 'Add household staff',
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: controller.refreshWorkforce,
-                  tooltip: 'Refresh staff',
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
+            _WorkforceHeader(
+              canAdd: controller.households.isNotEmpty,
+              onAdd: () => _openAddSheet(context),
+              onRefresh: controller.refreshWorkforce,
             ),
             const SizedBox(height: 18),
             if (controller.workforceError != null)
@@ -77,6 +57,89 @@ class WorkforceScreen extends StatelessWidget {
     if (submitted == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment submitted for society review.')));
     }
+  }
+}
+
+class _WorkforceHeader extends StatelessWidget {
+  const _WorkforceHeader({
+    required this.canAdd,
+    required this.onAdd,
+    required this.onRefresh,
+  });
+
+  final bool canAdd;
+  final VoidCallback onAdd;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final systemScale = MediaQuery.textScalerOf(context).scale(1);
+    final titleScale = systemScale.clamp(1.0, 1.45).toDouble();
+    final supportingScale = systemScale.clamp(1.0, 1.6).toDouble();
+
+    Widget copy() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Household staff',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.linear(titleScale),
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Attendance, leave and ratings in one place.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.linear(supportingScale),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        );
+
+    Widget actions() => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton.filledTonal(
+              onPressed: canAdd ? onAdd : null,
+              tooltip: 'Add household staff',
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              onPressed: onRefresh,
+              tooltip: 'Refresh staff',
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 420 || systemScale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy(),
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerRight, child: actions()),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy()),
+            const SizedBox(width: 12),
+            actions(),
+          ],
+        );
+      },
+    );
   }
 }
 

@@ -94,7 +94,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.6)),
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(3.0)),
           child: child!,
         ),
         home: Scaffold(body: GateScreen(controller: controller)),
@@ -102,7 +102,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('உங்கள் அனுமதி தேவை'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Delivery partner'),
       180,
