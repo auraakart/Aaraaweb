@@ -28,26 +28,52 @@ class GateScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(strings.text('gateTitle'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3)),
-                      const SizedBox(height: 4),
-                      Text(strings.text('gateSubtitle'), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton.filledTonal(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final stacked = constraints.maxWidth < 420 || scale > 1.3;
+                final copy = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.text('gateTitle'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.text('gateSubtitle'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                );
+                final action = IconButton.filledTonal(
                   tooltip: strings.text('inviteGuest'),
                   onPressed: () => _invite(context),
                   icon: const Icon(Icons.person_add_alt_1_rounded),
-                ),
-              ],
+                );
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      copy,
+                      const SizedBox(height: 10),
+                      Align(alignment: Alignment.centerRight, child: action),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: copy),
+                    const SizedBox(width: 12),
+                    action,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 20),
             _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
