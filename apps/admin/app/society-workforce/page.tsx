@@ -30,11 +30,16 @@ export default function SocietyWorkforcePage(){
   async function load(s:AdminSession){
     setLoading(true);setError('')
     try{
-      const[w,g]=await Promise.all([
-        adminApi<Worker[]>(s,'/society-workforce'),
-        adminApi<Gate[]>(s,'/gates'),
-      ])
-      setWorkers(w);setGates(g.filter(x=>x.active));if(gateIds.length===0)setGateIds(g.filter(x=>x.active).slice(0,1).map(x=>x.id))
+      const w=await adminApi<Worker[]>(s,'/society-workforce')
+      setWorkers(w)
+      if(manageRoles.has(s.role)){
+        const g=await adminApi<Gate[]>(s,'/gates')
+        const activeGates=g.filter(x=>x.active)
+        setGates(activeGates)
+        if(gateIds.length===0)setGateIds(activeGates.slice(0,1).map(x=>x.id))
+      }else{
+        setGates([])
+      }
     }catch(e){setError(e instanceof Error?e.message:'Could not load society workforce')}finally{setLoading(false)}
   }
 

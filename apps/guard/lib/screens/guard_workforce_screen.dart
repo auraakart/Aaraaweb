@@ -49,15 +49,23 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     try {
       await _syncQueue();
       final results = await widget.controller.api.eligibleWorkforce(query: _search.text);
-      final societyResults = await widget.controller.api.eligibleSocietyWorkforce(
-        gateId: widget.controller.gateId!,
-        query: _search.text,
-      );
       if (!mounted) return;
-      setState(() {
-        _workers = results;
-        _societyWorkers = societyResults;
-      });
+      setState(() => _workers = results);
+
+      try {
+        final societyResults = await widget.controller.api.eligibleSocietyWorkforce(
+          gateId: widget.controller.gateId!,
+          query: _search.text,
+        );
+        if (!mounted) return;
+        setState(() => _societyWorkers = societyResults);
+      } on GuardApiException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _societyWorkers = const [];
+          _error = 'Household staff loaded. Society workforce is temporarily unavailable: ${e.message}';
+        });
+      }
     } on GuardApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
