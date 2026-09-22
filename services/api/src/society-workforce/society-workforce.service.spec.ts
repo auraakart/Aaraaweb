@@ -15,6 +15,8 @@ function setup() {
       findUniqueOrThrow: vi.fn(),
     },
     societyWorkerGateAccess: { createMany: vi.fn(), deleteMany: vi.fn() },
+    societyWorkerLeave: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    societyWorkerEvent: { findMany: vi.fn(), create: vi.fn() },
     societyWorkerAttendance: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -119,7 +121,75 @@ describe('SocietyWorkforceService', () => {
     });
     prisma.societyWorkerAttendance.findFirst.mockResolvedValue({ id: 'attendance-a', checkedOutAt: null });
 
-    await expect(service.suspend('society-a', 'worker-a')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.suspend('society-a', 'worker-a', 'admin-a')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.societyWorker.update).not.toHaveBeenCalled();
   });
+
+  it('excludes approved leave from gate eligibility at the query boundary', async () => {
+    const { prisma, service } = setup();
+    prisma.gate.count.mockResolvedValue(1);
+    prisma.societyWorker.findMany.mockResolvedValue([]);
+
+    await service.gateEligible(
+      'society-a',
+      '11111111-1111-4111-8111-111111111111',
+      undefined,
+      new Date('2026-09-22T05:00:00.000Z'),
+    );
+
+    expect(prisma.societyWorker.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        leaves: {
+          none: expect.objectContaining({
+            active: true,
+          }),
+        },
+      }),
+    }));
+  });
+
+  it('requires a meaningful reason before correcting attendance', async () => {
+    const { service } = setup();
+    await expect(service.correctAttendance(
+      'society-a',
+      'attendance-a',
+      'admin-a',
+      { reason: 'x' },
+    )).rejects.toThrow('reason must be at least 5 characters');
+  });
+
+  it('explains an ineligible wrong-gate lookup without mutating attendance', async () => {
+    const { prisma, service } = setup();
+    prisma.gate.count.mockResolvedValue(1);
+    prisma.societyWorker.findMany.mockResolvedValue([
+      {
+        id: 'worker-a',
+        name: 'Ravi',
+        phone: '+919999999992',
+        role: 'TECHNICIAN',
+        department: 'MAINTENANCE',
+        active: true,
+        verification: SocietyWorkerVerificationStatus.VERIFIED,
+        startDate: null,
+        endDate: null,
+        schedule: {},
+        gateAccesses: [{ gateId: 'other-gate' }],
+        attendances: [],
+        leaves: [],
+      },
+    ]);
+
+    const rows = await service.gateLookup(
+      'society-a',
+      '11111111-1111-4111-8111-111111111111',
+      'Ravi',
+      new Date('2026-09-22T05:00:00.000Z'),
+    );
+
+    expect(rows[0]).toEqual(expect.objectContaining({
+      eligible: false,
+      reason: 'Worker is not assigned to this gate',
+    }));
+  });
+
 });
