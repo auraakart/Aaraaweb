@@ -93,11 +93,23 @@ class GateScreen extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(child: Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
-                TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite'))),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final title = Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800));
+                final invite = TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite')));
+                if (constraints.maxWidth < 420 || scale > 1.3) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      title,
+                      const SizedBox(height: 6),
+                      Align(alignment: Alignment.centerRight, child: invite),
+                    ],
+                  );
+                }
+                return Row(children: [Expanded(child: title), invite]);
+              },
             ),
             const SizedBox(height: 8),
             if (controller.loading && requests.isEmpty)
@@ -487,12 +499,43 @@ class _AccessCard extends StatelessWidget {
           ],
           if (onApprove != null || onDeny != null || onCancel != null) ...[
             const SizedBox(height: 16),
-            Row(children: [
-              if (onDeny != null) Expanded(child: OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')))),
-              if (onDeny != null && onApprove != null) const SizedBox(width: 12),
-              if (onApprove != null) Expanded(child: FilledButton(onPressed: onApprove, child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')))),
-              if (onCancel != null) Expanded(child: OutlinedButton.icon(onPressed: onCancel, icon: const Icon(Icons.close_rounded), label: Text(strings.text('cancelPass')))),
-            ]),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final deny = onDeny == null ? null : OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')));
+                final approve = onApprove == null
+                    ? null
+                    : FilledButton(
+                        onPressed: onApprove,
+                        child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
+                      );
+                final cancel = onCancel == null
+                    ? null
+                    : OutlinedButton.icon(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close_rounded),
+                        label: Text(strings.text('cancelPass')),
+                      );
+                if (constraints.maxWidth < 420 || scale > 1.3) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (deny != null) deny,
+                      if (deny != null && approve != null) const SizedBox(height: 8),
+                      if (approve != null) approve,
+                      if ((deny != null || approve != null) && cancel != null) const SizedBox(height: 8),
+                      if (cancel != null) cancel,
+                    ],
+                  );
+                }
+                return Row(children: [
+                  if (deny != null) Expanded(child: deny),
+                  if (deny != null && approve != null) const SizedBox(width: 12),
+                  if (approve != null) Expanded(child: approve),
+                  if (cancel != null) Expanded(child: cancel),
+                ]);
+              },
+            ),
           ],
         ]),
       ),
