@@ -36,4 +36,45 @@ void main() {
     expect(find.text('Add household staff'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('staff header remains usable with large accessibility text', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = ResidentDataController(
+      DemoResidentRepository(),
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    controller.households = [
+      {
+        'id': 'demo-household-1',
+        'unit': {'number': 'A-101'},
+      },
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(3.0)),
+          child: WorkforceScreen(controller: controller),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final title = tester.widget<Text>(find.text('Household staff'));
+    final supporting = tester.widget<Text>(find.text('Attendance, leave and ratings in one place.'));
+    expect(title.maxLines, 2);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(supporting.maxLines, 2);
+    expect(find.byTooltip('Add household staff'), findsOneWidget);
+    expect(find.byTooltip('Refresh staff'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }
