@@ -25,6 +25,8 @@ type AmenityBookingRules = {
   minAdvanceMinutes?: number;
   maxAdvanceDays?: number;
   maxFutureBookingsPerUnit?: number;
+  maxBookingsPerDayPerUnit?: number;
+  cooldownMinutes?: number;
   cancellationCutoffMinutes?: number;
   checkInOpenMinutesBefore?: number;
   noShowGraceMinutes?: number;
@@ -150,6 +152,37 @@ export class AmenitiesService {
         `;
         if (Number(futureRows[0]?.count ?? 0) >= rules.maxFutureBookingsPerUnit) {
           throw new ConflictException('Unit has reached the future booking limit for this amenity');
+        }
+      }
+
+      if (rules.maxBookingsPerDayPerUnit !== undefined) {
+        const dailyRows = await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking"
+          WHERE "societyId" = ${societyId}::uuid
+            AND "amenityId" = ${amenityId}::uuid
+            AND "unitId" = ${input.unitId}::uuid
+            AND "status" IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED')
+            AND ("startsAt" AT TIME ZONE 'Asia/Kolkata')::date = (${startsAt} AT TIME ZONE 'Asia/Kolkata')::date
+        `;
+        if (Number(dailyRows[0]?.count ?? 0) >= rules.maxBookingsPerDayPerUnit) {
+          throw new ConflictException('Unit has reached the daily booking limit for this amenity');
+        }
+      }
+
+      if ((rules.cooldownMinutes ?? 0) > 0) {
+        const cooldownRows = await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking"
+          WHERE "societyId" = ${societyId}::uuid
+            AND "amenityId" = ${amenityId}::uuid
+            AND "unitId" = ${input.unitId}::uuid
+            AND "status" IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED')
+            AND "startsAt" < ${endsAt} + (${rules.cooldownMinutes} * INTERVAL '1 minute')
+            AND "endsAt" > ${startsAt} - (${rules.cooldownMinutes} * INTERVAL '1 minute')
+        `;
+        if (Number(cooldownRows[0]?.count ?? 0) > 0) {
+          throw new ConflictException(`Unit must keep at least ${rules.cooldownMinutes} minutes between bookings for this amenity`);
         }
       }
 
@@ -780,6 +813,8 @@ export class AmenitiesService {
       minAdvanceMinutes: this.optionalPolicyInteger(source.minAdvanceMinutes, 'minAdvanceMinutes', 0),
       maxAdvanceDays: this.optionalPolicyInteger(source.maxAdvanceDays, 'maxAdvanceDays', 1),
       maxFutureBookingsPerUnit: this.optionalPolicyInteger(source.maxFutureBookingsPerUnit, 'maxFutureBookingsPerUnit', 1),
+      maxBookingsPerDayPerUnit: this.optionalPolicyInteger(source.maxBookingsPerDayPerUnit, 'maxBookingsPerDayPerUnit', 1),
+      cooldownMinutes: this.optionalPolicyInteger(source.cooldownMinutes, 'cooldownMinutes', 0),
       cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
       checkInOpenMinutesBefore: this.optionalPolicyInteger(source.checkInOpenMinutesBefore, 'checkInOpenMinutesBefore', 0),
       noShowGraceMinutes: this.optionalPolicyInteger(source.noShowGraceMinutes, 'noShowGraceMinutes', 0),

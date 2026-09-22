@@ -23,11 +23,16 @@ void main() {
       {'id': 'u3', 'number': 'C-303', 'building': {'name': 'Gamma'}},
     ];
     controller.queuedActions = 2;
+    controller.oldestQueuedMinutes = 35;
+    controller.deferredRetryActions = 1;
 
     await tester.pumpWidget(MaterialApp(home: GuardToolsScreen(controller: controller)));
 
     expect(find.text('Guard tools'), findsOneWidget);
     expect(find.text('SCHOOL TRANSPORT'), findsOneWidget);
+    expect(find.textContaining('2 pending actions · 35m'), findsOneWidget);
+    expect(find.text('Next action'), findsOneWidget);
+    expect(find.text('Retry safe sync'), findsWidgets);
 
     await tester.tap(find.byType(DropdownButton<String>));
     await tester.pumpAndSettle();
