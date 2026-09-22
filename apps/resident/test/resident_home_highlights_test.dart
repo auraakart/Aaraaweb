@@ -23,6 +23,8 @@ void main() {
       ResidentHomeHighlightKind.service,
     ]);
     expect(items.first.title, contains('₹1250.00'));
+    expect(items.first.urgency, ResidentHomeUrgency.immediate);
+    expect(items[1].urgency, ResidentHomeUrgency.soon);
     expect(items.any((item) => item.title.contains('9900')), isFalse);
   });
 
@@ -61,5 +63,6 @@ void main() {
     );
     expect(items.first.kind, ResidentHomeHighlightKind.helpdesk);
     expect(items.first.title, 'Lift trapped intermittently');
+    expect(items.first.urgency, ResidentHomeUrgency.soon);
   });
 }

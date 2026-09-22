@@ -84,4 +84,17 @@ void main(){
     expect(find.text('Confirm complaint'),findsOneWidget);
     expect(api.posts,isEmpty);
   });
+
+  testWidgets('assistant accepts a contextual Home prompt without auto-submitting',(tester) async {
+    final api=FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(
+      apiClient:api,
+      unitId:'22222222-2222-4222-8222-222222222222',
+      initialPrompt:'What is my maintenance due and when should I pay it?',
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('What is my maintenance due and when should I pay it?'),findsOneWidget);
+    expect(api.posts,isEmpty);
+  });
+
 }
