@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/models/resident_parcel.dart';
 import '../data/parcel_actions.dart';
 import '../data/resident_repository.dart';
 import '../theme/aaraagate_theme.dart';
@@ -12,6 +13,7 @@ class ParcelsScreen extends StatefulWidget {
     required this.unitId,
     this.demoMode = false,
   });
+
   final ResidentRepository repository;
   final String unitId;
   final bool demoMode;
@@ -21,7 +23,7 @@ class ParcelsScreen extends StatefulWidget {
 }
 
 class _ParcelsScreenState extends State<ParcelsScreen> {
-  List<Map<String, dynamic>> _parcels = const [];
+  List<ResidentParcel> _parcels = const [];
   bool _loading = true;
   String? _error;
 
@@ -38,9 +40,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     });
     try {
       final value = widget.demoMode ? _demoParcels() : await widget.repository.parcels();
-      final scoped = value
-          .where((parcel) => parcel['unitId']?.toString() == widget.unitId)
-          .toList(growable: false);
+      final scoped = value.where((parcel) => parcel.unitId == widget.unitId).toList(growable: false);
       if (!mounted) return;
       setState(() => _parcels = scoped);
     } catch (_) {
@@ -50,15 +50,18 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     }
   }
 
-  Future<void> _pickupCode(Map<String, dynamic> parcel) async {
+  Future<void> _pickupCode(ResidentParcel parcel) async {
     if (!_belongsToActiveProperty(parcel)) {
       _showPropertyMismatch();
       return;
     }
     try {
       final result = widget.demoMode
-          ? {'code': '482731', 'expiresAt': DateTime.now().add(const Duration(minutes: 10)).toIso8601String()}
-          : await widget.repository.issueParcelPickupCode(parcel['id'].toString());
+          ? ParcelPickupCode(
+              code: '482731',
+              expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+            )
+          : await widget.repository.issueParcelPickupCode(parcel.id);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -71,7 +74,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
               PremiumSurface(
                 elevated: true,
                 child: SelectableText(
-                  result['code']?.toString() ?? '',
+                  result.code,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 6),
                 ),
@@ -88,33 +91,40 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
         },
       );
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pickup code could not be created. Please try again.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pickup code could not be created. Please try again.')),
+        );
+      }
     }
   }
 
-  Future<void> _confirmCollection(Map<String, dynamic> parcel) async {
+  Future<void> _confirmCollection(ResidentParcel parcel) async {
     if (!_belongsToActiveProperty(parcel)) {
       _showPropertyMismatch();
       return;
     }
     try {
-      if (!widget.demoMode) await widget.repository.confirmParcelCollection(parcel['id'].toString());
+      if (!widget.demoMode) await widget.repository.confirmParcelCollection(parcel.id);
       if (widget.demoMode) {
         setState(() {
           _parcels = _parcels
-              .map((item) => item['id'] == parcel['id'] ? {...item, 'status': 'COLLECTED', 'overdue': false} : item)
+              .map((item) => item.id == parcel.id ? item.copyWith(status: 'COLLECTED', overdue: false) : item)
               .toList(growable: false);
         });
       } else {
         await _load();
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Collection could not be confirmed. Please try again.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Collection could not be confirmed. Please try again.')),
+        );
+      }
     }
   }
 
-  bool _belongsToActiveProperty(Map<String,dynamic> parcel) =>
-      parcel['unitId']?.toString() == widget.unitId;
+  bool _belongsToActiveProperty(ResidentParcel parcel) => parcel.unitId == widget.unitId;
 
   void _showPropertyMismatch() {
     if (!mounted) return;
@@ -126,7 +136,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final activeCount = _parcels.where((parcel) => parcel['status']?.toString() == 'RECEIVED').length;
+    final activeCount = _parcels.where((parcel) => parcel.isActive).length;
     return Scaffold(
       appBar: AppBar(title: const Text('Parcels')),
       body: RefreshIndicator(
@@ -143,7 +153,10 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
             PremiumSectionHeader(
               title: 'Your parcels',
               supportingText: 'Track deliveries received at the gate and use a short-lived pickup code for secure collection.',
-              trailing: AaraagateStatusPill(label: '$activeCount waiting', tone: activeCount == 0 ? AaraagateStatusTone.neutral : AaraagateStatusTone.info),
+              trailing: AaraagateStatusPill(
+                label: '$activeCount waiting',
+                tone: activeCount == 0 ? AaraagateStatusTone.neutral : AaraagateStatusTone.info,
+              ),
             ),
             const SizedBox(height: AaraagateTokens.space4),
             if (_loading && _parcels.isEmpty)
@@ -159,10 +172,17 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
                 const SizedBox(height: AaraagateTokens.space4),
               ],
               if (_parcels.isEmpty && _error == null)
-                const AppStateCard(icon: Icons.inventory_2_outlined, message: 'No parcels yet. Parcels received at the gate will appear here.')
+                const AppStateCard(
+                  icon: Icons.inventory_2_outlined,
+                  message: 'No parcels yet. Parcels received at the gate will appear here.',
+                )
               else
                 for (final parcel in _parcels) ...[
-                  _ParcelCard(parcel: parcel, onPickupCode: () => _pickupCode(parcel), onConfirm: () => _confirmCollection(parcel)),
+                  _ParcelCard(
+                    parcel: parcel,
+                    onPickupCode: () => _pickupCode(parcel),
+                    onConfirm: () => _confirmCollection(parcel),
+                  ),
                   const SizedBox(height: AaraagateTokens.space3),
                 ],
               if (_loading && _parcels.isNotEmpty) const LinearProgressIndicator(),
@@ -179,40 +199,45 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     );
   }
 
-  List<Map<String, dynamic>> _demoParcels() => [
-        {
-          'id': 'demo-parcel-1',
-          'unitId': widget.unitId,
-          'courierName': 'Amazon',
-          'trackingReference': 'AMZ-77421',
-          'status': 'RECEIVED',
-          'receivedAt': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-          'overdue': false,
-        },
-        {
-          'id': 'demo-parcel-2',
-          'unitId': widget.unitId,
-          'courierName': 'BlueDart',
-          'trackingReference': 'BD-209184',
-          'status': 'RECEIVED',
-          'receivedAt': DateTime.now().subtract(const Duration(hours: 30)).toIso8601String(),
-          'overdue': true,
-        },
-        {
-          'id': 'demo-parcel-3',
-          'unitId': widget.unitId,
-          'courierName': 'India Post',
-          'trackingReference': 'INP-55108',
-          'status': 'COLLECTED',
-          'receivedAt': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-          'overdue': false,
-        },
+  List<ResidentParcel> _demoParcels() => [
+        ResidentParcel(
+          id: 'demo-parcel-1',
+          unitId: widget.unitId,
+          courierName: 'Amazon',
+          trackingReference: 'AMZ-77421',
+          status: 'RECEIVED',
+          receivedAt: DateTime.now().subtract(const Duration(hours: 2)),
+          overdue: false,
+        ),
+        ResidentParcel(
+          id: 'demo-parcel-2',
+          unitId: widget.unitId,
+          courierName: 'BlueDart',
+          trackingReference: 'BD-209184',
+          status: 'RECEIVED',
+          receivedAt: DateTime.now().subtract(const Duration(hours: 30)),
+          overdue: true,
+        ),
+        ResidentParcel(
+          id: 'demo-parcel-3',
+          unitId: widget.unitId,
+          courierName: 'India Post',
+          trackingReference: 'INP-55108',
+          status: 'COLLECTED',
+          receivedAt: DateTime.now().subtract(const Duration(days: 2)),
+          overdue: false,
+        ),
       ];
 }
 
 class _ParcelCard extends StatelessWidget {
-  const _ParcelCard({required this.parcel, required this.onPickupCode, required this.onConfirm});
-  final Map<String, dynamic> parcel;
+  const _ParcelCard({
+    required this.parcel,
+    required this.onPickupCode,
+    required this.onConfirm,
+  });
+
+  final ResidentParcel parcel;
   final VoidCallback onPickupCode;
   final VoidCallback onConfirm;
 
@@ -220,12 +245,9 @@ class _ParcelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final status = parcel['status']?.toString() ?? 'RECEIVED';
-    final received = DateTime.tryParse(parcel['receivedAt']?.toString() ?? '');
-    final overdue = parcel['overdue'] == true;
-    final active = status == 'RECEIVED';
-    final displayStatus = overdue && active ? 'OVERDUE' : status;
-    final tone = overdue && active
+    final active = parcel.isActive;
+    final displayStatus = parcel.overdue && active ? 'OVERDUE' : parcel.status;
+    final tone = parcel.overdue && active
         ? AaraagateStatusTone.danger
         : active
             ? AaraagateStatusTone.info
@@ -243,22 +265,30 @@ class _ParcelCard extends StatelessWidget {
               color: active ? scheme.primaryContainer : scheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
             ),
-            child: Icon(active ? Icons.inventory_2_outlined : Icons.check_rounded, color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+            child: Icon(
+              active ? Icons.inventory_2_outlined : Icons.check_rounded,
+              color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(width: AaraagateTokens.space3),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(parcel['courierName']?.toString() ?? 'Parcel', style: theme.textTheme.titleMedium),
-            if (parcel['trackingReference'] != null) ...[
-              const SizedBox(height: AaraagateTokens.space1),
-              Text(parcel['trackingReference'].toString(), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-            ],
-          ])),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(parcel.courierName ?? 'Parcel', style: theme.textTheme.titleMedium),
+              if (parcel.trackingReference != null) ...[
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(
+                  parcel.trackingReference!,
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ]),
+          ),
           const SizedBox(width: AaraagateTokens.space2),
           AaraagateStatusPill(label: displayStatus.replaceAll('_', ' '), tone: tone),
         ]),
-        if (received != null) ...[
+        if (parcel.receivedAt != null) ...[
           const SizedBox(height: AaraagateTokens.space3),
-          Text('Received ${_friendly(received)}', style: theme.textTheme.bodyMedium),
+          Text('Received ${_friendly(parcel.receivedAt!)}', style: theme.textTheme.bodyMedium),
         ],
         if (active) ...[
           const SizedBox(height: AaraagateTokens.space4),
@@ -266,7 +296,11 @@ class _ParcelCard extends StatelessWidget {
             spacing: AaraagateTokens.space2,
             runSpacing: AaraagateTokens.space2,
             children: [
-              FilledButton.icon(onPressed: onPickupCode, icon: const Icon(Icons.pin_outlined), label: const Text('Pickup code')),
+              FilledButton.icon(
+                onPressed: onPickupCode,
+                icon: const Icon(Icons.pin_outlined),
+                label: const Text('Pickup code'),
+              ),
               OutlinedButton(onPressed: onConfirm, child: const Text('I collected it')),
             ],
           ),
@@ -277,6 +311,7 @@ class _ParcelCard extends StatelessWidget {
 
   static String _friendly(DateTime value) {
     final local = value.toLocal();
-    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 }

@@ -1,0 +1,204 @@
+import { execFileSync } from 'node:child_process';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+const token = process.env.GITHUB_TOKEN;
+const repository = process.env.GITHUB_REPOSITORY;
+const baseBranch = process.env.CLEANUP_BASE || 'develop';
+const dryRun = String(process.env.DRY_RUN || 'true').toLowerCase() !== 'false';
+
+if (!token || !repository) throw new Error('GITHUB_TOKEN and GITHUB_REPOSITORY are required');
+
+const [owner, repo] = repository.split('/');
+const api = 'https://api.github.com';
+const headers = {
+  Accept: 'application/vnd.github+json',
+  Authorization: `Bearer ${token}`,
+  'X-GitHub-Api-Version': '2022-11-28',
+  'User-Agent': 'aaraagate-branch-hygiene'
+};
+
+async function request(path, options = {}) {
+  const response = await fetch(`${api}${path}`, { ...options, headers: { ...headers, ...(options.headers || {}) } });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${options.method || 'GET'} ${path} -> ${response.status}: ${body}`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function paginate(path) {
+  const items = [];
+  for (let page = 1; ; page += 1) {
+    const separator = path.includes('?') ? '&' : '?';
+    const batch = await request(`${path}${separator}per_page=100&page=${page}`);
+    items.push(...batch);
+    if (batch.length < 100) return items;
+  }
+}
+
+function isAncestor(ancestorSha, targetBranch) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestorSha, `refs/remotes/origin/${targetBranch}`], {
+      stdio: 'ignore'
+    });
+    return true;
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw error;
+  }
+}
+
+const canonical = new Set(['main', 'staging', 'develop']);
+const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^|[-_.])(backup|recovery|archive|snapshot)([-_.]|$)/i;
+
+const branches = await paginate(`/repos/${owner}/${repo}/branches`);
+const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
+const closedPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=closed`);
+const openHeads = new Set(openPulls.map((pr) => pr.head?.ref).filter(Boolean));
+const mergedCanonicalHeadShas = new Map();
+
+for (const pr of closedPulls) {
+  if (!pr.merged_at || !canonical.has(pr.base?.ref) || !pr.head?.ref || !pr.head?.sha) continue;
+  if (!mergedCanonicalHeadShas.has(pr.head.ref)) mergedCanonicalHeadShas.set(pr.head.ref, new Set());
+  mergedCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
+}
+
+const canonicalTargets = new Map();
+for (const name of canonical) {
+  const target = branches.find((branch) => branch.name === name);
+  if (!target) throw new Error(`Canonical branch ${name} was not found`);
+  canonicalTargets.set(name, target.commit.sha);
+}
+const developSha = canonicalTargets.get(baseBranch);
+
+const records = [];
+let index = 0;
+const deleteConcurrency = 8;
+
+async function classify(branch) {
+  const name = branch.name;
+  const record = {
+    branch: name,
+    sha: branch.commit.sha,
+    protected: Boolean(branch.protected),
+    decision: 'review',
+    reason: null,
+    ancestry: {},
+    deleted: false
+  };
+
+  if (canonical.has(name)) {
+    record.decision = 'keep';
+    record.reason = 'canonical release branch';
+    return record;
+  }
+  if (branch.protected) {
+    record.decision = 'keep';
+    record.reason = 'GitHub protected branch';
+    return record;
+  }
+  if (openHeads.has(name)) {
+    record.decision = 'keep';
+    record.reason = 'head of an open pull request';
+    return record;
+  }
+  if (preservePattern.test(name)) {
+    record.decision = 'keep';
+    record.reason = 'backup/recovery/archive/snapshot preservation rule';
+    return record;
+  }
+
+  let containedIn = null;
+  for (const targetName of canonical) {
+    const contained = isAncestor(branch.commit.sha, targetName);
+    record.ancestry[targetName] = contained;
+    if (contained) {
+      containedIn = targetName;
+      break;
+    }
+  }
+
+  const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
+  if (!containedIn && !exactMergedHead) {
+    record.decision = 'review';
+    record.reason = 'branch contains commits not proven contained in a canonical branch and current head does not exactly match a PR merged into a canonical branch';
+    return record;
+  }
+
+  record.decision = dryRun ? 'delete-dry-run' : 'delete';
+  record.reason = containedIn
+    ? `branch head is fully contained in ${containedIn}`
+    : 'current branch head exactly matches a pull request head already merged into a canonical branch';
+  return record;
+}
+
+for (const branch of branches) {
+  records.push(await classify(branch));
+}
+
+async function deleteWorker(deleteQueue) {
+  while (true) {
+    const current = index++;
+    if (current >= deleteQueue.length) return;
+    const record = deleteQueue[current];
+    const ref = record.branch.split('/').map(encodeURIComponent).join('/');
+    await request(`/repos/${owner}/${repo}/git/refs/heads/${ref}`, { method: 'DELETE' });
+    record.deleted = true;
+  }
+}
+
+const deleteQueue = dryRun ? [] : records.filter((record) => record.decision === 'delete');
+if (deleteQueue.length) {
+  index = 0;
+  await Promise.all(Array.from({ length: deleteConcurrency }, () => deleteWorker(deleteQueue)));
+}
+
+const counts = records.reduce((acc, record) => {
+  acc[record.decision] = (acc[record.decision] || 0) + 1;
+  return acc;
+}, {});
+
+await mkdir('branch-hygiene-evidence', { recursive: true });
+await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
+  repository,
+  baseBranch,
+  developSha,
+  dryRun,
+  classificationMode: 'local-git-ancestry',
+  generatedAt: new Date().toISOString(),
+  counts,
+  records
+}, null, 2));
+
+const deleted = records.filter((r) => r.deleted);
+const review = records.filter((r) => r.decision === 'review');
+const kept = records.filter((r) => r.decision === 'keep');
+const planned = records.filter((r) => r.decision === 'delete-dry-run');
+
+const md = [
+  '# Aaraagate branch hygiene evidence',
+  '',
+  `- Repository: ${repository}`,
+  `- Base branch: ${baseBranch}`,
+  `- Base SHA: ${developSha}`,
+  `- Classification: local git ancestry`,
+  `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
+  `- Total branches inspected: ${records.length}`,
+  `- Deleted: ${deleted.length}`,
+  `- Planned deletions: ${planned.length}`,
+  `- Kept automatically: ${kept.length}`,
+  `- Needs review: ${review.length}`,
+  '',
+  '## Needs review',
+  '',
+  ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; ancestry=${JSON.stringify(r.ancestry)}`),
+  '',
+  '## Deleted / planned',
+  '',
+  ...(deleted.length ? deleted : planned).map((r) => `- \`${r.branch}\``),
+  ''
+].join('\n');
+
+await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
+console.log(JSON.stringify({ dryRun, total: records.length, counts, classificationMode: 'local-git-ancestry' }, null, 2));

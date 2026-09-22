@@ -97,6 +97,8 @@ describe('ScheduledWorkService', () => {
     const noticeSql = (tx.$queryRaw.mock.calls[4][0] as { strings: readonly string[] }).strings.join(' ');
     expect(noticeSql).toContain('"NoticeDispatch"');
     expect(noticeSql).toContain('FOR UPDATE OF nd SKIP LOCKED');
+    expect(noticeSql).toContain('make_interval(mins =>');
+    expect(noticeSql).toContain('::int)');
   });
 
   it('keeps repeated scheduled ticks state-idempotent at the database boundary', async () => {
@@ -216,6 +218,7 @@ describe('ScheduledWorkService', () => {
     const retrySql = (prisma.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(retrySql).toContain('"status"=\'PENDING\'');
     expect(retrySql).toContain('"nextAttemptAt"=CURRENT_TIMESTAMP + make_interval');
+    expect(retrySql).toContain('::int)');
     expect(retrySql).toContain('"status"=\'IN_FLIGHT\'');
   });
 });

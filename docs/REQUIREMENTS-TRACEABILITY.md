@@ -1,6 +1,6 @@
 # Aaraagate Requirements Traceability
 
-Updated: 2026-09-20
+Updated: 2026-09-21
 
 `PRODUCT_REQUIREMENTS.md` is the product-scope source of truth. `AARAAGATE-V2-PROGRAM.md` is the detailed V2 delivery baseline. This document records repository implementation and acceptance state. Hosted staging, real-device/human UAT and production operations are tracked separately and are never inferred from code presence or green CI alone.
 
@@ -21,7 +21,7 @@ Dedicated Admin consolidation is tracked separately in [V4.22](AARAAGATE-V4.22-P
 | Notices | Validated | Audience policy plus V2 targeting/scheduling/attachment/observability extensions |
 | Helpdesk / SOS | Validated / hardened | Tenant-scoped lifecycles plus SLA/escalation and emergency incident hardening |
 | Amenities | Validated / hardened | Booking/policy controls plus attendance check-in/completion/no-show, deterministic FIFO waitlist/promotion, property-scoped Resident queue UX and read-only operations analytics |
-| External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch |
+| External Services marketplace | Validated / hardened | Provider lifecycle, multiple-provider comparison, media/offers/commercial controls, booking/rating/dispatch, provider onboarding evidence, self-service catalogue, schedule counter-proposals, date exceptions, completion evidence/disputes, settlement-readiness and provider readiness UX |
 | Billing / payments | Validated / hardened | Dues, eligible owner/tenant payment, signed reconciliation, exception handling and audit |
 | Reports / audit | Validated | Finance redaction, advanced-report entitlement, operational audit and controlled exports |
 | Privacy UX / operations | Validated / hardened | Auditable privacy cases, typed operator workflows, retention/legal-hold controls, readiness/conflict evidence, registry/incident/grievance context and Resident self-service/export clarity; human privacy/legal review remains separate |

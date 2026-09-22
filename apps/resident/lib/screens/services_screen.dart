@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/service_booking_actions.dart';
+import '../models/service_catalog_models.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -153,37 +154,25 @@ class _ServicesScreenState extends State<ServicesScreen> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _visibleOfferings {
+  List<ServiceOfferingSummary> get _visibleOfferings {
     final query = _query.trim().toLowerCase();
-    return controller.serviceOfferings.where((offering) {
-      if (_categoryId != null && offering['categoryId']?.toString() != _categoryId) return false;
-      if (query.isEmpty) return true;
-      final provider = offering['provider'];
-      final category = offering['category'];
-      final haystack = [
-        offering['name'],
-        offering['description'],
-        provider is Map ? provider['businessName'] : null,
-        provider is Map ? provider['description'] : null,
-        category is Map ? category['name'] : null,
-      ].whereType<Object>().map((value) => value.toString().toLowerCase()).join(' ');
-      return haystack.contains(query);
+    return controller.serviceOfferingModels.where((offering) {
+      if (_categoryId != null && offering.categoryId != _categoryId) return false;
+      return query.isEmpty || offering.searchText.contains(query);
     }).toList(growable: false);
   }
 
-  List<List<Map<String, dynamic>>> get _serviceGroups {
-    final groups = <String, List<Map<String, dynamic>>>{};
+  List<List<ServiceOfferingSummary>> get _serviceGroups {
+    final groups = <String, List<ServiceOfferingSummary>>{};
     for (final offering in _visibleOfferings) {
-      final categoryId = offering['categoryId']?.toString() ?? '';
-      final name = offering['name']?.toString().trim().toLowerCase() ?? 'service';
-      groups.putIfAbsent('$categoryId::$name', () => <Map<String, dynamic>>[]).add(offering);
+      groups.putIfAbsent('${offering.categoryId}::${offering.name.trim().toLowerCase()}', () => <ServiceOfferingSummary>[]).add(offering);
     }
     return groups.values.toList(growable: false);
   }
 
-  Future<void> _chooseProvider(List<Map<String, dynamic>> offerings) async {
+  Future<void> _chooseProvider(List<ServiceOfferingSummary> offerings) async {
     if (offerings.isEmpty) return;
-    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+    final selected = await showModalBottomSheet<ServiceOfferingSummary>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -191,8 +180,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
       builder: (context) {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        final serviceName = offerings.first['name']?.toString() ?? 'Service';
-        final sorted = [...offerings]..sort((a, b) => _pricePaise(a).compareTo(_pricePaise(b)));
+        final serviceName = offerings.first.name;
+        final sorted = [...offerings]..sort((a, b) => a.pricePaise.compareTo(b.pricePaise));
         return FractionallySizedBox(
           heightFactor: 0.86,
           child: Padding(
@@ -210,12 +199,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: AaraagateTokens.space3),
                     itemBuilder: (context, index) {
                       final offering = sorted[index];
-                      final provider = offering['provider'];
-                      final providerDescription = provider is Map ? provider['description']?.toString() : null;
-                      final ratingAverage = provider is Map ? (provider['ratingAverage'] as num?)?.toDouble() : null;
-                      final ratingCount = provider is Map ? (provider['ratingCount'] as num?)?.toInt() ?? 0 : 0;
-                      final completedJobs = provider is Map ? (provider['completedJobs'] as num?)?.toInt() ?? 0 : 0;
-                      final duration = (offering['durationMinutes'] as num?)?.toInt();
+                      final providerDescription = offering.provider.description;
+                      final ratingAverage = offering.provider.ratingAverage;
+                      final ratingCount = offering.provider.ratingCount;
+                      final completedJobs = offering.provider.completedJobs;
+                      final duration = offering.durationMinutes;
                       return PremiumSurface(
                         elevated: true,
                         padding: const EdgeInsets.all(AaraagateTokens.space4),
@@ -230,14 +218,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                   height: AaraagateTokens.iconContainer,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-                                  child: Text(_providerInitial(offering), style: theme.textTheme.titleMedium?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w800)),
+                                  child: Text(_offeringProviderInitial(offering), style: theme.textTheme.titleMedium?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w800)),
                                 ),
                                 const SizedBox(width: AaraagateTokens.space3),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(_providerName(offering), style: theme.textTheme.titleMedium),
+                                      Text(offering.provider.businessName, style: theme.textTheme.titleMedium),
                                       const SizedBox(height: AaraagateTokens.space1),
                                       Row(
                                         children: [
@@ -250,16 +238,16 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: AaraagateTokens.space2),
-                                Text(_price(offering['pricePaise']), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                                Text(_price(offering.pricePaise), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                               ],
                             ),
                             if ((providerDescription ?? '').trim().isNotEmpty) ...[
                               const SizedBox(height: AaraagateTokens.space3),
                               Text(providerDescription!, style: theme.textTheme.bodyMedium),
                             ],
-                            if ((offering['description']?.toString() ?? '').trim().isNotEmpty) ...[
+                            if ((offering.description ?? '').trim().isNotEmpty) ...[
                               const SizedBox(height: AaraagateTokens.space2),
-                              Text(offering['description'].toString(), style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                              Text(offering.description!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                             ],
                             const SizedBox(height: AaraagateTokens.space3),
                             Wrap(
@@ -279,7 +267,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                               width: double.infinity,
                               child: FilledButton(
                                 onPressed: () => Navigator.pop(context, offering),
-                                child: Text('Choose ${_providerName(offering)}'),
+                                child: Text('Choose ${offering.provider.businessName}'),
                               ),
                             ),
                           ],
@@ -297,14 +285,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
     if (selected != null && mounted) await _book(selected);
   }
 
-  Future<void> _book(Map<String, dynamic> offering) async {
+  Future<void> _book(ServiceOfferingSummary offering) async {
     final unitId = controller.primaryUnitId;
     if (unitId == null) {
       _message('No active household unit is available for booking.');
       return;
     }
-    final offeringId = offering['id']?.toString();
-    if (offeringId == null || offeringId.isEmpty) return;
+    final offeringId = offering.id;
+    if (offeringId.isEmpty) return;
 
     final now = DateTime.now();
     final initialDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
@@ -321,16 +309,16 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final input = await showDialog<_ServiceBookingInput>(
       context: context,
       builder: (_) => _ServiceBookingDialog(
-        serviceName: offering['name']?.toString() ?? 'service',
-        providerName: _providerName(offering),
-        price: _price(offering['pricePaise']),
+        serviceName: offering.name,
+        providerName: offering.provider.businessName,
+        price: _price(offering.pricePaise),
         scheduled: '${date.day}/${date.month}/${date.year} · ${time.format(context)}',
       ),
     );
     if (input == null || !mounted) return;
 
     final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    final duration = (offering['durationMinutes'] as num?)?.toInt() ?? 60;
+    final duration = offering.durationMinutes ?? 60;
     final end = start.add(Duration(minutes: duration.clamp(15, 480)));
     await _run(() async {
       await controller.repository.createServiceBooking(
@@ -492,13 +480,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
               else
                 ...groups.map((offerings) {
                   final first = offerings.first;
-                  final minPrice = offerings.map(_pricePaise).reduce((a, b) => a < b ? a : b);
+                  final minPrice = offerings.map((item) => item.pricePaise).reduce((a, b) => a < b ? a : b);
                   final count = offerings.length;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
                     child: PremiumSurface(
                       onTap: _busy ? null : () => _chooseProvider(offerings),
-                      semanticLabel: '${first['name']?.toString() ?? 'Service'}, $count verified provider${count == 1 ? '' : 's'}, from ${_price(minPrice)}',
+                      semanticLabel: '${first.name}, $count verified provider${count == 1 ? '' : 's'}, from ${_price(minPrice)}',
                       padding: const EdgeInsets.all(AaraagateTokens.space4),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,11 +502,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(first['name']?.toString() ?? 'Service', style: theme.textTheme.titleMedium),
+                                Text(first.name, style: theme.textTheme.titleMedium),
                                 const SizedBox(height: AaraagateTokens.space1),
                                 Text('$count verified provider${count == 1 ? '' : 's'}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
                                 const SizedBox(height: AaraagateTokens.space1),
-                                Text(first['description']?.toString() ?? 'Compare providers, prices and service details.', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                                Text(first.description ?? 'Compare providers, prices and service details.', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                                 const SizedBox(height: AaraagateTokens.space2),
                                 Text('From ${_price(minPrice)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: scheme.primary)),
                               ],
@@ -602,10 +590,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return 'Service booking';
   }
 
-  static int _pricePaise(Map<String, dynamic> offering) => (offering['pricePaise'] as num?)?.toInt() ?? 0;
-
-  static String _providerInitial(Map<String, dynamic> item) {
-    final name = _providerName(item).trim();
+  static String _offeringProviderInitial(ServiceOfferingSummary offering) {
+    final name = offering.provider.businessName.trim();
     return name.isEmpty ? 'V' : name.substring(0, 1).toUpperCase();
   }
 

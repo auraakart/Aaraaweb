@@ -8,7 +8,11 @@ test -f "$WORKFLOW"
 required_literals=(
   'CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}'
   "Enforce develop to staging promotion path"
-  'git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"'
+  'git fetch origin develop staging --no-tags'
+  'DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"'
+  'if [ "$CANDIDATE_SHA" != "$DEVELOP_SHA" ]; then'
+  'MERGE_BASE="$(git merge-base "$TARGET_SHA" "$CANDIDATE_SHA")"'
+  'git diff --quiet "$MERGE_BASE" "$TARGET_SHA"'
   'ref: ${{ github.event.pull_request.head.sha || github.sha }}'
   'test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"'
   "Upload exact-SHA staging evidence"

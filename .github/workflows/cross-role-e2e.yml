@@ -9,6 +9,7 @@ on:
       - 'apps/guard/**'
       - 'apps/admin/**'
       - 'scripts/cross-role-e2e.mjs'
+      - 'scripts/v4.34-cross-app-journey-contract.mjs'
       - '.github/workflows/cross-role-e2e.yml'
       - 'docs/CROSS-ROLE-E2E-EVIDENCE.md'
   workflow_dispatch:
@@ -66,6 +67,8 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Apply clean migrations
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Validate cross-app source contracts
+        run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Seed Resident Guard Admin journey
         working-directory: services/api
         run: node scripts/cross-role-e2e-seed.mjs

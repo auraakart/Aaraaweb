@@ -35,6 +35,7 @@ type AvailabilityWindowRow = {
 };
 
 type MatchedWindowRow = { id: string; slotCapacity: number };
+type AvailabilityExceptionRow = { closed: boolean; slotCapacity: number | null };
 
 @Injectable()
 export class ConsumerAvailabilityService {
@@ -170,7 +171,15 @@ export class ConsumerAvailabilityService {
     `);
     const window = windows[0];
     if (!window) return { available: false, reason: 'NOT_SERVICEABLE_AT_LOCATION_OR_TIME' };
-    return this.capacityResult(this.prisma, window, offeringId, scheduledFrom, scheduledUntil);
+    const exceptions = await this.prisma.$queryRaw<AvailabilityExceptionRow[]>(Prisma.sql`
+      SELECT "closed","slotCapacity" FROM "ConsumerOfferingAvailabilityException"
+      WHERE "offeringId" = ${offeringId}::uuid AND "serviceDate" = ${slot.serviceDate}::date AND "active" = true
+      LIMIT 1
+    `);
+    const exception = exceptions[0];
+    if (exception?.closed) return { available: false, reason: 'DATE_CLOSED' };
+    const effectiveWindow = exception?.slotCapacity ? { ...window, slotCapacity: exception.slotCapacity } : window;
+    return this.capacityResult(this.prisma, effectiveWindow, offeringId, scheduledFrom, scheduledUntil);
   }
 
   async lockAndAssertBookable(
@@ -180,6 +189,7 @@ export class ConsumerAvailabilityService {
     postalCode: string,
     scheduledFrom: Date,
     scheduledUntil: Date,
+    excludeBookingId?: string,
   ) {
     const normalizedPostalCode = this.normalizePostalCode(postalCode);
     const slot = this.indiaSlot(scheduledFrom, scheduledUntil);
@@ -204,8 +214,16 @@ export class ConsumerAvailabilityService {
     `);
     const window = windows[0];
     if (!window) throw new BadRequestException('Service is not available at this delivery location or requested time');
+    const exceptions = await tx.$queryRaw<AvailabilityExceptionRow[]>(Prisma.sql`
+      SELECT "closed","slotCapacity" FROM "ConsumerOfferingAvailabilityException"
+      WHERE "offeringId" = ${offeringId}::uuid AND "serviceDate" = ${slot.serviceDate}::date AND "active" = true
+      LIMIT 1 FOR UPDATE
+    `);
+    const exception = exceptions[0];
+    if (exception?.closed) throw new BadRequestException('Service is closed for the selected date');
+    const effectiveWindow = exception?.slotCapacity ? { ...window, slotCapacity: exception.slotCapacity } : window;
 
-    const result = await this.capacityResult(tx, window, offeringId, scheduledFrom, scheduledUntil);
+    const result = await this.capacityResult(tx, effectiveWindow, offeringId, scheduledFrom, scheduledUntil, excludeBookingId);
     if (!result.available) throw new BadRequestException('Selected service time is fully booked');
   }
 
@@ -215,6 +233,7 @@ export class ConsumerAvailabilityService {
     offeringId: string,
     scheduledFrom: Date,
     scheduledUntil: Date,
+    excludeBookingId?: string,
   ) {
     const counts = await client.$queryRaw<Array<{ bookedCount: number }>>(Prisma.sql`
       SELECT COUNT(*)::int AS "bookedCount" FROM "ConsumerServiceBooking"
@@ -225,6 +244,7 @@ export class ConsumerAvailabilityService {
           ${ServiceBookingStatus.IN_PROGRESS}::"ServiceBookingStatus"
         )
         AND "scheduledFrom" < ${scheduledUntil} AND "scheduledUntil" > ${scheduledFrom}
+        AND (${excludeBookingId ?? null}::uuid IS NULL OR "id" <> ${excludeBookingId ?? null}::uuid)
     `);
     const bookedCount = counts[0]?.bookedCount ?? 0;
     return {
@@ -281,7 +301,12 @@ export class ConsumerAvailabilityService {
     const end = parse(scheduledUntil);
     if (`${start.year}-${start.month}-${start.day}` !== `${end.year}-${end.month}-${end.day}`) return null;
     const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(start.weekday);
-    return { dayOfWeek, startMinute: Number(start.hour) * 60 + Number(start.minute), endMinute: Number(end.hour) * 60 + Number(end.minute) };
+    return {
+      dayOfWeek,
+      serviceDate: `${start.year}-${start.month}-${start.day}`,
+      startMinute: Number(start.hour) * 60 + Number(start.minute),
+      endMinute: Number(end.hour) * 60 + Number(end.minute),
+    };
   }
 
   private validateWindow(input: AvailabilityWindowInput) {

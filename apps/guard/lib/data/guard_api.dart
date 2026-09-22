@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'models/guard_boundary_models.dart';
 
 class GuardApiException implements Exception {
   GuardApiException(this.message, {this.statusCode, this.transport = false});
@@ -112,25 +113,25 @@ class GuardApi {
   Future<List<Map<String, dynamic>>> gates() async {
     final value = await _send('GET', '/gates');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardGate.fromJson(Map<String, dynamic>.from(e)).toJson()).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> gateUnits() async {
     final value = await _send('GET', '/access-requests/gate/units');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardUnit.fromJson(Map<String, dynamic>.from(e)).toJson()).toList(growable: false);
   }
 
-  Future<List<Map<String, dynamic>>> parcelDesk() async {
+  Future<List<GuardParcel>> parcelDesk() async {
     final value = await _send('GET', '/parcels/desk');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardParcel.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
-  Future<List<Map<String, dynamic>>> parcelRecipients() async {
+  Future<List<GuardParcelRecipient>> parcelRecipients() async {
     final value = await _send('GET', '/parcels/desk/recipients');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardParcelRecipient.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> intakeParcel({required String unitId, required String recipientUserId, String? courierName, String? trackingReference, String? notes}) async =>
@@ -151,12 +152,12 @@ class GuardApi {
   Future<Map<String, dynamic>> returnParcel(String parcelId, String reason) async =>
       Map<String, dynamic>.from(await _send('PATCH', '/parcels/desk/$parcelId/return', body: {'reason': reason.trim()}) as Map);
 
-  Future<List<Map<String, dynamic>>> eligibleWorkforce({String? query}) async {
+  Future<List<GuardWorkforceAssignment>> eligibleWorkforce({String? query}) async {
     final normalized = query?.trim();
     final suffix = normalized == null || normalized.isEmpty ? '' : '?query=${Uri.encodeQueryComponent(normalized)}';
     final value = await _send('GET', '/workforce/gate/eligible$suffix');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardWorkforceAssignment.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> workforceCheckIn({required String gateId, required String assignmentId, required String idempotencyKey}) async =>

@@ -1,12 +1,12 @@
 'use client'
 
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
+import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
 import {
   ActionBar,DetailPanel,EmptyState,ErrorState,EvidenceGrid,FormField,PageHeader,PageShell,
   PrimaryButton,QueuePanel,SecondaryButton,SelectField,StatusPill,Timeline,
 } from '../../components/admin-ui'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Tenure={id:string;userId:string;userName?:string;userPhone?:string;roleName:string;effectiveFrom:string;effectiveTo?:string|null;handoverNotes?:string|null}
 type Meeting={id:string;meetingType:'AGM'|'SGM'|'COMMITTEE'|'BUSINESS';status:'SCHEDULED'|'HELD'|'CANCELLED';title:string;scheduledAt:string;heldAt?:string|null;location?:string|null;quorumRequired?:number|null;quorumPresent?:number|null;quorumRuleReference?:string|null;byeLawReference?:string|null}
 type Agenda={id:string;ordinal:number;title:string;description?:string|null}
@@ -15,22 +15,14 @@ type ActionItem={id:string;resolutionId?:string|null;title:string;description?:s
 type Evidence={id:string;eventType:string;summary:string;createdAt:string}
 type MeetingDetail=Meeting&{minutesSummary?:string|null;agenda:Agenda[];resolutions:Resolution[];actions:ActionItem[];evidence:Evidence[]}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
-function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text(),body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 const iso=(v:string)=>new Date(v).toISOString()
 const human=(v:string)=>v.replaceAll('_',' ')
 
 export default function GovernancePage(){
-  const s=typeof window==='undefined'?null:getSession(),canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
+  const s=typeof window==='undefined'?null:getAdminSession(),canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
   const[tenures,setTenures]=useState<Tenure[]>([]),[meetings,setMeetings]=useState<Meeting[]>([]),[selected,setSelected]=useState<MeetingDetail|null>(null)
   const[loading,setLoading]=useState(true),[detailLoading,setDetailLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[detailError,setDetailError]=useState(''),[success,setSuccess]=useState('')
   const[userId,setUserId]=useState(''),[roleName,setRoleName]=useState(''),[tenureFrom,setTenureFrom]=useState(''),[tenureTo,setTenureTo]=useState('')
@@ -48,7 +40,7 @@ export default function GovernancePage(){
     if(!s||!canRead)return
     setLoading(true);setError('')
     try{
-      const[t,m]=await Promise.all([api<Tenure[]>(s,'/governance/committee'),api<Meeting[]>(s,'/governance/meetings')])
+      const[t,m]=await Promise.all([adminApi<Tenure[]>(s,'/governance/committee'),adminApi<Meeting[]>(s,'/governance/meetings')])
       setTenures(t);setMeetings(m)
     }catch(e){setError(e instanceof Error?e.message:'Could not load governance workspace')}
     finally{setLoading(false)}
@@ -61,7 +53,7 @@ export default function GovernancePage(){
     const requestId=++detailRequest.current
     setDetailLoading(true);setDetailError('')
     try{
-      const detail=await api<MeetingDetail>(s,`/governance/meetings/${id}`)
+      const detail=await adminApi<MeetingDetail>(s,`/governance/meetings/${id}`)
       if(requestId===detailRequest.current)setSelected(detail)
     }catch(e){
       if(requestId===detailRequest.current)setDetailError(e instanceof Error?e.message:'Could not load meeting')
@@ -74,7 +66,7 @@ export default function GovernancePage(){
     e.preventDefault();if(!s||!canManage)return
     setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,'/governance/committee/tenures',{method:'POST',body:JSON.stringify({userId:userId.trim(),roleName:roleName.trim(),effectiveFrom:iso(tenureFrom),effectiveTo:tenureTo?iso(tenureTo):undefined})})
+      await adminApi(s,'/governance/committee/tenures',{method:'POST',body:JSON.stringify({userId:userId.trim(),roleName:roleName.trim(),effectiveFrom:iso(tenureFrom),effectiveTo:tenureTo?iso(tenureTo):undefined})})
       setUserId('');setRoleName('');setTenureFrom('');setTenureTo('');setSuccess('Committee tenure added.');await load()
     }catch(e){setError(e instanceof Error?e.message:'Could not add committee tenure')}
     finally{setBusy(false)}
@@ -84,7 +76,7 @@ export default function GovernancePage(){
     e.preventDefault();if(!s||!canManage||!endingTenureId||!tenureEndAt)return
     setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,`/governance/committee/tenures/${endingTenureId}/end`,{method:'POST',body:JSON.stringify({effectiveTo:iso(tenureEndAt),handoverNotes:handoverNotes.trim()||undefined})})
+      await adminApi(s,`/governance/committee/tenures/${endingTenureId}/end`,{method:'POST',body:JSON.stringify({effectiveTo:iso(tenureEndAt),handoverNotes:handoverNotes.trim()||undefined})})
       setEndingTenureId('');setTenureEndAt('');setHandoverNotes('');setSuccess('Committee tenure ended with handover evidence.');await load()
     }catch(e){setError(e instanceof Error?e.message:'Could not end tenure')}
     finally{setBusy(false)}
@@ -94,7 +86,7 @@ export default function GovernancePage(){
     e.preventDefault();if(!s||!canManage)return
     setBusy(true);setError('');setSuccess('')
     try{
-      const created=await api<MeetingDetail>(s,'/governance/meetings',{method:'POST',body:JSON.stringify({meetingType,title:meetingTitle.trim(),scheduledAt:iso(scheduledAt),location:location.trim()||undefined,quorumRequired:quorumRequired?Number(quorumRequired):undefined,quorumRuleReference:ruleRef.trim()||undefined,byeLawReference:byeLawRef.trim()||undefined})})
+      const created=await adminApi<MeetingDetail>(s,'/governance/meetings',{method:'POST',body:JSON.stringify({meetingType,title:meetingTitle.trim(),scheduledAt:iso(scheduledAt),location:location.trim()||undefined,quorumRequired:quorumRequired?Number(quorumRequired):undefined,quorumRuleReference:ruleRef.trim()||undefined,byeLawReference:byeLawRef.trim()||undefined})})
       setMeetingTitle('');setScheduledAt('');setLocation('');setQuorumRequired('');setRuleRef('');setByeLawRef('');setSelected(created);setSuccess('Governance meeting created.');await load()
     }catch(e){setError(e instanceof Error?e.message:'Could not create meeting')}
     finally{setBusy(false)}
@@ -105,7 +97,7 @@ export default function GovernancePage(){
     const ordinal=Number(agendaOrdinal||selected.agenda.length+1)
     if(!Number.isInteger(ordinal)||ordinal<1){setError('Agenda order must be a positive whole number');return}
     const id=selected.id;setBusy(true);setError('');setSuccess('')
-    try{await api(s,`/governance/meetings/${id}/agenda`,{method:'POST',body:JSON.stringify({ordinal,title:agendaTitle.trim(),description:agendaDescription.trim()||undefined})});setAgendaOrdinal('');setAgendaTitle('');setAgendaDescription('');setSuccess('Agenda item added.');await inspect(id)}
+    try{await adminApi(s,`/governance/meetings/${id}/agenda`,{method:'POST',body:JSON.stringify({ordinal,title:agendaTitle.trim(),description:agendaDescription.trim()||undefined})});setAgendaOrdinal('');setAgendaTitle('');setAgendaDescription('');setSuccess('Agenda item added.');await inspect(id)}
     catch(e){setError(e instanceof Error?e.message:'Could not add agenda item')}
     finally{setBusy(false)}
   }
@@ -116,7 +108,7 @@ export default function GovernancePage(){
     if((required!=null&&required<0)||(recorded!=null&&recorded<0)){setError('Approval counts cannot be negative');return}
     const id=selected.id;setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,`/governance/meetings/${id}/resolutions`,{method:'POST',body:JSON.stringify({title:resolutionTitle.trim(),resolutionText:resolutionText.trim(),status:resolutionStatus,approvalRequired:required,approvalRecorded:recorded,approvalRuleReference:resolutionRuleRef.trim()||undefined,byeLawReference:resolutionByeLawRef.trim()||undefined})})
+      await adminApi(s,`/governance/meetings/${id}/resolutions`,{method:'POST',body:JSON.stringify({title:resolutionTitle.trim(),resolutionText:resolutionText.trim(),status:resolutionStatus,approvalRequired:required,approvalRecorded:recorded,approvalRuleReference:resolutionRuleRef.trim()||undefined,byeLawReference:resolutionByeLawRef.trim()||undefined})})
       setResolutionTitle('');setResolutionText('');setResolutionStatus('PROPOSED');setApprovalRequired('');setApprovalRecorded('');setResolutionRuleRef('');setResolutionByeLawRef('');setSuccess('Resolution evidence recorded.');await inspect(id)
     }catch(e){setError(e instanceof Error?e.message:'Could not record resolution')}
     finally{setBusy(false)}
@@ -126,7 +118,7 @@ export default function GovernancePage(){
     e.preventDefault();if(!s||!selected||!canManage||!actionTitle.trim())return
     const id=selected.id;setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,`/governance/meetings/${id}/actions`,{method:'POST',body:JSON.stringify({title:actionTitle.trim(),description:actionDescription.trim()||undefined,ownerUserId:actionOwnerUserId.trim()||undefined,dueAt:actionDueAt?iso(actionDueAt):undefined})})
+      await adminApi(s,`/governance/meetings/${id}/actions`,{method:'POST',body:JSON.stringify({title:actionTitle.trim(),description:actionDescription.trim()||undefined,ownerUserId:actionOwnerUserId.trim()||undefined,dueAt:actionDueAt?iso(actionDueAt):undefined})})
       setActionTitle('');setActionDescription('');setActionOwnerUserId('');setActionDueAt('');setSuccess('Action item added.');await inspect(id)
     }catch(e){setError(e instanceof Error?e.message:'Could not add action item')}
     finally{setBusy(false)}
@@ -136,7 +128,7 @@ export default function GovernancePage(){
     e.preventDefault();if(!s||!selected||!canManage||!actionFollowId)return
     const id=selected.id;setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,`/governance/meetings/${id}/actions/${actionFollowId}/status`,{method:'POST',body:JSON.stringify({status:actionFollowStatus,ownerUserId:actionFollowOwner.trim()||undefined,dueAt:actionFollowDue?iso(actionFollowDue):undefined})})
+      await adminApi(s,`/governance/meetings/${id}/actions/${actionFollowId}/status`,{method:'POST',body:JSON.stringify({status:actionFollowStatus,ownerUserId:actionFollowOwner.trim()||undefined,dueAt:actionFollowDue?iso(actionFollowDue):undefined})})
       setActionFollowId('');setActionFollowStatus('OPEN');setActionFollowOwner('');setActionFollowDue('');setSuccess('Action follow-through updated.');await inspect(id)
     }catch(e){setError(e instanceof Error?e.message:'Could not update action item')}
     finally{setBusy(false)}
@@ -149,7 +141,7 @@ export default function GovernancePage(){
     if(outcomeStatus==='HELD'&&!outcomeHeldAt){setError('Held at is required when marking a meeting held');return}
     const id=selected.id;setBusy(true);setError('');setSuccess('')
     try{
-      await api(s,`/governance/meetings/${id}/outcome`,{method:'POST',body:JSON.stringify({status:outcomeStatus,heldAt:outcomeStatus==='HELD'?iso(outcomeHeldAt):undefined,quorumPresent:quorum,minutesSummary:outcomeMinutes.trim()||undefined,quorumRuleReference:outcomeRuleRef.trim()||undefined,byeLawReference:outcomeByeLawRef.trim()||undefined})})
+      await adminApi(s,`/governance/meetings/${id}/outcome`,{method:'POST',body:JSON.stringify({status:outcomeStatus,heldAt:outcomeStatus==='HELD'?iso(outcomeHeldAt):undefined,quorumPresent:quorum,minutesSummary:outcomeMinutes.trim()||undefined,quorumRuleReference:outcomeRuleRef.trim()||undefined,byeLawReference:outcomeByeLawRef.trim()||undefined})})
       setSuccess('Meeting outcome and minutes evidence recorded.');await load();await inspect(id)
     }catch(e){setError(e instanceof Error?e.message:'Could not record meeting outcome')}
     finally{setBusy(false)}

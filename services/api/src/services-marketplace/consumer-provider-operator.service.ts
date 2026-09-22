@@ -191,22 +191,26 @@ export class ConsumerProviderOperatorService {
     }
 
     if (decision === 'ACCEPT') {
-      return this.fulfilment.transition(
+      const result = await this.fulfilment.transition(
         userId,
         bookingId,
         ServiceBookingStatus.CONFIRMED,
         note,
         'PROVIDER_ACCEPTED',
       );
+      await this.withdrawPendingBookingProposal(bookingId);
+      return result;
     }
 
-    return this.fulfilment.transition(
+    const result = await this.fulfilment.transition(
       userId,
       bookingId,
       ServiceBookingStatus.CANCELLED,
       note,
       'PROVIDER_DECLINED',
     );
+    await this.withdrawPendingBookingProposal(bookingId);
+    return result;
   }
 
   async listMyAgents(userId: string) {
@@ -250,6 +254,14 @@ export class ConsumerProviderOperatorService {
   ) {
     await this.assertAssignmentOwned(userId, assignmentId);
     return this.dispatch.transition(userId, assignmentId, status, note);
+  }
+
+  private async withdrawPendingBookingProposal(bookingId: string) {
+    await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "ProviderBookingProposal"
+      SET "status"='WITHDRAWN'
+      WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING'
+    `);
   }
 
   private async assertOfferingOwned(userId: string, offeringId: string) {

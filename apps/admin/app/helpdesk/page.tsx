@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
+import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
 import {
   ActionBar,
   DetailPanel,
@@ -19,7 +20,6 @@ import {
   Timeline,
 } from '../../components/admin-ui'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Reviewer={id:string;name:string;phone:string}
 type Ticket={
   id:string;title:string;description:string;category?:string|null;priority:string;status:string;
@@ -31,24 +31,16 @@ type Activity={id:string;type:string;message?:string|null;fromStatus?:string|nul
 type SlaEvent={id:string;eventType:string;fromState?:string|null;toState?:string|null;note?:string|null;actorName?:string|null;escalatedToName?:string|null;createdAt:string}
 type Readiness={ticketId:string;status:string;priority:string;assigned:boolean;computedSlaState:string;firstResponded:boolean;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;escalationLevel:number;escalated:boolean;critical:boolean;blockers:string[];nextActions:string[];policy?:{firstResponseMinutes:number;resolutionMinutes:number;escalationAfterMinutes:number;automaticEscalationEnabled:boolean;escalationTargetUserId?:string|null;escalationTargetName?:string|null}|null;boundary:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const allowedRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 const statusOptions=['OPEN','IN_PROGRESS','RESOLVED','CLOSED']
 const resolutionCodes=['FIXED','WORKAROUND','DUPLICATE','NOT_REPRODUCIBLE','REQUEST_WITHDRAWN','OTHER']
 const closureCodes=['RESOLVED_CONFIRMED','RESIDENT_CONFIRMED','DUPLICATE','INVALID_REQUEST','REQUEST_WITHDRAWN','OTHER']
 
-function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text(),body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 const human=(v?:string|null)=>v?.replaceAll('_',' ')??'Not recorded'
 
 export default function HelpdeskAdminPage(){
-  const s=typeof window==='undefined'?null:session()
+  const s=typeof window==='undefined'?null:getAdminSession()
   const allowed=!!s&&allowedRoles.has(s.role)
   const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[selectedId,setSelectedId]=useState('')
   const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null)
@@ -64,8 +56,8 @@ export default function HelpdeskAdminPage(){
   const load=useCallback(async()=>{if(!s||!allowed)return;setQueueLoading(true);setQueueError('')
     try{
       const[queue,ctx]=await Promise.all([
-        api<Ticket[]>(s,'/helpdesk/sla/queue'),
-        api<Reviewer[]>(s,'/helpdesk/review/context'),
+        adminApi<Ticket[]>(s,'/helpdesk/sla/queue'),
+        adminApi<Reviewer[]>(s,'/helpdesk/review/context'),
       ])
       setTickets(queue);setReviewers(ctx)
       setSelectedId(current=>current&&queue.some(t=>t.id===current)?current:queue[0]?.id??'')
@@ -77,9 +69,9 @@ export default function HelpdeskAdminPage(){
     setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null)
     try{
       const[a,h,r]=await Promise.all([
-        api<Activity[]>(s,`/helpdesk/review/${id}/activities`),
-        api<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
-        api<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
+        adminApi<Activity[]>(s,`/helpdesk/review/${id}/activities`),
+        adminApi<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
+        adminApi<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
       ])
       if(requestId!==detailRequest.current)return
       setActivities(a);setSlaHistory(h);setReadiness(r)
@@ -99,17 +91,17 @@ export default function HelpdeskAdminPage(){
     catch(e){setOperationError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setMutationBusy(false)}
   }
 
-  const assign=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>api(s,`/helpdesk/review/${selected.id}/assignment`,{method:'PATCH',body:JSON.stringify({assignedToId:assignedToId||null})}).then(()=>undefined),'Assignment updated.')}
+  const assign=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/assignment`,{method:'PATCH',body:JSON.stringify({assignedToId:assignedToId||null})}).then(()=>undefined),'Assignment updated.')}
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
     if((status==='RESOLVED'||status==='CLOSED')&&!reasonCode){setOperationError('Select a resolution/closure code.');return}
-    void run(()=>api(s,`/helpdesk/review/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined,reasonCode:reasonCode||undefined})}).then(()=>undefined),'Status updated.')
+    void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined,reasonCode:reasonCode||undefined})}).then(()=>undefined),'Status updated.')
   }
-  const addComment=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!comment.trim())return;void run(()=>api(s,`/helpdesk/review/${selected.id}/comments`,{method:'POST',body:JSON.stringify({message:comment.trim()})}).then(()=>{setComment('')}),'Comment added.')}
-  const addInternal=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!internalNote.trim())return;void run(()=>api(s,`/helpdesk/review/${selected.id}/internal-notes`,{method:'POST',body:JSON.stringify({message:internalNote.trim()})}).then(()=>{setInternalNote('')}),'Internal note added.')}
-  const reopen=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!reopenNote.trim())return;void run(()=>api(s,`/helpdesk/review/${selected.id}/reopen`,{method:'POST',body:JSON.stringify({note:reopenNote.trim()})}).then(()=>{setReopenNote('')}),'Ticket reopened.')}
-  const applyPolicy=()=>{if(!s||!selected)return;void run(()=>api(s,`/helpdesk/sla/${selected.id}/apply-policy`,{method:'POST'}).then(()=>undefined),'SLA policy applied.')}
-  const evaluate=()=>{if(!s||!selected)return;void run(()=>api(s,`/helpdesk/sla/${selected.id}/evaluate`,{method:'POST'}).then(()=>undefined),'SLA state evaluated.')}
-  const escalate=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!escalatedToId)return;void run(()=>api(s,`/helpdesk/sla/${selected.id}/escalate`,{method:'POST',body:JSON.stringify({escalatedToId,note:escalationNote.trim()||undefined})}).then(()=>{setEscalationNote('')}),'Ticket escalated.')}
+  const addComment=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!comment.trim())return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/comments`,{method:'POST',body:JSON.stringify({message:comment.trim()})}).then(()=>{setComment('')}),'Comment added.')}
+  const addInternal=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!internalNote.trim())return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/internal-notes`,{method:'POST',body:JSON.stringify({message:internalNote.trim()})}).then(()=>{setInternalNote('')}),'Internal note added.')}
+  const reopen=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!reopenNote.trim())return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/reopen`,{method:'POST',body:JSON.stringify({note:reopenNote.trim()})}).then(()=>{setReopenNote('')}),'Ticket reopened.')}
+  const applyPolicy=()=>{if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/sla/${selected.id}/apply-policy`,{method:'POST'}).then(()=>undefined),'SLA policy applied.')}
+  const evaluate=()=>{if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/sla/${selected.id}/evaluate`,{method:'POST'}).then(()=>undefined),'SLA state evaluated.')}
+  const escalate=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||!escalatedToId)return;void run(()=>adminApi(s,`/helpdesk/sla/${selected.id}/escalate`,{method:'POST',body:JSON.stringify({escalatedToId,note:escalationNote.trim()||undefined})}).then(()=>{setEscalationNote('')}),'Ticket escalated.')}
 
   if(!s||!allowed)return <PageShell><PageHeader title="Helpdesk review access required" description="Your current Admin role does not include Helpdesk review access." actions={<a href="/">Return to Admin</a>}/></PageShell>
 
