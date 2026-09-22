@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
+import '../data/models/guard_boundary_models.dart';
 import '../widgets/guard_state_card.dart';
 
 class GuardParcelsScreen extends StatefulWidget {
@@ -11,8 +12,8 @@ class GuardParcelsScreen extends StatefulWidget {
 }
 
 class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
-  List<Map<String, dynamic>> _parcels = const [];
-  List<Map<String, dynamic>> _recipients = const [];
+  List<GuardParcel> _parcels = const [];
+  List<GuardParcelRecipient> _recipients = const [];
   bool _loading = true;
   String? _error;
 
@@ -60,18 +61,18 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
     ));
   }
 
-  Future<void> _verify(Map<String, dynamic> parcel) async {
+  Future<void> _verify(GuardParcel parcel) async {
     final code = await _textDialog(title: 'Verify pickup code', label: '6-digit code', numeric: true);
     if (code == null) return;
-    await _run(() => widget.controller.api.collectParcelWithCode(parcel['id'].toString(), code));
+    await _run(() => widget.controller.api.collectParcelWithCode(parcel.id, code));
   }
 
-  Future<void> _remind(Map<String, dynamic> parcel) => _run(() => widget.controller.api.remindParcel(parcel['id'].toString()));
+  Future<void> _remind(GuardParcel parcel) => _run(() => widget.controller.api.remindParcel(parcel.id));
 
-  Future<void> _return(Map<String, dynamic> parcel) async {
+  Future<void> _return(GuardParcel parcel) async {
     final reason = await _textDialog(title: 'Return parcel', label: 'Reason for return');
     if (reason == null || reason.trim().length < 3) return;
-    await _run(() => widget.controller.api.returnParcel(parcel['id'].toString(), reason));
+    await _run(() => widget.controller.api.returnParcel(parcel.id, reason));
   }
 
   Future<void> _run(Future<Object?> Function() action) async {
@@ -139,7 +140,7 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
                   parcel: parcel,
                   busy: _loading,
                   onVerify: () => _verify(parcel),
-                  onRemind: parcel['overdue'] == true ? () => _remind(parcel) : null,
+                  onRemind: parcel.overdue ? () => _remind(parcel) : null,
                   onReturn: () => _return(parcel),
                 ),
                 const SizedBox(height: 12),
@@ -154,7 +155,7 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
 
 class _ParcelDeskCard extends StatelessWidget {
   const _ParcelDeskCard({required this.parcel, required this.busy, required this.onVerify, required this.onRemind, required this.onReturn});
-  final Map<String, dynamic> parcel;
+  final GuardParcel parcel;
   final bool busy;
   final VoidCallback onVerify;
   final VoidCallback? onRemind;
@@ -163,7 +164,7 @@ class _ParcelDeskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final overdue = parcel['overdue'] == true;
+    final overdue = parcel.overdue;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -172,9 +173,9 @@ class _ParcelDeskCard extends StatelessWidget {
             CircleAvatar(child: Icon(overdue ? Icons.warning_amber_rounded : Icons.inventory_2_outlined)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${parcel['unitNumber'] ?? 'Unit'} · ${parcel['recipientName'] ?? 'Resident'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-              Text(parcel['courierName']?.toString() ?? 'Courier not specified'),
-              if (parcel['trackingReference'] != null) Text(parcel['trackingReference'].toString(), style: theme.textTheme.bodySmall),
+              Text('${parcel.unitNumber} · ${parcel.recipientName}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              Text(parcel.courierName ?? 'Courier not specified'),
+              if (parcel.trackingReference != null) Text(parcel.trackingReference!, style: theme.textTheme.bodySmall),
             ])),
             if (overdue) const Chip(label: Text('OVERDUE')),
           ]),
@@ -203,7 +204,7 @@ class _ParcelIntake {
 
 class _ParcelIntakeSheet extends StatefulWidget {
   const _ParcelIntakeSheet({required this.recipients});
-  final List<Map<String, dynamic>> recipients;
+  final List<GuardParcelRecipient> recipients;
 
   @override
   State<_ParcelIntakeSheet> createState() => _ParcelIntakeSheetState();
@@ -229,13 +230,13 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
     super.dispose();
   }
 
-  String _keyFor(Map<String, dynamic> row) => '${row['unitId']}:${row['userId']}';
+  String _keyFor(GuardParcelRecipient row) => row.selectionKey;
 
   void _submit() {
     final match = widget.recipients.firstWhere((row) => _keyFor(row) == _key);
     Navigator.pop(context, _ParcelIntake(
-      unitId: match['unitId'].toString(),
-      userId: match['userId'].toString(),
+      unitId: match.unitId,
+      userId: match.userId,
       courier: _optional(_courier.text),
       tracking: _optional(_tracking.text),
       notes: _optional(_notes.text),
@@ -255,7 +256,7 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
           decoration: const InputDecoration(labelText: 'Resident & unit', prefixIcon: Icon(Icons.apartment_rounded)),
           items: widget.recipients.map((row) => DropdownMenuItem(
             value: _keyFor(row),
-            child: Text('${row['buildingName'] ?? row['buildingCode'] ?? 'Building'} · ${row['unitNumber']} · ${row['name']}', overflow: TextOverflow.ellipsis),
+            child: Text('${row.buildingLabel} · ${row.unitNumber} · ${row.name}', overflow: TextOverflow.ellipsis),
           )).toList(),
           onChanged: (value) { if (value != null) setState(() => _key = value); },
         ),
