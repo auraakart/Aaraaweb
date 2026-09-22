@@ -64,6 +64,8 @@ model Society {
   societyWorkers        SocietyWorker[]
   societyWorkerGates    SocietyWorkerGateAccess[]
   societyWorkerAttendance SocietyWorkerAttendance[]
+  societyWorkerLeaves   SocietyWorkerLeave[]
+  societyWorkerEvents   SocietyWorkerEvent[]
   visitors             Visitor[]
   visitorPasses        VisitorPass[]
   accessRequests       AccessRequest[]
@@ -379,6 +381,8 @@ model SocietyWorker {
   society          Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
   gateAccesses     SocietyWorkerGateAccess[]
   attendances      SocietyWorkerAttendance[]
+  leaves           SocietyWorkerLeave[]
+  events           SocietyWorkerEvent[]
 
   @@unique([societyId, phone])
   @@index([societyId, verification, active])
@@ -421,6 +425,42 @@ model SocietyWorkerAttendance {
   @@unique([societyId, checkOutKey])
   @@index([societyId, workerId, checkedOutAt])
   @@index([societyId, gateId, checkedInAt(sort: Desc)])
+}
+
+model SocietyWorkerLeave {
+  id                String        @id @default(uuid()) @db.Uuid
+  societyId         String        @db.Uuid
+  workerId          String        @db.Uuid
+  startsOn          DateTime      @db.Date
+  endsOn            DateTime      @db.Date
+  reason            String?
+  active            Boolean       @default(true)
+  createdByUserId   String        @db.Uuid
+  cancelledByUserId String?       @db.Uuid
+  cancelledAt       DateTime?     @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
+  society           Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker            SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, workerId, active, startsOn, endsOn])
+  @@index([societyId, active, startsOn, endsOn])
+}
+
+model SocietyWorkerEvent {
+  id          String                     @id @default(uuid()) @db.Uuid
+  societyId   String                     @db.Uuid
+  workerId    String                     @db.Uuid
+  event       SocietyWorkerEventType
+  actorUserId String                     @db.Uuid
+  reason      String?
+  details     Json                       @default("{}")
+  occurredAt  DateTime                   @default(now()) @db.Timestamptz(6)
+  society     Society                    @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker      SocietyWorker              @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, workerId, occurredAt(sort: Desc)])
+  @@index([societyId, event, occurredAt(sort: Desc)])
 }
 
 model Gate {
@@ -1078,6 +1118,18 @@ enum SocietyWorkerVerificationStatus {
   VERIFIED
   REJECTED
   SUSPENDED
+}
+
+enum SocietyWorkerEventType {
+  CREATED
+  CONFIGURED
+  VERIFIED
+  REJECTED
+  SUSPENDED
+  REACTIVATED
+  LEAVE_ADDED
+  LEAVE_CANCELLED
+  ATTENDANCE_CORRECTED
 }
 
 enum DomesticWorkerVerificationStatus {
