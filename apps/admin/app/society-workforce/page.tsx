@@ -35,6 +35,7 @@ export default function SocietyWorkforcePage(){
   const[editRole,setEditRole]=useState(''),[editDepartment,setEditDepartment]=useState(''),[editEmployer,setEditEmployer]=useState(''),[editDays,setEditDays]=useState(''),[editFrom,setEditFrom]=useState(''),[editTo,setEditTo]=useState(''),[editGateIds,setEditGateIds]=useState<string[]>([])
   const[leaveStart,setLeaveStart]=useState(''),[leaveEnd,setLeaveEnd]=useState(''),[leaveReason,setLeaveReason]=useState('')
   const[attWorker,setAttWorker]=useState(''),[attGate,setAttGate]=useState(''),[attFrom,setAttFrom]=useState(''),[attTo,setAttTo]=useState(''),[insideOnly,setInsideOnly]=useState(false)
+  const[correctionId,setCorrectionId]=useState(''),[correctionIn,setCorrectionIn]=useState(''),[correctionOut,setCorrectionOut]=useState(''),[correctionReason,setCorrectionReason]=useState('')
 
   const canRead=!!session&&readRoles.has(session.role)
   const canManage=!!session&&manageRoles.has(session.role)
@@ -90,10 +91,9 @@ export default function SocietyWorkforcePage(){
 
   async function action(worker:Worker,kind:'verify'|'reject'|'suspend'|'reactivate'){
     if(!session||!canManage)return
-    const reason=(kind==='suspend'||kind==='reactivate')?(window.prompt(`${kind==='suspend'?'Suspension':'Reactivation'} reason (optional)`)??''):undefined
     setBusy(true);setError('');setNotice('')
     try{
-      await adminApi(session,`/society-workforce/${worker.id}/${kind}`,{method:'PATCH',body:JSON.stringify(reason===undefined?{}:{reason})})
+      await adminApi(session,`/society-workforce/${worker.id}/${kind}`,{method:'PATCH',body:JSON.stringify({})})
       setNotice(kind==='verify'?'Worker verified for assigned gates.':kind==='reject'?'Worker rejected.':kind==='suspend'?'Worker suspended from gate access.':'Worker reactivated.')
       await load(session)
     }catch(e){setError(e instanceof Error?e.message:'Could not update society worker')}finally{setBusy(false)}
@@ -153,16 +153,23 @@ export default function SocietyWorkforcePage(){
     try{const link=document.createElement('a');link.href=href;link.download=`aaraagate-society-workforce-attendance-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove()}finally{URL.revokeObjectURL(href)}
   }
 
-  async function correctAttendance(a:Attendance){
-    if(!session||!canManage)return
-    const reason=window.prompt('Reason for attendance correction (required, at least 5 characters)')
-    if(!reason)return
-    const checkedInAt=window.prompt('Correct check-in ISO date/time',a.checkedInAt)
-    if(!checkedInAt)return
-    const checkedOutAt=window.prompt('Correct check-out ISO date/time (leave unchanged if blank)',a.checkedOutAt??'')
+  function openCorrection(a:Attendance){
+    setCorrectionId(a.id)
+    setCorrectionIn(new Date(a.checkedInAt).toISOString().slice(0,16))
+    setCorrectionOut(a.checkedOutAt?new Date(a.checkedOutAt).toISOString().slice(0,16):'')
+    setCorrectionReason('')
+  }
+
+  async function saveCorrection(){
+    if(!session||!canManage||!correctionId||correctionReason.trim().length<5||!correctionIn)return
     setBusy(true);setError('')
     try{
-      await adminApi(session,`/society-workforce/attendance/${a.id}/correct`,{method:'PATCH',body:JSON.stringify({checkedInAt,...(checkedOutAt?{checkedOutAt}:{}),reason})})
+      await adminApi(session,`/society-workforce/attendance/${correctionId}/correct`,{method:'PATCH',body:JSON.stringify({
+        checkedInAt:new Date(correctionIn).toISOString(),
+        ...(correctionOut?{checkedOutAt:new Date(correctionOut).toISOString()}:{}),
+        reason:correctionReason.trim(),
+      })})
+      setCorrectionId('');setCorrectionIn('');setCorrectionOut('');setCorrectionReason('')
       setNotice('Attendance corrected with an auditable reason.');await load(session)
     }catch(e){setError(e instanceof Error?e.message:'Could not correct attendance')}finally{setBusy(false)}
   }
@@ -229,7 +236,8 @@ export default function SocietyWorkforcePage(){
         <FormField label="From" type="date" value={attFrom} onChange={e=>setAttFrom(e.target.value)}/><FormField label="To" type="date" value={attTo} onChange={e=>setAttTo(e.target.value)}/>
         <label style={check}><input type="checkbox" checked={insideOnly} onChange={e=>setInsideOnly(e.target.checked)}/><span>Inside only</span></label><PrimaryButton disabled={busy} onClick={()=>void applyAttendance()}>Apply</PrimaryButton>
       </div>
-      {attendance.length===0?<EmptyState title="No society workforce attendance recorded"/>:attendance.slice(0,100).map(a=><article key={a.id} style={item}><div><b>{a.worker?.name??'Society worker'}</b><br/><small>{a.worker?.role?.replaceAll('_',' ')??'Worker'} · {a.worker?.department?.replaceAll('_',' ')??''} · {a.gate.name}</small></div><div style={{textAlign:'right'}}><StatusPill label={a.checkedOutAt?'CHECKED OUT':'INSIDE'} tone={a.checkedOutAt?'neutral':'info'}/><br/><small>In {new Date(a.checkedInAt).toLocaleString('en-IN')}{a.checkedOutAt?` · Out ${new Date(a.checkedOutAt).toLocaleString('en-IN')}`:''}</small>{canManage&&<><br/><SecondaryButton disabled={busy} onClick={()=>void correctAttendance(a)}>Correct with reason</SecondaryButton></>}</div></article>)}</section>
+      {correctionId&&canManage&&<div style={correctionPanel}><div style={rowWrap}><b>Attendance correction</b><span>Supervisor reason is mandatory and will be written to the worker timeline.</span></div><div style={attendanceFilters}><FormField label="Check-in" type="datetime-local" value={correctionIn} onChange={e=>setCorrectionIn(e.target.value)}/><FormField label="Check-out" type="datetime-local" value={correctionOut} onChange={e=>setCorrectionOut(e.target.value)}/><FormField label="Correction reason" required value={correctionReason} onChange={e=>setCorrectionReason(e.target.value)} placeholder="Minimum 5 characters"/><PrimaryButton disabled={busy||correctionReason.trim().length<5||!correctionIn} onClick={()=>void saveCorrection()}>Save correction</PrimaryButton><SecondaryButton disabled={busy} onClick={()=>{setCorrectionId('');setCorrectionReason('')}}>Cancel</SecondaryButton></div></div>}
+      {attendance.length===0?<EmptyState title="No society workforce attendance recorded"/>:attendance.slice(0,100).map(a=><article key={a.id} style={item}><div><b>{a.worker?.name??'Society worker'}</b><br/><small>{a.worker?.role?.replaceAll('_',' ')??'Worker'} · {a.worker?.department?.replaceAll('_',' ')??''} · {a.gate.name}</small></div><div style={{textAlign:'right'}}><StatusPill label={a.checkedOutAt?'CHECKED OUT':'INSIDE'} tone={a.checkedOutAt?'neutral':'info'}/><br/><small>In {new Date(a.checkedInAt).toLocaleString('en-IN')}{a.checkedOutAt?` · Out ${new Date(a.checkedOutAt).toLocaleString('en-IN')}`:''}</small>{canManage&&<><br/><SecondaryButton disabled={busy} onClick={()=>openCorrection(a)}>Correct with reason</SecondaryButton></>}</div></article>)}</section>
   </PageShell>
 }
 
@@ -249,3 +257,4 @@ const miniRow={display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' as const
 const timelineRow={display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderBottom:'1px solid #eef2f7',flexWrap:'wrap' as const}
 const warning={marginTop:14,padding:12,borderRadius:12,background:'#fff7ed'}
 const danger={marginTop:10,padding:12,borderRadius:12,background:'#fef2f2'}
+const correctionPanel={margin:'12px 0',padding:14,borderRadius:14,border:'1px solid #cbd5e1',background:'#f8fafc'}
