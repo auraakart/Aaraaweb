@@ -164,6 +164,21 @@ class GuardApi {
         .toList(growable: false);
   }
 
+  Future<List<GuardSocietyWorker>> lookupSocietyWorkforce({
+    required String gateId,
+    required String query,
+  }) async {
+    final value = await _send('POST', '/society-workforce/gate/lookup', body: {
+      'gateId': gateId,
+      'query': query.trim(),
+    });
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((e) => GuardSocietyWorker.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
+  }
+
   Future<Map<String, dynamic>> societyWorkforceCheckIn({
     required String gateId,
     required String workerId,

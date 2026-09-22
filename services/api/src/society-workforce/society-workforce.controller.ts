@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsArray, IsDateString, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -35,9 +35,30 @@ class ConfigureSocietyWorkerDto {
   @IsOptional() @IsDateString() endDate?: string | null;
 }
 
+class WorkerReasonDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
+class CreateSocietyWorkerLeaveDto {
+  @IsDateString() startsOn!: string;
+  @IsDateString() endsOn!: string;
+  @IsOptional() @IsString() reason?: string;
+}
+
+class AttendanceCorrectionDto {
+  @IsOptional() @IsDateString() checkedInAt?: string;
+  @IsOptional() @IsDateString() checkedOutAt?: string;
+  @IsString() @IsNotEmpty() reason!: string;
+}
+
 class GateSocietyWorkforceQueryDto {
   @IsUUID() gateId!: string;
   @IsOptional() @IsString() query?: string;
+}
+
+class GateSocietyWorkforceLookupDto {
+  @IsUUID() gateId!: string;
+  @IsString() @IsNotEmpty() query!: string;
 }
 
 class GateSocietyWorkforceMutationDto {
@@ -56,10 +77,41 @@ export class SocietyWorkforceController {
     return this.workforce.list(societyId);
   }
 
+  @Get('summary')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_READ)
+  summary(@CurrentTenant() societyId: string) {
+    return this.workforce.operationsSummary(societyId);
+  }
+
   @Get('attendance')
   @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_READ)
-  attendance(@CurrentTenant() societyId: string) {
-    return this.workforce.attendance(societyId);
+  attendance(
+    @CurrentTenant() societyId: string,
+    @Query('workerId') workerId?: string,
+    @Query('gateId') gateId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('insideOnly') insideOnly?: string,
+  ) {
+    return this.workforce.attendance(societyId, {
+      workerId: workerId?.trim() || undefined,
+      gateId: gateId?.trim() || undefined,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      insideOnly: insideOnly === 'true',
+    });
+  }
+
+  @Get('leaves')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_READ)
+  leaves(@CurrentTenant() societyId: string, @Query('workerId') workerId?: string) {
+    return this.workforce.leaves(societyId, workerId?.trim() || undefined);
+  }
+
+  @Get(':workerId/timeline')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_READ)
+  timeline(@Param('workerId', ParseUUIDPipe) workerId: string, @CurrentTenant() societyId: string) {
+    return this.workforce.timeline(societyId, workerId);
   }
 
   @Post()
@@ -85,8 +137,10 @@ export class SocietyWorkforceController {
     @Param('workerId', ParseUUIDPipe) workerId: string,
     @Body() dto: ConfigureSocietyWorkerDto,
     @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
   ) {
-    return this.workforce.configure(societyId, workerId, {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.configure(societyId, workerId, actorUserId, {
       role: dto.role,
       department: dto.department,
       employer: dto.employer,
@@ -113,14 +167,73 @@ export class SocietyWorkforceController {
 
   @Patch(':workerId/suspend')
   @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_MANAGE)
-  suspend(@Param('workerId', ParseUUIDPipe) workerId: string, @CurrentTenant() societyId: string) {
-    return this.workforce.suspend(societyId, workerId);
+  suspend(
+    @Param('workerId', ParseUUIDPipe) workerId: string,
+    @Body() dto: WorkerReasonDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
+  ) {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.suspend(societyId, workerId, actorUserId, dto.reason);
   }
 
   @Patch(':workerId/reactivate')
   @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_MANAGE)
-  reactivate(@Param('workerId', ParseUUIDPipe) workerId: string, @CurrentTenant() societyId: string) {
-    return this.workforce.reactivate(societyId, workerId);
+  reactivate(
+    @Param('workerId', ParseUUIDPipe) workerId: string,
+    @Body() dto: WorkerReasonDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
+  ) {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.reactivate(societyId, workerId, actorUserId, dto.reason);
+  }
+
+  @Post(':workerId/leaves')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_MANAGE)
+  addLeave(
+    @Param('workerId', ParseUUIDPipe) workerId: string,
+    @Body() dto: CreateSocietyWorkerLeaveDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
+  ) {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.addLeave(
+      societyId,
+      workerId,
+      actorUserId,
+      new Date(`${dto.startsOn.slice(0, 10)}T00:00:00.000Z`),
+      new Date(`${dto.endsOn.slice(0, 10)}T00:00:00.000Z`),
+      dto.reason,
+    );
+  }
+
+  @Patch('leaves/:leaveId/cancel')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_MANAGE)
+  cancelLeave(
+    @Param('leaveId', ParseUUIDPipe) leaveId: string,
+    @Body() dto: WorkerReasonDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
+  ) {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.cancelLeave(societyId, leaveId, actorUserId, dto.reason);
+  }
+
+  @Patch('attendance/:attendanceId/correct')
+  @RequiresPermissions(AppPermission.SOCIETY_WORKFORCE_MANAGE)
+  correctAttendance(
+    @Param('attendanceId', ParseUUIDPipe) attendanceId: string,
+    @Body() dto: AttendanceCorrectionDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() actorUserId?: string,
+  ) {
+    if (!actorUserId) throw new BadRequestException('Authenticated society operator is required');
+    return this.workforce.correctAttendance(societyId, attendanceId, actorUserId, {
+      checkedInAt: dto.checkedInAt ? new Date(dto.checkedInAt) : undefined,
+      checkedOutAt: dto.checkedOutAt ? new Date(dto.checkedOutAt) : undefined,
+      reason: dto.reason,
+    });
   }
 
   @Post('gate/eligible')
@@ -128,6 +241,13 @@ export class SocietyWorkforceController {
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   gateEligible(@Body() dto: GateSocietyWorkforceQueryDto, @CurrentTenant() societyId: string) {
     return this.workforce.gateEligible(societyId, dto.gateId, dto.query);
+  }
+
+  @Post('gate/lookup')
+  @UseGuards(GateAssignmentGuard)
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  gateLookup(@Body() dto: GateSocietyWorkforceLookupDto, @CurrentTenant() societyId: string) {
+    return this.workforce.gateLookup(societyId, dto.gateId, dto.query);
   }
 
   @Post('gate/check-in')
