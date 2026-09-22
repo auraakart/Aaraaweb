@@ -474,25 +474,53 @@ class _AccessCard extends StatelessWidget {
         elevated: prominent,
         color: prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
-              child: Icon(icon, color: scheme.onPrimaryContainer),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(detail.isEmpty ? type : '$type · $detail', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-            ])),
-            const SizedBox(width: 8),
-            AaraagateStatusPill(
-              label: status,
-              tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
-            ),
-          ]),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final stacked = constraints.maxWidth < 420 || scale > 1.3;
+              final identity = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
+                    child: Icon(icon, color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(detail.isEmpty ? type : '$type · $detail', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                    ]),
+                  ),
+                ],
+              );
+              final statusPill = AaraagateStatusPill(
+                label: status,
+                tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+              );
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerLeft, child: statusPill),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: identity),
+                  const SizedBox(width: 8),
+                  statusPill,
+                ],
+              );
+            },
+          ),
           if (approvalHint != null) ...[
             const SizedBox(height: 10),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
