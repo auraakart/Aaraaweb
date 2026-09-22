@@ -31,6 +31,8 @@ void main() {
     expect(find.text('Guard tools'), findsOneWidget);
     expect(find.text('SCHOOL TRANSPORT'), findsOneWidget);
     expect(find.textContaining('2 pending actions · 35m'), findsOneWidget);
+    expect(find.text('Next action'), findsOneWidget);
+    expect(find.text('Retry safe sync'), findsWidgets);
 
     await tester.tap(find.byType(DropdownButton<String>));
     await tester.pumpAndSettle();
