@@ -1,0 +1,61 @@
+name: Post-main health
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  post-main-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout promoted main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Validate V4.41 repository contract
+        run: node scripts/check-v4.41-maintainability.mjs
+
+      - name: Fetch canonical branches
+        run: git fetch origin develop staging main --no-tags
+
+      - name: Verify canonical source containment
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(git rev-parse HEAD)"
+          DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"
+          STAGING_SHA="$(git rev-parse refs/remotes/origin/staging)"
+          DEVELOP_BASE="$(git merge-base "$DEVELOP_SHA" "$MAIN_SHA")"
+          STAGING_BASE="$(git merge-base "$STAGING_SHA" "$MAIN_SHA")"
+
+          if ! git diff --quiet "$DEVELOP_BASE" "$DEVELOP_SHA" -- .; then
+            echo "Develop contains source not represented by its merge base with main."
+            exit 1
+          fi
+
+          if ! git diff --quiet "$STAGING_BASE" "$STAGING_SHA" -- .; then
+            echo "Staging contains source not represented by its merge base with main."
+            exit 1
+          fi
+
+          mkdir -p post-main-health-evidence
+          node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',developMergeBase:'$DEVELOP_BASE',stagingMergeBase:'$STAGING_BASE',sourceContainment:'ok',generatedAt:new Date().toISOString()}, null, 2))"
+
+      - name: Upload post-main health evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: post-main-health-${{ github.sha }}
+          path: post-main-health-evidence/
+          if-no-files-found: error
+          retention-days: 30
