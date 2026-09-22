@@ -47,6 +47,8 @@ class GuardController extends ChangeNotifier {
   Map<String, dynamic>? walkInAccess;
   int queuedActions = 0;
   int reviewRequiredActions = 0;
+  int deferredRetryActions = 0;
+  int oldestQueuedMinutes = 0;
   String? offlineSyncMessage;
   String languageCode = 'en';
   bool voiceEnabled = true;
@@ -366,8 +368,13 @@ class GuardController extends ChangeNotifier {
 
   Future<void> _refreshQueueCounts(GuardSession current) async {
     final actions = _sessionActions(await offlineQueue.read(), current);
+    final now = DateTime.now().toUtc();
     queuedActions = actions.length;
     reviewRequiredActions = actions.where((action) => action.reviewRequired).length;
+    deferredRetryActions = actions.where((action) => !action.reviewRequired && action.nextAttemptAt?.isAfter(now) == true).length;
+    oldestQueuedMinutes = actions.isEmpty
+        ? 0
+        : actions.map((action) => now.difference(action.createdAt).inMinutes.clamp(0, 99999)).reduce((a, b) => a > b ? a : b);
   }
 
   String _requireGate() { if (gateId == null) throw StateError('Select an active gate'); return gateId!; }
