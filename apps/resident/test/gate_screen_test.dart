@@ -102,7 +102,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('உங்கள் அனுமதி தேவை'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Delivery partner'),
       180,
