@@ -20,6 +20,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   final _queue = const WorkforceOfflineQueue();
   List<GuardWorkforceAssignment> _workers = const [];
   List<GuardSocietyWorker> _societyWorkers = const [];
+  List<GuardSocietyWorker> _societyLookup = const [];
   int _queued = 0;
   bool _busy = false;
   String? _error;
@@ -57,12 +58,22 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
           gateId: widget.controller.gateId!,
           query: _search.text,
         );
+        final lookup = _search.text.trim().length >= 2
+            ? await widget.controller.api.lookupSocietyWorkforce(
+                gateId: widget.controller.gateId!,
+                query: _search.text,
+              )
+            : const <GuardSocietyWorker>[];
         if (!mounted) return;
-        setState(() => _societyWorkers = societyResults);
+        setState(() {
+          _societyWorkers = societyResults;
+          _societyLookup = lookup.where((worker) => !worker.eligible).toList(growable: false);
+        });
       } on GuardApiException catch (e) {
         if (!mounted) return;
         setState(() {
           _societyWorkers = const [];
+          _societyLookup = const [];
           _error = 'Household staff loaded. Society workforce is temporarily unavailable: ${e.message}';
         });
       }
@@ -300,7 +311,27 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                 style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 10),
-              if (!_busy && _societyWorkers.isEmpty)
+              if (_societyLookup.isNotEmpty) ...[
+                GuardStateCard(
+                  icon: Icons.policy_outlined,
+                  message: 'Some matching society workers are blocked. Review the reason below; guards cannot override these rules.',
+                ),
+                const SizedBox(height: 10),
+                ..._societyLookup.map((worker) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Material(
+                    color: scheme.errorContainer.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      leading: const Icon(Icons.block_rounded),
+                      title: Text(worker.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text('${worker.role.replaceAll('_', ' ')} · ${worker.reason ?? 'Not eligible at this gate'}'),
+                      trailing: const Text('BLOCKED', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                )),
+              ],
+              if (!_busy && _societyWorkers.isEmpty && _societyLookup.isEmpty)
                 const GuardStateCard(icon: Icons.badge_outlined, message: 'No society workers are eligible at this gate right now.'),
               ..._societyWorkers.map((worker) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
