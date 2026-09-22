@@ -6,19 +6,20 @@ import { adminApi, getAdminSession, type AdminSession } from '../../lib/aaraagat
 
 type Gate={id:string;name:string;code:string;active:boolean}
 type GateAccess={id:string;gateId:string;active:boolean;gate:Gate}
-type Attendance={id:string;checkedInAt:string;checkedOutAt?:string|null;gate:Gate}
+type Attendance={id:string;checkedInAt:string;checkedOutAt?:string|null;gate:Gate;worker?:{id:string;name:string;role:string;department:string}}
 type Worker={
   id:string;name:string;phone:string;role:string;department:string;employer?:string|null;
   verification:'PENDING'|'VERIFIED'|'REJECTED'|'SUSPENDED';active:boolean;
-  startDate?:string|null;endDate?:string|null;gateAccesses:GateAccess[];attendances:Attendance[]
+  startDate?:string|null;endDate?:string|null;schedule?:{days?:string[];start?:string;end?:string};gateAccesses:GateAccess[];attendances:Attendance[]
 }
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','SECURITY_SUPERVISOR','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
 export default function SocietyWorkforcePage(){
-  const[session,setSession]=useState<AdminSession|null>(null),[workers,setWorkers]=useState<Worker[]>([]),[gates,setGates]=useState<Gate[]>([])
+  const[session,setSession]=useState<AdminSession|null>(null),[workers,setWorkers]=useState<Worker[]>([]),[attendance,setAttendance]=useState<Attendance[]>([]),[gates,setGates]=useState<Gate[]>([])
   const[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
+  const[query,setQuery]=useState(''),[statusFilter,setStatusFilter]=useState('ALL')
   const[name,setName]=useState(''),[phone,setPhone]=useState(''),[role,setRole]=useState('HOUSEKEEPING'),[department,setDepartment]=useState('HOUSEKEEPING'),[employer,setEmployer]=useState('')
   const[gateIds,setGateIds]=useState<string[]>([]),[start,setStart]=useState(''),[end,setEnd]=useState(''),[days,setDays]=useState('MON,TUE,WED,THU,FRI,SAT'),[from,setFrom]=useState('08:00'),[to,setTo]=useState('18:00')
 
@@ -26,12 +27,24 @@ export default function SocietyWorkforcePage(){
   const canManage=!!session&&manageRoles.has(session.role)
   const present=useMemo(()=>workers.filter(w=>w.attendances?.some(a=>!a.checkedOutAt)).length,[workers])
   const pending=useMemo(()=>workers.filter(w=>w.verification==='PENDING').length,[workers])
+  const filteredWorkers=useMemo(()=>{
+    const q=query.trim().toLowerCase()
+    return workers.filter(w=>{
+      if(statusFilter!=='ALL'&&w.verification!==statusFilter)return false
+      if(!q)return true
+      return [w.name,w.phone,w.role,w.department,w.employer??''].some(v=>v.toLowerCase().includes(q))
+    })
+  },[workers,query,statusFilter])
 
   async function load(s:AdminSession){
     setLoading(true);setError('')
     try{
-      const w=await adminApi<Worker[]>(s,'/society-workforce')
+      const[w,a]=await Promise.all([
+        adminApi<Worker[]>(s,'/society-workforce'),
+        adminApi<Attendance[]>(s,'/society-workforce/attendance'),
+      ])
       setWorkers(w)
+      setAttendance(a)
       if(manageRoles.has(s.role)){
         const g=await adminApi<Gate[]>(s,'/gates')
         const activeGates=g.filter(x=>x.active)
@@ -77,7 +90,7 @@ export default function SocietyWorkforcePage(){
     {error&&<ErrorState title="Society workforce operation failed" description={error}/>}
     <ActionBar feedback={notice} label="Society workforce actions"><SecondaryButton loading={loading||busy} onClick={()=>void load(session)}>Refresh</SecondaryButton></ActionBar>
     <section style={grid}>
-      <div style={panel}><h2>Workforce summary</h2><EvidenceGrid items={[{id:'total',label:'Active roster',value:workers.filter(w=>w.active).length},{id:'pending',label:'Pending verification',value:pending},{id:'present',label:'Currently inside',value:present}]}/></div>
+      <div style={panel}><h2>Workforce summary</h2><EvidenceGrid items={[{id:'total',label:'Active roster',value:workers.filter(w=>w.active).length},{id:'pending',label:'Pending verification',value:pending},{id:'present',label:'Currently inside',value:present},{id:'attendance',label:'Recent attendance records',value:attendance.length}]}/></div>
       {canManage&&<form onSubmit={create} style={panel}><h2>Add common worker</h2>
         <FormField label="Worker name" required value={name} onChange={e=>setName(e.target.value)} placeholder="Lakshmi R."/>
         <FormField label="Mobile number" required value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+91…"/>
@@ -91,12 +104,18 @@ export default function SocietyWorkforcePage(){
         <PrimaryButton type="submit" loading={busy} disabled={gateIds.length===0}>Add for verification</PrimaryButton>
       </form>}
     </section>
-    <section style={panelSection}><h2>Common worker roster</h2>{loading?<p>Loading workforce…</p>:workers.length===0?<EmptyState title="No society workforce registered" description="Add common-area workers such as housekeeping, gardening, maintenance or clubhouse staff."/>:workers.map(w=>{
+    <section style={panelSection}><h2>Common worker roster</h2>
+      <div style={filters}>
+        <FormField label="Search workforce" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Name, phone, role, department or contractor"/>
+        <label style={filterLabel}><span>Verification status</span><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={selectStyle}><option value="ALL">All</option><option value="PENDING">Pending</option><option value="VERIFIED">Verified</option><option value="SUSPENDED">Suspended</option><option value="REJECTED">Rejected</option></select></label>
+      </div>
+      {loading?<p>Loading workforce…</p>:workers.length===0?<EmptyState title="No society workforce registered" description="Add common-area workers such as housekeeping, gardening, maintenance or clubhouse staff."/>:filteredWorkers.length===0?<EmptyState title="No workforce matches the current filters"/>:filteredWorkers.map(w=>{
       const inside=w.attendances?.find(a=>!a.checkedOutAt)
       const tone=w.verification==='VERIFIED'?'success':w.verification==='SUSPENDED'||w.verification==='REJECTED'?'danger':'warning'
-      return <article key={w.id} style={item}><div style={{minWidth:0}}><div style={rowWrap}><b>{w.name}</b><StatusPill label={w.verification} tone={tone}/>{inside&&<StatusPill label="INSIDE" tone="info"/>}</div><div>{w.role.replaceAll('_',' ')} · {w.department.replaceAll('_',' ')}</div><small>{w.phone}{w.employer?` · ${w.employer}`:''}</small><br/><small>Gate access: {w.gateAccesses.length?w.gateAccesses.map(a=>a.gate.name).join(', '):'None assigned'}{inside?` · entered via ${inside.gate.name} at ${new Date(inside.checkedInAt).toLocaleString('en-IN')}`:''}</small></div>
+      return <article key={w.id} style={item}><div style={{minWidth:0}}><div style={rowWrap}><b>{w.name}</b><StatusPill label={w.verification} tone={tone}/>{inside&&<StatusPill label="INSIDE" tone="info"/>}</div><div>{w.role.replaceAll('_',' ')} · {w.department.replaceAll('_',' ')}</div><small>{w.phone}{w.employer?` · ${w.employer}`:''}</small><br/><small>Gate access: {w.gateAccesses.length?w.gateAccesses.map(a=>a.gate.name).join(', '):'None assigned'}{inside?` · entered via ${inside.gate.name} at ${new Date(inside.checkedInAt).toLocaleString('en-IN')}`:''}</small>{w.schedule&&<><br/><small>Shift: {(w.schedule.days??[]).join(', ')||'All days'} · {w.schedule.start??'Any time'}–{w.schedule.end??'Any time'}</small></>}</div>
       {canManage&&<div style={rowWrap}>{w.verification==='PENDING'&&<><PrimaryButton disabled={busy} onClick={()=>void action(w,'verify')}>Verify</PrimaryButton><SecondaryButton disabled={busy} onClick={()=>void action(w,'reject')}>Reject</SecondaryButton></>}{w.verification==='VERIFIED'&&w.active&&<SecondaryButton disabled={busy||!!inside} onClick={()=>void action(w,'suspend')}>Suspend</SecondaryButton>}{w.verification==='SUSPENDED'&&<PrimaryButton disabled={busy} onClick={()=>void action(w,'reactivate')}>Reactivate</PrimaryButton>}</div>}</article>
     })}</section>
+    <section style={panelSection}><h2>Recent gate attendance</h2>{attendance.length===0?<EmptyState title="No society workforce attendance recorded yet"/>:attendance.slice(0,20).map(a=><article key={a.id} style={item}><div><b>{a.worker?.name??'Society worker'}</b><br/><small>{a.worker?.role?.replaceAll('_',' ')??'Worker'} · {a.gate.name}</small></div><div style={{textAlign:'right'}}><StatusPill label={a.checkedOutAt?'CHECKED OUT':'INSIDE'} tone={a.checkedOutAt?'neutral':'info'}/><br/><small>In {new Date(a.checkedInAt).toLocaleString('en-IN')}{a.checkedOutAt?` · Out ${new Date(a.checkedOutAt).toLocaleString('en-IN')}`:''}</small></div></article>)}</section>
   </PageShell>
 }
 
@@ -108,3 +127,6 @@ const rowWrap={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap' as const
 const two={display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}
 const fieldGroup={display:'grid',gap:7,margin:'12px 0'}
 const check={display:'flex',gap:8,alignItems:'center'}
+const filters={display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(220px,1fr)',gap:12,alignItems:'end',margin:'12px 0 18px'}
+const filterLabel={display:'grid',gap:6,fontSize:14,fontWeight:600}
+const selectStyle={minHeight:42,border:'1px solid #cbd5e1',borderRadius:10,padding:'0 10px',background:'#fff'}
