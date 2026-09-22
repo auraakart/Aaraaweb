@@ -94,7 +94,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.6)),
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(3.0)),
           child: child!,
         ),
         home: Scaffold(body: GateScreen(controller: controller)),
