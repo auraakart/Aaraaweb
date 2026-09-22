@@ -128,7 +128,7 @@ export class SocietyWorkforceService {
       .filter((worker) => worker.attendances.length === 0)
       .map((worker) => ({ id: worker.id, name: worker.name, role: worker.role, department: worker.department }));
     const longOpenAttendance = inside
-      .filter((worker) => worker.attendances[0]?.checkedInAt < longOpenBefore)
+      .filter((worker) => !!worker.attendances[0] && worker.attendances[0].checkedInAt < longOpenBefore)
       .map((worker) => ({
         workerId: worker.id,
         name: worker.name,
