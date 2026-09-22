@@ -4,9 +4,10 @@ import 'package:share_plus/share_plus.dart';
 import '../data/api_client.dart';
 
 class PrivacyDataScreen extends StatefulWidget {
-  const PrivacyDataScreen({super.key, this.apiClient});
+  const PrivacyDataScreen({super.key, this.apiClient, this.demoMode = false});
 
   final ApiClient? apiClient;
+  final bool demoMode;
 
   @override
   State<PrivacyDataScreen> createState() => _PrivacyDataScreenState();
@@ -25,12 +26,12 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.apiClient != null) _loadRequests();
+    if (widget.apiClient != null && !widget.demoMode) _loadRequests();
   }
 
   Future<void> _loadRequests() async {
     final api = widget.apiClient;
-    if (api == null) return;
+    if (api == null || widget.demoMode) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -113,7 +114,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
     bool detailsRequired = false,
   }) async {
     final api = widget.apiClient;
-    if (api == null || _submitting) return;
+    if (api == null || widget.demoMode || _submitting) return;
     final details = await _requestDetails(title: title, prompt: prompt, required: detailsRequired);
     if (details == null || !mounted) return;
 
@@ -154,7 +155,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy & data use')),
       body: RefreshIndicator(
-        onRefresh: widget.apiClient == null ? () async {} : _loadRequests,
+        onRefresh: widget.apiClient == null || widget.demoMode ? () async {} : _loadRequests,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -232,68 +233,76 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
             ],
             const SizedBox(height: 8),
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.manage_accounts_outlined),
-                        SizedBox(width: 10),
-                        Expanded(child: Text('Your data requests', style: TextStyle(fontWeight: FontWeight.w900))),
-                      ],
+              child: Column(
+                children: [
+                  const ListTile(
+                    leading: Icon(Icons.manage_accounts_outlined),
+                    title: Text('Manage my data', style: TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: Text('Request a copy, correction, or deletion review when you need it.'),
+                  ),
+                  if (widget.demoMode)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Demo mode: privacy requests are shown as a product capability only. Nothing is submitted or tracked.'),
+                      ),
+                    )
+                  else if (widget.apiClient == null)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Align(alignment: Alignment.centerLeft, child: Text('Sign in to manage privacy requests.')),
+                    )
+                  else ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.download_outlined),
+                      title: const Text('Get a copy of my data'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'ACCESS',
+                                title: 'Request a copy of your data',
+                                prompt: 'You can add context for the data-access request, or submit without additional details.',
+                                baseSummary: 'Provide a copy of my personal data associated with this account context.',
+                              ),
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'You can request a copy of your data, ask for a correction, or request an erasure review. Erasure is not immediate: applicable retention, accounting, security, dispute and legal-hold requirements are reviewed before a case can be completed.',
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.edit_note_rounded),
+                      title: const Text('Correct my information'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'CORRECTION',
+                                title: 'Request a correction',
+                                prompt: 'Describe what information you believe should be corrected.',
+                                baseSummary: 'Review and correct my personal data.',
+                                detailsRequired: true,
+                              ),
                     ),
-                    const SizedBox(height: 14),
-                    if (widget.apiClient == null)
-                      const Text('Sign in to submit and track privacy requests.')
-                    else ...[
-                      OutlinedButton.icon(
-                        onPressed: _submitting
-                            ? null
-                            : () => _createRequest(
-                                  type: 'ACCESS',
-                                  title: 'Request a copy of your data',
-                                  prompt: 'You can add context for the data-access request, or submit without additional details.',
-                                  baseSummary: 'Provide a copy of my personal data associated with this account context.',
-                                ),
-                        icon: const Icon(Icons.download_outlined),
-                        label: const Text('Request my data'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _submitting
-                            ? null
-                            : () => _createRequest(
-                                  type: 'CORRECTION',
-                                  title: 'Request a correction',
-                                  prompt: 'Describe what information you believe should be corrected.',
-                                  baseSummary: 'Review and correct my personal data.',
-                                  detailsRequired: true,
-                                ),
-                        icon: const Icon(Icons.edit_note_rounded),
-                        label: const Text('Request a correction'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _submitting
-                            ? null
-                            : () => _createRequest(
-                                  type: 'ERASURE',
-                                  title: 'Request an erasure review',
-                                  prompt: 'You may add context for the request. Some records can require retention and may not be immediately deletable.',
-                                  baseSummary: 'Review my personal data for erasure subject to applicable retention and legal-hold requirements.',
-                                ),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text('Request deletion review'),
-                      ),
-                    ],
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline_rounded),
+                      title: const Text('Request deletion review'),
+                      subtitle: const Text('Some records may need to be retained.'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'ERASURE',
+                                title: 'Request an erasure review',
+                                prompt: 'You may add context for the request. Some records can require retention and may not be immediately deletable.',
+                                baseSummary: 'Review my personal data for erasure subject to applicable retention and legal-hold requirements.',
+                              ),
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
             if (_grievanceContact != null) ...[
@@ -329,10 +338,20 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            if (widget.apiClient != null) ...[
+            if (widget.demoMode) ...[
+              Text('Privacy request status', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.verified_user_outlined),
+                  title: Text('No demo privacy requests'),
+                  subtitle: Text('Demo mode does not contact the privacy service or create request records.'),
+                ),
+              ),
+            ] else if (widget.apiClient != null) ...[
               Row(
                 children: [
-                  Expanded(child: Text('Request status', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+                  Expanded(child: Text('Privacy request status', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
                   if (_loading)
                     const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 ],
@@ -343,7 +362,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.cloud_off_outlined),
                     title: const Text('Could not load privacy requests'),
-                    subtitle: Text(_error!),
+                    subtitle: const Text('Privacy requests are temporarily unavailable.'),
                     trailing: TextButton(onPressed: _loadRequests, child: const Text('Retry')),
                   ),
                 )
