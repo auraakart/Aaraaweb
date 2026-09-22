@@ -18,6 +18,7 @@ describe('MigrationController authorization', () => {
     for (const method of [
       'preview',
       'createBatch',
+      'readiness',
       'listBatches',
       'getBatch',
       'exportBatchEvidence',
