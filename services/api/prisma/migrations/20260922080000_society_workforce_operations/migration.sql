@@ -32,10 +32,10 @@ CREATE TABLE "SocietyWorkerEvent" (
   CONSTRAINT "SocietyWorkerEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "SocietyWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE INDEX "SocietyWorkerLeave_societyId_workerId_active_startsOn_endsOn_idx"
+CREATE INDEX "SocietyWorkerLeave_scope_worker_dates_idx"
 ON "SocietyWorkerLeave"("societyId","workerId","active","startsOn","endsOn");
 
-CREATE INDEX "SocietyWorkerLeave_societyId_active_startsOn_endsOn_idx"
+CREATE INDEX "SocietyWorkerLeave_scope_dates_idx"
 ON "SocietyWorkerLeave"("societyId","active","startsOn","endsOn");
 
 CREATE INDEX "SocietyWorkerEvent_societyId_workerId_occurredAt_idx"
