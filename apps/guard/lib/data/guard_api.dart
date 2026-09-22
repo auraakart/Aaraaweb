@@ -152,6 +152,38 @@ class GuardApi {
   Future<Map<String, dynamic>> returnParcel(String parcelId, String reason) async =>
       Map<String, dynamic>.from(await _send('PATCH', '/parcels/desk/$parcelId/return', body: {'reason': reason.trim()}) as Map);
 
+  Future<List<GuardSocietyWorker>> eligibleSocietyWorkforce({required String gateId, String? query}) async {
+    final value = await _send('POST', '/society-workforce/gate/eligible', body: {
+      'gateId': gateId,
+      if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+    });
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((e) => GuardSocietyWorker.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> societyWorkforceCheckIn({
+    required String gateId,
+    required String workerId,
+    required String idempotencyKey,
+  }) async =>
+      Map<String, dynamic>.from(await _send('POST', '/society-workforce/gate/check-in', body: {
+        'gateId': gateId,
+        'workerId': workerId,
+      }, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
+
+  Future<Map<String, dynamic>> societyWorkforceCheckOut({
+    required String gateId,
+    required String workerId,
+    required String idempotencyKey,
+  }) async =>
+      Map<String, dynamic>.from(await _send('POST', '/society-workforce/gate/check-out', body: {
+        'gateId': gateId,
+        'workerId': workerId,
+      }, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
+
   Future<List<GuardWorkforceAssignment>> eligibleWorkforce({String? query}) async {
     final normalized = query?.trim();
     final suffix = normalized == null || normalized.isEmpty ? '' : '?query=${Uri.encodeQueryComponent(normalized)}';
