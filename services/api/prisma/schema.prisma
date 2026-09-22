@@ -61,6 +61,9 @@ model Society {
   emergencyContacts    EmergencyContact[]
   domesticWorkers      DomesticWorker[]
   workforceAssignments WorkforceAssignment[]
+  societyWorkers        SocietyWorker[]
+  societyWorkerGates    SocietyWorkerGateAccess[]
+  societyWorkerAttendance SocietyWorkerAttendance[]
   visitors             Visitor[]
   visitorPasses        VisitorPass[]
   accessRequests       AccessRequest[]
@@ -355,6 +358,71 @@ model WorkforceSuspensionEvent {
   @@index([assignmentId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_assignmentId_occurredAt_idx")
 }
 
+model SocietyWorker {
+  id               String                           @id @default(uuid()) @db.Uuid
+  societyId        String                           @db.Uuid
+  name             String
+  phone            String
+  role             String
+  department       String
+  employer         String?
+  verification     SocietyWorkerVerificationStatus  @default(PENDING)
+  active           Boolean                          @default(true)
+  schedule         Json                             @default("{}")
+  startDate        DateTime?                        @db.Timestamptz(6)
+  endDate          DateTime?                        @db.Timestamptz(6)
+  createdByUserId  String                           @db.Uuid
+  verifiedByUserId String?                          @db.Uuid
+  verifiedAt       DateTime?                        @db.Timestamptz(6)
+  createdAt        DateTime                         @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime                         @updatedAt @db.Timestamptz(6)
+  society          Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gateAccesses     SocietyWorkerGateAccess[]
+  attendances      SocietyWorkerAttendance[]
+
+  @@unique([societyId, phone])
+  @@index([societyId, verification, active])
+  @@index([societyId, department, active])
+}
+
+model SocietyWorkerGateAccess {
+  id        String        @id @default(uuid()) @db.Uuid
+  societyId String        @db.Uuid
+  workerId  String        @db.Uuid
+  gateId    String        @db.Uuid
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now()) @db.Timestamptz(6)
+  society   Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker    SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  gate      Gate          @relation(fields: [gateId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, gateId])
+  @@index([societyId, gateId, active])
+}
+
+model SocietyWorkerAttendance {
+  id               String        @id @default(uuid()) @db.Uuid
+  societyId        String        @db.Uuid
+  workerId         String        @db.Uuid
+  gateId           String        @db.Uuid
+  checkedInAt      DateTime      @db.Timestamptz(6)
+  checkedOutAt     DateTime?     @db.Timestamptz(6)
+  checkInByUserId  String        @db.Uuid
+  checkOutByUserId String?       @db.Uuid
+  checkInKey       String
+  checkOutKey      String?
+  createdAt        DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(6)
+  society          Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker           SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  gate             Gate          @relation(fields: [gateId], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, checkInKey])
+  @@unique([societyId, checkOutKey])
+  @@index([societyId, workerId, checkedOutAt])
+  @@index([societyId, gateId, checkedInAt(sort: Desc)])
+}
+
 model Gate {
   id            String                @id @default(uuid()) @db.Uuid
   societyId     String                @db.Uuid
@@ -364,6 +432,8 @@ model Gate {
   society       Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
   auditEvents   AuditEvent[]
   gateMutations GateMutationReceipt[]
+  societyWorkerGateAccess SocietyWorkerGateAccess[]
+  societyWorkerAttendance SocietyWorkerAttendance[]
 
   @@unique([societyId, code])
 }
@@ -1001,6 +1071,13 @@ enum DomesticWorkerRole {
   COOK
   NANNY
   OTHER
+}
+
+enum SocietyWorkerVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
 }
 
 enum DomesticWorkerVerificationStatus {
