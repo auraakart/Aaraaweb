@@ -228,7 +228,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
             onOpenAmenities: _openAmenities,
-            onOpenAi: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository))),
+            onOpenAi: (initialPrompt) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository, initialPrompt: initialPrompt))),
           ),
           showGate
               ? GateScreen(controller: controller)

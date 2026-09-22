@@ -58,7 +58,18 @@ class UpdatesScreen extends StatelessWidget {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           leading: CircleAvatar(child: Icon(item.icon)),
-                          title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          title: Row(
+                            children: [
+                              Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800))),
+                              if (item.priority <= 1) ...[
+                                const SizedBox(width: 8),
+                                Chip(
+                                  visualDensity: VisualDensity.compact,
+                                  label: Text(item.priority == 0 ? 'Act now' : 'Soon'),
+                                ),
+                              ],
+                            ],
+                          ),
                           subtitle: Text(item.subtitle),
                           trailing: item.when == null ? null : Text(_dateLabel(item.when!), style: Theme.of(context).textTheme.labelSmall),
                         ),
@@ -84,6 +95,7 @@ class UpdatesScreen extends StatelessWidget {
           title: notice['title']?.toString() ?? 'Society notice',
           subtitle: _firstText([notice['category'], notice['body'], 'Society update']),
           when: _date(notice, ['publishedAt', 'createdAt', 'startsAt']),
+          priority: notice['requiresAcknowledgement'] == true ? 1 : 4,
         ));
       }
     }
@@ -98,6 +110,7 @@ class UpdatesScreen extends StatelessWidget {
           title: '$name · $status',
           subtitle: '$type access',
           when: _date(request, ['updatedAt', 'createdAt', 'validFrom']),
+          priority: (request['status']?.toString() ?? '').toUpperCase() == 'PENDING' ? 0 : 3,
         ));
       }
 
@@ -111,31 +124,38 @@ class UpdatesScreen extends StatelessWidget {
             title: service?.isNotEmpty == true ? service! : 'Home service',
             subtitle: ServiceBookingLifecycle.labelFor(status),
             when: _date(booking, ['updatedAt', 'createdAt', 'scheduledFrom']),
+            priority: status.toUpperCase() == 'REQUESTED' ? 2 : 3,
           ));
         }
       }
 
       if (controller.hasFeature('MAINTENANCE_BILLING')) {
         for (final invoice in controller.maintenanceInvoices) {
+          final status=(invoice['status']?.toString()??'ISSUED').toUpperCase();
+          if (const {'PAID','CANCELLED','VOID','REVERSED'}.contains(status)) continue;
           final amount = _amount(invoice);
           final due = _date(invoice, ['dueDate', 'dueAt']);
+          final now=DateTime.now(), today=DateTime(now.year,now.month,now.day);
+          final overdue=due!=null&&due.isBefore(today);
           items.add(_UpdateItem(
             icon: Icons.receipt_long_outlined,
-            title: 'Maintenance due${amount == null ? '' : ' · $amount'}',
-            subtitle: due == null ? 'Payment pending for this property' : 'Due ${_dateLabel(due)}',
+            title: '${overdue ? 'Maintenance overdue' : 'Maintenance due'}${amount == null ? '' : ' · $amount'}',
+            subtitle: due == null ? 'Payment pending for this property' : '${overdue ? 'Was due' : 'Due'} ${_dateLabel(due)}',
             when: _date(invoice, ['issuedAt', 'createdAt', 'dueDate']),
+            priority: overdue ? 0 : 2,
           ));
         }
       }
     }
 
     items.sort((a, b) {
+      if (a.priority != b.priority) return a.priority.compareTo(b.priority);
       if (a.when == null && b.when == null) return 0;
       if (a.when == null) return 1;
       if (b.when == null) return -1;
       return b.when!.compareTo(a.when!);
     });
-    return items;
+    return items.take(75).toList(growable: false);
   }
 
   static DateTime? _date(Map<String, dynamic> row, List<String> keys) {
@@ -188,9 +208,10 @@ class UpdatesScreen extends StatelessWidget {
 }
 
 class _UpdateItem {
-  const _UpdateItem({required this.icon, required this.title, required this.subtitle, required this.when});
+  const _UpdateItem({required this.icon, required this.title, required this.subtitle, required this.when, this.priority = 4});
   final IconData icon;
   final String title;
   final String subtitle;
   final DateTime? when;
+  final int priority;
 }
