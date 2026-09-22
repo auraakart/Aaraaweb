@@ -122,16 +122,16 @@ class GuardApi {
     return value.whereType<Map>().map((e) => GuardUnit.fromJson(Map<String, dynamic>.from(e)).toJson()).toList(growable: false);
   }
 
-  Future<List<Map<String, dynamic>>> parcelDesk() async {
+  Future<List<GuardParcel>> parcelDesk() async {
     final value = await _send('GET', '/parcels/desk');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => GuardParcel.fromJson(Map<String, dynamic>.from(e)).toJson()).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardParcel.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
-  Future<List<Map<String, dynamic>>> parcelRecipients() async {
+  Future<List<GuardParcelRecipient>> parcelRecipients() async {
     final value = await _send('GET', '/parcels/desk/recipients');
     if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false);
+    return value.whereType<Map>().map((e) => GuardParcelRecipient.fromJson(Map<String, dynamic>.from(e))).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> intakeParcel({required String unitId, required String recipientUserId, String? courierName, String? trackingReference, String? notes}) async =>
