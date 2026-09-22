@@ -103,23 +103,32 @@ class ProviderStorefrontSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: Text(businessName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
-                            if (promotion.isNotEmpty) const _Badge(icon: Icons.campaign_rounded, label: 'Sponsored'),
-                            if (onFavoriteChanged != null) ...[
-                              const SizedBox(width: 4),
-                              IconButton(
-                                tooltip: isFavorite ? 'Remove from favourites' : 'Add to favourites',
-                                onPressed: () async {
-                                  await onFavoriteChanged!(!isFavorite);
-                                  if (context.mounted) Navigator.of(context).pop();
-                                },
-                                icon: Icon(isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded),
-                              ),
-                            ],
-                          ],
+                        Text(
+                          businessName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                         ),
+                        if (promotion.isNotEmpty || onFavoriteChanged != null) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (promotion.isNotEmpty) const _Badge(icon: Icons.campaign_rounded, label: 'Sponsored'),
+                              if (onFavoriteChanged != null)
+                                IconButton(
+                                  tooltip: isFavorite ? 'Remove from favourites' : 'Add to favourites',
+                                  onPressed: () async {
+                                    await onFavoriteChanged!(!isFavorite);
+                                    if (context.mounted) Navigator.of(context).pop();
+                                  },
+                                  icon: Icon(isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+                                ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(category['name']?.toString() ?? offering['categoryName']?.toString() ?? 'Home service', style: theme.textTheme.bodyMedium),
                         const SizedBox(height: 8),
