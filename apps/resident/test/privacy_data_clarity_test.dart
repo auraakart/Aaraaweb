@@ -41,10 +41,18 @@ void main(){
     await tester.pumpWidget(MaterialApp(home:PrivacyDataScreen(apiClient:_PrivacyApi())));
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(find.text('Manage my data'),300);
+    expect(find.text('Manage my data'),findsOneWidget);
+    expect(find.text('Get a copy of my data'),findsOneWidget);
+    expect(find.text('Correct my information'),findsOneWidget);
+
     await tester.scrollUntilVisible(find.text('Privacy help & grievance contact'),300);
     expect(find.text('Society Privacy Officer'),findsOneWidget);
     expect(find.text('privacy@example.com'),findsOneWidget);
     expect(find.textContaining('does not determine legal rights'),findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Privacy request status'),300);
+    expect(find.text('Privacy request status'),findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('Data access request'),300);
     expect(find.text('Your request is being reviewed.'),findsOneWidget);

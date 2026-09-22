@@ -196,7 +196,7 @@ class _IndependentProfileTab extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.privacy_tip_outlined),
               title: const Text('Privacy & data use', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('Review data use and submit access, correction or erasure-review requests.'),
+              subtitle: const Text('Understand data use and manage privacy requests when needed.'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PrivacyDataScreen(apiClient: apiClient))),
             ),
