@@ -86,6 +86,33 @@ class GuardParcelRecipient {
 }
 
 
+class GuardSocietyWorker {
+  GuardSocietyWorker({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.department,
+    required this.present,
+    this.employer,
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final String department;
+  final bool present;
+  final String? employer;
+
+  factory GuardSocietyWorker.fromJson(Map<String, dynamic> json) => GuardSocietyWorker(
+        id: _requiredString(json, 'id'),
+        name: _requiredString(json, 'name'),
+        role: _requiredString(json, 'role'),
+        department: _requiredString(json, 'department'),
+        present: json['present'] == true,
+        employer: json['employer']?.toString(),
+      );
+}
+
 class GuardWorkforceAssignment {
   GuardWorkforceAssignment({
     required this.id,
