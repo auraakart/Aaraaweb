@@ -26,11 +26,14 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final values = await Future.wait([widget.controller.api.parcelDesk(), widget.controller.api.parcelRecipients()]);
+      final parcelsFuture = widget.controller.api.parcelDesk();
+      final recipientsFuture = widget.controller.api.parcelRecipients();
+      final parcels = await parcelsFuture;
+      final recipients = await recipientsFuture;
       if (!mounted) return;
       setState(() {
-        _parcels = values[0];
-        _recipients = values[1];
+        _parcels = parcels;
+        _recipients = recipients;
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
