@@ -155,7 +155,7 @@ class UpdatesScreen extends StatelessWidget {
       if (b.when == null) return -1;
       return b.when!.compareTo(a.when!);
     });
-    return items;
+    return items.take(75).toList(growable: false);
   }
 
   static DateTime? _date(Map<String, dynamic> row, List<String> keys) {
