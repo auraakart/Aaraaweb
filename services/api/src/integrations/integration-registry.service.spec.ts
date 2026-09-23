@@ -7,6 +7,7 @@ const keys = [
   'MSG91_AUTH_KEY',
   'MSG91_OTP_TEMPLATE_ID',
   'FIREBASE_SERVICE_ACCOUNT_JSON',
+  'GATE_IVR_PROVIDER',
   'PAYMENT_GATEWAY_RECONCILIATION_ENVIRONMENT',
   'PAYMENT_GATEWAY_RECONCILIATION_PROVIDER',
   'PAYMENT_GATEWAY_RECONCILIATION_SANDBOX_BASE_URL',
@@ -60,14 +61,16 @@ describe('IntegrationRegistryService', () => {
       'OTP',
       'WHATSAPP',
       'PUSH',
+      'TELEPHONY_IVR',
       'PAYMENT_GATEWAY',
       'ACCESS_CONTROL',
       'OBJECT_STORAGE',
       'SMART_METER',
       'ACCOUNTING_CONNECTOR',
     ]);
-    expect(result.filter((item) => item.family !== 'WHATSAPP').every((item) => item.health === 'READY')).toBe(true);
+    expect(result.filter((item) => !['WHATSAPP','TELEPHONY_IVR'].includes(item.family)).every((item) => item.health === 'READY')).toBe(true);
     expect(result.find((item) => item.family === 'WHATSAPP')?.health).toBe('UNCONFIGURED');
+    expect(result.find((item) => item.family === 'TELEPHONY_IVR')).toEqual(expect.objectContaining({health:'UNCONFIGURED',configured:false,provider:'unconfigured'}));
     expect(result.every((item) => item.contractVersion === 'aaraagate.integration.v1')).toBe(true);
     expect(result.find((item) => item.family === 'SMART_METER')?.retryDisposition).toBe('IDEMPOTENT_RETRY');
     const serialized = JSON.stringify(result);
@@ -93,10 +96,19 @@ describe('IntegrationRegistryService', () => {
     expect(byFamily.OTP.health).toBe('UNCONFIGURED');
     expect(byFamily.WHATSAPP.health).toBe('UNCONFIGURED');
     expect(byFamily.PUSH.health).toBe('DEGRADED');
+    expect(byFamily.TELEPHONY_IVR.health).toBe('UNCONFIGURED');
     expect(byFamily.PAYMENT_GATEWAY.health).toBe('UNCONFIGURED');
     expect(byFamily.OBJECT_STORAGE.health).toBe('DEGRADED');
     expect(byFamily.ACCOUNTING_CONNECTOR.health).toBe('UNCONFIGURED');
     expect(byFamily.ACCESS_CONTROL.configurationScope).toBe('SOCIETY');
+  });
+
+  it('exposes a non-production IVR simulator without claiming a live provider', () => {
+    process.env.NODE_ENV='test';
+    delete process.env.GATE_IVR_PROVIDER;
+    const ivr=new IntegrationRegistryService().list('society-1').find((item)=>item.family==='TELEPHONY_IVR');
+    expect(ivr).toEqual(expect.objectContaining({provider:'simulator',configured:true,health:'READY'}));
+    expect(ivr?.boundary).toContain('No live telephony provider');
   });
 
   it('keeps payment gateway environment validation explicit', () => {

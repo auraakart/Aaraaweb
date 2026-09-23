@@ -15,7 +15,10 @@
     "check:v4.40": "node scripts/check-v4.40-stabilization.mjs",
     "check:v4.41": "node scripts/check-v4.41-maintainability.mjs",
     "check:v4.48": "node scripts/check-v4.48-competitive-depth.mjs",
-    "check:v4.49": "node scripts/check-v4.49-finance-admin-client.mjs"
+    "check:v4.49": "node scripts/check-v4.49-finance-admin-client.mjs",
+    "check:v4.50": "node scripts/check-v4.50-reliability-convergence.mjs",
+    "check:v4.50.1": "node scripts/check-v4.50.1-regression-hotfix.mjs",
+    "check:v4.51": "node scripts/check-v4.51-field-differentiation-trust.mjs"
   },
   "pnpm": {
     "overrides": {

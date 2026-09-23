@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -52,6 +52,20 @@ export class BillingController {
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   payable(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.listPayable(societyId, this.requireUser(userId));
+  }
+
+  @Get('resident-summary')
+  @RequiresFeature(ProductFeature.MAINTENANCE_BILLING)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  residentSummary(
+    @CurrentTenant() societyId:string,
+    @CurrentUser() userId:string|undefined,
+    @Query('unitId') unitId?:string,
+  ){
+    if(unitId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unitId)){
+      throw new BadRequestException('unitId must be a UUID');
+    }
+    return this.billing.residentSummary(societyId,this.requireUser(userId),unitId);
   }
 
   @Get('invoices/admin')

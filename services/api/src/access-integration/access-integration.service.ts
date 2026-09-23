@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessDeviceCommand, AccessDeviceKind, AccessIntegrationCompatibilityContract } from './access-device.adapter';
 import { SimulatorAccessDeviceAdapter } from './simulator-access-device.adapter';
@@ -48,6 +49,35 @@ export class AccessIntegrationService {
   setSimulatorHealth(societyId:string,kind:AccessDeviceKind,health:'ONLINE'|'DEGRADED'|'OFFLINE'){
     this.adapter(societyId,kind).setHealth(health);
     return {kind,health};
+  }
+
+  async simulatorCertification(societyId:string){
+    const runId=randomUUID();
+    const results=[] as Array<Record<string,unknown>>;
+    for(const kind of ADAPTER_KINDS){
+      const adapter=this.adapter(societyId,kind);
+      adapter.setHealth('ONLINE');
+      const command=kind==='BOOM_BARRIER'?'OPEN':'READ';
+      const idempotencyKey=`cert:${runId}:${kind}:primary`;
+      const first=await adapter.execute({idempotencyKey,command});
+      const replay=await adapter.execute({idempotencyKey,command});
+      adapter.setHealth('OFFLINE');
+      const offline=await adapter.execute({idempotencyKey:`cert:${runId}:${kind}:offline`,command:'PING'});
+      adapter.setHealth('ONLINE');
+      const idempotentReplayStable=JSON.stringify(first)===JSON.stringify(replay);
+      const failsClosed=!offline.accepted&&offline.state==='DEVICE_OFFLINE';
+      results.push({
+        kind,healthCheck:true,commandAccepted:first.accepted,idempotentReplayStable,failsClosed,
+        manualFallbackRequired:failsClosed,
+      });
+    }
+    return {
+      contractVersion:'aaraagate.access-simulator.v1',
+      runId,
+      passed:results.every(item=>item.commandAccepted===true&&item.idempotentReplayStable===true&&item.failsClosed===true),
+      results,
+      boundary:'Simulator certification validates the Aaraagate adapter contract only; it is not physical-device or vendor certification.',
+    };
   }
 
   listDevices(societyId:string){

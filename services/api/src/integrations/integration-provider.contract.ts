@@ -18,6 +18,8 @@ export function integrationContractMetadata(family: string): IntegrationContract
       return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'NO_AUTOMATIC_RETRY', retryOwner: 'OPERATOR', degradationMode: 'Fail the optional WhatsApp handoff without bypassing authentication or notification policy.' };
     case 'PUSH':
       return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'DURABLE_BACKOFF', retryOwner: 'AARAAGATE', degradationMode: 'Keep in-app state authoritative and retry durable notification handoff.' };
+    case 'TELEPHONY_IVR':
+      return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'MANUAL_FALLBACK', retryOwner: 'OPERATOR', degradationMode: 'Keep the in-app gate request authoritative and require manual guard follow-up when telephony is unavailable.' };
     case 'ACCESS_CONTROL':
       return { contractVersion: INTEGRATION_CONTRACT_VERSION, retryDisposition: 'MANUAL_FALLBACK', retryOwner: 'OPERATOR', degradationMode: 'Keep authorization server-side and fall back to manual gate operation.' };
     case 'SMART_METER':

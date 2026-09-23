@@ -31,6 +31,27 @@ describe('BillingService', () => {
     expect(sql).toContain('ur."relation" = \'TENANT\'');
   });
 
+  it('summarizes resident finance without widening payer-private payment evidence', async () => {
+    const prisma = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([
+          {id:'invoice-1',unitId:'unit-1',amountPaise:120000,status:'ISSUED',dueDate:'2026-09-01'},
+          {id:'invoice-2',unitId:'unit-2',amountPaise:45000,status:'ISSUED',dueDate:'2026-10-01'},
+        ])
+        .mockResolvedValueOnce([
+          {invoiceId:'invoice-1',amountPaise:120000,status:'FAILED',createdAt:'2026-09-20T00:00:00.000Z',completedAt:null},
+          {invoiceId:'invoice-2',amountPaise:45000,status:'CAPTURED',createdAt:'2026-09-10T00:00:00.000Z',completedAt:'2026-09-10T00:05:00.000Z'},
+        ]),
+    };
+    const service=new BillingService(prisma as unknown as PrismaService);
+    const result=await service.residentSummary('society-1','user-1','unit-1');
+    expect(result).toEqual(expect.objectContaining({
+      unitId:'unit-1',outstandingPaise:120000,openInvoiceCount:1,paymentRecoveryCount:1,
+      checkoutPolicy:expect.objectContaining({mode:'FULL_INVOICE',residentPartialPayment:false,advanceBalanceVisibility:false,payerPrivateEvidence:true}),
+    }));
+    expect(result.capturedPaymentCount).toBe(0);
+  });
+
   it('rejects invalid invoice amounts before persistence', async () => {
     const prisma = { $queryRaw: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService);
