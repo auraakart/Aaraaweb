@@ -51,6 +51,7 @@ class CreateAdjustmentDto {
   @IsString() @MinLength(1) @MaxLength(500) reason!: string;
   @IsDateString() entryDate!: string;
   @IsString() @MinLength(1) @MaxLength(60) journalEntryNumber!: string;
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(60) noteNumber?: string;
 }
 
 @Controller('accounting/receivables')
@@ -73,6 +74,10 @@ export class ReceivablesController {
     const resolved = asOf?.slice(0, 10) || new Date().toISOString().slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(resolved)) throw new BadRequestException('asOf must be YYYY-MM-DD');
     return this.receivables.ageing(societyId, resolved);
+  }
+  @Get(':receivableId/adjustments') @RequiresPermissions(AppPermission.FINANCE_READ)
+  adjustments(@CurrentTenant() societyId: string,@Param('receivableId', new ParseUUIDPipe()) receivableId: string) {
+    return this.receivables.listAdjustments(societyId, receivableId);
   }
   @Post(':receivableId/adjustments') @RequiresPermissions(AppPermission.FINANCE_MANAGE)
   addAdjustment(@CurrentTenant() societyId: string,@CurrentUser() userId: string | undefined,@Param('receivableId', new ParseUUIDPipe()) receivableId: string,@Body() dto: CreateAdjustmentDto) {
