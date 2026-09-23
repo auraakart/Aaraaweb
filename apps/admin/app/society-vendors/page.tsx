@@ -1,8 +1,8 @@
 'use client'
 
 import {FormEvent,useCallback,useEffect,useMemo,useState} from 'react'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Vendor={id:string;code:string;name:string;category:string;status:string;contactName?:string|null;phone?:string|null;email?:string|null;gstin?:string|null}
 type RequestRow={
   id:string;requestNumber:string;title:string;description?:string|null;estimatedAmountPaise:number|string;status:string;
@@ -12,19 +12,11 @@ type Quote={id:string;requestId:string;vendorId:string;vendorCode?:string;vendor
 type PurchaseOrder={id:string;requestId:string;poNumber:string;vendorId:string;vendorCode?:string;vendorName?:string;amountPaise:number|string;terms?:string|null;status:string;issuedAt?:string}
 type RequestEvent={id:string;eventType:string;note?:string|null;actorName?:string;createdAt?:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 
 function session():Session|null{
   try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}
-}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text()
-  const body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`)
-  return body as T
 }
 const money=(value:number|string)=>`₹${(Number(value)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 const when=(value?:string|null)=>value?new Date(value).toLocaleString('en-IN'):'—'
@@ -70,9 +62,9 @@ export default function SocietyVendorsPage(){
     setLoading(true);setError('')
     try{
       const[v,r,po]=await Promise.all([
-        api<Vendor[]>(s,'/society-vendors'),
-        api<RequestRow[]>(s,'/society-vendors/procurement/requests'),
-        api<PurchaseOrder[]>(s,'/vendors/procurement/purchase-orders/list'),
+        api<Vendor[]>('/society-vendors',{},s),
+        api<RequestRow[]>('/society-vendors/procurement/requests',{},s),
+        api<PurchaseOrder[]>('/vendors/procurement/purchase-orders/list',{},s),
       ])
       setVendors(v);setRequests(r);setPurchaseOrders(po)
       setSelectedRequestId(current=>current&&r.some(item=>item.id===current)?current:(r[0]?.id??''))
@@ -85,8 +77,8 @@ export default function SocietyVendorsPage(){
     setDetailLoading(true)
     try{
       const[q,h]=await Promise.all([
-        api<Quote[]>(s,`/vendors/procurement/${requestId}/quotes`),
-        api<RequestEvent[]>(s,`/society-vendors/procurement/requests/${requestId}/history`),
+        api<Quote[]>(`/vendors/procurement/${requestId}/quotes`,{},s),
+        api<RequestEvent[]>(`/society-vendors/procurement/requests/${requestId}/history`,{},s),
       ])
       setQuotes(q);setHistory(h)
     }catch(e){setError(e instanceof Error?e.message:'Procurement detail could not be loaded')}
@@ -108,7 +100,7 @@ export default function SocietyVendorsPage(){
   const createVendor=(e:FormEvent)=>{
     e.preventDefault();if(!s||!canManage)return
     void run(async()=>{
-      await api(s,'/society-vendors',{method:'POST',body:JSON.stringify({name:name.trim(),code:code.trim(),category:category.trim()})})
+      await api('/society-vendors',{method:'POST',body:JSON.stringify({name:name.trim(),code:code.trim(),category:category.trim()})},s)
       setName('');setCode('');setCategory('')
     },'Vendor created.')
   }
@@ -116,41 +108,41 @@ export default function SocietyVendorsPage(){
   const createRequest=(e:FormEvent)=>{
     e.preventDefault();if(!s||!canManage)return
     void run(async()=>{
-      const created=await api<RequestRow>(s,'/society-vendors/procurement/requests',{method:'POST',body:JSON.stringify({
+      const created=await api<RequestRow>('/society-vendors/procurement/requests',{method:'POST',body:JSON.stringify({
         requestNumber:requestNumber.trim(),title:title.trim(),estimatedAmountPaise:Math.round(Number(amount)*100),
-      })})
+      })},s)
       setRequestNumber('');setTitle('');setAmount('0');setSelectedRequestId(created.id)
     },'Procurement request created.')
   }
 
   const requestAction=(id:string,a:'submit'|'approve'|'reject')=>{
     if(!s||!canManage)return
-    void run(()=>api(s,`/society-vendors/procurement/requests/${id}/${a}`,{method:'PATCH',body:'{}'}).then(()=>undefined),`Request ${a} recorded.`)
+    void run(()=>api(`/society-vendors/procurement/requests/${id}/${a}`,{method:'PATCH',body:'{}'},s).then(()=>undefined),`Request ${a} recorded.`)
   }
 
   const addQuote=(e:FormEvent)=>{
     e.preventDefault();if(!s||!canManage||!selectedRequest)return
     void run(async()=>{
-      await api(s,`/vendors/procurement/${selectedRequest.id}/quotes`,{method:'POST',body:JSON.stringify({
+      await api(`/vendors/procurement/${selectedRequest.id}/quotes`,{method:'POST',body:JSON.stringify({
         vendorId:quoteVendorId,
         quoteReference:quoteReference.trim()||undefined,
         amountPaise:Math.round(Number(quoteAmount)*100),
         validUntil:quoteValidUntil||undefined,
         notes:quoteNotes.trim()||undefined,
-      })})
+      })},s)
       setQuoteVendorId('');setQuoteReference('');setQuoteAmount('0');setQuoteValidUntil('');setQuoteNotes('')
     },'Quotation recorded.')
   }
 
   const selectQuote=(quoteId:string)=>{
     if(!s||!canManage||!selectedRequest)return
-    void run(()=>api(s,`/vendors/procurement/${selectedRequest.id}/select-quote`,{method:'POST',body:JSON.stringify({quoteId})}).then(()=>undefined),'Quotation selected.')
+    void run(()=>api(`/vendors/procurement/${selectedRequest.id}/select-quote`,{method:'POST',body:JSON.stringify({quoteId})},s).then(()=>undefined),'Quotation selected.')
   }
 
   const issuePurchaseOrder=(e:FormEvent)=>{
     e.preventDefault();if(!s||!canManage||!selectedRequest)return
     void run(async()=>{
-      await api(s,`/vendors/procurement/${selectedRequest.id}/purchase-order`,{method:'POST',body:JSON.stringify({poNumber:poNumber.trim(),terms:poTerms.trim()||undefined})})
+      await api(`/vendors/procurement/${selectedRequest.id}/purchase-order`,{method:'POST',body:JSON.stringify({poNumber:poNumber.trim(),terms:poTerms.trim()||undefined})},s)
       setPoNumber('');setPoTerms('')
     },'Purchase order issued.')
   }
@@ -192,7 +184,7 @@ export default function SocietyVendorsPage(){
       {loading?<p>Loading…</p>:vendors.length===0?<p>No society vendors.</p>:<div style={list}>{vendors.map(v=>
         <article key={v.id} style={row}>
           <div style={stack}><b>{v.name}</b><span>{v.code} · {v.category}</span><small>{v.status}{v.gstin?` · GSTIN ${v.gstin}`:''}</small></div>
-          {canManage&&v.status!=='ARCHIVED'&&<button style={secondary} disabled={busy} onClick={()=>void run(()=>api(s,`/society-vendors/${v.id}/status`,{method:'PATCH',body:JSON.stringify({status:v.status==='ACTIVE'?'SUSPENDED':'ACTIVE'})}).then(()=>undefined),'Vendor status updated.')}>{v.status==='ACTIVE'?'Suspend':'Activate'}</button>}
+          {canManage&&v.status!=='ARCHIVED'&&<button style={secondary} disabled={busy} onClick={()=>void run(()=>api(`/society-vendors/${v.id}/status`,{method:'PATCH',body:JSON.stringify({status:v.status==='ACTIVE'?'SUSPENDED':'ACTIVE'})},s).then(()=>undefined),'Vendor status updated.')}>{v.status==='ACTIVE'?'Suspend':'Activate'}</button>}
         </article>
       )}</div>}
     </section>
