@@ -1,17 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type ProviderLink={status:'PENDING'|'APPROVED'|'REJECTED'|'SUSPENDED';commissionBps:number}
 type Provider={id:string;businessName:string;description?:string|null;verification:string;societies:ProviderLink[]}
 type Offering={id:string;name:string;active:boolean;pricePaise:number;durationMinutes?:number|null;provider:{id:string;businessName:string;ratingAverage?:number|null;ratingCount?:number;completedJobs?:number};category:{name:string}}
 type Catalog={providers:Provider[];offerings:Offering[];categories:{id:string;name:string}[]}
 type MediaStatus='PENDING'|'APPROVED'|'REJECTED'|'REMOVED'
 type MediaRow={id:string;providerId:string;providerName:string;kind:'LOGO'|'GALLERY';publicUrl?:string|null;altText?:string|null;status:MediaStatus;contentType?:string|null;contentLengthBytes?:number|null;originalFileName?:string|null;uploadedAt?:string|null;reviewedAt?:string|null;reviewNote?:string|null;createdAt:string}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 function formatBytes(value?:number|null){if(!value)return 'Unknown size';if(value<1024)return `${value} B`;if(value<1024*1024)return `${(value/1024).toFixed(1)} KB`;return `${(value/(1024*1024)).toFixed(1)} MB`}
 
 export default function MarketplaceControlPage(){
@@ -19,15 +17,15 @@ export default function MarketplaceControlPage(){
   const[media,setMedia]=useState<MediaRow[]>([]),[mediaStatus,setMediaStatus]=useState<MediaStatus>('PENDING'),[mediaLoading,setMediaLoading]=useState(false),[mediaBusy,setMediaBusy]=useState(''),[mediaNote,setMediaNote]=useState<Record<string,string>>({})
   const allowed=(x:Session|null)=>!!x&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(x.role)
   const canModerateMedia=s?.role==='SUPER_ADMIN'
-  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{setCatalog(await api<Catalog>(x,'/services-marketplace/admin/catalog'))}catch(e){setError(e instanceof Error?e.message:'Marketplace controls could not be loaded')}finally{setLoading(false)}},[])
-  const loadMedia=useCallback(async(x:Session,status:MediaStatus)=>{if(x.role!=='SUPER_ADMIN')return;setMediaLoading(true);setError('');try{setMedia(await api<MediaRow[]>(x,`/platform/services/provider-media?status=${status}`))}catch(e){setError(e instanceof Error?e.message:'Provider media moderation queue could not be loaded')}finally{setMediaLoading(false)}},[])
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{setCatalog(await api<Catalog>('/services-marketplace/admin/catalog',{},x))}catch(e){setError(e instanceof Error?e.message:'Marketplace controls could not be loaded')}finally{setLoading(false)}},[])
+  const loadMedia=useCallback(async(x:Session,status:MediaStatus)=>{if(x.role!=='SUPER_ADMIN')return;setMediaLoading(true);setError('');try{setMedia(await api<MediaRow[]>(`/platform/services/provider-media?status=${status}`,{},x))}catch(e){setError(e instanceof Error?e.message:'Provider media moderation queue could not be loaded')}finally{setMediaLoading(false)}},[])
   useEffect(()=>{const x=session();setS(x);if(x&&allowed(x)){void load(x);if(x.role==='SUPER_ADMIN')void loadMedia(x,'PENDING')}else setLoading(false)},[load,loadMedia])
   const providers=useMemo(()=>{const q=query.trim().toLowerCase();return q?catalog.providers.filter(p=>[p.businessName,p.verification,p.societies[0]?.status??''].join(' ').toLowerCase().includes(q)):catalog.providers},[catalog.providers,query])
   const beginStatus=(p:Provider,status:ProviderLink['status'])=>{setError('');setActionProviderId(p.id);setActionStatus(status);setCommissionPct(String((p.societies[0]?.commissionBps??1000)/100))}
   const cancelStatus=()=>{setActionProviderId('');setActionStatus('');setCommissionPct('10')}
-  const confirmStatus=async(p:Provider)=>{if(!s||!actionStatus)return;let commissionBps:number|undefined;if(actionStatus==='APPROVED'){const n=Number(commissionPct);if(!Number.isFinite(n)||n<0||n>100){setError('Commission must be between 0 and 100%');return}commissionBps=Math.round(n*100)}setBusy(p.id);setError('');try{await api(s,`/services-marketplace/admin/providers/${p.id}/status`,{method:'PATCH',body:JSON.stringify({status:actionStatus,commissionBps})});cancelStatus();await load(s)}catch(e){setError(e instanceof Error?e.message:'Provider status could not be updated')}finally{setBusy('')}}
+  const confirmStatus=async(p:Provider)=>{if(!s||!actionStatus)return;let commissionBps:number|undefined;if(actionStatus==='APPROVED'){const n=Number(commissionPct);if(!Number.isFinite(n)||n<0||n>100){setError('Commission must be between 0 and 100%');return}commissionBps=Math.round(n*100)}setBusy(p.id);setError('');try{await api(`/services-marketplace/admin/providers/${p.id}/status`,{method:'PATCH',body:JSON.stringify({status:actionStatus,commissionBps})},s);cancelStatus();await load(s)}catch(e){setError(e instanceof Error?e.message:'Provider status could not be updated')}finally{setBusy('')}}
   const changeMediaStatus=async(status:MediaStatus)=>{setMediaStatus(status);if(s)await loadMedia(s,status)}
-  const reviewMedia=async(row:MediaRow,decision:'APPROVED'|'REJECTED')=>{if(!s||s.role!=='SUPER_ADMIN')return;setMediaBusy(row.id);setError('');try{await api(s,`/platform/services/provider-media/${row.id}/review`,{method:'PATCH',body:JSON.stringify({decision,note:mediaNote[row.id]?.trim()||undefined})});setMediaNote(current=>{const next={...current};delete next[row.id];return next});await loadMedia(s,mediaStatus)}catch(e){setError(e instanceof Error?e.message:'Provider media review could not be saved')}finally{setMediaBusy('')}}
+  const reviewMedia=async(row:MediaRow,decision:'APPROVED'|'REJECTED')=>{if(!s||s.role!=='SUPER_ADMIN')return;setMediaBusy(row.id);setError('');try{await api(`/platform/services/provider-media/${row.id}/review`,{method:'PATCH',body:JSON.stringify({decision,note:mediaNote[row.id]?.trim()||undefined})},s);setMediaNote(current=>{const next={...current};delete next[row.id];return next});await loadMedia(s,mediaStatus)}catch(e){setError(e instanceof Error?e.message:'Provider media review could not be saved')}finally{setMediaBusy('')}}
   if(loading)return <main style={{padding:32}}>Loading marketplace controls…</main>
   if(!allowed(s))return <main style={{padding:32}}><h1>Marketplace operations access required</h1><a href="/">Return to Admin</a></main>
   return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 22px 80px'}}><header style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small>{s?.societyName??'Current society'}</small><h1 style={{margin:'4px 0'}}>Marketplace provider controls</h1><p style={{margin:0}}>Approve, reject or suspend providers only for this society. Platform verification remains a separate Super Admin control.</p></div><a href="/">← Admin console</a></header>{error&&<div style={errorBox}>{error}</div>}

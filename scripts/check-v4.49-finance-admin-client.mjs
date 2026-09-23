@@ -14,6 +14,7 @@ const files=[
   'apps/admin/app/platform/provider-trust/page.tsx',
   'apps/admin/app/integrations/page.tsx',
   'apps/admin/app/ai-assistant/page.tsx',
+  'apps/admin/app/marketplace-control/page.tsx',
 ]
 
 for(const file of files){
@@ -38,5 +39,17 @@ if(!migrationSource.includes('evidence.csv')||!migrationSource.includes('await f
   console.error(`V4.49 contract failed: ${migration} must retain explicit blob evidence export transport`)
   process.exit(1)
 }
+
+const reports='apps/admin/app/reports/page.tsx'
+const reportsSource=fs.readFileSync(reports,'utf8')
+if(!reportsSource.includes('lib/admin-client')||reportsSource.includes('async function api<T>')){
+  console.error(`V4.49 contract failed: ${reports} JSON transport is not converged`)
+  process.exit(1)
+}
+if(!reportsSource.includes('downloadCsv')||!reportsSource.includes('Accept:\'text/csv\'')||!reportsSource.includes('await fetch(')){
+  console.error(`V4.49 contract failed: ${reports} must retain explicit CSV blob export transport`)
+  process.exit(1)
+}
+
 
 console.log('V4.49 Admin-client convergence verified')
