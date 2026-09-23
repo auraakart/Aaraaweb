@@ -3,11 +3,13 @@ import fs from 'node:fs'
 const files=[
   'apps/admin/app/finance/tax/page.tsx',
   'apps/admin/app/finance/bank-reconciliation/page.tsx',
+  'apps/admin/app/finance/opening-balances/page.tsx',
+  'apps/admin/app/occupancy-lifecycle/page.tsx',
 ]
 
 for(const file of files){
   const source=fs.readFileSync(file,'utf8')
-  if(!source.includes("../../../lib/admin-client")){
+  if(!source.includes('lib/admin-client')){
     console.error(`V4.49 contract failed: ${file} missing shared Admin client`)
     process.exit(1)
   }
@@ -17,4 +19,4 @@ for(const file of files){
   }
 }
 
-console.log('V4.49 finance Admin-client convergence verified')
+console.log('V4.49 Admin-client convergence verified')

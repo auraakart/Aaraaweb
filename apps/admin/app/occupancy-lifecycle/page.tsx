@@ -5,8 +5,8 @@ import {
   ActionBar,DangerButton,DetailPanel,EmptyState,ErrorState,EvidenceGrid,FormField,PageHeader,PageShell,
   PrimaryButton,QueuePanel,ReadinessPanel,SecondaryButton,SelectField,StatusPill,Timeline,
 } from '../../components/admin-ui'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Lifecycle={id:string;unitId:string;userId:string;occupancyId?:string|null;kind:'MOVE_IN'|'MOVE_OUT';relation:'OWNER'|'TENANT'|'FAMILY_MEMBER';status:'REQUESTED'|'APPROVED'|'REJECTED'|'COMPLETED'|'CANCELLED';effectiveAt:string;reason?:string|null;requestedByUserId:string;reviewedAt?:string|null;completedAt?:string|null;createdAt:string}
 type Checklist={id:string;code:string;label:string;required:boolean;completedAt?:string|null;note?:string|null}
 type DocumentRef={id:string;kind:string;fileReference:string;verifiedAt?:string|null;note?:string|null}
@@ -17,16 +17,9 @@ type ActiveOccupancy={id:string;relation:string;effectiveFrom:string;user:{id:st
 type OperatorContext={units:UnitOption[];occupancies:ActiveOccupancy[]}
 type ReadinessEvidence={requestId:string;kind:'MOVE_IN'|'MOVE_OUT';checklist:{total:number;required:number;completedRequired:number;mandatoryReady:boolean};documents:{total:number;verified:number};handover:{activeVehicles:number;activeWorkforceAssignments:number;activeParkingAllocations:number;gateAuthority:{primaryGateContact:boolean;gateApprovalEnabled:boolean;gateNotificationEnabled:boolean}|null};boundary:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 const readRoles=new Set([...manageRoles,'COMMITTEE_MEMBER'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text(),body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const fmt=(v:string)=>new Date(v).toLocaleString('en-IN')
 const unitLabel=(u:UnitOption)=>`${u.building.name} · ${u.number}`
 const occupancyLabel=(o:ActiveOccupancy)=>`${o.user.name} · ${unitLabel(o.unit)} · ${o.relation.replaceAll('_',' ')}`
@@ -70,8 +63,8 @@ export default function OccupancyLifecyclePage(){
     setQueueLoading(true);setQueueError('')
     try{
       const[list,ctx]=await Promise.all([
-        api<Lifecycle[]>(s,'/occupancy-lifecycle'),
-        api<OperatorContext>(s,'/occupancy-lifecycle/operator-context'),
+        api<Lifecycle[]>('/occupancy-lifecycle',{},s),
+        api<OperatorContext>('/occupancy-lifecycle/operator-context',{},s),
       ])
       setItems(list);setContext(ctx)
     }catch(e){setQueueError(e instanceof Error?e.message:'Could not load occupancy lifecycle')}
@@ -86,8 +79,8 @@ export default function OccupancyLifecyclePage(){
     setDetailLoading(true);setDetailError('');setSelected(null);setReadinessEvidence(null);setReviewNote('')
     try{
       const[detail,evidence]=await Promise.all([
-        api<Detail>(s,`/occupancy-lifecycle/${id}`),
-        api<ReadinessEvidence>(s,`/occupancy-lifecycle/${id}/readiness`),
+        api<Detail>(`/occupancy-lifecycle/${id}`,{},s),
+        api<ReadinessEvidence>(`/occupancy-lifecycle/${id}/readiness`,{},s),
       ])
       if(requestId!==detailRequest.current)return
       setSelected(detail);setReadinessEvidence(evidence)
@@ -102,9 +95,9 @@ export default function OccupancyLifecyclePage(){
     e.preventDefault();if(!s||!canManage)return
     setBusy(true);setOperationError('');setSuccess('')
     try{
-      await api(s,'/occupancy-lifecycle/move-ins/by-phone',{method:'POST',body:JSON.stringify({
+      await api('/occupancy-lifecycle/move-ins/by-phone',{method:'POST',body:JSON.stringify({
         unitId,tenantPhone:residentPhone.trim(),relation,effectiveAt:new Date(moveInAt).toISOString(),reason:moveInReason.trim()||undefined,
-      })})
+      })},s)
       setUnitId('');setResidentPhone('+91');setMoveInAt('');setMoveInReason('');setSuccess('Move-in request created.');await load()
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not request move-in')}
     finally{setBusy(false)}
@@ -114,9 +107,9 @@ export default function OccupancyLifecyclePage(){
     e.preventDefault();if(!s||!canManage)return
     setBusy(true);setOperationError('');setSuccess('')
     try{
-      await api(s,'/occupancy-lifecycle/move-outs',{method:'POST',body:JSON.stringify({
+      await api('/occupancy-lifecycle/move-outs',{method:'POST',body:JSON.stringify({
         occupancyId:moveOutOccupancy,effectiveAt:new Date(moveOutAt).toISOString(),reason:moveOutReason.trim()||undefined,
-      })})
+      })},s)
       setMoveOutOccupancy('');setMoveOutAt('');setMoveOutReason('');setSuccess('Move-out request created.');await load()
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not request move-out')}
     finally{setBusy(false)}
@@ -127,7 +120,7 @@ export default function OccupancyLifecyclePage(){
     setBusy(true);setOperationError('');setSuccess('')
     try{
       const id=selected.id
-      await api(s,`/occupancy-lifecycle/${id}/${kind}`,{method:'POST',body:JSON.stringify({note:reviewNote.trim()||undefined})})
+      await api(`/occupancy-lifecycle/${id}/${kind}`,{method:'POST',body:JSON.stringify({note:reviewNote.trim()||undefined})},s)
       setReviewNote('');setSuccess(`Request ${kind==='approve'?'approved':'rejected'}.`);await load();await inspect(id)
     }catch(e){setOperationError(e instanceof Error?e.message:`Could not ${kind} request`)}
     finally{setBusy(false)}
@@ -138,7 +131,7 @@ export default function OccupancyLifecyclePage(){
     setBusy(true);setOperationError('');setSuccess('')
     try{
       const id=selected.id
-      await api(s,`/occupancy-lifecycle/${id}/complete`,{method:'POST'})
+      await api(`/occupancy-lifecycle/${id}/complete`,{method:'POST'},s)
       setSuccess('Effective move completed.');await load();await inspect(id)
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not complete request')}
     finally{setBusy(false)}
@@ -149,7 +142,7 @@ export default function OccupancyLifecyclePage(){
     const id=selected.id,completed=!item.completedAt
     setBusy(true);setOperationError('')
     try{
-      await api(s,`/occupancy-lifecycle/${id}/checklist/${item.id}`,{method:'POST',body:JSON.stringify({completed,note:checklistNotes[item.id]?.trim()||undefined})})
+      await api(`/occupancy-lifecycle/${id}/checklist/${item.id}`,{method:'POST',body:JSON.stringify({completed,note:checklistNotes[item.id]?.trim()||undefined})},s)
       setChecklistNotes(current=>({...current,[item.id]:''}));await inspect(id)
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not update checklist')}
     finally{setBusy(false)}
@@ -160,7 +153,7 @@ export default function OccupancyLifecyclePage(){
     const id=selected.id
     setBusy(true);setOperationError('')
     try{
-      await api(s,`/occupancy-lifecycle/${id}/documents`,{method:'POST',body:JSON.stringify({kind:docKind.trim(),fileReference:docReference.trim(),note:docNote.trim()||undefined})})
+      await api(`/occupancy-lifecycle/${id}/documents`,{method:'POST',body:JSON.stringify({kind:docKind.trim(),fileReference:docReference.trim(),note:docNote.trim()||undefined})},s)
       setDocReference('');setDocNote('');await inspect(id)
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not add document')}
     finally{setBusy(false)}
@@ -171,7 +164,7 @@ export default function OccupancyLifecyclePage(){
     const id=selected.id
     setBusy(true);setOperationError('')
     try{
-      await api(s,`/occupancy-lifecycle/${id}/documents/${doc.id}/verify`,{method:'POST',body:JSON.stringify({note:verifyNotes[doc.id]?.trim()||undefined})})
+      await api(`/occupancy-lifecycle/${id}/documents/${doc.id}/verify`,{method:'POST',body:JSON.stringify({note:verifyNotes[doc.id]?.trim()||undefined})},s)
       setVerifyNotes(current=>({...current,[doc.id]:''}));await inspect(id)
     }catch(e){setOperationError(e instanceof Error?e.message:'Could not verify document')}
     finally{setBusy(false)}
