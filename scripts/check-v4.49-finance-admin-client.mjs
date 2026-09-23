@@ -85,4 +85,15 @@ if(!exportsSource.includes('/artifact')||!exportsSource.includes('await fetch(')
   process.exit(1)
 }
 
+const documentsFile='apps/admin/app/documents/page.tsx'
+const documentsSource=fs.readFileSync(documentsFile,'utf8')
+if(!documentsSource.includes('lib/admin-client')||documentsSource.includes('async function api<T>')){
+  console.error(`V4.49 contract failed: ${documentsFile} JSON transport is not converged`)
+  process.exit(1)
+}
+if(!documentsSource.includes('uploadUrl')||!documentsSource.includes('await fetch(intent.uploadUrl')){
+  console.error(`V4.49 contract failed: ${documentsFile} must retain explicit signed upload transport`)
+  process.exit(1)
+}
+
 console.log('V4.49 Admin-client convergence verified')
