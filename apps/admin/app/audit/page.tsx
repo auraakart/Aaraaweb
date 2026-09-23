@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { api, sessionFrom, type Session } from '../../lib/admin-client'
+import { api, refreshAdminSession, sessionFrom, type Session } from '../../lib/admin-client'
 
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
 type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
@@ -15,7 +15,7 @@ const money=(paise:number|null)=>paise===null?'Restricted':new Intl.NumberFormat
 
 export default function AuditorWorkspace(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true)
-  useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw) as Session;if(stored.role!=='AUDITOR'){setRestoring(false);return}api<Record<string,unknown>>('/auth/refresh',{method:'POST',body:JSON.stringify({sessionId:stored.sessionId,refreshToken:stored.refreshToken})}).then(next=>{const fresh={...stored,sessionId:String(next.sessionId),accessToken:String(next.accessToken),refreshToken:String(next.refreshToken)};sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(fresh));setSession(fresh)}).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
+  useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw) as Session;if(stored.role!=='AUDITOR'){setRestoring(false);return}refreshAdminSession(stored).then(setSession).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
   const accept=(next:Session)=>{sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(next));setSession(next)}
   const logout=async()=>{if(session)await api('/auth/logout',{method:'POST',body:JSON.stringify({sessionId:session.sessionId,refreshToken:session.refreshToken})}).catch(()=>undefined);sessionStorage.removeItem('aaraagate.admin.session');setSession(null)}
   if(restoring)return <main style={shell}><p>Restoring secure Auditor session…</p></main>
