@@ -34,6 +34,9 @@ const files=[
   'apps/admin/app/facilities/contracts/page.tsx',
   'apps/admin/app/facilities/operations/page.tsx',
   'apps/admin/app/facilities/preventive/page.tsx',
+  'apps/admin/app/parking/advanced/page.tsx',
+  'apps/admin/app/governance/polls/page.tsx',
+  'apps/admin/app/migration/import-stager.tsx',
 ]
 
 for(const file of files){
