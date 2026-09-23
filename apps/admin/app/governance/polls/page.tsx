@@ -2,22 +2,20 @@
 
 import {useEffect,useState} from 'react'
 import { ActionBar, DangerButton, EmptyState, ErrorState, PageHeader, PageShell, PrimaryButton, SecondaryButton, StatusPill } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Option={id:string;ordinal:number;label:string}
 type Poll={id:string;pollType:'ADVISORY'|'SURVEY';status:'DRAFT'|'OPEN'|'CLOSED'|'CANCELLED';title:string;description?:string|null;opensAt?:string|null;closesAt?:string|null;statutoryUseProhibited:boolean;options:Option[]}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const roles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text(),body=text?JSON.parse(text):null;if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`);return body as T}
 const human=(v:string)=>v.replaceAll('_',' ')
 
 export default function GovernancePollsPage(){
  const s=typeof window==='undefined'?null:session();const allowed=!!s&&roles.has(s.role)
  const[polls,setPolls]=useState<Poll[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[success,setSuccess]=useState('')
- async function load(){if(!s||!allowed)return;setLoading(true);setError('');try{setPolls(await api<Poll[]>(s,'/governance/polls'))}catch(e){setError(e instanceof Error?e.message:'Could not load polls')}finally{setLoading(false)}}
+ async function load(){if(!s||!allowed)return;setLoading(true);setError('');try{setPolls(await api<Poll[]>('/governance/polls',{},s))}catch(e){setError(e instanceof Error?e.message:'Could not load polls')}finally{setLoading(false)}}
  useEffect(()=>{void load()},[])
- async function transition(id:string,status:'OPEN'|'CLOSED'|'CANCELLED'){if(!s)return;setBusy(true);setError('');setSuccess('');try{await api(s,`/governance/community-polls/${id}/status`,{method:'POST',body:JSON.stringify({status})});setSuccess(`Poll ${status.toLowerCase()}.`);await load()}catch(e){setError(e instanceof Error?e.message:'Could not update poll')}finally{setBusy(false)}}
+ async function transition(id:string,status:'OPEN'|'CLOSED'|'CANCELLED'){if(!s)return;setBusy(true);setError('');setSuccess('');try{await api(`/governance/community-polls/${id}/status`,{method:'POST',body:JSON.stringify({status})},s);setSuccess(`Poll ${status.toLowerCase()}.`);await load()}catch(e){setError(e instanceof Error?e.message:'Could not update poll')}finally{setBusy(false)}}
 
  if(!s||!allowed)return <PageShell><PageHeader title="Governance access required" actions={<a href="/">Return to Admin</a>}/></PageShell>
  return <PageShell>
