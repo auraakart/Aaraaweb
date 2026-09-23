@@ -1224,3 +1224,20 @@ enum AuditEventType {
   REPORT_EXPORTED
   ACCOUNTING_EXPORT_REQUESTED
 }
+
+
+model GateNotificationAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  requestId String   @db.Uuid
+  userId    String   @db.Uuid
+  channel   String
+  status    String
+  reason    String?
+  evidence  Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, requestId, userId, channel], map: "GateNotificationAttempt_scope_request_user_channel_key")
+  @@index([societyId, requestId, createdAt(sort: Desc)], map: "GateNotificationAttempt_scope_request_time_idx")
+}

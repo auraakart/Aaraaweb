@@ -41,6 +41,15 @@ export function refreshAdminSession(current:Session):Promise<Session>{
   const latest=storedFor(current),key=contextKey(latest),existing=refreshes.get(key);if(existing)return existing;
   const active=performRefresh(latest).catch(error=>{clearIfCurrent(latest);throw error}).finally(()=>refreshes.delete(key));refreshes.set(key,active);return active;
 }
+export async function logoutAdminSession(current:Session):Promise<void>{
+  let active=storedFor(current);
+  const pending=refreshes.get(contextKey(active));
+  if(pending){try{active=await pending}catch{active=storedFor(active)}}
+  active=storedFor(active);
+  const {response,body}=await request('/auth/logout',{method:'POST',body:JSON.stringify({sessionId:active.sessionId,refreshToken:active.refreshToken})});
+  if(!response.ok)throw new Error(message(body,response.status));
+  clearIfCurrent(active);
+}
 export async function api<T>(path:string,init:RequestInit={},session?:Session):Promise<T>{
   let active=session?storedFor(session):undefined;let result=await request(path,init,active);
   if(result.response.status===401&&active&&path!='/auth/refresh'){

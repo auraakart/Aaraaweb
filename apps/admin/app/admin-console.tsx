@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { operatorConfirm, operatorPrompt } from '../lib/operator-dialog'
-import { api, refreshAdminSession, type Session } from '../lib/admin-client'
+import { api, logoutAdminSession, refreshAdminSession, type Session } from '../lib/admin-client'
 import { AdminLogin } from './admin-login'
 import { AdminOverview } from './admin-overview'
 import { Billing, Marketplace } from './admin-commerce-panels'
@@ -14,7 +14,7 @@ export function AdminConsole(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true),[view,setView]=useState<View>('overview')
   useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw)as Session;refreshAdminSession(stored).then(fresh=>{if(!adminRoles.has(fresh.role)||viewsForRole(fresh.role).length===0)throw new Error('Stored role no longer has console access');setSession(fresh)}).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
   const accept=(next:Session)=>{const allowed=viewsForRole(next.role);if(!adminRoles.has(next.role)||allowed.length===0)throw new Error('This role does not have Admin or operations-console access');sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(next));setView(allowed[0]);setSession(next)}
-  const logout=async()=>{if(session)await api('/auth/logout',{method:'POST',body:JSON.stringify({sessionId:session.sessionId,refreshToken:session.refreshToken})}).catch(()=>undefined);sessionStorage.removeItem('aaraagate.admin.session');setSession(null)}
+  const logout=async()=>{if(session)await logoutAdminSession(session).catch(()=>undefined);sessionStorage.removeItem('aaraagate.admin.session');setSession(null)}
   if(restoring)return <div className="center">Restoring secure session…</div>;if(!session)return <AdminLogin onSession={accept}/>
   const allowedViews=viewsForRole(session.role)
   const activeView=allowedViews.includes(view)?view:allowedViews[0]

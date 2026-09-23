@@ -10,7 +10,7 @@ describe('V4.7 access integration authorization',()=>{
     });
   }
 
-  for(const method of ['command','simulatorHealth','createDevice','refreshDeviceHealth','deviceCommand','ingestEvent'] as const){
+  for(const method of ['command','simulatorHealth','simulatorCertification','createDevice','refreshDeviceHealth','deviceCommand','ingestEvent'] as const){
     it(`${method} requires gate management access`,()=>{
       expect(Reflect.getMetadata(PERMISSIONS_KEY,AccessIntegrationController.prototype[method])).toEqual([AppPermission.GATE_MANAGE]);
     });
