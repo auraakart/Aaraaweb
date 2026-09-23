@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react'
+import { api, type Session } from '../../lib/admin-client'
 
 type Adapter={kind:'ANPR'|'BOOM_BARRIER'|'RFID';health:'ONLINE'|'DEGRADED'|'OFFLINE';lastSeenAt:string;message?:string}
 type Device={id:string;gateId:string;gateName:string;adapterKind:string;deviceKey:string;displayName:string;active:boolean;health:'ONLINE'|'DEGRADED'|'OFFLINE';lastHealthAt?:string|null;lastSeenAt?:string|null}
