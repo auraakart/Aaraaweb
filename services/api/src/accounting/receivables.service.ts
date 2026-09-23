@@ -38,6 +38,7 @@ type AdjustmentInput = {
   reason: string;
   entryDate: string;
   journalEntryNumber: string;
+  noteNumber?: string;
 };
 
 type RuleRow = {
@@ -230,6 +231,21 @@ export class ReceivablesService {
     `);
   }
 
+  listAdjustments(societyId:string,receivableId:string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT a."id",a."type"::text AS "type",a."amountPaise"::text AS "amountPaise",a."reason",a."createdAt",
+             j."entryNumber" AS "noteNumber",j."entryDate",j."status" AS "journalStatus",
+             CASE WHEN a."type"='DEBIT' THEN 'DEBIT_NOTE'
+                  WHEN a."type"='CREDIT' THEN 'CREDIT_NOTE'
+                  ELSE 'WAIVER' END AS "documentType",
+             TRUE AS "residentVisible"
+      FROM "ReceivableAdjustment" a
+      JOIN "JournalEntry" j ON j."id"=a."journalEntryId" AND j."societyId"=a."societyId"
+      WHERE a."societyId"=${societyId}::uuid AND a."receivableId"=${receivableId}::uuid
+      ORDER BY a."createdAt" DESC,a."id" DESC
+    `);
+  }
+
   async addAdjustment(societyId: string, userId: string, receivableId: string, input: AdjustmentInput) {
     if (input.amountPaise <= 0) throw new BadRequestException('Adjustment amount must be positive');
     return this.prisma.$transaction(async (tx) => {
@@ -256,13 +272,14 @@ export class ReceivablesService {
       if (!periods.length || periods[0].status !== 'OPEN') throw new ConflictException('Adjustment date requires an open accounting period');
 
       const debit = input.type === 'DEBIT';
+      const noteNumber=(input.noteNumber?.trim()||input.journalEntryNumber.trim()).toUpperCase();
       const journalRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "JournalEntry" (
           "societyId", "periodId", "entryNumber", "entryDate", "description", "status", "sourceType", "sourceId",
           "createdByUserId", "postedByUserId", "postedAt"
         ) VALUES (
-          ${societyId}::uuid, ${periods[0].id}::uuid, ${input.journalEntryNumber.trim().toUpperCase()}, ${input.entryDate}::date,
-          ${input.reason.trim()}, 'POSTED', 'RECEIVABLE_ADJUSTMENT', ${`${receivableId}:${input.journalEntryNumber.trim().toUpperCase()}`},
+          ${societyId}::uuid, ${periods[0].id}::uuid, ${noteNumber}, ${input.entryDate}::date,
+          ${input.reason.trim()}, 'POSTED', 'RECEIVABLE_ADJUSTMENT', ${`${receivableId}:NOTE:${noteNumber}`},
           ${userId}::uuid, ${userId}::uuid, CURRENT_TIMESTAMP
         ) RETURNING "id"
       `);
