@@ -36,21 +36,25 @@ jobs:
           MAIN_SHA="$(git rev-parse HEAD)"
           DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"
           STAGING_SHA="$(git rev-parse refs/remotes/origin/staging)"
-          DEVELOP_BASE="$(git merge-base "$DEVELOP_SHA" "$MAIN_SHA")"
-          STAGING_BASE="$(git merge-base "$STAGING_SHA" "$MAIN_SHA")"
+          MAIN_TREE="$(git rev-parse "$MAIN_SHA^{tree}")"
+          DEVELOP_TREE="$(git rev-parse "$DEVELOP_SHA^{tree}")"
+          STAGING_TREE="$(git rev-parse "$STAGING_SHA^{tree}")"
 
-          if ! git diff --quiet "$DEVELOP_BASE" "$DEVELOP_SHA" -- .; then
-            echo "Develop contains source not represented by its merge base with main."
+          # Release promotion uses squash commits, so ancestry can diverge even
+          # when the promoted source is byte-for-byte identical. Compare the
+          # canonical branch tips directly instead of comparing merge-base ancestry.
+          if ! git diff --quiet "$DEVELOP_SHA" "$MAIN_SHA" -- .; then
+            echo "Develop source differs from promoted main."
             exit 1
           fi
 
-          if ! git diff --quiet "$STAGING_BASE" "$STAGING_SHA" -- .; then
-            echo "Staging contains source not represented by its merge base with main."
+          if ! git diff --quiet "$STAGING_SHA" "$MAIN_SHA" -- .; then
+            echo "Staging source differs from promoted main."
             exit 1
           fi
 
           mkdir -p post-main-health-evidence
-          node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',developMergeBase:'$DEVELOP_BASE',stagingMergeBase:'$STAGING_BASE',sourceContainment:'ok',generatedAt:new Date().toISOString()}, null, 2))"
+          node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',mainTree:'$MAIN_TREE',developTree:'$DEVELOP_TREE',stagingTree:'$STAGING_TREE',sourceEquivalence:'ok',generatedAt:new Date().toISOString()}, null, 2))"
 
       - name: Upload post-main health evidence
         uses: actions/upload-artifact@v7
