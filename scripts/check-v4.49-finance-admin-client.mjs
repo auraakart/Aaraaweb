@@ -10,6 +10,8 @@ const files=[
   'apps/admin/app/governance/readiness/page.tsx',
   'apps/admin/app/society-vendors/contracts/page.tsx',
   'apps/admin/app/utilities/integrations/page.tsx',
+  'apps/admin/app/emergency-operations/page.tsx',
+  'apps/admin/app/platform/provider-trust/page.tsx',
 ]
 
 for(const file of files){
