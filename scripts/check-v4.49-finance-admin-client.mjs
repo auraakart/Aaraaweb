@@ -12,6 +12,8 @@ const files=[
   'apps/admin/app/utilities/integrations/page.tsx',
   'apps/admin/app/emergency-operations/page.tsx',
   'apps/admin/app/platform/provider-trust/page.tsx',
+  'apps/admin/app/integrations/page.tsx',
+  'apps/admin/app/ai-assistant/page.tsx',
 ]
 
 for(const file of files){
