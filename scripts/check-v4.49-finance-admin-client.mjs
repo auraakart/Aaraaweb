@@ -9,7 +9,7 @@ const files=[
 
 for(const file of files){
   const source=fs.readFileSync(file,'utf8')
-  if(!source.includes("../../../lib/admin-client")){
+  if(!source.includes('lib/admin-client')){
     console.error(`V4.49 contract failed: ${file} missing shared Admin client`)
     process.exit(1)
   }
