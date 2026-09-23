@@ -6,6 +6,8 @@ const files=[
   'apps/admin/app/finance/opening-balances/page.tsx',
   'apps/admin/app/occupancy-lifecycle/page.tsx',
   'apps/admin/app/audit/page.tsx',
+  'apps/admin/app/onboarding/page.tsx',
+  'apps/admin/app/governance/readiness/page.tsx',
 ]
 
 for(const file of files){
