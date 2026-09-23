@@ -5,6 +5,7 @@ const files=[
   'apps/admin/app/finance/bank-reconciliation/page.tsx',
   'apps/admin/app/finance/opening-balances/page.tsx',
   'apps/admin/app/occupancy-lifecycle/page.tsx',
+  'apps/admin/app/audit/page.tsx',
 ]
 
 for(const file of files){
@@ -17,6 +18,17 @@ for(const file of files){
     console.error(`V4.49 contract failed: ${file} regressed to local API transport`)
     process.exit(1)
   }
+}
+
+const migration='apps/admin/app/migration/page.tsx'
+const migrationSource=fs.readFileSync(migration,'utf8')
+if(!migrationSource.includes('lib/admin-client')||migrationSource.includes('async function api<T>')){
+  console.error(`V4.49 contract failed: ${migration} JSON transport is not converged`)
+  process.exit(1)
+}
+if(!migrationSource.includes('evidence.csv')||!migrationSource.includes('await fetch(')){
+  console.error(`V4.49 contract failed: ${migration} must retain explicit blob evidence export transport`)
+  process.exit(1)
 }
 
 console.log('V4.49 Admin-client convergence verified')
