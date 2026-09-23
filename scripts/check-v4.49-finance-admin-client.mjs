@@ -96,4 +96,34 @@ if(!documentsSource.includes('uploadUrl')||!documentsSource.includes('await fetc
   process.exit(1)
 }
 
+const specialTransportFiles=new Set([
+  'apps/admin/app/migration/page.tsx',
+  'apps/admin/app/reports/page.tsx',
+  'apps/admin/app/finance/exports/page.tsx',
+  'apps/admin/app/documents/page.tsx',
+])
+
+function walk(dir){
+  return fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>{
+    const path=`${dir}/${entry.name}`
+    return entry.isDirectory()?walk(path):[path]
+  })
+}
+
+for(const file of walk('apps/admin/app').filter(file=>/\.(?:ts|tsx)$/.test(file))){
+  const source=fs.readFileSync(file,'utf8')
+  if(!source.includes('aaraagate.admin.session'))continue
+  if(source.includes('async function api<T>')){
+    console.error(`V4.49 residual contract failed: ${file} defines a local Admin API helper`)
+    process.exit(1)
+  }
+  if(!specialTransportFiles.has(file)&&(
+    source.includes('NEXT_PUBLIC_AARAGATE_API_BASE_URL')||
+    source.includes('NEXT_PUBLIC_API_BASE_URL')
+  )){
+    console.error(`V4.49 residual contract failed: ${file} defines a direct Admin API base`)
+    process.exit(1)
+  }
+}
+
 console.log('V4.49 Admin-client convergence verified')
