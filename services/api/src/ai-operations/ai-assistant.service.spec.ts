@@ -232,6 +232,27 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(9);
   });
 
+  it('grounds gate attention in one aggregate query for a gate-only role',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      overstayCount:2,openIncidents:1,criticalIncidents:1,stalePatrolCount:1,
+      criticalIncidentId:'incident-1',criticalIncidentTitle:'Emergency gate event',
+      oldestOverstayId:'request-1',oldestOverstayName:'Visitor A',oldestOverstayMinutes:310,
+      staleCheckpointId:'checkpoint-1',staleCheckpointName:'Rear perimeter',
+    }]);
+    const result=await service.actionCentre('society-1',[AppRole.SECURITY_GUARD]);
+    expect(result.cards).toEqual([expect.objectContaining({
+      id:'gate-attention',domain:'GATE',severity:'HIGH',
+      metrics:expect.objectContaining({criticalIncidentId:'incident-1',oldestOverstayId:'request-1',staleCheckpointId:'checkpoint-1'}),
+    })]);
+    expect(result.brief.recommendedFocus).toEqual(expect.objectContaining({domain:'GATE'}));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const sql=(prisma.$queryRaw.mock.calls[0][0] as {strings?:readonly string[]}).strings?.join('?')??'';
+    expect(sql).toContain('WITH overstays AS');
+    expect(sql).toContain('open_incidents AS');
+    expect(sql).toContain('stale_checkpoints AS');
+  });
+
   it('returns no privileged action cards to a resident-only role',async()=>{
     const {prisma,operations,service}=setup();
     const result=await service.actionCentre('society-1',[AppRole.OWNER]);

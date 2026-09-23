@@ -51,14 +51,26 @@ export class GuardOperationsService {
       `);
       const overstay=rows[0];if(!overstay)throw new ConflictException('Access request is not an active four-hour overstay');
       const sourceRef=`access-request:${accessRequestId}`;
+      const description=`Access request ${accessRequestId} has remained inside since ${overstay.enteredAt.toISOString()} for ${overstay.buildingName} ${overstay.unitNumber}.${note?.trim()?` Guard note: ${note.trim()}`:''}`;
       const existing=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         SELECT "id","status","severity","title","occurredAt" FROM "SecurityIncident"
         WHERE "societyId"=${societyId}::uuid AND "category"='OVERSTAY'
           AND ("sourceKey"=${sourceRef} OR ("sourceKey" IS NULL AND "mediaRefs" @> ${JSON.stringify([sourceRef])}::jsonb))
-        ORDER BY ("sourceKey"=${sourceRef}) DESC,"occurredAt" ASC LIMIT 1
+        ORDER BY ("sourceKey"=${sourceRef}) DESC,
+          CASE "status" WHEN 'OPEN' THEN 0 WHEN 'REVIEWED' THEN 1 ELSE 2 END,
+          "occurredAt" ASC LIMIT 1
       `);
-      if(existing[0])return {...existing[0],idempotent:true};
-      const description=`Access request ${accessRequestId} has remained inside since ${overstay.enteredAt.toISOString()} for ${overstay.buildingName} ${overstay.unitNumber}.${note?.trim()?` Guard note: ${note.trim()}`:''}`;
+      if(existing[0]){
+        if(existing[0].status!=='CLOSED')return {...existing[0],idempotent:true,reopened:false};
+        const reopened=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+          UPDATE "SecurityIncident"
+          SET "status"='OPEN',"guardUserId"=${userId}::uuid,"description"=${description},
+              "reviewedByUserId"=NULL,"reviewedAt"=NULL,"resolution"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${String(existing[0].id)}::uuid AND "societyId"=${societyId}::uuid AND "category"='OVERSTAY'
+          RETURNING "id","severity","category","title","status","occurredAt"
+        `);
+        return {...reopened[0],idempotent:false,reopened:true};
+      }
       const incident=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         INSERT INTO "SecurityIncident" ("societyId","guardUserId","severity","category","title","description","mediaRefs","sourceKey")
         VALUES (${societyId}::uuid,${userId}::uuid,'HIGH','OVERSTAY',${`Visitor overstay · ${overstay.subjectName}`},${description},${JSON.stringify([sourceRef])}::jsonb,${sourceRef})
