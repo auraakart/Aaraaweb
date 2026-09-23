@@ -19,6 +19,7 @@ const files=[
   'apps/admin/app/access-integrations/page.tsx',
   'apps/admin/app/platform/providers/page.tsx',
   'apps/admin/app/finance/procurement/page.tsx',
+  'apps/admin/app/finance/waivers/page.tsx',
 ]
 
 for(const file of files){
@@ -55,5 +56,16 @@ if(!reportsSource.includes('downloadCsv')||!reportsSource.includes('Accept:\'tex
   process.exit(1)
 }
 
+
+const exportsFile='apps/admin/app/finance/exports/page.tsx'
+const exportsSource=fs.readFileSync(exportsFile,'utf8')
+if(!exportsSource.includes('lib/admin-client')||exportsSource.includes('async function api<T>')){
+  console.error(`V4.49 contract failed: ${exportsFile} JSON transport is not converged`)
+  process.exit(1)
+}
+if(!exportsSource.includes('/artifact')||!exportsSource.includes('await fetch(')||!exportsSource.includes('response.blob')&&!exportsSource.includes('r.blob')){
+  console.error(`V4.49 contract failed: ${exportsFile} must retain explicit authenticated artifact blob transport`)
+  process.exit(1)
+}
 
 console.log('V4.49 Admin-client convergence verified')
