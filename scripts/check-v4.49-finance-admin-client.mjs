@@ -28,6 +28,12 @@ const files=[
   'apps/admin/app/parking/permits/page.tsx',
   'apps/admin/app/platform/privacy/page.tsx',
   'apps/admin/app/society-vendors/page.tsx',
+  'apps/admin/app/facilities/health/page.tsx',
+  'apps/admin/app/facilities/alerts/page.tsx',
+  'apps/admin/app/facilities/inventory/page.tsx',
+  'apps/admin/app/facilities/contracts/page.tsx',
+  'apps/admin/app/facilities/operations/page.tsx',
+  'apps/admin/app/facilities/preventive/page.tsx',
 ]
 
 for(const file of files){
