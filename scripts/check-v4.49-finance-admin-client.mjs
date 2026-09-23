@@ -17,6 +17,8 @@ const files=[
   'apps/admin/app/marketplace-control/page.tsx',
   'apps/admin/app/privacy-operations/page.tsx',
   'apps/admin/app/access-integrations/page.tsx',
+  'apps/admin/app/platform/providers/page.tsx',
+  'apps/admin/app/finance/procurement/page.tsx',
 ]
 
 for(const file of files){
