@@ -3,22 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Adapter={kind:'ANPR'|'BOOM_BARRIER'|'RFID';health:'ONLINE'|'DEGRADED'|'OFFLINE';lastSeenAt:string;message?:string}
 type Device={id:string;gateId:string;gateName:string;adapterKind:string;deviceKey:string;displayName:string;active:boolean;health:'ONLINE'|'DEGRADED'|'OFFLINE';lastHealthAt?:string|null;lastSeenAt?:string|null}
 type Compatibility={target:string;requiredCapabilities:string[];transportOwnedByAdapter:true;directDatabaseAccessAllowed:false;commandsRequireIdempotency:true;eventsRequireExternalDeduplicationKey:true;manualFallbackRequired:true}
 type Command={id:string;actorUserId:string;idempotencyKey:string;command:string;status:string;result?:unknown;createdAt:string;completedAt?:string|null}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 
 function currentSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(session:Session,path:string,init:RequestInit={}):Promise<T>{
-  const response=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${session.accessToken}`,...init.headers}})
-  const text=await response.text();const body=text?JSON.parse(text):null
-  if(!response.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${response.status})`)
-  return body as T
-}
 
 export default function AccessIntegrationsPage(){
   const[session,setSession]=useState<Session|null>(null),[adapters,setAdapters]=useState<Adapter[]>([]),[devices,setDevices]=useState<Device[]>([]),[compatibility,setCompatibility]=useState<Compatibility[]>([]),[commands,setCommands]=useState<Record<string,Command[]>>({}),[loading,setLoading]=useState(true),[error,setError]=useState('')
@@ -36,12 +28,12 @@ export default function AccessIntegrationsPage(){
     setLoading(true);setError('')
     try{
       const[a,d,c]=await Promise.all([
-        api<Adapter[]>(s,'/access-integrations/adapters'),
-        api<Device[]>(s,'/access-integrations/devices'),
-        api<Compatibility[]>(s,'/access-integrations/compatibility'),
+        api<Adapter[]>('/access-integrations/adapters',{},s),
+        api<Device[]>('/access-integrations/devices',{},s),
+        api<Compatibility[]>('/access-integrations/compatibility',{},s),
       ])
       setAdapters(a);setDevices(d);setCompatibility(c)
-      const history=await Promise.all(d.slice(0,12).map(async device=>[device.id,await api<Command[]>(s,`/access-integrations/devices/${device.id}/commands`)] as const))
+      const history=await Promise.all(d.slice(0,12).map(async device=>[device.id,await api<Command[]>(`/access-integrations/devices/${device.id}/commands`,{},s)] as const))
       setCommands(Object.fromEntries(history))
     }catch(e){setError(e instanceof Error?e.message:'Access integrations could not be loaded')}
     finally{setLoading(false)}
@@ -52,7 +44,7 @@ export default function AccessIntegrationsPage(){
   async function refreshDevice(device:Device){
     if(!session||!canManage)return
     setError('')
-    try{await api(session,`/access-integrations/devices/${device.id}/refresh-health`,{method:'POST'});await load(session)}
+    try{await api(`/access-integrations/devices/${device.id}/refresh-health`,{method:'POST'},session);await load(session)}
     catch(e){setError(e instanceof Error?e.message:'Device health could not be refreshed')}
   }
 
