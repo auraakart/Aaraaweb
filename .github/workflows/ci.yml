@@ -106,6 +106,8 @@ jobs:
         run: node scripts/check-v4.50.1-regression-hotfix.mjs
       - name: Check V4.51 field differentiation and trust
         run: node scripts/check-v4.51-field-differentiation-trust.mjs
+      - name: Check V4.51.1 post-release regression hardening
+        run: node scripts/check-v4.51.1-regression-hardening.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary

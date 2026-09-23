@@ -49,6 +49,9 @@ jobs:
         working-directory: apps/resident
         run: flutter create --platforms=android --project-name aaraagate_resident --org com.aaraaplatforms .
 
+      - name: Configure and verify Resident speech recognition permissions
+        run: node scripts/configure-resident-android-speech.mjs
+
       - name: Restore validated Resident source and prepare packaging compatibility
         run: |
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
