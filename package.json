@@ -14,7 +14,8 @@
     "check:v4.37": "node scripts/check-v4.37-repository-integrity.mjs",
     "check:v4.40": "node scripts/check-v4.40-stabilization.mjs",
     "check:v4.41": "node scripts/check-v4.41-maintainability.mjs",
-    "check:v4.48": "node scripts/check-v4.48-competitive-depth.mjs"
+    "check:v4.48": "node scripts/check-v4.48-competitive-depth.mjs",
+    "check:v4.49": "node scripts/check-v4.49-finance-admin-client.mjs"
   },
   "pnpm": {
     "overrides": {
