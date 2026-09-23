@@ -126,4 +126,16 @@ for(const file of walk('apps/admin/app').filter(file=>/\.(?:ts|tsx)$/.test(file)
   }
 }
 
+const providerSessionFiles=[
+  'apps/admin/app/provider/page.tsx',
+  'apps/admin/app/provider/media/page.tsx',
+]
+for(const file of providerSessionFiles){
+  const source=fs.readFileSync(file,'utf8')
+  if(!source.includes('aaraagate.provider.session')||source.includes('aaraagate.admin.session')){
+    console.error(`V4.49 boundary failed: ${file} must remain on the provider session boundary`)
+    process.exit(1)
+  }
+}
+
 console.log('V4.49 Admin-client convergence verified')
