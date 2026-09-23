@@ -41,6 +41,19 @@ const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'GOVERNANCE',label:'Governance',context:'SOCIETY',permissions:[AppPermission.GOVERNANCE_READ],permissionMode:'ALL'},
 ] as const;
 
+export function residentIntentRoutingText(text:string){
+  const hints:string[]=[];
+  const groups:Array<[RegExp,string]>=[
+    [/शिकायत|புகார்|ఫిర్యాదు|ದೂರು|പരാതി|तक्रार|অভিযোগ/u,' complaint helpdesk ticket '],
+    [/भुगतान|बकाया|கட்டணம்|நிலுவை|చెల్లింపు|బకాయి|ಪಾವತಿ|ಬಾಕಿ|പണമടവ്|കുടിശ്ശിക|भरणा|थकबाकी|পেমেন্ট|বকেয়া/u,' payment due maintenance invoice '],
+    [/आगंतुक|मेहमान|கேட்|விருந்தினர்|గేట్|సందర్శకుడు|ಗೇಟ್|ಭೇಟಿಕಾರ|ഗേറ്റ്|സന്ദർശകൻ|पाहुणा|গেট|অতিথি/u,' visitor gate entry pass '],
+    [/सूचना|அறிவிப்பு|ప్రకటన|ಪ್ರಕಟಣೆ|അറിയിപ്പ്|নোটিশ/u,' notice announcement community update '],
+    [/सुविधा|सेवा|வசதி|சேவை|సౌకర్యం|సేవ|ಸೌಲಭ್ಯ|ಸೇವೆ|സൗകര്യം|സേവനം|সুবিধা|সেবা/u,' amenity service provider booking '],
+  ];
+  for(const [pattern,hint] of groups)if(pattern.test(text))hints.push(hint);
+  return `${text} ${hints.join(' ')}`.trim();
+}
+
 @Injectable()
 export class AiAssistantService {
   constructor(
@@ -64,6 +77,7 @@ export class AiAssistantService {
     const text=message.trim();
     if(text.length<2||text.length>1000) throw new BadRequestException('Assistant message must be between 2 and 1000 characters');
     const normalized=text.toLowerCase();
+    const routed=residentIntentRoutingText(normalized);
 
     if(this.promptInjectionAttempt(normalized)){
       return this.auditedResponse(
@@ -73,21 +87,21 @@ export class AiAssistantService {
       );
     }
 
-    if(unitId && /notice|announcement|society update|community update/.test(normalized)){
+    if(unitId && /notice|announcement|society update|community update/.test(routed)){
       this.requireTool(roles,'RESIDENT_NOTICES');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentNotices(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
     }
 
-    if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(normalized)){
+    if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(routed)){
       this.requireTool(roles,'RESIDENT_GATE');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentGateStatus(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
-    if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(normalized)){
+    if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
       this.requireTool(roles,'RESIDENT_STATUS');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentStatus(societyId,userId,unitId,roles);
@@ -100,7 +114,7 @@ export class AiAssistantService {
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
     }
 
-    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(normalized)){
+    if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(routed)){
       this.requireTool(roles,'SOCIETY_FINANCE');
       const thresholdPaise=this.amountThresholdPaise(text);
       const facts=await this.societyFinance(societyId,thresholdPaise);
@@ -110,37 +124,37 @@ export class AiAssistantService {
       );
     }
 
-    if(/sla|helpdesk|complaint|ticket/.test(normalized)){
+    if(/sla|helpdesk|complaint|ticket/.test(routed)){
       this.requireTool(roles,'HELPDESK_OPERATIONS');
       const facts=await this.operations.operationsSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'HELPDESK_OPERATIONS','HELPDESK_OPERATIONS',facts,['HelpdeskTicket'],'Grounded helpdesk summary from open society tickets and SLA state.');
     }
 
-    if(/security|incident|session|revocation|replay/.test(normalized)){
+    if(/security|incident|session|revocation|replay/.test(routed)){
       this.requireTool(roles,'SECURITY_EVENTS');
       const facts=await this.securitySummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'SECURITY_EVENTS','SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
     }
 
-    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(normalized)){
+    if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(routed)){
       this.requireTool(roles,'FACILITIES');
       const facts=await this.facilitiesSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
     }
 
-    if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(normalized)){
+    if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(routed)){
       this.requireTool(roles,'GOVERNANCE');
       const facts=await this.governanceSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'GOVERNANCE','GOVERNANCE',facts,['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],'Grounded governance summary from current society meeting, resolution and action evidence. This does not determine statutory validity.');
     }
 
-    if(/vendor|procurement|purchase request|supplier/.test(normalized)){
+    if(/vendor|procurement|purchase request|supplier/.test(routed)){
       this.requireTool(roles,'VENDORS');
       const facts=await this.vendorSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'VENDORS','VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
     }
 
-    if(/amenity|service|provider|plumber|electrician|cleaning/.test(normalized)){
+    if(/amenity|service|provider|plumber|electrician|cleaning/.test(routed)){
       this.requireTool(roles,'DISCOVERY');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.discovery(societyId);
@@ -158,7 +172,7 @@ export class AiAssistantService {
 
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
     const cards:Array<{
-      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;
+      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
     }>=[];
 
     if(hasPermission(roles,AppPermission.FINANCE_READ)){
@@ -173,6 +187,12 @@ export class AiAssistantService {
         prompt:'Show overdue maintenance and collection trend',
         sources:['MaintenanceInvoice','Payment'],
         metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collectionChangePercent:finance.collectionChangePercent},
+        likelyCause:finance.overdueOver30Days>0
+          ? 'Long-ageing receivables are the strongest current collection signal.'
+          : finance.collectionChangePercent!==null&&finance.collectionChangePercent<0
+            ? 'Recent collections are below the previous 30-day period.'
+            : 'Current evidence does not indicate a material collection deterioration.',
+        safeWorkflow:['Review ageing buckets and reconciliation exceptions','Confirm reminder/waiver policy before any resident communication','Keep payment and accounting corrections in their existing controlled workflows'],
       });
     }
 
@@ -188,6 +208,12 @@ export class AiAssistantService {
         prompt:'Show helpdesk SLA breaches and unassigned tickets',
         sources:['HelpdeskTicket'],
         metrics:{openCount:helpdesk.openCount,breachedCount:helpdesk.breachedCount,unassignedCount:helpdesk.unassignedCount},
+        likelyCause:helpdesk.breachedCount>0
+          ? 'SLA-breached requests indicate unresolved work has exceeded configured response or resolution expectations.'
+          : helpdesk.unassignedCount>0
+            ? 'Unassigned requests are the clearest current routing bottleneck.'
+            : 'No material helpdesk bottleneck is visible in current evidence.',
+        safeWorkflow:['Review breached requests first','Assign an accountable operator where missing','Use the normal status/escalation workflow; AI does not close or reassign tickets'],
       });
     }
 
@@ -227,6 +253,14 @@ export class AiAssistantService {
             : gate.staleCheckpointId
               ? 'Prioritise a patrol scan for the named checkpoint.'
               : 'Continue routine gate processing and patrol cadence.',
+        likelyCause:gate.criticalIncidentId
+          ? 'An unresolved critical security incident is driving the gate priority.'
+          : gate.oldestOverstayId
+            ? 'A checked-in visitor has exceeded the configured four-hour operating threshold.'
+            : gate.staleCheckpointId
+              ? 'Patrol evidence is stale for at least one active checkpoint.'
+              : 'No active gate exception is driving attention.',
+        safeWorkflow:['Verify the named record against live gate context','Escalate through Guard/Security Supervisor controls when required','Do not bypass resident approval or device/manual-fallback policy'],
       });
     }
 
@@ -241,6 +275,8 @@ export class AiAssistantService {
         prompt:'Summarize recent security incidents and session events',
         sources:['SecurityEvent'],
         metrics:{eventCount30d:total},
+        likelyCause:total>20?'Security-event volume is elevated for the current 30-day window; inspect the event mix before attributing a cause.':'No elevated security-event volume is currently indicated.',
+        safeWorkflow:['Inspect event types and timestamps','Correlate only with authorized audit evidence','Avoid inferring resident intent or identity beyond recorded evidence'],
       });
     }
 
@@ -254,6 +290,8 @@ export class AiAssistantService {
         prompt:'Show facility work orders, overdue maintenance and AMCs',
         sources:['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],
         metrics:{openWorkOrders:facilities.openWorkOrders,overdueWorkOrders:facilities.overdueWorkOrders,maintenanceDue30d:facilities.maintenanceDue30d},
+        likelyCause:facilities.overdueWorkOrders>0?'Overdue work orders are the primary current facility-risk signal.':facilities.maintenanceDue30d>0?'Upcoming preventive-maintenance obligations require scheduling attention.':'No current facility backlog signal is elevated.',
+        safeWorkflow:['Review critical and overdue work orders','Confirm assignee/AMC evidence','Use existing facility completion and escalation controls'],
       });
     }
 
@@ -277,6 +315,8 @@ export class AiAssistantService {
         prompt:'Show governance action items needing follow-through',
         sources:['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],
         metrics:{openActionItems:openActions.length,overdueActionItems:overdueActions.length},
+        likelyCause:overdueActions.length>0?'Governance follow-through is delayed on one or more dated action items.':openActions.length>0?'Open governance actions still require accountable follow-through.':'No governance action backlog is visible.',
+        safeWorkflow:['Review the underlying meeting/resolution evidence','Confirm owner and due date','Record completion only through the governance workflow'],
       });
     }
 
@@ -290,6 +330,8 @@ export class AiAssistantService {
         prompt:'Show vendor and procurement requests needing attention',
         sources:['SocietyVendor','ProcurementRequest'],
         metrics:{activeVendors:vendors.activeVendors,submittedRequests:vendors.submittedRequests,approvedRequests:vendors.approvedRequests},
+        likelyCause:vendors.submittedRequests>0?'Submitted procurement requests are awaiting the next controlled review/approval step.':'No procurement queue signal is currently elevated.',
+        safeWorkflow:['Review submitted requests and supporting quotations','Apply maker-checker/approval policy','Keep vendor and marketplace responsibilities segregated'],
       });
     }
 
@@ -305,7 +347,7 @@ export class AiAssistantService {
         highPriorityCount,
         mediumPriorityCount,
         attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.'}:null,
+        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace']}:null,
         explanation:'Priority is deterministic from current permission-scoped operational evidence; no autonomous mutation is performed.',
       },
       generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false

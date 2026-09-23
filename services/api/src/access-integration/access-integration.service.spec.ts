@@ -34,6 +34,20 @@ describe('AccessIntegrationService',()=>{
     }));
   });
 
+  it('runs a deterministic simulator certification without claiming physical hardware acceptance',async()=>{
+    const service=new AccessIntegrationService();
+    const result=await service.simulatorCertification(SOCIETY_A);
+    expect(result.passed).toBe(true);
+    expect(result.contractVersion).toBe('aaraagate.access-simulator.v1');
+    expect(result.results).toHaveLength(3);
+    expect(result.results).toEqual(expect.arrayContaining([
+      expect.objectContaining({kind:'ANPR',idempotentReplayStable:true,failsClosed:true,manualFallbackRequired:true}),
+      expect.objectContaining({kind:'BOOM_BARRIER',idempotentReplayStable:true,failsClosed:true,manualFallbackRequired:true}),
+      expect.objectContaining({kind:'RFID',idempotentReplayStable:true,failsClosed:true,manualFallbackRequired:true}),
+    ]));
+    expect(result.boundary).toContain('not physical-device or vendor certification');
+  });
+
   it('keeps ANPR and RFID read evidence distinct',async()=>{
     const service=new AccessIntegrationService();
     await expect(service.command(SOCIETY_A,'ANPR',{idempotencyKey:'command-0003',command:'READ',payload:{plate:'TN01AB1234'}})).resolves.toEqual(expect.objectContaining({state:'PLATE_READ'}));

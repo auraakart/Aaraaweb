@@ -65,6 +65,42 @@ export class BillingService {
     `);
   }
 
+  async residentSummary(societyId:string,userId:string,unitId?:string) {
+    const invoices=(await this.listPayable(societyId,userId)) as Array<{
+      id:string;unitId:string;amountPaise:number;status:string;dueDate:Date|string;
+    }>;
+    const payments=(await this.listPaymentsMine(societyId,userId)) as Array<{
+      invoiceId:string;amountPaise:number;status:string;createdAt:Date|string;completedAt:Date|string|null;
+    }>;
+    const scopedInvoices=unitId?invoices.filter(invoice=>invoice.unitId===unitId):invoices;
+    const invoiceIds=new Set(scopedInvoices.map(invoice=>invoice.id));
+    const scopedPayments=payments.filter(payment=>invoiceIds.has(payment.invoiceId));
+    const open=scopedInvoices.filter(invoice=>invoice.status==='ISSUED');
+    const today=new Date();today.setHours(0,0,0,0);
+    const overdue=open.filter(invoice=>new Date(invoice.dueDate).getTime()<today.getTime());
+    const nextDue=open.map(invoice=>new Date(invoice.dueDate)).filter(date=>Number.isFinite(date.getTime())).sort((a,b)=>a.getTime()-b.getTime())[0]??null;
+    const recovery=scopedPayments.filter(payment=>['CREATED','AUTHORIZED','FAILED'].includes(payment.status));
+    const completed=scopedPayments.filter(payment=>payment.status==='CAPTURED');
+    return {
+      unitId:unitId??null,
+      outstandingPaise:open.reduce((sum,invoice)=>sum+Number(invoice.amountPaise),0),
+      overduePaise:overdue.reduce((sum,invoice)=>sum+Number(invoice.amountPaise),0),
+      openInvoiceCount:open.length,
+      overdueInvoiceCount:overdue.length,
+      paymentRecoveryCount:recovery.length,
+      capturedPaymentCount:completed.length,
+      nextDueDate:nextDue?.toISOString().slice(0,10)??null,
+      checkoutPolicy:{
+        mode:'FULL_INVOICE',
+        residentPartialPayment:false,
+        advanceBalanceVisibility:false,
+        ownerAndCurrentTenantEligible:true,
+        payerPrivateEvidence:true,
+        explanation:'Resident checkout currently pays one invoice at a time. Accounting allocations and unapplied credits remain authoritative in the accounting domain and are not inferred in this resident summary.',
+      },
+    };
+  }
+
   listForSociety(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"

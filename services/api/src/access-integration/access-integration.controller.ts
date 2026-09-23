@@ -61,6 +61,10 @@ export class AccessIntegrationController {
   @RequiresPermissions(AppPermission.GATE_MANAGE)
   simulatorHealth(@CurrentTenant() societyId:string,@Param('kind') kind:AccessDeviceKind,@Body() dto:HealthDto){ return this.integrations.setSimulatorHealth(societyId,kind,dto.health); }
 
+  @Post('simulator-certification')
+  @RequiresPermissions(AppPermission.GATE_MANAGE)
+  simulatorCertification(@CurrentTenant() societyId:string){ return this.integrations.simulatorCertification(societyId); }
+
   @Get('devices')
   @RequiresPermissions(AppPermission.GATE_READ)
   devices(@CurrentTenant() societyId:string){ return this.integrations.listDevices(societyId); }
