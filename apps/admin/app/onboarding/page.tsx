@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyId:string;societyName?:string}
 type Building={id:string}
 type MigrationBatch={id:string;entityType:string;status:string}
 type RoleRow={id:string;role:string}
@@ -18,19 +18,10 @@ type Step={
   evidence:string
 }
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const requiredMigrationEntities=['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE']
 
 function getSession():Session|null{
   try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}
-}
-
-async function api<T>(session:Session,path:string):Promise<T>{
-  const response=await fetch(base+'/api/v1'+path,{headers:{Accept:'application/json',Authorization:'Bearer '+session.accessToken}})
-  const text=await response.text()
-  const body=text?JSON.parse(text):null
-  if(!response.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??('Request failed ('+response.status+')'))
-  return body as T
 }
 
 export default function SocietyOnboardingPage(){
@@ -50,10 +41,10 @@ export default function SocietyOnboardingPage(){
     try{
       const[buildingRows,batchRows,roleRows,entitlementRows,integrationRows]=await Promise.all([
         api<Building[]>(value,'/societies/'+value.societyId+'/buildings'),
-        api<MigrationBatch[]>(value,'/migration/batches'),
-        api<RoleRow[]>(value,'/society-roles'),
-        api<Entitlements>(value,'/entitlements/current'),
-        api<IntegrationConfiguration[]>(value,'/integrations/registry/configuration'),
+        api<MigrationBatch[]>('/migration/batches',{},value),
+        api<RoleRow[]>('/society-roles',{},value),
+        api<Entitlements>('/entitlements/current',{},value),
+        api<IntegrationConfiguration[]>('/integrations/registry/configuration',{},value),
       ])
       setBuildings(buildingRows)
       setBatches(batchRows)
