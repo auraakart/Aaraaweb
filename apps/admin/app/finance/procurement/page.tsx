@@ -2,17 +2,15 @@
 
 import {FormEvent,useCallback,useEffect,useMemo,useState} from 'react'
 import { ActionBar, EmptyState, ErrorState, EvidenceGrid, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type FinancePo={id:string;requestId:string;poNumber:string;amountPaise:string;status:string;issuedAt:string;requestNumber:string;requestTitle:string;vendorCode:string;vendorName:string;expenseId?:string|null;expenseNumber?:string|null;expenseStatus?:string|null;linkedAt?:string|null}
 type Account={id:string;code:string;name:string;type:string;active:boolean}
 type Fund={id:string;code:string;name:string;netPaise:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 const money=(v:string|number)=>`₹${(Number(v)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 
 export default function ProcurementFinancePage(){
@@ -22,10 +20,10 @@ export default function ProcurementFinancePage(){
  const[expenseNumber,setExpenseNumber]=useState(''),[expenseDate,setExpenseDate]=useState(new Date().toISOString().slice(0,10)),[dueDate,setDueDate]=useState(''),[invoiceReference,setInvoiceReference]=useState(''),[description,setDescription]=useState(''),[expenseAccountId,setExpenseAccountId]=useState(''),[fundId,setFundId]=useState('')
  const selected=useMemo(()=>pos.find(p=>p.id===selectedId)??null,[pos,selectedId])
  const expenseAccounts=useMemo(()=>accounts.filter(a=>a.active&&a.type==='EXPENSE'),[accounts])
- const load=useCallback(async()=>{if(!s||!allowed)return;setLoading(true);setError('');try{const[p,a,f]=await Promise.all([api<FinancePo[]>(s,'/vendors/procurement/accounting/purchase-orders'),api<Account[]>(s,'/accounting/accounts'),api<Fund[]>(s,'/accounting/finance-operations/fund-utilization')]);setPos(p);setAccounts(a);setFunds(f);setSelectedId(current=>current&&p.some(x=>x.id===current)?current:(p.find(x=>!x.expenseId)?.id??p[0]?.id??''))}catch(e){setError(e instanceof Error?e.message:'Procurement finance handoff could not be loaded')}finally{setLoading(false)}},[s?.accessToken,allowed])
+ const load=useCallback(async()=>{if(!s||!allowed)return;setLoading(true);setError('');try{const[p,a,f]=await Promise.all([api<FinancePo[]>('/vendors/procurement/accounting/purchase-orders',{},s),api<Account[]>('/accounting/accounts',{},s),api<Fund[]>('/accounting/finance-operations/fund-utilization',{},s)]);setPos(p);setAccounts(a);setFunds(f);setSelectedId(current=>current&&p.some(x=>x.id===current)?current:(p.find(x=>!x.expenseId)?.id??p[0]?.id??''))}catch(e){setError(e instanceof Error?e.message:'Procurement finance handoff could not be loaded')}finally{setLoading(false)}},[s?.accessToken,allowed])
  useEffect(()=>{void load()},[load])
  useEffect(()=>{if(selected){setInvoiceReference(selected.poNumber);setDescription(`Purchase order ${selected.poNumber} · ${selected.vendorName}`) }},[selectedId])
- const createExpense=(e:FormEvent)=>{e.preventDefault();if(!s||!canManage||!selected||selected.expenseId)return;setBusy(true);setError('');setSuccess('');void api(s,`/vendors/procurement/accounting/purchase-orders/${selected.id}/expense-draft`,{method:'POST',body:JSON.stringify({expenseNumber:expenseNumber.trim(),expenseDate,dueDate:dueDate||undefined,description:description.trim()||undefined,expenseAccountId,fundId:fundId||undefined,invoiceReference:invoiceReference.trim()||undefined})}).then(()=>{setSuccess('Accounting expense draft created from purchase order.');setExpenseNumber('');setDueDate('');setFundId('');return load()}).catch(e=>setError(e instanceof Error?e.message:'Expense draft could not be created')).finally(()=>setBusy(false))}
+ const createExpense=(e:FormEvent)=>{e.preventDefault();if(!s||!canManage||!selected||selected.expenseId)return;setBusy(true);setError('');setSuccess('');void api(`/vendors/procurement/accounting/purchase-orders/${selected.id}/expense-draft`,{method:'POST',body:JSON.stringify({expenseNumber:expenseNumber.trim(),expenseDate,dueDate:dueDate||undefined,description:description.trim()||undefined,expenseAccountId,fundId:fundId||undefined,invoiceReference:invoiceReference.trim()||undefined})},s).then(()=>{setSuccess('Accounting expense draft created from purchase order.');setExpenseNumber('');setDueDate('');setFundId('');return load()}).catch(e=>setError(e instanceof Error?e.message:'Expense draft could not be created')).finally(()=>setBusy(false))}
  if(!s||!allowed)return <PageShell><PageHeader title="Finance access required" actions={<a href="/">Return</a>}/></PageShell>
  return <PageShell><PageHeader context={`${s.societyName??'Current society'} · ${s.role.replaceAll('_',' ')}`} title="Procurement accounting handoff" description="Review issued purchase orders and create the existing accounting expense draft without granting vendor-management access to finance roles." actions={<a href="/finance/operations">Finance operations →</a>}/>
  {error&&<ErrorState title="Procurement accounting handoff failed" description={error}/>}<ActionBar feedback={success} label="Procurement finance actions"><SecondaryButton disabled={busy} onClick={()=>void load()}>Refresh</SecondaryButton></ActionBar>
