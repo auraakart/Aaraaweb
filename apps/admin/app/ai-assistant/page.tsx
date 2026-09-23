@@ -1,8 +1,8 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type AssistantResult={intent:string;answer:string;facts:unknown;sources:string[];grounded:boolean;mutationPerformed:boolean}
 type NoticeDraft={title:string;body:string;language:string;humanApprovalRequired:boolean;mutationPerformed:boolean}
 type AuditItem={id:string;actorUserId:string;action:string;status:string;confirmedAt?:string|null;executedAt?:string|null;createdAt:string}
@@ -12,24 +12,17 @@ type ActionCentre={cards:ActionCard[];generatedAt?:string;grounded:boolean;mutat
 type AssistantTool={id:string;label:string;context:'SOCIETY'|'PROPERTY';readOnly:boolean}
 type AssistantTools={tools:AssistantTool[];mutationAllowList:string[]}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const t=await r.text();const b=t?JSON.parse(t):null
-  if(!r.ok)throw new Error(b?.message??`Request failed (${r.status})`)
-  return b as T
-}
 
 export default function AiAssistantPage(){
   const[s,setSession]=useState<Session|null>(null),[message,setMessage]=useState(''),[result,setResult]=useState<AssistantResult|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const[topic,setTopic]=useState(''),[language,setLanguage]=useState<'en-IN'|'hi-IN'|'ta-IN'>('en-IN'),[draft,setDraft]=useState<NoticeDraft|null>(null),[audit,setAudit]=useState<AuditItem[]>([]),[retrievals,setRetrievals]=useState<RetrievalAuditItem[]>([]),[centre,setCentre]=useState<ActionCentre|null>(null),[tools,setTools]=useState<AssistantTools|null>(null)
   useEffect(()=>{const current=session();setSession(current);if(current){void loadTools(current);void loadCentre(current);if(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR','SECURITY_SUPERVISOR'].includes(current.role)){void loadAudit(current)}}},[])
-  async function loadTools(current:Session){try{setTools(await api<AssistantTools>(current,'/ai-operations/assistant/tools'))}catch{/* tool discovery is additive; query authorization remains server-side */}}
-  async function loadCentre(current:Session){try{setCentre(await api<ActionCentre>(current,'/ai-operations/assistant/action-centre'))}catch{/* centre is permission/entitlement dependent; assistant remains usable */}}
-  async function loadAudit(current:Session){try{const data=await api<{items:AuditItem[];retrievals:RetrievalAuditItem[]}>(current,'/ai-operations/assistant/audit?page=1&pageSize=20');setAudit(data.items);setRetrievals(data.retrievals)}catch{/* audit is permission-dependent; assistant remains usable without it */}}
-  async function ask(e:FormEvent){e.preventDefault();if(!s||message.trim().length<2)return;setBusy(true);setError('');setResult(null);try{setResult(await api<AssistantResult>(s,'/ai-operations/assistant/query',{method:'POST',body:JSON.stringify({message:message.trim()})}))}catch(e){setError(e instanceof Error?e.message:'Assistant request failed')}finally{setBusy(false)}}
-  async function draftNotice(e:FormEvent){e.preventDefault();if(!s||topic.trim().length<3)return;setBusy(true);setError('');try{setDraft(await api<NoticeDraft>(s,'/ai-operations/assistant/notice-draft',{method:'POST',body:JSON.stringify({topic:topic.trim(),language})}))}catch(e){setError(e instanceof Error?e.message:'Notice draft failed')}finally{setBusy(false)}}
+  async function loadTools(current:Session){try{setTools(await api<AssistantTools>('/ai-operations/assistant/tools',{},current))}catch{/* tool discovery is additive; query authorization remains server-side */}}
+  async function loadCentre(current:Session){try{setCentre(await api<ActionCentre>('/ai-operations/assistant/action-centre',{},current))}catch{/* centre is permission/entitlement dependent; assistant remains usable */}}
+  async function loadAudit(current:Session){try{const data=await api<{items:AuditItem[];retrievals:RetrievalAuditItem[]}>('/ai-operations/assistant/audit?page=1&pageSize=20',{},current);setAudit(data.items);setRetrievals(data.retrievals)}catch{/* audit is permission-dependent; assistant remains usable without it */}}
+  async function ask(e:FormEvent){e.preventDefault();if(!s||message.trim().length<2)return;setBusy(true);setError('');setResult(null);try{setResult(await api<AssistantResult>('/ai-operations/assistant/query',{method:'POST',body:JSON.stringify({message:message.trim()})},s))}catch(e){setError(e instanceof Error?e.message:'Assistant request failed')}finally{setBusy(false)}}
+  async function draftNotice(e:FormEvent){e.preventDefault();if(!s||topic.trim().length<3)return;setBusy(true);setError('');try{setDraft(await api<NoticeDraft>('/ai-operations/assistant/notice-draft',{method:'POST',body:JSON.stringify({topic:topic.trim(),language})},s))}catch(e){setError(e instanceof Error?e.message:'Notice draft failed')}finally{setBusy(false)}}
   if(!s)return <main style={{padding:32}}><h1>Sign in required</h1><a href="/">Return to Admin</a></main>
   return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 22px 80px'}}>
     <header><small>{s.societyName??'Current society'} · {s.role.replaceAll('_',' ')}</small><h1 style={{marginBottom:8}}>Aaraagate Assistant</h1><p style={{maxWidth:820}}>Permission-aware operational assistance grounded in current Aaraagate records. The assistant cannot mutate domain data directly. Resident actions use explicit proposals and confirmation; admin drafting is human-review only.</p><a href="/">← Admin console</a></header>
