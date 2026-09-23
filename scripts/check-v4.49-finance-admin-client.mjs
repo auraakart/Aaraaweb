@@ -22,6 +22,8 @@ const files=[
   'apps/admin/app/finance/waivers/page.tsx',
   'apps/admin/app/notices/metrics/page.tsx',
   'apps/admin/app/household-approvals/page.tsx',
+  'apps/admin/app/finance/operations/page.tsx',
+  'apps/admin/app/marketplace-control/commercial/page.tsx',
 ]
 
 for(const file of files){
