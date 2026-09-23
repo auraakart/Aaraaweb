@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role?:string}
 type Provider={id:string;businessName:string;description?:string|null;verification:string}
 type Catalog={providers:Provider[]}
 type SubscriptionTier='BASIC'|'GROWTH'|'PREMIUM'
@@ -29,9 +29,7 @@ type CommercialForm={
   active:boolean
 }
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function storedSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 const emptyForm:CommercialForm={subscriptionTier:'BASIC',subscriptionStartsAt:'',subscriptionEndsAt:'',placementType:'NONE',placementStartsAt:'',placementEndsAt:'',active:true}
 function localInput(value?:string|null){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const shifted=new Date(d.getTime()-d.getTimezoneOffset()*60000);return shifted.toISOString().slice(0,16)}
 function isoOrUndefined(value:string){return value?new Date(value).toISOString():undefined}
@@ -42,11 +40,11 @@ export default function CommercialControlsPage(){
   const[s,setS]=useState<Session|null>(null),[providers,setProviders]=useState<Provider[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState('')
   const[selected,setSelected]=useState<Provider|null>(null),[form,setForm]=useState<CommercialForm>(emptyForm),[profile,setProfile]=useState<CommercialProfile|null>(null),[profileLoading,setProfileLoading]=useState(false),[saving,setSaving]=useState(false)
   const allowed=s?.role==='SUPER_ADMIN'
-  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const catalog=await api<Catalog>(x,'/services-marketplace/admin/catalog');setProviders(catalog.providers??[])}catch(e){setError(e instanceof Error?e.message:'Providers could not be loaded')}finally{setLoading(false)}},[])
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const catalog=await api<Catalog>('/services-marketplace/admin/catalog',{},x);setProviders(catalog.providers??[])}catch(e){setError(e instanceof Error?e.message:'Providers could not be loaded')}finally{setLoading(false)}},[])
   useEffect(()=>{const x=storedSession();setS(x);if(x?.role==='SUPER_ADMIN')void load(x);else setLoading(false)},[load])
   const visible=useMemo(()=>{const q=query.trim().toLowerCase();return q?providers.filter(p=>[p.businessName,p.description,p.verification].filter(Boolean).join(' ').toLowerCase().includes(q)):providers},[providers,query])
-  const openProvider=async(p:Provider)=>{if(!s)return;setSelected(p);setProfile(null);setProfileLoading(true);setError('');try{const next=await api<CommercialProfile>(s,`/platform/services/providers/${p.id}/commercial`);setProfile(next);setForm(formFrom(next))}catch(e){setError(e instanceof Error?e.message:'Commercial profile could not be loaded');setForm(emptyForm)}finally{setProfileLoading(false)}}
-  const save=async()=>{if(!s||!selected)return;setError('');if(form.subscriptionTier!=='BASIC'){const issue=validateWindow(form.subscriptionStartsAt,form.subscriptionEndsAt,'Subscription');if(issue){setError(issue);return}}if(form.placementType!=='NONE'){const issue=validateWindow(form.placementStartsAt,form.placementEndsAt,'Placement');if(issue){setError(issue);return}}setSaving(true);try{const body={subscriptionTier:form.subscriptionTier,subscriptionStartsAt:form.subscriptionTier==='BASIC'?undefined:isoOrUndefined(form.subscriptionStartsAt),subscriptionEndsAt:form.subscriptionTier==='BASIC'?undefined:isoOrUndefined(form.subscriptionEndsAt),placementType:form.placementType,placementStartsAt:form.placementType==='NONE'?undefined:isoOrUndefined(form.placementStartsAt),placementEndsAt:form.placementType==='NONE'?undefined:isoOrUndefined(form.placementEndsAt),active:form.active};const next=await api<CommercialProfile>(s,`/platform/services/providers/${selected.id}/commercial`,{method:'PATCH',body:JSON.stringify(body)});setProfile(next);setForm(formFrom(next))}catch(e){setError(e instanceof Error?e.message:'Commercial profile could not be saved')}finally{setSaving(false)}}
+  const openProvider=async(p:Provider)=>{if(!s)return;setSelected(p);setProfile(null);setProfileLoading(true);setError('');try{const next=await api<CommercialProfile>(`/platform/services/providers/${p.id}/commercial`,{},s);setProfile(next);setForm(formFrom(next))}catch(e){setError(e instanceof Error?e.message:'Commercial profile could not be loaded');setForm(emptyForm)}finally{setProfileLoading(false)}}
+  const save=async()=>{if(!s||!selected)return;setError('');if(form.subscriptionTier!=='BASIC'){const issue=validateWindow(form.subscriptionStartsAt,form.subscriptionEndsAt,'Subscription');if(issue){setError(issue);return}}if(form.placementType!=='NONE'){const issue=validateWindow(form.placementStartsAt,form.placementEndsAt,'Placement');if(issue){setError(issue);return}}setSaving(true);try{const body={subscriptionTier:form.subscriptionTier,subscriptionStartsAt:form.subscriptionTier==='BASIC'?undefined:isoOrUndefined(form.subscriptionStartsAt),subscriptionEndsAt:form.subscriptionTier==='BASIC'?undefined:isoOrUndefined(form.subscriptionEndsAt),placementType:form.placementType,placementStartsAt:form.placementType==='NONE'?undefined:isoOrUndefined(form.placementStartsAt),placementEndsAt:form.placementType==='NONE'?undefined:isoOrUndefined(form.placementEndsAt),active:form.active};const next=await api<CommercialProfile>(`/platform/services/providers/${selected.id}/commercial`,{method:'PATCH',body:JSON.stringify(body)},s);setProfile(next);setForm(formFrom(next))}catch(e){setError(e instanceof Error?e.message:'Commercial profile could not be saved')}finally{setSaving(false)}}
   if(loading)return <main style={{padding:32}}>Loading commercial controls…</main>
   if(!allowed)return <main style={{padding:32}}><h1>Super Admin access required</h1><p>Provider subscriptions and paid placement are platform-only controls.</p><a href="/">Return to Admin</a></main>
   return <main style={{maxWidth:1160,margin:'0 auto',padding:'28px 22px 80px'}}>
