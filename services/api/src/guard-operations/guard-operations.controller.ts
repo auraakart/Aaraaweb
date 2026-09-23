@@ -16,6 +16,7 @@ class CheckpointDto implements CheckpointInput { @IsString() @IsNotEmpty() code!
 class ScanDto { @IsOptional() @IsUUID() gateId?:string; @IsOptional() @IsString() note?:string; }
 class IncidentDto implements IncidentInput { @IsOptional() @IsUUID() gateId?:string; @IsIn(['LOW','MEDIUM','HIGH','CRITICAL']) severity!:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'; @IsString() @IsNotEmpty() category!:string; @IsString() @IsNotEmpty() title!:string; @IsOptional() @IsString() description?:string; @IsOptional() @IsArray() @IsString({each:true}) mediaRefs?:string[]; @IsOptional() @IsDateString() occurredAt?:string; }
 class ReviewIncidentDto { @IsIn(['REVIEWED','CLOSED']) status!:'REVIEWED'|'CLOSED'; @IsOptional() @IsString() resolution?:string; }
+class OverstayEscalationDto { @IsOptional() @IsString() note?:string; }
 
 @Controller('guard-operations')
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
@@ -27,6 +28,8 @@ export class GuardOperationsController {
   summary(@CurrentTenant() societyId:string,@Query('overstayMinutes') raw?:string){const minutes=raw?Number.parseInt(raw,10):240;return this.operations.summary(societyId,Number.isFinite(minutes)?minutes:240);}
   @Get('overstays') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   overstays(@CurrentTenant() societyId:string,@Query('minutes') raw?:string){const minutes=raw?Number.parseInt(raw,10):240;return this.operations.overstays(societyId,minutes);}
+  @Post('overstays/:id/escalate') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  escalateOverstay(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Param('id') id:string,@Body() body:OverstayEscalationDto){return this.operations.escalateOverstay(societyId,this.actor(userId),id,body.note);}
 
   @Get('watchlist') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   watchlist(@CurrentTenant() societyId:string){return this.operations.watchlist(societyId);}
@@ -46,6 +49,8 @@ export class GuardOperationsController {
 
   @Get('patrol/checkpoints') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   checkpoints(@CurrentTenant() societyId:string){return this.operations.checkpoints(societyId);}
+  @Get('patrol/status') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  patrolStatus(@CurrentTenant() societyId:string,@Query('staleHours') raw?:string){const hours=raw?Number.parseInt(raw,10):8;return this.operations.patrolStatus(societyId,Number.isFinite(hours)?hours:8);}
   @Post('patrol/checkpoints') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
   createCheckpoint(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Body() body:CheckpointDto){return this.operations.createCheckpoint(societyId,this.actor(userId),body);}
   @Post('patrol/checkpoints/:id/scan') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)

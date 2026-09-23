@@ -158,7 +158,7 @@ export class AiAssistantService {
 
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
     const cards:Array<{
-      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;
+      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;
     }>=[];
 
     if(hasPermission(roles,AppPermission.FINANCE_READ)){
@@ -188,6 +188,23 @@ export class AiAssistantService {
         prompt:'Show helpdesk SLA breaches and unassigned tickets',
         sources:['HelpdeskTicket'],
         metrics:{openCount:helpdesk.openCount,breachedCount:helpdesk.breachedCount,unassignedCount:helpdesk.unassignedCount},
+      });
+    }
+
+    if(hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS)){
+      const gate=await this.gateAttentionSummary(societyId);
+      cards.push({
+        id:'gate-attention',domain:'GATE',
+        severity:gate.criticalIncidents>0||gate.overstayCount>0?'HIGH':gate.stalePatrolCount>0?'MEDIUM':'LOW',
+        title:'Gate attention and patrol coverage',
+        summary:gate.overstayCount||gate.openIncidents||gate.stalePatrolCount
+          ? `${gate.overstayCount} overstays · ${gate.openIncidents} open incidents · ${gate.stalePatrolCount} patrol checkpoints due`
+          : 'Gate exceptions and patrol coverage are currently clear.',
+        prompt:'Show gate overstays, incidents and patrol coverage needing attention',
+        sources:['AccessRequest','SecurityIncident','PatrolCheckpoint','PatrolScan'],
+        metrics:{overstayCount:gate.overstayCount,openIncidents:gate.openIncidents,criticalIncidents:gate.criticalIncidents,stalePatrolCount:gate.stalePatrolCount},
+        whyNow:gate.criticalIncidents>0?'Critical security incidents require supervisor attention now.':gate.overstayCount>0?'Checked-in visitors have exceeded the four-hour operating threshold.':gate.stalePatrolCount>0?'One or more patrol checkpoints have no scan in the last eight hours.':'No immediate gate exception signal is present.',
+        recommendedNextStep:gate.criticalIncidents>0?'Review critical incidents and assign/record the supervisor response.':gate.overstayCount>0?'Verify the visitor status and escalate unresolved overstays from Guard Field Operations.':gate.stalePatrolCount>0?'Prioritise scans for stale patrol checkpoints.':'Continue routine gate processing and patrol cadence.',
       });
     }
 
@@ -256,7 +273,20 @@ export class AiAssistantService {
 
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
     cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||a.domain.localeCompare(b.domain));
-    return {cards,generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false};
+    const highPriorityCount=cards.filter(card=>card.severity==='HIGH').length;
+    const mediumPriorityCount=cards.filter(card=>card.severity==='MEDIUM').length;
+    const focus=cards[0]??null;
+    return {
+      cards,
+      brief:{
+        highPriorityCount,
+        mediumPriorityCount,
+        attentionCount:highPriorityCount+mediumPriorityCount,
+        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.'}:null,
+        explanation:'Priority is deterministic from current permission-scoped operational evidence; no autonomous mutation is performed.',
+      },
+      generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
+    };
   }
 
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
@@ -386,6 +416,19 @@ export class AiAssistantService {
       collectionChangePercent:previous>0?Math.round(((current-previous)/previous)*10000)/100:null,
       minimumOverduePaise:minimumPaise,
     };
+  }
+
+  private async gateAttentionSummary(societyId:string){
+    const rows=await this.prisma.$queryRaw<Array<{overstayCount:number;openIncidents:number;criticalIncidents:number;stalePatrolCount:number}>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "AccessRequest" r WHERE r."societyId"=${societyId}::uuid AND r."status"='CHECKED_IN' AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours') AS "overstayCount",
+        (SELECT COUNT(*)::int FROM "SecurityIncident" i WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN') AS "openIncidents",
+        (SELECT COUNT(*)::int FROM "SecurityIncident" i WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN' AND i."severity"='CRITICAL') AS "criticalIncidents",
+        (SELECT COUNT(*)::int FROM "PatrolCheckpoint" c WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE AND NOT EXISTS (
+          SELECT 1 FROM "PatrolScan" s WHERE s."societyId"=c."societyId" AND s."checkpointId"=c."id" AND s."scannedAt">=CURRENT_TIMESTAMP-INTERVAL '8 hours'
+        )) AS "stalePatrolCount"
+    `);
+    return rows[0]??{overstayCount:0,openIncidents:0,criticalIncidents:0,stalePatrolCount:0};
   }
 
   private async securitySummary(societyId:string){
