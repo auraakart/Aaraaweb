@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerNotificationsController } from './consumer-notifications.controller';
 import { GateRecipientService } from './gate-recipient.service';
+import { GateNotificationFallbackService } from './gate-notification-fallback.service';
 import { NotificationRealtimeService } from './notification-realtime.service';
 import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
@@ -18,6 +19,7 @@ import { WHATSAPP_PROVIDER } from './whatsapp.provider';
     PushDeliveryOutboxService,
     PushNotificationService,
     GateRecipientService,
+    GateNotificationFallbackService,
     NotificationRealtimeService,
     SimulatorWhatsAppProvider,
     { provide: WHATSAPP_PROVIDER, useExisting: SimulatorWhatsAppProvider },
@@ -26,6 +28,7 @@ import { WHATSAPP_PROVIDER } from './whatsapp.provider';
   exports: [
     PushNotificationService,
     GateRecipientService,
+    GateNotificationFallbackService,
     NotificationRealtimeService,
     WhatsAppNotificationService,
   ],

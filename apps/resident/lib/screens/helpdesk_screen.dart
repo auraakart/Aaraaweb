@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../localization/aaraagate_strings.dart';
 import '../theme/aaraagate_theme.dart';
+import '../voice/resident_speech.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 
 class HelpdeskScreen extends StatefulWidget {
-  const HelpdeskScreen({super.key, required this.controller});
+  const HelpdeskScreen({super.key, required this.controller, this.speech});
   final ResidentDataController controller;
+  final ResidentSpeech? speech;
 
   @override
   State<HelpdeskScreen> createState() => _HelpdeskScreenState();
@@ -16,11 +19,19 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _tickets = const [];
+  late final ResidentSpeech speech;
 
   @override
   void initState() {
     super.initState();
+    speech = widget.speech ?? DeviceResidentSpeech();
     _load();
+  }
+
+  @override
+  void dispose() {
+    speech.stop();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -119,7 +130,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     final category = TextEditingController();
     String priority = 'NORMAL';
     String? validationMessage;
+    String? voiceStatus;
     bool submitting = false;
+    bool listening = false;
+    final languageCode = AaraagateStrings.device().languageCode;
 
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -153,6 +167,43 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                   textInputAction: TextInputAction.next,
                   maxLength: 120,
                 ),
+                const SizedBox(height: AaraagateTokens.space2),
+                OutlinedButton.icon(
+                  onPressed: submitting || listening
+                      ? null
+                      : () async {
+                          setModalState(() {
+                            listening = true;
+                            voiceStatus = ResidentVoiceCopy.text(languageCode, 'listening');
+                            validationMessage = null;
+                          });
+                          final transcript = await speech.listenOnce(languageCode: languageCode);
+                          if (!sheetContext.mounted) return;
+                          if (transcript == null || transcript.trim().isEmpty) {
+                            setModalState(() {
+                              listening = false;
+                              voiceStatus = ResidentVoiceCopy.text(languageCode, 'unavailable');
+                            });
+                            return;
+                          }
+                          final clean = transcript.trim();
+                          description.text = clean;
+                          if (title.text.trim().isEmpty) {
+                            final first = clean.split(RegExp(r'[.!?\n]')).map((part) => part.trim()).firstWhere((part) => part.isNotEmpty, orElse: () => 'Resident request');
+                            title.text = first.length <= 120 ? first : first.substring(0, 120);
+                          }
+                          setModalState(() {
+                            listening = false;
+                            voiceStatus = ResidentVoiceCopy.text(languageCode, 'review');
+                          });
+                        },
+                  icon: Icon(listening ? Icons.hearing_rounded : Icons.mic_rounded),
+                  label: Text(listening ? ResidentVoiceCopy.text(languageCode, 'listening') : ResidentVoiceCopy.text(languageCode, 'action')),
+                ),
+                if (voiceStatus != null) ...[
+                  const SizedBox(height: AaraagateTokens.space2),
+                  Text(voiceStatus!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
                 const SizedBox(height: AaraagateTokens.space2),
                 TextField(
                   controller: description,

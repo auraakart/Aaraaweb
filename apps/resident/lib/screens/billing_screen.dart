@@ -19,6 +19,7 @@ class _BillingScreenState extends State<BillingScreen> {
   List<Map<String, dynamic>> invoices = const [];
   List<Map<String, dynamic>> payments = const [];
   List<Map<String, dynamic>> utilityCharges = const [];
+  Map<String, dynamic>? financeSummary;
   bool loading = true;
   String? error;
   String? payingInvoiceId;
@@ -30,18 +31,24 @@ class _BillingScreenState extends State<BillingScreen> {
     setState(() { loading = true; error = null; });
     try {
       final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
+      final selected = widget.activeUnitId;
+      Map<String, dynamic>? summaryResult;
+      try {
+        summaryResult = await widget.repository.maintenanceSummary(unitId: selected);
+      } catch (_) {
+        summaryResult = null;
+      }
       List<Map<String, dynamic>> utilityResult = const [];
       try {
         utilityResult = await widget.repository.issuedUtilityCharges();
       } catch (_) {
         utilityResult = const [];
       }
-      final selected = widget.activeUnitId;
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
-      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; });
+      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; financeSummary = summaryResult; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
     } catch (_) {
@@ -150,7 +157,7 @@ class _BillingScreenState extends State<BillingScreen> {
             else if (invoices.isEmpty && utilityCharges.isEmpty)
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
-              _SummaryCard(outstanding: outstanding),
+              _SummaryCard(outstanding: outstanding, summary: financeSummary),
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
@@ -213,8 +220,9 @@ class _BillingScreenState extends State<BillingScreen> {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.outstanding});
+  const _SummaryCard({required this.outstanding, this.summary});
   final List<Map<String, dynamic>> outstanding;
+  final Map<String, dynamic>? summary;
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +230,16 @@ class _SummaryCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final total = outstanding.fold<int>(0, (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0));
     final nextDue = outstanding.map((invoice) => DateTime.tryParse(invoice['dueDate']?.toString() ?? '')).whereType<DateTime>().fold<DateTime?>(null, (current, next) => current == null || next.isBefore(current) ? next : current);
+    final overduePaise = (summary?['overduePaise'] as num?)?.toInt() ?? 0;
+    final overdueCount = (summary?['overdueInvoiceCount'] as num?)?.toInt() ?? 0;
+    final recoveryCount = (summary?['paymentRecoveryCount'] as num?)?.toInt() ?? 0;
+    final policy = summary?['checkoutPolicy'] is Map ? Map<String, dynamic>.from(summary!['checkoutPolicy'] as Map) : const <String, dynamic>{};
+    final detailParts=<String>[
+      if(overdueCount>0) 'Overdue ${_money(overduePaise)}',
+      if(nextDue!=null) 'Next due ${_date(nextDue)}',
+      if(recoveryCount>0) '$recoveryCount payment follow-up${recoveryCount==1?'':'s'}',
+      if(outstanding.isEmpty) 'All caught up',
+    ];
 
     return PremiumSurface(
       elevated: true,
@@ -230,22 +248,28 @@ class _SummaryCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Total outstanding', style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w700))),
-          AaraagateStatusPill(
-            label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
-            tone: outstanding.isEmpty ? AaraagateStatusTone.success : AaraagateStatusTone.warning,
+          Tooltip(
+            message: policy['explanation']?.toString() ?? 'Payments are verified by the server before a bill is marked paid.',
+            child:AaraagateStatusPill(
+              label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
+              tone: outstanding.isEmpty ? AaraagateStatusTone.success : AaraagateStatusTone.warning,
+            ),
           ),
         ]),
         const SizedBox(height: AaraagateTokens.space2),
         Text(_money(total), style: theme.textTheme.headlineMedium?.copyWith(color: scheme.onPrimaryContainer)),
         const SizedBox(height: AaraagateTokens.space1),
         Text(
-          outstanding.isEmpty ? 'All caught up' : 'Next due${nextDue == null ? '' : ' ${_date(nextDue)}'}',
+          detailParts.join(' · '),
+          maxLines:1,
+          overflow:TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withOpacity(.82)),
         ),
       ]),
     );
   }
 }
+
 
 class _UtilityChargeCard extends StatelessWidget {
   const _UtilityChargeCard({required this.charge});

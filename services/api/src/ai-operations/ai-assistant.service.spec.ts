@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { AppRole } from '../auth/auth.types';
-import { AiAssistantService } from './ai-assistant.service';
+import { AiAssistantService, residentIntentRoutingText } from './ai-assistant.service';
 
 function setup(){
   const prisma={$queryRaw:vi.fn(),$executeRaw:vi.fn().mockResolvedValue(1)};
@@ -16,6 +16,12 @@ function setup(){
 }
 
 describe('V4.6 grounded AI assistant',()=>{
+  it('adds high-frequency vernacular routing hints without translating or mutating user text',()=>{
+    expect(residentIntentRoutingText('मेरी शिकायत दिखाओ')).toContain('complaint helpdesk ticket');
+    expect(residentIntentRoutingText('என் கட்டணம் நிலுவையில் உள்ளதா')).toContain('payment due maintenance invoice');
+    expect(residentIntentRoutingText('গেটে অতিথি আছে কি')).toContain('visitor gate entry pass');
+  });
+
   it('exposes only permission-authorized registered tools and keeps mutation scope fixed',()=>{
     const {service}=setup();
     const accountant=service.tools([AppRole.ACCOUNTANT]);
@@ -205,7 +211,7 @@ describe('V4.6 grounded AI assistant',()=>{
     const result=await service.actionCentre('society-1',[AppRole.ACCOUNTANT]);
     expect(result).toEqual(expect.objectContaining({grounded:true,mutationPerformed:false}));
     expect(result.cards).toHaveLength(1);
-    expect(result.cards[0]).toMatchObject({id:'finance-overdue',domain:'FINANCE',severity:'HIGH'});
+    expect(result.cards[0]).toMatchObject({id:'finance-overdue',domain:'FINANCE',severity:'HIGH',likelyCause:expect.any(String),safeWorkflow:expect.any(Array)});
     expect(operations.operationsSummary).not.toHaveBeenCalled();
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
