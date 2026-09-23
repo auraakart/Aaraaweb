@@ -40,7 +40,7 @@ export default function SocietyOnboardingPage(){
     setLoading(true);setError('')
     try{
       const[buildingRows,batchRows,roleRows,entitlementRows,integrationRows]=await Promise.all([
-        api<Building[]>(value,'/societies/'+value.societyId+'/buildings'),
+        api<Building[]>('/societies/'+value.societyId+'/buildings',{},value),
         api<MigrationBatch[]>('/migration/batches',{},value),
         api<RoleRow[]>('/society-roles',{},value),
         api<Entitlements>('/entitlements/current',{},value),
