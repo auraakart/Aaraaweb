@@ -85,4 +85,57 @@ if(!exportsSource.includes('/artifact')||!exportsSource.includes('await fetch(')
   process.exit(1)
 }
 
+const documentsFile='apps/admin/app/documents/page.tsx'
+const documentsSource=fs.readFileSync(documentsFile,'utf8')
+if(!documentsSource.includes('lib/admin-client')||documentsSource.includes('async function api<T>')){
+  console.error(`V4.49 contract failed: ${documentsFile} JSON transport is not converged`)
+  process.exit(1)
+}
+if(!documentsSource.includes('uploadUrl')||!documentsSource.includes('await fetch(intent.uploadUrl')){
+  console.error(`V4.49 contract failed: ${documentsFile} must retain explicit signed upload transport`)
+  process.exit(1)
+}
+
+const specialTransportFiles=new Set([
+  'apps/admin/app/migration/page.tsx',
+  'apps/admin/app/reports/page.tsx',
+  'apps/admin/app/finance/exports/page.tsx',
+  'apps/admin/app/documents/page.tsx',
+])
+
+function walk(dir){
+  return fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>{
+    const path=`${dir}/${entry.name}`
+    return entry.isDirectory()?walk(path):[path]
+  })
+}
+
+for(const file of walk('apps/admin/app').filter(file=>/\.(?:ts|tsx)$/.test(file))){
+  const source=fs.readFileSync(file,'utf8')
+  if(!source.includes('aaraagate.admin.session'))continue
+  if(source.includes('async function api<T>')){
+    console.error(`V4.49 residual contract failed: ${file} defines a local Admin API helper`)
+    process.exit(1)
+  }
+  if(!specialTransportFiles.has(file)&&(
+    source.includes('NEXT_PUBLIC_AARAGATE_API_BASE_URL')||
+    source.includes('NEXT_PUBLIC_API_BASE_URL')
+  )){
+    console.error(`V4.49 residual contract failed: ${file} defines a direct Admin API base`)
+    process.exit(1)
+  }
+}
+
+const providerSessionFiles=[
+  'apps/admin/app/provider/page.tsx',
+  'apps/admin/app/provider/media/page.tsx',
+]
+for(const file of providerSessionFiles){
+  const source=fs.readFileSync(file,'utf8')
+  if(!source.includes('aaraagate.provider.session')||source.includes('aaraagate.admin.session')){
+    console.error(`V4.49 boundary failed: ${file} must remain on the provider session boundary`)
+    process.exit(1)
+  }
+}
+
 console.log('V4.49 Admin-client convergence verified')

@@ -5,27 +5,20 @@ import {
   ActionBar,EmptyState,ErrorState,FormField,PageHeader,PageShell,PrimaryButton,
   SecondaryButton,SelectField,StatusPill,Timeline,
 } from '../../components/admin-ui'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type DocumentRow={id:string;title:string;description?:string|null;category:string;audience:string;status:string;fileName:string;mimeType:string;sizeBytes:number;version?:number;createdAt?:string;publishedAt?:string|null;unitId?:string|null;unitNumber?:string|null;buildingName?:string|null;supersedesDocumentId?:string|null;supersededByDocumentId?:string|null}
 type UnitOption={id:string;number:string;building:{id:string;name:string;code:string}}
 type DocumentEvent={id:string;eventType:string;fromStatus?:string|null;toStatus?:string|null;note?:string|null;actorName?:string|null;createdAt:string}
 type UploadIntent={storageKey:string;uploadUrl:string;method:string;headers?:Record<string,string>;expiresAt?:string}
 type DownloadIntent={downloadUrl?:string;url?:string;expiresAt?:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const categories=['BYLAW','POLICY','MEETING_MINUTES','CIRCULAR','COMPLIANCE','CONTRACT','AMC','FINANCE','PROPERTY','OTHER']
 const audiences=['MANAGEMENT','ALL_MEMBERS','OWNERS_ONLY','PROPERTY_OWNER_ONLY']
 
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text();const body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const human=(v:string)=>v.replaceAll('_',' ')
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 
@@ -58,8 +51,8 @@ export default function DocumentsPage(){
     setLoading(true);setError('')
     try{
       const[docs,ctx]=await Promise.all([
-        api<DocumentRow[]>(s,'/documents/management'),
-        api<UnitOption[]>(s,'/documents/management/context'),
+        api<DocumentRow[]>('/documents/management',{},s),
+        api<UnitOption[]>('/documents/management/context',{},s),
       ])
       setRows(docs);setUnits(ctx)
       if(replacementDocumentId&&!docs.some(row=>row.id===replacementDocumentId&&row.status==='PUBLISHED'&&!row.supersededByDocumentId)){
@@ -83,28 +76,28 @@ export default function DocumentsPage(){
     if(!s||!canManage||!file)return
     if(audience==='PROPERTY_OWNER_ONLY'&&!unitId){setError('Select the property for a property-owner-only document.');return}
     void run(async()=>{
-      const intent=await api<UploadIntent>(s,'/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:file.type,contentLengthBytes:file.size})})
+      const intent=await api<UploadIntent>('/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:file.type,contentLengthBytes:file.size})},s)
       const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':file.type},body:file})
       if(!put.ok)throw new Error(`Secure document upload failed (${put.status})`)
-      await api(s,'/documents/management',{method:'POST',body:JSON.stringify({
+      await api('/documents/management',{method:'POST',body:JSON.stringify({
         category,audience,title:title.trim(),description:description.trim()||undefined,
         unitId:audience==='PROPERTY_OWNER_ONLY'?unitId:undefined,storageKey:intent.storageKey,
         fileName:file.name,mimeType:file.type,sizeBytes:file.size,
-      })})
+      })},s)
       setTitle('');setDescription('');setUnitId('');setFile(null)
     },'Document uploaded as a draft after server verification and safety scanning.')
   }
 
   const mutate=(id:string,action:'publish'|'archive')=>{
     if(!s||!canManage)return
-    void run(()=>api(s,`/documents/management/${id}/${action}`,{method:'PATCH',body:'{}'}).then(()=>undefined),`Document ${action} recorded.`)
+    void run(()=>api(`/documents/management/${id}/${action}`,{method:'PATCH',body:'{}'},s).then(()=>undefined),`Document ${action} recorded.`)
   }
 
   const download=async(id:string)=>{
     if(!s)return
     setError('')
     try{
-      const intent=await api<DownloadIntent>(s,`/documents/management/${id}/download-intent`)
+      const intent=await api<DownloadIntent>(`/documents/management/${id}/download-intent`,{},s)
       const url=intent.downloadUrl??intent.url
       if(!url)throw new Error('Download intent did not include a URL')
       window.open(url,'_blank','noopener,noreferrer')
@@ -116,7 +109,7 @@ export default function DocumentsPage(){
     const requestId=++historyRequest.current
     setHistoryDocumentId(id);setHistory([]);setHistoryLoading(true);setError('')
     try{
-      const next=await api<DocumentEvent[]>(s,`/documents/management/${id}/history`)
+      const next=await api<DocumentEvent[]>(`/documents/management/${id}/history`,{},s)
       if(requestId===historyRequest.current)setHistory(next)
     }catch(e){
       if(requestId===historyRequest.current)setError(e instanceof Error?e.message:'Document history could not be loaded')
@@ -134,13 +127,13 @@ export default function DocumentsPage(){
     e.preventDefault()
     if(!s||!canManage||!replacementDocumentId||!replacementFile)return
     void run(async()=>{
-      const intent=await api<UploadIntent>(s,'/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:replacementFile.type,contentLengthBytes:replacementFile.size})})
+      const intent=await api<UploadIntent>('/documents/management/upload-intent',{method:'POST',body:JSON.stringify({contentType:replacementFile.type,contentLengthBytes:replacementFile.size})},s)
       const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':replacementFile.type},body:replacementFile})
       if(!put.ok)throw new Error(`Secure replacement upload failed (${put.status})`)
-      await api(s,`/documents/management/${replacementDocumentId}/replacement`,{method:'POST',body:JSON.stringify({
+      await api(`/documents/management/${replacementDocumentId}/replacement`,{method:'POST',body:JSON.stringify({
         storageKey:intent.storageKey,fileName:replacementFile.name,mimeType:replacementFile.type,
         sizeBytes:replacementFile.size,description:replacementDescription.trim()||undefined,
-      })})
+      })},s)
       setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')
     },'Replacement draft created. Publish it to atomically archive the prior version.')
   }

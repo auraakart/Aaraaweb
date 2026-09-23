@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { api, type Session } from '../lib/admin-client'
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const reportRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT'])
 const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const governanceRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
@@ -22,7 +22,6 @@ const privacyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const accessIntegrationRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
 const integrationReadinessRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
 
-type StoredSession={role?:string;accessToken?:string}
 type CurrentEntitlements={enabledFeatures?:string[]}
 type NavItem={href:string;label:string;description:string}
 type NavSection={label:string;items:NavItem[]}
@@ -38,14 +37,12 @@ export function AdminShortcuts(){
     let active=true
     const load=async()=>{try{
       const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return
-      const session=JSON.parse(raw) as StoredSession
+      const session=JSON.parse(raw) as Session
       const nextRole=session.role??''
       if(!active)return
       setRole(nextRole)
       if(!session.accessToken)return
-      const response=await fetch(`${base}/api/v1/entitlements/current`,{headers:{Accept:'application/json',Authorization:`Bearer ${session.accessToken}`}})
-      if(!response.ok)return
-      const body=await response.json() as CurrentEntitlements
+      const body=await api<CurrentEntitlements>('/entitlements/current',{},session)
       if(active)setFeatures(new Set(body.enabledFeatures??[]))
     }catch{if(active){setRole('');setFeatures(new Set())}}}
     void load()
