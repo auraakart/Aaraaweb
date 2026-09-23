@@ -1,23 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Policy={maxActiveResidentVehicles:number;requireCredential:boolean;allowTemporaryOverflow:boolean}
 type Credential={id:string;credential:string;status:string;plateNumber:string;unitNumber:string;buildingName:string;issuedAt:string}
 type Violation={id:string;code:string;severity:string;status:string;slotCode?:string|null;plateNumber?:string|null;note?:string|null;reportedAt:string}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function session():Session|null{try{const r=sessionStorage.getItem('aaraagate.admin.session');return r?JSON.parse(r):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const t=await r.text();const b=t?JSON.parse(t):null;if(!r.ok)throw new Error(b?.message??`Request failed (${r.status})`);return b as T}
 
 export default function AdvancedParkingPage(){
  const[s,setS]=useState<Session|null>(null),[policy,setPolicy]=useState<Policy>({maxActiveResidentVehicles:2,requireCredential:false,allowTemporaryOverflow:true}),[credentials,setCredentials]=useState<Credential[]>([]),[violations,setViolations]=useState<Violation[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  const canManage=!!s&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(s.role)
- const load=useCallback(async(x:Session)=>{setError('');try{const[p,c,v]=await Promise.all([api<Policy[]>(x,'/parking/v2/policy'),api<Credential[]>(x,'/parking/v2/credentials'),api<Violation[]>(x,'/parking/v2/violations')]);if(p[0])setPolicy(p[0]);setCredentials(c);setViolations(v)}catch(e){setError(e instanceof Error?e.message:'Could not load advanced parking')}},[])
+ const load=useCallback(async(x:Session)=>{setError('');try{const[p,c,v]=await Promise.all([api<Policy[]>('/parking/v2/policy',{},x),api<Credential[]>('/parking/v2/credentials',{},x),api<Violation[]>('/parking/v2/violations',{},x)]);if(p[0])setPolicy(p[0]);setCredentials(c);setViolations(v)}catch(e){setError(e instanceof Error?e.message:'Could not load advanced parking')}},[])
  useEffect(()=>{const x=session();setS(x);if(x)void load(x)},[load])
- const save=async()=>{if(!s||!canManage)return;setBusy(true);setError('');try{await api(s,'/parking/v2/policy',{method:'PUT',body:JSON.stringify(policy)});await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not save policy')}finally{setBusy(false)}}
- const revoke=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(s,`/parking/v2/credentials/${id}/revoke`,{method:'PATCH',body:'{}'});await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not revoke credential')}finally{setBusy(false)}}
- const resolve=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(s,`/parking/v2/violations/${id}/resolve`,{method:'PATCH',body:'{}'});await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not resolve violation')}finally{setBusy(false)}}
+ const save=async()=>{if(!s||!canManage)return;setBusy(true);setError('');try{await api('/parking/v2/policy',{method:'PUT',body:JSON.stringify(policy)},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not save policy')}finally{setBusy(false)}}
+ const revoke=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(`/parking/v2/credentials/${id}/revoke`,{method:'PATCH',body:'{}'},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not revoke credential')}finally{setBusy(false)}}
+ const resolve=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(`/parking/v2/violations/${id}/resolve`,{method:'PATCH',body:'{}'},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not resolve violation')}finally{setBusy(false)}}
  if(!s)return <main style={{padding:32}}><h1>Sign in required</h1></main>
  return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 22px 80px'}}>
   <header style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><small>{s.societyName??'Current society'}</small><h1>Advanced parking</h1><p>Repository-managed policy, credentials, temporary/visitor controls and violation evidence. Hardware integrations are intentionally excluded.</p></div><div><a href="/parking">Parking</a> · <a href="/parking/permits">Visitor permits</a></div></header>

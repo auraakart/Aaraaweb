@@ -5,8 +5,8 @@ import {
   ActionBar,DetailPanel,EmptyState,ErrorState,EvidenceGrid,FormField,PageHeader,PageShell,
   PrimaryButton,QueuePanel,ReadinessPanel,SecondaryButton,SelectField,StatusPill,Timeline,DangerButton,
 } from '../../components/admin-ui'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Person={id:string;name:string;phone:string;relationship?:string}
 type Context={subjects:Person[];assignees:Person[]}
 type PrivacyCase={
@@ -20,16 +20,9 @@ type History={id:string;eventType?:string;action?:string;status?:string;summary?
 type ErasurePlan={executable:boolean;blockers:string[];erase:string[];retain:string[]}
 type Readiness={caseId:string;requestType:string;status:string;assigned:boolean;dueAt?:string|null;overdue:boolean;blockers:string[];nextActions:string[];privacyProgramContext:{activeDataCategories:number;activeProcessors:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string;erasure?:{executable:boolean;blockers:string[]}}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','AUDITOR'])
 const statuses=['OPEN','IN_REVIEW','WAITING','COMPLETED','REJECTED','CANCELLED']
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text();const body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 const human=(v?:string|null)=>v?.replaceAll('_',' ')??'Not recorded'
 
@@ -52,7 +45,7 @@ export default function PrivacyOperationsPage(){
     if(!session||!allowed)return
     setQueueLoading(true);setQueueError('')
     try{
-      const[rows,context]=await Promise.all([api<PrivacyCase[]>(session,'/privacy/cases'),api<Context>(session,'/privacy/operator-context')])
+      const[rows,context]=await Promise.all([api<PrivacyCase[]>('/privacy/cases',{},session),api<Context>('/privacy/operator-context',{},session)])
       setCases(rows);setCtx(context)
       setSelectedId(current=>current&&rows.some(r=>r.id===current)?current:rows[0]?.id??'')
     }catch(e){setQueueError(e instanceof Error?e.message:'Privacy operations could not be loaded')}finally{setQueueLoading(false)}
@@ -64,8 +57,8 @@ export default function PrivacyOperationsPage(){
     setDetailLoading(true);setDetailError('');setHistory([]);setPlan(null);setReadiness(null);setErasureConfirmed(false)
     try{
       const[h,r]=await Promise.all([
-        api<History[]>(session,`/privacy/cases/${id}/history`),
-        api<Readiness>(session,`/privacy/cases/${id}/readiness`),
+        api<History[]>(`/privacy/cases/${id}/history`,{},session),
+        api<Readiness>(`/privacy/cases/${id}/readiness`,{},session),
       ])
       if(requestId!==detailRequest.current)return
       setHistory(h);setReadiness(r)
@@ -95,36 +88,36 @@ export default function PrivacyOperationsPage(){
   }
 
   const createCase=(e:FormEvent)=>{e.preventDefault();if(!session||!canManage)return;void run(async()=>{
-    await api(session,'/privacy/cases',{method:'POST',body:JSON.stringify({
+    await api('/privacy/cases',{method:'POST',body:JSON.stringify({
       subjectUserId,requestType,requestSummary:summary.trim(),assignedToUserId:assignedToUserId||undefined,
       dueAt:dueAt?new Date(dueAt).toISOString():undefined,
-    })})
+    })},session)
     setSubjectUserId('');setSummary('');setAssignedToUserId('');setDueAt('')
   },'Privacy request case created.')}
 
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!session||!canManage||!selected)return;void run(
-    ()=>api(session,`/privacy/cases/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined})}).then(()=>undefined),
+    ()=>api(`/privacy/cases/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined})},session).then(()=>undefined),
     'Privacy case status updated.'
   )}
   const updateHold=(e:FormEvent,next:boolean)=>{e.preventDefault();if(!session||!canManage||!selected)return
     if(next&&holdReason.trim().length<3){setOperationError('Enter a retention/legal-hold reason of at least 3 characters.');return}
-    void run(()=>api(session,`/privacy/cases/${selected.id}/legal-hold`,{method:'PATCH',body:JSON.stringify({legalHold:next,retentionReason:next?holdReason.trim():undefined})}).then(()=>undefined),next?'Legal hold applied.':'Legal hold released.')
+    void run(()=>api(`/privacy/cases/${selected.id}/legal-hold`,{method:'PATCH',body:JSON.stringify({legalHold:next,retentionReason:next?holdReason.trim():undefined})},session).then(()=>undefined),next?'Legal hold applied.':'Legal hold released.')
   }
   const updateRetention=(e:FormEvent)=>{e.preventDefault();if(!session||!canManage||!selected||selected.requestType!=='ERASURE')return
     if(retentionReason.trim().length<3){setOperationError('Enter a retention decision reason of at least 3 characters.');return}
-    void run(()=>api(session,`/privacy/cases/${selected.id}/retention-review`,{method:'PATCH',body:JSON.stringify({decision:retentionDecision,reason:retentionReason.trim()})}).then(()=>undefined),'Retention review recorded.')
+    void run(()=>api(`/privacy/cases/${selected.id}/retention-review`,{method:'PATCH',body:JSON.stringify({decision:retentionDecision,reason:retentionReason.trim()})},session).then(()=>undefined),'Retention review recorded.')
   }
   const previewPlan=async()=>{if(!session||!selected||selected.requestType!=='ERASURE')return
     const selectedAtStart=selected.id
     setBusy(true);setOperationError('');setPlan(null);setErasureConfirmed(false)
     try{
-      const next=await api<ErasurePlan>(session,`/privacy/cases/${selected.id}/erasure-plan`)
+      const next=await api<ErasurePlan>(`/privacy/cases/${selected.id}/erasure-plan`,{},session)
       if(selectedId===selectedAtStart)setPlan(next)
     }catch(e){setOperationError(e instanceof Error?e.message:'Erasure plan could not be loaded')}
     finally{setBusy(false)}
   }
   const executeErasure=()=>{if(!session||!canManage||!selected||selected.requestType!=='ERASURE'||!erasureConfirmed||!plan?.executable)return
-    void run(()=>api(session,`/privacy/cases/${selected.id}/execute-erasure`,{method:'POST'}).then(()=>undefined),'Erasure/minimisation executed.')
+    void run(()=>api(`/privacy/cases/${selected.id}/execute-erasure`,{method:'POST'},session).then(()=>undefined),'Erasure/minimisation executed.')
   }
 
   if(!session||!allowed)return <PageShell><PageHeader title="Privacy operations access required" actions={<a href={session?.role==='AUDITOR'?'/audit':'/'}>Return</a>}/></PageShell>

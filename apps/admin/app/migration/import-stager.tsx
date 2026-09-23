@@ -3,18 +3,17 @@
 import { useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { ActionBar, DetailPanel, ErrorState, FormField, PrimaryButton, SecondaryButton, StatusPill } from '../../components/admin-ui'
+import { api, type Session } from '../../lib/admin-client'
 import { parseXlsx } from './xlsx'
 import type { SpreadsheetRow } from './xlsx'
 
-export type MigrationSession={accessToken:string;role:string;societyName?:string}
+export type MigrationSession=Session
 type Entity='BUILDING'|'UNIT'|'RESIDENT'|'VEHICLE'|'PARKING'|'WORKFORCE'|'VENDOR'|'OPENING_BALANCE'
 type Issue={row:number;field?:string;code:string;message:string}
 type Preview={entityType:Entity;totalRows:number;validRows:number;invalidRows:number;duplicateRows:number;normalizedRows:Record<string,string>[];issues:Issue[]}
 type Batch={id:string;status:string;entityType:string;checksum:string;idempotentReplay?:boolean}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const entities:Entity[]=['BUILDING','UNIT','RESIDENT','VEHICLE','PARKING','WORKFORCE','VENDOR','OPENING_BALANCE']
-async function api<T>(s:MigrationSession,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(base+'/api/v1'+path,{...init,headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.accessToken,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??('Request failed ('+r.status+')'));return body as T}
 
 function parseCsv(text:string){
   const rows:string[][]=[];let row:string[]=[];let field='';let quoted=false
@@ -40,8 +39,8 @@ export function MigrationImportStager({session,onBatchCreated}:{session:Migratio
   const hasSource=(fileRows?.length??0)>0||!!csv.trim()
   function currentRows(){return fileRows??parseCsv(csv)}
 
-  async function previewRows(){setBusy(true);setError('');setFeedback('');try{const parsed=currentRows();const result=await api<Preview>(session,'/migration/preview',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed})});setPreview(result);setFeedback(result.invalidRows===0?'Preview is clean and ready for a dry-run batch.':'Preview completed with row-level issues.')}catch(e){setPreview(null);setError(e instanceof Error?e.message:'Migration preview failed')}finally{setBusy(false)}}
-  async function createBatch(){if(!canPersist)return;setBusy(true);setError('');setFeedback('');try{const parsed=currentRows();const batch=await api<Batch>(session,'/migration/batches',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed,sourceLabel:sourceLabel.trim()||undefined})});setFeedback(batch.idempotentReplay?'Matching dry-run batch already exists; reused safely.':'Dry-run migration batch created.');onBatchCreated()}catch(e){setError(e instanceof Error?e.message:'Dry-run batch could not be created')}finally{setBusy(false)}}
+  async function previewRows(){setBusy(true);setError('');setFeedback('');try{const parsed=currentRows();const result=await api<Preview>('/migration/preview',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed})},session);setPreview(result);setFeedback(result.invalidRows===0?'Preview is clean and ready for a dry-run batch.':'Preview completed with row-level issues.')}catch(e){setPreview(null);setError(e instanceof Error?e.message:'Migration preview failed')}finally{setBusy(false)}}
+  async function createBatch(){if(!canPersist)return;setBusy(true);setError('');setFeedback('');try{const parsed=currentRows();const batch=await api<Batch>('/migration/batches',{method:'POST',body:JSON.stringify({entityType:entity,rows:parsed,sourceLabel:sourceLabel.trim()||undefined})},session);setFeedback(batch.idempotentReplay?'Matching dry-run batch already exists; reused safely.':'Dry-run migration batch created.');onBatchCreated()}catch(e){setError(e instanceof Error?e.message:'Dry-run batch could not be created')}finally{setBusy(false)}}
   async function chooseFile(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];if(!file)return;setBusy(true);setError('');setFeedback('');setPreview(null);try{const name=file.name.toLowerCase();setSourceLabel(file.name);if(name.endsWith('.csv')){setFileRows(null);setCsv(await file.text());setFeedback('CSV loaded. Preview validation before creating a dry-run batch.');return}if(name.endsWith('.xlsx')){const rows=await parseXlsx(file);setFileRows(rows);setCsv('');setFeedback(`XLSX loaded from the first worksheet: ${rows.length} data rows. Preview validation before creating a dry-run batch.`);return}throw new Error('Choose a UTF-8 CSV or XLSX file.')}catch(e){setFileRows(null);setCsv('');setError(e instanceof Error?e.message:'Spreadsheet could not be read');event.target.value=''}finally{setBusy(false)}}
 
   return <DetailPanel title="Stage import data">

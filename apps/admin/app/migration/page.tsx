@@ -2,35 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MigrationImportStager } from './import-stager'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Batch={id:string;entityType:string;sourceLabel?:string|null;status:string;checksum:string;totalRows:number;validRows:number;invalidRows:number;duplicateRows:number;referentialIssueCount:number;createdAt:string;updatedAt:string}
 type BatchDetail=Batch&{
   rows:Array<{rowNumber:number;valid:boolean;identityKey?:string|null;targetType?:string|null;targetId?:string|null}>
   financeReconciliation?:{status?:string;debitPaise?:number;creditPaise?:number;balanced?:boolean}|null
 }
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function getSession():Session|null{
   try{
     const raw=sessionStorage.getItem('aaraagate.admin.session')
     return raw?JSON.parse(raw) as Session:null
   }catch{return null}
 }
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(base+'/api/v1'+path,{...init,headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.accessToken,...init.headers}})
-  const t=await r.text()
-  let b:unknown=null
-  try{b=t?JSON.parse(t):null}catch{b=t}
-  if(!r.ok){
-    const message=typeof b==='object'&&b!==null&&'message' in b
-      ?String((b as {message?:unknown}).message)
-      :'Request failed ('+r.status+')'
-    throw new Error(message)
-  }
-  return b as T
-}
-
 const migrationStages=[
   {entity:'BUILDING',label:'1. Buildings',description:'Import the society structure first.'},
   {entity:'UNIT',label:'2. Units',description:'Units depend on committed buildings.'},
@@ -56,7 +41,7 @@ export default function MigrationPage(){
   const load=useCallback(async(s:Session)=>{
     setLoading(true)
     setError('')
-    try{setRows(await api<Batch[]>(s,'/migration/batches'))}
+    try{setRows(await api<Batch[]>('/migration/batches',{},s))}
     catch(e){setError(e instanceof Error?e.message:'Could not load migration batches')}
     finally{setLoading(false)}
   },[])
@@ -73,7 +58,7 @@ export default function MigrationPage(){
     setBusy(true)
     setError('')
     setPendingAction(null)
-    try{setDetail(await api<BatchDetail>(session,'/migration/batches/'+batch.id))}
+    try{setDetail(await api<BatchDetail>('/migration/batches/'+batch.id,{},session))}
     catch(e){setError(e instanceof Error?e.message:'Could not load migration evidence')}
     finally{setBusy(false)}
   }
@@ -83,10 +68,10 @@ export default function MigrationPage(){
     setBusy(true)
     setError('')
     try{
-      await api(session,'/migration/batches/'+detail.id+'/'+action,{method:'POST',body:'{}'})
+      await api('/migration/batches/'+detail.id+'/'+action,{method:'POST',body:'{}'},session)
       setPendingAction(null)
-      setDetail(await api<BatchDetail>(session,'/migration/batches/'+detail.id))
-      setRows(await api<Batch[]>(session,'/migration/batches'))
+      setDetail(await api<BatchDetail>('/migration/batches/'+detail.id,{},session))
+      setRows(await api<Batch[]>('/migration/batches',{},session))
     }catch(e){
       setError(e instanceof Error?e.message:'Migration action failed')
     }finally{
@@ -99,6 +84,7 @@ export default function MigrationPage(){
     setBusy(true)
     setError('')
     try{
+      const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
       const r=await fetch(base+'/api/v1/migration/batches/'+detail.id+'/evidence.csv',{headers:{Authorization:'Bearer '+session.accessToken}})
       if(!r.ok)throw new Error('Evidence export failed ('+r.status+')')
       const blob=await r.blob()

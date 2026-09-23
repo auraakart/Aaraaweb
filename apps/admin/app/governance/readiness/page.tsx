@@ -2,16 +2,14 @@
 
 import {useEffect,useMemo,useRef,useState} from 'react'
 import { DetailPanel, EmptyState, ErrorState, EvidenceGrid, PageHeader, PageShell, QueuePanel, ReadinessPanel, StatusPill, Timeline } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Meeting={id:string;meetingType:string;status:'SCHEDULED'|'HELD'|'CANCELLED';title:string;scheduledAt:string;heldAt?:string|null;quorumRequired?:number|null;quorumPresent?:number|null;quorumRuleReference?:string|null;byeLawReference?:string|null;minutesSummary?:string|null}
 type Resolution={id:string;status:'PROPOSED'|'PASSED'|'REJECTED'|'WITHDRAWN';title:string;approvalRequired?:number|null;approvalRecorded?:number|null;approvalRuleReference?:string|null;byeLawReference?:string|null}
 type Evidence={id:string;eventType:string;summary:string;createdAt:string}
 type Detail=Meeting&{agenda:Array<{id:string}>;resolutions:Resolution[];actions:Array<{id:string;ownerUserId?:string|null;dueAt?:string|null}>;evidence:Evidence[]}
-const base=process.env.NEXT_PUBLIC_API_BASE_URL??'http://localhost:3000'
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{headers:{Authorization:`Bearer ${s.accessToken}`}});const body=await r.json().catch(()=>null);if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 const yes=(v:boolean)=>v?'Recorded':'Missing'
 const human=(v:string)=>v.replaceAll('_',' ')
 
@@ -23,14 +21,14 @@ export default function GovernanceReadinessPage(){
  useEffect(()=>{
    if(!s||!canRead)return
    setLoading(true);setError('')
-   api<Meeting[]>(s,'/governance/meetings').then(setMeetings).catch(e=>setError(e instanceof Error?e.message:'Could not load governance meetings')).finally(()=>setLoading(false))
+   api<Meeting[]>('/governance/meetings',{},s).then(setMeetings).catch(e=>setError(e instanceof Error?e.message:'Could not load governance meetings')).finally(()=>setLoading(false))
  },[])
 
  async function inspect(id:string){
    if(!s)return
    const requestId=++detailRequest.current
    setDetailLoading(true);setDetailError('')
-   try{const detail=await api<Detail>(s,`/governance/meetings/${id}`);if(requestId===detailRequest.current)setSelected(detail)}
+   try{const detail=await api<Detail>(`/governance/meetings/${id}`,{},s);if(requestId===detailRequest.current)setSelected(detail)}
    catch(e){if(requestId===detailRequest.current)setDetailError(e instanceof Error?e.message:'Could not load meeting evidence')}
    finally{if(requestId===detailRequest.current)setDetailLoading(false)}
  }

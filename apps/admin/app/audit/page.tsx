@@ -1,8 +1,8 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { api, sessionFrom, type Session } from '../../lib/admin-client'
 
-type Session={sessionId:string;accessToken:string;refreshToken:string;societyId:string;role:string;societyName:string}
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
 type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
 type SummaryComparison={current:Summary;previous:Summary}
@@ -10,22 +10,8 @@ type AuditItem={id:string;event:string;occurredAt:string;actorUserId:string;gate
 type MaintenanceItem={id:string;invoiceNumber:string;billingPeriod:string;amountPaise:number;dueDate:string;status:string;issuedAt:string;paidAt?:string|null;unit:{number:string;building:{name:string}}}
 type Feed<T>={page:number;pageSize:number;total:number;items:T[]}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const isoDay=(date:Date)=>date.toISOString().slice(0,10)
 const money=(paise:number|null)=>paise===null?'Restricted':new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(paise/100)
-
-async function api<T>(path:string,init:RequestInit={},session?:Session):Promise<T>{
-  const response=await fetch(`${base}/api/v1${path}`,{...init,headers:{Accept:'application/json','Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`} : {}),...init.headers}})
-  const text=await response.text();const body=text?JSON.parse(text) as unknown:null
-  if(!response.ok){const message=body&&typeof body==='object'&&'message'in body?String((body as {message:unknown}).message):`Request failed (${response.status})`;throw new Error(message)}
-  return body as T
-}
-
-function sessionFrom(value:Record<string,unknown>,membership:Membership):Session{
-  const session=value.session as Record<string,unknown>|undefined
-  if(!session?.sessionId||!session.accessToken||!session.refreshToken)throw new Error('Authentication returned an incomplete session')
-  return{sessionId:String(session.sessionId),accessToken:String(session.accessToken),refreshToken:String(session.refreshToken),societyId:membership.societyId,role:'AUDITOR',societyName:membership.society?.name??membership.society?.code??'Society'}
-}
 
 export default function AuditorWorkspace(){
   const[session,setSession]=useState<Session|null>(null),[restoring,setRestoring]=useState(true)

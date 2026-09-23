@@ -2,33 +2,31 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { operatorConfirm } from '../../lib/operator-dialog'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={accessToken:string;role:string}
 type Society={id:string;name:string;code:string;status:'ACTIVE'|'SUSPENDED';productTier:'STARTER'|'PROFESSIONAL'|'PREMIUM'|'ENTERPRISE';featureOverrides:Record<string,boolean>;_count:{memberships:number;buildings:number;gates:number}}
 type AdminMembership={id:string;userId:string;active:boolean;user:{name?:string|null;phone:string;email?:string|null;status:string}}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const tiers=['STARTER','PROFESSIONAL','PREMIUM','ENTERPRISE'] as const
 const features=['VISITOR_MANAGEMENT','DELIVERY_MANAGEMENT','DOMESTIC_HELP','NOTICES','HELPDESK','SOS','HOUSEHOLD_SERVICES','MAINTENANCE_BILLING','PAYMENTS','AMENITIES','GOVERNANCE_POLLS','ADVANCED_REPORTS','WHATSAPP_AUTOMATION','AI_ASSISTANT','CUSTOM_INTEGRATIONS'] as const
 
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(session:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.accessToken}`,...init.headers}});const t=await r.text();const body=t?JSON.parse(t):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 
 export default function PlatformPage(){
   const[session,setSession]=useState<Session|null>(null),[societies,setSocieties]=useState<Society[]>([]),[selected,setSelected]=useState(''),[admins,setAdmins]=useState<AdminMembership[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const[phone,setPhone]=useState('+91'),[name,setName]=useState('')
   const current=useMemo(()=>societies.find(s=>s.id===selected),[societies,selected])
-  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const rows=await api<Society[]>(s,'/platform/societies');setSocieties(rows);setSelected(v=>v||rows[0]?.id||'')}catch(e){setError(e instanceof Error?e.message:'Could not load platform societies')}finally{setLoading(false)}},[])
-  const loadAdmins=useCallback(async(s:Session,societyId:string)=>{if(!societyId){setAdmins([]);return}try{setAdmins(await api<AdminMembership[]>(s,`/platform/societies/${societyId}/admins`))}catch(e){setError(e instanceof Error?e.message:'Could not load society admins')}},[])
+  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const rows=await api<Society[]>('/platform/societies',{},s);setSocieties(rows);setSelected(v=>v||rows[0]?.id||'')}catch(e){setError(e instanceof Error?e.message:'Could not load platform societies')}finally{setLoading(false)}},[])
+  const loadAdmins=useCallback(async(s:Session,societyId:string)=>{if(!societyId){setAdmins([]);return}try{setAdmins(await api<AdminMembership[]>(`/platform/societies/${societyId}/admins`,{},s))}catch(e){setError(e instanceof Error?e.message:'Could not load society admins')}},[])
   useEffect(()=>{const s=getSession();setSession(s);if(s?.role==='SUPER_ADMIN')void load(s);else setLoading(false)},[load])
   useEffect(()=>{if(session?.role==='SUPER_ADMIN'&&selected)void loadAdmins(session,selected)},[session,selected,loadAdmins])
   const mutate=async(fn:()=>Promise<unknown>)=>{if(!session)return;setBusy(true);setError('');try{await fn();await load(session);if(selected)await loadAdmins(session,selected)}catch(e){setError(e instanceof Error?e.message:'Platform update failed')}finally{setBusy(false)}}
   if(loading)return <main style={{padding:32}}>Loading platform operations…</main>
   if(!session||session.role!=='SUPER_ADMIN')return <main style={{padding:32}}><h1>Platform access required</h1><p>This surface is restricted to Super Admin.</p><a href="/">Return to Admin</a></main>
-  const changeTier=(tier:Society['productTier'])=>current&&mutate(()=>api(session,`/platform/societies/${current.id}/entitlements`,{method:'PATCH',body:JSON.stringify({productTier:tier})}))
-  const setOverride=(feature:string,value:'INHERIT'|'ON'|'OFF')=>{if(!current)return;const overrides={...(current.featureOverrides??{})};if(value==='INHERIT')delete overrides[feature];else overrides[feature]=value==='ON';void mutate(()=>api(session,`/platform/societies/${current.id}/entitlements`,{method:'PATCH',body:JSON.stringify({featureOverrides:overrides})}))}
-  const toggleStatus=()=>current&&mutate(()=>api(session,`/platform/societies/${current.id}/status`,{method:'PATCH',body:JSON.stringify({status:current.status==='ACTIVE'?'SUSPENDED':'ACTIVE'})}))
-  const provision=(e:FormEvent)=>{e.preventDefault();if(!current)return;void mutate(async()=>{await api(session,`/platform/societies/${current.id}/admins/provision`,{method:'POST',body:JSON.stringify({phone:phone.trim(),name:name.trim()})});setPhone('+91');setName('')})}
-  const deactivate=async(userId:string)=>current&&await operatorConfirm('Deactivate this Society Admin and revoke active sessions?')&&mutate(()=>api(session,`/platform/societies/${current.id}/admins/${userId}/deactivate`,{method:'PATCH',body:'{}'}))
+  const changeTier=(tier:Society['productTier'])=>current&&mutate(()=>api(`/platform/societies/${current.id}/entitlements`,{method:'PATCH',body:JSON.stringify({productTier:tier})},session))
+  const setOverride=(feature:string,value:'INHERIT'|'ON'|'OFF')=>{if(!current)return;const overrides={...(current.featureOverrides??{})};if(value==='INHERIT')delete overrides[feature];else overrides[feature]=value==='ON';void mutate(()=>api(`/platform/societies/${current.id}/entitlements`,{method:'PATCH',body:JSON.stringify({featureOverrides:overrides})},session))}
+  const toggleStatus=()=>current&&mutate(()=>api(`/platform/societies/${current.id}/status`,{method:'PATCH',body:JSON.stringify({status:current.status==='ACTIVE'?'SUSPENDED':'ACTIVE'})},session))
+  const provision=(e:FormEvent)=>{e.preventDefault();if(!current)return;void mutate(async()=>{await api(`/platform/societies/${current.id}/admins/provision`,{method:'POST',body:JSON.stringify({phone:phone.trim(),name:name.trim()})},session);setPhone('+91');setName('')})}
+  const deactivate=async(userId:string)=>current&&await operatorConfirm('Deactivate this Society Admin and revoke active sessions?')&&mutate(()=>api(`/platform/societies/${current.id}/admins/${userId}/deactivate`,{method:'PATCH',body:'{}'},session))
   return <main style={{maxWidth:1180,margin:'0 auto',padding:'28px 22px 80px'}}>
     <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><small>SUPER ADMIN</small><h1 style={{margin:'4px 0'}}>Aaraagate platform</h1><p style={{margin:0}}>Society lifecycle, SaaS plans, feature overrides and Society Admin provisioning.</p></div><a href="/">← Admin console</a></div>
     {error&&<div style={{marginTop:18,padding:12,border:'1px solid #ef4444',borderRadius:10}}>{error}</div>}

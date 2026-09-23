@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Notice={id:string;title:string;category?:string|null;status:string;publishedAt?:string|null;importance?:string;requiresAcknowledgement?:boolean;audience:string}
 type DeliverySummary={
   noticeId:string
@@ -16,11 +16,8 @@ type DeliverySummary={
   semantics:{coverage:string;pushHandoff:string;read:string;legalService:string}
 }
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const roles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-function errorMessage(body:unknown,status:number){if(body&&typeof body==='object'&&'message' in body){const value=(body as {message?:unknown}).message;if(Array.isArray(value))return value.map(String).join(', ');if(typeof value==='string')return value}return `Request failed (${status})`}
-async function api<T>(session:Session,path:string):Promise<T>{const response=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'application/json',Authorization:`Bearer ${session.accessToken}`}});const text=await response.text();let body:unknown=null;try{body=text?JSON.parse(text):null}catch{body=text}if(!response.ok)throw new Error(errorMessage(body,response.status));return body as T}
 const fmt=(value?:string|null)=>value?new Date(value).toLocaleString('en-IN'):'—'
 
 export default function NoticeMetricsPage(){
@@ -33,8 +30,8 @@ export default function NoticeMetricsPage(){
   const[error,setError]=useState('')
   const selected=useMemo(()=>notices.find(n=>n.id===selectedId)??null,[notices,selectedId])
 
-  async function loadNotices(){if(!session||!canUse)return;setBusy(true);setError('');try{const rows=await api<Notice[]>(session,'/notices/manage');setNotices(rows);const first=selectedId||rows[0]?.id||'';setSelectedId(first);if(first)await loadSummary(first)}catch(e){setError(e instanceof Error?e.message:'Could not load notices')}finally{setBusy(false)}}
-  async function loadSummary(id:string){if(!session||!id)return;setBusy(true);setError('');try{setSummary(await api<DeliverySummary>(session,`/notices/manage/${id}/delivery`))}catch(e){setSummary(null);setError(e instanceof Error?e.message:'Could not load notice metrics')}finally{setBusy(false)}}
+  async function loadNotices(){if(!session||!canUse)return;setBusy(true);setError('');try{const rows=await api<Notice[]>('/notices/manage',{},session);setNotices(rows);const first=selectedId||rows[0]?.id||'';setSelectedId(first);if(first)await loadSummary(first)}catch(e){setError(e instanceof Error?e.message:'Could not load notices')}finally{setBusy(false)}}
+  async function loadSummary(id:string){if(!session||!id)return;setBusy(true);setError('');try{setSummary(await api<DeliverySummary>(`/notices/manage/${id}/delivery`,{},session))}catch(e){setSummary(null);setError(e instanceof Error?e.message:'Could not load notice metrics')}finally{setBusy(false)}}
   useEffect(()=>{void loadNotices()},[])
   useEffect(()=>{if(selectedId)void loadSummary(selectedId)},[selectedId])
 

@@ -84,7 +84,7 @@ assert.doesNotMatch(emergencySource,/\/society-roles/,'Emergency assignment UI m
 assert.doesNotMatch(emergencySource,/AUDITOR/,'Read-only Auditor must not gain emergency mutation UI')
 assert.match(contextSwitcherSource,/\/auth\/contexts/,'Admin context switcher must discover societies from authenticated context API')
 assert.match(contextSwitcherSource,/\/auth\/society\/switch/,'Admin context switcher must rotate to a fresh society-scoped session')
-assert.match(contextSwitcherSource,/Authorization:`Bearer \$\{session\.accessToken\}`/,'Admin society switch must remain authenticated')
+assert.match(contextSwitcherSource,/api<SwitchResponse>\('\/auth\/society\/switch',[\s\S]*?,session\)/,'Admin society switch must remain authenticated through the shared Admin client')
 assert.match(contextSwitcherSource,/sessionStorage\.setItem\('aaraagate\.admin\.session'/,'Admin society switch must persist the newly issued session')
 assert.match(rolesSource,/\['SUPER_ADMIN','SOCIETY_ADMIN'\]/,'People & Roles screen must be limited to society administration')
 assert.match(rolesSource,/SECURITY_GUARD/,'Operational role screen must support guards')

@@ -2,24 +2,22 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ActionBar, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, StatusPill } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type TaxConfiguration={societyId?:string;gstEnabled:boolean;gstin?:string|null;tdsEnabled:boolean;tan?:string|null;defaultTdsSection?:string|null;defaultTdsBasisPoints?:number|null;updatedAt?:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`);return body as T}
 
 export default function FinanceTaxConfigurationPage(){
   const[s,setS]=useState<Session|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const[gstEnabled,setGstEnabled]=useState(false),[gstin,setGstin]=useState(''),[tdsEnabled,setTdsEnabled]=useState(false),[tan,setTan]=useState(''),[tdsSection,setTdsSection]=useState(''),[tdsRate,setTdsRate]=useState('')
 
-  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const c=await api<TaxConfiguration>(x,'/accounting/tax/configuration');setGstEnabled(!!c.gstEnabled);setGstin(c.gstin??'');setTdsEnabled(!!c.tdsEnabled);setTan(c.tan??'');setTdsSection(c.defaultTdsSection??'');setTdsRate(c.defaultTdsBasisPoints==null?'':String(c.defaultTdsBasisPoints/100))}catch(e){setError(e instanceof Error?e.message:'Could not load tax configuration')}finally{setLoading(false)}},[])
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const c=await api<TaxConfiguration>('/accounting/tax/configuration',{},x);setGstEnabled(!!c.gstEnabled);setGstin(c.gstin??'');setTdsEnabled(!!c.tdsEnabled);setTan(c.tan??'');setTdsSection(c.defaultTdsSection??'');setTdsRate(c.defaultTdsBasisPoints==null?'':String(c.defaultTdsBasisPoints/100))}catch(e){setError(e instanceof Error?e.message:'Could not load tax configuration')}finally{setLoading(false)}},[])
   useEffect(()=>{const x=session();setS(x);if(x&&readRoles.has(x.role))void load(x);else setLoading(false)},[load])
 
-  async function save(e:FormEvent){e.preventDefault();if(!s||!manageRoles.has(s.role))return;const pct=tdsRate.trim()===''?undefined:Number(tdsRate);if(pct!==undefined&&(!Number.isFinite(pct)||pct<0||pct>100)){setError('Default TDS rate must be between 0 and 100 percent.');return}setBusy(true);setError('');try{await api<TaxConfiguration>(s,'/accounting/tax/configuration',{method:'PUT',body:JSON.stringify({gstEnabled,gstin:gstEnabled?gstin.trim():undefined,tdsEnabled,tan:tdsEnabled?tan.trim():undefined,defaultTdsSection:tdsEnabled?tdsSection.trim():undefined,defaultTdsBasisPoints:tdsEnabled&&pct!==undefined?Math.round(pct*100):undefined})});await load(s)}catch(err){setError(err instanceof Error?err.message:'Could not save tax configuration')}finally{setBusy(false)}}
+  async function save(e:FormEvent){e.preventDefault();if(!s||!manageRoles.has(s.role))return;const pct=tdsRate.trim()===''?undefined:Number(tdsRate);if(pct!==undefined&&(!Number.isFinite(pct)||pct<0||pct>100)){setError('Default TDS rate must be between 0 and 100 percent.');return}setBusy(true);setError('');try{await api<TaxConfiguration>('/accounting/tax/configuration',{method:'PUT',body:JSON.stringify({gstEnabled,gstin:gstEnabled?gstin.trim():undefined,tdsEnabled,tan:tdsEnabled?tan.trim():undefined,defaultTdsSection:tdsEnabled?tdsSection.trim():undefined,defaultTdsBasisPoints:tdsEnabled&&pct!==undefined?Math.round(pct*100):undefined})},s);await load(s)}catch(err){setError(err instanceof Error?err.message:'Could not save tax configuration')}finally{setBusy(false)}}
 
   const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
   if(loading)return <PageShell><PageHeader title="GST / TDS configuration" description="Loading finance tax settings…"/></PageShell>
