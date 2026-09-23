@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Download, RefreshCw, ShieldCheck } from 'lucide-react'
 import './reports.css'
+import { api, type Session } from '../../lib/admin-client'
 
-type Session={sessionId:string;accessToken:string;refreshToken:string;societyId:string;role:string;societyName:string}
 type Summary={range:{from:string;to:string};access:{visitorRequests:number;visitorEntries:number;workforceEntries:number};maintenance:{billedCount:number;billedPaise:number|null;collectedCount:number;collectedPaise:number|null;outstandingCount:number;outstandingPaise:number|null};helpdesk:{open:number;inProgress:number;resolved:number;closed:number};audit:{eventCount:number}}
 type SummaryComparison={current:Summary;previous:Summary}
 type UnitRef={number:string;building:{name:string}}
@@ -22,13 +22,6 @@ const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:300
 const auditRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','AUDITOR'])
 const financeRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','ACCOUNTANT'])
 const auditEventTypes=['VISITOR_VERIFIED','VISITOR_CHECKED_IN','VISITOR_CHECKED_OUT','ACCESS_CREATED','ACCESS_APPROVED','ACCESS_DENIED','ACCESS_CANCELLED','ACCESS_VERIFIED','ACCESS_CHECKED_IN','ACCESS_CHECKED_OUT','REPORT_EXPORTED'] as const
-
-async function api<T>(path:string,session:Session):Promise<T>{
-  const response=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'application/json',Authorization:`Bearer ${session.accessToken}`}})
-  const text=await response.text();const body=text?JSON.parse(text) as unknown:null
-  if(!response.ok){const message=body&&typeof body==='object'&&'message'in body?String((body as {message:unknown}).message):`Request failed (${response.status})`;throw new Error(message)}
-  return body as T
-}
 
 async function downloadCsv(path:string,session:Session){
   const response=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'text/csv',Authorization:`Bearer ${session.accessToken}`}})
@@ -58,7 +51,7 @@ export default function ReportsPage(){
   useEffect(()=>{try{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setError('Sign in to the Admin console before opening reports.');setLoading(false);return}setSession(JSON.parse(raw) as Session)}catch{setError('Admin session could not be restored.');setLoading(false)}},[])
   const canAudit=useMemo(()=>!!session&&auditRoles.has(session.role),[session])
   const canFinance=useMemo(()=>!!session&&financeRoles.has(session.role),[session])
-  const load=useCallback(async(currentPage=1)=>{if(!session)return;setLoading(true);setError('');try{const query=`from=${encodeURIComponent(`${from}T00:00:00.000Z`)}&to=${encodeURIComponent(`${to}T23:59:59.999Z`)}`;const eventQuery=auditEvent?`&event=${encodeURIComponent(auditEvent)}`:'';const [comparisonData,outcomeData,a,se,v,w,h,m]=await Promise.all([api<SummaryComparison>(`/reports/summary/comparison?${query}`,session),api<Outcomes>(`/reports/analytics/outcomes?${query}`,session),canAudit?api<AuditFeed>(`/reports/audit?page=${currentPage}&pageSize=25&${query}${eventQuery}`,session):Promise.resolve(null),canAudit?api<SecurityFeed>(`/reports/security-events?page=1&pageSize=25`,session):Promise.resolve(null),api<Feed<AccessItem>>(`/reports/access?subjectType=VISITOR&${query}&page=1&pageSize=10`,session),api<Feed<AccessItem>>(`/reports/access?subjectType=DOMESTIC_HELP&${query}&page=1&pageSize=10`,session),api<Feed<HelpdeskItem>>(`/reports/helpdesk?${query}&page=1&pageSize=10`,session),canFinance?api<Feed<MaintenanceItem>>(`/reports/maintenance?${query}&page=1&pageSize=10`,session):Promise.resolve(null)]);setSummary(comparisonData.current);setComparison(comparisonData);setOutcomes(outcomeData);setAudit(a);setSecurity(se);setVisitors(v);setWorkforce(w);setHelpdesk(h);setMaintenance(m);setPage(currentPage)}catch(e){setError(e instanceof Error?e.message:'Reports could not be loaded')}finally{setLoading(false)}},[session,from,to,auditEvent,canAudit,canFinance])
+  const load=useCallback(async(currentPage=1)=>{if(!session)return;setLoading(true);setError('');try{const query=`from=${encodeURIComponent(`${from}T00:00:00.000Z`)}&to=${encodeURIComponent(`${to}T23:59:59.999Z`)}`;const eventQuery=auditEvent?`&event=${encodeURIComponent(auditEvent)}`:'';const [comparisonData,outcomeData,a,se,v,w,h,m]=await Promise.all([api<SummaryComparison>(`/reports/summary/comparison?${query}`,{},session),api<Outcomes>(`/reports/analytics/outcomes?${query}`,{},session),canAudit?api<AuditFeed>(`/reports/audit?page=${currentPage}&pageSize=25&${query}${eventQuery}`,{},session):Promise.resolve(null),canAudit?api<SecurityFeed>(`/reports/security-events?page=1&pageSize=25`,{},session):Promise.resolve(null),api<Feed<AccessItem>>(`/reports/access?subjectType=VISITOR&${query}&page=1&pageSize=10`,{},session),api<Feed<AccessItem>>(`/reports/access?subjectType=DOMESTIC_HELP&${query}&page=1&pageSize=10`,{},session),api<Feed<HelpdeskItem>>(`/reports/helpdesk?${query}&page=1&pageSize=10`,{},session),canFinance?api<Feed<MaintenanceItem>>(`/reports/maintenance?${query}&page=1&pageSize=10`,{},session):Promise.resolve(null)]);setSummary(comparisonData.current);setComparison(comparisonData);setOutcomes(outcomeData);setAudit(a);setSecurity(se);setVisitors(v);setWorkforce(w);setHelpdesk(h);setMaintenance(m);setPage(currentPage)}catch(e){setError(e instanceof Error?e.message:'Reports could not be loaded')}finally{setLoading(false)}},[session,from,to,auditEvent,canAudit,canFinance])
   const exportReport=useCallback(async(kind:'maintenance'|'audit')=>{if(!session)return;setExporting(kind);setExportError('');setExportNotice('');try{const query=`from=${encodeURIComponent(`${from}T00:00:00.000Z`)}&to=${encodeURIComponent(`${to}T23:59:59.999Z`)}`;const eventQuery=kind==='audit'&&auditEvent?`&event=${encodeURIComponent(auditEvent)}`:'';const result=await downloadCsv(`/reports/${kind}/export.csv?${query}${eventQuery}`,session);setExportNotice(`${result.name}${result.rowCount===null?'':` · ${result.rowCount} rows`}`)}catch(e){setExportError(e instanceof Error?e.message:'Report download could not be started')}finally{setExporting(null)}},[session,from,to,auditEvent])
   useEffect(()=>{if(session)void load(1)},[session,load])
 

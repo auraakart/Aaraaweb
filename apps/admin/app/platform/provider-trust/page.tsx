@@ -1,20 +1,18 @@
 'use client'
 
 import { FormEvent,useEffect,useMemo,useState } from 'react'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string}
 type Tier='STANDARD'|'TRUSTED'|'PREMIUM'
 type Recommendation={providerId:string;businessName:string;ratingCount:number;averageStars:number|null;completedJobs:number;earnedQualityTier:Tier;currentQualityTier:Tier;qualityNote:string|null;reviewedByUserId:string|null;reviewedAt:string|null;reviewNeeded:boolean}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text(),body=text?JSON.parse(text):null;if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`);return body as T}
 
 export default function ProviderTrustReviewPage(){
   const[s,setS]=useState<Session|null>(null),[rows,setRows]=useState<Recommendation[]>([]),[selected,setSelected]=useState<Recommendation|null>(null),[tier,setTier]=useState<Tier>('STANDARD'),[note,setNote]=useState(''),[query,setQuery]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   useEffect(()=>{const x=session();setS(x);if(x)void load(x)},[])
-  async function load(x=s){if(!x)return;setBusy(true);setError('');try{const data=await api<Recommendation[]>(x,'/platform/services/provider-trust/recommendations');setRows(data);if(selected){const next=data.find(r=>r.providerId===selected.providerId)??null;setSelected(next)}}catch(e){setError(e instanceof Error?e.message:'Could not load trust recommendations')}finally{setBusy(false)}}
+  async function load(x=s){if(!x)return;setBusy(true);setError('');try{const data=await api<Recommendation[]>('/platform/services/provider-trust/recommendations',{},x);setRows(data);if(selected){const next=data.find(r=>r.providerId===selected.providerId)??null;setSelected(next)}}catch(e){setError(e instanceof Error?e.message:'Could not load trust recommendations')}finally{setBusy(false)}}
   function choose(row:Recommendation){setSelected(row);setTier(row.currentQualityTier);setNote(row.qualityNote??'')}
-  async function review(e:FormEvent){e.preventDefault();if(!s||!selected||!note.trim())return;setBusy(true);setError('');try{await api(s,`/platform/services/provider-trust/providers/${selected.providerId}`,{method:'PATCH',body:JSON.stringify({qualityTier:tier,note:note.trim()})});await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not save trust review')}finally{setBusy(false)}}
+  async function review(e:FormEvent){e.preventDefault();if(!s||!selected||!note.trim())return;setBusy(true);setError('');try{await api(`/platform/services/provider-trust/providers/${selected.providerId}`,{method:'PATCH',body:JSON.stringify({qualityTier:tier,note:note.trim()})},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not save trust review')}finally{setBusy(false)}}
   const visible=useMemo(()=>{const q=query.trim().toLowerCase();return rows.filter(r=>!q||[r.businessName,r.earnedQualityTier,r.currentQualityTier].join(' ').toLowerCase().includes(q))},[rows,query])
   const reviewNeeded=rows.filter(r=>r.reviewNeeded).length
   if(!s)return <main style={{padding:32}}><h1>Platform access required</h1><a href="/">Return to Admin</a></main>

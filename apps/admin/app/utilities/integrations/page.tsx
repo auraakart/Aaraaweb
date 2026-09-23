@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { operatorConfirm, operatorPrompt } from '../../../lib/operator-dialog'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session = { accessToken: string; role: string; societyName?: string }
 type Integration = {
   id: string
   code: string
@@ -55,7 +55,6 @@ type IntegrationEvent = {
   occurredAt: string
 }
 
-const base = (process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 const readRoles = new Set(['SUPER_ADMIN', 'SOCIETY_ADMIN', 'FACILITY_MANAGER', 'COMMITTEE_MEMBER'])
 const manageRoles = new Set(['SUPER_ADMIN', 'SOCIETY_ADMIN', 'FACILITY_MANAGER'])
 
@@ -66,24 +65,6 @@ function getSession(): Session | null {
   } catch {
     return null
   }
-}
-
-async function api<T>(session: Session, path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${base}/api/v1${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.accessToken}`,
-      ...init.headers,
-    },
-  })
-  const text = await response.text()
-  const body = text ? JSON.parse(text) : null
-  if (!response.ok) {
-    throw new Error(Array.isArray(body?.message) ? body.message.join(', ') : body?.message ?? `Request failed (${response.status})`)
-  }
-  return body as T
 }
 
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN') : '—'
@@ -119,11 +100,11 @@ export default function UtilityIntegrationsPage() {
     setError('')
     try {
       const [integrationRows, meterRows, receiptRows, mappingRows, eventRows] = await Promise.all([
-        api<Integration[]>(session, '/utilities/v2/integrations'),
-        api<Meter[]>(session, '/utilities/v2/meters'),
-        api<Receipt[]>(session, '/utilities/v2/integrations/receipts'),
-        api<Mapping[]>(session, '/utilities/v2/integrations/mappings'),
-        api<IntegrationEvent[]>(session, '/utilities/v2/integrations/events'),
+        api<Integration[]>('/utilities/v2/integrations',{},session),
+        api<Meter[]>('/utilities/v2/meters',{},session),
+        api<Receipt[]>('/utilities/v2/integrations/receipts',{},session),
+        api<Mapping[]>('/utilities/v2/integrations/mappings',{},session),
+        api<IntegrationEvent[]>('/utilities/v2/integrations/events',{},session),
       ])
       setIntegrations(integrationRows)
       setMeters(meterRows)
@@ -159,10 +140,10 @@ export default function UtilityIntegrationsPage() {
     setMessage('')
     setGeneratedKey('')
     try {
-      const created = await api<CreatedIntegration>(session, '/utilities/v2/integrations', {
+      const created = await api<CreatedIntegration>('/utilities/v2/integrations', {
         method: 'POST',
         body: JSON.stringify({ code: code.trim(), name: name.trim() }),
-      })
+      },session)
       setGeneratedKey(created.integrationKey)
       setCode('')
       setName('')
@@ -183,10 +164,10 @@ export default function UtilityIntegrationsPage() {
     setError('')
     setMessage('')
     try {
-      await api(session, `/utilities/v2/integrations/${selectedIntegrationId}/mappings`, {
+      await api(`/utilities/v2/integrations/${selectedIntegrationId}/mappings`, {
         method: 'POST',
         body: JSON.stringify({ externalMeterId: externalMeterId.trim(), meterId: selectedMeterId }),
-      })
+      },session)
       setExternalMeterId('')
       setMessage('External meter mapping created.')
       await load()
@@ -204,7 +185,7 @@ export default function UtilityIntegrationsPage() {
     setError('')
     setMessage('')
     try {
-      await api(session, `/utilities/v2/integrations/${integration.id}/revoke`, { method: 'POST' })
+      await api(`/utilities/v2/integrations/${integration.id}/revoke`, { method: 'POST' },session)
       setGeneratedKey('')
       setMessage(`${integration.code} revoked.`)
       await load()
@@ -223,7 +204,7 @@ export default function UtilityIntegrationsPage() {
     setMessage('')
     setGeneratedKey('')
     try {
-      const rotated = await api<CreatedIntegration>(session, `/utilities/v2/integrations/${integration.id}/rotate-key`, { method: 'POST' })
+      const rotated = await api<CreatedIntegration>(`/utilities/v2/integrations/${integration.id}/rotate-key`, { method: 'POST' },session)
       setGeneratedKey(rotated.integrationKey)
       setMessage(`${integration.code} key rotated. Store the replacement key now; it will not be shown again.`)
       await load()
@@ -241,7 +222,7 @@ export default function UtilityIntegrationsPage() {
     setError('')
     setMessage('')
     try {
-      await api(session, `/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/retire`, { method: 'POST' })
+      await api(`/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/retire`, { method: 'POST' },session)
       setMessage(`Mapping ${mapping.externalMeterId} retired; its history was preserved.`)
       await load()
     } catch (caught) {
@@ -259,10 +240,10 @@ export default function UtilityIntegrationsPage() {
     setError('')
     setMessage('')
     try {
-      await api(session, `/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/replace`, {
+      await api(`/utilities/v2/integrations/${mapping.integrationId}/mappings/${mapping.id}/replace`, {
         method: 'POST',
         body: JSON.stringify({ meterId }),
-      })
+      },session)
       setMessage(`Mapping ${mapping.externalMeterId} replaced; the previous mapping remains in history.`)
       await load()
     } catch (caught) {
@@ -283,10 +264,10 @@ export default function UtilityIntegrationsPage() {
     setError('')
     setMessage('')
     try {
-      await api(session, `/utilities/v2/integrations/receipts/${receipt.id}/${action}`, {
+      await api(`/utilities/v2/integrations/receipts/${receipt.id}/${action}`, {
         method: 'POST',
         body: JSON.stringify({ note: note || undefined }),
-      })
+      },session)
       setMessage(action === 'dismiss'
         ? 'Quarantine disposition recorded without changing the original receipt.'
         : 'Reprocessing completed with a new receipt linked to the original evidence.')

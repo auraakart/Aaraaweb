@@ -1,17 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string}
 type Summary={windowDays:number;bookings30d:number;completed30d:number;cancelled30d:number;completionRate30d:number;cancellationRate30d:number;homeBookings30d:number;societyUnitBookings30d:number;homeBookingShare30d:number;societyUnitBookingShare30d:number;ratedCompleted30d:number;feedbackCoverageRate30d:number;averageStars30d:number|null;activeVerifiedProviders:number;activeCommercialPlacements:number;repeatCustomers90d:number}
 type AttentionReason='REQUEST_AWAITING_CONFIRMATION'|'CONFIRMED_NOT_STARTED'|'IN_PROGRESS_OVERRUN'
 type AttentionItem={bookingId:string;status:'REQUESTED'|'CONFIRMED'|'IN_PROGRESS';scheduledStart:string;scheduledEnd:string;createdAt:string;updatedAt:string;offeringName:string;providerName:string;reason:AttentionReason;attentionAgeMinutes:number}
 type AttentionQueue={thresholds:{requestConfirmationMinutes:number;confirmedStartGraceMinutes:number;inProgressOverrunMinutes:number};items:AttentionItem[]}
 type ProviderResponsivenessRow={providerId:string;providerName:string;requests30d:number;providerResponses30d:number;providerAccepted30d:number;providerDeclined30d:number;averageResponseMinutes30d:number;openRequestedNow:number;providerResponseRate30d:number}
 type ProviderResponsiveness={windowDays:number;providers:ProviderResponsivenessRow[]}
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function storedSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function getJson<T>(s:Session,path:string):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{headers:{Accept:'application/json',Authorization:`Bearer ${s.accessToken}`}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(body?.message??`Request failed (${r.status})`);return body as T}
 function percent(value:number){return `${(value*100).toFixed(1)}%`}
 function dateTime(value:string){return new Date(value).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function age(minutes:number){if(minutes<60)return `${minutes} min`;const hours=Math.floor(minutes/60),mins=minutes%60;return `${hours}h${mins?` ${mins}m`:''}`}
@@ -19,7 +17,7 @@ function reasonLabel(reason:AttentionReason){switch(reason){case'REQUEST_AWAITIN
 
 export default function ExternalServicesOperationsPage(){
   const[session,setSession]=useState<Session|null>(null),[summary,setSummary]=useState<Summary|null>(null),[attention,setAttention]=useState<AttentionQueue|null>(null),[responsiveness,setResponsiveness]=useState<ProviderResponsiveness|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
-  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[summaryData,attentionData,responsivenessData]=await Promise.all([getJson<Summary>(s,'/platform/services/operations/summary'),getJson<AttentionQueue>(s,'/platform/services/operations/attention'),getJson<ProviderResponsiveness>(s,'/platform/services/operations/provider-responsiveness')]);setSummary(summaryData);setAttention(attentionData);setResponsiveness(responsivenessData)}catch(e){setError(e instanceof Error?e.message:'Operations data could not be loaded')}finally{setLoading(false)}},[])
+  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[summaryData,attentionData,responsivenessData]=await Promise.all([api<Summary>('/platform/services/operations/summary',{},s),api<AttentionQueue>('/platform/services/operations/attention',{},s),api<ProviderResponsiveness>('/platform/services/operations/provider-responsiveness',{},s)]);setSummary(summaryData);setAttention(attentionData);setResponsiveness(responsivenessData)}catch(e){setError(e instanceof Error?e.message:'Operations data could not be loaded')}finally{setLoading(false)}},[])
   useEffect(()=>{const s=storedSession();setSession(s);if(s?.role==='SUPER_ADMIN')void load(s);else setLoading(false)},[load])
   if(loading)return <main style={{padding:32}}>Loading External Services operations…</main>
   if(session?.role!=='SUPER_ADMIN')return <main style={{padding:32}}><h1>Super Admin access required</h1><p>External Services pilot telemetry is platform-only and read-only.</p><a href="/">Return to Admin</a></main>

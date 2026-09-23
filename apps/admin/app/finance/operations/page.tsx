@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ActionBar, EmptyState, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Expense={id:string;expenseNumber:string;vendorName:string;invoiceReference?:string|null;expenseDate:string;dueDate?:string|null;description:string;amountPaise:string;status:string;expenseAccountId:string;fundId?:string|null;journalEntryId?:string|null;payableId?:string|null;payableStatus?:string|null;payableOutstandingRaw?:string|number}
 type Payable={id:string;expenseId:string;expenseNumber:string;vendorName:string;status:string;dueDate?:string|null;originalAmountPaise:string;outstandingPaise:string}
 type Budget={id:string;code:string;name:string;startsOn:string;endsOn:string;status:string;budgetPaise:string}
@@ -12,13 +12,11 @@ type Fund={id:string;code:string;name:string;utilizedPaise:string}
 type Account={id:string;code:string;name:string;type:string;active:boolean}
 type Journal={id:string;entryNumber:string;status:string;debitPaise:string;creditPaise:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const money=(v:string|number|undefined)=>`₹${(Number(v??0)/100).toLocaleString('en-IN',{maximumFractionDigits:2})}`
 const today=()=>new Date().toISOString().slice(0,10)
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const text=await r.text();const body=text?JSON.parse(text):null;if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`);return body as T}
 
 export default function FinanceOperationsPage(){
   const[s,setS]=useState<Session|null>(null),[expenses,setExpenses]=useState<Expense[]>([]),[payables,setPayables]=useState<Payable[]>([]),[budgets,setBudgets]=useState<Budget[]>([]),[funds,setFunds]=useState<Fund[]>([]),[accounts,setAccounts]=useState<Account[]>([]),[journals,setJournals]=useState<Journal[]>([]),[actuals,setActuals]=useState<Actual[]>([]),[selectedBudget,setSelectedBudget]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState('')
@@ -27,10 +25,10 @@ export default function FinanceOperationsPage(){
   const[actionExpense,setActionExpense]=useState<Expense|null>(null),[expenseAction,setExpenseAction]=useState<'approve'|'post'|null>(null),[payableAccount,setPayableAccount]=useState(''),[journalNumber,setJournalNumber]=useState('')
   const[settlementPayable,setSettlementPayable]=useState<Payable|null>(null),[settlementAmount,setSettlementAmount]=useState(''),[settlementJournal,setSettlementJournal]=useState('')
   const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
-  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const[e,p,b,f,a,j]=await Promise.all([api<Expense[]>(x,'/accounting/finance-operations/expenses'),api<Payable[]>(x,'/accounting/finance-operations/payables'),api<Budget[]>(x,'/accounting/finance-operations/budgets'),api<Fund[]>(x,'/accounting/finance-operations/fund-utilization'),api<Account[]>(x,'/accounting/accounts'),api<Journal[]>(x,'/accounting/journals')]);setExpenses(e);setPayables(p);setBudgets(b);setFunds(f);setAccounts(a);setJournals(j)}catch(err){setError(err instanceof Error?err.message:'Could not load finance operations')}finally{setLoading(false)}},[])
+  const load=useCallback(async(x:Session)=>{setLoading(true);setError('');try{const[e,p,b,f,a,j]=await Promise.all([api<Expense[]>('/accounting/finance-operations/expenses',{},x),api<Payable[]>('/accounting/finance-operations/payables',{},x),api<Budget[]>('/accounting/finance-operations/budgets',{},x),api<Fund[]>('/accounting/finance-operations/fund-utilization',{},x),api<Account[]>('/accounting/accounts',{},x),api<Journal[]>('/accounting/journals',{},x)]);setExpenses(e);setPayables(p);setBudgets(b);setFunds(f);setAccounts(a);setJournals(j)}catch(err){setError(err instanceof Error?err.message:'Could not load finance operations')}finally{setLoading(false)}},[])
   useEffect(()=>{const x=session();setS(x);if(x&&readRoles.has(x.role))void load(x);else setLoading(false)},[load])
 
-  async function mutate(path:string,body?:unknown){if(!s||!canManage)return;setBusy(true);setError('');try{await api(s,path,{method:'POST',body:body===undefined?undefined:JSON.stringify(body)});await load(s)}catch(err){setError(err instanceof Error?err.message:'Finance operation failed')}finally{setBusy(false)}}
+  async function mutate(path:string,body?:unknown){if(!s||!canManage)return;setBusy(true);setError('');try{await api(path,{method:'POST',body:body===undefined?undefined:JSON.stringify(body)},s);await load(s)}catch(err){setError(err instanceof Error?err.message:'Finance operation failed')}finally{setBusy(false)}}
   async function createExpense(e:FormEvent){e.preventDefault();const rupees=Number(amount);if(!Number.isFinite(rupees)||rupees<=0||!expenseAccount)return setError('Enter a valid amount and expense account.');await mutate('/accounting/finance-operations/expenses',{expenseNumber:expenseNo,vendorName:vendor,expenseDate,dueDate:dueDate||undefined,description,amountPaise:Math.round(rupees*100),expenseAccountId:expenseAccount});setExpenseNo('');setVendor('');setDescription('');setAmount('')}
   function approveExpense(x:Expense){setActionExpense(x);setExpenseAction('approve');setPayableAccount('')}
   function postExpense(x:Expense){setActionExpense(x);setExpenseAction('post');setJournalNumber(`EXP-${x.expenseNumber}`)}
@@ -38,8 +36,8 @@ export default function FinanceOperationsPage(){
   function settlePayable(p:Payable){setSettlementPayable(p);setSettlementAmount((Number(p.outstandingPaise)/100).toString());setSettlementJournal('')}
   async function submitSettlement(e:FormEvent){e.preventDefault();if(!settlementPayable)return;const amountR=Number(settlementAmount);if(!Number.isFinite(amountR)||amountR<=0)return setError('Enter a positive settlement amount.');if(amountR*100>Number(settlementPayable.outstandingPaise))return setError('Settlement cannot exceed the outstanding payable amount.');if(!settlementJournal)return setError('Choose a posted payment journal.');await mutate(`/accounting/finance-operations/payables/${settlementPayable.id}/settle`,{amountPaise:Math.round(amountR*100),settlementDate:today(),journalEntryId:settlementJournal,idempotencyKey:`admin-${settlementPayable.id}-${Date.now()}`});setSettlementPayable(null);setSettlementAmount('');setSettlementJournal('')}
   async function createBudget(e:FormEvent){e.preventDefault();const rupees=Number(budgetAmount);if(!budgetAccount||!Number.isFinite(rupees)||rupees<0)return setError('Choose an account and enter a valid budget amount.');await mutate('/accounting/finance-operations/budgets',{code:budgetCode,name:budgetName,startsOn:budgetStart,endsOn:budgetEnd,lines:[{accountId:budgetAccount,amountPaise:Math.round(rupees*100)}]});setBudgetCode('');setBudgetName('');setBudgetAmount('')}
-  async function showActuals(id:string){if(!s)return;setSelectedBudget(id);setError('');try{setActuals(await api<Actual[]>(s,`/accounting/finance-operations/budgets/${id}/actuals`))}catch(err){setError(err instanceof Error?err.message:'Could not load budget actuals')}}
-  async function exportSnapshot(){if(!s)return;setBusy(true);try{const data=await api<unknown>(s,'/accounting/finance-operations/export');const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`aaraagate-finance-${today()}.json`;a.click();URL.revokeObjectURL(url)}catch(err){setError(err instanceof Error?err.message:'Could not export finance snapshot')}finally{setBusy(false)}}
+  async function showActuals(id:string){if(!s)return;setSelectedBudget(id);setError('');try{setActuals(await api<Actual[]>(`/accounting/finance-operations/budgets/${id}/actuals`,{},s))}catch(err){setError(err instanceof Error?err.message:'Could not load budget actuals')}}
+  async function exportSnapshot(){if(!s)return;setBusy(true);try{const data=await api<unknown>('/accounting/finance-operations/export',{},s);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`aaraagate-finance-${today()}.json`;a.click();URL.revokeObjectURL(url)}catch(err){setError(err instanceof Error?err.message:'Could not export finance snapshot')}finally{setBusy(false)}}
 
   if(loading)return <PageShell><PageHeader title="Finance operations" description="Loading finance operations…"/></PageShell>
   if(!canRead)return <PageShell><PageHeader title="Finance access required" actions={<a href="/finance">Return to Finance</a>}/></PageShell>

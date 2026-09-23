@@ -2,16 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ActionBar, EmptyState, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, SecondaryButton, SelectField } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string;societyName?:string}
 type Account={id:string;code:string;name:string;type:string;active:boolean}
 type Period={id:string;code:string;name:string;startsOn:string;endsOn:string;status:string}
 type Batch={id:string;batchKey:string;entryNumber:string;entryDate:string;description:string;status:string;lineCount:number;debitPaise:string;creditPaise:string;postedAt?:string|null}
 type Line={accountId:string;unitId:string;fundId:string;description:string;debit:string;credit:string}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}});const t=await r.text();const b=t?JSON.parse(t):null;if(!r.ok)throw new Error(Array.isArray(b?.message)?b.message.join(', '):b?.message??`Request failed (${r.status})`);return b as T}
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const money=(v:string|number)=>`₹${(Number(v)/100).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`
@@ -26,7 +24,7 @@ export default function OpeningBalancesPage(){
   const[postConfirmed,setPostConfirmed]=useState(false)
   const canRead=!!session&&readRoles.has(session.role),canManage=!!session&&manageRoles.has(session.role)
 
-  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[a,p,b]=await Promise.all([api<Account[]>(s,'/accounting/accounts'),api<Period[]>(s,'/accounting/periods'),api<Batch[]>(s,'/accounting/opening-balances')]);setAccounts(a.filter(x=>x.active));setPeriods(p);setBatches(b);setPeriodId(prev=>prev||p.find(x=>x.status==='OPEN')?.id||'')}catch(e){setError(e instanceof Error?e.message:'Could not load opening balances')}finally{setLoading(false)}},[])
+  const load=useCallback(async(s:Session)=>{setLoading(true);setError('');try{const[a,p,b]=await Promise.all([api<Account[]>('/accounting/accounts',{},s),api<Period[]>('/accounting/periods',{},s),api<Batch[]>('/accounting/opening-balances',{},s)]);setAccounts(a.filter(x=>x.active));setPeriods(p);setBatches(b);setPeriodId(prev=>prev||p.find(x=>x.status==='OPEN')?.id||'')}catch(e){setError(e instanceof Error?e.message:'Could not load opening balances')}finally{setLoading(false)}},[])
   useEffect(()=>{const s=getSession();setSession(s);if(s&&readRoles.has(s.role))void load(s);else setLoading(false)},[load])
 
   function updateLine(index:number,field:keyof Line,value:string){setLines(current=>current.map((line,i)=>i===index?{...line,[field]:value}:line))}
@@ -41,7 +39,7 @@ export default function OpeningBalancesPage(){
     if(debit<=0||debit!==credit){setError('Opening-balance debits and credits must be positive and exactly balanced.');return}
     if(!postConfirmed){setError('Confirm the auditable cutover posting before continuing.');return}
     setBusy(true)
-    try{const result=await api<{idempotent:boolean}>(session,'/accounting/opening-balances',{method:'POST',body:JSON.stringify({batchKey,periodId,entryNumber,entryDate,description,externalReference:externalReference||undefined,lines:payloadLines})});setPostConfirmed(false);setSuccess(result.idempotent?'This exact cutover batch was already posted; no duplicate journal was created.':'Opening balances posted successfully.');await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not post opening balances')}finally{setBusy(false)}
+    try{const result=await api<{idempotent:boolean}>('/accounting/opening-balances',{method:'POST',body:JSON.stringify({batchKey,periodId,entryNumber,entryDate,description,externalReference:externalReference||undefined,lines:payloadLines})},session);setPostConfirmed(false);setSuccess(result.idempotent?'This exact cutover batch was already posted; no duplicate journal was created.':'Opening balances posted successfully.');await load(session)}catch(e){setError(e instanceof Error?e.message:'Could not post opening balances')}finally{setBusy(false)}
   }
 
   if(loading)return <PageShell><PageHeader title="Opening balances" description="Loading cutover balances…"/></PageShell>

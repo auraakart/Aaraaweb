@@ -36,6 +36,35 @@ export class GuardOperationsService {
     `);
   }
 
+  async escalateOverstay(societyId:string,userId:string,accessRequestId:string,note?:string){
+    const rows=await this.prisma.$queryRaw<Array<{id:string;subjectName:string;enteredAt:Date;unitNumber:string;buildingName:string}>>(Prisma.sql`
+      SELECT r."id",r."subjectName",r."enteredAt",u."number" AS "unitNumber",b."name" AS "buildingName"
+      FROM "AccessRequest" r
+      JOIN "Unit" u ON u."id"=r."unitId" AND u."societyId"=r."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=r."societyId"
+      WHERE r."id"=${accessRequestId}::uuid AND r."societyId"=${societyId}::uuid
+        AND r."status"='CHECKED_IN' AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL
+        AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours'
+      LIMIT 1
+    `);
+    const overstay=rows[0];if(!overstay)throw new ConflictException('Access request is not an active four-hour overstay');
+    const sourceRef=`access-request:${accessRequestId}`;
+    const existing=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT "id","status","severity","title","occurredAt" FROM "SecurityIncident"
+      WHERE "societyId"=${societyId}::uuid AND "category"='OVERSTAY' AND "status"<>'CLOSED'
+        AND "mediaRefs" @> ${JSON.stringify([sourceRef])}::jsonb
+      ORDER BY "occurredAt" DESC LIMIT 1
+    `);
+    if(existing[0])return {...existing[0],idempotent:true};
+    const description=`Access request ${accessRequestId} has remained inside since ${overstay.enteredAt.toISOString()} for ${overstay.buildingName} ${overstay.unitNumber}.${note?.trim()?` Guard note: ${note.trim()}`:''}`;
+    const incident=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      INSERT INTO "SecurityIncident" ("societyId","guardUserId","severity","category","title","description","mediaRefs")
+      VALUES (${societyId}::uuid,${userId}::uuid,'HIGH','OVERSTAY',${`Visitor overstay · ${overstay.subjectName}`},${description},${JSON.stringify([sourceRef])}::jsonb)
+      RETURNING "id","severity","category","title","status","occurredAt"
+    `);
+    return {...incident[0],idempotent:false};
+  }
+
   watchlist(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
     SELECT "id","kind","subjectName","phone","vehicleNumber","reason","active","validFrom","validUntil","createdAt","updatedAt"
     FROM "GuardWatchlistEntry" WHERE "societyId"=${societyId}::uuid AND "active"=true
@@ -80,6 +109,23 @@ export class GuardOperationsService {
   async cancelPass(societyId:string,userId:string,id:string){const changed=await this.prisma.$executeRaw(Prisma.sql`UPDATE "MaterialGatePass" SET "status"='CANCELLED',"cancelledByUserId"=${userId}::uuid,"cancelledAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "status"='OPEN'`);if(!changed)throw new ConflictException('Open gate pass not found');return {id,status:'CANCELLED'};}
 
   checkpoints(societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT "id","code","name","location","active" FROM "PatrolCheckpoint" WHERE "societyId"=${societyId}::uuid AND "active"=true ORDER BY "name"`);}
+  patrolStatus(societyId:string,staleHours=8){
+    if(!Number.isInteger(staleHours)||staleHours<1||staleHours>72)throw new BadRequestException('Patrol stale threshold must be between 1 and 72 hours');
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT c."id",c."code",c."name",c."location",
+             latest."scannedAt" AS "lastScannedAt",latest."guardUserId" AS "lastGuardUserId",
+             CASE WHEN latest."scannedAt" IS NULL THEN NULL ELSE FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-latest."scannedAt"))/3600)::int END AS "hoursSinceLastScan",
+             (latest."scannedAt" IS NULL OR latest."scannedAt"<CURRENT_TIMESTAMP-(${staleHours}*INTERVAL '1 hour')) AS "stale"
+      FROM "PatrolCheckpoint" c
+      LEFT JOIN LATERAL (
+        SELECT s."scannedAt",s."guardUserId" FROM "PatrolScan" s
+        WHERE s."societyId"=c."societyId" AND s."checkpointId"=c."id"
+        ORDER BY s."scannedAt" DESC LIMIT 1
+      ) latest ON TRUE
+      WHERE c."societyId"=${societyId}::uuid AND c."active"=true
+      ORDER BY "stale" DESC,latest."scannedAt" ASC NULLS FIRST,c."name"
+    `);
+  }
   async createCheckpoint(societyId:string,userId:string,input:CheckpointInput){const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "PatrolCheckpoint" ("societyId","code","name","location","createdByUserId") VALUES (${societyId}::uuid,${input.code.trim().toUpperCase()},${input.name.trim()},${input.location?.trim()||null},${userId}::uuid) RETURNING "id","code","name","location","active"`);return rows[0];}
   async scanCheckpoint(societyId:string,userId:string,checkpointId:string,gateId?:string,note?:string){await this.assertCheckpoint(societyId,checkpointId);await this.assertGateUnit(societyId,gateId,undefined);const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`INSERT INTO "PatrolScan" ("societyId","checkpointId","guardUserId","gateId","note") VALUES (${societyId}::uuid,${checkpointId}::uuid,${userId}::uuid,${gateId??null}::uuid,${note?.trim()||null}) RETURNING "id","checkpointId","gateId","scannedAt","note"`);return rows[0];}
 
