@@ -8,6 +8,8 @@ const files=[
   'apps/admin/app/audit/page.tsx',
   'apps/admin/app/onboarding/page.tsx',
   'apps/admin/app/governance/readiness/page.tsx',
+  'apps/admin/app/society-vendors/contracts/page.tsx',
+  'apps/admin/app/utilities/integrations/page.tsx',
 ]
 
 for(const file of files){
