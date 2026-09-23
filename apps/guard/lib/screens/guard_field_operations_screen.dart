@@ -13,10 +13,10 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
   late final GuardOperationsClient client=GuardOperationsClient(widget.controller.api);
   bool loading=true,busy=false; String? error;
   Map<String,dynamic> summary=const {};
-  List<Map<String,dynamic>> overstays=const [],watchlist=const [],passes=const [],checkpoints=const [],incidents=const [],handovers=const [];
+  List<Map<String,dynamic>> overstays=const [],watchlist=const [],passes=const [],checkpoints=const [],patrolStatus=const [],incidents=const [],handovers=const [];
 
   @override void initState(){super.initState();load();}
-  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.incidents(),client.shiftHandovers()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;incidents=values[5] as List<Map<String,dynamic>>;handovers=values[6] as List<Map<String,dynamic>>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
+  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
   Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
 
   @override Widget build(BuildContext context){
@@ -24,10 +24,10 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     return Scaffold(appBar:AppBar(title:const Text('Field operations'),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh_rounded))]),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,40),children:[
       if(error!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:theme.colorScheme.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(error!)),
       _metrics(),const SizedBox(height:12),_attentionNow(),const SizedBox(height:18),
-      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x)=>_tile('${x['subjectName']??'Visitor'} · ${x['buildingName']??''} ${x['unitNumber']??''}','${x['minutesInside']??0} min inside',Icons.schedule_rounded)),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
+      _heading('Overstays',Icons.timer_outlined),...overstays.take(20).map((x)=>Card(child:ListTile(leading:const Icon(Icons.schedule_rounded),title:Text('${x['subjectName']??'Visitor'} · ${x['buildingName']??''} ${x['unitNumber']??''}',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${x['minutesInside']??0} min inside'),trailing:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.escalateOverstay(x['id'].toString()).then((_){})),child:const Text('ESCALATE'))))),if(overstays.isEmpty)_empty('No overstays at the current threshold.'),
       const SizedBox(height:18),_heading('Watchlist',Icons.policy_outlined),...watchlist.take(20).map((x)=>_tile('${x['kind']} · ${x['subjectName']}',x['reason']?.toString()??'',x['kind']=='DENY'?Icons.block_rounded:Icons.visibility_outlined)),if(watchlist.isEmpty)_empty('No active watchlist entries.'),
       const SizedBox(height:18),_sectionHeader('Material & move passes',Icons.local_shipping_outlined,TextButton.icon(onPressed:busy?null:_createPass,icon:const Icon(Icons.add_rounded),label:const Text('NEW PASS'))),...passes.take(30).map((x)=>Card(child:ListTile(title:Text('${x['referenceCode']} · ${x['movementType']}'),subtitle:Text('${x['subjectName']} · ${x['itemDescription']}'),trailing:x['status']=='OPEN'?FilledButton(onPressed:busy?null:()=>run(()=>client.processPass(x['id'].toString()).then((_){})),child:const Text('PROCESS')):Text(x['status']?.toString()??'')))),if(passes.isEmpty)_empty('No gate passes recorded.'),
-      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x)=>Card(child:ListTile(title:Text('${x['code']} · ${x['name']}'),subtitle:Text(x['location']?.toString()??'Checkpoint'),trailing:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.scanCheckpoint(x['id'].toString(),gateId:widget.controller.gateId).then((_){})),child:const Text('SCAN'))))),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
+      const SizedBox(height:18),_heading('Patrol checkpoints',Icons.qr_code_scanner_rounded),...checkpoints.map((x){final status=patrolStatus.where((s)=>s['id']==x['id']).cast<Map<String,dynamic>>().firstOrNull;final stale=status?['stale']==true;final age=status?['hoursSinceLastScan'];return Card(child:ListTile(title:Text('${x['code']} · ${x['name']}'),subtitle:Text('${x['location']?.toString()??'Checkpoint'} · ${status?['lastScannedAt']==null?'Never scanned':stale?'Coverage overdue · ${age??'?'}h since scan':'Coverage current · ${age??0}h since scan'}'),trailing:FilledButton.tonal(onPressed:busy?null:()=>run(()=>client.scanCheckpoint(x['id'].toString(),gateId:widget.controller.gateId).then((_){})),child:Text(stale?'SCAN NOW':'SCAN'))));}),if(checkpoints.isEmpty)_empty('No active patrol checkpoints configured.'),
       const SizedBox(height:18),_sectionHeader('Shift handover',Icons.handshake_outlined,TextButton.icon(onPressed:busy?null:_createHandover,icon:const Icon(Icons.note_add_rounded),label:const Text('HAND OVER'))),...handovers.take(20).map((x)=>_handoverTile(x)),if(handovers.isEmpty)_empty('No shift handovers recorded.'),
       const SizedBox(height:18),_sectionHeader('Incidents',Icons.report_problem_outlined,TextButton.icon(onPressed:busy?null:_createIncident,icon:const Icon(Icons.add_alert_rounded),label:const Text('REPORT'))),...incidents.take(30).map((x){final refs=(x['mediaRefs'] is List)?(x['mediaRefs'] as List).length:0;return _tile('${x['severity']} · ${x['title']}', '${x['category']} · ${x['status']}${refs>0?' · $refs evidence ref${refs==1?'':'s'}':''}',Icons.warning_amber_rounded);}),if(incidents.isEmpty)_empty('No incidents recorded.'),
     ]))));
@@ -39,7 +39,8 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     final watchCount=(summary['watchlistCount'] as num?)?.toInt()??0;
     final incidentCount=(summary['openIncidentCount'] as num?)?.toInt()??0;
     final handoverCount=handovers.where((x)=>x['status']=='OPEN').length;
-    final urgent=overstayCount+watchCount+incidentCount+handoverCount;
+    final stalePatrolCount=patrolStatus.where((x)=>x['stale']==true).length;
+    final urgent=overstayCount+watchCount+incidentCount+handoverCount+stalePatrolCount;
     final theme=Theme.of(context),scheme=theme.colorScheme;
     return GuardOperationSurface(
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
@@ -47,12 +48,13 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
         const SizedBox(height:8),
-        Text(urgent==0?'No overstays, watchlist matches, open incidents or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+        Text(urgent==0?'No overstays, watchlist matches, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         if(urgent>0)...[const SizedBox(height:10),Wrap(spacing:8,runSpacing:8,children:[
           if(overstayCount>0)_attentionChip(Icons.timer_outlined,'$overstayCount overstay${overstayCount==1?'':'s'}'),
           if(watchCount>0)_attentionChip(Icons.policy_outlined,'$watchCount watchlist'),
           if(incidentCount>0)_attentionChip(Icons.report_problem_outlined,'$incidentCount incident${incidentCount==1?'':'s'}'),
           if(handoverCount>0)_attentionChip(Icons.handshake_outlined,'$handoverCount handover${handoverCount==1?'':'s'}'),
+          if(stalePatrolCount>0)_attentionChip(Icons.qr_code_scanner_rounded,'$stalePatrolCount patrol due'),
         ])],
       ])
     );
