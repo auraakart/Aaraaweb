@@ -5,8 +5,8 @@ import {
   ActionBar,DangerButton,EmptyState,ErrorState,EvidenceGrid,FormField,PageHeader,PageShell,
   PrimaryButton,SecondaryButton,SelectField,StatusPill,
 } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
 
-type Session={accessToken:string;role:string}
 type PrivacyCase={
   id:string
   subjectUserId:string
@@ -24,14 +24,7 @@ type PrivacyCase={
 }
 type ErasurePlan={executable:boolean;blockers:string[];erase:string[];retain:string[]}
 
-const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'')
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
-async function api<T>(s:Session,path:string,init:RequestInit={}):Promise<T>{
-  const r=await fetch(`${base}/api/v1${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.accessToken}`,...init.headers}})
-  const text=await r.text();const body=text?JSON.parse(text):null
-  if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join(', '):body?.message??`Request failed (${r.status})`)
-  return body as T
-}
 const human=(v:string)=>v.replaceAll('_',' ')
 
 export default function PlatformPrivacyPage(){
@@ -55,7 +48,7 @@ export default function PlatformPrivacyPage(){
   const load=useCallback(async(x:Session)=>{
     setLoading(true);setError('')
     try{
-      const rows=await api<PrivacyCase[]>(x,'/platform/privacy/cases')
+      const rows=await api<PrivacyCase[]>('/platform/privacy/cases',{},x)
       setCases(rows)
       setSelectedId(current=>current&&rows.some(row=>row.id===current)?current:rows[0]?.id??'')
     }catch(e){setError(e instanceof Error?e.message:'Privacy cases could not be loaded')}finally{setLoading(false)}
@@ -80,28 +73,28 @@ export default function PlatformPrivacyPage(){
   }
 
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
-    void run(()=>api(s,`/platform/privacy/cases/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined})}).then(()=>undefined),'Privacy case status updated.')
+    void run(()=>api(`/platform/privacy/cases/${selected.id}/status`,{method:'PATCH',body:JSON.stringify({status,note:statusNote.trim()||undefined})},s).then(()=>undefined),'Privacy case status updated.')
   }
   const updateRetention=(e:FormEvent)=>{e.preventDefault();if(!s||!selected||selected.requestType!=='ERASURE')return
     if(retentionReason.trim().length<3){setError('Enter a retention decision reason of at least 3 characters.');return}
-    void run(()=>api(s,`/platform/privacy/cases/${selected.id}/retention-review`,{method:'PATCH',body:JSON.stringify({decision:retentionDecision,reason:retentionReason.trim()})}).then(()=>undefined),'Retention review updated.')
+    void run(()=>api(`/platform/privacy/cases/${selected.id}/retention-review`,{method:'PATCH',body:JSON.stringify({decision:retentionDecision,reason:retentionReason.trim()})},s).then(()=>undefined),'Retention review updated.')
   }
   const updateHold=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
     const next=!selected.legalHold
     if(next&&holdReason.trim().length<3){setError('Enter a retention reason of at least 3 characters.');return}
-    void run(()=>api(s,`/platform/privacy/cases/${selected.id}/legal-hold`,{method:'PATCH',body:JSON.stringify({legalHold:next,retentionReason:next?holdReason.trim():undefined})}).then(()=>undefined),next?'Retention hold added.':'Retention hold released.')
+    void run(()=>api(`/platform/privacy/cases/${selected.id}/legal-hold`,{method:'PATCH',body:JSON.stringify({legalHold:next,retentionReason:next?holdReason.trim():undefined})},s).then(()=>undefined),next?'Retention hold added.':'Retention hold released.')
   }
   const previewPlan=async()=>{if(!s||!selected||selected.requestType!=='ERASURE')return
     const id=selected.id
     setBusy(true);setError('');setPlan(null);setErasureConfirmed(false)
     try{
-      const next=await api<ErasurePlan>(s,`/platform/privacy/cases/${selected.id}/erasure-plan`)
+      const next=await api<ErasurePlan>(`/platform/privacy/cases/${selected.id}/erasure-plan`,{},s)
       if(selectedId===id)setPlan(next)
     }catch(e){setError(e instanceof Error?e.message:'Erasure plan could not be loaded')}
     finally{setBusy(false)}
   }
   const executeErasure=()=>{if(!s||!selected||selected.requestType!=='ERASURE'||!plan?.executable||!erasureConfirmed||selected.retentionDecision!=='ALLOW'||selected.legalHold)return
-    void run(()=>api(s,`/platform/privacy/cases/${selected.id}/execute-erasure`,{method:'PATCH'}).then(()=>undefined),'Erasure/minimisation executed.')
+    void run(()=>api(`/platform/privacy/cases/${selected.id}/execute-erasure`,{method:'PATCH'},s).then(()=>undefined),'Erasure/minimisation executed.')
   }
 
   if(loading)return <PageShell><PageHeader title="Independent-home privacy requests" description="Loading platform privacy requests…"/></PageShell>
