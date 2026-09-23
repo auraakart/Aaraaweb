@@ -37,32 +37,35 @@ export class GuardOperationsService {
   }
 
   async escalateOverstay(societyId:string,userId:string,accessRequestId:string,note?:string){
-    const rows=await this.prisma.$queryRaw<Array<{id:string;subjectName:string;enteredAt:Date;unitNumber:string;buildingName:string}>>(Prisma.sql`
-      SELECT r."id",r."subjectName",r."enteredAt",u."number" AS "unitNumber",b."name" AS "buildingName"
-      FROM "AccessRequest" r
-      JOIN "Unit" u ON u."id"=r."unitId" AND u."societyId"=r."societyId"
-      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=r."societyId"
-      WHERE r."id"=${accessRequestId}::uuid AND r."societyId"=${societyId}::uuid
-        AND r."status"='CHECKED_IN' AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL
-        AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours'
-      LIMIT 1
-    `);
-    const overstay=rows[0];if(!overstay)throw new ConflictException('Access request is not an active four-hour overstay');
-    const sourceRef=`access-request:${accessRequestId}`;
-    const existing=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","status","severity","title","occurredAt" FROM "SecurityIncident"
-      WHERE "societyId"=${societyId}::uuid AND "category"='OVERSTAY' AND "status"<>'CLOSED'
-        AND "mediaRefs" @> ${JSON.stringify([sourceRef])}::jsonb
-      ORDER BY "occurredAt" DESC LIMIT 1
-    `);
-    if(existing[0])return {...existing[0],idempotent:true};
-    const description=`Access request ${accessRequestId} has remained inside since ${overstay.enteredAt.toISOString()} for ${overstay.buildingName} ${overstay.unitNumber}.${note?.trim()?` Guard note: ${note.trim()}`:''}`;
-    const incident=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      INSERT INTO "SecurityIncident" ("societyId","guardUserId","severity","category","title","description","mediaRefs")
-      VALUES (${societyId}::uuid,${userId}::uuid,'HIGH','OVERSTAY',${`Visitor overstay · ${overstay.subjectName}`},${description},${JSON.stringify([sourceRef])}::jsonb)
-      RETURNING "id","severity","category","title","status","occurredAt"
-    `);
-    return {...incident[0],idempotent:false};
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<Array<{id:string;subjectName:string;enteredAt:Date;unitNumber:string;buildingName:string}>>(Prisma.sql`
+        SELECT r."id",r."subjectName",r."enteredAt",u."number" AS "unitNumber",b."name" AS "buildingName"
+        FROM "AccessRequest" r
+        JOIN "Unit" u ON u."id"=r."unitId" AND u."societyId"=r."societyId"
+        JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=r."societyId"
+        WHERE r."id"=${accessRequestId}::uuid AND r."societyId"=${societyId}::uuid
+          AND r."status"='CHECKED_IN' AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL
+          AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours'
+        LIMIT 1
+        FOR UPDATE OF r
+      `);
+      const overstay=rows[0];if(!overstay)throw new ConflictException('Access request is not an active four-hour overstay');
+      const sourceRef=`access-request:${accessRequestId}`;
+      const existing=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT "id","status","severity","title","occurredAt" FROM "SecurityIncident"
+        WHERE "societyId"=${societyId}::uuid AND "category"='OVERSTAY'
+          AND ("sourceKey"=${sourceRef} OR ("sourceKey" IS NULL AND "mediaRefs" @> ${JSON.stringify([sourceRef])}::jsonb))
+        ORDER BY ("sourceKey"=${sourceRef}) DESC,"occurredAt" ASC LIMIT 1
+      `);
+      if(existing[0])return {...existing[0],idempotent:true};
+      const description=`Access request ${accessRequestId} has remained inside since ${overstay.enteredAt.toISOString()} for ${overstay.buildingName} ${overstay.unitNumber}.${note?.trim()?` Guard note: ${note.trim()}`:''}`;
+      const incident=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        INSERT INTO "SecurityIncident" ("societyId","guardUserId","severity","category","title","description","mediaRefs","sourceKey")
+        VALUES (${societyId}::uuid,${userId}::uuid,'HIGH','OVERSTAY',${`Visitor overstay · ${overstay.subjectName}`},${description},${JSON.stringify([sourceRef])}::jsonb,${sourceRef})
+        RETURNING "id","severity","category","title","status","occurredAt"
+      `);
+      return {...incident[0],idempotent:false};
+    });
   }
 
   watchlist(societyId:string){return this.prisma.$queryRaw(Prisma.sql`

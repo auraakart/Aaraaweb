@@ -193,18 +193,40 @@ export class AiAssistantService {
 
     if(hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS)){
       const gate=await this.gateAttentionSummary(societyId);
+      const focus=gate.criticalIncidentTitle
+        ? `Critical incident: ${gate.criticalIncidentTitle}`
+        : gate.oldestOverstayName
+          ? `Oldest overstay: ${gate.oldestOverstayName}${gate.oldestOverstayMinutes!==null?` · ${gate.oldestOverstayMinutes} min`:''}`
+          : gate.staleCheckpointName
+            ? `Patrol due: ${gate.staleCheckpointName}`
+            : null;
       cards.push({
         id:'gate-attention',domain:'GATE',
         severity:gate.criticalIncidents>0||gate.overstayCount>0?'HIGH':gate.stalePatrolCount>0?'MEDIUM':'LOW',
         title:'Gate attention and patrol coverage',
         summary:gate.overstayCount||gate.openIncidents||gate.stalePatrolCount
-          ? `${gate.overstayCount} overstays · ${gate.openIncidents} open incidents · ${gate.stalePatrolCount} patrol checkpoints due`
+          ? `${gate.overstayCount} overstays · ${gate.openIncidents} open incidents · ${gate.stalePatrolCount} patrol checkpoints due${focus?` · ${focus}`:''}`
           : 'Gate exceptions and patrol coverage are currently clear.',
         prompt:'Show gate overstays, incidents and patrol coverage needing attention',
         sources:['AccessRequest','SecurityIncident','PatrolCheckpoint','PatrolScan'],
-        metrics:{overstayCount:gate.overstayCount,openIncidents:gate.openIncidents,criticalIncidents:gate.criticalIncidents,stalePatrolCount:gate.stalePatrolCount},
-        whyNow:gate.criticalIncidents>0?'Critical security incidents require supervisor attention now.':gate.overstayCount>0?'Checked-in visitors have exceeded the four-hour operating threshold.':gate.stalePatrolCount>0?'One or more patrol checkpoints have no scan in the last eight hours.':'No immediate gate exception signal is present.',
-        recommendedNextStep:gate.criticalIncidents>0?'Review critical incidents and assign/record the supervisor response.':gate.overstayCount>0?'Verify the visitor status and escalate unresolved overstays from Guard Field Operations.':gate.stalePatrolCount>0?'Prioritise scans for stale patrol checkpoints.':'Continue routine gate processing and patrol cadence.',
+        metrics:{
+          overstayCount:gate.overstayCount,openIncidents:gate.openIncidents,criticalIncidents:gate.criticalIncidents,stalePatrolCount:gate.stalePatrolCount,
+          criticalIncidentId:gate.criticalIncidentId,oldestOverstayId:gate.oldestOverstayId,staleCheckpointId:gate.staleCheckpointId,
+        },
+        whyNow:gate.criticalIncidentTitle
+          ? `Critical incident "${gate.criticalIncidentTitle}" is still open and requires supervisor attention.`
+          : gate.oldestOverstayName
+            ? `${gate.oldestOverstayName} is the oldest checked-in visitor beyond the four-hour operating threshold${gate.oldestOverstayMinutes!==null?` at ${gate.oldestOverstayMinutes} minutes`:''}.`
+            : gate.staleCheckpointName
+              ? `${gate.staleCheckpointName} has no patrol scan in the last eight hours.`
+              : 'No immediate gate exception signal is present.',
+        recommendedNextStep:gate.criticalIncidentId
+          ? 'Open Security Incidents, review the critical record and record the supervisor response.'
+          : gate.oldestOverstayId
+            ? 'Verify the oldest visitor status and escalate it from Guard Field Operations if unresolved.'
+            : gate.staleCheckpointId
+              ? 'Prioritise a patrol scan for the named checkpoint.'
+              : 'Continue routine gate processing and patrol cadence.',
       });
     }
 
@@ -272,7 +294,8 @@ export class AiAssistantService {
     }
 
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
-    cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||a.domain.localeCompare(b.domain));
+    const safetyRank=(card:(typeof cards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
+    cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
     const highPriorityCount=cards.filter(card=>card.severity==='HIGH').length;
     const mediumPriorityCount=cards.filter(card=>card.severity==='MEDIUM').length;
     const focus=cards[0]??null;
@@ -419,16 +442,52 @@ export class AiAssistantService {
   }
 
   private async gateAttentionSummary(societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{overstayCount:number;openIncidents:number;criticalIncidents:number;stalePatrolCount:number}>>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<Array<{
+      overstayCount:number;openIncidents:number;criticalIncidents:number;stalePatrolCount:number;
+      criticalIncidentId:string|null;criticalIncidentTitle:string|null;
+      oldestOverstayId:string|null;oldestOverstayName:string|null;oldestOverstayMinutes:number|null;
+      staleCheckpointId:string|null;staleCheckpointName:string|null;
+    }>>(Prisma.sql`
+      WITH overstays AS (
+        SELECT r."id",r."subjectName",r."enteredAt" FROM "AccessRequest" r
+        WHERE r."societyId"=${societyId}::uuid AND r."status"='CHECKED_IN'
+          AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL
+          AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours'
+      ),
+      open_incidents AS (
+        SELECT i."id",i."title",i."severity",i."occurredAt" FROM "SecurityIncident" i
+        WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN'
+      ),
+      stale_checkpoints AS (
+        SELECT c."id",c."name",MAX(s."scannedAt") AS "lastScannedAt"
+        FROM "PatrolCheckpoint" c
+        LEFT JOIN "PatrolScan" s ON s."societyId"=c."societyId" AND s."checkpointId"=c."id"
+        WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE
+        GROUP BY c."id",c."name"
+        HAVING MAX(s."scannedAt") IS NULL OR MAX(s."scannedAt")<CURRENT_TIMESTAMP-INTERVAL '8 hours'
+      )
       SELECT
-        (SELECT COUNT(*)::int FROM "AccessRequest" r WHERE r."societyId"=${societyId}::uuid AND r."status"='CHECKED_IN' AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours') AS "overstayCount",
-        (SELECT COUNT(*)::int FROM "SecurityIncident" i WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN') AS "openIncidents",
-        (SELECT COUNT(*)::int FROM "SecurityIncident" i WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN' AND i."severity"='CRITICAL') AS "criticalIncidents",
-        (SELECT COUNT(*)::int FROM "PatrolCheckpoint" c WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE AND NOT EXISTS (
-          SELECT 1 FROM "PatrolScan" s WHERE s."societyId"=c."societyId" AND s."checkpointId"=c."id" AND s."scannedAt">=CURRENT_TIMESTAMP-INTERVAL '8 hours'
-        )) AS "stalePatrolCount"
+        (SELECT COUNT(*)::int FROM overstays) AS "overstayCount",
+        (SELECT COUNT(*)::int FROM open_incidents) AS "openIncidents",
+        (SELECT COUNT(*)::int FROM open_incidents WHERE "severity"='CRITICAL') AS "criticalIncidents",
+        (SELECT COUNT(*)::int FROM stale_checkpoints) AS "stalePatrolCount",
+        (SELECT "id" FROM open_incidents WHERE "severity"='CRITICAL' ORDER BY "occurredAt" ASC,"id" ASC LIMIT 1) AS "criticalIncidentId",
+        (SELECT "title" FROM open_incidents WHERE "severity"='CRITICAL' ORDER BY "occurredAt" ASC,"id" ASC LIMIT 1) AS "criticalIncidentTitle",
+        (SELECT "id" FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayId",
+        (SELECT "subjectName" FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayName",
+        (SELECT FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-"enteredAt"))/60)::int FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayMinutes",
+        (SELECT "id" FROM stale_checkpoints ORDER BY "lastScannedAt" ASC NULLS FIRST,"id" ASC LIMIT 1) AS "staleCheckpointId",
+        (SELECT "name" FROM stale_checkpoints ORDER BY "lastScannedAt" ASC NULLS FIRST,"id" ASC LIMIT 1) AS "staleCheckpointName"
     `);
-    return rows[0]??{overstayCount:0,openIncidents:0,criticalIncidents:0,stalePatrolCount:0};
+    const row=rows[0];
+    return {
+      overstayCount:Number(row?.overstayCount??0),openIncidents:Number(row?.openIncidents??0),
+      criticalIncidents:Number(row?.criticalIncidents??0),stalePatrolCount:Number(row?.stalePatrolCount??0),
+      criticalIncidentId:row?.criticalIncidentId??null,criticalIncidentTitle:row?.criticalIncidentTitle??null,
+      oldestOverstayId:row?.oldestOverstayId??null,oldestOverstayName:row?.oldestOverstayName??null,
+      oldestOverstayMinutes:row?.oldestOverstayMinutes===null||row?.oldestOverstayMinutes===undefined?null:Number(row.oldestOverstayMinutes),
+      staleCheckpointId:row?.staleCheckpointId??null,staleCheckpointName:row?.staleCheckpointName??null,
+    };
   }
 
   private async securitySummary(societyId:string){
