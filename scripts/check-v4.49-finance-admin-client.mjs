@@ -24,6 +24,9 @@ const files=[
   'apps/admin/app/household-approvals/page.tsx',
   'apps/admin/app/finance/operations/page.tsx',
   'apps/admin/app/marketplace-control/commercial/page.tsx',
+  'apps/admin/app/finance/statements/page.tsx',
+  'apps/admin/app/parking/permits/page.tsx',
+  'apps/admin/app/platform/privacy/page.tsx',
 ]
 
 for(const file of files){
