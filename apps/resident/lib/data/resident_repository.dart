@@ -153,6 +153,12 @@ class ResidentRepository {
     return _list(value).map((row) => ResidentMaintenanceInvoice.fromJson(row).toJson()).toList(growable: false);
   }
 
+  Future<Map<String, dynamic>> maintenanceSummary({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=$unitId';
+    final value = await api.get('/api/v1/billing/resident-summary$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
     final value = await api.post('/api/v1/billing/payments', {'invoiceId': invoiceId, 'idempotencyKey': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);

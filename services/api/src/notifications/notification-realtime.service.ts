@@ -1,9 +1,10 @@
-import { Injectable, Logger, MessageEvent } from '@nestjs/common';
+import { Injectable, Logger, MessageEvent, Optional } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { PushNotificationService } from './push-notification.service';
 import { GateRecipientService } from './gate-recipient.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { safeOperationalError } from '../observability/safe-operational-error';
+import { GateNotificationFallbackService } from './gate-notification-fallback.service';
 
 export type AccessRealtimeEvent = {
   type: 'ACCESS_APPROVAL_REQUESTED' | 'ACCESS_APPROVAL_DECIDED' | 'ACCESS_STATUS_CHANGED';
@@ -77,6 +78,7 @@ export class NotificationRealtimeService {
     private readonly push: PushNotificationService,
     private readonly gateRecipients: GateRecipientService,
     private readonly prisma?: PrismaService,
+    @Optional() private readonly gateFallback?: GateNotificationFallbackService,
   ) {}
 
   residentStream(societyId: string, userId: string): Observable<MessageEvent> {
@@ -106,7 +108,7 @@ export class NotificationRealtimeService {
   async publishUnitOccupants(event: AccessRealtimeEvent) {
     if (!event.unitId) return;
     const recipients = await this.gateRecipients.notificationRecipients(event.societyId, event.unitId);
-    recipients.forEach(({ userId }) => this.publishResident({ ...event, userId }));
+    await Promise.all(recipients.map(({ userId }) => this.deliverUnitOccupant({ ...event, userId })));
   }
 
   publishGateUpdate(event: AccessRealtimeEvent) {
@@ -160,6 +162,30 @@ export class NotificationRealtimeService {
       this.logger.warn(`Maintenance notification enrichment failed: ${safeOperationalError(error)}`);
       throw error;
     }
+  }
+
+  private async deliverUnitOccupant(event:AccessRealtimeEvent & {userId:string}) {
+    if(event.type!=='ACCESS_APPROVAL_REQUESTED'||!this.gateFallback){
+      await this.deliverResident(event);
+      return;
+    }
+    this.residentStreams.get(`${event.societyId}:${event.userId}`)?.next({data:event});
+    const readiness=await this.push.residentDeliveryReadiness(event.societyId,event.userId);
+    if(readiness.transportConfigured&&readiness.activeDeviceCount>0){
+      try{
+        await this.push.sendResidentEvent(event);
+        await this.gateFallback.recordPushQueued(event,event.userId);
+        return;
+      }catch(error){
+        this.logger.warn(`Gate push failed before fallback: ${safeOperationalError(error)}`);
+        await this.gateFallback.fallback(event,event.userId,'PUSH_DELIVERY_FAILED');
+        return;
+      }
+    }
+    await this.gateFallback.fallback(
+      event,event.userId,
+      readiness.transportConfigured?'NO_ACTIVE_PUSH_DEVICE':'PUSH_TRANSPORT_UNAVAILABLE',
+    );
   }
 
   private async deliverResident(event: ResidentMessageEvent) {

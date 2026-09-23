@@ -4,6 +4,7 @@ import { NotificationRealtimeService } from './notification-realtime.service';
 import type { PushNotificationService } from './push-notification.service';
 import type { GateRecipientService } from './gate-recipient.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { GateNotificationFallbackService } from './gate-notification-fallback.service';
 
 function createService() {
   const push = {
@@ -87,6 +88,49 @@ describe('NotificationRealtimeService', () => {
     expect(push.sendResidentEvent).toHaveBeenCalledTimes(2);
     expect(push.sendResidentEvent).toHaveBeenCalledWith(expect.objectContaining({ userId: 'tenant-1' }));
     expect(push.sendResidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'owner-non-resident' }));
+  });
+
+  it('uses gate fallback when a resident has no active push destination', async () => {
+    const push={
+      sendResidentEvent:vi.fn(),
+      residentDeliveryReadiness:vi.fn().mockResolvedValue({transportConfigured:true,activeDeviceCount:0}),
+    } as unknown as PushNotificationService;
+    const recipients={
+      notificationRecipients:vi.fn().mockResolvedValue([{userId:'tenant-1',gateApprovalEnabled:true}]),
+    } as unknown as GateRecipientService;
+    const fallback={
+      recordPushQueued:vi.fn(),
+      fallback:vi.fn().mockResolvedValue({channel:'IVR',status:'SIMULATED'}),
+    } as unknown as GateNotificationFallbackService;
+    const service=new NotificationRealtimeService(push,recipients,undefined,fallback);
+    await service.publishUnitOccupants({
+      type:'ACCESS_APPROVAL_REQUESTED',societyId:'society-1',unitId:'unit-1',
+      requestId:'request-3',subjectType:'DELIVERY',subjectName:'Courier',status:'PENDING',createdAt:new Date().toISOString(),
+    });
+    expect(push.sendResidentEvent).not.toHaveBeenCalled();
+    expect(fallback.fallback).toHaveBeenCalledWith(expect.objectContaining({requestId:'request-3',userId:'tenant-1'}),'tenant-1','NO_ACTIVE_PUSH_DEVICE');
+  });
+
+  it('records push evidence without invoking IVR when push is ready', async () => {
+    const push={
+      sendResidentEvent:vi.fn().mockResolvedValue(undefined),
+      residentDeliveryReadiness:vi.fn().mockResolvedValue({transportConfigured:true,activeDeviceCount:1}),
+    } as unknown as PushNotificationService;
+    const recipients={
+      notificationRecipients:vi.fn().mockResolvedValue([{userId:'tenant-1',gateApprovalEnabled:true}]),
+    } as unknown as GateRecipientService;
+    const fallback={
+      recordPushQueued:vi.fn().mockResolvedValue({channel:'PUSH',status:'QUEUED'}),
+      fallback:vi.fn(),
+    } as unknown as GateNotificationFallbackService;
+    const service=new NotificationRealtimeService(push,recipients,undefined,fallback);
+    await service.publishUnitOccupants({
+      type:'ACCESS_APPROVAL_REQUESTED',societyId:'society-1',unitId:'unit-1',
+      requestId:'request-4',subjectType:'VISITOR',subjectName:'Guest',status:'PENDING',createdAt:new Date().toISOString(),
+    });
+    expect(push.sendResidentEvent).toHaveBeenCalledTimes(1);
+    expect(fallback.recordPushQueued).toHaveBeenCalledTimes(1);
+    expect(fallback.fallback).not.toHaveBeenCalled();
   });
 
   it('broadcasts resident decisions to the society gate stream', async () => {

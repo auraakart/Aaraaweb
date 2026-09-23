@@ -5,6 +5,7 @@ export type IntegrationFamily =
   | 'OTP'
   | 'WHATSAPP'
   | 'PUSH'
+  | 'TELEPHONY_IVR'
   | 'PAYMENT_GATEWAY'
   | 'ACCESS_CONTROL'
   | 'OBJECT_STORAGE'
@@ -32,6 +33,7 @@ export class IntegrationRegistryService {
       this.otp(),
       this.whatsApp(),
       this.push(),
+      this.telephonyIvr(),
       this.paymentGateway(),
       this.accessControl(),
       this.objectStorage(),
@@ -91,6 +93,21 @@ export class IntegrationRegistryService {
       health: valid ? 'READY' : raw ? 'DEGRADED' : 'UNCONFIGURED',
       capabilities: ['FCM_PUSH', 'APNS_VIA_FCM', 'DURABLE_RETRY'],
       boundary: 'Push health here reflects configuration readiness, not proof of device delivery or provider uptime.',
+    };
+  }
+
+  private telephonyIvr(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+    const environment=process.env.NODE_ENV??'development';
+    const provider=(process.env.GATE_IVR_PROVIDER??'').trim().toLowerCase();
+    const simulator=environment!=='production'&&(!provider||provider==='simulator');
+    return {
+      family:'TELEPHONY_IVR',
+      provider:simulator?'simulator':provider||'unconfigured',
+      configurationScope:'DEPLOYMENT',
+      configured:simulator,
+      health:simulator?'READY':'UNCONFIGURED',
+      capabilities:['GATE_APPROVAL_FALLBACK','DELIVERY_EVIDENCE','MANUAL_FALLBACK','SIMULATOR_CONTRACT'],
+      boundary:'The non-production simulator proves escalation semantics only. No live telephony provider is claimed until a production adapter and credentials are explicitly wired.',
     };
   }
 

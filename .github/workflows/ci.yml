@@ -100,6 +100,12 @@ jobs:
         run: node scripts/check-v4.48-competitive-depth.mjs
       - name: Check V4.49 finance Admin-client convergence
         run: node scripts/check-v4.49-finance-admin-client.mjs
+      - name: Check V4.50 reliability convergence
+        run: node scripts/check-v4.50-reliability-convergence.mjs
+      - name: Check V4.50.1 regression hotfix
+        run: node scripts/check-v4.50.1-regression-hotfix.mjs
+      - name: Check V4.51 field differentiation and trust
+        run: node scripts/check-v4.51-field-differentiation-trust.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
