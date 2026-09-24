@@ -6,11 +6,13 @@ import { AiAssistantService, residentIntentRoutingText } from './ai-assistant.se
 function setup(){
   const prisma={$queryRaw:vi.fn(),$executeRaw:vi.fn().mockResolvedValue(1)};
   const operations={operationsSummary:vi.fn(),proposeHelpdesk:vi.fn()};
+  const workforce={residentStatusMine:vi.fn()};
   return {
-    prisma,operations,
+    prisma,operations,workforce,
     service:new AiAssistantService(
       prisma as unknown as ConstructorParameters<typeof AiAssistantService>[0],
       operations as unknown as ConstructorParameters<typeof AiAssistantService>[1],
+      workforce as unknown as ConstructorParameters<typeof AiAssistantService>[2],
     ),
   };
 }
@@ -150,6 +152,29 @@ describe('V4.6 grounded AI assistant',()=>{
     });
     expect(sqlCalls.some(sql=>sql.includes('v."hostUserId"=?::uuid'))).toBe(true);
     expect(sqlCalls.some(sql=>sql.includes('v."unitId"=?::uuid'))).toBe(true);
+  });
+
+  it('routes household staff status through the canonical occupant-scoped workforce service',async()=>{
+    const {prisma,workforce,service}=setup();
+    workforce.residentStatusMine.mockResolvedValue({
+      activeAssignmentCount:1,checkedInCount:1,onLeaveCount:0,
+      staff:[{id:'assignment-1',name:'Maya',role:'MAID',checkedInNow:true}],
+    });
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],
+      'Is my household staff checked in?',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('RESIDENT_WORKFORCE');
+    expect(workforce.residentStatusMine).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('allows governance read only to governance-readable roles',async()=>{
