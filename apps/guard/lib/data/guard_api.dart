@@ -219,6 +219,13 @@ class GuardApi {
         'assignmentId': assignmentId,
       }, extraHeaders: {'Idempotency-Key': idempotencyKey}) as Map);
 
+  Future<Map<String, dynamic>> assessWatchlist({required String name,String? phone,String? vehicleNumber}) async =>
+      Map<String, dynamic>.from(await _send('POST','/guard-operations/watchlist/assess',body:{
+        'subjectName':name.trim(),
+        if(phone!=null&&phone.trim().isNotEmpty)'phone':phone.trim(),
+        if(vehicleNumber!=null&&vehicleNumber.trim().isNotEmpty)'vehicleNumber':vehicleNumber.trim(),
+      }) as Map);
+
   Future<Map<String, dynamic>> createWalkIn({required String gateId, required String unitId, required String name, String? phone, String? purpose}) async =>
       Map<String, dynamic>.from(await _send('POST', '/access-requests/gate/walk-ins', body: {
         'gateId': gateId,

@@ -50,6 +50,12 @@ export class PrivacyController {
     return this.privacy.operatorContext(societyId);
   }
 
+  @Get('program-readiness')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  programReadiness(@CurrentTenant() societyId:string) {
+    return this.privacy.programReadiness(societyId);
+  }
+
   @Get('cases')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
   listCases(@CurrentTenant() societyId: string) {

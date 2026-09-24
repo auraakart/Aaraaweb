@@ -108,6 +108,8 @@ jobs:
         run: node scripts/check-v4.51-field-differentiation-trust.mjs
       - name: Check V4.51.1 post-release regression hardening
         run: node scripts/check-v4.51.1-regression-hardening.mjs
+      - name: Check V4.52 competitive excellence convergence
+        run: node scripts/check-v4.52-competitive-excellence.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
@@ -304,17 +306,19 @@ jobs:
         run: pnpm --filter @aaraagate/admin exec playwright install --with-deps chromium
       - name: Test shared Admin component interactions and accessibility
         run: pnpm --filter @aaraagate/admin test:ui
+      - name: Typecheck admin
+        run: pnpm --filter @aaraagate/admin typecheck
+      - name: Build admin
+        run: pnpm --filter @aaraagate/admin build
       - name: Retain Admin component visual evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: admin-ui-contract-evidence
           path: apps/admin/test-results/
           if-no-files-found: ignore
-      - name: Typecheck admin
-        run: pnpm --filter @aaraagate/admin typecheck
-      - name: Build admin
-        run: pnpm --filter @aaraagate/admin build
+          retention-days: 7
 
   admin-validation:
     name: Admin validation

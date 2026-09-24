@@ -216,6 +216,9 @@ class GuardController extends ChangeNotifier {
     }
   }
 
+  Future<Map<String,dynamic>> assessArrival({required String name,String? phone,String? vehicleNumber}) =>
+      api.assessWatchlist(name:name,phone:phone,vehicleNumber:vehicleNumber);
+
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
     walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
   });

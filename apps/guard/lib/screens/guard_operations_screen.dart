@@ -49,7 +49,55 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
       builder: (_) => _WalkInSheet(units: c.units),
     );
     if (input == null || !mounted) return;
+    if (!await _screenArrival(name: input.name, phone: input.phone)) return;
     await c.createWalkIn(unitId: input.unitId, name: input.name, phone: input.phone, purpose: input.purpose);
+  }
+
+  Future<bool> _screenArrival({required String name, String? phone, String? vehicleNumber}) async {
+    Map<String, dynamic> assessment;
+    try {
+      assessment = await widget.controller.assessArrival(name: name, phone: phone, vehicleNumber: vehicleNumber);
+    } catch (_) {
+      if (!mounted) return false;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Watchlist check unavailable'),
+          content: const Text('Do not continue automatically. Retry the arrival or ask the security supervisor to review it.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK'))],
+        ),
+      );
+      return false;
+    }
+    if (!mounted) return false;
+    final decision = assessment['decision']?.toString() ?? 'CLEAR';
+    if (decision == 'CLEAR') return true;
+    final rawMatches = assessment['matches'];
+    final matches = rawMatches is List ? rawMatches.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const <Map<String, dynamic>>[];
+    final reason = matches.isEmpty ? 'Active society watchlist match.' : (matches.first['reason']?.toString() ?? 'Active society watchlist match.');
+    if (decision == 'DENY') {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Watchlist deny match'),
+          content: Text('$reason\n\nThis exact active match must be reviewed by the security supervisor. No resident approval request has been created.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK'))],
+        ),
+      );
+      return false;
+    }
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Watchlist review'),
+        content: Text('$reason\n\nThe match is advisory and has not changed access state. Continue to resident approval only after reviewing the details.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Continue to approval')),
+        ],
+      ),
+    );
+    return proceed == true;
   }
 
   Future<void> _quickArrival(String type) async {
@@ -66,6 +114,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
       builder: (_) => _QuickArrivalSheet(units: c.units, isCab: type == 'CAB'),
     );
     if (input == null || !mounted) return;
+    if (!await _screenArrival(name: input.name, phone: input.phone, vehicleNumber: input.vehicleNumber)) return;
     await c.createGateArrival(
       unitId: input.unitId,
       subjectType: type,
