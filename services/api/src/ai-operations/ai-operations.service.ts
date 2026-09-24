@@ -6,8 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { safeOperationalError } from '../observability/safe-operational-error';
 
-type AiAction = 'CREATE_HELPDESK_TICKET'|'BOOK_AMENITY'|'CREATE_VISITOR_PASS';
-const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS']);
+type AiAction = 'CREATE_HELPDESK_TICKET'|'BOOK_AMENITY'|'CREATE_VISITOR_PASS'|'ASSIGN_HELPDESK_TICKET';
+const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS','ASSIGN_HELPDESK_TICKET']);
 
 type HelpdeskProposalInput = {
   unitId: string;
@@ -16,6 +16,8 @@ type HelpdeskProposalInput = {
   category?: string;
   priority?: 'LOW'|'NORMAL'|'HIGH'|'URGENT';
 };
+
+type HelpdeskAssignmentProposalInput = { ticketId:string; assignedToId:string|null; expectedUpdatedAt:string; };
 
 type AmenityProposalInput = {
   amenityId: string;
@@ -159,6 +161,11 @@ export class AiOperationsService {
     });
   }
 
+  async proposeHelpdeskAssignment(societyId:string,userId:string,input:{ticketId:string;assignedToId:string|null}) {
+    const preview=await this.helpdesk.assignmentPreview(societyId,input.ticketId,input.assignedToId);
+    return this.createProposal(societyId,userId,'ASSIGN_HELPDESK_TICKET',{ticketId:input.ticketId,assignedToId:input.assignedToId,expectedUpdatedAt:preview.expectedUpdatedAt},preview);
+  }
+
   proposeAmenityBooking(societyId:string,userId:string,input:AmenityProposalInput) {
     return this.createProposal(societyId,userId,'BOOK_AMENITY',input);
   }
@@ -174,6 +181,14 @@ export class AiOperationsService {
     return this.confirmAction(societyId,userId,proposalId,'CREATE_HELPDESK_TICKET',async payload=>{
       const ticket=await this.helpdesk.createMine(societyId,userId,payload as HelpdeskProposalInput);
       return {ticketId:String((ticket as {id?:unknown}).id??'')};
+    });
+  }
+
+  confirmHelpdeskAssignment(societyId:string,userId:string,proposalId:string) {
+    return this.confirmAction(societyId,userId,proposalId,'ASSIGN_HELPDESK_TICKET',async payload=>{
+      const input=payload as HelpdeskAssignmentProposalInput;
+      const ticket=await this.helpdesk.assign(societyId,userId,input.ticketId,input.assignedToId,input.expectedUpdatedAt);
+      return {ticketId:String((ticket as {id?:unknown}).id??input.ticketId),assignedToId:input.assignedToId??''};
     });
   }
 
@@ -197,6 +212,8 @@ export class AiOperationsService {
     return this.cancelAction(societyId,userId,proposalId,'CREATE_HELPDESK_TICKET');
   }
 
+  cancelHelpdeskAssignment(societyId:string,userId:string,proposalId:string) { return this.cancelAction(societyId,userId,proposalId,'ASSIGN_HELPDESK_TICKET'); }
+
   cancelAmenity(societyId:string,userId:string,proposalId:string) {
     return this.cancelAction(societyId,userId,proposalId,'BOOK_AMENITY');
   }
@@ -205,14 +222,14 @@ export class AiOperationsService {
     return this.cancelAction(societyId,userId,proposalId,'CREATE_VISITOR_PASS');
   }
 
-  private async createProposal(societyId:string,userId:string,action:AiAction,payload:unknown) {
+  private async createProposal(societyId:string,userId:string,action:AiAction,payload:unknown,impactPreview?:unknown) {
     if(!ALLOWED_AI_ACTIONS.has(action)) throw new BadRequestException('AI action is not allow-listed');
     const rows=await this.prisma.$queryRaw<Array<{id:string;status:string;payload:unknown;createdAt:Date}>>(Prisma.sql`
       INSERT INTO "AiOperationProposal" ("societyId","actorUserId","action","payload")
       VALUES (${societyId}::uuid,${userId}::uuid,${action},${JSON.stringify(payload)}::jsonb)
       RETURNING "id","status","payload","createdAt"
     `);
-    return {...rows[0],action,requiresConfirmation:true};
+    return {...rows[0],action,impactPreview:impactPreview??null,previewed:true,permissionChecked:true,requiresConfirmation:true,autonomousExecution:false};
   }
 
   private async confirmAction(

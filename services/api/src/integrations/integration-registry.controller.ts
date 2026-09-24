@@ -27,6 +27,10 @@ export class IntegrationRegistryController {
     return this.registry.list(societyId);
   }
 
+  @Get('conformance')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
+  conformance(@CurrentTenant() societyId:string) { return this.registry.conformance(societyId); }
+
   @Get('configuration')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   configurationList(@CurrentTenant() societyId:string) {

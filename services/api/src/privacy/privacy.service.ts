@@ -224,6 +224,17 @@ export class PrivacyService {
     };
   }
 
+  async programEvidence(societyId:string){
+    const [readiness,consents,cases,incidents,registryEvents]=await Promise.all([
+      this.programReadiness(societyId),
+      this.prisma.$queryRaw<Array<{granted:number;withdrawn:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='GRANTED')::int AS "granted",COUNT(*) FILTER (WHERE "status"='WITHDRAWN')::int AS "withdrawn" FROM "PrivacyConsentRecord" WHERE "societyId"=${societyId}::uuid`),
+      this.prisma.$queryRaw<Array<{open:number;completed:number;erasure:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED','REJECTED','CANCELLED'))::int AS "open",COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",COUNT(*) FILTER (WHERE "requestType"='ERASURE')::int AS "erasure" FROM "PrivacyRequestCase" WHERE "societyId"=${societyId}::uuid`),
+      this.prisma.$queryRaw<Array<{open:number;closed:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"<>'CLOSED')::int AS "open",COUNT(*) FILTER (WHERE "status"='CLOSED')::int AS "closed" FROM "PrivacySecurityIncident" WHERE "societyId"=${societyId}::uuid`),
+      this.prisma.$queryRaw<Array<{count:number}>>(Prisma.sql`SELECT COUNT(*)::int AS "count" FROM "PrivacyRegistryEvent" WHERE "societyId"=${societyId}::uuid`),
+    ]);
+    return {generatedAt:new Date().toISOString(),readiness,consentEvidence:consents[0]??{granted:0,withdrawn:0},caseEvidence:cases[0]??{open:0,completed:0,erasure:0},incidentEvidence:incidents[0]??{open:0,closed:0},registryEventCount:registryEvents[0]?.count??0,exportAndErasureWorkflowAvailable:true,legalHoldAndRetentionReviewRequiredForErasure:true,certificationClaim:false,boundary:'This audit pack is repository and society workflow evidence only. It is not a DPDP, GDPR, legal, security or statutory certification and does not replace counsel or independent audit.'};
+  }
+
   async caseReadiness(societyId: string, caseId: string) {
     const current = await this.findCase(societyId, caseId);
     if (!current) throw new NotFoundException('Privacy request case not found');

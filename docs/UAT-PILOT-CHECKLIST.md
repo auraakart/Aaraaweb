@@ -95,6 +95,17 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Loading, empty, denied, error and recovery states are understandable.
 - APK/demo packaging is not a production-entry requirement unless explicitly re-enabled by release owner.
 
+## V4.54 controlled-operation pilot evidence
+- [ ] Admin Helpdesk assignment preview shows the target ticket, property, current/target assignee and requires explicit confirmation.
+- [ ] A changed Helpdesk ticket invalidates a stale AI assignment preview instead of executing it.
+- [ ] Treasurer Control Centre evidence agrees with bank-reconciliation, payment-allocation, budget and tax workspaces.
+- [ ] Guard shift handover older than 30 minutes and ageing critical incidents surface supervisor attention without automatic gate mutation.
+- [ ] Resident voice/text queries for household staff remain property scoped and read only.
+- [ ] Integration conformance is reviewed as contract evidence only; live-provider/hardware acceptance is recorded separately.
+- [ ] Privacy evidence pack is reviewed as operational evidence only and is not represented as statutory certification.
+- [ ] Exact candidate/develop/staging/main Git tree SHAs are captured in release evidence.
+- [ ] Field-pilot identifier, society, devices, approver and accepted exceptions are recorded externally before any claim of pilot acceptance.
+
 ## Exit criteria
 Production promotion may proceed only when:
 - [ ] all mandatory scenarios pass or have an explicitly accepted non-blocking exception;

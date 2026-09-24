@@ -128,7 +128,27 @@ export class HelpdeskService {
     `);
   }
 
-  async assign(societyId: string, actorUserId: string, ticketId: string, assignedToId: string | null) {
+  async assignmentPreview(societyId:string,ticketId:string,assignedToId:string|null){
+    const [ticket]=await this.prisma.$queryRaw<Array<TicketRow & {assignedToName?:string|null;unitNumber:string;buildingName:string}>>(Prisma.sql`
+      SELECT ht.*,assignee."name" AS "assignedToName",u."number" AS "unitNumber",b."name" AS "buildingName"
+      FROM "HelpdeskTicket" ht
+      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=ht."societyId"
+      LEFT JOIN "User" assignee ON assignee."id"=ht."assignedToId"
+      WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid LIMIT 1
+    `);
+    if(!ticket) throw new NotFoundException('Helpdesk ticket not found');
+    if(['RESOLVED','CLOSED'].includes(ticket.status)) throw new BadRequestException('Resolved or closed tickets cannot be reassigned');
+    let targetAssigneeName:string|null=null;
+    if(assignedToId){
+      const member=await this.prisma.societyMembership.findFirst({where:{societyId,userId:assignedToId,active:true},select:{user:{select:{name:true}}}});
+      if(!member) throw new BadRequestException('Assignee must be an active member of the current society');
+      targetAssigneeName=member.user.name;
+    }
+    return {ticketId:ticket.id,title:ticket.title,priority:ticket.priority,status:ticket.status,property:`${ticket.buildingName} · ${ticket.unitNumber}`,currentAssigneeId:ticket.assignedToId,currentAssigneeName:ticket.assignedToName??null,targetAssigneeId:assignedToId,targetAssigneeName,expectedUpdatedAt:ticket.updatedAt.toISOString(),impact:assignedToId?'Assign accountability to the selected active society member.':'Clear the current assignment.',confirmationRequired:true,mutationPerformed:false};
+  }
+
+  async assign(societyId: string, actorUserId: string, ticketId: string, assignedToId: string | null, expectedUpdatedAt?:string) {
     if (assignedToId) {
       const membership = await this.prisma.societyMembership.findFirst({
         where: { societyId, userId: assignedToId, active: true },
@@ -144,6 +164,10 @@ export class HelpdeskService {
       `);
       if (!current) throw new NotFoundException('Helpdesk ticket not found');
       if (['RESOLVED','CLOSED'].includes(current.status)) throw new BadRequestException('Resolved or closed tickets cannot be reassigned');
+      if(expectedUpdatedAt){
+        const expected=new Date(expectedUpdatedAt);
+        if(Number.isNaN(expected.getTime())||expected.toISOString()!==current.updatedAt.toISOString()) throw new BadRequestException('Helpdesk ticket changed; refresh the action preview before confirming');
+      }
 
       const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         UPDATE "HelpdeskTicket"
