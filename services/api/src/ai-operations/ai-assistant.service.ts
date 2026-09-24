@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkforceService } from '../workforce/workforce.service';
 import { AiOperationsService } from './ai-operations.service';
 
 export type AiAssistantIntent =
@@ -62,6 +63,7 @@ export class AiAssistantService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly operations: AiOperationsService,
+    private readonly workforce: WorkforceService,
   ) {}
 
   tools(roles:readonly AppRole[]){
@@ -105,9 +107,9 @@ export class AiAssistantService {
     }
 
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
-      this.requireTool(roles,'RESIDENT_WORKFORCE'); await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.residentWorkforce(societyId,unitId);
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave'],'Grounded household-staff status for the selected property only.');
+      this.requireTool(roles,'RESIDENT_WORKFORCE');
+      const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave'],'Grounded household-staff status for the current occupant of the selected property only.');
     }
 
     if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
@@ -685,17 +687,6 @@ export class AiAssistantService {
       WHERE so."active"=TRUE ORDER BY so."name" ASC LIMIT 20
     `);
     return {amenities,services};
-  }
-
-  private async residentWorkforce(societyId:string,unitId:string){
-    const assignments=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT wa."id",dw."name",dw."role",dw."verification",wa."status",wa."schedule",wa."startDate",wa."endDate",
-        EXISTS(SELECT 1 FROM "WorkforceLeave" wl WHERE wl."societyId"=wa."societyId" AND wl."assignmentId"=wa."id" AND wl."active"=TRUE AND CURRENT_DATE BETWEEN wl."startsOn" AND wl."endsOn") AS "onLeaveToday",
-        EXISTS(SELECT 1 FROM "AccessRequest" ar WHERE ar."societyId"=wa."societyId" AND ar."subjectType"='DOMESTIC_HELP' AND ar."status"='CHECKED_IN' AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text) AS "checkedInNow"
-      FROM "WorkforceAssignment" wa JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId" JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
-      WHERE wa."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid AND wa."active"=TRUE ORDER BY dw."name" ASC LIMIT 100
-    `);
-    return {activeAssignmentCount:assignments.length,checkedInCount:assignments.filter(x=>x.checkedInNow===true).length,onLeaveCount:assignments.filter(x=>x.onLeaveToday===true).length,staff:assignments};
   }
 
   private async residentStatus(societyId:string,userId:string,unitId:string,roles:readonly AppRole[]){

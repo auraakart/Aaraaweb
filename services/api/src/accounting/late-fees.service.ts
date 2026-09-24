@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentAvailabilityService } from './payment-availability.service';
 
 type LateFeeRunInput = {
   asOfDate: string;
@@ -25,7 +26,10 @@ type Candidate = {
 
 @Injectable()
 export class LateFeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentAvailability: PaymentAvailabilityService,
+  ) {}
 
   async preview(societyId: string, asOfDate: string) {
     const candidates = await this.loadCandidates(this.prisma, societyId, asOfDate);
@@ -143,17 +147,7 @@ export class LateFeesService {
   }
 
   unappliedCashSummary(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT COUNT(*)::int AS "paymentCount",
-             COALESCE(SUM(p."amountPaise" - COALESCE(a."allocatedPaise", 0)), 0)::text AS "unappliedPaise"
-      FROM "Payment" p
-      LEFT JOIN (
-        SELECT "paymentId", "societyId", SUM("amountPaise")::bigint AS "allocatedPaise"
-        FROM "ReceivableAllocation" GROUP BY "paymentId", "societyId"
-      ) a ON a."paymentId" = p."id" AND a."societyId" = p."societyId"
-      WHERE p."societyId" = ${societyId}::uuid AND p."status" = 'CAPTURED'
-        AND p."amountPaise" - COALESCE(a."allocatedPaise", 0) > 0
-    `);
+    return this.paymentAvailability.unappliedCashSummary(societyId);
   }
 
   private async loadCandidates(

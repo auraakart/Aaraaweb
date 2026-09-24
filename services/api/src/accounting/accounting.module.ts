@@ -25,6 +25,7 @@ import { FinancialReportingController } from './financial-reporting.controller';
 import { FinancialReportingService } from './financial-reporting.service';
 import { LateFeesController } from './late-fees.controller';
 import { LateFeesService } from './late-fees.service';
+import { PaymentAvailabilityService } from './payment-availability.service';
 import { PaymentExceptionsController } from './payment-exceptions.controller';
 import { PaymentExceptionsService } from './payment-exceptions.service';
 import { PaymentReconciliationObservabilityController } from './payment-reconciliation-observability.controller';
@@ -42,7 +43,7 @@ import { WaiverApprovalService } from './waiver-approval.service';
 @Module({
   imports: [EntitlementsModule],
   controllers: [AccountingController, OpeningBalancesController, AccountingExportController, AccountingConnectorDeliveryController, ReceivablesController, SettlementController, LateFeesController, FinanceOperationsController, FinanceTaxController, FinancialReportingController, BankReconciliationController, BankPositionController, PaymentExceptionsController, PaymentReconciliationController, PaymentReconciliationObservabilityController, WaiverApprovalController],
-  providers: [AccountingService, OpeningBalancesService, AccountingExportService, AccountingExportRunner, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryRunner, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, FinanceTaxService, FinancialReportingService, BankReconciliationService, BankPositionService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, WaiverApprovalService, PrismaService],
-  exports: [AccountingService, OpeningBalancesService, AccountingExportService, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, FinanceOperationsService, FinanceTaxService, FinancialReportingService, BankReconciliationService, BankPositionService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, WaiverApprovalService],
+  providers: [AccountingService, OpeningBalancesService, AccountingExportService, AccountingExportRunner, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryRunner, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, PaymentAvailabilityService, FinanceOperationsService, FinanceTaxService, FinancialReportingService, BankReconciliationService, BankPositionService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, ConfiguredHttpPaymentGatewayAdapter, PaymentReconciliationRunner, WaiverApprovalService, PrismaService],
+  exports: [AccountingService, OpeningBalancesService, AccountingExportService, ConfiguredHttpAccountingConnectorAdapter, AccountingConnectorDeliveryService, ReceivablesService, SettlementService, LateFeesService, PaymentAvailabilityService, FinanceOperationsService, FinanceTaxService, FinancialReportingService, BankReconciliationService, BankPositionService, PaymentExceptionsService, PaymentReconciliationService, PaymentReconciliationObservabilityService, WaiverApprovalService],
 })
 export class AccountingModule {}
