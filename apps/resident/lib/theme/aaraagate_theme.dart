@@ -130,7 +130,7 @@ class AaraagateTheme {
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withOpacity(.08),
+        shadowColor: Colors.black.withValues(alpha: .08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
         ),
