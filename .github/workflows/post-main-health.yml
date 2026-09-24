@@ -56,10 +56,24 @@ jobs:
           mkdir -p post-main-health-evidence
           node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',mainTree:'$MAIN_TREE',developTree:'$DEVELOP_TREE',stagingTree:'$STAGING_TREE',sourceEquivalence:'ok',generatedAt:new Date().toISOString()}, null, 2))"
 
+      - name: Publish post-main health evidence
+        if: always()
+        run: |
+          echo "### Post-main source-equivalence evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f post-main-health-evidence/summary.json ]; then
+            echo '~~~json' >> "$GITHUB_STEP_SUMMARY"
+            cat post-main-health-evidence/summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Post-main evidence file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload post-main health evidence
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: post-main-health-${{ github.sha }}
           path: post-main-health-evidence/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
