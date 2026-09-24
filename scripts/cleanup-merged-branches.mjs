@@ -85,7 +85,8 @@ async function classify(branch) {
     decision: 'review',
     reason: null,
     ancestry: {},
-    deleted: false
+    deleted: false,
+    alreadyAbsent: false
   };
 
   if (canonical.has(name)) {
@@ -137,14 +138,34 @@ for (const branch of branches) {
   records.push(await classify(branch));
 }
 
+async function deleteBranchRef(record) {
+  const ref = record.branch.split('/').map(encodeURIComponent).join('/');
+  const path = `/repos/${owner}/${repo}/git/refs/heads/${ref}`;
+  const response = await fetch(`${api}${path}`, { method: 'DELETE', headers });
+
+  if (response.ok) {
+    record.deleted = true;
+    return;
+  }
+
+  const body = await response.text();
+  const alreadyAbsent = response.status === 404
+    || (response.status === 422 && /reference does not exist/i.test(body));
+
+  if (alreadyAbsent) {
+    record.alreadyAbsent = true;
+    record.reason = `${record.reason}; ref already absent when cleanup ran`;
+    return;
+  }
+
+  throw new Error(`DELETE ${path} -> ${response.status}: ${body}`);
+}
+
 async function deleteWorker(deleteQueue) {
   while (true) {
     const current = index++;
     if (current >= deleteQueue.length) return;
-    const record = deleteQueue[current];
-    const ref = record.branch.split('/').map(encodeURIComponent).join('/');
-    await request(`/repos/${owner}/${repo}/git/refs/heads/${ref}`, { method: 'DELETE' });
-    record.deleted = true;
+    await deleteBranchRef(deleteQueue[current]);
   }
 }
 
@@ -172,6 +193,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
 }, null, 2));
 
 const deleted = records.filter((r) => r.deleted);
+const alreadyAbsent = records.filter((r) => r.alreadyAbsent);
 const review = records.filter((r) => r.decision === 'review');
 const kept = records.filter((r) => r.decision === 'keep');
 const planned = records.filter((r) => r.decision === 'delete-dry-run');
@@ -186,6 +208,7 @@ const md = [
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,
+  `- Already absent at delete time: ${alreadyAbsent.length}`,
   `- Planned deletions: ${planned.length}`,
   `- Kept automatically: ${kept.length}`,
   `- Needs review: ${review.length}`,
@@ -194,11 +217,11 @@ const md = [
   '',
   ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; ancestry=${JSON.stringify(r.ancestry)}`),
   '',
-  '## Deleted / planned',
+  '## Deleted / already absent / planned',
   '',
-  ...(deleted.length ? deleted : planned).map((r) => `- \`${r.branch}\``),
+  ...(deleted.length || alreadyAbsent.length ? [...deleted, ...alreadyAbsent] : planned).map((r) => `- \`${r.branch}\`${r.alreadyAbsent ? ' — already absent' : ''}`),
   ''
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts, classificationMode: 'local-git-ancestry' }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry' }, null, 2));
