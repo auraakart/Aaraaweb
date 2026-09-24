@@ -173,6 +173,7 @@ export class AiAssistantService {
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
     const cards:Array<{
       id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
+      evidenceQuality?:{sourceCount:number;basis:'CURRENT_QUERY_SNAPSHOT';causalClaim:false;interpretation:'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY'};
     }>=[];
 
     if(hasPermission(roles,AppPermission.FINANCE_READ)){
@@ -335,20 +336,29 @@ export class AiAssistantService {
       });
     }
 
+    const evidenceCards=cards.map(card=>({
+      ...card,
+      evidenceQuality:{
+        sourceCount:card.sources.length,
+        basis:'CURRENT_QUERY_SNAPSHOT' as const,
+        causalClaim:false as const,
+        interpretation:(card.likelyCause?'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF':'FACT_SUMMARY') as 'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY',
+      },
+    }));
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
-    const safetyRank=(card:(typeof cards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
-    cards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
-    const highPriorityCount=cards.filter(card=>card.severity==='HIGH').length;
-    const mediumPriorityCount=cards.filter(card=>card.severity==='MEDIUM').length;
-    const focus=cards[0]??null;
+    const safetyRank=(card:(typeof evidenceCards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
+    evidenceCards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
+    const highPriorityCount=evidenceCards.filter(card=>card.severity==='HIGH').length;
+    const mediumPriorityCount=evidenceCards.filter(card=>card.severity==='MEDIUM').length;
+    const focus=evidenceCards[0]??null;
     return {
-      cards,
+      cards:evidenceCards,
       brief:{
         highPriorityCount,
         mediumPriorityCount,
         attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace']}:null,
-        explanation:'Priority is deterministic from current permission-scoped operational evidence; no autonomous mutation is performed.',
+        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],evidenceQuality:focus.evidenceQuality}:null,
+        explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed.',
       },
       generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
     };
