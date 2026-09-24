@@ -53,11 +53,23 @@ jobs:
           DRY_RUN: ${{ steps.mode.outputs.dry_run }}
         run: node scripts/cleanup-merged-branches.mjs
 
+      - name: Publish branch hygiene evidence to job summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### Branch hygiene evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f branch-hygiene-evidence/branch-cleanup.md ]; then
+            cat branch-hygiene-evidence/branch-cleanup.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Branch hygiene evidence was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload branch hygiene evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: branch-hygiene-evidence-${{ github.run_id }}
           path: branch-hygiene-evidence/
-          if-no-files-found: error
-          retention-days: 30
+          if-no-files-found: warn
+          retention-days: 7
