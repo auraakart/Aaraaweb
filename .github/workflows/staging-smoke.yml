@@ -95,15 +95,23 @@ jobs:
           fi
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
           git cat-file -e "${TARGET_SHA}^{commit}"
-          git fetch origin develop staging --no-tags
+          git fetch origin develop staging main --no-tags
           DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"
+          STAGING_SHA="$(git rev-parse refs/remotes/origin/staging)"
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
           if [ "$CANDIDATE_SHA" != "$DEVELOP_SHA" ]; then
             echo "Staging promotion must validate the current develop head exactly."
             exit 1
           fi
-          MERGE_BASE="$(git merge-base "$TARGET_SHA" "$CANDIDATE_SHA")"
-          if ! git diff --quiet "$MERGE_BASE" "$TARGET_SHA"; then
-            echo "Staging contains source changes that are not in develop. Reconcile the source drift before promotion."
+          if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then
+            echo "Staging target moved after this promotion run started."
+            exit 1
+          fi
+          # Staging is the release-candidate branch. Before a new promotion it
+          # must still represent the currently released main source. Squash
+          # promotion can diverge commit ancestry, so compare source directly.
+          if ! git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .; then
+            echo "Staging source differs from current main. Reconcile the staging baseline before promoting develop."
             exit 1
           fi
 
@@ -201,11 +209,22 @@ jobs:
         if: failure()
         run: cat /tmp/aaraagate-api.log || true
 
+      - name: Publish exact-SHA staging evidence
+        if: always()
+        run: |
+          echo "### Staging promotion evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f staging-evidence/staging-evidence.md ]; then
+            cat staging-evidence/staging-evidence.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Staging evidence file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload exact-SHA staging evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: staging-evidence-${{ github.run_id }}
           path: staging-evidence/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
