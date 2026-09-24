@@ -57,11 +57,21 @@ const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
 const closedPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=closed`);
 const openHeads = new Set(openPulls.map((pr) => pr.head?.ref).filter(Boolean));
 const mergedCanonicalHeadShas = new Map();
+const supersededCanonicalHeadShas = new Map();
 
 for (const pr of closedPulls) {
-  if (!pr.merged_at || !canonical.has(pr.base?.ref) || !pr.head?.ref || !pr.head?.sha) continue;
-  if (!mergedCanonicalHeadShas.has(pr.head.ref)) mergedCanonicalHeadShas.set(pr.head.ref, new Set());
-  mergedCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
+  if (!canonical.has(pr.base?.ref) || !pr.head?.ref || !pr.head?.sha) continue;
+
+  if (pr.merged_at) {
+    if (!mergedCanonicalHeadShas.has(pr.head.ref)) mergedCanonicalHeadShas.set(pr.head.ref, new Set());
+    mergedCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
+  }
+
+  const supersededEvidence = /\bsuperseded\b/i.test(`${pr.title || ''}\n${pr.body || ''}`);
+  if (supersededEvidence) {
+    if (!supersededCanonicalHeadShas.has(pr.head.ref)) supersededCanonicalHeadShas.set(pr.head.ref, new Set());
+    supersededCanonicalHeadShas.get(pr.head.ref).add(pr.head.sha);
+  }
 }
 
 const canonicalTargets = new Map();
@@ -121,16 +131,19 @@ async function classify(branch) {
   }
 
   const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
-  if (!containedIn && !exactMergedHead) {
+  const exactSupersededHead = supersededCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
+  if (!containedIn && !exactMergedHead && !exactSupersededHead) {
     record.decision = 'review';
-    record.reason = 'branch contains commits not proven contained in a canonical branch and current head does not exactly match a PR merged into a canonical branch';
+    record.reason = 'branch contains commits not proven contained in a canonical branch and current head does not exactly match a merged or explicitly superseded canonical pull request head';
     return record;
   }
 
   record.decision = dryRun ? 'delete-dry-run' : 'delete';
   record.reason = containedIn
     ? `branch head is fully contained in ${containedIn}`
-    : 'current branch head exactly matches a pull request head already merged into a canonical branch';
+    : exactMergedHead
+      ? 'current branch head exactly matches a pull request head already merged into a canonical branch'
+      : 'current branch head exactly matches a closed canonical pull request explicitly marked superseded';
   return record;
 }
 
@@ -186,7 +199,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   baseBranch,
   developSha,
   dryRun,
-  classificationMode: 'local-git-ancestry',
+  classificationMode: 'local-git-ancestry+canonical-pr-head-evidence',
   generatedAt: new Date().toISOString(),
   counts,
   records
@@ -204,7 +217,7 @@ const md = [
   `- Repository: ${repository}`,
   `- Base branch: ${baseBranch}`,
   `- Base SHA: ${developSha}`,
-  `- Classification: local git ancestry`,
+  `- Classification: local git ancestry + canonical PR head evidence`,
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,
@@ -224,4 +237,4 @@ const md = [
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry' }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry+canonical-pr-head-evidence' }, null, 2));

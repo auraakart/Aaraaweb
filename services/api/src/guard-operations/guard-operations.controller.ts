@@ -32,6 +32,8 @@ export class GuardOperationsController {
   @Post('overstays/:id/escalate') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   escalateOverstay(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Param('id') id:string,@Body() body:OverstayEscalationDto){return this.operations.escalateOverstay(societyId,this.actor(userId),id,body.note);}
 
+  @Get('watchlist/history') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
+  watchlistHistory(@CurrentTenant() societyId:string){return this.operations.watchlistHistory(societyId);}
   @Get('watchlist') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   watchlist(@CurrentTenant() societyId:string){return this.operations.watchlist(societyId);}
   @Post('watchlist/assess') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)

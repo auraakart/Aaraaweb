@@ -105,6 +105,51 @@ export class FinanceOperationsService {
   `);}
   fundUtilization(societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT f."id",f."code",f."name",COALESCE(SUM(CASE WHEN je."status"='POSTED' THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END),0)::text AS "netPaise" FROM "AccountingFund" f LEFT JOIN "JournalLine" jl ON jl."fundId"=f."id" AND jl."societyId"=f."societyId" LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId" WHERE f."societyId"=${societyId}::uuid GROUP BY f."id" ORDER BY f."code"`);}
 
+  async operationalReadiness(societyId:string){
+    const rows=await this.prisma.$queryRaw<Array<{
+      draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;
+      unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;
+    }>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "SocietyExpense" WHERE "societyId"=${societyId}::uuid AND "status"='DRAFT') AS "draftExpenses",
+        (SELECT COUNT(*)::int FROM "SocietyExpense" WHERE "societyId"=${societyId}::uuid AND "status"='APPROVED') AS "approvedUnpostedExpenses",
+        (SELECT COUNT(*)::int FROM "SocietyPayable" WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('PAID','VOID') AND "dueDate" IS NOT NULL AND "dueDate"<CURRENT_DATE) AS "overduePayables",
+        (SELECT COUNT(*)::int FROM "BudgetPlan" WHERE "societyId"=${societyId}::uuid AND "status"='DRAFT') AS "draftBudgets",
+        (SELECT COUNT(*)::int FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid AND "status"<>'RESOLVED') AS "unresolvedReconciliation",
+        (SELECT COUNT(*)::int FROM "PaymentGatewayOperation" WHERE "societyId"=${societyId}::uuid AND "status"<>'SETTLED') AS "unsettledGatewayOperations",
+        (SELECT COUNT(*)::int FROM "PurchaseOrder" po WHERE po."societyId"=${societyId}::uuid AND po."status"='ISSUED'
+          AND NOT EXISTS (SELECT 1 FROM "ProcurementExpenseLink" l WHERE l."societyId"=po."societyId" AND l."purchaseOrderId"=po."id")) AS "unlinkedPurchaseOrders",
+        (SELECT COUNT(*)::int FROM "SocietyVendorContract" WHERE "societyId"=${societyId}::uuid AND "status"='ACTIVE' AND "endsOn"<=CURRENT_DATE+INTERVAL '30 days') AS "contractsExpiring30d"
+    `);
+    const metrics=rows[0]??{draftExpenses:0,approvedUnpostedExpenses:0,overduePayables:0,draftBudgets:0,unresolvedReconciliation:0,unsettledGatewayOperations:0,unlinkedPurchaseOrders:0,contractsExpiring30d:0};
+    const blockers:string[]=[];
+    if(metrics.unresolvedReconciliation>0)blockers.push('RECONCILIATION_OPEN');
+    if(metrics.unsettledGatewayOperations>0)blockers.push('GATEWAY_OPERATIONS_UNSETTLED');
+    if(metrics.overduePayables>0)blockers.push('PAYABLES_OVERDUE');
+    if(metrics.approvedUnpostedExpenses>0)blockers.push('EXPENSES_APPROVED_NOT_POSTED');
+    if(metrics.unlinkedPurchaseOrders>0)blockers.push('PROCUREMENT_ACCOUNTING_HANDOFF_PENDING');
+    if(metrics.contractsExpiring30d>0)blockers.push('VENDOR_CONTRACTS_EXPIRING');
+    const nextActions:string[]=[];
+    if(metrics.unresolvedReconciliation>0)nextActions.push('Review payment reconciliation evidence, including dispute, reversal and chargeback observations.');
+    if(metrics.unsettledGatewayOperations>0)nextActions.push('Review requested gateway operations and retain provider execution behind the configured adapter.');
+    if(metrics.overduePayables>0)nextActions.push('Review overdue payables and settle only against posted journal evidence.');
+    if(metrics.approvedUnpostedExpenses>0)nextActions.push('Post approved expenses through the controlled accounting workflow.');
+    if(metrics.unlinkedPurchaseOrders>0)nextActions.push('Complete the purchase-order to accounting-expense handoff.');
+    if(metrics.contractsExpiring30d>0)nextActions.push('Review expiring vendor contracts or AMCs before their renewal notice window closes.');
+    if(metrics.draftBudgets>0)nextActions.push('Review draft budgets before approval and lock.');
+    if(nextActions.length===0)nextActions.push('No execution exception is visible; continue routine finance controls and period-close review.');
+    const critical=metrics.unresolvedReconciliation+metrics.unsettledGatewayOperations+metrics.overduePayables;
+    return {
+      ...metrics,
+      status:critical>0?'AT_RISK':blockers.length>0?'WATCH':'READY',
+      blockers,nextActions,
+      automaticDebitAvailable:false,
+      providerExecution:'ADAPTER_CONTROLLED',
+      boundary:'Deterministic current-state execution readiness from recorded finance, payment, procurement and contract evidence. This does not certify provider settlement, execute AutoPay mandates, or close accounting periods automatically.',
+      generatedAt:new Date().toISOString(),
+    };
+  }
+
   async exportSnapshot(societyId:string){const [expenses,payables,budgets,funds]=await Promise.all([this.listExpenses(societyId),this.listPayables(societyId),this.listBudgets(societyId),this.fundUtilization(societyId)]);return {generatedAt:new Date().toISOString(),expenses,payables,budgets,funds};}
 
   private rethrow(error:unknown,fallback:string):never{if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof NotFoundException)throw error;const m=error instanceof Error?error.message:'';if(m.includes('duplicate')||m.includes('unique'))throw new ConflictException('Finance record already exists');if(m.includes('foreign key'))throw new BadRequestException('Referenced finance resource does not belong to this society or does not exist');if(m.includes('immutable')||m.includes('over-settlement'))throw new ConflictException(m);throw new BadRequestException(fallback);}

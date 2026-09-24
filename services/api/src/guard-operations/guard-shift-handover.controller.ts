@@ -21,6 +21,10 @@ class CreateShiftHandoverDto {
 export class GuardShiftHandoverController {
   constructor(private readonly handovers:GuardShiftHandoverService) {}
 
+  @Get('command-summary')
+  @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  commandSummary(@CurrentTenant() societyId:string){return this.handovers.commandSummary(societyId);}
+
   @Get()
   @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   list(@CurrentTenant() societyId:string){return this.handovers.list(societyId);}

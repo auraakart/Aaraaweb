@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../voice/resident_speech.dart';
 
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({
@@ -28,6 +29,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   Map<String, dynamic>? _proposal;
   List<Map<String, dynamic>> _tools = const [];
   bool _toolsBusy = false;
+  final ResidentSpeech _speech = DeviceResidentSpeech();
+  bool _listening = false;
+  String _voiceLanguage = 'en';
+  String? _voiceStatus;
 
   static const _demoPrompts = <String>[
     'What do I need to take care of today?',
@@ -67,8 +72,33 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   void dispose() {
+    _speech.stop();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _listenForAssistant() async {
+    if (_busy || _listening) return;
+    setState(() {
+      _listening = true;
+      _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantListening');
+      _error = null;
+    });
+    try {
+      final text = await _speech.listenOnce(languageCode: _voiceLanguage);
+      if (!mounted) return;
+      if (text == null || text.trim().isEmpty) {
+        setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnavailable'));
+        return;
+      }
+      setState(() {
+        _controller.text = text.trim();
+        _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+        _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantReview');
+      });
+    } finally {
+      if (mounted) setState(() => _listening = false);
+    }
   }
 
   Future<void> _ask() async {
@@ -269,6 +299,37 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 ),
             ],
             const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                DropdownButton<String>(
+                  value: _voiceLanguage,
+                  onChanged: _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
+                  items: const [
+                    DropdownMenuItem(value:'en',child:Text('English')),
+                    DropdownMenuItem(value:'hi',child:Text('हिन्दी')),
+                    DropdownMenuItem(value:'ta',child:Text('தமிழ்')),
+                    DropdownMenuItem(value:'te',child:Text('తెలుగు')),
+                    DropdownMenuItem(value:'kn',child:Text('ಕನ್ನಡ')),
+                    DropdownMenuItem(value:'ml',child:Text('മലയാളം')),
+                    DropdownMenuItem(value:'mr',child:Text('मराठी')),
+                    DropdownMenuItem(value:'bn',child:Text('বাংলা')),
+                  ],
+                ),
+                OutlinedButton.icon(
+                  onPressed: _busy || _listening ? null : _listenForAssistant,
+                  icon: Icon(_listening ? Icons.mic_rounded : Icons.mic_none_rounded),
+                  label: Text(ResidentVoiceCopy.text(_voiceLanguage, 'assistantAction')),
+                ),
+              ],
+            ),
+            if (_voiceStatus != null) ...[
+              const SizedBox(height: 6),
+              Text(_voiceStatus!, style: theme.textTheme.bodySmall),
+            ],
+            const SizedBox(height: 10),
             TextField(
               controller: _controller,
               minLines: 3,
