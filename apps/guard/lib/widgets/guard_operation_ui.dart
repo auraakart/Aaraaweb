@@ -30,7 +30,7 @@ class GuardOperationSurface extends StatelessWidget {
         color: color ?? (prominent ? scheme.surface : scheme.surfaceContainerLow),
         borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusCard),
         boxShadow: prominent
-            ? [BoxShadow(color: scheme.shadow.withOpacity(.09), blurRadius: 24, offset: const Offset(0, 8))]
+            ? [BoxShadow(color: scheme.shadow.withValues(alpha: .09), blurRadius: 24, offset: const Offset(0, 8))]
             : null,
       ),
       child: child,
