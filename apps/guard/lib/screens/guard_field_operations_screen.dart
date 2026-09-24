@@ -50,7 +50,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     final theme=Theme.of(context),scheme=theme.colorScheme;
     return GuardOperationSurface(
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
-      color: urgent==0?scheme.primaryContainer.withOpacity(.28):scheme.errorContainer.withOpacity(.40),
+      color: urgent==0?scheme.primaryContainer.withValues(alpha: .28):scheme.errorContainer.withValues(alpha: .40),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
         const SizedBox(height:8),
