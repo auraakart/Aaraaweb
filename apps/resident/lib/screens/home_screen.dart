@@ -655,7 +655,7 @@ class _CommunityPreview extends StatelessWidget {
 
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: '$title. $actionLabel',
+      semanticLabel: title,
       color: scheme.surface,
       padding: const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
@@ -724,7 +724,7 @@ class _HomeSummaryRow extends StatelessWidget {
     final scheme = theme.colorScheme;
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: title,
+      semanticLabel: '$title. $actionLabel',
       color: scheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: ConstrainedBox(
