@@ -9,6 +9,14 @@ const requireTokens=(label,source,tokens)=>{
   }
 };
 
+const forbidTokens=(label,source,tokens)=>{
+  const present=tokens.filter(token=>source.includes(token));
+  if(present.length){
+    console.error(`${label} still contains deprecated tokens: ${present.join(', ')}`);
+    process.exit(1);
+  }
+};
+
 requireTokens('Core operations priority queue',read('apps/admin/app/admin-overview.tsx'),[
   'Operations priority queue','Deterministic current-state ordering',"priority:'CRITICAL',title:'Urgent helpdesk'",
   "priority:'HIGH',title:'Payment reconciliation'","priority:'NORMAL',title:'Amenity approvals'",
@@ -52,8 +60,12 @@ requireTokens('Facilities Admin continuity',read('apps/admin/app/facilities/heal
   'Service continuity posture','Contracts ≤30 days',
 ]);
 
-requireTokens('Resident action inbox',read('apps/resident/lib/screens/home_screen.dart'),[
-  "title: 'Action inbox'",'liveRegion: true','Action inbox summary','ACT NOW',
+const residentHome=read('apps/resident/lib/screens/home_screen.dart');
+requireTokens('Resident action inbox',residentHome,[
+  "title: 'Action inbox'",'liveRegion: true','attentionSummary','items need your attention',
+]);
+forbidTokens('Resident action inbox deduplication',residentHome,[
+  '_ActionInboxSummary','ACT NOW $immediate','SOON $soon','INFO $info',
 ]);
 
 requireTokens('AI evidence quality',read('services/api/src/ai-operations/ai-assistant.service.ts'),[
