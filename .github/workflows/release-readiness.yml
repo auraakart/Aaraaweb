@@ -12,6 +12,7 @@ jobs:
   release-readiness:
     name: Main promotion gate
     runs-on: ubuntu-latest
+    environment: staging
     steps:
       - name: Checkout candidate
         uses: actions/checkout@v4
@@ -66,6 +67,16 @@ jobs:
           cat release-evidence/release-evidence.md
           echo "CANDIDATE_SHA=${CANDIDATE_SHA}" >> "$GITHUB_ENV"
           echo "ROLLBACK_SHA=${ROLLBACK_SHA}" >> "$GITHUB_ENV"
+
+      - name: Enforce hosted staging acceptance for exact main candidate
+        if: github.event_name == 'pull_request'
+        env:
+          API_BASE_URL: ${{ vars.AARAAGATE_STAGING_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$API_BASE_URL" || { echo "AARAAGATE_STAGING_API_BASE_URL must be configured before main promotion." >&2; exit 1; }
+          mkdir -p release-evidence/hosted-staging
+          bash scripts/hosted-staging-smoke.sh "$API_BASE_URL" "$CANDIDATE_SHA" release-evidence/hosted-staging
 
       - name: Enforce immutable migration history
         run: bash scripts/release-migration-gate.sh "$ROLLBACK_SHA" "$CANDIDATE_SHA" release-evidence
