@@ -9,6 +9,15 @@ const requireTokens=(label,source,tokens)=>{
   }
 };
 
+requireTokens('Core operations priority queue',read('apps/admin/app/admin-overview.tsx'),[
+  'Operations priority queue','Deterministic current-state ordering',"priority:'CRITICAL',title:'Urgent helpdesk'",
+  "priority:'HIGH',title:'Payment reconciliation'","priority:'NORMAL',title:'Amenity approvals'",
+  'It is not predictive scoring and does not mutate any workflow.','Why now:','Next step:',
+]);
+requireTokens('Core operations regression gate',read('apps/admin/package.json'),[
+  'v4.52-operations-priority-regression.mjs',
+]);
+
 requireTokens('AutoPay schema',read('services/api/prisma/schema.prisma'),[
   'model PaymentAutopayPreference','providerMandateStatus','@@unique([societyId, unitId, payerUserId])',
 ]);
@@ -56,7 +65,7 @@ requireTokens('AI Admin evidence copy',read('apps/admin/app/ai-assistant/page.ts
 ]);
 
 requireTokens('V4.52 milestone evidence',read('docs/AARAAGATE-V4.52-COMPETITIVE-EXCELLENCE-CONVERGENCE.md'),[
-  'Competitive Excellence Convergence','Provider-neutral AutoPay readiness','Deterministic watchlist assessment',
+  'Competitive Excellence Convergence','Deterministic core-operations priority queue','Provider-neutral AutoPay readiness','Deterministic watchlist assessment',
   'Privacy program readiness','Service continuity posture','AI evidence-quality contract',
   'does not claim a 9.5+ score merely because code exists',
 ]);
