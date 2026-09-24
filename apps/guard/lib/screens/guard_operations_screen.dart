@@ -461,7 +461,7 @@ class _SyncHealthCard extends StatelessWidget {
     final pending = controller.queuedActions > 0;
     return GuardOperationSurface(
       semanticLabel: pending ? '${controller.queuedActions} ${strings.get('pendingActions')}' : strings.get('onlineClear'),
-      color: pending ? scheme.errorContainer.withOpacity(.62) : scheme.surfaceContainerLow,
+      color: pending ? scheme.errorContainer.withValues(alpha: .62) : scheme.surfaceContainerLow,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(width: 44, height: 44, decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(pending ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, color: pending ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
@@ -500,7 +500,7 @@ class _GateApprovalCard extends StatelessWidget {
     final denied = status == 'DENIED' || status == 'CANCELLED';
     final title = access['subjectName']?.toString() ?? 'Gate arrival';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR';
-    final background = waiting ? scheme.secondaryContainer.withOpacity(.55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
+    final background = waiting ? scheme.secondaryContainer.withValues(alpha: .55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
     return GuardOperationSurface(
       color: background,
       prominent: waiting,
@@ -545,7 +545,7 @@ class _AccessResultCard extends StatelessWidget {
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'ACCESS';
     return GuardOperationSurface(
       semanticLabel: '$subject, $type, ${status.replaceAll('_', ' ')}',
-      color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer,
+      color: positive ? scheme.primaryContainer.withValues(alpha: .5) : scheme.errorContainer,
       prominent: true,
       padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
