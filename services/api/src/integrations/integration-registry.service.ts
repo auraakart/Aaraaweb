@@ -47,7 +47,15 @@ export class IntegrationRegistryService {
       const simulatorOrReference=item.provider==='simulator'||item.provider==='reference-adapters'||item.provider==='utility-integration-v2';
       const checks={versionedContract:Boolean(item.contractVersion),explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),explicitDegradationMode:Boolean(item.degradationMode),domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),simulatorOrConfiguredEvidence:simulatorOrReference||item.configured};
       const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key),fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
-      return {family:item.family,provider:item.provider,health:item.health,checks,missing,status:missing.length?'CONTRACT_GAP':!item.configured&&!simulatorOrReference?'CONFIGURATION_REQUIRED':fieldEvidenceRequired?'FIELD_EVIDENCE_REQUIRED':'CONTRACT_READY',certificationClaim:false,activationAllowed:item.configured&&missing.length===0,boundary:'Conformance proves Aaraagate adapter-contract readiness only. It does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.'};
+      const configurationReady=item.configured;
+      const contractReady=missing.length===0;
+      const productionActivationApproved=configurationReady&&contractReady&&!fieldEvidenceRequired&&item.health==='READY';
+      return {
+        family:item.family,provider:item.provider,health:item.health,checks,missing,
+        status:missing.length?'CONTRACT_GAP':!configurationReady&&!simulatorOrReference?'CONFIGURATION_REQUIRED':fieldEvidenceRequired?'FIELD_EVIDENCE_REQUIRED':'CONTRACT_READY',
+        certificationClaim:false,configurationReady,contractReady,fieldEvidenceRequired,productionActivationApproved,
+        boundary:'Conformance proves configuration and adapter-contract readiness only. Production activation stays false when external field evidence is required; this does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.',
+      };
     });
   }
 

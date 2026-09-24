@@ -43,6 +43,44 @@ export class WorkforceService {
     });
   }
 
+  async residentStatusMine(societyId: string, userId: string, unitId: string) {
+    const now = new Date();
+    const occupancy = await this.prisma.unitOccupancy.findFirst({
+      where: {
+        societyId, userId, unitId, active: true,
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      },
+      select: { id: true },
+    });
+    if (!occupancy) throw new NotFoundException('Household workforce not found');
+
+    const assignments = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT wa."id",dw."name",dw."role",dw."verification",wa."status",wa."schedule",wa."startDate",wa."endDate",
+        EXISTS(
+          SELECT 1 FROM "WorkforceLeave" wl
+          WHERE wl."societyId"=wa."societyId" AND wl."assignmentId"=wa."id" AND wl."active"=TRUE
+            AND CURRENT_DATE BETWEEN wl."startsOn" AND wl."endsOn"
+        ) AS "onLeaveToday",
+        EXISTS(
+          SELECT 1 FROM "AccessRequest" ar
+          WHERE ar."societyId"=wa."societyId" AND ar."subjectType"='DOMESTIC_HELP' AND ar."status"='CHECKED_IN'
+            AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text
+        ) AS "checkedInNow"
+      FROM "WorkforceAssignment" wa
+      JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId"
+      JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
+      WHERE wa."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid AND wa."active"=TRUE
+      ORDER BY dw."name" ASC LIMIT 100
+    `);
+    return {
+      activeAssignmentCount: assignments.length,
+      checkedInCount: assignments.filter((item) => item.checkedInNow === true).length,
+      onLeaveCount: assignments.filter((item) => item.onLeaveToday === true).length,
+      staff: assignments,
+    };
+  }
+
   async addWorker(
     societyId: string,
     userId: string,
