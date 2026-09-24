@@ -84,6 +84,22 @@ window.fetch=async(input,init={})=>{
     subjects:[{id:'resident-1',name:'Resident Demo',phone:'+91 90000 00001',relationship:'TENANT'}],
     assignees:[{id:'reviewer-1',name:'Privacy Reviewer',phone:'+91 90000 00011'}],
   })
+  if(path==='/privacy/program-readiness') return json({
+    status:'READY',
+    blockers:[],
+    nextActions:[],
+    metrics:{
+      activeDataCategories:5,
+      categoriesMissingLegalBasis:0,
+      categoriesMissingRetention:0,
+      activeProcessors:2,
+      processorsMissingAgreementReference:0,
+      overdueCases:0,
+      openSecurityIncidents:0,
+      grievanceContactActive:true,
+    },
+    boundary:'Operational readiness evidence only; this fixture does not certify statutory compliance.',
+  })
   if(path==='/privacy/cases/privacy-1/history') return json([{id:'ph-1',eventType:'STATUS_UPDATED',summary:'Case moved to review',createdAt:now,actorName:'Privacy Reviewer'}])
   if(path==='/privacy/cases/privacy-1/readiness') return json({
     caseId:'privacy-1',requestType:'ACCESS',status:'IN_REVIEW',assigned:true,dueAt:later,overdue:false,blockers:[],
