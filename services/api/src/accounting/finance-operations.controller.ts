@@ -38,6 +38,7 @@ export class FinanceOperationsController{
   @Get('budgets/:id/actuals') @RequiresPermissions(AppPermission.FINANCE_READ) budgetVsActual(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.finance.budgetVsActual(societyId,id);}
   @Get('fund-utilization') @RequiresPermissions(AppPermission.FINANCE_READ) fundUtilization(@CurrentTenant() societyId:string){return this.finance.fundUtilization(societyId);}
   @Get('operational-readiness') @RequiresPermissions(AppPermission.FINANCE_READ) operationalReadiness(@CurrentTenant() societyId:string){return this.finance.operationalReadiness(societyId);}
+  @Get('treasurer-control-centre') @RequiresPermissions(AppPermission.FINANCE_READ) treasurerControlCentre(@CurrentTenant() societyId:string){return this.finance.treasurerControlCentre(societyId);}
   @Get('export') @RequiresPermissions(AppPermission.FINANCE_READ) exportSnapshot(@CurrentTenant() societyId:string){return this.finance.exportSnapshot(societyId);}
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
 }

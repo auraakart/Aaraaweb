@@ -8,6 +8,7 @@ import { AiOperationsService } from './ai-operations.service';
 export type AiAssistantIntent =
   | 'SOCIETY_FINANCE'
   | 'RESIDENT_STATUS'
+  | 'RESIDENT_WORKFORCE'
   | 'HELPDESK_OPERATIONS'
   | 'SECURITY_EVENTS'
   | 'FACILITIES'
@@ -31,6 +32,7 @@ type AiAssistantToolDefinition = {
 const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
   {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
   {id:'HELPDESK_OPERATIONS',label:'Helpdesk operations',context:'SOCIETY',permissions:[AppPermission.HELPDESK_REVIEW],permissionMode:'ALL'},
   {id:'SECURITY_EVENTS',label:'Security events',context:'SOCIETY',permissions:[AppPermission.AUDIT_READ],permissionMode:'ALL'},
   {id:'FACILITIES',label:'Facilities',context:'SOCIETY',permissions:[AppPermission.FACILITIES_READ],permissionMode:'ALL'},
@@ -49,6 +51,7 @@ export function residentIntentRoutingText(text:string){
     [/आगंतुक|मेहमान|கேட்|விருந்தினர்|గేట్|సందర్శకుడు|ಗೇಟ್|ಭೇಟಿಕಾರ|ഗേറ്റ്|സന്ദർശകൻ|पाहुणा|গেট|অতিথি/u,' visitor gate entry pass '],
     [/सूचना|அறிவிப்பு|ప్రకటన|ಪ್ರಕಟಣೆ|അറിയിപ്പ്|নোটিশ/u,' notice announcement community update '],
     [/सुविधा|सेवा|வசதி|சேவை|సౌకర్యం|సేవ|ಸೌಲಭ್ಯ|ಸೇವೆ|സൗകര്യം|സേവനം|সুবিধা|সেবা/u,' amenity service provider booking '],
+    [/कामवाली|घरेलू कर्मचारी|स्टाफ|வேலைக்காரர்|வீட்டு பணியாளர்|సిబ్బంది|ఇంటి పనివారు|ಸಿಬ್ಬಂದಿ|ಮನೆ ಕೆಲಸಗಾರ|സ്റ്റാഫ്|വീട്ടുജോലിക്കാർ|घरकाम|कर्मचारी|গৃহকর্মী|স্টাফ/u,' household staff domestic help worker workforce '],
   ];
   for(const [pattern,hint] of groups)if(pattern.test(text))hints.push(hint);
   return `${text} ${hints.join(' ')}`.trim();
@@ -69,7 +72,7 @@ export class AiAssistantService {
         context:tool.context,
         readOnly:true,
       })),
-      mutationAllowList:['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS'] as const,
+      mutationAllowList:['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS',...(hasPermission(roles,AppPermission.HELPDESK_REVIEW)?['ASSIGN_HELPDESK_TICKET' as const]:[])],
     };
   }
 
@@ -99,6 +102,12 @@ export class AiAssistantService {
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentGateStatus(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
+    }
+
+    if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
+      this.requireTool(roles,'RESIDENT_WORKFORCE'); await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.residentWorkforce(societyId,unitId);
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave'],'Grounded household-staff status for the selected property only.');
     }
 
     if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
@@ -676,6 +685,17 @@ export class AiAssistantService {
       WHERE so."active"=TRUE ORDER BY so."name" ASC LIMIT 20
     `);
     return {amenities,services};
+  }
+
+  private async residentWorkforce(societyId:string,unitId:string){
+    const assignments=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT wa."id",dw."name",dw."role",dw."verification",wa."status",wa."schedule",wa."startDate",wa."endDate",
+        EXISTS(SELECT 1 FROM "WorkforceLeave" wl WHERE wl."societyId"=wa."societyId" AND wl."assignmentId"=wa."id" AND wl."active"=TRUE AND CURRENT_DATE BETWEEN wl."startsOn" AND wl."endsOn") AS "onLeaveToday",
+        EXISTS(SELECT 1 FROM "AccessRequest" ar WHERE ar."societyId"=wa."societyId" AND ar."subjectType"='DOMESTIC_HELP' AND ar."status"='CHECKED_IN' AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text) AS "checkedInNow"
+      FROM "WorkforceAssignment" wa JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId" JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
+      WHERE wa."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid AND wa."active"=TRUE ORDER BY dw."name" ASC LIMIT 100
+    `);
+    return {activeAssignmentCount:assignments.length,checkedInCount:assignments.filter(x=>x.checkedInNow===true).length,onLeaveCount:assignments.filter(x=>x.onLeaveToday===true).length,staff:assignments};
   }
 
   private async residentStatus(societyId:string,userId:string,unitId:string,roles:readonly AppRole[]){

@@ -43,6 +43,9 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     final stalePatrolCount=(command['stalePatrol'] as num?)?.toInt()??patrolStatus.where((x)=>x['stale']==true).length;
     final urgent=overstayCount+watchCount+incidentCount+handoverCount+stalePatrolCount;
     final operatingMode=command['operatingMode']?.toString()??(criticalIncidentCount>0?'EMERGENCY_ATTENTION':urgent>0?'ELEVATED':'NORMAL');
+    final continuityStatus=command['continuityStatus']?.toString()??'CLEAR';
+    final gatesWithOpenIncidents=(command['gatesWithOpenIncidents'] as num?)?.toInt()??0;
+    final multiGateAttention=command['multiGateAttention']==true;
     final nextActions=(command['nextActions'] is List)?(command['nextActions'] as List).map((e)=>e.toString()).toList(growable:false):const <String>[];
     final theme=Theme.of(context),scheme=theme.colorScheme;
     return GuardOperationSurface(
@@ -53,6 +56,7 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
         const SizedBox(height:8),
         Text(urgent==0?'No overstays, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),
+        const SizedBox(height:4),Text('Shift continuity: ${continuityStatus.replaceAll('_',' ')} · ${gatesWithOpenIncidents} gate${gatesWithOpenIncidents==1?'':'s'} with open incidents${multiGateAttention?' · multi-gate attention':''}',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
         if(nextActions.isNotEmpty)...[const SizedBox(height:6),Text(nextActions.first,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant))],
         if(urgent>0)...[const SizedBox(height:10),Wrap(spacing:8,runSpacing:8,children:[
           if(overstayCount>0)_attentionChip(Icons.timer_outlined,'$overstayCount overstay${overstayCount==1?'':'s'}'),

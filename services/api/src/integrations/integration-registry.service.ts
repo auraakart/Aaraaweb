@@ -42,6 +42,15 @@ export class IntegrationRegistryService {
     ].map((item) => ({ ...item, ...integrationContractMetadata(item.family) }));
   }
 
+  conformance(societyId:string){
+    return this.list(societyId).map(item=>{
+      const simulatorOrReference=item.provider==='simulator'||item.provider==='reference-adapters'||item.provider==='utility-integration-v2';
+      const checks={versionedContract:Boolean(item.contractVersion),explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),explicitDegradationMode:Boolean(item.degradationMode),domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),simulatorOrConfiguredEvidence:simulatorOrReference||item.configured};
+      const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key),fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
+      return {family:item.family,provider:item.provider,health:item.health,checks,missing,status:missing.length?'CONTRACT_GAP':!item.configured&&!simulatorOrReference?'CONFIGURATION_REQUIRED':fieldEvidenceRequired?'FIELD_EVIDENCE_REQUIRED':'CONTRACT_READY',certificationClaim:false,activationAllowed:item.configured&&missing.length===0,boundary:'Conformance proves Aaraagate adapter-contract readiness only. It does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.'};
+    });
+  }
+
   private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const environment = process.env.NODE_ENV ?? 'development';
     const provider = (process.env.OTP_DELIVERY_PROVIDER ?? '').trim().toLowerCase();
