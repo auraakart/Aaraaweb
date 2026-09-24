@@ -19,7 +19,8 @@
     "check:v4.50": "node scripts/check-v4.50-reliability-convergence.mjs",
     "check:v4.50.1": "node scripts/check-v4.50.1-regression-hotfix.mjs",
     "check:v4.51": "node scripts/check-v4.51-field-differentiation-trust.mjs",
-    "check:v4.51.1": "node scripts/check-v4.51.1-regression-hardening.mjs"
+    "check:v4.51.1": "node scripts/check-v4.51.1-regression-hardening.mjs",
+    "check:v4.52": "node scripts/check-v4.52-competitive-excellence.mjs"
   },
   "pnpm": {
     "overrides": {
