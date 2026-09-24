@@ -36,15 +36,27 @@ jobs:
           else
             CANDIDATE_SHA="${GITHUB_SHA}"
           fi
-          git fetch origin main --depth=1
+          git fetch origin main staging --depth=1
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
           ROLLBACK_SHA="$(git rev-parse origin/main)"
+          STAGING_SHA="$(git rev-parse origin/staging)"
+          CANDIDATE_TREE="$(git rev-parse "${CANDIDATE_SHA}^{tree}")"
+          STAGING_TREE="$(git rev-parse "${STAGING_SHA}^{tree}")"
+          ROLLBACK_TREE="$(git rev-parse "${ROLLBACK_SHA}^{tree}")"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] && [ "$CANDIDATE_TREE" != "$STAGING_TREE" ]; then
+            echo "Main candidate tree must exactly match current staging."
+            exit 1
+          fi
           MIGRATION_COUNT="$(find services/api/prisma/migrations -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
           {
             echo "# Aaraagate release evidence"
             echo
             echo "- Candidate SHA: ${CANDIDATE_SHA}"
+            echo "- Candidate tree SHA: ${CANDIDATE_TREE}"
+            echo "- Current staging SHA: ${STAGING_SHA}"
+            echo "- Current staging tree SHA: ${STAGING_TREE}"
             echo "- Rollback target (current main): ${ROLLBACK_SHA}"
+            echo "- Rollback tree SHA: ${ROLLBACK_TREE}"
             echo "- Source ref: ${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
             echo "- Target ref: ${GITHUB_BASE_REF:-manual}"
             echo "- Migration directories: ${MIGRATION_COUNT}"

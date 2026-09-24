@@ -336,7 +336,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               maxLines: 6,
               decoration: const InputDecoration(
                 labelText:
-                    'Ask about dues, receipts, bookings, complaints, amenities or services',
+                    'Ask about dues, gate, household staff, complaints, amenities or services',
                 hintText: 'Example: What is the status of my maintenance dues?',
                 border: OutlineInputBorder(),
               ),

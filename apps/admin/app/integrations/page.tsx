@@ -7,6 +7,7 @@ import { api, type Session } from '../../lib/admin-client'
 type Family='OTP'|'WHATSAPP'|'PUSH'|'PAYMENT_GATEWAY'|'ACCESS_CONTROL'|'OBJECT_STORAGE'|'SMART_METER'|'ACCOUNTING_CONNECTOR'
 type Capability={family:Family;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
 type Configuration={societyId:string;family:Family;providerKey:string;enabled:boolean;updatedByUserId:string;createdAt:string;updatedAt:string}
+type Conformance={family:Family;provider:string;health:Capability['health'];checks:Record<string,boolean>;missing:string[];status:'CONTRACT_READY'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'CONTRACT_GAP';certificationClaim:false;activationAllowed:boolean;boundary:string}
 type ConfigurationEvent={id:string;family:Family;eventType:string;providerKey:string;enabled:boolean;actorUserId:string;occurredAt:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
@@ -15,14 +16,14 @@ function currentSession():Session|null{try{const raw=sessionStorage.getItem('aar
 function tone(health:Capability['health']){return health==='READY'?'success':health==='DEGRADED'?'warning':'neutral'} 
 
 export default function IntegrationReadinessPage(){
-  const[s,setS]=useState<Session|null>(null),[registry,setRegistry]=useState<Capability[]>([]),[config,setConfig]=useState<Configuration[]>([]),[events,setEvents]=useState<ConfigurationEvent[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[feedback,setFeedback]=useState('')
+  const[s,setS]=useState<Session|null>(null),[registry,setRegistry]=useState<Capability[]>([]),[config,setConfig]=useState<Configuration[]>([]),[events,setEvents]=useState<ConfigurationEvent[]>([]),[conformance,setConformance]=useState<Conformance[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[feedback,setFeedback]=useState('')
   const[family,setFamily]=useState<Family>('OTP'),[providerKey,setProviderKey]=useState(''),[enabled,setEnabled]=useState(true)
   const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
   const selected=useMemo(()=>config.find(item=>item.family===family),[config,family])
 
   const load=useCallback(async(session:Session)=>{
     setLoading(true);setError('')
-    try{const[r,c,e]=await Promise.all([api<Capability[]>('/integrations/registry',{},session),api<Configuration[]>('/integrations/registry/configuration',{},session),api<ConfigurationEvent[]>('/integrations/registry/configuration/events',{},session)]);setRegistry(r);setConfig(c);setEvents(e)}
+    try{const[r,c,e,cf]=await Promise.all([api<Capability[]>('/integrations/registry',{},session),api<Configuration[]>('/integrations/registry/configuration',{},session),api<ConfigurationEvent[]>('/integrations/registry/configuration/events',{},session),api<Conformance[]>('/integrations/registry/conformance',{},session)]);setRegistry(r);setConfig(c);setEvents(e);setConformance(cf)}
     catch(err){setError(err instanceof Error?err.message:'Integration readiness could not be loaded')}
     finally{setLoading(false)}
   },[])
@@ -40,6 +41,9 @@ export default function IntegrationReadinessPage(){
     <PageHeader title="Integration readiness" context={`${s?.societyName??'Current society'} · ${s?.role.replaceAll('_',' ')??''}`} description="Inspect versioned provider capabilities, society selections and audit history without exposing credentials or treating provider state as domain truth." actions={<SecondaryButton onClick={()=>s&&void load(s)} loading={loading}>Refresh</SecondaryButton>}/>
     {error&&<ErrorState title="Integration readiness needs attention" description={error}/>}
     <ReadinessPanel title="Provider ecosystem readiness" status={{label:`${ready}/${registry.length} ready`,tone:blockers.length?'warning':'success'}} blockers={blockers} nextActions={blockers.length?['Configure or certify the affected deployment/provider boundary before activation.']:[]} boundary="Repository readiness does not certify live credentials, commercial providers, physical devices or field operations." state={loading?'loading':'ready'} />
+    <DetailPanel title="Adapter conformance" state={loading?'loading':conformance.length?'ready':'empty'} empty={<EmptyState title="No conformance evidence reported."/>}>
+      <div style={{display:'grid',gap:12}}>{conformance.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:6}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.status.replaceAll('_',' ')} tone={item.status==='CONTRACT_READY'?'success':item.status==='CONTRACT_GAP'?'danger':'warning'}/></div><small>{Object.entries(item.checks).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value?'yes':'no'}`).join(' · ')}</small><small>Activation configured: {item.activationAllowed?'yes':'no'} · Certification claim: no</small><small>{item.boundary}</small></article>)}</div>
+    </DetailPanel>
     <DetailPanel title="Capability registry" state={loading?'loading':registry.length?'ready':'empty'} empty={<EmptyState title="No integration capabilities reported."/>}>
       <div style={{display:'grid',gap:12}}>{registry.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:7}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.health} tone={tone(item.health)}/></div>

@@ -21,7 +21,8 @@
     "check:v4.51": "node scripts/check-v4.51-field-differentiation-trust.mjs",
     "check:v4.51.1": "node scripts/check-v4.51.1-regression-hardening.mjs",
     "check:v4.52": "node scripts/check-v4.52-competitive-excellence.mjs",
-    "check:v4.53": "node scripts/check-v4.53-operational-intelligence.mjs"
+    "check:v4.53": "node scripts/check-v4.53-operational-intelligence.mjs",
+    "check:v4.54": "node scripts/check-v4.54-controlled-action-operational-control.mjs"
   },
   "pnpm": {
     "overrides": {
