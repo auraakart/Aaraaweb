@@ -862,6 +862,24 @@ model MaintenanceInvoice {
   @@index([societyId, unitId, status, dueDate])
 }
 
+model PaymentAutopayPreference {
+  id                    String   @id @default(uuid()) @db.Uuid
+  societyId             String   @db.Uuid
+  unitId                String   @db.Uuid
+  payerUserId           String   @db.Uuid
+  enabled               Boolean  @default(false)
+  maxAmountPaise        Int?
+  debitDaysBefore       Int      @default(1)
+  provider              String?
+  providerMandateId     String?
+  providerMandateStatus String?
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, unitId, payerUserId])
+  @@index([societyId, unitId, enabled])
+}
+
 model Payment {
   id                String             @id @default(uuid()) @db.Uuid
   societyId         String             @db.Uuid
