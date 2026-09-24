@@ -23,6 +23,8 @@ class ProposeHelpdeskDto {
   @IsOptional() @IsIn(['LOW','NORMAL','HIGH','URGENT']) priority?: 'LOW'|'NORMAL'|'HIGH'|'URGENT';
 }
 
+class ProposeHelpdeskAssignmentDto { @IsUUID() ticketId!:string; @IsOptional() @IsUUID() assignedToId?:string|null; }
+
 class ProposeAmenityBookingDto {
   @IsUUID() amenityId!: string;
   @IsUUID() unitId!: string;
@@ -122,6 +124,18 @@ export class AiOperationsController {
   proposeHelpdesk(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskDto){
     return this.ai.proposeHelpdesk(societyId,this.user(userId),dto);
   }
+
+  @Post('proposals/helpdesk-assignment')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  proposeHelpdeskAssignment(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskAssignmentDto){return this.ai.proposeHelpdeskAssignment(societyId,this.user(userId),{ticketId:dto.ticketId,assignedToId:dto.assignedToId??null});}
+
+  @Post('proposals/:id/confirm-helpdesk-assignment')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  confirmHelpdeskAssignment(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){return this.ai.confirmHelpdeskAssignment(societyId,this.user(userId),id);}
+
+  @Post('proposals/:id/cancel-helpdesk-assignment')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  cancelHelpdeskAssignment(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){return this.ai.cancelHelpdeskAssignment(societyId,this.user(userId),id);}
 
   @Post('proposals/amenity-booking')
   @RequiresPermissions(AppPermission.AMENITY_BOOK_OWN)

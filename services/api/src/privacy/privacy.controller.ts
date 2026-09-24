@@ -56,6 +56,10 @@ export class PrivacyController {
     return this.privacy.programReadiness(societyId);
   }
 
+  @Get('program-evidence')
+  @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
+  programEvidence(@CurrentTenant() societyId:string) { return this.privacy.programEvidence(societyId); }
+
   @Get('cases')
   @RequiresPermissions(AppPermission.PRIVACY_OPERATIONS_READ)
   listCases(@CurrentTenant() societyId: string) {
