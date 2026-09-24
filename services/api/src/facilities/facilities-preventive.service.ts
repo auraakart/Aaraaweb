@@ -62,6 +62,29 @@ export class FacilitiesPreventiveService implements OnModuleInit,OnModuleDestroy
         (SELECT COUNT(*)::int FROM "FacilityOperationalAlert" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "severity"='CRITICAL') AS "criticalAlerts",
         (SELECT COUNT(*)::int FROM "FacilityServiceContract" WHERE "societyId"=${societyId}::uuid AND "status"='ACTIVE' AND "endsAt"<=CURRENT_TIMESTAMP+INTERVAL '30 days') AS "contractsExpiring30d"
     `);
-    return rows[0];
+    const metrics=rows[0]??{};
+    const criticalAlerts=Number(metrics.criticalAlerts??0);
+    const overdueWorkOrders=Number(metrics.overdueWorkOrders??0);
+    const contractsExpiring30d=Number(metrics.contractsExpiring30d??0);
+    const openAlerts=Number(metrics.openAlerts??0);
+    const blockers:string[]=[];
+    if(criticalAlerts>0)blockers.push('CRITICAL_ALERTS_OPEN');
+    if(overdueWorkOrders>0)blockers.push('WORK_ORDERS_OVERDUE');
+    if(contractsExpiring30d>0)blockers.push('SERVICE_CONTRACTS_EXPIRING');
+    if(openAlerts>0&&criticalAlerts===0)blockers.push('OPERATIONAL_ALERTS_OPEN');
+    const nextActions:string[]=[];
+    if(criticalAlerts>0)nextActions.push('Review critical facility alerts and assign accountable follow-up.');
+    if(overdueWorkOrders>0)nextActions.push('Prioritise overdue work orders and record completion evidence.');
+    if(contractsExpiring30d>0)nextActions.push('Review expiring AMC, warranty or service agreements before their end dates.');
+    if(openAlerts>0&&criticalAlerts===0)nextActions.push('Review open operational alerts and close or escalate them through the normal workflow.');
+    if(nextActions.length===0)nextActions.push('Continue preventive maintenance cadence and routine asset review.');
+    return {
+      ...metrics,
+      continuity:{
+        status:criticalAlerts>0||overdueWorkOrders>0?'AT_RISK':blockers.length?'WATCH':'STABLE',
+        blockers,nextActions,
+        boundary:'Deterministic current-state service-continuity posture from recorded facilities evidence only; this is not predictive reliability or a physical-equipment certification.',
+      },
+    };
   }
 }

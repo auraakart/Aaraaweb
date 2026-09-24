@@ -101,9 +101,21 @@ jobs:
           NEXT_PUBLIC_AARAGATE_API_BASE_URL: https://api.example.com
         run: bash scripts/production-preflight.sh
 
+      - name: Publish release evidence
+        if: always()
+        run: |
+          echo "### Main promotion evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f release-evidence/release-evidence.md ]; then
+            cat release-evidence/release-evidence.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Release evidence file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload release evidence
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: release-evidence
           path: release-evidence/
-          retention-days: 30
+          retention-days: 7

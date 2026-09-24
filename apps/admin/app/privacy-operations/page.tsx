@@ -19,6 +19,7 @@ type PrivacyCase={
 type History={id:string;eventType?:string;action?:string;status?:string;summary?:string;note?:string|null;createdAt?:string;occurredAt?:string;actorName?:string|null;actorUserId?:string}
 type ErasurePlan={executable:boolean;blockers:string[];erase:string[];retain:string[]}
 type Readiness={caseId:string;requestType:string;status:string;assigned:boolean;dueAt?:string|null;overdue:boolean;blockers:string[];nextActions:string[];privacyProgramContext:{activeDataCategories:number;activeProcessors:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string;erasure?:{executable:boolean;blockers:string[]}}
+type ProgramReadiness={status:'READY'|'ATTENTION'|'ACTION_REQUIRED';blockers:string[];nextActions:string[];metrics:{activeDataCategories:number;categoriesMissingLegalBasis:number;categoriesMissingRetention:number;activeProcessors:number;processorsMissingAgreementReference:number;overdueCases:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','AUDITOR'])
 const statuses=['OPEN','IN_REVIEW','WAITING','COMPLETED','REJECTED','CANCELLED']
@@ -31,7 +32,7 @@ export default function PrivacyOperationsPage(){
   const s=session
   const allowed=!!session&&readRoles.has(session.role)
   const canManage=s?.role==='SUPER_ADMIN'
-  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null),[readiness,setReadiness]=useState<Readiness|null>(null)
+  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null),[readiness,setReadiness]=useState<Readiness|null>(null),[program,setProgram]=useState<ProgramReadiness|null>(null)
   const[queueLoading,setQueueLoading]=useState(true),[detailLoading,setDetailLoading]=useState(false),[busy,setBusy]=useState(false)
   const[queueError,setQueueError]=useState(''),[detailError,setDetailError]=useState(''),[operationError,setOperationError]=useState(''),[success,setSuccess]=useState('')
   const[subjectUserId,setSubjectUserId]=useState(''),[requestType,setRequestType]=useState<PrivacyCase['requestType']>('ACCESS'),[summary,setSummary]=useState(''),[assignedToUserId,setAssignedToUserId]=useState(''),[dueAt,setDueAt]=useState('')
@@ -45,8 +46,12 @@ export default function PrivacyOperationsPage(){
     if(!session||!allowed)return
     setQueueLoading(true);setQueueError('')
     try{
-      const[rows,context]=await Promise.all([api<PrivacyCase[]>('/privacy/cases',{},session),api<Context>('/privacy/operator-context',{},session)])
-      setCases(rows);setCtx(context)
+      const[rows,context,programReadiness]=await Promise.all([
+        api<PrivacyCase[]>('/privacy/cases',{},session),
+        api<Context>('/privacy/operator-context',{},session),
+        api<ProgramReadiness>('/privacy/program-readiness',{},session),
+      ])
+      setCases(rows);setCtx(context);setProgram(programReadiness)
       setSelectedId(current=>current&&rows.some(r=>r.id===current)?current:rows[0]?.id??'')
     }catch(e){setQueueError(e instanceof Error?e.message:'Privacy operations could not be loaded')}finally{setQueueLoading(false)}
   },[session?.accessToken,allowed])
@@ -137,6 +142,21 @@ export default function PrivacyOperationsPage(){
     <ActionBar feedback={success} label="Privacy page actions">
       <SecondaryButton onClick={()=>void load()} loading={queueLoading} disabled={busy}>Refresh cases</SecondaryButton>
     </ActionBar>
+
+    <ReadinessPanel
+      title="Privacy program readiness"
+      state={program?'ready':'loading'}
+      status={program?{label:program.status.replaceAll('_',' '),tone:program.status==='READY'?'success':program.status==='ACTION_REQUIRED'?'warning':'info'}:undefined}
+      boundary={program?.boundary}
+      checks={program?<><EvidenceGrid items={[
+        {id:'categories',label:'Active data categories',value:program.metrics.activeDataCategories},
+        {id:'legal-basis',label:'Missing legal basis',value:program.metrics.categoriesMissingLegalBasis},
+        {id:'retention',label:'Missing retention',value:program.metrics.categoriesMissingRetention},
+        {id:'processors',label:'Processors missing agreement ref',value:program.metrics.processorsMissingAgreementReference},
+        {id:'overdue',label:'Overdue privacy cases',value:program.metrics.overdueCases},
+        {id:'incidents',label:'Open security incidents',value:program.metrics.openSecurityIncidents},
+      ]}/>{program.nextActions.length>0&&<ul>{program.nextActions.map(action=><li key={action}>{action}</li>)}</ul>}</>:undefined}
+    />
 
     {canManage&&<section style={formCard} aria-labelledby="create-privacy-case">
       <h2 id="create-privacy-case">Create privacy case</h2>

@@ -6,10 +6,11 @@ import { RequiresPermissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
-import { CheckpointInput, GatePassInput, GuardOperationsService, IncidentInput, WatchlistInput } from './guard-operations.service';
+import { CheckpointInput, GatePassInput, GuardOperationsService, IncidentInput, WatchlistAssessmentInput, WatchlistInput } from './guard-operations.service';
 
 const CurrentUser = createParamDecorator((_data:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 
+class WatchlistAssessmentDto implements WatchlistAssessmentInput { @IsString() @IsNotEmpty() subjectName!:string; @IsOptional() @IsString() phone?:string; @IsOptional() @IsString() vehicleNumber?:string; }
 class WatchlistDto implements WatchlistInput { @IsIn(['WATCH','DENY','INFO']) kind!:'WATCH'|'DENY'|'INFO'; @IsString() @IsNotEmpty() subjectName!:string; @IsOptional() @IsString() phone?:string; @IsOptional() @IsString() vehicleNumber?:string; @IsString() @IsNotEmpty() reason!:string; @IsOptional() @IsDateString() validFrom?:string; @IsOptional() @IsDateString() validUntil?:string; }
 class GatePassDto implements GatePassInput { @IsOptional() @IsUUID() gateId?:string; @IsOptional() @IsUUID() unitId?:string; @IsString() @IsNotEmpty() referenceCode!:string; @IsIn(['MATERIAL_IN','MATERIAL_OUT','MOVE_IN','MOVE_OUT']) movementType!:'MATERIAL_IN'|'MATERIAL_OUT'|'MOVE_IN'|'MOVE_OUT'; @IsString() @IsNotEmpty() subjectName!:string; @IsString() @IsNotEmpty() itemDescription!:string; @IsOptional() @IsString() vehicleNumber?:string; @IsOptional() @IsDateString() validFrom?:string; @IsOptional() @IsDateString() validUntil?:string; }
 class CheckpointDto implements CheckpointInput { @IsString() @IsNotEmpty() code!:string; @IsString() @IsNotEmpty() name!:string; @IsOptional() @IsString() location?:string; }
@@ -33,6 +34,9 @@ export class GuardOperationsController {
 
   @Get('watchlist') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
   watchlist(@CurrentTenant() societyId:string){return this.operations.watchlist(societyId);}
+  @Post('watchlist/assess') @RequiresPermissions(AppPermission.GATE_ACCESS_PROCESS)
+  assessWatchlist(@CurrentTenant() societyId:string,@Body() body:WatchlistAssessmentDto){return this.operations.assessWatchlist(societyId,body);}
+
   @Post('watchlist') @RequiresPermissions(AppPermission.GATE_SUPERVISE)
   createWatchlist(@CurrentTenant() societyId:string,@CurrentUser() userId:string,@Body() body:WatchlistDto){return this.operations.createWatchlist(societyId,this.actor(userId),body);}
   @Post('watchlist/:id/deactivate') @RequiresPermissions(AppPermission.GATE_SUPERVISE)

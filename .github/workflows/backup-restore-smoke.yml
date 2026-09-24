@@ -118,11 +118,24 @@ jobs:
             echo "table_count=${{ steps.verify.outputs.table_count }}"
           } > /tmp/backup-evidence/restore-evidence.txt
 
+      - name: Publish restore evidence to job summary
+        if: always()
+        run: |
+          echo "### Backup restore evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/backup-evidence/restore-evidence.txt ]; then
+            echo '~~~text' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/backup-evidence/restore-evidence.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Restore evidence file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload restore evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: backup-restore-evidence-${{ github.run_id }}
           path: /tmp/backup-evidence/restore-evidence.txt
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7

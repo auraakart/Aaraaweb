@@ -121,13 +121,27 @@ jobs:
           mkdir -p dist
           cp apps/resident/build/app/outputs/flutter-apk/app-debug.apk dist/Aaraagate-Resident-Demo-Showcase-V2.apk
 
+      - name: Record Resident APK build evidence
+        run: |
+          APK=dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          test -s "$APK"
+          APK_SIZE=$(stat -c%s "$APK")
+          APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
+          {
+            echo "### Resident demo APK build"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Size: ${APK_SIZE} bytes"
+            echo "- SHA-256: \`${APK_SHA256}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Resident APK
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: aaraagate-resident-demo-showcase-v2-apk
           path: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
       - name: Publish direct APK release
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
