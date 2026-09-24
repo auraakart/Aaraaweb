@@ -82,25 +82,42 @@ jobs:
             echo "- Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } > staging-evidence/staging-evidence.md
 
-      - name: Enforce develop to staging promotion path
+      - name: Enforce develop-equivalent staging promotion path
         if: github.event_name == 'pull_request'
         env:
           SOURCE_REF: ${{ github.head_ref }}
           TARGET_REF: ${{ github.base_ref }}
           TARGET_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$SOURCE_REF" != "develop" ] || [ "$TARGET_REF" != "staging" ]; then
-            echo "Staging promotions must come from develop."
+          if [ "$TARGET_REF" != "staging" ]; then
+            echo "Staging promotions must target staging."
             exit 1
           fi
+          case "$SOURCE_REF" in
+            develop|release/*-staging-candidate) ;;
+            *)
+              echo "Staging promotions must come from develop or an exact-tree staging candidate."
+              exit 1
+              ;;
+          esac
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
           git cat-file -e "${TARGET_SHA}^{commit}"
           git fetch origin develop staging main --no-tags
           DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"
           STAGING_SHA="$(git rev-parse refs/remotes/origin/staging)"
           MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
-          if [ "$CANDIDATE_SHA" != "$DEVELOP_SHA" ]; then
-            echo "Staging promotion must validate the current develop head exactly."
+          DEVELOP_TREE="$(git rev-parse "${DEVELOP_SHA}^{tree}")"
+          CANDIDATE_TREE="$(git rev-parse "${CANDIDATE_SHA}^{tree}")"
+          if [ "$SOURCE_REF" = "develop" ] && [ "$CANDIDATE_SHA" != "$DEVELOP_SHA" ]; then
+            echo "Direct staging promotion must validate the current develop head exactly."
+            exit 1
+          fi
+          if [ "$SOURCE_REF" != "develop" ] && [ "$CANDIDATE_TREE" != "$DEVELOP_TREE" ]; then
+            echo "Release candidate source tree must exactly match current develop."
+            exit 1
+          fi
+          if [ "$SOURCE_REF" != "develop" ] && ! git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"; then
+            echo "Release candidate must descend from the current staging target."
             exit 1
           fi
           if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then

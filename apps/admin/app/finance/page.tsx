@@ -20,6 +20,7 @@ type Unapplied={paymentCount?:number;totalCapturedPaise?:string;totalAllocatedPa
 type PaymentAvailability={paymentId:string;status:string;amountPaise:string;allocatedPaise:string;unallocatedPaise:string}
 type Allocation={id:string;receivableId:string;amountPaise:string;allocatedAt:string}
 type AdjustmentNote={id:string;type:'DEBIT'|'CREDIT'|'WAIVER';documentType:'DEBIT_NOTE'|'CREDIT_NOTE'|'WAIVER';amountPaise:string;reason:string;noteNumber:string;entryDate:string;journalStatus:string;residentVisible:boolean;createdAt:string}
+type OperationalReadiness={status:'READY'|'WATCH'|'AT_RISK';draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;blockers:string[];nextActions:string[];automaticDebitAvailable:false;providerExecution:'ADAPTER_CONTROLLED';boundary:string;generatedAt:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
@@ -30,7 +31,7 @@ export default function FinanceWorkspace(){
   const[session,setAdminSession]=useState<AdminSession|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const[receivables,setReceivables]=useState<Receivable[]>([]),[ageing,setAgeing]=useState<Ageing|null>(null),[rules,setRules]=useState<Rule[]>([]),[journals,setJournals]=useState<Journal[]>([]),[periods,setPeriods]=useState<Period[]>([])
   const[selectedPeriodId,setSelectedPeriodId]=useState(''),[closeReadiness,setCloseReadiness]=useState<CloseReadiness|null>(null),[trialBalance,setTrialBalance]=useState<TrialBalanceRow[]>([]),[incomeExpense,setIncomeExpense]=useState<IncomeExpenseRow[]>([]),[balanceSheet,setBalanceSheet]=useState<BalanceSheet|null>(null),[fundStatement,setFundStatement]=useState<FundStatementRow[]>([]),[periodLoading,setPeriodLoading]=useState(false)
-  const[latePreview,setLatePreview]=useState<LatePreview>([]),[batches,setBatches]=useState<LateBatch[]>([]),[unapplied,setUnapplied]=useState<Unapplied|null>(null)
+  const[latePreview,setLatePreview]=useState<LatePreview>([]),[batches,setBatches]=useState<LateBatch[]>([]),[unapplied,setUnapplied]=useState<Unapplied|null>(null),[executionReadiness,setExecutionReadiness]=useState<OperationalReadiness|null>(null)
   const[asOf,setAsOf]=useState(today()),[paymentId,setPaymentId]=useState(''),[payment,setPayment]=useState<PaymentAvailability|null>(null),[allocations,setAllocations]=useState<Allocation[]>([])
   const[allocationReceivable,setAllocationReceivable]=useState(''),[allocationAmount,setAllocationAmount]=useState('')
   const[noteReceivable,setNoteReceivable]=useState(''),[notes,setNotes]=useState<AdjustmentNote[]>([]),[noteType,setNoteType]=useState<'DEBIT'|'CREDIT'>('CREDIT'),[noteNumber,setNoteNumber]=useState(''),[noteAmount,setNoteAmount]=useState(''),[noteReason,setNoteReason]=useState(''),[noteDate,setNoteDate]=useState(today())
@@ -38,8 +39,8 @@ export default function FinanceWorkspace(){
   const periodRequest=useRef(0)
   const canRead=(s:AdminSession|null)=>!!s&&readRoles.has(s.role), canManage=!!session&&manageRoles.has(session.role)
 
-  const load=useCallback(async(s:AdminSession)=>{setLoading(true);setError('');try{const[r,a,cr,j,p,lb,u]=await Promise.all([
-    adminApi<Receivable[]>(s,'/accounting/receivables'),adminApi<Ageing>(s,`/accounting/receivables/ageing?asOf=${today()}`),adminApi<Rule[]>(s,'/accounting/receivables/charge-rules'),adminApi<Journal[]>(s,'/accounting/journals'),adminApi<Period[]>(s,'/accounting/periods'),adminApi<LateBatch[]>(s,'/accounting/late-fees/batches'),adminApi<Unapplied>(s,'/accounting/late-fees/unapplied-cash')]);setReceivables(r);setAgeing(a);setRules(cr);setJournals(j);setPeriods(p);setSelectedPeriodId(current=>current&&p.some(period=>period.id===current)?current:(p.find(period=>period.status==='OPEN')??p[0])?.id??'');setBatches(lb);setUnapplied(u)}catch(e){setError(e instanceof Error?e.message:'Could not load finance workspace')}finally{setLoading(false)}},[])
+  const load=useCallback(async(s:AdminSession)=>{setLoading(true);setError('');try{const[r,a,cr,j,p,lb,u,er]=await Promise.all([
+    adminApi<Receivable[]>(s,'/accounting/receivables'),adminApi<Ageing>(s,`/accounting/receivables/ageing?asOf=${today()}`),adminApi<Rule[]>(s,'/accounting/receivables/charge-rules'),adminApi<Journal[]>(s,'/accounting/journals'),adminApi<Period[]>(s,'/accounting/periods'),adminApi<LateBatch[]>(s,'/accounting/late-fees/batches'),adminApi<Unapplied>(s,'/accounting/late-fees/unapplied-cash'),adminApi<OperationalReadiness>(s,'/accounting/finance-operations/operational-readiness')]);setReceivables(r);setAgeing(a);setRules(cr);setJournals(j);setPeriods(p);setSelectedPeriodId(current=>current&&p.some(period=>period.id===current)?current:(p.find(period=>period.status==='OPEN')??p[0])?.id??'');setBatches(lb);setUnapplied(u);setExecutionReadiness(er)}catch(e){setError(e instanceof Error?e.message:'Could not load finance workspace')}finally{setLoading(false)}},[])
   useEffect(()=>{const s=getAdminSession();setAdminSession(s);if(s&&canRead(s))void load(s);else setLoading(false)},[load])
 
   const loadPeriodWorkspace=useCallback(async(s:AdminSession,period:Period)=>{
@@ -75,6 +76,7 @@ export default function FinanceWorkspace(){
     overdue.length>0?{id:'overdue',label:`${overdue.length} overdue receivable${overdue.length===1?'':'s'}`,detail:`${money(overdue.reduce((n,r)=>n+Number(r.outstandingPaise),0))} needs collection follow-up`,href:'#receivables'}:null,
     unappliedCash>0?{id:'unapplied',label:'Unapplied cash',detail:`${money(unappliedCash)} should be allocated or investigated`,href:'#payment-allocation'}:null,
     closeReadiness&&!closeReadiness.readyToClose?{id:'period',label:'Period close blocked',detail:`${closeReadiness.blockers.reduce((n,b)=>n+b.count,0)} blocker${closeReadiness.blockers.reduce((n,b)=>n+b.count,0)===1?'':'s'} remain`,href:'#period-close'}:null,
+    executionReadiness&&executionReadiness.status!=='READY'?{id:'execution',label:`Execution readiness · ${executionReadiness.status.replaceAll('_',' ')}`,detail:`${executionReadiness.blockers.length} controlled exception${executionReadiness.blockers.length===1?'':'s'} need review`,href:'#execution-readiness'}:null,
   ].filter(Boolean) as {id:string;label:string;detail:string;href:string}[]
 
   async function previewLateFees(){if(!session)return;setBusy(true);setError('');try{setLatePreview(await adminApi<LatePreview>(session,`/accounting/late-fees/preview?asOf=${asOf}`))}catch(e){setError(e instanceof Error?e.message:'Could not preview late fees')}finally{setBusy(false)}}
@@ -104,6 +106,15 @@ export default function FinanceWorkspace(){
       <div style={sectionHeader}><div><h2 style={{margin:'0 0 4px'}}>Finance attention queue</h2><small>Prioritised operational exceptions before routine accounting work.</small></div><StatusPill label={financeAttention.length===0?'CLEAR':`${financeAttention.length} OPEN`} tone={financeAttention.length===0?'success':'warning'}/></div>
       {financeAttention.length===0?<EmptyState title="No finance exceptions need attention" description="Overdues, unapplied cash and period-close blockers are clear."/>:<div style={{marginTop:12,display:'grid',gap:10}}>{financeAttention.map(item=><a key={item.id} href={item.href} style={attentionLink}><span><b>{item.label}</b><br/><small>{item.detail}</small></span><span aria-hidden="true">→</span></a>)}</div>}
     </section>
+
+    {executionReadiness&&<section id="execution-readiness" style={panel}><div style={sectionHeader}><div><h2 style={{margin:'0 0 4px'}}>Execution readiness</h2><small>Current finance, settlement, procurement and contract evidence. Provider actions remain adapter-controlled.</small></div><StatusPill label={executionReadiness.status.replaceAll('_',' ')} tone={executionReadiness.status==='READY'?'success':executionReadiness.status==='AT_RISK'?'danger':'warning'}/></div><EvidenceGrid items={[
+      {id:'reconciliation-open',label:'Open reconciliation',value:String(executionReadiness.unresolvedReconciliation)},
+      {id:'gateway-unsettled',label:'Gateway operations pending',value:String(executionReadiness.unsettledGatewayOperations)},
+      {id:'payables-overdue',label:'Overdue payables',value:String(executionReadiness.overduePayables)},
+      {id:'po-handoff',label:'PO accounting handoff',value:String(executionReadiness.unlinkedPurchaseOrders)},
+      {id:'contracts-expiring',label:'Contracts / AMC ≤30d',value:String(executionReadiness.contractsExpiring30d)},
+      {id:'draft-budgets',label:'Draft budgets',value:String(executionReadiness.draftBudgets)},
+    ]}/><div style={{display:'grid',gap:6,marginTop:12}}>{executionReadiness.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</div><small style={{display:'block',marginTop:10}}>{executionReadiness.boundary}</small></section>}
 
     <section style={panel}><h2>Ageing</h2>{ageing?<EvidenceGrid items={[
   {id:'current',label:'Current',value:money(ageing.currentPaise)},{id:'1-30',label:'1–30 days',value:money(ageing.days1To30Paise)},{id:'31-60',label:'31–60 days',value:money(ageing.days31To60Paise)},{id:'61-90',label:'61–90 days',value:money(ageing.days61To90Paise)},{id:'90-plus',label:'90+ days',value:money(ageing.days90PlusPaise)}
