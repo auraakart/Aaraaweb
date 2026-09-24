@@ -136,6 +136,14 @@ window.fetch=async(input,init={})=>{
   if(path==='/accounting/periods') return json([{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:'OPEN'}])
   if(path==='/accounting/late-fees/batches') return json([])
   if(path==='/accounting/late-fees/unapplied-cash') return json({paymentCount:0,totalCapturedPaise:'0',totalAllocatedPaise:'0',totalUnappliedPaise:'0',payments:[]})
+  if(path==='/accounting/finance-operations/operational-readiness') return json({
+    status:'READY',draftExpenses:0,approvedUnpostedExpenses:0,overduePayables:0,draftBudgets:0,
+    unresolvedReconciliation:0,unsettledGatewayOperations:0,unlinkedPurchaseOrders:0,contractsExpiring30d:0,
+    blockers:[],nextActions:['No execution exception is visible; continue routine finance controls and period-close review.'],
+    automaticDebitAvailable:false,providerExecution:'ADAPTER_CONTROLLED',
+    boundary:'Deterministic current-state execution readiness from recorded finance, payment, procurement and contract evidence.',
+    generatedAt:now,
+  })
   if(path==='/accounting/periods/period-1/close-readiness') return json({period:{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:'OPEN'},journalSummary:{draftCount:0,postedCount:1,reversedCount:0,debitPaise:'350000',creditPaise:'350000',balanced:true},blockers:[],readyToClose:true})
   if(path.startsWith('/accounting/reports/trial-balance')) return json([{accountId:'acc-1',code:'1100',name:'Receivables',type:'ASSET',debitPaise:'125000',creditPaise:'0',netDebitPaise:'125000'}])
   if(path.startsWith('/accounting/reports/income-expense')) return json([{accountId:'acc-2',code:'4100',name:'Maintenance income',type:'INCOME',debitPaise:'0',creditPaise:'350000',amountPaise:'350000'}])

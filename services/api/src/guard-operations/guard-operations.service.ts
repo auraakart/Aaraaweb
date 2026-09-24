@@ -81,6 +81,17 @@ export class GuardOperationsService {
     });
   }
 
+  watchlistHistory(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
+    SELECT w."id",w."kind",w."subjectName",w."phone",w."vehicleNumber",w."reason",w."active",w."validFrom",w."validUntil",w."createdAt",w."updatedAt",w."deactivatedAt",
+           creator."name" AS "createdByName",deactivator."name" AS "deactivatedByName",
+           CASE WHEN w."active"=TRUE THEN 'ACTIVE' ELSE 'DEACTIVATED' END AS "lifecycleState"
+    FROM "GuardWatchlistEntry" w
+    LEFT JOIN "User" creator ON creator."id"=w."createdByUserId"
+    LEFT JOIN "User" deactivator ON deactivator."id"=w."deactivatedByUserId"
+    WHERE w."societyId"=${societyId}::uuid
+    ORDER BY w."updatedAt" DESC LIMIT 500
+  `);}
+
   watchlist(societyId:string){return this.prisma.$queryRaw(Prisma.sql`
     SELECT "id","kind","subjectName","phone","vehicleNumber","reason","active","validFrom","validUntil","createdAt","updatedAt"
     FROM "GuardWatchlistEntry" WHERE "societyId"=${societyId}::uuid AND "active"=true

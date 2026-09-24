@@ -174,6 +174,7 @@ export class AiAssistantService {
     const cards:Array<{
       id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
       evidenceQuality?:{sourceCount:number;basis:'CURRENT_QUERY_SNAPSHOT';causalClaim:false;interpretation:'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY'};
+      actionIntent?:{mode:'READ_ONLY_DRILLDOWN';workspaceHref:string;workspaceLabel:string;confirmationRequired:true;mutationAllowed:false};
     }>=[];
 
     if(hasPermission(roles,AppPermission.FINANCE_READ)){
@@ -336,8 +337,24 @@ export class AiAssistantService {
       });
     }
 
+    const workspaceByDomain:Record<string,{href:string;label:string}>={
+      FINANCE:{href:'/finance',label:'Finance workspace'},
+      HELPDESK:{href:'/',label:'Helpdesk operations'},
+      GATE:{href:'/',label:'Gate operations'},
+      SECURITY:{href:'/',label:'Security operations'},
+      FACILITIES:{href:'/facilities',label:'Facilities workspace'},
+      GOVERNANCE:{href:'/governance',label:'Governance workspace'},
+      PROCUREMENT:{href:'/vendors',label:'Vendor & procurement workspace'},
+    };
     const evidenceCards=cards.map(card=>({
       ...card,
+      actionIntent:{
+        mode:'READ_ONLY_DRILLDOWN' as const,
+        workspaceHref:workspaceByDomain[card.domain]?.href??'/',
+        workspaceLabel:workspaceByDomain[card.domain]?.label??'Operations workspace',
+        confirmationRequired:true as const,
+        mutationAllowed:false as const,
+      },
       evidenceQuality:{
         sourceCount:card.sources.length,
         basis:'CURRENT_QUERY_SNAPSHOT' as const,
@@ -357,7 +374,7 @@ export class AiAssistantService {
         highPriorityCount,
         mediumPriorityCount,
         attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],evidenceQuality:focus.evidenceQuality}:null,
+        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality}:null,
         explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed.',
       },
       generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
