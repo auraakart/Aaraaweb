@@ -69,6 +69,10 @@ requireTokens('Branch hygiene race hardening',read('scripts/cleanup-merged-branc
   'reference does not exist','Already absent at delete time',
 ]);
 
+requireTokens('Branch hygiene evidence resilience',read('.github/workflows/branch-hygiene.yml'),[
+  'Publish branch hygiene evidence to job summary','continue-on-error: true','retention-days: 7',
+]);
+
 requireTokens('V4.52 milestone evidence',read('docs/AARAAGATE-V4.52-COMPETITIVE-EXCELLENCE-CONVERGENCE.md'),[
   'Competitive Excellence Convergence','Deterministic core-operations priority queue','Provider-neutral AutoPay readiness','Deterministic watchlist assessment',
   'Privacy program readiness','Service continuity posture','AI evidence-quality contract',

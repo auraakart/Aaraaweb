@@ -58,7 +58,7 @@ The milestone adds focused API tests for AutoPay preference authorization/truth 
 
 ## Validation hardening discovered during merge
 
-The V4.52 develop merge exposed a branch-cleanup race: GitHub may remove a merged feature ref before the branch-hygiene worker reaches the same ref. Cleanup is now idempotent for an already-absent branch (`404`, or `422 Reference does not exist`) and records that outcome in branch-hygiene evidence instead of failing the workflow. Unexpected deletion failures remain fatal.
+The V4.52 develop merge exposed a branch-cleanup race: GitHub may remove a merged feature ref before the branch-hygiene worker reaches the same ref. Cleanup is now idempotent for an already-absent branch (`404`, or `422 Reference does not exist`) and records that outcome in branch-hygiene evidence instead of failing the workflow. Unexpected deletion failures remain fatal. Branch-hygiene evidence is also published to the GitHub job summary; artifact upload is best-effort so an exhausted Actions artifact quota cannot turn a successful cleanup into a false governance failure.
 
 ## Scoring boundary
 
