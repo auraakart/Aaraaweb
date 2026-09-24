@@ -1,0 +1,21 @@
+{
+  "version": "V4.54",
+  "fieldPilotStatus": "NOT_EXECUTED",
+  "candidateSha": null,
+  "candidateTreeSha": null,
+  "societyPilotIdentifier": null,
+  "residentDevices": [],
+  "guardDevices": [],
+  "adminBrowsers": [],
+  "approver": null,
+  "acceptedExceptions": [],
+  "externalEvidenceRequired": [
+    "hosted production acceptance",
+    "live payment or mandate provider acceptance",
+    "live telephony/WhatsApp provider acceptance",
+    "physical ANPR/RFID/boom-barrier field evidence",
+    "signed store release",
+    "society field-pilot and business acceptance"
+  ],
+  "boundary": "Repository completion is not field-pilot acceptance. Populate this record only from real pilot evidence."
+}

@@ -100,6 +100,7 @@ window.fetch=async(input,init={})=>{
     },
     boundary:'Operational readiness evidence only; this fixture does not certify statutory compliance.',
   })
+  if(path==='/privacy/program-evidence') return json({generatedAt:now,readiness:{status:'READY',blockers:[],nextActions:[],metrics:{activeDataCategories:5,categoriesMissingLegalBasis:0,categoriesMissingRetention:0,activeProcessors:2,processorsMissingAgreementReference:0,overdueCases:0,openSecurityIncidents:0,grievanceContactActive:true},boundary:'Readiness only.'},consentEvidence:{granted:4,withdrawn:1},caseEvidence:{open:1,completed:3,erasure:1},incidentEvidence:{open:0,closed:2},registryEventCount:8,exportAndErasureWorkflowAvailable:true,legalHoldAndRetentionReviewRequiredForErasure:true,certificationClaim:false,boundary:'Operational evidence only; not statutory certification.'})
   if(path==='/privacy/cases/privacy-1/history') return json([{id:'ph-1',eventType:'STATUS_UPDATED',summary:'Case moved to review',createdAt:now,actorName:'Privacy Reviewer'}])
   if(path==='/privacy/cases/privacy-1/readiness') return json({
     caseId:'privacy-1',requestType:'ACCESS',status:'IN_REVIEW',assigned:true,dueAt:later,overdue:false,blockers:[],
@@ -144,6 +145,7 @@ window.fetch=async(input,init={})=>{
     boundary:'Deterministic current-state execution readiness from recorded finance, payment, procurement and contract evidence.',
     generatedAt:now,
   })
+  if(path==='/accounting/finance-operations/treasurer-control-centre') return json({status:'CLEAR',bank:{unmatchedBank:0,unmatchedMovementPaise:'0'},cash:{unappliedCount:0,unappliedPaise:'0'},budget:{overrunLines:0,overrunPaise:'0'},tax:{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds:{refunds30d:0,refundedPaise30d:'0'},nextActions:['Continue routine finance controls.'],automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation.',generatedAt:now})
   if(path==='/accounting/periods/period-1/close-readiness') return json({period:{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:'OPEN'},journalSummary:{draftCount:0,postedCount:1,reversedCount:0,debitPaise:'350000',creditPaise:'350000',balanced:true},blockers:[],readyToClose:true})
   if(path.startsWith('/accounting/reports/trial-balance')) return json([{accountId:'acc-1',code:'1100',name:'Receivables',type:'ASSET',debitPaise:'125000',creditPaise:'0',netDebitPaise:'125000'}])
   if(path.startsWith('/accounting/reports/income-expense')) return json([{accountId:'acc-2',code:'4100',name:'Maintenance income',type:'INCOME',debitPaise:'0',creditPaise:'350000',amountPaise:'350000'}])

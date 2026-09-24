@@ -20,6 +20,7 @@ type History={id:string;eventType?:string;action?:string;status?:string;summary?
 type ErasurePlan={executable:boolean;blockers:string[];erase:string[];retain:string[]}
 type Readiness={caseId:string;requestType:string;status:string;assigned:boolean;dueAt?:string|null;overdue:boolean;blockers:string[];nextActions:string[];privacyProgramContext:{activeDataCategories:number;activeProcessors:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string;erasure?:{executable:boolean;blockers:string[]}}
 type ProgramReadiness={status:'READY'|'ATTENTION'|'ACTION_REQUIRED';blockers:string[];nextActions:string[];metrics:{activeDataCategories:number;categoriesMissingLegalBasis:number;categoriesMissingRetention:number;activeProcessors:number;processorsMissingAgreementReference:number;overdueCases:number;openSecurityIncidents:number;grievanceContactActive:boolean};boundary:string}
+type ProgramEvidence={generatedAt:string;readiness:ProgramReadiness;consentEvidence:{granted:number;withdrawn:number};caseEvidence:{open:number;completed:number;erasure:number};incidentEvidence:{open:number;closed:number};registryEventCount:number;exportAndErasureWorkflowAvailable:boolean;legalHoldAndRetentionReviewRequiredForErasure:boolean;certificationClaim:false;boundary:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','AUDITOR'])
 const statuses=['OPEN','IN_REVIEW','WAITING','COMPLETED','REJECTED','CANCELLED']
@@ -32,7 +33,7 @@ export default function PrivacyOperationsPage(){
   const s=session
   const allowed=!!session&&readRoles.has(session.role)
   const canManage=s?.role==='SUPER_ADMIN'
-  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null),[readiness,setReadiness]=useState<Readiness|null>(null),[program,setProgram]=useState<ProgramReadiness|null>(null)
+  const[cases,setCases]=useState<PrivacyCase[]>([]),[ctx,setCtx]=useState<Context>({subjects:[],assignees:[]}),[selectedId,setSelectedId]=useState(''),[history,setHistory]=useState<History[]>([]),[plan,setPlan]=useState<ErasurePlan|null>(null),[readiness,setReadiness]=useState<Readiness|null>(null),[program,setProgram]=useState<ProgramReadiness|null>(null),[programEvidence,setProgramEvidence]=useState<ProgramEvidence|null>(null)
   const[queueLoading,setQueueLoading]=useState(true),[detailLoading,setDetailLoading]=useState(false),[busy,setBusy]=useState(false)
   const[queueError,setQueueError]=useState(''),[detailError,setDetailError]=useState(''),[operationError,setOperationError]=useState(''),[success,setSuccess]=useState('')
   const[subjectUserId,setSubjectUserId]=useState(''),[requestType,setRequestType]=useState<PrivacyCase['requestType']>('ACCESS'),[summary,setSummary]=useState(''),[assignedToUserId,setAssignedToUserId]=useState(''),[dueAt,setDueAt]=useState('')
@@ -46,12 +47,13 @@ export default function PrivacyOperationsPage(){
     if(!session||!allowed)return
     setQueueLoading(true);setQueueError('')
     try{
-      const[rows,context,programReadiness]=await Promise.all([
+      const[rows,context,programReadiness,evidence]=await Promise.all([
         api<PrivacyCase[]>('/privacy/cases',{},session),
         api<Context>('/privacy/operator-context',{},session),
         api<ProgramReadiness>('/privacy/program-readiness',{},session),
+        api<ProgramEvidence>('/privacy/program-evidence',{},session),
       ])
-      setCases(rows);setCtx(context);setProgram(programReadiness)
+      setCases(rows);setCtx(context);setProgram(programReadiness);setProgramEvidence(evidence)
       setSelectedId(current=>current&&rows.some(r=>r.id===current)?current:rows[0]?.id??'')
     }catch(e){setQueueError(e instanceof Error?e.message:'Privacy operations could not be loaded')}finally{setQueueLoading(false)}
   },[session?.accessToken,allowed])
@@ -142,6 +144,15 @@ export default function PrivacyOperationsPage(){
     <ActionBar feedback={success} label="Privacy page actions">
       <SecondaryButton onClick={()=>void load()} loading={queueLoading} disabled={busy}>Refresh cases</SecondaryButton>
     </ActionBar>
+
+    {programEvidence&&<DetailPanel title="Privacy evidence pack"><EvidenceGrid items={[
+      {id:'consent-granted',label:'Consent records granted',value:programEvidence.consentEvidence.granted},
+      {id:'consent-withdrawn',label:'Consent records withdrawn',value:programEvidence.consentEvidence.withdrawn},
+      {id:'privacy-open',label:'Open privacy requests',value:programEvidence.caseEvidence.open},
+      {id:'privacy-completed',label:'Completed privacy requests',value:programEvidence.caseEvidence.completed},
+      {id:'security-open',label:'Open privacy/security incidents',value:programEvidence.incidentEvidence.open},
+      {id:'registry-events',label:'Registry audit events',value:programEvidence.registryEventCount},
+    ]}/><small style={{display:'block',marginTop:10}}>Export/erasure workflow: {programEvidence.exportAndErasureWorkflowAvailable?'available':'not available'} · Certification claim: no</small><small style={{display:'block',marginTop:6}}>{programEvidence.boundary}</small></DetailPanel>}
 
     <ReadinessPanel
       title="Privacy program readiness"
