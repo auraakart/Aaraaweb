@@ -64,6 +64,11 @@ requireTokens('AI Admin evidence copy',read('apps/admin/app/ai-assistant/page.ts
   'Likely signal — not causal proof','current query snapshot','causal claim: no',
 ]);
 
+requireTokens('Branch hygiene race hardening',read('scripts/cleanup-merged-branches.mjs'),[
+  'alreadyAbsent: false','response.status === 404','response.status === 422',
+  'reference does not exist','Already absent at delete time',
+]);
+
 requireTokens('V4.52 milestone evidence',read('docs/AARAAGATE-V4.52-COMPETITIVE-EXCELLENCE-CONVERGENCE.md'),[
   'Competitive Excellence Convergence','Deterministic core-operations priority queue','Provider-neutral AutoPay readiness','Deterministic watchlist assessment',
   'Privacy program readiness','Service continuity posture','AI evidence-quality contract',
