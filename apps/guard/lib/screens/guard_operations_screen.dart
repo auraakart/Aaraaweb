@@ -164,7 +164,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: c.gateId,
+                initialValue: c.gateId,
                 decoration: InputDecoration(labelText: strings.get('activeGate'), prefixIcon: const Icon(Icons.door_front_door_outlined)),
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
@@ -305,7 +305,7 @@ class _WalkInSheetState extends State<_WalkInSheet> {
           Text('Choose the destination and send the arrival to the resident for approval.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _unitId,
+            initialValue: _unitId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Destination', prefixIcon: Icon(Icons.apartment_rounded)),
             items: widget.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
@@ -396,7 +396,7 @@ class _QuickArrivalSheetState extends State<_QuickArrivalSheet> {
           Text('Capture only the details needed for a fast resident approval.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _unitId,
+            initialValue: _unitId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Destination', prefixIcon: Icon(Icons.apartment_rounded)),
             items: widget.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
