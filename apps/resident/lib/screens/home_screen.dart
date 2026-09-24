@@ -57,9 +57,12 @@ class HomeScreen extends StatelessWidget {
       notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],
     );
-    final immediateCount = highlights.where((item) => item.urgency == ResidentHomeUrgency.immediate).length + (pending != null ? 1 : 0);
-    final soonCount = highlights.where((item) => item.urgency == ResidentHomeUrgency.soon).length;
-    final infoCount = highlights.where((item) => item.urgency == ResidentHomeUrgency.info).length;
+    final attentionCount = highlights.length + (pending != null ? 1 : 0);
+    final attentionSummary = attentionCount == 0
+        ? 'Nothing needs your attention right now.'
+        : attentionCount == 1
+            ? '1 item needs your attention.'
+            : '$attentionCount items need your attention.';
 
     return SafeArea(
       child: RefreshIndicator(
@@ -149,14 +152,17 @@ class HomeScreen extends StatelessWidget {
             ],
             if (showGate || highlights.isNotEmpty) ...[
               const SizedBox(height: AaraagateTokens.space6),
-              PremiumSectionHeader(
-                title: 'Action inbox',
-                supportingText: immediateCount == 0 && soonCount == 0 && infoCount == 0
-                    ? 'Nothing needs your attention right now.'
-                    : '$immediateCount act now · $soonCount soon · $infoCount info',
+              Semantics(
+                container: true,
+                liveRegion: true,
+                label: 'Action inbox. $attentionSummary',
+                child: ExcludeSemantics(
+                  child: PremiumSectionHeader(
+                    title: 'Action inbox',
+                    supportingText: attentionSummary,
+                  ),
+                ),
               ),
-              const SizedBox(height: AaraagateTokens.space2),
-              _ActionInboxSummary(immediate: immediateCount, soon: soonCount, info: infoCount),
               const SizedBox(height: AaraagateTokens.space3),
               if (showGate && controller.loading && controller.accessRequests.isEmpty)
                 const AppStateCard(
@@ -409,36 +415,6 @@ class _AssistantEntryCard extends StatelessWidget {
           const SizedBox(width: AaraagateTokens.space2),
           Icon(Icons.arrow_forward_rounded, color: scheme.primary),
         ],
-      ),
-    );
-  }
-}
-
-class _ActionInboxSummary extends StatelessWidget {
-  const _ActionInboxSummary({required this.immediate, required this.soon, required this.info});
-  final int immediate;
-  final int soon;
-  final int info;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      label: 'Action inbox summary. $immediate act now, $soon soon, $info information.',
-      child: PremiumSurface(
-        color: theme.colorScheme.surfaceContainerLow,
-        padding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space3, vertical: AaraagateTokens.space2),
-        child: Wrap(
-          spacing: AaraagateTokens.space2,
-          runSpacing: AaraagateTokens.space2,
-          children: [
-            AaraagateStatusPill(label: 'ACT NOW $immediate', tone: immediate > 0 ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral),
-            AaraagateStatusPill(label: 'SOON $soon', tone: soon > 0 ? AaraagateStatusTone.info : AaraagateStatusTone.neutral),
-            AaraagateStatusPill(label: 'INFO $info', tone: AaraagateStatusTone.neutral),
-          ],
-        ),
       ),
     );
   }
