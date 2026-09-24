@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.54 Controlled Action Execution & Operational Control on top of V4.53 Operational Intelligence & Execution Depth.  
+**Current-state review baseline:** V4.54 Controlled Action Execution & Operational Control on top of V4.53 Operational Intelligence & Execution Depth, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
