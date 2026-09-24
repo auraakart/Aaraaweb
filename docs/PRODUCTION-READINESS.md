@@ -1,6 +1,6 @@
 # Aaraagate Production Readiness Runbook
 
-Updated: 2026-09-05
+Updated: 2026-09-25
 
 This runbook defines the provider-neutral operational baseline for production rollout. Hosting-specific commands may be added later, but the control objectives below must remain intact.
 
@@ -53,7 +53,7 @@ Normal production path:
 
 The `develop` -> `staging` gate validates the immutable source candidate SHA and retains its non-sensitive readiness evidence. Diverged staging history must be reconciled back into `develop` through a reviewed PR before promotion; do not overwrite or force-update protected branch history.
 
-After deploying the promoted staging commit, require the `Hosted staging acceptance` workflow for the current staging SHA and public HTTPS API origin. It runs automatically on staging pushes and can also be dispatched manually. This provides exact-deployment liveness and dependency-readiness evidence but does not replace provider backup/PITR, alert-delivery, rollback or real-device UAT proof. See `docs/HOSTED-STAGING-ACCEPTANCE.md`.
+After deploying the promoted staging commit, require the `Hosted staging acceptance` workflow for the current staging SHA and public HTTPS API origin. V4.55 additionally reruns the exact hosted-staging check inside the `staging -> main` release-readiness job, so a missing staging URL or stale/unhealthy hosted candidate blocks main promotion. This provides exact-deployment liveness and dependency-readiness evidence but does not replace provider backup/PITR, alert-delivery, rollback or real-device UAT proof. See `docs/HOSTED-STAGING-ACCEPTANCE.md`.
 
 Before production deployment confirm:
 - release commit is on `main`;
