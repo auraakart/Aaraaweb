@@ -20,6 +20,8 @@ class _BillingScreenState extends State<BillingScreen> {
   List<Map<String, dynamic>> payments = const [];
   List<Map<String, dynamic>> utilityCharges = const [];
   Map<String, dynamic>? financeSummary;
+  Map<String, dynamic>? autopayPreference;
+  bool autopayBusy = false;
   bool loading = true;
   String? error;
   String? payingInvoiceId;
@@ -38,6 +40,14 @@ class _BillingScreenState extends State<BillingScreen> {
       } catch (_) {
         summaryResult = null;
       }
+      Map<String, dynamic>? autopayResult;
+      if (selected != null && selected.isNotEmpty) {
+        try {
+          autopayResult = await widget.repository.autopayPreference(unitId: selected);
+        } catch (_) {
+          autopayResult = null;
+        }
+      }
       List<Map<String, dynamic>> utilityResult = const [];
       try {
         utilityResult = await widget.repository.issuedUtilityCharges();
@@ -48,13 +58,41 @@ class _BillingScreenState extends State<BillingScreen> {
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
-      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; financeSummary = summaryResult; });
+      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
     } catch (_) {
       if (mounted) setState(() => error = 'Your billing details could not be loaded.');
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _toggleAutopay(bool enabled) async {
+    final unitId = widget.activeUnitId;
+    if (unitId == null || unitId.isEmpty || autopayBusy) return;
+    final current = autopayPreference ?? const <String, dynamic>{};
+    final maxAmount = (current['maxAmountPaise'] as num?)?.toInt();
+    final debitDays = (current['debitDaysBefore'] as num?)?.toInt() ?? 1;
+    setState(() { autopayBusy = true; error = null; });
+    try {
+      final updated = await widget.repository.saveAutopayPreference(
+        unitId: unitId,
+        enabled: enabled,
+        maxAmountPaise: maxAmount,
+        debitDaysBefore: debitDays,
+      );
+      if (!mounted) return;
+      setState(() => autopayPreference = updated);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(enabled
+            ? 'AutoPay preference saved. Automatic debit is not active until a provider mandate is connected.'
+            : 'AutoPay preference turned off.'),
+      ));
+    } catch (_) {
+      if (mounted) setState(() => error = 'AutoPay preference could not be saved. No debit was attempted.');
+    } finally {
+      if (mounted) setState(() => autopayBusy = false);
     }
   }
 
@@ -154,10 +192,18 @@ class _BillingScreenState extends State<BillingScreen> {
               const AppStateCard(icon: Icons.sync_rounded, message: 'Loading billing and payment details…', loading: true)
             else if (error != null)
               AppStateCard(icon: Icons.lock_outline_rounded, message: error!, actionLabel: 'Retry', onAction: _load)
-            else if (invoices.isEmpty && utilityCharges.isEmpty)
+            else if (invoices.isEmpty && utilityCharges.isEmpty && (widget.activeUnitId == null || widget.activeUnitId!.isEmpty))
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
               _SummaryCard(outstanding: outstanding, summary: financeSummary),
+              if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space3),
+                _AutopayPreferenceCard(
+                  preference: autopayPreference,
+                  busy: autopayBusy,
+                  onChanged: _toggleAutopay,
+                ),
+              ],
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
@@ -214,6 +260,49 @@ class _BillingScreenState extends State<BillingScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AutopayPreferenceCard extends StatelessWidget {
+  const _AutopayPreferenceCard({required this.preference, required this.busy, required this.onChanged});
+  final Map<String, dynamic>? preference;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = preference?['enabled'] == true;
+    final automaticDebitAvailable = preference?['automaticDebitAvailable'] == true;
+    final days = (preference?['debitDaysBefore'] as num?)?.toInt() ?? 1;
+    final boundary = preference?['boundary']?.toString() ??
+        'AutoPay preference is available for this property. Automatic debit remains inactive until a payment mandate provider is connected and confirmed.';
+    return Semantics(
+      container: true,
+      label: 'AutoPay preference. ${enabled ? 'Enabled' : 'Disabled'}. Automatic debit ${automaticDebitAvailable ? 'available' : 'not active'}.',
+      child: PremiumSurface(
+        padding: const EdgeInsets.all(AaraagateTokens.space4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.autorenew_rounded, color: theme.colorScheme.primary),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('AutoPay preference', style: theme.textTheme.titleMedium),
+              Text('Plan recurring maintenance payments without hiding the mandate state.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ])),
+            Switch(value: enabled, onChanged: busy ? null : onChanged),
+          ]),
+          const SizedBox(height: AaraagateTokens.space2),
+          Wrap(spacing: AaraagateTokens.space2, runSpacing: AaraagateTokens.space2, children: [
+            AaraagateStatusPill(label: automaticDebitAvailable ? 'MANDATE READY' : 'PREFERENCE ONLY', tone: automaticDebitAvailable ? AaraagateStatusTone.success : AaraagateStatusTone.warning),
+            AaraagateStatusPill(label: '$days day${days == 1 ? '' : 's'} before due', tone: AaraagateStatusTone.neutral),
+          ]),
+          const SizedBox(height: AaraagateTokens.space2),
+          Text(boundary, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4)),
+          if (busy) ...[const SizedBox(height: AaraagateTokens.space2), const LinearProgressIndicator()],
+        ]),
       ),
     );
   }

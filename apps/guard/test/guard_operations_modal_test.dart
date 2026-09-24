@@ -11,6 +11,16 @@ class _ArrivalApi extends GuardApi {
 
   Map<String, dynamic>? walkIn;
   Map<String, dynamic>? arrival;
+  String assessmentDecision = 'CLEAR';
+
+  @override
+  Future<Map<String, dynamic>> assessWatchlist({required String name, String? phone, String? vehicleNumber}) async => {
+    'decision': assessmentDecision,
+    'matches': assessmentDecision == 'CLEAR' ? <Map<String,dynamic>>[] : [
+      {'id':'watch-1','kind':assessmentDecision == 'DENY' ? 'DENY' : 'WATCH','subjectName':name,'reason':'Supervisor review required'}
+    ],
+    'automaticMutation': false,
+  };
 
   @override
   Future<Map<String, dynamic>> createWalkIn({
@@ -94,6 +104,22 @@ void main() {
       'phone': '8888888888',
       'purpose': 'Meeting',
     });
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('exact deny watchlist match blocks resident approval creation', (tester) async {
+    api.assessmentDecision = 'DENY';
+    await tester.pumpWidget(MaterialApp(home: GuardOperationsScreen(controller: controller)));
+    await tester.scrollUntilVisible(find.text('WALK-IN VISITOR'), 300);
+    await tester.tap(find.text('WALK-IN VISITOR'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Visitor name'), 'Blocked Visitor');
+    await tester.tap(find.text('Send for approval'));
+    await tester.pumpAndSettle();
+    expect(find.text('Watchlist deny match'), findsOneWidget);
+    expect(api.walkIn, isNull);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

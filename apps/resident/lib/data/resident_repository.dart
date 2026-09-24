@@ -159,6 +159,26 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<Map<String, dynamic>> autopayPreference({required String unitId}) async {
+    final value = await api.get('/api/v1/billing/autopay-preference?unitId=${Uri.encodeQueryComponent(unitId)}');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> saveAutopayPreference({
+    required String unitId,
+    required bool enabled,
+    int? maxAmountPaise,
+    int debitDaysBefore = 1,
+  }) async {
+    final value = await api.post('/api/v1/billing/autopay-preference', {
+      'unitId': unitId,
+      'enabled': enabled,
+      if (maxAmountPaise != null) 'maxAmountPaise': maxAmountPaise,
+      'debitDaysBefore': debitDaysBefore,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
     final value = await api.post('/api/v1/billing/payments', {'invoiceId': invoiceId, 'idempotencyKey': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);

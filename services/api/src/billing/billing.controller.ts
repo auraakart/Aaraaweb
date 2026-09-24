@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -26,6 +26,13 @@ class CreateInvoiceDto {
 class CreatePaymentDto {
   @IsUUID() invoiceId!: string;
   @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
+}
+
+class AutopayPreferenceDto {
+  @IsUUID() unitId!: string;
+  @IsBoolean() enabled!: boolean;
+  @IsOptional() @IsInt() @Min(100) @Max(100000000) maxAmountPaise?: number;
+  @IsInt() @Min(0) @Max(10) debitDaysBefore!: number;
 }
 
 class PaymentWebhookDto {
@@ -66,6 +73,21 @@ export class BillingController {
       throw new BadRequestException('unitId must be a UUID');
     }
     return this.billing.residentSummary(societyId,this.requireUser(userId),unitId);
+  }
+
+  @Get('autopay-preference')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  autopayPreference(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Query('unitId') unitId?:string){
+    if(!unitId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unitId)) throw new BadRequestException('unitId must be a UUID');
+    return this.billing.getAutopayPreference(societyId,this.requireUser(userId),unitId);
+  }
+
+  @Post('autopay-preference')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  saveAutopayPreference(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:AutopayPreferenceDto){
+    return this.billing.setAutopayPreference(societyId,this.requireUser(userId),dto);
   }
 
   @Get('invoices/admin')

@@ -101,6 +101,52 @@ export class BillingService {
     };
   }
 
+
+  async getAutopayPreference(societyId:string,userId:string,unitId:string) {
+    await this.assertCurrentPayer(societyId,userId,unitId);
+    const rows=await this.prisma.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
+      SELECT "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
+      FROM "PaymentAutopayPreference"
+      WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid AND "payerUserId"=${userId}::uuid LIMIT 1
+    `);
+    const row=rows[0];
+    const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
+    return {unitId,enabled:row?.enabled??false,maxAmountPaise:row?.maxAmountPaise??null,debitDaysBefore:row?.debitDaysBefore??1,
+      executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',automaticDebitAvailable:false,
+      providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
+      boundary:'This records the resident AutoPay preference only. No automatic debit is attempted or treated as successful until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+  }
+
+  async setAutopayPreference(societyId:string,userId:string,input:{unitId:string;enabled:boolean;maxAmountPaise?:number;debitDaysBefore:number}) {
+    await this.assertCurrentPayer(societyId,userId,input.unitId);
+    const rows=await this.prisma.$queryRaw<Array<{enabled:boolean;maxAmountPaise:number|null;debitDaysBefore:number;provider:string|null;providerMandateId:string|null;providerMandateStatus:string|null;updatedAt:Date}>>(Prisma.sql`
+      INSERT INTO "PaymentAutopayPreference" ("societyId","unitId","payerUserId","enabled","maxAmountPaise","debitDaysBefore")
+      VALUES (${societyId}::uuid,${input.unitId}::uuid,${userId}::uuid,${input.enabled},${input.maxAmountPaise??null},${input.debitDaysBefore})
+      ON CONFLICT ("societyId","unitId","payerUserId") DO UPDATE SET
+        "enabled"=EXCLUDED."enabled","maxAmountPaise"=EXCLUDED."maxAmountPaise","debitDaysBefore"=EXCLUDED."debitDaysBefore","updatedAt"=CURRENT_TIMESTAMP
+      RETURNING "enabled","maxAmountPaise","debitDaysBefore","provider","providerMandateId","providerMandateStatus","updatedAt"
+    `);
+    const row=rows[0];
+    const mandateRecorded=!!row?.provider && !!row?.providerMandateId && row?.providerMandateStatus==='ACTIVE';
+    return {unitId:input.unitId,enabled:row?.enabled??input.enabled,maxAmountPaise:row?.maxAmountPaise??input.maxAmountPaise??null,
+      debitDaysBefore:row?.debitDaysBefore??input.debitDaysBefore,executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND',
+      automaticDebitAvailable:false,providerMandateStatus:row?.providerMandateStatus??null,updatedAt:row?.updatedAt??null,
+      boundary:'Preference saved. Automatic debit remains unavailable until a payment-mandate provider and debit executor are explicitly integrated and confirmed.'};
+  }
+
+  private async assertCurrentPayer(societyId:string,userId:string,unitId:string) {
+    const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT u."id" FROM "Unit" u
+      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid AND (
+        EXISTS (SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."unitId"=u."id" AND uo."userId"=${userId}::uuid
+          AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+        OR EXISTS (SELECT 1 FROM "UnitOccupancy" occ WHERE occ."societyId"=${societyId}::uuid AND occ."unitId"=u."id" AND occ."userId"=${userId}::uuid
+          AND occ."relation"='TENANT' AND occ."active"=TRUE AND occ."effectiveFrom"<=CURRENT_TIMESTAMP AND (occ."effectiveTo" IS NULL OR occ."effectiveTo">CURRENT_TIMESTAMP))
+      ) LIMIT 1
+    `);
+    if(!rows[0]) throw new NotFoundException('Current owner or tenant relationship is required for this property payment preference');
+  }
+
   listForSociety(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"

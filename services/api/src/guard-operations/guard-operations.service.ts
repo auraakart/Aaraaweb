@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type WatchlistInput={kind:'WATCH'|'DENY'|'INFO';subjectName:string;phone?:string;vehicleNumber?:string;reason:string;validFrom?:string;validUntil?:string};
+export type WatchlistAssessmentInput={subjectName:string;phone?:string;vehicleNumber?:string};
 export type GatePassInput={gateId?:string;unitId?:string;referenceCode:string;movementType:'MATERIAL_IN'|'MATERIAL_OUT'|'MOVE_IN'|'MOVE_OUT';subjectName:string;itemDescription:string;vehicleNumber?:string;validFrom?:string;validUntil?:string};
 export type CheckpointInput={code:string;name:string;location?:string};
 export type IncidentInput={gateId?:string;severity:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';category:string;title:string;description?:string;mediaRefs?:string[];occurredAt?:string};
@@ -86,6 +87,38 @@ export class GuardOperationsService {
       AND ("validFrom" IS NULL OR "validFrom"<=CURRENT_TIMESTAMP) AND ("validUntil" IS NULL OR "validUntil">CURRENT_TIMESTAMP)
     ORDER BY CASE "kind" WHEN 'DENY' THEN 0 WHEN 'WATCH' THEN 1 ELSE 2 END,"updatedAt" DESC LIMIT 500
   `);}
+
+
+  async assessWatchlist(societyId:string,input:WatchlistAssessmentInput){
+    const name=input.subjectName.trim();
+    const phone=input.phone?.trim()||null;
+    const vehicle=input.vehicleNumber?.trim().toUpperCase()||null;
+    if(!name)throw new BadRequestException('Subject name is required for watchlist assessment');
+    const rows=await this.prisma.$queryRaw<Array<{id:string;kind:'WATCH'|'DENY'|'INFO';subjectName:string;phone:string|null;vehicleNumber:string|null;reason:string;validFrom:Date|null;validUntil:Date|null}>>(Prisma.sql`
+      SELECT "id","kind","subjectName","phone","vehicleNumber","reason","validFrom","validUntil"
+      FROM "GuardWatchlistEntry"
+      WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+        AND ("validFrom" IS NULL OR "validFrom"<=CURRENT_TIMESTAMP)
+        AND ("validUntil" IS NULL OR "validUntil">CURRENT_TIMESTAMP)
+        AND (
+          LOWER(BTRIM("subjectName"))=LOWER(BTRIM(${name}))
+          OR (${phone}::text IS NOT NULL AND REGEXP_REPLACE(COALESCE("phone",''),'[^0-9]','','g')=REGEXP_REPLACE(${phone}::text,'[^0-9]','','g') AND REGEXP_REPLACE(${phone}::text,'[^0-9]','','g')<>'')
+          OR (${vehicle}::text IS NOT NULL AND UPPER(REGEXP_REPLACE(COALESCE("vehicleNumber",''),'[^A-Za-z0-9]','','g'))=UPPER(REGEXP_REPLACE(${vehicle}::text,'[^A-Za-z0-9]','','g')) AND REGEXP_REPLACE(${vehicle}::text,'[^A-Za-z0-9]','','g')<>'')
+        )
+      ORDER BY CASE "kind" WHEN 'DENY' THEN 0 WHEN 'WATCH' THEN 1 ELSE 2 END,"updatedAt" DESC LIMIT 25
+    `);
+    const normPhone=(value:string|null|undefined)=>(value??'').replace(/[^0-9]/g,'');
+    const normVehicle=(value:string|null|undefined)=>(value??'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+    const normName=(value:string|null|undefined)=>(value??'').trim().toLowerCase();
+    const matches=rows.map(row=>({...row,matchedBy:[
+      ...(normName(row.subjectName)===normName(name)?['NAME']:[]),
+      ...(phone&&normPhone(phone)&&normPhone(row.phone)===normPhone(phone)?['PHONE']:[]),
+      ...(vehicle&&normVehicle(vehicle)&&normVehicle(row.vehicleNumber)===normVehicle(vehicle)?['VEHICLE']:[]),
+    ]}));
+    const decision=matches.some(row=>row.kind==='DENY')?'DENY':matches.length?'REVIEW':'CLEAR';
+    return {decision,matches,automaticMutation:false,
+      boundary:'Deterministic exact-match screening against currently active society watchlist records. This assessment does not change an access request, infer identity, or bypass resident/supervisor approval policy.'};
+  }
 
   async createWatchlist(societyId:string,userId:string,input:WatchlistInput){
     this.window(input.validFrom,input.validUntil);

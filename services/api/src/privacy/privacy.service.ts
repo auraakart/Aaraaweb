@@ -165,6 +165,65 @@ export class PrivacyService {
     ]).then(([subjects, assignees]) => ({ subjects, assignees }));
   }
 
+  async programReadiness(societyId:string){
+    const [categories,processors,cases,incidents,grievance]=await Promise.all([
+      this.prisma.$queryRaw<Array<{active:number;missingLegalBasis:number;missingRetention:number}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "active",
+          COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("legalBasis",'')),'') IS NULL)::int AS "missingLegalBasis",
+          COUNT(*) FILTER (WHERE "retentionDays" IS NULL OR "retentionDays"<=0)::int AS "missingRetention"
+        FROM "PrivacyDataCategory" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+      `),
+      this.prisma.$queryRaw<Array<{active:number;missingAgreement:number}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "active",
+          COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("agreementReference",'')),'') IS NULL)::int AS "missingAgreement"
+        FROM "PrivacyProcessorRegister" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+      `),
+      this.prisma.$queryRaw<Array<{overdue:number}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "overdue" FROM "PrivacyRequestCase"
+        WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','REJECTED','CANCELLED')
+          AND "dueAt" IS NOT NULL AND "dueAt"<CURRENT_TIMESTAMP
+      `),
+      this.prisma.$queryRaw<Array<{open:number}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "open" FROM "PrivacySecurityIncident"
+        WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
+      `),
+      this.prisma.$queryRaw<Array<{active:boolean}>>(Prisma.sql`
+        SELECT "active" FROM "PrivacyGrievanceContact" WHERE "societyId"=${societyId}::uuid LIMIT 1
+      `),
+    ]);
+    const metrics={
+      activeDataCategories:Number(categories[0]?.active??0),
+      categoriesMissingLegalBasis:Number(categories[0]?.missingLegalBasis??0),
+      categoriesMissingRetention:Number(categories[0]?.missingRetention??0),
+      activeProcessors:Number(processors[0]?.active??0),
+      processorsMissingAgreementReference:Number(processors[0]?.missingAgreement??0),
+      overdueCases:Number(cases[0]?.overdue??0),
+      openSecurityIncidents:Number(incidents[0]?.open??0),
+      grievanceContactActive:grievance[0]?.active===true,
+    };
+    const blockers:string[]=[];
+    if(metrics.categoriesMissingLegalBasis>0)blockers.push('DATA_CATEGORY_LEGAL_BASIS_MISSING');
+    if(metrics.categoriesMissingRetention>0)blockers.push('DATA_CATEGORY_RETENTION_MISSING');
+    if(metrics.processorsMissingAgreementReference>0)blockers.push('PROCESSOR_AGREEMENT_REFERENCE_MISSING');
+    if(!metrics.grievanceContactActive)blockers.push('GRIEVANCE_CONTACT_INACTIVE');
+    if(metrics.overdueCases>0)blockers.push('PRIVACY_CASES_OVERDUE');
+    if(metrics.openSecurityIncidents>0)blockers.push('SECURITY_INCIDENTS_OPEN');
+    const configBlockers=new Set(['DATA_CATEGORY_LEGAL_BASIS_MISSING','DATA_CATEGORY_RETENTION_MISSING','PROCESSOR_AGREEMENT_REFERENCE_MISSING','GRIEVANCE_CONTACT_INACTIVE']);
+    const nextActions:string[]=[];
+    if(metrics.categoriesMissingLegalBasis>0)nextActions.push('Complete the recorded legal-basis field for every active data category.');
+    if(metrics.categoriesMissingRetention>0)nextActions.push('Define a positive retention period for every active data category that requires one.');
+    if(metrics.processorsMissingAgreementReference>0)nextActions.push('Record the applicable processor agreement reference for each active processor.');
+    if(!metrics.grievanceContactActive)nextActions.push('Activate and verify the society privacy grievance contact.');
+    if(metrics.overdueCases>0)nextActions.push('Review overdue privacy cases and record the current handling status.');
+    if(metrics.openSecurityIncidents>0)nextActions.push('Review open privacy/security incidents in the incident workflow.');
+    if(nextActions.length===0)nextActions.push('Continue scheduled privacy register and case review.');
+    return {
+      status:blockers.some(item=>configBlockers.has(item))?'ACTION_REQUIRED':blockers.length?'ATTENTION':'READY',
+      blockers,nextActions,metrics,
+      boundary:'Operational configuration and workflow readiness only. This does not certify statutory compliance, legal validity, or jurisdiction-specific acceptance.',
+    };
+  }
+
   async caseReadiness(societyId: string, caseId: string) {
     const current = await this.findCase(societyId, caseId);
     if (!current) throw new NotFoundException('Privacy request case not found');
