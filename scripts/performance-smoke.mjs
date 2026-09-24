@@ -9,6 +9,7 @@ const scenarios=[
   {name:'health-live',path:'/api/v1/health/live',requests:160,concurrency:16,warmup:16,p95Ms:400,minRps:20,headers:{}},
   {name:'health-ready',path:'/api/v1/health/ready',requests:120,concurrency:12,warmup:12,p95Ms:750,minRps:10,headers:{}},
   {name:'auth-contexts',path:'/api/v1/auth/contexts',requests:160,concurrency:16,warmup:16,p95Ms:900,minRps:10,headers:{Authorization:`Bearer ${accessToken}`}},
+  {name:'treasurer-control-100k',path:'/api/v1/accounting/finance-operations/treasurer-control-centre',requests:24,concurrency:4,warmup:4,p95Ms:2500,minRps:1.5,headers:{Authorization:`Bearer ${accessToken}`}},
 ];
 
 const percentile=(values,p)=>{
