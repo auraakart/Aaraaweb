@@ -306,6 +306,10 @@ jobs:
         run: pnpm --filter @aaraagate/admin exec playwright install --with-deps chromium
       - name: Test shared Admin component interactions and accessibility
         run: pnpm --filter @aaraagate/admin test:ui
+      - name: Typecheck admin
+        run: pnpm --filter @aaraagate/admin typecheck
+      - name: Build admin
+        run: pnpm --filter @aaraagate/admin build
       - name: Retain Admin component visual evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -313,10 +317,6 @@ jobs:
           name: admin-ui-contract-evidence
           path: apps/admin/test-results/
           if-no-files-found: ignore
-      - name: Typecheck admin
-        run: pnpm --filter @aaraagate/admin typecheck
-      - name: Build admin
-        run: pnpm --filter @aaraagate/admin build
 
   admin-validation:
     name: Admin validation
