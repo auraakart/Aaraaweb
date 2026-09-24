@@ -56,6 +56,10 @@ V4.52 does not rebuild move-in/move-out lifecycle, consent/self-service privacy,
 
 The milestone adds focused API tests for AutoPay preference authorization/truth boundaries, watchlist assessment, privacy readiness and facilities continuity. Guard UI regression coverage verifies that an exact `DENY` match prevents creation of a resident approval request. Admin regression coverage verifies the deterministic cross-domain operations priority queue and its non-predictive/non-mutating boundary. The V4.52 repository contract verifies that the truth boundaries and UI evidence remain present, in addition to the existing API, Admin, Flutter, migration and dependency-security suites.
 
+## Validation hardening discovered during merge
+
+The V4.52 develop merge exposed a branch-cleanup race: GitHub may remove a merged feature ref before the branch-hygiene worker reaches the same ref. Cleanup is now idempotent for an already-absent branch (`404`, or `422 Reference does not exist`) and records that outcome in branch-hygiene evidence instead of failing the workflow. Unexpected deletion failures remain fatal.
+
 ## Scoring boundary
 
 V4.52 targets software/product capability gaps that affected the earlier competitive scorecard. It **does not claim a 9.5+ score merely because code exists**. Any re-score must be based on the implemented repository evidence after CI and must continue to exclude production/market proof and physical hardware integration when those categories are intentionally out of scope.
