@@ -59,6 +59,24 @@ class _PropertyScopedRepository extends ResidentRepository {
       ];
 
   @override
+  Future<Map<String, dynamic>> maintenanceSummary({String? unitId}) async => {
+        'outstandingPaise': 100000,
+        'overduePaise': 0,
+        'overdueInvoiceCount': 0,
+        'paymentRecoveryCount': 0,
+        'checkoutPolicy': <String, dynamic>{},
+      };
+
+  @override
+  Future<Map<String, dynamic>> autopayPreference({required String unitId}) async => {
+        'unitId': unitId,
+        'enabled': false,
+        'automaticDebitAvailable': false,
+        'debitDaysBefore': 1,
+        'boundary': 'Test preference only; no automatic debit is active.',
+      };
+
+  @override
   Future<List<Map<String, dynamic>>> helpdeskTickets() async => [
         {
           'id': 'ticket-a',
@@ -89,8 +107,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('A Block · 101'), findsOneWidget);
-    expect(find.text('₹1000.00'), findsNWidgets(3));
+    expect(find.text('₹1000.00'), findsWidgets);
     expect(find.text('B Block · 202'), findsNothing);
+    expect(find.text('₹2000.00'), findsNothing);
+
+    // AutoPay adds vertical content above payment history. Verify the captured
+    // payment after scrolling instead of depending on the initial viewport.
+    await tester.scrollUntilVisible(
+      find.text('Receipt'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Receipt'), findsOneWidget);
+    expect(find.textContaining('Invoice A-001'), findsOneWidget);
     expect(find.text('₹2000.00'), findsNothing);
   });
 

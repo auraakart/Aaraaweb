@@ -97,13 +97,27 @@ jobs:
           AARAAGATE_PERF_BASE_URL: http://127.0.0.1:3000
           AARAAGATE_PERF_OUTPUT: /tmp/aaraagate-performance-summary.json
         run: node scripts/performance-smoke.mjs
+      - name: Publish benchmark evidence to job summary
+        if: always()
+        run: |
+          echo "### Performance regression evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/aaraagate-performance-summary.json ]; then
+            echo '~~~json' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/aaraagate-performance-summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Benchmark summary file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload benchmark evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: performance-regression-${{ github.sha }}
           path: /tmp/aaraagate-performance-summary.json
           if-no-files-found: warn
+          retention-days: 7
       - name: Stop API
         if: always()
         run: |

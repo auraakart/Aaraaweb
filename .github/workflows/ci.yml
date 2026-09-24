@@ -312,11 +312,13 @@ jobs:
         run: pnpm --filter @aaraagate/admin build
       - name: Retain Admin component visual evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: admin-ui-contract-evidence
           path: apps/admin/test-results/
           if-no-files-found: ignore
+          retention-days: 7
 
   admin-validation:
     name: Admin validation
