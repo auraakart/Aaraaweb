@@ -40,6 +40,7 @@ class GuardOperationsClient {
   Future<List<Map<String,dynamic>>> patrolStatus({int staleHours=8}) => _list('patrol/status?staleHours=$staleHours');
   Future<List<Map<String,dynamic>>> incidents() => _list('incidents');
   Future<List<Map<String,dynamic>>> shiftHandovers() => _list('shift-handovers');
+  Future<Map<String,dynamic>> commandSummary() async => Map<String,dynamic>.from(await _send('GET','shift-handovers/command-summary') as Map);
   Future<Map<String,dynamic>> escalateOverstay(String id,{String? note}) async => Map<String,dynamic>.from(await _send('POST','overstays/$id/escalate',body:{if(note!=null&&note.trim().isNotEmpty)'note':note.trim()}) as Map);
 
   Future<Map<String,dynamic>> createPass({required String referenceCode,required String movementType,required String subjectName,required String itemDescription,String? gateId,String? unitId,String? vehicleNumber,String? validUntil}) async => Map<String,dynamic>.from(await _send('POST','passes',body:{
