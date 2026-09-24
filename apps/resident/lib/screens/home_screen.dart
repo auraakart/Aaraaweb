@@ -191,6 +191,7 @@ class HomeScreen extends StatelessWidget {
                   title: highlights[i].title,
                   subtitle: highlights[i].subtitle,
                   urgency: highlights[i].urgency,
+                  actionLabel: _highlightActionLabel(highlights[i].kind),
                   onTap: () {
                     switch (highlights[i].kind) {
                       case ResidentHomeHighlightKind.billing:
@@ -279,6 +280,19 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _highlightActionLabel(ResidentHomeHighlightKind kind) {
+    switch (kind) {
+      case ResidentHomeHighlightKind.billing:
+        return 'Open billing';
+      case ResidentHomeHighlightKind.helpdesk:
+        return 'Open helpdesk';
+      case ResidentHomeHighlightKind.service:
+        return 'Open service';
+      case ResidentHomeHighlightKind.notice:
+        return 'Read update';
+    }
   }
 
   static String _assistantSummary(Map<String, dynamic>? pending, List<ResidentHomeHighlight> highlights) {
@@ -694,12 +708,14 @@ class _HomeSummaryRow extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     required this.urgency,
+    required this.actionLabel,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final ResidentHomeUrgency urgency;
+  final String actionLabel;
   final VoidCallback onTap;
 
   @override
@@ -708,7 +724,7 @@ class _HomeSummaryRow extends StatelessWidget {
     final scheme = theme.colorScheme;
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: title,
+      semanticLabel: '$title. $actionLabel',
       color: scheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: ConstrainedBox(
@@ -757,7 +773,10 @@ class _HomeSummaryRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AaraagateTokens.space2),
-            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[
+              Text(actionLabel,style:theme.textTheme.labelSmall?.copyWith(color:scheme.primary,fontWeight:FontWeight.w800)),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            ]),
           ],
         ),
       ),

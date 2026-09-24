@@ -22,6 +22,41 @@ export class GuardShiftHandoverService {
     `);
   }
 
+  async commandSummary(societyId:string){
+    const rows=await this.prisma.$queryRaw<Array<{
+      openHandovers:number;openIncidents:number;criticalIncidents:number;overstays:number;stalePatrol:number;activeDenyWatchlist:number;
+    }>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "GuardShiftHandover" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN') AS "openHandovers",
+        (SELECT COUNT(*)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN') AS "openIncidents",
+        (SELECT COUNT(*)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "severity"='CRITICAL') AS "criticalIncidents",
+        (SELECT COUNT(*)::int FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "status"='CHECKED_IN' AND "enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours' AND "exitedAt" IS NULL) AS "overstays",
+        (SELECT COUNT(*)::int FROM "PatrolCheckpoint" c WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE AND
+          NOT EXISTS (SELECT 1 FROM "PatrolScan" s WHERE s."societyId"=c."societyId" AND s."checkpointId"=c."id" AND s."scannedAt">=CURRENT_TIMESTAMP-INTERVAL '8 hours')) AS "stalePatrol",
+        (SELECT COUNT(*)::int FROM "GuardWatchlistEntry" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "kind"='DENY'
+          AND ("validFrom" IS NULL OR "validFrom"<=CURRENT_TIMESTAMP) AND ("validUntil" IS NULL OR "validUntil">CURRENT_TIMESTAMP)) AS "activeDenyWatchlist"
+    `);
+    const metrics=rows[0]??{openHandovers:0,openIncidents:0,criticalIncidents:0,overstays:0,stalePatrol:0,activeDenyWatchlist:0};
+    const priority=metrics.criticalIncidents>0?'CRITICAL':metrics.overstays>0||metrics.openIncidents>0?'HIGH':metrics.openHandovers>0||metrics.stalePatrol>0||metrics.activeDenyWatchlist>0?'ELEVATED':'CLEAR';
+    const nextActions:string[]=[];
+    if(metrics.criticalIncidents>0)nextActions.push('Review critical incidents first and record the supervisor response.');
+    if(metrics.overstays>0)nextActions.push('Verify unresolved overstays and escalate through the existing incident workflow.');
+    if(metrics.openHandovers>0)nextActions.push('Incoming guard must review and acknowledge open shift handovers.');
+    if(metrics.stalePatrol>0)nextActions.push('Restore patrol evidence for stale checkpoints.');
+    if(metrics.activeDenyWatchlist>0)nextActions.push('Continue exact-match watchlist screening before resident approval creation.');
+    if(nextActions.length===0)nextActions.push('Continue routine gate processing and patrol cadence.');
+    return {
+      ...metrics,
+      priority,
+      operatingMode:metrics.criticalIncidents>0?'EMERGENCY_ATTENTION':priority==='CLEAR'?'NORMAL':'ELEVATED',
+      automaticModeChange:false,
+      nextActions,
+      fallbackPolicy:{residentResponse:'PUSH_THEN_IVR_SIMULATOR_OR_MANUAL',accessDevice:'FAIL_CLOSED_OR_MANUAL',automaticAccessGrant:false},
+      boundary:'Current-state command guidance only. It does not infer identity, automatically change access state, or bypass resident/supervisor authorization.',
+      generatedAt:new Date().toISOString(),
+    };
+  }
+
   async create(societyId:string,userId:string,input:ShiftHandoverInput){
     const summary=input.summary.trim();
     if(summary.length<3||summary.length>2000) throw new BadRequestException('Shift handover summary must be between 3 and 2000 characters');

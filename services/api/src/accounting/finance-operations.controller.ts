@@ -37,6 +37,7 @@ export class FinanceOperationsController{
   @Post('budgets/:id/lock') @RequiresPermissions(AppPermission.FINANCE_MANAGE) lockBudget(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){return this.finance.lockBudget(societyId,this.user(userId),id);}
   @Get('budgets/:id/actuals') @RequiresPermissions(AppPermission.FINANCE_READ) budgetVsActual(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){return this.finance.budgetVsActual(societyId,id);}
   @Get('fund-utilization') @RequiresPermissions(AppPermission.FINANCE_READ) fundUtilization(@CurrentTenant() societyId:string){return this.finance.fundUtilization(societyId);}
+  @Get('operational-readiness') @RequiresPermissions(AppPermission.FINANCE_READ) operationalReadiness(@CurrentTenant() societyId:string){return this.finance.operationalReadiness(societyId);}
   @Get('export') @RequiresPermissions(AppPermission.FINANCE_READ) exportSnapshot(@CurrentTenant() societyId:string){return this.finance.exportSnapshot(societyId);}
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
 }
