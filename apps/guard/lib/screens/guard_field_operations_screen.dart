@@ -12,11 +12,11 @@ class GuardFieldOperationsScreen extends StatefulWidget {
 class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>{
   late final GuardOperationsClient client=GuardOperationsClient(widget.controller.api);
   bool loading=true,busy=false; String? error;
-  Map<String,dynamic> summary=const {};
+  Map<String,dynamic> summary=const {},command=const {};
   List<Map<String,dynamic>> overstays=const [],watchlist=const [],passes=const [],checkpoints=const [],patrolStatus=const [],incidents=const [],handovers=const [];
 
   @override void initState(){super.initState();load();}
-  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
+  Future<void> load() async {setState(()=>loading=true);try{final values=await Future.wait([client.summary(),client.overstays(),client.watchlist(),client.passes(),client.checkpoints(),client.patrolStatus(),client.incidents(),client.shiftHandovers(),client.commandSummary()]);if(!mounted)return;setState((){summary=values[0] as Map<String,dynamic>;overstays=values[1] as List<Map<String,dynamic>>;watchlist=values[2] as List<Map<String,dynamic>>;passes=values[3] as List<Map<String,dynamic>>;checkpoints=values[4] as List<Map<String,dynamic>>;patrolStatus=values[5] as List<Map<String,dynamic>>;incidents=values[6] as List<Map<String,dynamic>>;handovers=values[7] as List<Map<String,dynamic>>;command=values[8] as Map<String,dynamic>;error=null;});}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>loading=false);}}
   Future<void> run(Future<void> Function() action)async{setState(()=>busy=true);try{await action();await load();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
 
   @override Widget build(BuildContext context){
@@ -35,12 +35,15 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
 
   Widget _metrics()=>GuardOperationSurface(child:Wrap(spacing:10,runSpacing:10,children:[_metric('Overstays',summary['overstayCount']),_metric('Watchlist',summary['watchlistCount']),_metric('Open passes',summary['openPassCount']),_metric('Incidents',summary['openIncidentCount']),_metric('Checkpoints',summary['activeCheckpointCount'])]));
   Widget _attentionNow(){
-    final overstayCount=(summary['overstayCount'] as num?)?.toInt()??0;
-    final watchCount=(summary['watchlistCount'] as num?)?.toInt()??0;
-    final incidentCount=(summary['openIncidentCount'] as num?)?.toInt()??0;
-    final handoverCount=handovers.where((x)=>x['status']=='OPEN').length;
-    final stalePatrolCount=patrolStatus.where((x)=>x['stale']==true).length;
+    final overstayCount=(command['overstays'] as num?)?.toInt()??(summary['overstayCount'] as num?)?.toInt()??0;
+    final watchCount=(command['activeDenyWatchlist'] as num?)?.toInt()??(summary['watchlistCount'] as num?)?.toInt()??0;
+    final incidentCount=(command['openIncidents'] as num?)?.toInt()??(summary['openIncidentCount'] as num?)?.toInt()??0;
+    final criticalIncidentCount=(command['criticalIncidents'] as num?)?.toInt()??0;
+    final handoverCount=(command['openHandovers'] as num?)?.toInt()??handovers.where((x)=>x['status']=='OPEN').length;
+    final stalePatrolCount=(command['stalePatrol'] as num?)?.toInt()??patrolStatus.where((x)=>x['stale']==true).length;
     final urgent=overstayCount+watchCount+incidentCount+handoverCount+stalePatrolCount;
+    final operatingMode=command['operatingMode']?.toString()??(criticalIncidentCount>0?'EMERGENCY_ATTENTION':urgent>0?'ELEVATED':'NORMAL');
+    final nextActions=(command['nextActions'] is List)?(command['nextActions'] as List).map((e)=>e.toString()).toList(growable:false):const <String>[];
     final theme=Theme.of(context),scheme=theme.colorScheme;
     return GuardOperationSurface(
       semanticLabel: urgent==0?'Gate attention queue is clear':'$urgent gate attention items',
@@ -48,7 +51,9 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
         const SizedBox(height:8),
-        Text(urgent==0?'No overstays, watchlist matches, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+        Text(urgent==0?'No overstays, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+        const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),
+        if(nextActions.isNotEmpty)...[const SizedBox(height:6),Text(nextActions.first,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant))],
         if(urgent>0)...[const SizedBox(height:10),Wrap(spacing:8,runSpacing:8,children:[
           if(overstayCount>0)_attentionChip(Icons.timer_outlined,'$overstayCount overstay${overstayCount==1?'':'s'}'),
           if(watchCount>0)_attentionChip(Icons.policy_outlined,'$watchCount watchlist'),

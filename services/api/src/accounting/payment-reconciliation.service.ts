@@ -58,7 +58,8 @@ export class PaymentReconciliationService{
     const rows=await tx.$queryRaw<Array<{status:string;expectedCapturedPaise:bigint;expectedRefundedPaise:bigint}>>(Prisma.sql`SELECT "status","expectedCapturedPaise","expectedRefundedPaise" FROM "PaymentReconciliationCase" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`);if(!rows.length)throw new NotFoundException('Reconciliation case not found');if(rows[0].status==='RESOLVED')throw new ConflictException('Resolved reconciliation case cannot be changed');
     const expectedNet=rows[0].expectedCapturedPaise-rows[0].expectedRefundedPaise;const normalized=observed.toUpperCase();let state:'MATCHED'|'MISMATCH'|'ACTION_REQUIRED';
     const amountMatches=BigInt(input.observedAmountPaise)===expectedNet;const expectedStatus=rows[0].expectedRefundedPaise===0n?'CAPTURED':rows[0].expectedRefundedPaise===rows[0].expectedCapturedPaise?'REFUNDED':'PARTIALLY_REFUNDED';
-    if(amountMatches&&normalized===expectedStatus)state='MATCHED';else if(normalized==='FAILED'||normalized==='UNKNOWN')state='ACTION_REQUIRED';else state='MISMATCH';
+    const providerException=['FAILED','UNKNOWN','CHARGEBACK','CHARGED_BACK','DISPUTED','REVERSED'].includes(normalized);
+    if(amountMatches&&normalized===expectedStatus)state='MATCHED';else if(providerException)state='ACTION_REQUIRED';else state='MISMATCH';
     await tx.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "providerPaymentId"=${input.providerPaymentId?.trim()||null},"observedProviderStatus"=${observed},"observedAmountPaise"=${input.observedAmountPaise},"status"=${state}::"PaymentReconciliationStatus","reason"=${state==='MATCHED'?null:`Expected ${expectedStatus} / ${expectedNet.toString()} paise`},"lastCheckedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid`);
     return this.getCaseTx(tx,societyId,id);
   });}
