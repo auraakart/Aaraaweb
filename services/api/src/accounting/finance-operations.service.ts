@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentAvailabilityService } from './payment-availability.service';
 
 type CreateExpenseInput = { expenseNumber:string; vendorName:string; invoiceReference?:string; expenseDate:string; dueDate?:string; description:string; amountPaise:number; expenseAccountId:string; fundId?:string };
 type ApproveExpenseInput = { payableAccountId:string };
@@ -9,7 +10,10 @@ type CreateBudgetInput = { code:string; name:string; startsOn:string; endsOn:str
 
 @Injectable()
 export class FinanceOperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentAvailability: PaymentAvailabilityService,
+  ) {}
 
   listExpenses(societyId:string) {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -151,13 +155,10 @@ export class FinanceOperationsService {
   }
 
   async treasurerControlCentre(societyId:string){
-    const [readiness,bankRows,cashRows,budgetRows,taxRows,refundRows]=await Promise.all([
+    const [readiness,bankRows,cashSummary,budgetRows,taxRows,refundRows]=await Promise.all([
       this.operationalReadiness(societyId),
       this.prisma.$queryRaw<Array<{unmatchedBank:number;unmatchedMovementPaise:string}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='UNMATCHED')::int AS "unmatchedBank",COALESCE(SUM(CASE WHEN "status"='UNMATCHED' AND "direction"='CREDIT' THEN "amountPaise" WHEN "status"='UNMATCHED' THEN -"amountPaise" ELSE 0 END),0)::text AS "unmatchedMovementPaise" FROM "BankStatementTransaction" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{unappliedCount:number;unappliedPaise:string}>>(Prisma.sql`
-        SELECT COUNT(*) FILTER (WHERE x."availablePaise">0)::int AS "unappliedCount",COALESCE(SUM(GREATEST(x."availablePaise",0)),0)::text AS "unappliedPaise"
-        FROM (SELECT p."id",p."amountPaise"-COALESCE((SELECT SUM(a."amountPaise") FROM "ReceivableAllocation" a WHERE a."societyId"=p."societyId" AND a."paymentId"=p."id"),0)+COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r JOIN "ReceivableAllocation" a ON a."id"=r."allocationId" AND a."societyId"=r."societyId" WHERE a."societyId"=p."societyId" AND a."paymentId"=p."id"),0)-COALESCE((SELECT SUM(rf."amountPaise") FROM "PaymentRefund" rf WHERE rf."societyId"=p."societyId" AND rf."paymentId"=p."id"),0) AS "availablePaise" FROM "Payment" p WHERE p."societyId"=${societyId}::uuid AND p."status"='CAPTURED') x
-      `),
+      this.paymentAvailability.unappliedCashSummary(societyId),
       this.prisma.$queryRaw<Array<{overrunLines:number;overrunPaise:string}>>(Prisma.sql`
         WITH actuals AS (SELECT l."id" AS "lineId",l."amountPaise" AS budget,COALESCE(SUM(CASE WHEN je."status"='POSTED' THEN jl."debitPaise"-jl."creditPaise" ELSE 0 END),0) AS actual FROM "BudgetPlan" b JOIN "BudgetLine" l ON l."budgetPlanId"=b."id" AND l."societyId"=b."societyId" LEFT JOIN "JournalLine" jl ON jl."societyId"=b."societyId" AND jl."accountId"=l."accountId" AND jl."fundId" IS NOT DISTINCT FROM l."fundId" LEFT JOIN "JournalEntry" je ON je."id"=jl."entryId" AND je."societyId"=jl."societyId" AND je."entryDate" BETWEEN b."startsOn" AND b."endsOn" WHERE b."societyId"=${societyId}::uuid AND b."status" IN ('APPROVED','LOCKED') GROUP BY l."id")
         SELECT COUNT(*) FILTER (WHERE actual>budget)::int AS "overrunLines",COALESCE(SUM(GREATEST(actual-budget,0)),0)::text AS "overrunPaise" FROM actuals
@@ -167,7 +168,7 @@ export class FinanceOperationsService {
       `),
       this.prisma.$queryRaw<Array<{refunds30d:number;refundedPaise30d:string}>>(Prisma.sql`SELECT COUNT(*)::int AS "refunds30d",COALESCE(SUM("amountPaise"),0)::text AS "refundedPaise30d" FROM "PaymentRefund" WHERE "societyId"=${societyId}::uuid AND "refundedAt">=CURRENT_TIMESTAMP-INTERVAL '30 days'`),
     ]);
-    const bank=bankRows[0]??{unmatchedBank:0,unmatchedMovementPaise:'0'},cash=cashRows[0]??{unappliedCount:0,unappliedPaise:'0'},budget=budgetRows[0]??{overrunLines:0,overrunPaise:'0'},tax=taxRows[0]??{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds=refundRows[0]??{refunds30d:0,refundedPaise30d:'0'};
+    const bank=bankRows[0]??{unmatchedBank:0,unmatchedMovementPaise:'0'},cash={unappliedCount:cashSummary.paymentCount,unappliedPaise:cashSummary.unappliedPaise},budget=budgetRows[0]??{overrunLines:0,overrunPaise:'0'},tax=taxRows[0]??{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds=refundRows[0]??{refunds30d:0,refundedPaise30d:'0'};
     const attention=readiness.blockers.length+bank.unmatchedBank+cash.unappliedCount+budget.overrunLines+tax.documentsMissingTaxEvidence;
     return {status:attention===0?'CLEAR':readiness.status==='AT_RISK'?'ACTION_REQUIRED':'ATTENTION',financeReadiness:readiness,bank,cash,budget,tax,refunds,nextActions:[...(bank.unmatchedBank?['Review deterministic bank-match suggestions before posting or matching.']:[]),...(cash.unappliedCount?['Allocate captured cash or document the exception before period close.']:[]),...(budget.overrunLines?['Review budget-versus-actual overruns with the Treasurer/Committee.']:[]),...(tax.documentsMissingTaxEvidence?['Complete GST/TDS metadata for approved or posted expenses where configured.']:[]),...readiness.nextActions].slice(0,10),automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation. It does not post journals, match bank transactions, execute refunds, determine tax liability, or close periods automatically.',generatedAt:new Date().toISOString()};
   }
