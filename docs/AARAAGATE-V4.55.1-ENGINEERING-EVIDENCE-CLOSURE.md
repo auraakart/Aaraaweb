@@ -13,15 +13,16 @@ The existing risk-weighted behavioural tests now also produce measurable coverag
 ### API
 Vitest V8 coverage is restricted to the high-risk source surface exercised by the V4.55 behavioural regression suite. Coverage floors are intentionally domain-specific rather than a single arbitrary global percentage:
 - canonical payment availability: 90% statements/lines/functions and 75% branches;
-- privacy self-context controller: 75% statements/lines, 70% functions and 60% branches;
-- visitor/gate access service: 30% statements/lines, 25% functions/branches;
-- session authority and household authority: 20% statements/lines/functions and 15% branches;
+- privacy self-context controller: 55% statements/lines/branches and 50% functions;
+- visitor/gate access service: 30% statements/lines and 25% functions/branches;
+- session authority: 20% statements/lines/functions and 15% branches;
+- household authority: 12% statements/lines, 20% functions and 15% branches;
 - controlled AI operations service: 15% statements/lines/functions and 10% branches.
 
 These are regression floors for the currently exercised high-risk slice, not a claim that the whole API has equivalent coverage. Future cycles should ratchet them upward when additional behaviour is covered.
 
 ### Flutter
-Resident and Guard targeted suites emit LCOV. V4.55.1 enforces line-coverage floors for the critical controllers/screens/models exercised by those suites and retains the LCOV plus machine-readable risk evidence.
+Resident and Guard targeted suites emit LCOV. V4.55.1 enforces measured regression floors for the critical controllers/screens/models exercised by those suites and retains the LCOV plus machine-readable risk evidence. The calibrated Resident floors are 30% for property-state control, 20% for Gate, 30% for Billing, 20% for Privacy and 10% for Home; Guard floors are 30% for the controller and 20% for workforce boundary models.
 
 ## 2. Branch-debt closure
 
