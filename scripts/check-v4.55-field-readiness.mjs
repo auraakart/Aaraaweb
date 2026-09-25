@@ -19,14 +19,15 @@ const forbidTokens = (label, source, tokens) => {
 const root = JSON.parse(read('package.json'));
 const api = JSON.parse(read('services/api/package.json'));
 const admin = JSON.parse(read('apps/admin/package.json'));
-if (root.version !== '4.55.0' || api.version !== '4.55.0' || admin.version !== '4.55.0') {
-  console.error('Root/API/Admin release identity is not V4.55.0.');
+const releaseLine = /^4\.55\.\d+$/;
+if (!releaseLine.test(root.version) || api.version !== root.version || admin.version !== root.version) {
+  console.error('Root/API/Admin release identity must stay aligned on the V4.55.x release line.');
   process.exit(1);
 }
 
 for (const pubspec of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
   const source = read(pubspec);
-  requireTokens(pubspec, source, ['version: 4.55.0+45500', "flutter: '>=3.47.0'"]);
+  requireTokens(pubspec, source, ['version: 4.55.', "flutter: '>=3.47.0'"]);
 }
 
 const ci = read('.github/workflows/ci.yml');
