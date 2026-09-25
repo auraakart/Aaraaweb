@@ -49,7 +49,7 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
           color: widget.color ?? (widget.elevated ? scheme.surface : scheme.surfaceContainerLow),
           borderRadius: radius,
           boxShadow: widget.elevated
-              ? [BoxShadow(color: scheme.shadow.withOpacity(.08), blurRadius: 24, offset: const Offset(0, 8))]
+              ? [BoxShadow(color: scheme.shadow.withValues(alpha: .08), blurRadius: 24, offset: const Offset(0, 8))]
               : null,
         ),
         child: Material(

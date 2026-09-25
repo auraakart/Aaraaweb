@@ -100,7 +100,7 @@ class _NoticeCard extends StatelessWidget {
     return PremiumSurface(
       onTap: onTap,
       semanticLabel: '${notice['title'] ?? 'Society notice'}${urgent ? ', urgent' : ''}',
-      color: urgent ? scheme.errorContainer.withOpacity(.28) : scheme.surfaceContainerLow,
+      color: urgent ? scheme.errorContainer.withValues(alpha: .28) : scheme.surfaceContainerLow,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

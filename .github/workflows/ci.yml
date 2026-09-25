@@ -116,6 +116,8 @@ jobs:
         run: node scripts/check-v4.54-controlled-action-operational-control.mjs
       - name: Check V4.54.1 privacy and finance consistency
         run: node scripts/check-v4.54.1-privacy-finance-consistency.mjs
+      - name: Check V4.55 field-readiness convergence
+        run: node scripts/check-v4.55-field-readiness.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
@@ -202,6 +204,14 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
+      - name: Risk-weighted API behavioural regression gate
+        run: >-
+          pnpm --filter @aaraagate/api exec vitest run
+          src/occupancy-authority.regression.spec.ts
+          src/access/visitor-management.e2e.spec.ts
+          src/accounting/payment-availability.service.spec.ts
+          src/ai-operations/ai-operations.controlled-assignment.spec.ts
+          src/privacy/privacy-self-context.spec.ts
       - name: Test API
         run: pnpm --filter @aaraagate/api test
       - name: Build API
@@ -356,12 +366,21 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.47.0'
           channel: stable
           cache: true
       - name: Resident dependencies
         working-directory: apps/resident
         run: flutter pub get
+      - name: Risk-weighted Resident behavioural regression gate
+        working-directory: apps/resident
+        run: >-
+          flutter test
+          test/multi_property_isolation_test.dart
+          test/gate_screen_test.dart
+          test/billing_screen_test.dart
+          test/privacy_data_screen_test.dart
+          test/home_action_inbox_dedup_test.dart
       - name: Analyze resident app
         working-directory: apps/resident
         run: flutter analyze
@@ -371,6 +390,13 @@ jobs:
       - name: Guard dependencies
         working-directory: apps/guard
         run: flutter pub get
+      - name: Risk-weighted Guard behavioural regression gate
+        working-directory: apps/guard
+        run: >-
+          flutter test
+          test/offline_recovery_test.dart
+          test/guard_realtime_lifecycle_test.dart
+          test/guard_workforce_assignment_test.dart
       - name: Analyze guard app
         working-directory: apps/guard
         run: flutter analyze
@@ -419,6 +445,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Audit high and critical npm vulnerabilities
         run: pnpm audit --audit-level high
+      - name: Scan tracked source for high-confidence secret patterns
+        run: node scripts/check-secret-patterns.mjs
 
 
   dependency-security:

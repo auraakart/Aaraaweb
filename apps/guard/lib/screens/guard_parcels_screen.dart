@@ -254,7 +254,7 @@ class _ParcelIntakeSheetState extends State<_ParcelIntakeSheet> {
         Text('Receive parcel', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          value: _key,
+          initialValue: _key,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Resident & unit', prefixIcon: Icon(Icons.apartment_rounded)),
           items: widget.recipients.map((row) => DropdownMenuItem(
