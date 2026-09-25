@@ -208,6 +208,8 @@ jobs:
         run: pnpm --filter @aaraagate/api typecheck
       - name: Install exact API coverage provider
         run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@3.2.7
+      - name: Regenerate Prisma client after transient coverage install
+        run: pnpm --filter @aaraagate/api prisma:generate
       - name: Risk-weighted API coverage gate
         working-directory: services/api
         run: pnpm exec vitest run --config vitest.risk-coverage.config.ts
