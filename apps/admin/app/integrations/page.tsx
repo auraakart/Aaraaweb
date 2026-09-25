@@ -5,9 +5,10 @@ import { ActionBar, DetailPanel, EmptyState, ErrorState, FormField, PageHeader, 
 import { api, type Session } from '../../lib/admin-client'
 
 type Family='OTP'|'WHATSAPP'|'PUSH'|'PAYMENT_GATEWAY'|'ACCESS_CONTROL'|'OBJECT_STORAGE'|'SMART_METER'|'ACCOUNTING_CONNECTOR'
-type Capability={family:Family;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
+type RegistryFamily=Family|'TELEPHONY_IVR'
+type Capability={family:RegistryFamily;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
 type Configuration={societyId:string;family:Family;providerKey:string;enabled:boolean;updatedByUserId:string;createdAt:string;updatedAt:string}
-type Conformance={family:Family;provider:string;health:Capability['health'];checks:Record<string,boolean>;missing:string[];status:'CONTRACT_READY'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'CONTRACT_GAP';certificationClaim:false;configurationReady:boolean;contractReady:boolean;fieldEvidenceRequired:boolean;productionActivationApproved:boolean;boundary:string}
+type Conformance={family:RegistryFamily;provider:string;health:Capability['health'];checks:Record<string,boolean>;missing:string[];configurationBlockers:string[];status:'CONTRACT_READY'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'CONTRACT_GAP';certificationClaim:false;adapterConfigurationReady:boolean;selectionRequired:boolean;societySelectionReady:boolean;selectedProviderKey:string|null;societyEnabled:boolean|null;configurationReady:boolean;contractReady:boolean;fieldEvidenceRequired:boolean;productionActivationApproved:boolean;boundary:string}
 type ConfigurationEvent={id:string;family:Family;eventType:string;providerKey:string;enabled:boolean;actorUserId:string;occurredAt:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
@@ -20,6 +21,7 @@ export default function IntegrationReadinessPage(){
   const[family,setFamily]=useState<Family>('OTP'),[providerKey,setProviderKey]=useState(''),[enabled,setEnabled]=useState(true)
   const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
   const selected=useMemo(()=>config.find(item=>item.family===family),[config,family])
+  const selectableRegistry=useMemo(()=>registry.filter((item):item is Capability&{family:Family}=>item.family!=='TELEPHONY_IVR'),[registry])
 
   const load=useCallback(async(session:Session)=>{
     setLoading(true);setError('')
@@ -35,14 +37,14 @@ export default function IntegrationReadinessPage(){
 
   if(!canRead&&!loading)return <PageShell><ErrorState title="Integration readiness unavailable" description={error}/></PageShell>
 
-  const ready=registry.filter(item=>item.health==='READY').length
-  const blockers=registry.filter(item=>item.health!=='READY').map(item=>`${item.family.replaceAll('_',' ')}: ${item.health.toLowerCase()}`)
+  const ready=conformance.filter(item=>item.productionActivationApproved).length
+  const blockers=conformance.filter(item=>!item.productionActivationApproved).map(item=>`${item.family.replaceAll('_',' ')}: ${item.status.replaceAll('_',' ').toLowerCase()}`)
   return <PageShell>
     <PageHeader title="Integration readiness" context={`${s?.societyName??'Current society'} · ${s?.role.replaceAll('_',' ')??''}`} description="Inspect versioned provider capabilities, society selections and audit history without exposing credentials or treating provider state as domain truth." actions={<SecondaryButton onClick={()=>s&&void load(s)} loading={loading}>Refresh</SecondaryButton>}/>
     {error&&<ErrorState title="Integration readiness needs attention" description={error}/>}
-    <ReadinessPanel title="Provider ecosystem readiness" status={{label:`${ready}/${registry.length} ready`,tone:blockers.length?'warning':'success'}} blockers={blockers} nextActions={blockers.length?['Configure the affected boundary and obtain required external field evidence before production activation.']:[]} boundary="Repository readiness does not certify live credentials, commercial providers, physical devices or field operations." state={loading?'loading':'ready'} />
+    <ReadinessPanel title="Provider ecosystem readiness" status={{label:`${ready}/${conformance.length} activation-ready`,tone:blockers.length?'warning':'success'}} blockers={blockers} nextActions={blockers.length?['Configure the affected boundary and obtain required external field evidence before production activation.']:[]} boundary="Repository readiness does not certify live credentials, commercial providers, physical devices or field operations." state={loading?'loading':'ready'} />
     <DetailPanel title="Adapter conformance" state={loading?'loading':conformance.length?'ready':'empty'} empty={<EmptyState title="No conformance evidence reported."/>}>
-      <div style={{display:'grid',gap:12}}>{conformance.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:6}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.status.replaceAll('_',' ')} tone={item.status==='CONTRACT_READY'?'success':item.status==='CONTRACT_GAP'?'danger':'warning'}/></div><small>{Object.entries(item.checks).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value?'yes':'no'}`).join(' · ')}</small><small>Configuration ready: {item.configurationReady?'yes':'no'} · Contract ready: {item.contractReady?'yes':'no'} · Field evidence required: {item.fieldEvidenceRequired?'yes':'no'} · Production activation approved: {item.productionActivationApproved?'yes':'no'}</small><small>{item.boundary}</small></article>)}</div>
+      <div style={{display:'grid',gap:12}}>{conformance.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:6}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.status.replaceAll('_',' ')} tone={item.status==='CONTRACT_READY'?'success':item.status==='CONTRACT_GAP'?'danger':'warning'}/></div><small>{Object.entries(item.checks).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value?'yes':'no'}`).join(' · ')}</small><small>Adapter configuration ready: {item.adapterConfigurationReady?'yes':'no'} · Society selection: {item.selectionRequired?(item.societySelectionReady?'ready':item.societyEnabled===false?'disabled':item.selectedProviderKey?'provider mismatch':'missing'):'not required'} · Effective configuration ready: {item.configurationReady?'yes':'no'}</small><small>Contract ready: {item.contractReady?'yes':'no'} · Field evidence required: {item.fieldEvidenceRequired?'yes':'no'} · Production activation approved: {item.productionActivationApproved?'yes':'no'}</small>{item.configurationBlockers.length>0&&<small>Configuration blockers: {item.configurationBlockers.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}<small>{item.boundary}</small></article>)}</div>
     </DetailPanel>
     <DetailPanel title="Capability registry" state={loading?'loading':registry.length?'ready':'empty'} empty={<EmptyState title="No integration capabilities reported."/>}>
       <div style={{display:'grid',gap:12}}>{registry.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:7}}>
@@ -52,7 +54,7 @@ export default function IntegrationReadinessPage(){
       </article>)}</div>
     </DetailPanel>
     {canManage&&<DetailPanel title="Society provider selection"><form onSubmit={save} style={{display:'grid',gap:14}}>
-      <label>Integration family<select value={family} onChange={e=>setFamily(e.target.value as Family)} style={{display:'block',width:'100%',marginTop:6,padding:10,borderRadius:10,border:'1px solid #cbd5e1'}}>{registry.map(item=><option key={item.family} value={item.family}>{item.family.replaceAll('_',' ')}</option>)}</select></label>
+      <label>Integration family<select value={family} onChange={e=>setFamily(e.target.value as Family)} style={{display:'block',width:'100%',marginTop:6,padding:10,borderRadius:10,border:'1px solid #cbd5e1'}}>{selectableRegistry.map(item=><option key={item.family} value={item.family}>{item.family.replaceAll('_',' ')}</option>)}</select></label>
       <FormField label="Provider key" value={providerKey} onChange={e=>setProviderKey(e.target.value)} maxLength={80} required hint="Provider identity only. Never paste API keys, tokens, credentials or private keys."/>
       <label style={{display:'flex',alignItems:'center',gap:8}}><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enabled for this society</label>
       <ActionBar feedback={feedback}><PrimaryButton type="submit" loading={busy}>Save selection</PrimaryButton></ActionBar>
