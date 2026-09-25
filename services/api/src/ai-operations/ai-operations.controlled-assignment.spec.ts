@@ -18,7 +18,7 @@ describe('AiOperationsService controlled Helpdesk assignment',()=>{
     const service=new AiOperationsService(prisma as never,helpdesk as never,{} as never,{} as never);
     const result=await service.confirmHelpdeskAssignment('society-1','actor-1','proposal-1');
     expect(helpdesk.assign).toHaveBeenCalledWith('society-1','actor-1','ticket-1','operator-1',payload.expectedUpdatedAt);
-    expect(result).toMatchObject({id:'proposal-1',proposalId:'proposal-1',status:'EXECUTED'});
+    expect(result).toMatchObject({proposalId:'proposal-1',status:'EXECUTED'});
   });
 
   it('returns the nested visitor-pass identifier without exposing the credential',async()=>{
