@@ -33,7 +33,7 @@ for (const pubspec of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml'])
 const ci = read('.github/workflows/ci.yml');
 requireTokens('V4.55 CI', ci, [
   "flutter-version: '3.47.0'",
-  'Risk-weighted API behavioural regression gate',
+  'Risk-weighted API coverage gate',
   'Risk-weighted Resident behavioural regression gate',
   'Risk-weighted Guard behavioural regression gate',
   'node scripts/check-secret-patterns.mjs',
