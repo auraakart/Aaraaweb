@@ -18,6 +18,7 @@ type Candidate = {
   incomeAccountId: string;
   fundId: string | null;
   receivableNumber: string;
+  dueDate: Date;
   lateFeeMode: 'FIXED' | 'PERCENTAGE';
   lateFeeFixedPaise: bigint | null;
   lateFeeBasisPoints: number | null;
@@ -40,6 +41,7 @@ export class LateFeesService {
       assessments: candidates.map((row) => ({
         receivableId: row.receivableId,
         receivableNumber: row.receivableNumber,
+        dueDate: row.dueDate,
         baseOutstandingPaise: row.baseOutstandingPaise.toString(),
         feePaise: this.calculateFee(row).toString(),
         lateFeeMode: row.lateFeeMode,
@@ -166,6 +168,10 @@ export class LateFeesService {
                              FROM "ReceivableAdjustment" ra WHERE ra."societyId" = r."societyId" AND ra."receivableId" = r."id"), 0)
                  - COALESCE((SELECT SUM(x."amountPaise") FROM "ReceivableAllocation" x
                              WHERE x."societyId" = r."societyId" AND x."receivableId" = r."id"), 0)
+                 + COALESCE((SELECT SUM(rv."amountPaise")
+                             FROM "ReceivableAllocationReversal" rv
+                             JOIN "ReceivableAllocation" x ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                             WHERE rv."societyId" = r."societyId" AND x."receivableId" = r."id"), 0)
                  - COALESCE((SELECT SUM(lfa."feePaise") FROM "LateFeeAssessment" lfa
                              WHERE lfa."societyId" = r."societyId" AND lfa."receivableId" = r."id"), 0)
                )::bigint AS "baseOutstandingPaise"
@@ -174,7 +180,7 @@ export class LateFeesService {
         WHERE r."societyId" = ${societyId}::uuid AND r."status" <> 'VOID' AND cr."lateFeeMode" <> 'NONE'
           AND r."dueDate" + cr."graceDays" <= ${asOfDate}::date
       )
-      SELECT b."receivableId", b."chargeRuleId", b."unitId", b."receivableNumber", b."receivableAccountId",
+      SELECT b."receivableId", b."chargeRuleId", b."unitId", b."receivableNumber", b."dueDate", b."receivableAccountId",
              b."incomeAccountId", b."fundId", b."lateFeeMode", b."lateFeeFixedPaise", b."lateFeeBasisPoints",
              b."baseOutstandingPaise"
       FROM balances b
