@@ -49,6 +49,20 @@ function isAncestor(ancestorSha, targetBranch) {
   }
 }
 
+function isTreeEquivalent(branchName, targetBranch) {
+  try {
+    execFileSync(
+      'git',
+      ['diff', '--quiet', `refs/remotes/origin/${branchName}`, `refs/remotes/origin/${targetBranch}`, '--', '.'],
+      { stdio: 'ignore' },
+    );
+    return true;
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw error;
+  }
+}
+
 const canonical = new Set(['main', 'staging', 'develop']);
 const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^|[-_.])(backup|recovery|archive|snapshot)([-_.]|$)/i;
 
@@ -95,6 +109,7 @@ async function classify(branch) {
     decision: 'review',
     reason: null,
     ancestry: {},
+    treeEquivalent: {},
     deleted: false,
     alreadyAbsent: false
   };
@@ -121,29 +136,32 @@ async function classify(branch) {
   }
 
   let containedIn = null;
+  let treeEquivalentTo = null;
   for (const targetName of canonical) {
     const contained = isAncestor(branch.commit.sha, targetName);
+    const sameTree = isTreeEquivalent(name, targetName);
     record.ancestry[targetName] = contained;
-    if (contained) {
-      containedIn = targetName;
-      break;
-    }
+    record.treeEquivalent[targetName] = sameTree;
+    if (!containedIn && contained) containedIn = targetName;
+    if (!treeEquivalentTo && sameTree) treeEquivalentTo = targetName;
   }
 
   const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
   const exactSupersededHead = supersededCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
-  if (!containedIn && !exactMergedHead && !exactSupersededHead) {
+  if (!containedIn && !treeEquivalentTo && !exactMergedHead && !exactSupersededHead) {
     record.decision = 'review';
-    record.reason = 'branch contains commits not proven contained in a canonical branch and current head does not exactly match a merged or explicitly superseded canonical pull request head';
+    record.reason = 'branch contains source not proven integrated by ancestry/tree equivalence and current head does not exactly match a merged or explicitly superseded canonical pull request head';
     return record;
   }
 
   record.decision = dryRun ? 'delete-dry-run' : 'delete';
   record.reason = containedIn
     ? `branch head is fully contained in ${containedIn}`
-    : exactMergedHead
-      ? 'current branch head exactly matches a pull request head already merged into a canonical branch'
-      : 'current branch head exactly matches a closed canonical pull request explicitly marked superseded';
+    : treeEquivalentTo
+      ? `source tree is identical to ${treeEquivalentTo}`
+      : exactMergedHead
+        ? 'current branch head exactly matches a pull request head already merged into a canonical branch'
+        : 'current branch head exactly matches a closed canonical pull request explicitly marked superseded';
   return record;
 }
 
@@ -199,7 +217,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   baseBranch,
   developSha,
   dryRun,
-  classificationMode: 'local-git-ancestry+canonical-pr-head-evidence',
+  classificationMode: 'local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
   generatedAt: new Date().toISOString(),
   counts,
   records
@@ -217,7 +235,7 @@ const md = [
   `- Repository: ${repository}`,
   `- Base branch: ${baseBranch}`,
   `- Base SHA: ${developSha}`,
-  `- Classification: local git ancestry + canonical PR head evidence`,
+  `- Classification: local git ancestry + exact source-tree equivalence + canonical PR head evidence`,
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,
@@ -228,7 +246,7 @@ const md = [
   '',
   '## Needs review',
   '',
-  ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; ancestry=${JSON.stringify(r.ancestry)}`),
+  ...review.map((r) => `- \`${r.branch}\` — ${r.reason}; ancestry=${JSON.stringify(r.ancestry)}; treeEquivalent=${JSON.stringify(r.treeEquivalent)}`),
   '',
   '## Deleted / already absent / planned',
   '',
@@ -237,4 +255,4 @@ const md = [
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry+canonical-pr-head-evidence' }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry+tree-equivalence+canonical-pr-head-evidence' }, null, 2));
