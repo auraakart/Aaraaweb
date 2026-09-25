@@ -25,6 +25,7 @@ class _BillingScreenState extends State<BillingScreen> {
   bool loading = true;
   String? error;
   String? payingInvoiceId;
+  final Map<String, String> _paymentAttemptKeys = <String, String>{};
 
   @override
   void initState() { super.initState(); _load(); }
@@ -58,6 +59,8 @@ class _BillingScreenState extends State<BillingScreen> {
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
+      final payableInvoiceIds = scopedInvoices.where((invoice) => invoice['status'] == 'ISSUED').map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
+      _paymentAttemptKeys.removeWhere((invoiceId, _) => !payableInvoiceIds.contains(invoiceId));
       if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
@@ -142,7 +145,8 @@ class _BillingScreenState extends State<BillingScreen> {
     }
     setState(() { payingInvoiceId = id; error = null; });
     try {
-      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
+      final attemptKey = _paymentAttemptKeys.putIfAbsent(id, () => 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
+      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: attemptKey);
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
