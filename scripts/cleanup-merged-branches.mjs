@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const token = process.env.GITHUB_TOKEN;
@@ -65,6 +66,13 @@ function isTreeEquivalent(branchName, targetBranch) {
 
 const canonical = new Set(['main', 'staging', 'develop']);
 const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^|[-_.])(backup|recovery|archive|snapshot)([-_.]|$)/i;
+const retentionPath = '.github/branch-retention.json';
+const retentionManifest = fs.existsSync(retentionPath)
+  ? JSON.parse(fs.readFileSync(retentionPath, 'utf8'))
+  : { branches: [] };
+const retainedByName = new Map(
+  (retentionManifest.branches || []).map((entry) => [entry.name, entry]),
+);
 
 const branches = await paginate(`/repos/${owner}/${repo}/branches`);
 const openPulls = await paginate(`/repos/${owner}/${repo}/pulls?state=open`);
@@ -129,6 +137,19 @@ async function classify(branch) {
     record.reason = 'head of an open pull request';
     return record;
   }
+
+  const retained = retainedByName.get(name);
+  if (retained) {
+    if (retained.sha === branch.commit.sha) {
+      record.decision = 'keep';
+      record.reason = `explicit V4.55.1 retention at reviewed SHA: ${retained.reason}`;
+      return record;
+    }
+    record.decision = 'review';
+    record.reason = `retained branch moved from reviewed SHA ${retained.sha}; current SHA requires fresh review`;
+    return record;
+  }
+
   if (preservePattern.test(name)) {
     record.decision = 'keep';
     record.reason = 'backup/recovery/archive/snapshot preservation rule';
@@ -217,7 +238,8 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   baseBranch,
   developSha,
   dryRun,
-  classificationMode: 'local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
+  classificationMode: 'explicit-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
+  retentionManifest: retentionPath,
   generatedAt: new Date().toISOString(),
   counts,
   records
@@ -235,13 +257,14 @@ const md = [
   `- Repository: ${repository}`,
   `- Base branch: ${baseBranch}`,
   `- Base SHA: ${developSha}`,
-  `- Classification: local git ancestry + exact source-tree equivalence + canonical PR head evidence`,
+  `- Classification: exact-SHA retention + local git ancestry + exact source-tree equivalence + canonical PR head evidence`,
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,
   `- Already absent at delete time: ${alreadyAbsent.length}`,
   `- Planned deletions: ${planned.length}`,
   `- Kept automatically: ${kept.length}`,
+  `- Explicitly retained legacy branches: ${records.filter((r) => r.reason?.startsWith('explicit V4.55.1 retention')).length}`,
   `- Needs review: ${review.length}`,
   '',
   '## Needs review',
@@ -255,4 +278,4 @@ const md = [
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'local-git-ancestry+tree-equivalence+canonical-pr-head-evidence' }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'explicit-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence' }, null, 2));
