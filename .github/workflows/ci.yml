@@ -118,6 +118,8 @@ jobs:
         run: node scripts/check-v4.54.1-privacy-finance-consistency.mjs
       - name: Check V4.55 field-readiness convergence
         run: node scripts/check-v4.55-field-readiness.mjs
+      - name: Check V4.55.1 engineering evidence closure
+        run: node scripts/check-v4.55.1-engineering-evidence.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
@@ -204,14 +206,24 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
-      - name: Risk-weighted API behavioural regression gate
-        run: >-
-          pnpm --filter @aaraagate/api exec vitest run
-          src/occupancy-authority.regression.spec.ts
-          src/access/visitor-management.e2e.spec.ts
-          src/accounting/payment-availability.service.spec.ts
-          src/ai-operations/ai-operations.controlled-assignment.spec.ts
-          src/privacy/privacy-self-context.spec.ts
+      - name: Install exact API coverage provider
+        run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@3.2.7
+      - name: Regenerate Prisma client after transient coverage install
+        run: pnpm --filter @aaraagate/api prisma:generate
+      - name: Risk-weighted API coverage gate
+        working-directory: services/api
+        run: pnpm exec vitest run --config vitest.risk-coverage.config.ts
+      - name: Restore API manifest after transient coverage tooling
+        if: always()
+        run: git checkout -- services/api/package.json
+      - name: Upload API risk coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-risk-coverage-${{ github.sha }}
+          path: services/api/coverage-risk/
+          if-no-files-found: error
+          retention-days: 30
       - name: Test API
         run: pnpm --filter @aaraagate/api test
       - name: Build API
@@ -375,12 +387,14 @@ jobs:
       - name: Risk-weighted Resident behavioural regression gate
         working-directory: apps/resident
         run: >-
-          flutter test
+          flutter test --coverage
           test/multi_property_isolation_test.dart
           test/gate_screen_test.dart
           test/billing_screen_test.dart
           test/privacy_data_screen_test.dart
           test/home_action_inbox_dedup_test.dart
+      - name: Risk-weighted Resident coverage gate
+        run: node scripts/check-flutter-risk-coverage.mjs apps/resident/coverage/lcov.info resident
       - name: Analyze resident app
         working-directory: apps/resident
         run: flutter analyze
@@ -393,16 +407,28 @@ jobs:
       - name: Risk-weighted Guard behavioural regression gate
         working-directory: apps/guard
         run: >-
-          flutter test
+          flutter test --coverage
           test/offline_recovery_test.dart
           test/guard_realtime_lifecycle_test.dart
           test/guard_workforce_assignment_test.dart
+      - name: Risk-weighted Guard coverage gate
+        run: node scripts/check-flutter-risk-coverage.mjs apps/guard/coverage/lcov.info guard
       - name: Analyze guard app
         working-directory: apps/guard
         run: flutter analyze
       - name: Test guard app
         working-directory: apps/guard
         run: flutter test
+      - name: Upload Flutter risk coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutter-risk-coverage-${{ github.sha }}
+          path: |
+            apps/resident/coverage/
+            apps/guard/coverage/
+          if-no-files-found: error
+          retention-days: 30
 
   flutter-validation:
     name: Flutter validation
