@@ -235,27 +235,38 @@ export class BillingService {
 
   async issue(societyId: string, actorUserId: string, input: { unitId: string; billingPeriod: string; amountPaise: number; dueDate: string; description?: string }) {
     if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise < 100) throw new BadRequestException('Invoice amount must be at least one rupee');
-    const units = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT "id" FROM "Unit" WHERE "id"=${input.unitId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);
-    if (!units[0]) throw new NotFoundException('Unit not found');
     const invoiceNumber = `${input.billingPeriod.replace('-', '')}-${input.unitId.slice(0, 8).toUpperCase()}`;
-    const rows = await this.prisma.$queryRaw(Prisma.sql`
-      INSERT INTO "MaintenanceInvoice" ("societyId","unitId","createdById","invoiceNumber","billingPeriod","description","amountPaise","dueDate")
-      VALUES (${societyId}::uuid,${input.unitId}::uuid,${actorUserId}::uuid,${invoiceNumber},${input.billingPeriod},${input.description?.trim() || null},${input.amountPaise},${input.dueDate}::date)
-      RETURNING *
-    `);
-    const invoice = (rows as { id: string; invoiceNumber: string; amountPaise: number }[])[0];
-    if (invoice && this.realtime) {
-      const recipients = await this.prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
-        SELECT "userId" FROM "UnitOwnership"
-        WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
-          AND "verified"=true AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
-          AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
-        UNION
-        SELECT "userId" FROM "UnitOccupancy"
-        WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
-          AND "relation"='TENANT' AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
-          AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+    const { invoice, recipients } = await this.prisma.$transaction(async (tx) => {
+      const units = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT "id" FROM "Unit"
+        WHERE "id"=${input.unitId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1
       `);
+      if (!units[0]) throw new NotFoundException('Unit not found');
+
+      const rows = await tx.$queryRaw<Array<{ id: string; invoiceNumber: string; amountPaise: number }>>(Prisma.sql`
+        INSERT INTO "MaintenanceInvoice" ("societyId","unitId","createdById","invoiceNumber","billingPeriod","description","amountPaise","dueDate")
+        VALUES (${societyId}::uuid,${input.unitId}::uuid,${actorUserId}::uuid,${invoiceNumber},${input.billingPeriod},${input.description?.trim() || null},${input.amountPaise},${input.dueDate}::date)
+        RETURNING *
+      `);
+      const invoice = rows[0];
+      const recipients = invoice && this.realtime
+        ? await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+            SELECT "userId" FROM "UnitOwnership"
+            WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
+              AND "verified"=true AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
+              AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+            UNION
+            SELECT "userId" FROM "UnitOccupancy"
+            WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
+              AND "relation"='TENANT' AND "active"=true AND "effectiveFrom"<=CURRENT_TIMESTAMP
+              AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+          `)
+        : [];
+      return { invoice, recipients };
+    });
+
+    if (invoice && this.realtime) {
       const title = 'Maintenance payment due';
       const body = `Invoice ${invoice.invoiceNumber} for ₹${(invoice.amountPaise / 100).toFixed(2)} is due on ${input.dueDate}.`;
       recipients.forEach(({ userId }) => this.realtime?.publishResident({
