@@ -34,6 +34,13 @@ export class FinanceOperationsService {
     if (input.amountPaise<=0) throw new BadRequestException('Expense amount must be positive');
     if (input.dueDate && input.dueDate<input.expenseDate) throw new BadRequestException('Due date cannot be before expense date');
     try {
+      const accounts=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "LedgerAccount"
+        WHERE "id"=${input.expenseAccountId}::uuid AND "societyId"=${societyId}::uuid
+          AND "type"='EXPENSE' AND "active"=true
+        LIMIT 1
+      `);
+      if(!accounts[0]) throw new BadRequestException('Expense account must be an active EXPENSE ledger account');
       const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         INSERT INTO "SocietyExpense" ("societyId","expenseNumber","vendorName","invoiceReference","expenseDate","dueDate","description","amountPaise","expenseAccountId","fundId","createdByUserId")
         VALUES (${societyId}::uuid,${input.expenseNumber.trim().toUpperCase()},${input.vendorName.trim()},${input.invoiceReference?.trim()||null},${input.expenseDate}::date,${input.dueDate||null}::date,${input.description.trim()},${input.amountPaise},${input.expenseAccountId}::uuid,${input.fundId??null}::uuid,${userId}::uuid)
@@ -47,6 +54,13 @@ export class FinanceOperationsService {
       const rows=await tx.$queryRaw<Array<{id:string;status:string;amountPaise:bigint;dueDate:Date|null}>>(Prisma.sql`
         SELECT "id","status","amountPaise","dueDate" FROM "SocietyExpense" WHERE "id"=${expenseId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
       `); const e=rows[0]; if(!e) throw new NotFoundException('Expense not found'); if(e.status!=='DRAFT') throw new ConflictException('Only draft expenses can be approved');
+      const payableAccounts=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "LedgerAccount"
+        WHERE "id"=${input.payableAccountId}::uuid AND "societyId"=${societyId}::uuid
+          AND "type"='LIABILITY' AND "active"=true
+        LIMIT 1
+      `);
+      if(!payableAccounts[0]) throw new BadRequestException('Payable account must be an active LIABILITY ledger account');
       await tx.$executeRaw(Prisma.sql`UPDATE "SocietyExpense" SET "status"='APPROVED',"approvedByUserId"=${userId}::uuid,"approvedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${expenseId}::uuid AND "societyId"=${societyId}::uuid`);
       const p=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         INSERT INTO "SocietyPayable" ("societyId","expenseId","payableAccountId","originalAmountPaise","dueDate") VALUES (${societyId}::uuid,${expenseId}::uuid,${input.payableAccountId}::uuid,${e.amountPaise},${e.dueDate}) RETURNING "id"
@@ -88,8 +102,8 @@ export class FinanceOperationsService {
     const requestedDate=input.settlementDate.slice(0,10);
     const requestedReference=input.reference?.trim()||null;
     return this.prisma.$transaction(async tx=>{
-      const p=await tx.$queryRaw<Array<{id:string;originalAmountPaise:bigint;status:string}>>(Prisma.sql`
-        SELECT "id","originalAmountPaise","status"
+      const p=await tx.$queryRaw<Array<{id:string;originalAmountPaise:bigint;status:string;payableAccountId:string}>>(Prisma.sql`
+        SELECT "id","originalAmountPaise","status","payableAccountId"
         FROM "SocietyPayable"
         WHERE "id"=${payableId}::uuid AND "societyId"=${societyId}::uuid
         FOR UPDATE
@@ -144,6 +158,21 @@ export class FinanceOperationsService {
         FOR UPDATE
       `);
       if(!j.length||j[0].status!=='POSTED') throw new ConflictException('Settlement requires a posted payment journal');
+
+      const evidence=await tx.$queryRaw<Array<{payableDebit:bigint;assetCredit:bigint}>>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN jl."accountId"=${p[0].payableAccountId}::uuid THEN jl."debitPaise" ELSE 0 END),0)::bigint AS "payableDebit",
+          COALESCE(SUM(CASE WHEN a."type"='ASSET' THEN jl."creditPaise" ELSE 0 END),0)::bigint AS "assetCredit"
+        FROM "JournalLine" jl
+        JOIN "LedgerAccount" a ON a."id"=jl."accountId" AND a."societyId"=jl."societyId"
+        WHERE jl."entryId"=${input.journalEntryId}::uuid AND jl."societyId"=${societyId}::uuid
+      `);
+      if((evidence[0]?.payableDebit??0n)!==BigInt(input.amountPaise)) {
+        throw new ConflictException('Settlement journal must debit the payable account for the settlement amount');
+      }
+      if((evidence[0]?.assetCredit??0n)<BigInt(input.amountPaise)) {
+        throw new ConflictException('Settlement journal must credit an asset account for the settlement amount');
+      }
 
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO "PayableSettlement"

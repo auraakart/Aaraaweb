@@ -16,10 +16,11 @@ describe('FinanceOperationsService payable settlement integrity',()=>{
   it('writes the migrated settledOn column and closes an exactly settled payable',async()=>{
     const tx={
       $queryRaw:vi.fn()
-        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'OPEN'}])
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'OPEN',payableAccountId:'payable-account'}])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{settled:0n}])
         .mockResolvedValueOnce([{id:journalEntryId,status:'POSTED'}])
+        .mockResolvedValueOnce([{payableDebit:1000n,assetCredit:1000n}])
         .mockResolvedValueOnce([{settled:1000n}]),
       $executeRaw:vi.fn().mockResolvedValue(1),
     };
@@ -36,7 +37,7 @@ describe('FinanceOperationsService payable settlement integrity',()=>{
   it('rejects an amount above the locked outstanding balance before inserting',async()=>{
     const tx={
       $queryRaw:vi.fn()
-        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PARTIALLY_PAID'}])
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PARTIALLY_PAID',payableAccountId:'payable-account'}])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{settled:800n}]),
       $executeRaw:vi.fn(),
@@ -48,6 +49,40 @@ describe('FinanceOperationsService payable settlement integrity',()=>{
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
+  it('rejects a posted journal that does not debit the payable liability',async()=>{
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'OPEN',payableAccountId:'payable-account'}])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{settled:0n}])
+        .mockResolvedValueOnce([{id:journalEntryId,status:'POSTED'}])
+        .mockResolvedValueOnce([{payableDebit:0n,assetCredit:1000n}]),
+      $executeRaw:vi.fn(),
+    };
+    const service=serviceWith(tx);
+    await expect(service.settlePayable(societyId,userId,payableId,{
+      amountPaise:1000,settlementDate:'2026-09-25',journalEntryId,idempotencyKey:'settlement-evidence-1',
+    })).rejects.toThrow('Settlement journal must debit the payable account for the settlement amount');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a posted journal without sufficient asset credit evidence',async()=>{
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'OPEN',payableAccountId:'payable-account'}])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{settled:0n}])
+        .mockResolvedValueOnce([{id:journalEntryId,status:'POSTED'}])
+        .mockResolvedValueOnce([{payableDebit:1000n,assetCredit:0n}]),
+      $executeRaw:vi.fn(),
+    };
+    const service=serviceWith(tx);
+    await expect(service.settlePayable(societyId,userId,payableId,{
+      amountPaise:1000,settlementDate:'2026-09-25',journalEntryId,idempotencyKey:'settlement-evidence-2',
+    })).rejects.toThrow('Settlement journal must credit an asset account for the settlement amount');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('replays the same settlement by idempotency key or payment journal even after the payable is paid',async()=>{
     const existing={
       payableId,amountPaise:1000n,settledOn:new Date('2026-09-25T00:00:00.000Z'),
@@ -55,7 +90,7 @@ describe('FinanceOperationsService payable settlement integrity',()=>{
     };
     const tx={
       $queryRaw:vi.fn()
-        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PAID'}])
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PAID',payableAccountId:'payable-account'}])
         .mockResolvedValueOnce([existing])
         .mockResolvedValueOnce([{settled:1000n}]),
       $executeRaw:vi.fn(),
@@ -74,7 +109,7 @@ describe('FinanceOperationsService payable settlement integrity',()=>{
     };
     const tx={
       $queryRaw:vi.fn()
-        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PARTIALLY_PAID'}])
+        .mockResolvedValueOnce([{id:payableId,originalAmountPaise:1000n,status:'PARTIALLY_PAID',payableAccountId:'payable-account'}])
         .mockResolvedValueOnce([existing]),
       $executeRaw:vi.fn(),
     };
