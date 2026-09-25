@@ -53,12 +53,12 @@ describe('BillingService', () => {
   });
 
   it('rejects invalid invoice amounts before persistence', async () => {
-    const prisma = { $queryRaw: vi.fn() };
+    const prisma = { $transaction: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService);
     await expect(service.issue('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222',{
       unitId:'33333333-3333-3333-3333-333333333333', billingPeriod:'2026-09', amountPaise:99, dueDate:'2026-09-30',
     })).rejects.toThrow('Invoice amount must be at least one rupee');
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('does not expose a cross-tenant invoice for payment', async () => {
@@ -74,20 +74,43 @@ describe('BillingService', () => {
   });
 
   it('notifies the verified owner and current tenant when dues are issued', async () => {
-    const prisma = {
+    const tx = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333' }])
         .mockResolvedValueOnce([{ id: 'invoice-1', invoiceNumber: '202609-33333333', amountPaise: 125000 }])
         .mockResolvedValueOnce([{ userId: 'owner-1' }, { userId: 'tenant-1' }]),
     };
+    const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
     const realtime = { publishResident: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
     await service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
       unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
     });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(realtime.publishResident).toHaveBeenCalledTimes(2);
     expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'owner-1' }));
     expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'tenant-1' }));
+  });
+
+  it('keeps invoice creation and recipient resolution in one transaction', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333' }])
+        .mockResolvedValueOnce([{ id: 'invoice-1', invoiceNumber: '202609-33333333', amountPaise: 125000 }])
+        .mockRejectedValueOnce(new Error('recipient lookup failed')),
+    };
+    const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
+    const realtime = { publishResident: vi.fn() };
+    const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
+
+    await expect(service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
+      unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
+    })).rejects.toThrow('recipient lookup failed');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(realtime.publishResident).not.toHaveBeenCalled();
   });
 
   it('rejects an idempotency key reused for another invoice', async () => {
