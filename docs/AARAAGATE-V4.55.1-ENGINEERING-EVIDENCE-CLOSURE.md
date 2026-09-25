@@ -33,7 +33,7 @@ The deletion boundary remains conservative:
 - delete only when source is proven integrated by ancestry, exact tree, exact merged canonical PR head, or explicit superseded-head evidence;
 - keep genuinely unique branches for review rather than guessing.
 
-A branch-hygiene run after the V4.55.1 develop merge is the authoritative closure evidence.
+The first post-merge hygiene run safely deleted two proven-integrated branches and identified 24 branches with genuinely unproven unique source. Those 24 were then manually reconciled against canonical ancestry/tree state and all available PR history and recorded in `.github/branch-retention.json` at exact reviewed SHAs. The automation now treats an exact registered SHA as intentionally retained; if any retained branch moves, that retention becomes invalid and the branch returns to review. A subsequent branch-hygiene run with zero unexplained review branches is the authoritative closure evidence.
 
 ## 3. Release identity
 
