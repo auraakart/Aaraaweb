@@ -250,7 +250,7 @@ export class AiOperationsService {
       `);
       if(!current[0]) throw new NotFoundException('AI operation proposal not found');
       if(current[0].action!==expectedAction) throw new BadRequestException('AI operation action does not match this confirmation endpoint');
-      if(current[0].status==='EXECUTED') return {id:current[0].id,proposalId:current[0].id,status:'EXECUTED',result:current[0].result,idempotent:true};
+      if(current[0].status==='EXECUTED') return {proposalId:current[0].id,status:'EXECUTED',result:current[0].result,idempotent:true};
       throw new BadRequestException(`AI operation proposal is ${current[0].status.toLowerCase()}`);
     }
 
@@ -291,7 +291,7 @@ export class AiOperationsService {
       }
       throw new ConflictException('AI operation outcome requires reconciliation before retry');
     }
-    return {id:proposal.id,proposalId:proposal.id,status:'EXECUTED',result};
+    return {proposalId:proposal.id,status:'EXECUTED',result};
   }
 
   private async cancelAction(societyId:string,userId:string,proposalId:string,action:AiAction) {
