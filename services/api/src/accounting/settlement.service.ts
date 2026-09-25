@@ -14,12 +14,20 @@ export class SettlementService {
     if (!key) throw new BadRequestException('Idempotency key is required');
 
     return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT "id" FROM "ReceivableAllocation"
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
+      const existing = await tx.$queryRaw<Array<{ id: string; receivableId:string; paymentId:string; amountPaise:string; allocatedByUserId:string }>>(Prisma.sql`
+        SELECT "id","receivableId","paymentId","amountPaise"::text AS "amountPaise","allocatedByUserId"
+        FROM "ReceivableAllocation"
         WHERE "societyId" = ${societyId}::uuid AND "idempotencyKey" = ${key}
         LIMIT 1
       `);
-      if (existing.length) return this.getAllocation(tx, societyId, existing[0].id);
+      if (existing.length) {
+        const prior=existing[0];
+        if(prior.receivableId!==receivableId||prior.paymentId!==input.paymentId||prior.amountPaise!==String(input.amountPaise)||prior.allocatedByUserId!==userId){
+          throw new ConflictException('Idempotency key was already used for a different allocation request');
+        }
+        return this.getAllocation(tx, societyId, prior.id);
+      }
 
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "ReceivableAllocation" (
