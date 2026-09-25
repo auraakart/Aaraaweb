@@ -5,7 +5,7 @@ describe('IntegrationRegistryService conformance',()=>{
   it('separates adapter readiness, society selection, field evidence and production activation',async()=>{
     const configuration={list:async()=>[
       {societyId:'society-1',family:'ACCESS_CONTROL',providerKey:'reference-adapters',enabled:true},
-      {societyId:'society-1',family:'OBJECT_STORAGE',providerKey:'s3',enabled:false},
+      {societyId:'society-1',family:'SMART_METER',providerKey:'utility-integration-v2',enabled:false},
     ]};
     const service=new IntegrationRegistryService(configuration as never);
     const rows=await service.conformance('society-1');
@@ -24,14 +24,15 @@ describe('IntegrationRegistryService conformance',()=>{
     });
     expect(access?.boundary).toContain('society provider selection');
 
-    const objectStorage=rows.find(row=>row.family==='OBJECT_STORAGE');
-    expect(objectStorage).toMatchObject({
+    const smartMeter=rows.find(row=>row.family==='SMART_METER');
+    expect(smartMeter).toMatchObject({
+      adapterConfigurationReady:true,
       societySelectionReady:false,
       societyEnabled:false,
       configurationReady:false,
       status:'CONFIGURATION_REQUIRED',
     });
-    expect(objectStorage?.configurationBlockers).toContain('SOCIETY_SELECTION_DISABLED');
+    expect(smartMeter?.configurationBlockers).toContain('SOCIETY_SELECTION_DISABLED');
   });
 
   it('fails society-selectable readiness closed when the selection is missing or names another provider',async()=>{
