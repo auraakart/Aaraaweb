@@ -1,0 +1,68 @@
+name: Supply-chain security
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  schedule:
+    - cron: '11 4 * * 3'
+
+permissions:
+  contents: read
+
+jobs:
+  supply-chain:
+    name: SBOM and secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Resolve mobile dependencies
+        run: |
+          (cd apps/resident && flutter pub get)
+          (cd apps/guard && flutter pub get)
+      - name: Capture resolved dependency inventories
+        run: |
+          mkdir -p supply-chain-evidence
+          pnpm list --json -r --depth Infinity > supply-chain-evidence/pnpm-deps.json
+          (cd apps/resident && flutter pub deps --json) > supply-chain-evidence/resident-pub-deps.json
+          (cd apps/guard && flutter pub deps --json) > supply-chain-evidence/guard-pub-deps.json
+      - name: Generate CycloneDX SBOM
+        run: >-
+          node scripts/generate-v4.55-sbom.mjs
+          supply-chain-evidence/aaraagate-v4.55.cdx.json
+          supply-chain-evidence/pnpm-deps.json
+          supply-chain-evidence/resident-pub-deps.json
+          supply-chain-evidence/guard-pub-deps.json
+      - name: Audit high and critical npm vulnerabilities
+        run: pnpm audit --audit-level high
+      - name: Scan tracked source for high-confidence secret patterns
+        run: node scripts/check-secret-patterns.mjs
+      - name: Upload supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aaraagate-v4.55-supply-chain-${{ github.sha }}
+          path: supply-chain-evidence/
+          if-no-files-found: error
+          retention-days: 30

@@ -156,7 +156,7 @@ class _SosScreenState extends State<SosScreen> {
           children: [
             PremiumSurface(
               elevated: true,
-              color: active == null ? theme.colorScheme.errorContainer.withOpacity(.18) : theme.colorScheme.primaryContainer.withOpacity(.28),
+              color: active == null ? theme.colorScheme.errorContainer.withValues(alpha: .18) : theme.colorScheme.primaryContainer.withValues(alpha: .28),
               padding: const EdgeInsets.all(AaraagateTokens.space5),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

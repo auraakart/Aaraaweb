@@ -1,5 +1,6 @@
 {
   "name": "aaraagate",
+  "version": "4.55.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -23,7 +24,8 @@
     "check:v4.52": "node scripts/check-v4.52-competitive-excellence.mjs",
     "check:v4.53": "node scripts/check-v4.53-operational-intelligence.mjs",
     "check:v4.54": "node scripts/check-v4.54-controlled-action-operational-control.mjs",
-    "check:v4.54.1": "node scripts/check-v4.54.1-privacy-finance-consistency.mjs"
+    "check:v4.54.1": "node scripts/check-v4.54.1-privacy-finance-consistency.mjs",
+    "check:v4.55": "node scripts/check-v4.55-field-readiness.mjs"
   },
   "pnpm": {
     "overrides": {

@@ -164,7 +164,7 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: c.gateId,
+                initialValue: c.gateId,
                 decoration: InputDecoration(labelText: strings.get('activeGate'), prefixIcon: const Icon(Icons.door_front_door_outlined)),
                 items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
                 onChanged: c.busy ? null : c.selectGate,
@@ -305,7 +305,7 @@ class _WalkInSheetState extends State<_WalkInSheet> {
           Text('Choose the destination and send the arrival to the resident for approval.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _unitId,
+            initialValue: _unitId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Destination', prefixIcon: Icon(Icons.apartment_rounded)),
             items: widget.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
@@ -396,7 +396,7 @@ class _QuickArrivalSheetState extends State<_QuickArrivalSheet> {
           Text('Capture only the details needed for a fast resident approval.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _unitId,
+            initialValue: _unitId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Destination', prefixIcon: Icon(Icons.apartment_rounded)),
             items: widget.units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),
@@ -461,7 +461,7 @@ class _SyncHealthCard extends StatelessWidget {
     final pending = controller.queuedActions > 0;
     return GuardOperationSurface(
       semanticLabel: pending ? '${controller.queuedActions} ${strings.get('pendingActions')}' : strings.get('onlineClear'),
-      color: pending ? scheme.errorContainer.withOpacity(.62) : scheme.surfaceContainerLow,
+      color: pending ? scheme.errorContainer.withValues(alpha: .62) : scheme.surfaceContainerLow,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(width: 44, height: 44, decoration: BoxDecoration(color: pending ? scheme.errorContainer : scheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(pending ? Icons.cloud_off_outlined : Icons.cloud_done_outlined, color: pending ? scheme.onErrorContainer : scheme.onPrimaryContainer)),
@@ -500,7 +500,7 @@ class _GateApprovalCard extends StatelessWidget {
     final denied = status == 'DENIED' || status == 'CANCELLED';
     final title = access['subjectName']?.toString() ?? 'Gate arrival';
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'VISITOR';
-    final background = waiting ? scheme.secondaryContainer.withOpacity(.55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
+    final background = waiting ? scheme.secondaryContainer.withValues(alpha: .55) : denied ? scheme.errorContainer : scheme.surfaceContainerLow;
     return GuardOperationSurface(
       color: background,
       prominent: waiting,
@@ -545,7 +545,7 @@ class _AccessResultCard extends StatelessWidget {
     final type = access['subjectType']?.toString().replaceAll('_', ' ') ?? 'ACCESS';
     return GuardOperationSurface(
       semanticLabel: '$subject, $type, ${status.replaceAll('_', ' ')}',
-      color: positive ? scheme.primaryContainer.withOpacity(.5) : scheme.errorContainer,
+      color: positive ? scheme.primaryContainer.withValues(alpha: .5) : scheme.errorContainer,
       prominent: true,
       padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

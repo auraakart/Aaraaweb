@@ -207,7 +207,7 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
           const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _householdId,
+            initialValue: _householdId,
             decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
             items: widget.controller.households.map((household) {
               final id = household['id']?.toString() ?? '';
@@ -234,7 +234,7 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _role,
+            initialValue: _role,
             decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
             items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
                 .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))

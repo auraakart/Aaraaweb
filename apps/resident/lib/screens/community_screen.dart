@@ -73,14 +73,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
       const SizedBox(height:AaraagateTokens.space1),Text('Society updates, meetings, documents and polls with your access rules applied.',style:theme.textTheme.bodyLarge?.copyWith(color:scheme.onSurfaceVariant)),
       const SizedBox(height:AaraagateTokens.space4),
       PremiumSurface(
-        color:scheme.primaryContainer.withOpacity(.45),
+        color:scheme.primaryContainer.withValues(alpha: .45),
         child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Icon(Icons.verified_user_outlined,color:scheme.onPrimaryContainer),
           const SizedBox(width:AaraagateTokens.space3),
           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text('Community, not a promotion feed',style:theme.textTheme.titleSmall?.copyWith(fontWeight:FontWeight.w800,color:scheme.onPrimaryContainer)),
             const SizedBox(height:AaraagateTokens.space1),
-            Text('This space is for society notices, governance and your property-scoped requests. Commercial discovery stays under Services, and content here follows your active relationship and access rules.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onPrimaryContainer.withOpacity(.82))),
+            Text('This space is for society notices, governance and your property-scoped requests. Commercial discovery stays under Services, and content here follows your active relationship and access rules.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onPrimaryContainer.withValues(alpha: .82))),
           ])),
         ]),
       ),

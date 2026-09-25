@@ -332,7 +332,7 @@ class _SummaryCard extends StatelessWidget {
 
     return PremiumSurface(
       elevated: true,
-      color: scheme.primaryContainer.withOpacity(.55),
+      color: scheme.primaryContainer.withValues(alpha: .55),
       padding: const EdgeInsets.all(AaraagateTokens.space5),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -352,7 +352,7 @@ class _SummaryCard extends StatelessWidget {
           detailParts.join(' · '),
           maxLines:1,
           overflow:TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withOpacity(.82)),
+          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withValues(alpha: .82)),
         ),
       ]),
     );
@@ -420,7 +420,7 @@ class _MetricPill extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withOpacity(.65), borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: .65), borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
       child: Text('$label · $value', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
     );
   }
@@ -501,7 +501,7 @@ class _PaymentRecoveryCard extends StatelessWidget {
             ? 'Gateway authorization received. Waiting for captured confirmation before marking the bill paid.'
             : 'Payment order created. Complete the gateway step; no amount is treated as paid yet.';
     return PremiumSurface(
-      color: failed ? scheme.errorContainer.withOpacity(.45) : scheme.surfaceContainerLow,
+      color: failed ? scheme.errorContainer.withValues(alpha: .45) : scheme.surfaceContainerLow,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(failed ? Icons.error_outline_rounded : Icons.schedule_rounded, color: failed ? scheme.error : scheme.primary),
         const SizedBox(width: AaraagateTokens.space3),

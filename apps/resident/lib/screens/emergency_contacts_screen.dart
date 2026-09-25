@@ -268,7 +268,7 @@ class _EmergencyContactDialogState extends State<_EmergencyContactDialog> {
           TextField(controller: _relation, decoration: const InputDecoration(labelText: 'Relationship (optional)')),
           const SizedBox(height: AaraagateTokens.space3),
           DropdownButtonFormField<int>(
-            value: _priority,
+            initialValue: _priority,
             decoration: const InputDecoration(labelText: 'Priority'),
             items: const [
               DropdownMenuItem(value: 1, child: Text('1 - Primary')),
