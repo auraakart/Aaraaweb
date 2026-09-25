@@ -72,7 +72,7 @@ export class IntegrationRegistryService {
         certificationClaim:false,adapterConfigurationReady,selectionRequired,societySelectionReady,
         selectedProviderKey:selection?.providerKey??null,societyEnabled:selection?.enabled??null,
         configurationReady,contractReady,fieldEvidenceRequired,productionActivationApproved,
-        boundary:'Conformance combines adapter/deployment readiness with the society provider selection. Production activation stays false when the society selection is missing, disabled or points to another provider, or when external field evidence is required; this does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.',
+        boundary:'Conformance combines adapter/deployment readiness with the society provider selection. Production activation stays false when the society selection is missing, disabled or points to another provider. Production activation stays false when external field evidence is required; this does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.',
       };
     });
   }
