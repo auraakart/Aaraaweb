@@ -106,6 +106,17 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Exact candidate/develop/staging/main Git tree SHAs are captured in release evidence.
 - [ ] Field-pilot identifier, society, devices, approver and accepted exceptions are recorded externally before any claim of pilot acceptance.
 
+## V4.55 field-readiness and engineering-consolidation evidence
+- [ ] Hosted staging acceptance is green for the exact staging SHA before any main promotion.
+- [ ] `AARAAGATE_STAGING_API_BASE_URL` is configured as a non-secret staging environment/repository variable.
+- [ ] Resident and Guard validation run on Flutter 3.47.0 with no packaging-only theme patch.
+- [ ] Risk-weighted API, Resident and Guard behavioural regression gates are green.
+- [ ] CodeQL and supply-chain security workflows are green; the generated CycloneDX SBOM artifact is retained for the candidate.
+- [ ] High-confidence tracked-secret scan is green.
+- [ ] API, Admin, Resident and Guard source versions identify the same V4.55 release line.
+- [ ] Branch-hygiene evidence is reviewed; canonical branches remain only `develop`, `staging` and `main`.
+- [ ] Real society/device/provider evidence remains external and is not inferred from repository CI.
+
 ## Exit criteria
 Production promotion may proceed only when:
 - [ ] all mandatory scenarios pass or have an explicitly accepted non-blocking exception;

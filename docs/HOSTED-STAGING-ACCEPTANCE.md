@@ -1,6 +1,6 @@
 # Hosted Staging Acceptance
 
-Updated: 2026-09-15
+Updated: 2026-09-25
 
 Configure the non-secret repository variable `AARAAGATE_STAGING_API_BASE_URL` with the public HTTPS API origin before promoting this workflow to `staging`. Every subsequent staging push runs `Hosted staging acceptance` against the pushed SHA and fails closed when the variable or hosted deployment is unavailable.
 
@@ -10,6 +10,8 @@ The workflow may also be manually dispatched after it is available on the defaul
 
 - the full commit SHA currently at `staging`;
 - the public HTTPS origin of the hosted API, without credentials or a path.
+
+V4.55 also makes hosted staging a direct `staging -> main` release-readiness gate: the main-candidate PR reruns the TLS/readiness check against the exact staging candidate and fails closed when `AARAAGATE_STAGING_API_BASE_URL` is absent or the deployed SHA does not match.
 
 The workflow fails closed unless the declared SHA is still the current staging head. It verifies `/api/v1/health/live` and `/api/v1/health/ready` over TLS 1.2 or newer and requires:
 

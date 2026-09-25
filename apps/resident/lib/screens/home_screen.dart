@@ -374,7 +374,7 @@ class _AssistantEntryCard extends StatelessWidget {
       onTap: onTap,
       semanticLabel: 'Open Aaraagate Assistant',
       elevated: true,
-      color: scheme.primaryContainer.withOpacity(.34),
+      color: scheme.primaryContainer.withValues(alpha: .34),
       padding: const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
         children: [
@@ -596,7 +596,7 @@ class _QuickAction extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: foreground.withOpacity(.10),
+                color: foreground.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
               ),
               child: Icon(icon, color: foreground, size: 20),

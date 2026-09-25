@@ -100,7 +100,7 @@ class AaraagateGuardTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
@@ -191,7 +191,7 @@ class AaraagateGuardTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(AaraagateGuardTokens.radiusSheet)),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSheet)),

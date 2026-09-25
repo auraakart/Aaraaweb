@@ -220,7 +220,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                 ),
                 const SizedBox(height: AaraagateTokens.space3),
                 DropdownButtonFormField<String>(
-                  value: priority,
+                  initialValue: priority,
                   decoration: const InputDecoration(labelText: 'Priority'),
                   items: const [
                     DropdownMenuItem(value: 'LOW', child: Text('Low')),
