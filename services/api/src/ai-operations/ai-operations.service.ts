@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AmenitiesService } from '../amenities/amenities.service';
 import { HelpdeskService } from '../helpdesk/helpdesk.service';
@@ -204,7 +204,7 @@ export class AiOperationsService {
     return this.confirmAction(societyId,userId,proposalId,'CREATE_VISITOR_PASS',async payload=>{
       const input=payload as VisitorPassProposalInput;
       const pass=await this.visitors.createPass(societyId,userId,input.unitId,input.name,input.phone,new Date(input.validFrom),new Date(input.validUntil));
-      return {visitorPassId:String((pass as {id?:unknown}).id??'')};
+      return {visitorPassId:String(pass.pass.id)};
     });
   }
 
@@ -254,23 +254,44 @@ export class AiOperationsService {
       throw new BadRequestException(`AI operation proposal is ${current[0].status.toLowerCase()}`);
     }
 
+    let result:Record<string,string>;
     try {
-      const result=await execute(proposal.payload);
-      await this.prisma.$executeRaw(Prisma.sql`
+      result=await execute(proposal.payload);
+    } catch(error) {
+      const message=safeOperationalError(error);
+      try {
+        await this.prisma.$executeRaw(Prisma.sql`
+          UPDATE "AiOperationProposal"
+          SET "status"='FAILED',"errorMessage"=${message.slice(0,1000)},"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
+        `);
+      } catch {
+        // Preserve EXECUTING when failure-state persistence is unavailable; replay must remain blocked.
+      }
+      throw error;
+    }
+
+    try {
+      const completed=await this.prisma.$executeRaw(Prisma.sql`
         UPDATE "AiOperationProposal"
         SET "status"='EXECUTED',"executedAt"=CURRENT_TIMESTAMP,"result"=${JSON.stringify(result)}::jsonb,"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
       `);
-      return {proposalId:proposal.id,status:'EXECUTED',result};
+      if(completed!==1) throw new Error('AI operation completion state changed before persistence');
     } catch(error) {
       const message=safeOperationalError(error);
-      await this.prisma.$executeRaw(Prisma.sql`
-        UPDATE "AiOperationProposal"
-        SET "status"='FAILED',"errorMessage"=${message.slice(0,1000)},"updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
-      `);
-      throw error;
+      try {
+        await this.prisma.$executeRaw(Prisma.sql`
+          UPDATE "AiOperationProposal"
+          SET "errorMessage"=${message.slice(0,1000)},"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${proposal.id}::uuid AND "status"='EXECUTING'
+        `);
+      } catch {
+        // Best-effort only. Keeping EXECUTING is intentional so automatic replay cannot duplicate the domain action.
+      }
+      throw new ConflictException('AI operation outcome requires reconciliation before retry');
     }
+    return {proposalId:proposal.id,status:'EXECUTED',result};
   }
 
   private async cancelAction(societyId:string,userId:string,proposalId:string,action:AiAction) {

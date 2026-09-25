@@ -107,7 +107,7 @@ describe('AiOperationsService',()=>{
       id:'proposal-3',action:'CREATE_VISITOR_PASS',status:'EXECUTING',
       payload:{unitId:'unit-1',name:'Guest',phone:'9999999999',validFrom:'2026-09-20T10:00:00.000Z',validUntil:'2026-09-20T12:00:00.000Z'},result:null,
     }]);
-    visitors.createPass.mockResolvedValue({id:'pass-1'});
+    visitors.createPass.mockResolvedValue({visitor:{id:'visitor-1'},pass:{id:'pass-1'},credential:'raw-secret'});
     await expect(service.confirmVisitor('society-1','user-1','proposal-3')).resolves.toEqual({
       proposalId:'proposal-3',status:'EXECUTED',result:{visitorPassId:'pass-1'},
     });
