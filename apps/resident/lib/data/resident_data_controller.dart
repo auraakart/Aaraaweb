@@ -47,6 +47,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
+  List<Map<String, dynamic>> maintenancePayments = const [];
   List<Map<String, dynamic>> helpdeskTickets = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
@@ -138,6 +139,7 @@ class ResidentDataController extends ChangeNotifier {
         tasks.add(_loadMaintenanceInvoices());
       } else {
         maintenanceInvoices = const [];
+        maintenancePayments = const [];
       }
       if (hasFeature('HELPDESK')) {
         tasks.add(_loadHelpdesk());
@@ -194,6 +196,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceLeaves = const [];
     workforceRatings = const [];
     maintenanceInvoices = const [];
+    maintenancePayments = const [];
     helpdeskTickets = const [];
     latestAccessEvent = null;
     lastIssuedVisitorPass = null;
@@ -413,11 +416,26 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> _loadMaintenanceInvoices() async {
     if (!hasActiveProperty || !hasFeature('MAINTENANCE_BILLING')) {
       maintenanceInvoices = const [];
+      maintenancePayments = const [];
       return;
     }
     try {
       final rows = await repository.maintenanceInvoices();
       maintenanceInvoices = _filterByUnit(rows, (item) => item['unitId']);
+      maintenancePayments = const [];
+      if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;
+
+      final invoiceIds = maintenanceInvoices.map((item) => item['id']?.toString()).whereType<String>().toSet();
+      try {
+        final payments = await repository.maintenancePayments();
+        maintenancePayments = payments
+            .where((item) => invoiceIds.contains(item['invoiceId']?.toString()))
+            .toList(growable: false);
+      } catch (_) {
+        // Payment recovery is optional Home enrichment. Keep invoice visibility
+        // authoritative even if the separately entitled payment read is unavailable.
+        maintenancePayments = const [];
+      }
     } catch (e) {
       _capture(e, (message) => billingError = message);
     }

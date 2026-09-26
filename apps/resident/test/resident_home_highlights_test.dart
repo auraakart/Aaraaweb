@@ -65,4 +65,40 @@ void main() {
     expect(items.first.title, 'Lift trapped intermittently');
     expect(items.first.urgency, ResidentHomeUrgency.soon);
   });
+
+  test('surfaces the latest unresolved payment attempt when it is more actionable than the due reminder', () {
+    final items = ResidentHomeHighlights.build(
+      now: DateTime(2026, 9, 18),
+      invoices: const [
+        {'id': 'invoice-a', 'status': 'ISSUED', 'amountPaise': 125000, 'dueDate': '2026-09-25'},
+      ],
+      payments: const [
+        {'id': 'payment-new', 'invoiceId': 'invoice-a', 'status': 'FAILED', 'amountPaise': 125000, 'createdAt': '2026-09-18T10:00:00Z'},
+        {'id': 'payment-old', 'invoiceId': 'invoice-a', 'status': 'AUTHORIZED', 'amountPaise': 125000, 'createdAt': '2026-09-18T09:00:00Z'},
+      ],
+      bookings: const [],
+      notices: const [],
+    );
+
+    expect(items.single.kind, ResidentHomeHighlightKind.billing);
+    expect(items.single.title, 'Payment needs attention · ₹1250.00');
+    expect(items.single.subtitle, contains('retry from Billing'));
+    expect(items.single.urgency, ResidentHomeUrgency.immediate);
+  });
+
+  test('ignores payment recovery history once the invoice is settled', () {
+    final items = ResidentHomeHighlights.build(
+      now: DateTime(2026, 9, 18),
+      invoices: const [
+        {'id': 'invoice-a', 'status': 'PAID', 'amountPaise': 125000, 'dueDate': '2026-09-10'},
+      ],
+      payments: const [
+        {'id': 'payment-old', 'invoiceId': 'invoice-a', 'status': 'FAILED', 'amountPaise': 125000, 'createdAt': '2026-09-17T09:00:00Z'},
+      ],
+      bookings: const [],
+      notices: const [],
+    );
+
+    expect(items, isEmpty);
+  });
 }

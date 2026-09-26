@@ -22,6 +22,7 @@ class ResidentHomeHighlights {
     required List<Map<String, dynamic>> invoices,
     required List<Map<String, dynamic>> bookings,
     required List<Map<String, dynamic>> notices,
+    List<Map<String, dynamic>> payments = const [],
     List<Map<String, dynamic>> tickets = const [],
     DateTime? now,
   }) {
@@ -37,6 +38,7 @@ class ResidentHomeHighlights {
         final bDue = _date(b['dueDate']) ?? DateTime(9999);
         return aDue.compareTo(bDue);
       });
+    ResidentHomeHighlight? invoiceBilling;
     if (openInvoices.isNotEmpty) {
       final invoice = openInvoices.first;
       final due = _date(invoice['dueDate']);
@@ -44,14 +46,68 @@ class ResidentHomeHighlights {
       final overdue = due != null && due.isBefore(DateTime(current.year, current.month, current.day));
       final title = (overdue ? 'Maintenance overdue' : 'Maintenance due') + (amount == null ? '' : ' · ' + amount);
       final subtitle = due == null ? 'Review your maintenance account' : (overdue ? 'Was due ' : 'Due ') + _dateLabel(due);
-      items.add(ResidentHomeHighlight(
+      invoiceBilling = ResidentHomeHighlight(
         kind: ResidentHomeHighlightKind.billing,
         title: title,
         subtitle: subtitle,
         priority: overdue ? 0 : 2,
         urgency: overdue ? ResidentHomeUrgency.immediate : ResidentHomeUrgency.soon,
-      ));
+      );
     }
+
+    ResidentHomeHighlight? recoveryBilling;
+    final openInvoiceIds = openInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
+    final recoveryPayments = payments.where((payment) {
+      final status = (payment['status']?.toString() ?? '').toUpperCase();
+      return openInvoiceIds.contains(payment['invoiceId']?.toString()) &&
+          const {'CREATED', 'AUTHORIZED', 'FAILED'}.contains(status);
+    }).toList()
+      ..sort((a, b) {
+        final aDate = _date(a['createdAt']) ?? DateTime(1970);
+        final bDate = _date(b['createdAt']) ?? DateTime(1970);
+        return bDate.compareTo(aDate);
+      });
+    if (recoveryPayments.isNotEmpty) {
+      final payment = recoveryPayments.first;
+      final status = (payment['status']?.toString() ?? '').toUpperCase();
+      final amount = _money(payment['amountPaise']);
+      final suffix = amount == null ? '' : ' · ' + amount;
+      switch (status) {
+        case 'FAILED':
+          recoveryBilling = ResidentHomeHighlight(
+            kind: ResidentHomeHighlightKind.billing,
+            title: 'Payment needs attention' + suffix,
+            subtitle: 'Previous payment was not confirmed · retry from Billing',
+            priority: 0,
+            urgency: ResidentHomeUrgency.immediate,
+          );
+          break;
+        case 'AUTHORIZED':
+          recoveryBilling = ResidentHomeHighlight(
+            kind: ResidentHomeHighlightKind.billing,
+            title: 'Payment confirmation pending' + suffix,
+            subtitle: 'Gateway authorization is awaiting final capture · do not pay again yet',
+            priority: 1,
+            urgency: ResidentHomeUrgency.soon,
+          );
+          break;
+        case 'CREATED':
+          recoveryBilling = ResidentHomeHighlight(
+            kind: ResidentHomeHighlightKind.billing,
+            title: 'Payment not completed' + suffix,
+            subtitle: 'Payment order exists but is not confirmed · continue from Billing',
+            priority: 1,
+            urgency: ResidentHomeUrgency.soon,
+          );
+          break;
+      }
+    }
+
+    final billing = recoveryBilling != null &&
+            (invoiceBilling == null || recoveryBilling.priority <= invoiceBilling.priority)
+        ? recoveryBilling
+        : invoiceBilling;
+    if (billing != null) items.add(billing);
 
     final activeTickets = tickets.where((ticket) {
       final status = (ticket['status']?.toString() ?? '').toUpperCase();
