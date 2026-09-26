@@ -1,7 +1,7 @@
 # Aaraagate V4.56 — Guided Operations & Action Clarity
 
 Date: 2026-09-26
-Status: Development started on develop; release identity is not yet cut to 4.56.0.
+Status: Release candidate closed on develop; release identity is 4.56.0.
 
 ## Objective
 
@@ -35,10 +35,14 @@ The Resident notice destination now exposes the existing audited acknowledgement
 
 Home, Updates and Community now distinguish pending acknowledgement from an already acknowledged required notice, so acknowledged notices no longer remain elevated as “Soon”.
 
+## V4.56 release closure
+
+The milestone is now closed on `develop` as a 4.56.0 release candidate. Slices 1–4 remain intentionally narrow: guided Admin navigation, Resident Action Inbox clarity, invoice-scoped payment recovery, and server-confirmed notice acknowledgement. No slice broadens mutation authority or replaces server authorization/audit boundaries.
+
 ## Regression contract
 
 `pnpm check:v4.56` and CI enforce the guided-navigation tokens, Resident semantic contract, payment-recovery scoping/fallback, notice acknowledgement convergence and this truth boundary. Existing V4.52 priority-ordering and Resident Action Inbox tests continue to run.
 
 ## Boundary
 
-V4.56 remains a development milestone; these slices do not claim a 4.56.0 release, staging/main promotion, productionization, hosted acceptance, live provider/payment/KYC integration, hardware certification or field-pilot acceptance.
+V4.56 is closed as a repository release candidate on develop. This does not claim staging/main promotion, productionization, hosted acceptance, live provider/payment/KYC integration, hardware certification or field-pilot acceptance.

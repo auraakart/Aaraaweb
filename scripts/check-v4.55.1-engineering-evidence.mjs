@@ -12,13 +12,24 @@ const must = (label, source, tokens) => {
 const root = JSON.parse(read('package.json'));
 const api = JSON.parse(read('services/api/package.json'));
 const admin = JSON.parse(read('apps/admin/package.json'));
-const releaseLine = /^4\.55\.\d+$/;
-if (!releaseLine.test(root.version) || api.version !== root.version || admin.version !== root.version) {
-  console.error('Root/API/Admin release identity must remain aligned on the V4.55.x release line.');
+const versionParts = root.version.split('.').map(Number);
+const atLeast4551 = versionParts.length === 3 && (
+  versionParts[0] > 4 ||
+  (versionParts[0] === 4 && versionParts[1] > 55) ||
+  (versionParts[0] === 4 && versionParts[1] === 55 && versionParts[2] >= 1)
+);
+if (!atLeast4551 || api.version !== root.version || admin.version !== root.version) {
+  console.error('Root/API/Admin release identity must remain aligned and not regress below V4.55.1.');
   process.exit(1);
 }
 for (const file of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
-  must(file, read(file), ['version: 4.55.', "flutter: '>=3.47.0'"]);
+  const source = read(file);
+  const mobileVersion = source.match(/^version: (\d+\.\d+\.\d+)\+\d+$/m)?.[1];
+  if (mobileVersion !== root.version) {
+    console.error(`${file} release identity must match ${root.version}.`);
+    process.exit(1);
+  }
+  must(file, source, ["flutter: '>=3.47.0'"]);
 }
 
 const coverageConfig = read('services/api/vitest.risk-coverage.config.ts');

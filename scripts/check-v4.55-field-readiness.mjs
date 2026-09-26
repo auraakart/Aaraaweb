@@ -19,15 +19,25 @@ const forbidTokens = (label, source, tokens) => {
 const root = JSON.parse(read('package.json'));
 const api = JSON.parse(read('services/api/package.json'));
 const admin = JSON.parse(read('apps/admin/package.json'));
-const releaseLine = /^4\.55\.\d+$/;
-if (!releaseLine.test(root.version) || api.version !== root.version || admin.version !== root.version) {
-  console.error('Root/API/Admin release identity must stay aligned on the V4.55.x release line.');
+const versionParts = root.version.split('.').map(Number);
+const atLeast4550 = versionParts.length === 3 && (
+  versionParts[0] > 4 ||
+  (versionParts[0] === 4 && versionParts[1] > 55) ||
+  (versionParts[0] === 4 && versionParts[1] === 55 && versionParts[2] >= 0)
+);
+if (!atLeast4550 || api.version !== root.version || admin.version !== root.version) {
+  console.error('Root/API/Admin release identity must remain aligned and not regress below V4.55.0.');
   process.exit(1);
 }
 
 for (const pubspec of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
   const source = read(pubspec);
-  requireTokens(pubspec, source, ['version: 4.55.', "flutter: '>=3.47.0'"]);
+  const mobileVersion = source.match(/^version: (\d+\.\d+\.\d+)\+\d+$/m)?.[1];
+  if (mobileVersion !== root.version) {
+    console.error(`${pubspec} release identity must match ${root.version}.`);
+    process.exit(1);
+  }
+  requireTokens(pubspec, source, ["flutter: '>=3.47.0'"]);
 }
 
 const ci = read('.github/workflows/ci.yml');
