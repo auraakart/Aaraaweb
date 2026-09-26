@@ -76,5 +76,11 @@ void main() {
       ),
     );
     expect(semantics.properties.liveRegion, isTrue);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == 'Soon. Water seepage near kitchen. High priority · action in progress. Open helpdesk',
+      ),
+      findsOneWidget,
+    );
   });
 }

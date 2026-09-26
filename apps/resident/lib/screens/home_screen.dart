@@ -698,9 +698,10 @@ class _HomeSummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final urgencyLabel = urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info';
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: '$title. $actionLabel',
+      semanticLabel: '$urgencyLabel. $title. $subtitle. $actionLabel',
       color: scheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: ConstrainedBox(
@@ -733,7 +734,7 @@ class _HomeSummaryRow extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       AaraagateStatusPill(
-                        label: urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info',
+                        label: urgencyLabel,
                         tone: urgency == ResidentHomeUrgency.immediate ? AaraagateStatusTone.danger : urgency == ResidentHomeUrgency.soon ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
                       ),
                     ],

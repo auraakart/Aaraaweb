@@ -122,6 +122,8 @@ jobs:
         run: node scripts/check-v4.55.1-engineering-evidence.mjs
       - name: Check V4.55.2 release truth closure
         run: node scripts/check-v4.55.2-release-truth.mjs
+      - name: Check V4.56 guided operations development
+        run: node scripts/check-v4.56-guided-operations.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
