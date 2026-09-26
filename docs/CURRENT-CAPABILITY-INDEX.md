@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.54.1 Privacy Alignment & Finance Consistency Hotfix on top of V4.54 Controlled Action Execution & Operational Control and V4.53 Operational Intelligence & Execution Depth, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.55.2 Release Truth Closure on top of V4.55.1 Engineering Evidence Closure and V4.55 Field Readiness & Engineering Consolidation.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -44,6 +44,12 @@ V4.53 deepens execution without creating parallel domain models. Finance now exp
 V4.54 adds the first controlled Admin AI mutation beyond resident self-service: Helpdesk assignment uses prepare → impact preview → permission check → explicit confirmation → normal Helpdesk audit, with optimistic stale-preview protection and no free-form mutation. Treasurer Control Centre aggregates existing bank-reconciliation, unapplied-cash, budget-overrun, GST/TDS evidence-gap, refund and execution-readiness signals without posting or matching automatically. Guard command continuity adds aged handover/critical-incident and multi-gate attention evidence while explicitly treating the encrypted offline queue as device-local. Resident AI adds property-scoped household-staff status to the eight-language query path. Integration conformance exposes deterministic adapter-contract checks without vendor certification; Privacy exposes a non-certification evidence pack over consent, request, incident and registry evidence. Staging and main release evidence records Git tree SHAs so source-equivalent promotions are provable without creating extra release-branch commits.
 
 V4.54.1 aligns the new Resident household-staff AI path with the existing occupancy-only workforce privacy rule, centralizes reversal/refund-aware unapplied-cash calculation for both Late Fees and Treasurer evidence, separates integration configuration/contract/field-evidence/production-activation semantics, and adds a synthetic 100k-payment Treasurer regression benchmark. These are hotfix/read-model changes; they do not widen domain mutation authority or claim field capacity/certification.
+
+V4.55 converts the repository baseline into a stricter release candidate with hosted-staging gating, Flutter 3.47 convergence, risk-weighted behavioural regression, supply-chain security controls, explicit release identity and conservative branch hygiene. V4.55 does not turn repository completion into hosted, provider, hardware, store or society-pilot acceptance.
+
+V4.55.1 closes non-production engineering evidence gaps and subsequently hardens high-risk mutation/read boundaries: late-fee batch idempotency is bound to normalized request fingerprints; consumer service discovery and booking authorization follow verified current ownership/current occupancy with booking notes bound to idempotency; payment reconciliation operations bind idempotency to the exact mutation request and preserve settled/evidence invariants; Finance surfaces reversal/refund evidence; and an unconfirmed Resident AI complaint proposal is invalidated when its source text changes. These changes preserve explicit-confirmation and server-authorization boundaries.
+
+V4.55.2 is a release-truth closure slice. It aligns root, API, Admin, Resident and Guard identities to the same 4.55.2 candidate, updates this capability index to the implemented baseline, and adds an executable repository check that fails if release identity or closure documentation drifts. It does not promote staging or main and does not claim productionization or external acceptance.
 
 ## External evidence boundary
 
