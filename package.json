@@ -28,7 +28,8 @@
     "check:v4.55": "node scripts/check-v4.55-field-readiness.mjs",
     "check:v4.55.1": "node scripts/check-v4.55.1-engineering-evidence.mjs",
     "check:v4.55.2": "node scripts/check-v4.55.2-release-truth.mjs",
-    "check:v4.56": "node scripts/check-v4.56-guided-operations.mjs"
+    "check:v4.56": "node scripts/check-v4.56-guided-operations.mjs",
+    "check:v4.57": "node scripts/check-v4.57-admin-authorization-convergence.mjs"
   },
   "pnpm": {
     "overrides": {

@@ -25,7 +25,7 @@ type AdjustmentNote={id:string;type:'DEBIT'|'CREDIT'|'WAIVER';documentType:'DEBI
 type OperationalReadiness={status:'READY'|'WATCH'|'AT_RISK';draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;blockers:string[];nextActions:string[];automaticDebitAvailable:false;providerExecution:'ADAPTER_CONTROLLED';boundary:string;generatedAt:string}
 type TreasurerControl={status:'CLEAR'|'ATTENTION'|'ACTION_REQUIRED';bank:{unmatchedBank:number;unmatchedMovementPaise:string};cash:{unappliedCount:number;unappliedPaise:string};budget:{overrunLines:number;overrunPaise:string};tax:{gstEnabled:boolean;tdsEnabled:boolean;documentsMissingTaxEvidence:number};refunds:{refunds30d:number;refundedPaise30d:string};nextActions:string[];automaticPosting:false;automaticMatching:false;boundary:string;generatedAt:string}
 
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const money=(v:string|number|undefined)=>`₹${(Number(v??0)/100).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`
 const today=()=>new Date().toISOString().slice(0,10)
