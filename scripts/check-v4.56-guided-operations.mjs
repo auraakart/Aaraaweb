@@ -42,6 +42,35 @@ must('V4.56 payment-recovery regression',read('apps/resident/test/multi_property
   'billing without PAYMENTS does not request payment history',
   'expect(repository.paymentCalls, 0)'
 ]);
+const repository=read('apps/resident/lib/data/resident_repository.dart');
+must('V4.56 notice acknowledgement repository',repository,[
+  "api.patch('/api/v1/notices/$noticeId/acknowledge')"
+]);
+must('V4.56 notice acknowledgement controller',controller,[
+  'Future<void> acknowledgeNotice(String noticeId)',
+  "notice['requiresAcknowledgement'] != true",
+  "result['acknowledgedAt'] == null",
+  'await repository.acknowledgeNotice(noticeId);',
+  'await _loadNotices();',
+  'Notice acknowledgement could not be confirmed from the refreshed notice state.'
+]);
+const noticesScreen=read('apps/resident/lib/screens/notices_screen.dart');
+must('V4.56 notice acknowledgement UX',noticesScreen,[
+  'Acknowledgement required',
+  'Acknowledge notice',
+  'Notice acknowledged.',
+  'Acknowledgement could not be saved. Please retry.',
+  'animation: widget.controller'
+]);
+must('V4.56 acknowledgement state convergence',highlights,[
+  'final pendingAcknowledgement = requiresAcknowledgement && !acknowledged;',
+  'priority: pendingAcknowledgement ? 1 : 4',
+  "'Acknowledged'"
+]);
+must('V4.56 notice acknowledgement regression',read('apps/resident/test/notices_acknowledgement_test.dart'),[
+  'resident reviews and acknowledges a required notice',
+  'failed acknowledgement remains retryable'
+]);
 must('V4.56 development truth',read('docs/AARAAGATE-V4.56-GUIDED-OPERATIONS.md'),[
   'release identity is not yet cut to 4.56.0',
   'performs no workflow mutation',

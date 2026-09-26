@@ -212,6 +212,37 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> acknowledgeNotice(String noticeId) async {
+    if (!hasFeature('NOTICES')) {
+      throw StateError('Notices are not enabled for this society session.');
+    }
+    Map<String, dynamic>? notice;
+    for (final item in notices) {
+      if (item['id']?.toString() == noticeId) {
+        notice = item;
+        break;
+      }
+    }
+    if (notice == null) throw StateError('Notice is not available in the current society session.');
+    if (notice['requiresAcknowledgement'] != true) {
+      throw StateError('This notice does not require acknowledgement.');
+    }
+    if (notice['acknowledgedAt'] != null) return;
+
+    final result = await repository.acknowledgeNotice(noticeId);
+    if (result['acknowledgedAt'] == null) {
+      throw StateError('Notice acknowledgement was not confirmed by the server.');
+    }
+    await _loadNotices();
+    final confirmed = notices.any(
+      (item) => item['id']?.toString() == noticeId && item['acknowledgedAt'] != null,
+    );
+    if (!confirmed) {
+      throw StateError('Notice acknowledgement could not be confirmed from the refreshed notice state.');
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> refreshWorkforce() async {
     workforceError = null;
     if (!hasActiveProperty || !hasFeature('DOMESTIC_HELP')) {

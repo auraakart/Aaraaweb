@@ -101,4 +101,25 @@ void main() {
 
     expect(items, isEmpty);
   });
+
+  test('acknowledged required notice no longer remains a soon action', () {
+    final items = ResidentHomeHighlights.build(
+      now: DateTime(2026, 9, 18),
+      invoices: const [],
+      bookings: const [],
+      notices: const [
+        {
+          'id': 'notice-a',
+          'title': 'Water shutdown',
+          'publishedAt': '2026-09-18T08:00:00Z',
+          'requiresAcknowledgement': true,
+          'acknowledgedAt': '2026-09-18T09:00:00Z',
+        },
+      ],
+    );
+
+    expect(items.single.kind, ResidentHomeHighlightKind.notice);
+    expect(items.single.subtitle, 'Acknowledged');
+    expect(items.single.urgency, ResidentHomeUrgency.info);
+  });
 }

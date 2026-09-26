@@ -56,6 +56,11 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> acknowledgeNotice(String noticeId) async {
+    final value = await api.patch('/api/v1/notices/$noticeId/acknowledge');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> communityMeetings() async {
     final value = await api.get('/api/v1/governance/community/meetings');
     return _list(value);

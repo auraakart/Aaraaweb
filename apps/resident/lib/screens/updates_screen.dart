@@ -90,12 +90,20 @@ class UpdatesScreen extends StatelessWidget {
 
     if (controller.hasFeature('NOTICES')) {
       for (final notice in controller.notices) {
+        final requiresAcknowledgement = notice['requiresAcknowledgement'] == true;
+        final acknowledged = notice['acknowledgedAt'] != null;
+        final pendingAcknowledgement = requiresAcknowledgement && !acknowledged;
+        final context = _firstText([notice['category'], notice['body'], 'Society update']);
         items.add(_UpdateItem(
           icon: Icons.campaign_outlined,
           title: notice['title']?.toString() ?? 'Society notice',
-          subtitle: _firstText([notice['category'], notice['body'], 'Society update']),
+          subtitle: pendingAcknowledgement
+              ? 'Acknowledgement requested · $context'
+              : acknowledged
+                  ? 'Acknowledged · $context'
+                  : context,
           when: _date(notice, ['publishedAt', 'createdAt', 'startsAt']),
-          priority: notice['requiresAcknowledgement'] == true ? 1 : 4,
+          priority: pendingAcknowledgement ? 1 : 4,
         ));
       }
     }
