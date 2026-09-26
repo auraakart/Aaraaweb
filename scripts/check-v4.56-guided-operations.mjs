@@ -71,9 +71,26 @@ must('V4.56 notice acknowledgement regression',read('apps/resident/test/notices_
   'resident reviews and acknowledges a required notice',
   'failed acknowledgement remains retryable'
 ]);
-must('V4.56 development truth',read('docs/AARAAGATE-V4.56-GUIDED-OPERATIONS.md'),[
-  'release identity is not yet cut to 4.56.0',
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+if(rootPackage.version!=='4.56.0'||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must be V4.56.0.');
+  process.exit(1);
+}
+must('V4.56 Flutter release identity',read('apps/resident/pubspec.yaml'),['version: 4.56.0+45600']);
+must('V4.56 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.56.0+45600']);
+must('V4.56 release truth',read('docs/AARAAGATE-V4.56-GUIDED-OPERATIONS.md'),[
+  'Release candidate closed on develop; release identity is 4.56.0.',
   'performs no workflow mutation',
-  'Server-side authorization'
+  'Server-side authorization',
+  'V4.56 release closure'
 ]);
-console.log('V4.56 guided operations development contract: PASS');
+must('V4.56 release closure evidence',read('docs/AARAAGATE-V4.56-RELEASE-CLOSURE.md'),[
+  'PR #908',
+  'PR #909',
+  'PR #910',
+  '4.56.0+45600',
+  'does not claim staging/main promotion'
+]);
+console.log('V4.56 guided operations release closure: PASS');
