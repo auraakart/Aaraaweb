@@ -165,12 +165,19 @@ class ResidentHomeHighlights {
         return bDate.compareTo(aDate);
       });
       final notice = latest.first;
+      final requiresAcknowledgement = notice['requiresAcknowledgement'] == true;
+      final acknowledged = notice['acknowledgedAt'] != null;
+      final pendingAcknowledgement = requiresAcknowledgement && !acknowledged;
       items.add(ResidentHomeHighlight(
         kind: ResidentHomeHighlightKind.notice,
         title: notice['title']?.toString() ?? 'Society notice',
-        subtitle: notice['requiresAcknowledgement'] == true ? 'Acknowledgement requested' : 'Latest society update',
-        priority: notice['requiresAcknowledgement'] == true ? 1 : 4,
-        urgency: notice['requiresAcknowledgement'] == true ? ResidentHomeUrgency.soon : ResidentHomeUrgency.info,
+        subtitle: pendingAcknowledgement
+            ? 'Acknowledgement requested'
+            : acknowledged
+                ? 'Acknowledged'
+                : 'Latest society update',
+        priority: pendingAcknowledgement ? 1 : 4,
+        urgency: pendingAcknowledgement ? ResidentHomeUrgency.soon : ResidentHomeUrgency.info,
       ));
     }
 

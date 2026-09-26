@@ -29,9 +29,15 @@ Home now reuses the existing resident payment-history boundary when both `MAINTE
 
 Payment history remains optional enrichment. If `PAYMENTS` is not entitled or that read fails, maintenance invoices still load and the existing due reminder remains available.
 
+## Slice 4 — Resident notice acknowledgement convergence
+
+The Resident notice destination now exposes the existing audited acknowledgement workflow instead of only displaying “Acknowledgement requested”. Residents review the full notice before the action is offered. A successful acknowledgement is accepted only after the server response and refreshed published-notice state both report `acknowledgedAt`; the client does not manufacture acknowledgement state locally. Duplicate taps are blocked while the request is active, and failures leave the acknowledgement action retryable.
+
+Home, Updates and Community now distinguish pending acknowledgement from an already acknowledged required notice, so acknowledged notices no longer remain elevated as “Soon”.
+
 ## Regression contract
 
-`pnpm check:v4.56` and CI enforce the guided-navigation tokens, Resident semantic contract, payment-recovery scoping/fallback and this truth boundary. Existing V4.52 priority-ordering and Resident Action Inbox tests continue to run.
+`pnpm check:v4.56` and CI enforce the guided-navigation tokens, Resident semantic contract, payment-recovery scoping/fallback, notice acknowledgement convergence and this truth boundary. Existing V4.52 priority-ordering and Resident Action Inbox tests continue to run.
 
 ## Boundary
 
