@@ -49,8 +49,24 @@ export class PaymentReconciliationService{
     const p=await tx.$queryRaw<Array<{id:string;status:string;amountPaise:bigint}>>(Prisma.sql`SELECT "id","status","amountPaise" FROM "Payment" WHERE "societyId"=${societyId}::uuid AND "id"=${paymentId}::uuid FOR UPDATE`);if(!p.length)throw new NotFoundException('Payment not found');
     const refunds=await tx.$queryRaw<Array<{total:bigint}>>(Prisma.sql`SELECT COALESCE(SUM("amountPaise"),0)::bigint AS total FROM "PaymentRefund" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid`);
     const captured=(p[0].status==='CAPTURED'||p[0].status==='REFUNDED')?p[0].amountPaise:0n,refunded=refunds[0].total;
-    const existing=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid AND "status"<>'RESOLVED' FOR UPDATE`);
-    let id:string;if(existing.length){id=existing[0].id;await tx.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "provider"=${providerName},"expectedCapturedPaise"=${captured},"expectedRefundedPaise"=${refunded},"status"='PENDING',"reason"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid`);}else{const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`INSERT INTO "PaymentReconciliationCase" ("societyId","paymentId","provider","expectedCapturedPaise","expectedRefundedPaise") VALUES (${societyId}::uuid,${paymentId}::uuid,${providerName},${captured},${refunded}) RETURNING "id"`);id=rows[0].id;}
+    const existing=await tx.$queryRaw<Array<{id:string;provider:string}>>(Prisma.sql`SELECT "id","provider" FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid AND "status"<>'RESOLVED' FOR UPDATE`);
+    let id:string;if(existing.length){id=existing[0].id;if(existing[0].provider!==providerName)throw new ConflictException('Open reconciliation case is already bound to a different provider');await tx.$executeRaw(Prisma.sql`
+      UPDATE "PaymentReconciliationCase"
+      SET "expectedCapturedPaise"=${captured},
+          "expectedRefundedPaise"=${refunded},
+          "status"=CASE
+            WHEN "status"='MATCHED' AND ("expectedCapturedPaise"<>${captured} OR "expectedRefundedPaise"<>${refunded})
+              THEN 'PENDING'::"PaymentReconciliationStatus"
+            ELSE "status"
+          END,
+          "reason"=CASE
+            WHEN "status"='MATCHED' AND ("expectedCapturedPaise"<>${captured} OR "expectedRefundedPaise"<>${refunded})
+              THEN 'Expected finance state changed; provider observation is required'
+            ELSE "reason"
+          END,
+          "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
+    `);}else{const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`INSERT INTO "PaymentReconciliationCase" ("societyId","paymentId","provider","expectedCapturedPaise","expectedRefundedPaise") VALUES (${societyId}::uuid,${paymentId}::uuid,${providerName},${captured},${refunded}) RETURNING "id"`);id=rows[0].id;}
     return this.getCaseTx(tx,societyId,id);
   });}
 
@@ -66,12 +82,45 @@ export class PaymentReconciliationService{
 
   async resolveCase(societyId:string,userId:string,id:string,reason:string){const why=reason.trim();if(!why)throw new BadRequestException('Resolution reason is required');const count=await this.prisma.$executeRaw(Prisma.sql`UPDATE "PaymentReconciliationCase" SET "status"='RESOLVED',"reason"=${why},"resolvedByUserId"=${userId}::uuid,"resolvedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid AND "status"<>'RESOLVED'`);if(count===0)throw new ConflictException('Reconciliation case is missing or already resolved');return this.getCase(societyId,id);}
 
-  async createOperation(societyId:string,userId:string,paymentId:string,input:OperationInput){const provider=input.provider.trim(),key=input.idempotencyKey.trim();if(!provider||!key)throw new BadRequestException('Provider and idempotency key are required');if(input.operationType==='REFUND'&&(!input.amountPaise||input.amountPaise<=0))throw new BadRequestException('Refund operation requires a positive amount');return this.prisma.$transaction(async tx=>{
-    const existing=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "PaymentGatewayOperation" WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key} LIMIT 1`);if(existing.length)return this.getOperation(tx,societyId,existing[0].id);
-    const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`INSERT INTO "PaymentGatewayOperation" ("societyId","paymentId","operationType","provider","amountPaise","idempotencyKey","requestedByUserId") VALUES (${societyId}::uuid,${paymentId}::uuid,${input.operationType}::"GatewayOperationType",${provider},${input.amountPaise??null},${key},${userId}::uuid) RETURNING "id"`);return this.getOperation(tx,societyId,rows[0].id);
+  async createOperation(societyId:string,userId:string,paymentId:string,input:OperationInput){const provider=input.provider.trim(),key=input.idempotencyKey.trim(),amount=input.amountPaise??null;if(!provider||!key)throw new BadRequestException('Provider and idempotency key are required');if(input.operationType==='REFUND'&&(!input.amountPaise||input.amountPaise<=0))throw new BadRequestException('Refund operation requires a positive amount');return this.prisma.$transaction(async tx=>{
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
+    const existing=await tx.$queryRaw<Array<{id:string;paymentId:string;operationType:string;provider:string;amountPaise:string|null;requestedByUserId:string}>>(Prisma.sql`
+      SELECT "id","paymentId","operationType"::text AS "operationType","provider","amountPaise"::text AS "amountPaise","requestedByUserId"
+      FROM "PaymentGatewayOperation"
+      WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key}
+      LIMIT 1
+    `);
+    if(existing.length){
+      const prior=existing[0],expectedAmount=amount===null?null:String(amount);
+      if(prior.paymentId!==paymentId||prior.operationType!==input.operationType||prior.provider!==provider||prior.amountPaise!==expectedAmount||prior.requestedByUserId!==userId){
+        throw new ConflictException('Idempotency key was already used for a different gateway operation request');
+      }
+      return this.getOperation(tx,societyId,prior.id);
+    }
+    const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`INSERT INTO "PaymentGatewayOperation" ("societyId","paymentId","operationType","provider","amountPaise","idempotencyKey","requestedByUserId") VALUES (${societyId}::uuid,${paymentId}::uuid,${input.operationType}::"GatewayOperationType",${provider},${amount},${key},${userId}::uuid) RETURNING "id"`);return this.getOperation(tx,societyId,rows[0].id);
   }).catch(e=>this.rethrow(e,'Gateway operation could not be created'));}
 
-  async recordOperationResult(societyId:string,id:string,input:OperationResultInput){const rows=await this.prisma.$queryRaw<Array<{status:string}>>(Prisma.sql`UPDATE "PaymentGatewayOperation" SET "status"=${input.status}::"GatewayOperationStatus","providerOperationId"=COALESCE(${input.providerOperationId?.trim()||null},"providerOperationId"),"failureCode"=${input.failureCode?.trim()||null},"failureMessage"=${input.failureMessage?.trim()||null},"settledAt"=CASE WHEN ${input.status}='SETTLED' THEN CURRENT_TIMESTAMP ELSE "settledAt" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "status"`);if(!rows.length)throw new NotFoundException('Gateway operation not found');const client=this.prisma as unknown as Prisma.TransactionClient;return this.getOperation(client,societyId,id);}
+  async recordOperationResult(societyId:string,id:string,input:OperationResultInput){const providerOperationId=input.providerOperationId?.trim()||null;return this.prisma.$transaction(async tx=>{
+    const currentRows=await tx.$queryRaw<Array<{status:string;providerOperationId:string|null}>>(Prisma.sql`
+      SELECT "status","providerOperationId" FROM "PaymentGatewayOperation"
+      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
+      FOR UPDATE
+    `);
+    const current=currentRows[0];if(!current)throw new NotFoundException('Gateway operation not found');
+    if(current.status==='SETTLED'&&input.status!=='SETTLED')throw new ConflictException('Settled gateway operation cannot regress to a non-settled state');
+    if(current.providerOperationId&&providerOperationId&&current.providerOperationId!==providerOperationId)throw new ConflictException('Provider operation id cannot change once recorded');
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE "PaymentGatewayOperation"
+      SET "status"=${input.status}::"GatewayOperationStatus",
+          "providerOperationId"=COALESCE(${providerOperationId},"providerOperationId"),
+          "failureCode"=${input.failureCode?.trim()||null},
+          "failureMessage"=${input.failureMessage?.trim()||null},
+          "settledAt"=CASE WHEN ${input.status}='SETTLED' THEN COALESCE("settledAt",CURRENT_TIMESTAMP) ELSE "settledAt" END,
+          "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid
+    `);
+    return this.getOperation(tx,societyId,id);
+  });}
 
   listOperations(societyId:string,paymentId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT "id","paymentId","operationType","status","provider","providerOperationId","amountPaise"::text AS "amountPaise","idempotencyKey","failureCode","failureMessage","requestedAt","settledAt" FROM "PaymentGatewayOperation" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid ORDER BY "createdAt" DESC`);}
   private async getCaseTx(tx:Prisma.TransactionClient,societyId:string,id:string){const rows=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT "id","paymentId","status","provider","providerPaymentId","observedProviderStatus","observedAmountPaise"::text AS "observedAmountPaise","expectedCapturedPaise"::text AS "expectedCapturedPaise","expectedRefundedPaise"::text AS "expectedRefundedPaise","reason","lastCheckedAt","resolvedByUserId","resolvedAt","createdAt","updatedAt" FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid AND "id"=${id}::uuid`);return rows[0];}
