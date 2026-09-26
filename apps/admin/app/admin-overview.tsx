@@ -37,8 +37,9 @@ export function AdminOverview({session,open,allowedViews}:{session:Session;open:
       canManageAmenities?api<AmenityBooking[]>('/amenities/manage/bookings?status=PENDING',{},session).then(setAmenityPending):Promise.resolve(),
     ]
     Promise.allSettled(tasks).then(results=>{
-      const coreResults=[canReadHelpdesk?results[0]:null,canReadNotices?results[1]:null].filter((result):result is PromiseSettledResult<unknown>=>result!==null)
-      if(coreResults.length>0&&coreResults.every(result=>result.status==='rejected'))setError('Core operations summary could not be loaded.')
+      const coreRequested=(canReadHelpdesk?1:0)+(canReadNotices?1:0)
+      const coreFailures=(canReadHelpdesk&&results[0].status==='rejected'?1:0)+(canReadNotices&&results[1].status==='rejected'?1:0)
+      if(coreRequested>0&&coreFailures===coreRequested)setError('Core operations summary could not be loaded.')
     }).finally(()=>setLoading(false))
   },[session,allowedViews,canReadHelpdesk,canReadNotices,canReadWorkforce,canReadFinance,canManageAmenities,canManageMigration])
   const active=tickets.filter(t=>!['RESOLVED','CLOSED'].includes(t.status))
