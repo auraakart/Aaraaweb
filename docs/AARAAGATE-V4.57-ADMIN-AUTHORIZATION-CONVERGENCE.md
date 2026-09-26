@@ -17,6 +17,12 @@ The backend assigns `AUDITOR` both `FINANCE_READ` and `SOCIETY_WORKFORCE_READ`. 
 - Society Workforce already accepts Auditor for read-only access; its manage-role set remains unchanged.
 - Guided Finance/Workforce actions therefore lead to destinations the same role can actually read.
 
+## Slice 2 — Auditor operational read-path convergence
+
+The backend also grants `AUDITOR` `GOVERNANCE_READ`, `FACILITIES_READ` and `OCCUPANCY_LIFECYCLE_READ`. The corresponding Admin pages now admit Auditor sessions through their existing read gates while keeping their manage-role sets unchanged. Governance hides management-only navigation for Auditor, and Governance, Facilities and Occupancy return to the dedicated Audit workspace instead of dropping a read-only reviewer into the general Admin shell.
+
+The Audit workspace now exposes discoverable links to the already-authorized read-only operational surfaces: Finance, Society Workforce, Governance, Facilities, Occupancy Lifecycle, Society Vendors, Documents and Privacy Operations. No Parking link is exposed yet because the Parking client still needs an explicit read/manage split before Auditor access can be safely converged.
+
 ## Security boundary
 
 This slice changes client reachability only. It does not add backend permissions, mutation authority, cross-society access or a new role. Server authorization and segregation-of-duties checks remain authoritative for every API request.

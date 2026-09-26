@@ -18,7 +18,7 @@ type OperatorContext={units:UnitOption[];occupancies:ActiveOccupancy[]}
 type ReadinessEvidence={requestId:string;kind:'MOVE_IN'|'MOVE_OUT';checklist:{total:number;required:number;completedRequired:number;mandatoryReady:boolean};documents:{total:number;verified:number};handover:{activeVehicles:number;activeWorkforceAssignments:number;activeParkingAllocations:number;gateAuthority:{primaryGateContact:boolean;gateApprovalEnabled:boolean;gateNotificationEnabled:boolean}|null};boundary:string}
 
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
-const readRoles=new Set([...manageRoles,'COMMITTEE_MEMBER'])
+const readRoles=new Set([...manageRoles,'COMMITTEE_MEMBER','AUDITOR'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
 const fmt=(v:string)=>new Date(v).toLocaleString('en-IN')
 const unitLabel=(u:UnitOption)=>`${u.building.name} · ${u.number}`
@@ -182,7 +182,7 @@ export default function OccupancyLifecyclePage(){
       context={`${s.societyName??'Current society'} · ${human(s.role)}`}
       title="Move-in & move-out"
       description="Review occupancy changes, verify readiness, and execute only when mandatory handover controls are complete. Legal ownership remains independent."
-      actions={<a href="/">← Admin home</a>}
+      actions={<a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>}
     />
     {operationError&&<ErrorState title="Occupancy operation failed" description={operationError}/>}
     <ActionBar feedback={success} label="Occupancy lifecycle actions">

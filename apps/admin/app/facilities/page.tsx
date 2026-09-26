@@ -9,7 +9,7 @@ type Assignee={id:string;name:string;phone:string}
 type WorkOrder={id:string;assetId?:string|null;assetCode?:string|null;assetName?:string|null;workType:'CORRECTIVE'|'PREVENTIVE'|'INSPECTION';priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';title:string;description?:string|null;status:'OPEN'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED';scheduledAt?:string|null;dueAt?:string|null;assignedUserId?:string|null;assignedUserName?:string|null;completionNote?:string|null;completedAt?:string|null;createdAt:string}
 type WorkOrderEvent={id:string;eventType:string;fromStatus?:string|null;toStatus?:string|null;note?:string|null;actorName?:string|null;occurredAt:string}
 
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
@@ -43,7 +43,7 @@ export default function FacilitiesPage(){
  if(!s||!canRead)return <PageShell><PageHeader title="Facilities access required" actions={<a href="/">Return to Admin</a>}/></PageShell>
 
  return <PageShell>
-  <PageHeader context={`${s.societyName??'Current society'} · ${s.role.replaceAll('_',' ')}`} title="Facilities operations" description="Track common-area assets and maintenance work orders separately from resident amenity bookings." actions={<a href="/">← Admin home</a>}/>
+  <PageHeader context={`${s.societyName??'Current society'} · ${s.role.replaceAll('_',' ')}`} title="Facilities operations" description="Track common-area assets and maintenance work orders separately from resident amenity bookings." actions={<a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>}/>
   {error&&<ErrorState title="Facilities operation failed" description={error}/>}<ActionBar feedback={notice} label="Facilities workspace actions"><SecondaryButton loading={busy} onClick={()=>void load()}>Reload workspace</SecondaryButton></ActionBar>
 
   <section style={grid}><div style={panel}><h2>Operations summary</h2><EvidenceGrid items={[{id:'assets',label:'Assets',value:assets.length},{id:'open-orders',label:'Open work orders',value:openCount},{id:'critical-active',label:'Critical active',value:orders.filter(o=>o.priority==='CRITICAL'&&o.status!=='COMPLETED'&&o.status!=='CANCELLED').length}]}/></div><div style={panel}><h2>Access boundary</h2><p>Read access follows FACILITIES_READ; creation and lifecycle changes follow FACILITIES_MANAGE.</p></div></section>
