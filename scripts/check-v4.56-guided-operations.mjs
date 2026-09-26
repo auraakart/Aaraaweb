@@ -25,6 +25,6 @@ must('V4.56 Resident regression',read('apps/resident/test/home_action_inbox_dedu
 must('V4.56 development truth',read('docs/AARAAGATE-V4.56-GUIDED-OPERATIONS.md'),[
   'release identity is not yet cut to 4.56.0',
   'performs no workflow mutation',
-  'server authorization'
+  'Server-side authorization'
 ]);
 console.log('V4.56 guided operations development contract: PASS');
