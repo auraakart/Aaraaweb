@@ -18,15 +18,17 @@ type OperationsQueueItem={priority:OperationsPriority;title:string;whyNow:string
 export function AdminOverview({session,open,allowedViews}:{session:Session;open:(v:View)=>void;allowedViews:View[]}){
   const[tickets,setTickets]=useState<Ticket[]>([]),[notices,setNotices]=useState<Notice[]>([]),[workforce,setWorkforce]=useState<WorkforceSummary|null>(null),[billing,setBilling]=useState<BillingInvoice[]>([]),[ageing,setAgeing]=useState<ReceivableAgeing|null>(null),[reconciliation,setReconciliation]=useState<ReconciliationCase[]>([]),[migration,setMigration]=useState<MigrationReadiness|null>(null),[amenityPending,setAmenityPending]=useState<AmenityBooking[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('')
   const canOpen=(view:View)=>allowedViews.includes(view)
+  const canReadHelpdesk=['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'].includes(session.role)
+  const canReadNotices=['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'].includes(session.role)
+  const canReadWorkforce=['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','SECURITY_SUPERVISOR','AUDITOR'].includes(session.role)
+  const canReadFinance=['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'].includes(session.role)
+  const canManageAmenities=['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(session.role)
+  const canManageMigration=['SUPER_ADMIN','SOCIETY_ADMIN'].includes(session.role)
   useEffect(()=>{
     setLoading(true);setError('')
-    const canReadWorkforce=['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','SECURITY_SUPERVISOR','AUDITOR'].includes(session.role)
-    const canReadFinance=['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'].includes(session.role)
-    const canManageAmenities=['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(session.role)
-    const canManageMigration=['SUPER_ADMIN','SOCIETY_ADMIN'].includes(session.role)
     const tasks=[
-      api<Ticket[]>('/helpdesk/review/queue',{},session).then(setTickets),
-      api<Notice[]>('/notices/manage',{},session).then(setNotices),
+      canReadHelpdesk?api<Ticket[]>('/helpdesk/review/queue',{},session).then(setTickets):Promise.resolve(),
+      canReadNotices?api<Notice[]>('/notices/manage',{},session).then(setNotices):Promise.resolve(),
       canReadWorkforce?api<WorkforceSummary>('/society-workforce/summary',{},session).then(setWorkforce):Promise.resolve(),
       canOpen('billing')?api<BillingInvoice[]>('/billing/invoices/admin',{},session).then(setBilling):Promise.resolve(),
       canReadFinance?api<ReceivableAgeing[]>('/accounting/receivables/ageing',{},session).then(rows=>setAgeing(rows[0]??null)):Promise.resolve(),
@@ -35,9 +37,10 @@ export function AdminOverview({session,open,allowedViews}:{session:Session;open:
       canManageAmenities?api<AmenityBooking[]>('/amenities/manage/bookings?status=PENDING',{},session).then(setAmenityPending):Promise.resolve(),
     ]
     Promise.allSettled(tasks).then(results=>{
-      if(results[0].status==='rejected'&&results[1].status==='rejected')setError('Core operations summary could not be loaded.')
+      const coreResults=[canReadHelpdesk?results[0]:null,canReadNotices?results[1]:null].filter((result):result is PromiseSettledResult<unknown>=>result!==null)
+      if(coreResults.length>0&&coreResults.every(result=>result.status==='rejected'))setError('Core operations summary could not be loaded.')
     }).finally(()=>setLoading(false))
-  },[session,allowedViews])
+  },[session,allowedViews,canReadHelpdesk,canReadNotices,canReadWorkforce,canReadFinance,canManageAmenities,canManageMigration])
   const active=tickets.filter(t=>!['RESOLVED','CLOSED'].includes(t.status))
   const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate())
   const overdue=billing.filter(i=>i.status==='ISSUED'&&i.dueDate&&new Date(i.dueDate)<today).length
@@ -56,7 +59,7 @@ export function AdminOverview({session,open,allowedViews}:{session:Session;open:
   if(amenityPending.length>0)operationsQueue.push({priority:'NORMAL',title:'Amenity approvals',whyNow:`${amenityPending.length} booking request${amenityPending.length===1?'':'s'} await an operator decision.`,nextAction:'Open Amenity operations and apply the configured approval policy.',actionLabel:'Open Amenities',href:'/amenities'})
   if(workforce&&workforce.pendingVerification>0)operationsQueue.push({priority:'NORMAL',title:'Workforce verification',whyNow:`${workforce.pendingVerification} society worker${workforce.pendingVerification===1?'':'s'} await verification.`,nextAction:'Review Society Workforce evidence before granting gate eligibility.',actionLabel:'Open workforce',href:'/society-workforce'})
   operationsQueue.sort((a,b)=>priorityRank[a.priority]-priorityRank[b.priority]||a.title.localeCompare(b.title))
-return <><Header title="Operations overview" society={session.societyName}/>{error&&<div className="error">{error}</div>}{loading?<section className="panel"><Empty text="Loading operational summary…"/></section>:<><div className="grid"><Metric label="Open helpdesk" value={active.length}/><Metric label="Urgent tickets" value={active.filter(t=>['URGENT','CRITICAL','HIGH'].includes(t.priority)).length}/><Metric label="Published notices" value={notices.filter(n=>n.status==='PUBLISHED').length}/><Metric label="Draft notices" value={notices.filter(n=>n.status==='DRAFT').length}/>{workforce&&<><Metric label="Workforce inside now" value={workforce.inside}/><Metric label="Workforce on leave" value={workforce.onLeave}/><Metric label="Workforce pending verification" value={workforce.pendingVerification}/><Metric label="Long-open attendance" value={workforce.longOpenAttendance.length}/></>}{canOpen('billing')&&<Metric label="Overdue invoices" value={overdue}/>}
+return <><Header title="Operations overview" society={session.societyName}/>{error&&<div className="error">{error}</div>}{loading?<section className="panel"><Empty text="Loading operational summary…"/></section>:<><div className="grid">{canReadHelpdesk&&<><Metric label="Open helpdesk" value={active.length}/><Metric label="Urgent tickets" value={active.filter(t=>['URGENT','CRITICAL','HIGH'].includes(t.priority)).length}/></>}{canReadNotices&&<><Metric label="Published notices" value={notices.filter(n=>n.status==='PUBLISHED').length}/><Metric label="Draft notices" value={notices.filter(n=>n.status==='DRAFT').length}/></>}{workforce&&<><Metric label="Workforce inside now" value={workforce.inside}/><Metric label="Workforce on leave" value={workforce.onLeave}/><Metric label="Workforce pending verification" value={workforce.pendingVerification}/><Metric label="Long-open attendance" value={workforce.longOpenAttendance.length}/></>}{canOpen('billing')&&<Metric label="Overdue invoices" value={overdue}/>}
 {ageing&&<Metric label="Aged receivables (₹)" value={agedReceivablesRupees}/>} 
 {reconciliation.length>0&&<Metric label="Open reconciliation" value={openReconciliation.length}/>}
 {amenityPending.length>0&&<Metric label="Amenity approvals" value={amenityPending.length}/>}

@@ -124,6 +124,8 @@ jobs:
         run: node scripts/check-v4.55.2-release-truth.mjs
       - name: Check V4.56 guided operations development
         run: node scripts/check-v4.56-guided-operations.mjs
+      - name: Check V4.57 Admin authorization convergence
+        run: node scripts/check-v4.57-admin-authorization-convergence.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
