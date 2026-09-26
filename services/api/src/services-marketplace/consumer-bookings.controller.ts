@@ -31,7 +31,7 @@ class ConsumerBookingDto {
   @IsUUID() offeringId!: string;
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
-  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
 }
 
