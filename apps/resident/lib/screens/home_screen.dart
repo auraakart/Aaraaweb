@@ -53,6 +53,7 @@ class HomeScreen extends StatelessWidget {
     final hasQuickActions = showStaff || showBilling || showAmenities || showHelpdesk;
     final highlights = ResidentHomeHighlights.build(
       invoices: showBilling ? controller.maintenanceInvoices : const [],
+      payments: showBilling ? controller.maintenancePayments : const [],
       bookings: showServices ? controller.bookings : const [],
       notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],

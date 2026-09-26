@@ -22,6 +22,26 @@ must('V4.56 Resident action clarity',resident,[
 must('V4.56 Resident regression',read('apps/resident/test/home_action_inbox_dedup_test.dart'),[
   'Soon. Water seepage near kitchen. High priority · action in progress. Open helpdesk'
 ]);
+const controller=read('apps/resident/lib/data/resident_data_controller.dart');
+must('V4.56 payment-recovery scoping',controller,[
+  'List<Map<String, dynamic>> maintenancePayments = const [];',
+  "if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;",
+  "invoiceIds.contains(item['invoiceId']?.toString())",
+  'Payment recovery is optional Home enrichment.'
+]);
+const highlights=read('apps/resident/lib/data/resident_home_highlights.dart');
+must('V4.56 payment-recovery prioritization',highlights,[
+  'final recoveryPayments = payments.where',
+  "'Payment needs attention'",
+  'Previous payment was not confirmed · retry from Billing',
+  'Gateway authorization is awaiting final capture · do not pay again yet',
+  'recoveryBilling.priority <= invoiceBilling.priority'
+]);
+must('V4.56 payment-recovery regression',read('apps/resident/test/multi_property_isolation_test.dart'),[
+  "maintenancePayments.map((item) => item['id'])",
+  'billing without PAYMENTS does not request payment history',
+  'expect(repository.paymentCalls, 0)'
+]);
 must('V4.56 development truth',read('docs/AARAAGATE-V4.56-GUIDED-OPERATIONS.md'),[
   'release identity is not yet cut to 4.56.0',
   'performs no workflow mutation',
