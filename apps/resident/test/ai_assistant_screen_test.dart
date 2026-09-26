@@ -63,6 +63,24 @@ void main(){
     expect(api.posts.where((path)=>path.endsWith('/confirm')).length,1);
   });
 
+  testWidgets('editing source text invalidates an unconfirmed complaint proposal',(tester) async {
+    final api=FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(apiClient:api,unitId:'22222222-2222-4222-8222-222222222222')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField),'Water is leaking near the kitchen sink');
+    await tester.ensureVisible(find.text('Prepare complaint'));
+    await tester.tap(find.text('Prepare complaint'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm complaint'),findsOneWidget);
+
+    await tester.enterText(find.byType(TextField),'The issue is now a lift noise complaint');
+    await tester.pump();
+    expect(find.text('Confirm complaint'),findsNothing);
+    expect(find.text('Review complaint before submitting'),findsNothing);
+    expect(api.posts.where((path)=>path.endsWith('/confirm')),isEmpty);
+  });
+
   testWidgets('demo assistant answers locally and never calls the API',(tester) async {
     final api=FakeApiClient();
     await tester.pumpWidget(MaterialApp(home:AiAssistantScreen(apiClient:api,unitId:'demo-unit-1',demoMode:true)));

@@ -52,6 +52,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (!widget.demoMode) _loadTools();
   }
 
+  void _clearPendingProposal() {
+    if (_proposal?['status']?.toString() == 'PROPOSED') _proposal = null;
+  }
+
   Future<void> _loadTools() async {
     setState(() => _toolsBusy = true);
     try {
@@ -92,6 +96,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         return;
       }
       setState(() {
+        _clearPendingProposal();
         _controller.text = text.trim();
         _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantReview');
@@ -108,6 +113,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _busy = true;
       _error = null;
       _result = null;
+      _clearPendingProposal();
     });
     try {
       if (widget.demoMode) {
@@ -183,6 +189,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _result = null;
+      _clearPendingProposal();
     });
     try {
       if (widget.demoMode) {
@@ -274,7 +282,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   for (final prompt in _demoPrompts)
                     ActionChip(
                       label: Text(prompt),
-                      onPressed: _busy ? null : () { _controller.text = prompt; _ask(); },
+                      onPressed: _busy ? null : () { setState(_clearPendingProposal); _controller.text = prompt; _ask(); },
                     ),
                 ],
               ),
@@ -332,6 +340,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             const SizedBox(height: 10),
             TextField(
               controller: _controller,
+              onChanged: (_) {
+                if (_proposal?['status']?.toString() == 'PROPOSED') {
+                  setState(_clearPendingProposal);
+                }
+              },
               minLines: 3,
               maxLines: 6,
               decoration: const InputDecoration(
