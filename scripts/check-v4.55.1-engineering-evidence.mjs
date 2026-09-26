@@ -12,7 +12,7 @@ const must = (label, source, tokens) => {
 const root = JSON.parse(read('package.json'));
 const api = JSON.parse(read('services/api/package.json'));
 const admin = JSON.parse(read('apps/admin/package.json'));
-const releaseLine = /^4\\.55\\.\\d+$/;
+const releaseLine = /^4\.55\.\d+$/;
 if (!releaseLine.test(root.version) || api.version !== root.version || admin.version !== root.version) {
   console.error('Root/API/Admin release identity must remain aligned on the V4.55.x release line.');
   process.exit(1);
