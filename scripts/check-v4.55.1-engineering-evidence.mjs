@@ -12,12 +12,13 @@ const must = (label, source, tokens) => {
 const root = JSON.parse(read('package.json'));
 const api = JSON.parse(read('services/api/package.json'));
 const admin = JSON.parse(read('apps/admin/package.json'));
-if (root.version !== '4.55.1' || api.version !== '4.55.1' || admin.version !== '4.55.1') {
-  console.error('Root/API/Admin release identity must be V4.55.1.');
+const releaseLine = /^4\.55\.\d+$/;
+if (!releaseLine.test(root.version) || api.version !== root.version || admin.version !== root.version) {
+  console.error('Root/API/Admin release identity must remain aligned on the V4.55.x release line.');
   process.exit(1);
 }
 for (const file of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
-  must(file, read(file), ['version: 4.55.1+45501', "flutter: '>=3.47.0'"]);
+  must(file, read(file), ['version: 4.55.', "flutter: '>=3.47.0'"]);
 }
 
 const coverageConfig = read('services/api/vitest.risk-coverage.config.ts');

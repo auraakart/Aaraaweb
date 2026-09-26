@@ -1,6 +1,6 @@
 {
   "name": "@aaraagate/admin",
-  "version": "4.55.1",
+  "version": "4.55.2",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.55.1",
+  "version": "4.55.2",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -26,7 +26,8 @@
     "check:v4.54": "node scripts/check-v4.54-controlled-action-operational-control.mjs",
     "check:v4.54.1": "node scripts/check-v4.54.1-privacy-finance-consistency.mjs",
     "check:v4.55": "node scripts/check-v4.55-field-readiness.mjs",
-    "check:v4.55.1": "node scripts/check-v4.55.1-engineering-evidence.mjs"
+    "check:v4.55.1": "node scripts/check-v4.55.1-engineering-evidence.mjs",
+    "check:v4.55.2": "node scripts/check-v4.55.2-release-truth.mjs"
   },
   "pnpm": {
     "overrides": {
