@@ -1,7 +1,7 @@
 # Aaraagate V4.60 — Gate Decision Recovery
 
 Date: 2026-09-27
-Status: Development started on `develop`; runtime identity remains V4.59.0 until release closure.
+Status: Release candidate closed on `develop`; release identity is V4.60.0.
 
 ## Objective
 
@@ -27,10 +27,14 @@ Approved visitor cards now show the server-returned validity window before offer
 
 V4.60 does not change current-occupancy/gate-approver authorization, access-request states, visitor validity windows, credential issuance, Guard check-in/check-out authority or audit semantics. The server continues to perform conditional status updates and rejects stale transitions.
 
+## V4.60 release closure
+
+The milestone is closed on `develop` after PRs #924–#926. The four slices remain intentionally bounded to Resident gate decision serialization, authoritative stale-state recovery, state-accurate outcome presentation and review-before-cancel for approved visitor passes. Server authorization, compare-and-swap access transitions, visitor validity policy, Guard authority and audit evidence remain unchanged.
+
 ## Regression contract
 
-`pnpm check:v4.60` and CI require the per-card mutation lock, controller recovery reload, focused duplicate-tap test and stale-state recovery test.
+`pnpm check:v4.60` and CI require the per-card mutation lock, controller recovery reload, focused duplicate-tap/stale-state tests, visitor-pass cancellation review, aligned runtime identity and release-closure evidence.
 
 ## Boundary
 
-This is a V4.60 development slice only. It does not claim V4.60.0 release closure, staging/main promotion, productionization, hosted acceptance, live provider integration, hardware certification, signed store release or field-pilot/business acceptance.
+V4.60 is closed as a repository release candidate on `develop`. This does not claim staging/main promotion, productionization, hosted acceptance, live provider integration, hardware certification, signed store release or field-pilot/business acceptance.

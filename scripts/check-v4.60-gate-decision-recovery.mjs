@@ -58,10 +58,32 @@ must('V4.60 visitor cancellation regression',read('apps/resident/test/gate_scree
   "expect(controller.accessRequests.single['status'], 'CANCELLED');"
 ]);
 
-must('V4.60 development truth',read('docs/AARAAGATE-V4.60-GATE-DECISION-RECOVERY.md'),[
-  'runtime identity remains V4.59.0',
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+const currentVersion=rootPackage.version.split('.').map(Number);
+const atLeastV460=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=60));
+if(!atLeastV460||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.60.0 or newer.');
+  process.exit(1);
+}
+const runtimeVersionToken='version: '+rootPackage.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){
+  console.error('Resident/Guard release identity must remain aligned with the current root release.');
+  process.exit(1);
+}
+
+must('V4.60 release truth',read('docs/AARAAGATE-V4.60-GATE-DECISION-RECOVERY.md'),[
+  'Release candidate closed on `develop`; release identity is V4.60.0.',
   'server continues to perform conditional status updates',
-  'does not claim V4.60.0 release closure'
+  'V4.60 release closure'
+]);
+must('V4.60 release closure evidence',read('docs/AARAAGATE-V4.60-RELEASE-CLOSURE.md'),[
+  'PR #924',
+  'PR #925',
+  'PR #926',
+  '4.60.0+46000',
+  'does not claim staging/main promotion'
 ]);
 
-console.log('V4.60 gate decision recovery development contract: PASS');
+console.log('V4.60 gate decision recovery release closure: PASS');
