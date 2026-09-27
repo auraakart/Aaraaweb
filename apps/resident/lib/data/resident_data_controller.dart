@@ -492,8 +492,42 @@ class ResidentDataController extends ChangeNotifier {
   bool isWorkforceLeaveActive(String leaveId) => workforceLeaves.any((item) => item['id']?.toString() == leaveId && item['active'] != false);
   Map<String, dynamic>? workforceAssignmentFor(String assignmentId) => workforceAssignments.where((item) => item['id']?.toString() == assignmentId).firstOrNull;
 
+  bool hasMatchingWorkforceLeave({
+    required String assignmentId,
+    required DateTime startsOn,
+    required DateTime endsOn,
+    String? reason,
+  }) {
+    final normalizedReason = reason?.trim() ?? '';
+    return leavesFor(assignmentId).any((item) {
+      final itemReason = item['reason']?.toString().trim() ?? '';
+      return _sameDateOnly(item['startsOn'], startsOn) &&
+          _sameDateOnly(item['endsOn'], endsOn) &&
+          itemReason == normalizedReason;
+    });
+  }
+
+  bool workforceRatingMatches(String assignmentId, {required int score, String? comment}) {
+    final rating = ratingFor(assignmentId);
+    if (rating == null) return false;
+    final currentScore = int.tryParse(rating['score']?.toString() ?? '');
+    final currentComment = rating['comment']?.toString().trim() ?? '';
+    return currentScore == score && currentComment == (comment?.trim() ?? '');
+  }
+
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
-    await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
+    try {
+      await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (hasMatchingWorkforceLeave(
+        assignmentId: assignmentId,
+        startsOn: startsOn,
+        endsOn: endsOn,
+        reason: reason,
+      )) return;
+      rethrow;
+    }
     await _loadWorkforce();
     if (!_disposed) notifyListeners();
   }
@@ -508,7 +542,17 @@ class ResidentDataController extends ChangeNotifier {
     await _loadWorkforce();
     if (!_disposed) notifyListeners();
   }
-  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async { await repository.rateWorkforce(assignmentId, score: score, comment: comment); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
+    try {
+      await repository.rateWorkforce(assignmentId, score: score, comment: comment);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (workforceRatingMatches(assignmentId, score: score, comment: comment)) return;
+      rethrow;
+    }
+    await _loadWorkforce();
+    if (!_disposed) notifyListeners();
+  }
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     if (!households.any((item) => item['id']?.toString() == householdId)) throw StateError('Household is outside the active property context');
     await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
@@ -532,6 +576,14 @@ class ResidentDataController extends ChangeNotifier {
     await _loadWorkforce();
     if (refreshAccess) await _loadAccess();
     if (!_disposed) notifyListeners();
+  }
+
+  bool _sameDateOnly(Object? raw, DateTime expected) {
+    final parsed = DateTime.tryParse(raw?.toString() ?? '');
+    return parsed != null &&
+        parsed.year == expected.year &&
+        parsed.month == expected.month &&
+        parsed.day == expected.day;
   }
 
   void _capture(Object error, void Function(String message) assign) {

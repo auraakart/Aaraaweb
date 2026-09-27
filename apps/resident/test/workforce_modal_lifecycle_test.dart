@@ -7,6 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 class _WorkforceRecoveryRepository extends DemoResidentRepository {
   bool leaveCancelled = false;
   bool assignmentEnded = false;
+  bool leaveCreated = false;
+  bool ratingSaved = false;
+  bool commitLeaveBeforeFailure = true;
+  bool commitRatingBeforeFailure = true;
+  DateTime? createdStartsOn;
+  DateTime? createdEndsOn;
+  String? createdReason;
+  int? savedScore;
+  String? savedComment;
   int workforceReads = 0;
 
   @override
@@ -35,21 +44,63 @@ class _WorkforceRecoveryRepository extends DemoResidentRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> workforceLeaves() async => leaveCancelled
-      ? const []
-      : [
-          {
-            'id': 'leave-recovery',
-            'assignmentId': 'assignment-recovery',
-            'active': true,
-            'startsOn': '2026-09-28',
-            'endsOn': '2026-09-29',
-            'reason': 'Family visit',
-          },
-        ];
+  Future<List<Map<String, dynamic>>> workforceLeaves() async {
+    final rows = <Map<String, dynamic>>[];
+    if (!leaveCancelled) {
+      rows.add({
+        'id': 'leave-recovery',
+        'assignmentId': 'assignment-recovery',
+        'active': true,
+        'startsOn': '2026-09-28',
+        'endsOn': '2026-09-29',
+        'reason': 'Family visit',
+      });
+    }
+    if (leaveCreated && createdStartsOn != null && createdEndsOn != null) {
+      rows.add({
+        'id': 'leave-created-after-timeout',
+        'assignmentId': 'assignment-recovery',
+        'active': true,
+        'startsOn': createdStartsOn!.toIso8601String(),
+        'endsOn': createdEndsOn!.toIso8601String(),
+        if (createdReason != null && createdReason!.trim().isNotEmpty) 'reason': createdReason!.trim(),
+      });
+    }
+    return rows;
+  }
 
   @override
-  Future<List<Map<String, dynamic>>> workforceRatings() async => const [];
+  Future<List<Map<String, dynamic>>> workforceRatings() async => ratingSaved
+      ? [
+          {
+            'assignmentId': 'assignment-recovery',
+            'score': savedScore,
+            if (savedComment != null && savedComment!.trim().isNotEmpty) 'comment': savedComment!.trim(),
+          },
+        ]
+      : const [];
+
+  @override
+  Future<Map<String, dynamic>> createWorkforceLeave({
+    required String assignmentId,
+    required DateTime startsOn,
+    required DateTime endsOn,
+    String? reason,
+  }) async {
+    createdStartsOn = startsOn;
+    createdEndsOn = endsOn;
+    createdReason = reason;
+    if (commitLeaveBeforeFailure) leaveCreated = true;
+    throw StateError('transport failed after leave commit');
+  }
+
+  @override
+  Future<Map<String, dynamic>> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
+    savedScore = score;
+    savedComment = comment;
+    if (commitRatingBeforeFailure) ratingSaved = true;
+    throw StateError('transport failed after rating commit');
+  }
 
   @override
   Future<Map<String, dynamic>> cancelWorkforceLeave(String leaveId) async {
@@ -312,6 +363,99 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
     await tester.pump();
+  });
+
+
+  test('uncertain leave creation resolves as success when authoritative leave matches intent', () async {
+    final repository = _WorkforceRecoveryRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    final startsOn = DateTime(2026, 10, 2);
+    final endsOn = DateTime(2026, 10, 3);
+    await controller.createWorkforceLeave(
+      assignmentId: 'assignment-recovery',
+      startsOn: startsOn,
+      endsOn: endsOn,
+      reason: 'Family function',
+    );
+
+    expect(
+      controller.hasMatchingWorkforceLeave(
+        assignmentId: 'assignment-recovery',
+        startsOn: startsOn,
+        endsOn: endsOn,
+        reason: 'Family function',
+      ),
+      isTrue,
+    );
+    expect(repository.workforceReads, 2);
+  });
+
+  test('uncertain leave creation remains retryable when authoritative state did not change', () async {
+    final repository = _WorkforceRecoveryRepository()..commitLeaveBeforeFailure = false;
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await expectLater(
+      controller.createWorkforceLeave(
+        assignmentId: 'assignment-recovery',
+        startsOn: DateTime(2026, 10, 4),
+        endsOn: DateTime(2026, 10, 5),
+        reason: 'Travel',
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(repository.workforceReads, 2);
+  });
+
+  test('uncertain rating update resolves as success only when refreshed rating matches intent', () async {
+    final repository = _WorkforceRecoveryRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await controller.rateWorkforce('assignment-recovery', score: 4, comment: 'Reliable');
+    expect(
+      controller.workforceRatingMatches('assignment-recovery', score: 4, comment: 'Reliable'),
+      isTrue,
+    );
+    expect(repository.workforceReads, 2);
+  });
+
+  test('uncertain rating update rethrows when authoritative rating did not change', () async {
+    final repository = _WorkforceRecoveryRepository()..commitRatingBeforeFailure = false;
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await expectLater(
+      controller.rateWorkforce('assignment-recovery', score: 3, comment: 'Needs follow-up'),
+      throwsA(isA<StateError>()),
+    );
+    expect(repository.workforceReads, 2);
   });
 
 }
