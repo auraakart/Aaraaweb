@@ -3,9 +3,10 @@ import 'package:aaraagate_resident/data/resident_data_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FamilyRecoveryRepository extends DemoResidentRepository {
-  _FamilyRecoveryRepository({this.commitAdd = true});
+  _FamilyRecoveryRepository({this.commitAdd = true, this.commitRemove = true});
 
   final bool commitAdd;
+  final bool commitRemove;
   final List<Map<String, dynamic>> members = [
     {
       'id': 'member-1',
@@ -16,8 +17,9 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
       'user': {'id': 'user-1', 'name': 'Asha', 'phone': '+91 90000 00001', 'status': 'ACTIVE'},
     },
   ];
-
+  final List<Map<String, dynamic>> requests = [];
   int householdReads = 0;
+  int requestReads = 0;
 
   @override
   Future<List<Map<String, dynamic>>> households() async {
@@ -35,6 +37,12 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> householdChangeRequests() async {
+    requestReads++;
+    return requests.map((request) => Map<String, dynamic>.from(request)).toList(growable: false);
+  }
+
+  @override
   Future<Map<String, dynamic>> addFamilyMember({
     required String householdId,
     required String name,
@@ -44,16 +52,21 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
     bool primaryGateContact = false,
   }) async {
     if (commitAdd) {
-      members.add({
-        'id': 'member-new',
-        'relation': 'FAMILY_MEMBER',
-        'gateApprovalEnabled': gateApprovalEnabled,
-        'gateNotificationEnabled': primaryGateContact ? true : gateNotificationEnabled,
-        'primaryGateContact': primaryGateContact,
-        'user': {'id': 'user-new', 'name': name, 'phone': phone, 'status': 'ACTIVE'},
+      requests.add({
+        'id': 'request-add',
+        'householdId': householdId,
+        'type': 'FAMILY_MEMBER_ADD',
+        'status': 'PENDING',
+        'payload': {
+          'name': name,
+          'phone': phone,
+          'gateApprovalEnabled': gateApprovalEnabled,
+          'gateNotificationEnabled': primaryGateContact ? true : gateNotificationEnabled,
+          'primaryGateContact': primaryGateContact,
+        },
       });
     }
-    throw StateError('transport failed after add');
+    throw StateError('transport failed after add request');
   }
 
   @override
@@ -77,8 +90,17 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
 
   @override
   Future<void> deactivateFamilyMember({required String householdId, required String occupancyId}) async {
-    members.removeWhere((item) => item['id'] == occupancyId);
-    throw StateError('transport failed after deactivate');
+    if (commitRemove) {
+      requests.add({
+        'id': 'request-remove',
+        'householdId': householdId,
+        'type': 'FAMILY_MEMBER_REMOVE',
+        'status': 'PENDING',
+        'targetId': occupancyId,
+        'payload': {'occupancyId': occupancyId},
+      });
+    }
+    throw StateError('transport failed after removal request');
   }
 }
 
@@ -93,7 +115,7 @@ Future<ResidentDataController> _controller(_FamilyRecoveryRepository repository)
 }
 
 void main() {
-  test('recovers add after commit-then-transport failure', () async {
+  test('recovers add from authoritative pending approval without inventing active occupancy', () async {
     final repository = _FamilyRecoveryRepository();
     final controller = await _controller(repository);
     addTearDown(controller.dispose);
@@ -107,17 +129,25 @@ void main() {
       primaryGateContact: true,
     );
 
-    expect(controller.hasMatchingFamilyMember(
+    expect(controller.hasMatchingFamilyAddRequest(
       householdId: 'house-1',
       phone: '+91 98888 77777',
       gateApprovalEnabled: true,
       gateNotificationEnabled: false,
       primaryGateContact: true,
     ), isTrue);
-    expect(repository.householdReads, 2);
+    expect(controller.hasMatchingFamilyMember(
+      householdId: 'house-1',
+      phone: '+91 98888 77777',
+      gateApprovalEnabled: true,
+      gateNotificationEnabled: false,
+      primaryGateContact: true,
+    ), isFalse);
+    expect(controller.pendingFamilyRequestsForHousehold('house-1'), hasLength(1));
+    expect(repository.requestReads, 1);
   });
 
-  test('recovers settings update only after authoritative state matches', () async {
+  test('recovers settings update only after authoritative occupancy matches', () async {
     final repository = _FamilyRecoveryRepository();
     final controller = await _controller(repository);
     addTearDown(controller.dispose);
@@ -139,38 +169,38 @@ void main() {
     ), isTrue);
   });
 
-  test('recovers deactivation when authoritative occupancy disappears', () async {
+  test('recovers removal submission from authoritative pending approval while member remains active', () async {
     final repository = _FamilyRecoveryRepository();
     final controller = await _controller(repository);
     addTearDown(controller.dispose);
 
-    await controller.deactivateFamilyMember(
-      householdId: 'house-1',
-      occupancyId: 'member-1',
-    );
+    await controller.deactivateFamilyMember(householdId: 'house-1', occupancyId: 'member-1');
 
-    expect(controller.familyMemberById('house-1', 'member-1'), isNull);
+    expect(controller.hasMatchingFamilyRemoveRequest(householdId: 'house-1', occupancyId: 'member-1'), isTrue);
+    expect(controller.familyMemberById('house-1', 'member-1'), isNotNull);
   });
 
-  test('does not manufacture add success when refreshed state does not match', () async {
+  test('does not manufacture add success when no matching approval request exists', () async {
     final repository = _FamilyRecoveryRepository(commitAdd: false);
     final controller = await _controller(repository);
     addTearDown(controller.dispose);
 
     await expectLater(
-      controller.addFamilyMember(
-        householdId: 'house-1',
-        name: 'Ravi',
-        phone: '+91 98888 77777',
-      ),
+      controller.addFamilyMember(householdId: 'house-1', name: 'Ravi', phone: '+91 98888 77777'),
       throwsA(isA<StateError>()),
     );
-    expect(controller.hasMatchingFamilyMember(
-      householdId: 'house-1',
-      phone: '+91 98888 77777',
-      gateApprovalEnabled: false,
-      gateNotificationEnabled: true,
-      primaryGateContact: false,
-    ), isFalse);
+    expect(controller.householdChangeRequests, isEmpty);
+  });
+
+  test('does not manufacture remove success when no matching approval request exists', () async {
+    final repository = _FamilyRecoveryRepository(commitRemove: false);
+    final controller = await _controller(repository);
+    addTearDown(controller.dispose);
+
+    await expectLater(
+      controller.deactivateFamilyMember(householdId: 'house-1', occupancyId: 'member-1'),
+      throwsA(isA<StateError>()),
+    );
+    expect(controller.familyMemberById('house-1', 'member-1'), isNotNull);
   });
 }
