@@ -21,5 +21,26 @@ must('Guard parcel recovery mapping',read('apps/guard/lib/data/parcel_pickup_rec
 must('Guard parcel recovery regression',read('apps/guard/test/guard_parcel_pickup_recovery_test.dart'),["safe operational recovery","authorization failures without suggesting handover"]);
 forbid('Resident parcel UX',screen,['I collected it','_confirmCollection(']);
 must('Resident parcel regression',read('apps/resident/test/parcels_screen_test.dart'),["expect(find.text('I collected it'),findsNothing)","/api/v1/parcels/mine/parcel-a/pickup-code",'pickup-code issuance disables duplicate submission','expect(api.postCalls,1)','up to 5 attempts']);
-must('V4.59 truth',read('docs/AARAAGATE-V4.59-SECURE-HANDOVER.md'),['release identity remains 4.58.0','collect-with-code','No parcel is marked collected merely from a Resident-client acknowledgement.']);
-console.log('V4.59 secure physical handover development contract: PASS');
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+if(rootPackage.version!=='4.59.0'||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must be V4.59.0.');
+  process.exit(1);
+}
+must('V4.59 Resident release identity',read('apps/resident/pubspec.yaml'),['version: 4.59.0+45900']);
+must('V4.59 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.59.0+45900']);
+must('V4.59 release truth',read('docs/AARAAGATE-V4.59-SECURE-HANDOVER.md'),[
+  'Release candidate closed on develop; release identity is 4.59.0.',
+  'V4.59 release closure',
+  'collect-with-code',
+  'No parcel is marked collected merely from a Resident-client acknowledgement.'
+]);
+must('V4.59 release closure evidence',read('docs/AARAAGATE-V4.59-RELEASE-CLOSURE.md'),[
+  'PR #920',
+  'PR #921',
+  'PR #922',
+  '4.59.0+45900',
+  'does not claim staging/main promotion'
+]);
+console.log('V4.59 secure physical handover release closure: PASS');
