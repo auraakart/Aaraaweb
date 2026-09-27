@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
@@ -34,14 +35,34 @@ describe('ParcelsService', () => {
     }));
   });
 
-  it('allows only the assigned resident to confirm collection', async () => {
-    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: parcelId, status: 'COLLECTED', collectedAt: new Date() }]), $executeRaw: vi.fn().mockResolvedValue(1) };
+  it('collects only after a valid pickup code and records verification evidence', async () => {
+    const code = '123456';
+    const salt = 'parcel-salt';
+    const digest = createHash('sha256').update(`${salt}:${code}`).digest('hex');
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{
+          id: parcelId,
+          recipientUserId: recipientId,
+          status: 'RECEIVED',
+          pickupCodeSalt: salt,
+          pickupCodeHash: digest,
+          pickupCodeExpiresAt: new Date(Date.now() + 600_000),
+          pickupCodeAttempts: 0,
+          pickupCodeLockedAt: null,
+        }])
+        .mockResolvedValueOnce([{ id: parcelId, status: 'COLLECTED', collectedAt: new Date() }]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
     const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
-    await expect(service.confirmCollection(societyId, recipientId, parcelId)).resolves.toMatchObject({ status: 'COLLECTED' });
-    const sql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
-    expect(sql).toContain('"recipientUserId"');
+    await expect(service.collectWithPickupCode(societyId, actorId, parcelId, code)).resolves.toMatchObject({ status: 'COLLECTED' });
+    const updateSql = (tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(updateSql).toContain('"pickupCodeHash"=NULL');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const eventSql = (tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(eventSql).toContain('PICKUP_CODE_VERIFIED');
+    expect(eventSql).toContain('COLLECTED');
   });
 
   it('issues pickup codes only against the assigned resident parcel and stores a digest rather than plaintext', async () => {

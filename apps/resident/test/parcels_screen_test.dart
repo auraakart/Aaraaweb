@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 class _ParcelsApi extends ApiClient {
   _ParcelsApi() : super(baseUrl:'http://test',accessToken:'token');
   String? postPath;
-  String? patchPath;
 
   @override
   Future<dynamic> get(String path) async {
@@ -39,12 +38,6 @@ class _ParcelsApi extends ApiClient {
     postPath=path;
     return {'parcelId':'parcel-a','code':'482731','expiresAt':'2026-09-18T10:10:00Z'};
   }
-
-  @override
-  Future<dynamic> patch(String path,[Map<String,dynamic>? body]) async {
-    patchPath=path;
-    return {'id':'parcel-a','status':'COLLECTED'};
-  }
 }
 
 void main(){
@@ -65,9 +58,8 @@ void main(){
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('I collected it'));
-    await tester.pumpAndSettle();
-    expect(api.patchPath,'/api/v1/parcels/mine/parcel-a/collect');
+    expect(find.text('I collected it'),findsNothing);
+    expect(find.text('Pickup codes are short-lived. Security verifies the code before handing over the parcel.'),findsOneWidget);
     expect(tester.takeException(),isNull);
   });
 
