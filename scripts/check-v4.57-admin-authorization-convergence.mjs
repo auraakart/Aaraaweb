@@ -89,10 +89,22 @@ must('Auditor Parking discovery',audit,[
 ]);
 
 const root=JSON.parse(read('package.json'));
-if(root.version!=='4.56.0'){console.error('V4.57 development must not cut release identity early.');process.exit(1)}
+const api=JSON.parse(read('services/api/package.json'));
+const admin=JSON.parse(read('apps/admin/package.json'));
+if(root.version!=='4.57.0'||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must be V4.57.0.');process.exit(1)}
+must('V4.57 Resident release identity',read('apps/resident/pubspec.yaml'),['version: 4.57.0+45700']);
+must('V4.57 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.57.0+45700']);
 must('V4.57 truth',read('docs/AARAAGATE-V4.57-ADMIN-AUTHORIZATION-CONVERGENCE.md'),[
-  'release identity remains 4.56.0',
+  'Release candidate closed on develop; release identity is 4.57.0.',
   'does not add backend permissions',
-  'Server authorization and segregation-of-duties checks remain authoritative'
+  'Server authorization and segregation-of-duties checks remain authoritative',
+  'V4.57 release closure'
 ]);
-console.log('V4.57 Admin authorization convergence: PASS');
+must('V4.57 release closure evidence',read('docs/AARAAGATE-V4.57-RELEASE-CLOSURE.md'),[
+  'PR #912',
+  'PR #913',
+  'PR #914',
+  '4.57.0+45700',
+  'does not claim staging/main promotion'
+]);
+console.log('V4.57 Admin authorization release closure: PASS');
