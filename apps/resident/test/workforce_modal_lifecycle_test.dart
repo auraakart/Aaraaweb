@@ -249,7 +249,6 @@ void main() {
       initialEnabledFeatures: const {'DOMESTIC_HELP'},
       fetchEntitlements: false,
     );
-    addTearDown(controller.dispose);
     await controller.load();
 
     await tester.pumpWidget(
@@ -272,6 +271,10 @@ void main() {
 
     expect(find.text('Leave changed. It is no longer active.'), findsOneWidget);
     expect(find.byTooltip('Cancel leave'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+    await tester.pump();
   });
 
   testWidgets('stale end-assignment action disappears after recovered server-side deactivation', (tester) async {
@@ -282,7 +285,6 @@ void main() {
       initialEnabledFeatures: const {'DOMESTIC_HELP'},
       fetchEntitlements: false,
     );
-    addTearDown(controller.dispose);
     await controller.load();
 
     await tester.pumpWidget(
@@ -306,6 +308,10 @@ void main() {
     expect(find.text('Staff assignment changed and is no longer active.'), findsOneWidget);
     expect(find.text('END ASSIGNMENT'), findsNothing);
     expect(find.text('Assignment: Suspended'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+    await tester.pump();
   });
 
 }
