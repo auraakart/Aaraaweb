@@ -88,12 +88,17 @@ must('V4.58 proposal rejection regression',read('services/api/src/services-marke
 const rootPackage=JSON.parse(read('package.json'));
 const apiPackage=JSON.parse(read('services/api/package.json'));
 const adminPackage=JSON.parse(read('apps/admin/package.json'));
-if(rootPackage.version!=='4.58.0'||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
-  console.error('Root/API/Admin release identity must be V4.58.0.');
+const currentVersion=rootPackage.version.split('.').map(Number);
+const atLeastV458=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=58));
+if(!atLeastV458||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.58.0 or newer.');
   process.exit(1);
 }
-must('V4.58 Resident release identity',read('apps/resident/pubspec.yaml'),['version: 4.58.0+45800']);
-must('V4.58 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.58.0+45800']);
+const runtimeVersionToken='version: '+rootPackage.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){
+  console.error('Resident/Guard release identity must remain aligned with the current root release.');
+  process.exit(1);
+}
 must('V4.58 release truth',read('docs/AARAAGATE-V4.58-RESIDENT-SERVICE-RECOVERY.md'),[
   'Release candidate closed on develop; release identity is 4.58.0.',
   'V4.58 release closure',
