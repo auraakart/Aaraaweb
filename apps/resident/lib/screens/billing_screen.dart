@@ -22,6 +22,7 @@ class _BillingScreenState extends State<BillingScreen> {
   Map<String, dynamic>? financeSummary;
   Map<String, dynamic>? autopayPreference;
   bool autopayBusy = false;
+  String? autopayError;
   bool loading = true;
   String? error;
   String? payingInvoiceId;
@@ -31,7 +32,7 @@ class _BillingScreenState extends State<BillingScreen> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() { loading = true; error = null; });
+    setState(() { loading = true; error = null; autopayError = null; });
     try {
       final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
       final selected = widget.activeUnitId;
@@ -77,7 +78,7 @@ class _BillingScreenState extends State<BillingScreen> {
     final current = autopayPreference ?? const <String, dynamic>{};
     final maxAmount = (current['maxAmountPaise'] as num?)?.toInt();
     final debitDays = (current['debitDaysBefore'] as num?)?.toInt() ?? 1;
-    setState(() { autopayBusy = true; error = null; });
+    setState(() { autopayBusy = true; autopayError = null; });
     try {
       final updated = await widget.repository.saveAutopayPreference(
         unitId: unitId,
@@ -93,7 +94,35 @@ class _BillingScreenState extends State<BillingScreen> {
             : 'AutoPay preference turned off.'),
       ));
     } catch (_) {
-      if (mounted) setState(() => error = 'AutoPay preference could not be saved. No debit was attempted.');
+      Map<String, dynamic>? refreshed;
+      try {
+        refreshed = await widget.repository.autopayPreference(unitId: unitId);
+      } catch (_) {
+        refreshed = null;
+      }
+      if (!mounted) return;
+
+      if (refreshed != null) {
+        setState(() => autopayPreference = refreshed);
+      }
+      final refreshedMax = (refreshed?['maxAmountPaise'] as num?)?.toInt();
+      final refreshedDays = (refreshed?['debitDaysBefore'] as num?)?.toInt() ?? 1;
+      final recovered = refreshed != null &&
+          refreshed['enabled'] == enabled &&
+          refreshedMax == maxAmount &&
+          refreshedDays == debitDays;
+
+      if (recovered) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(enabled
+              ? 'AutoPay preference confirmed after reconnect. Automatic debit is not active until a provider mandate is connected.'
+              : 'AutoPay preference is confirmed off after reconnect.'),
+        ));
+      } else {
+        setState(() => autopayError = refreshed == null
+            ? 'AutoPay preference could not be confirmed. Refresh Billing before retrying. No debit was attempted.'
+            : 'AutoPay preference could not be confirmed. The latest server preference is shown; review it before retrying. No debit was attempted.');
+      }
     } finally {
       if (mounted) setState(() => autopayBusy = false);
     }
@@ -207,6 +236,10 @@ class _BillingScreenState extends State<BillingScreen> {
                   busy: autopayBusy,
                   onChanged: _toggleAutopay,
                 ),
+                if (autopayError != null) ...[
+                  const SizedBox(height: AaraagateTokens.space2),
+                  Text(autopayError!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.error)),
+                ],
               ],
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
