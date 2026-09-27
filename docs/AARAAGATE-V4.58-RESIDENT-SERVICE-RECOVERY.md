@@ -33,9 +33,15 @@ Resident cancellation remains limited to consumer-owned bookings in `REQUESTED` 
 
 The Resident app collects the reason in a review dialog before calling the existing cancel route. The action is still server-authoritative: the client does not mark a booking cancelled until the server succeeds and the list reloads.
 
+## Slice 3 — Audited provider-reschedule rejection
+
+Provider counter-proposals already let residents accept or reject a suggested service time. V4.58 now requires a 3–500 character resident reason when rejecting. The service re-validates the normalized reason before opening the transaction; the consumer-owned booking and pending proposal are then locked as before. A rejection writes `CUSTOMER_REJECTED_PROVIDER_PROPOSAL` into the existing booking event timeline with the resident reason, while the proposal row remains the authoritative ACCEPTED/REJECTED state.
+
+The Resident app asks for the reason only when declining a proposed time. Acceptance remains a one-step action and keeps the existing availability re-check. No new proposal state, permission or provider mutation path is introduced.
+
 ## Regression contract
 
-`pnpm check:v4.58` and CI verify the resident Helpdesk recovery boundary plus consumer-owned booking cancellation reason validation, locked transition evidence, timeline note and review-before-cancel UI.
+`pnpm check:v4.58` and CI verify the resident Helpdesk recovery boundary plus consumer-owned booking cancellation reason validation, locked transition evidence, timeline note and review-before-cancel UI, and audited provider-reschedule rejection reasons.
 
 ## Boundary
 
