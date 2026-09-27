@@ -55,42 +55,6 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     }
   }
 
-  Future<void> _reopenComplaint() async {
-    final selected = widget.controller.primaryUnitId;
-    if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
-    final reason = reopenReason.text.trim();
-    if (reason.length < 3) {
-      setState(() => reopenError = 'Add a short reason so the society team knows what still needs attention.');
-      return;
-    }
-    if (reopening) return;
-    setState(() {
-      reopening = true;
-      reopenError = null;
-    });
-    try {
-      final updated = await widget.controller.repository.reopenHelpdeskTicket(
-        widget.ticket['id'].toString(),
-        reason,
-      );
-      if (!mounted) return;
-      setState(() {
-        widget.ticket.addAll(updated);
-        reopenReason.clear();
-      });
-      await load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Complaint reopened and returned to the society team.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) setState(() => reopenError = 'Complaint could not be reopened. Refresh and retry.');
-    } finally {
-      if (mounted) setState(() => reopening = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final activeCount = _tickets.where((ticket) {
@@ -498,6 +462,42 @@ class _TicketDetailState extends State<_TicketDetail> {
       if (mounted) setState(() => commentError = 'Comment could not be sent. Please retry.');
     } finally {
       if (mounted) setState(() => submittingComment = false);
+    }
+  }
+
+  Future<void> _reopenComplaint() async {
+    final selected = widget.controller.primaryUnitId;
+    if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
+    final reason = reopenReason.text.trim();
+    if (reason.length < 3) {
+      setState(() => reopenError = 'Add a short reason so the society team knows what still needs attention.');
+      return;
+    }
+    if (reopening) return;
+    setState(() {
+      reopening = true;
+      reopenError = null;
+    });
+    try {
+      final updated = await widget.controller.repository.reopenHelpdeskTicket(
+        widget.ticket['id'].toString(),
+        reason,
+      );
+      if (!mounted) return;
+      setState(() {
+        widget.ticket.addAll(updated);
+        reopenReason.clear();
+      });
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Complaint reopened and returned to the society team.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => reopenError = 'Complaint could not be reopened. Refresh and retry.');
+    } finally {
+      if (mounted) setState(() => reopening = false);
     }
   }
 
