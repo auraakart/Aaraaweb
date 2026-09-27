@@ -33,7 +33,8 @@
     "check:v4.58": "node scripts/check-v4.58-resident-service-recovery.mjs",
     "check:v4.59": "node scripts/check-v4.59-secure-handover.mjs",
     "check:v4.60": "node scripts/check-v4.60-gate-decision-recovery.mjs",
-    "check:v4.61": "node scripts/check-v4.61-amenity-cancellation-recovery.mjs"
+    "check:v4.61": "node scripts/check-v4.61-amenity-cancellation-recovery.mjs",
+    "check:v4.62": "node scripts/check-v4.62-household-staff-recovery.mjs"
   },
   "pnpm": {
     "overrides": {

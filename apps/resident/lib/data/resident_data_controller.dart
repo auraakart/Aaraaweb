@@ -489,6 +489,8 @@ class ResidentDataController extends ChangeNotifier {
 
   Map<String, dynamic>? ratingFor(String assignmentId) => workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
   List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves.where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false).toList(growable: false);
+  bool isWorkforceLeaveActive(String leaveId) => workforceLeaves.any((item) => item['id']?.toString() == leaveId && item['active'] != false);
+  Map<String, dynamic>? workforceAssignmentFor(String assignmentId) => workforceAssignments.where((item) => item['id']?.toString() == assignmentId).firstOrNull;
 
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
@@ -496,7 +498,16 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> cancelWorkforceLeave(String leaveId) async { await repository.cancelWorkforceLeave(leaveId); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> cancelWorkforceLeave(String leaveId) async {
+    try {
+      await repository.cancelWorkforceLeave(leaveId);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      rethrow;
+    }
+    await _loadWorkforce();
+    if (!_disposed) notifyListeners();
+  }
   Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async { await repository.rateWorkforce(assignmentId, score: score, comment: comment); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     if (!households.any((item) => item['id']?.toString() == householdId)) throw StateError('Household is outside the active property context');
@@ -506,9 +517,20 @@ class ResidentDataController extends ChangeNotifier {
   }
   Future<void> deactivateWorkforce(String assignmentId) async {
     if (!workforceAssignments.any((item) => item['id']?.toString() == assignmentId)) throw StateError('Staff assignment is outside the active property context');
-    await repository.deactivateWorkforce(assignmentId);
+    try {
+      await repository.deactivateWorkforce(assignmentId);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure(refreshAccess: true);
+      rethrow;
+    }
     await _loadWorkforce();
     await _loadAccess();
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async {
+    await _loadWorkforce();
+    if (refreshAccess) await _loadAccess();
     if (!_disposed) notifyListeners();
   }
 

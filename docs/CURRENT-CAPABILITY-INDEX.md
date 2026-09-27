@@ -64,6 +64,9 @@ V4.60.0 closes gate-decision recovery as a repository release candidate. Residen
 
 V4.61.0 closes Resident amenity cancellation recovery as a repository release candidate. When a cancellation attempt fails, the Resident client reloads the authoritative booking list before surfacing the outcome; if the booking changed concurrently, the stale Cancel action disappears and the latest server status is reported. HTTP 409 handling distinguishes booking/cancellation policy conflicts from slot-capacity conflicts, so a cancellation cutoff is no longer mislabeled as “slot no longer available”. Existing amenity ownership, cutoff policy, booking states and server transition authority remain unchanged. Release identity is aligned to V4.61.0 across root/API/Admin and V4.61.0+46100 across Resident/Guard; staging/main promotion remains separate.
 
+
+V4.62 development starts with Resident household-staff destructive-mutation recovery. Failed leave cancellation and assignment deactivation now reload the authoritative workforce read model before the client surfaces an error. If the server-side transition already committed, stale Cancel Leave / End Assignment actions disappear and Resident reports the refreshed inactive state instead of inviting a duplicate mutation. Assignment deactivation recovery also refreshes access state so household-staff gate eligibility follows the authoritative assignment outcome. Existing household ownership, society verification, leave policy, gate eligibility and server mutation authority remain unchanged. Runtime identity remains V4.61.0 until V4.62 is explicitly closed.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
