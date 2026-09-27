@@ -296,7 +296,7 @@ void main() {
     expect(find.text('END ASSIGNMENT'), findsOneWidget);
     await tester.tap(find.text('END ASSIGNMENT'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('END ASSIGNMENT'));
+    await tester.tap(find.widgetWithText(FilledButton, 'END ASSIGNMENT'));
     await tester.pumpAndSettle();
 
     expect(find.text('Staff assignment changed and is no longer active.'), findsOneWidget);
