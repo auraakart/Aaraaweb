@@ -99,7 +99,7 @@ describe('AccessService', () => {
   });
 
   it('reuses a same-key visitor invite with a rotated credential and rejects mismatched reuse', async () => {
-    let stored: Record<string, any> | undefined;
+    let stored: Record<string, unknown> | undefined;
     const create = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
       stored = { id: 'invite-1', createdAt: new Date(), updatedAt: new Date(), ...data };
       return stored;

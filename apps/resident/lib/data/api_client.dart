@@ -18,7 +18,8 @@ class ApiClient {
   final HttpClient _client = HttpClient();
 
   Future<dynamic> get(String path) => _send('GET', path);
-  Future<dynamic> post(String path, [Map<String, dynamic>? body, Map<String, String>? headers]) => _send('POST', path, body, headers);
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
+  Future<dynamic> postWithHeaders(String path, Map<String, dynamic>? body, Map<String, String> headers) => _send('POST', path, body, headers);
   Future<dynamic> put(String path, [Map<String, dynamic>? body]) => _send('PUT', path, body);
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) => _send('PATCH', path, body);
 

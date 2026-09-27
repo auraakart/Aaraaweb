@@ -23,6 +23,7 @@ async function request(role,path,{method='GET',body,headers={}}={}){
 const now=Date.now();
 const invite=await request('resident','/api/v1/access-requests/visitor-invites',{
   method:'POST',
+  headers:{'Idempotency-Key':'e2e-visitor-invite-1'},
   body:{
     unitId,
     name:'E2E Visitor',

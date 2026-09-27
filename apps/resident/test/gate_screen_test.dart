@@ -324,6 +324,7 @@ void main() {
       name: 'Priya Shah',
       validFrom: DateTime(2026, 9, 27, 10),
       validUntil: DateTime(2026, 9, 27, 14),
+      idempotencyKey: 'cancel-pass-test',
     );
     final controller = ResidentDataController(
       repository,
