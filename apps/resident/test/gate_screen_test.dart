@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/demo_resident_repository.dart';
 import 'package:aaraagate_resident/data/resident_data_controller.dart';
@@ -33,6 +34,35 @@ class _InviteRepository extends DemoResidentRepository {
     };
     _requests.add(request);
     return {'request': request, 'credential': 'TEST-PASS'};
+  }
+}
+
+class _GateMutationRepository extends DemoResidentRepository {
+  final Completer<void> denyCompleter = Completer<void>();
+  int denyCalls = 0;
+  bool failAsStale = false;
+  final List<Map<String, dynamic>> requests = [
+    {
+      'id': 'delivery-1',
+      'unitId': 'unit-1',
+      'subjectType': 'DELIVERY',
+      'subjectName': 'Delivery partner',
+      'status': 'PENDING',
+    },
+  ];
+
+  @override
+  Future<List<Map<String, dynamic>>> accessRequests() async =>
+      requests.map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
+
+  @override
+  Future<void> denyAccess(String requestId) async {
+    denyCalls++;
+    if (failAsStale) {
+      requests.first['status'] = 'APPROVED';
+      throw StateError('Access request changed before denial could complete');
+    }
+    await denyCompleter.future;
   }
 }
 
@@ -151,4 +181,49 @@ void main() {
     await tester.pumpAndSettle();
     controller.dispose();
   });
+
+  testWidgets('serializes a gate decision while the first mutation is in flight', (tester) async {
+    final repository = _GateMutationRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'DELIVERY_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..accessRequests = await repository.accessRequests();
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: GateScreen(controller: controller))));
+    await tester.tap(find.text('Deny'));
+    await tester.pump();
+
+    expect(repository.denyCalls, 1);
+    final denyButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Deny'),
+    );
+    expect(denyButton.onPressed, isNull);
+
+    await tester.tap(find.text('Deny'));
+    await tester.pump();
+    expect(repository.denyCalls, 1);
+
+    repository.denyCompleter.complete();
+    await tester.pumpAndSettle();
+    controller.dispose();
+  });
+
+  test('failed gate mutation reloads authoritative request state before rethrowing', () async {
+    final repository = _GateMutationRepository()..failAsStale = true;
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'DELIVERY_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..accessRequests = await repository.accessRequests();
+
+    await expectLater(controller.denyAccess('delivery-1'), throwsA(isA<StateError>()));
+
+    expect(repository.denyCalls, 1);
+    expect(controller.accessRequests.single['status'], 'APPROVED');
+    controller.dispose();
+  });
+
 }

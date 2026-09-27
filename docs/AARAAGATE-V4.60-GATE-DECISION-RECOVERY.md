@@ -1,0 +1,28 @@
+# Aaraagate V4.60 — Gate Decision Recovery
+
+Date: 2026-09-27
+Status: Development started on `develop`; runtime identity remains V4.59.0 until release closure.
+
+## Objective
+
+Remove duplicate/stale Resident gate-decision behavior without widening access authority or creating a parallel gate state model.
+
+## Slice 1 — Resident gate mutation serialization
+
+Each visible gate request card now permits only one approve, deny or cancel mutation at a time. Once an action starts, sibling mutation controls on that card are disabled until it completes. This prevents rapid taps from issuing parallel resident decisions while keeping the existing backend transition checks authoritative.
+
+## Slice 2 — Authoritative stale-decision recovery
+
+ResidentDataController wraps approve/deny/cancel mutations with a recovery reload. If a mutation fails because Guard/realtime activity or another resident already changed the request, the controller reloads the current access-request state before rethrowing the failure. Network and authorization failures also attempt the same safe read refresh; the original mutation error remains the surfaced error.
+
+## Authority boundary
+
+V4.60 does not change current-occupancy/gate-approver authorization, access-request states, visitor validity windows, credential issuance, Guard check-in/check-out authority or audit semantics. The server continues to perform conditional status updates and rejects stale transitions.
+
+## Regression contract
+
+`pnpm check:v4.60` and CI require the per-card mutation lock, controller recovery reload, focused duplicate-tap test and stale-state recovery test.
+
+## Boundary
+
+This is a V4.60 development slice only. It does not claim V4.60.0 release closure, staging/main promotion, productionization, hosted acceptance, live provider integration, hardware certification, signed store release or field-pilot/business acceptance.

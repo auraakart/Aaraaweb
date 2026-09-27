@@ -518,13 +518,28 @@ class ResidentDataController extends ChangeNotifier {
     if (text.contains('Sign in is required') || text.contains('ApiException(401)')) authError = 'Sign in is required'; else assign(text);
   }
 
+  Future<T> _withAccessMutationRecovery<T>(Future<T> Function() operation) async {
+    try {
+      return await operation();
+    } catch (_) {
+      // A resident decision can lose a race to Guard/realtime activity. Always
+      // reload the authoritative request state before surfacing the failure so
+      // the Gate screen does not keep offering an action that is already stale.
+      await _loadAccess();
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> approveAccess(String requestId, {Duration? duration}) async {
     final request = accessRequests.where((item) => item['id']?.toString() == requestId).firstOrNull;
     if (request == null) throw StateError('Access request is outside the active property context');
     final type = request['subjectType']?.toString();
     final effectiveDuration = duration ?? switch (type) { 'CAB' => const Duration(minutes: 15), 'DELIVERY' => const Duration(minutes: 30), _ => const Duration(hours: 4) };
     final now = DateTime.now();
-    final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration));
+    final result = await _withAccessMutationRecovery(
+      () => repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration)),
+    );
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
     if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
@@ -535,11 +550,15 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> denyAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
-    await repository.denyAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
+    await _withAccessMutationRecovery(() => repository.denyAccess(requestId));
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
   }
   Future<void> cancelAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
-    await repository.cancelAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
+    await _withAccessMutationRecovery(() => repository.cancelAccess(requestId));
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
   }
 
   Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
