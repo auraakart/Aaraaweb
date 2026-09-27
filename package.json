@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.63.0",
+  "version": "4.64.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -35,7 +35,8 @@
     "check:v4.60": "node scripts/check-v4.60-gate-decision-recovery.mjs",
     "check:v4.61": "node scripts/check-v4.61-amenity-cancellation-recovery.mjs",
     "check:v4.62": "node scripts/check-v4.62-household-staff-recovery.mjs",
-    "check:v4.63": "node scripts/check-v4.63-sos-recovery.mjs"
+    "check:v4.63": "node scripts/check-v4.63-sos-recovery.mjs",
+    "check:v4.64": "node scripts/check-v4.64-community-poll-recovery.mjs"
   },
   "pnpm": {
     "overrides": {
