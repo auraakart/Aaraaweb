@@ -19,10 +19,30 @@ must('V4.61 amenity cancellation regressions',read('apps/resident/test/amenities
   'Booking cannot be cancelled within 60 minutes of start time.'
 ]);
 
-must('V4.61 development truth',read('docs/AARAAGATE-V4.61-AMENITY-CANCELLATION-RECOVERY.md'),[
-  'runtime identity remains V4.60.0',
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+const currentVersion=rootPackage.version.split('.').map(Number);
+const atLeastV461=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=61));
+if(!atLeastV461||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.61.0 or newer.');
+  process.exit(1);
+}
+const runtimeVersionToken='version: '+rootPackage.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){
+  console.error('Resident/Guard release identity must remain aligned with the current root release.');
+  process.exit(1);
+}
+
+must('V4.61 release truth',read('docs/AARAAGATE-V4.61-AMENITY-CANCELLATION-RECOVERY.md'),[
+  'Release candidate closed on `develop`; release identity is V4.61.0.',
   'server rejection remains authoritative',
-  'does not claim V4.61.0 release closure'
+  'V4.61 release closure is repository evidence on `develop`'
+]);
+must('V4.61 release closure evidence',read('docs/AARAAGATE-V4.61-RELEASE-CLOSURE.md'),[
+  'PR #928',
+  '4.61.0+46100',
+  'does not claim staging/main promotion'
 ]);
 
-console.log('V4.61 amenity cancellation recovery development contract: PASS');
+console.log('V4.61 amenity cancellation recovery release closure: PASS');

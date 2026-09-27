@@ -1,7 +1,7 @@
 # Aaraagate V4.61 — Amenity Cancellation Recovery
 
 Date: 2026-09-27
-Status: Development started on `develop`; runtime identity remains V4.60.0 until release closure.
+Status: Release candidate closed on `develop`; release identity is V4.61.0.
 
 ## Objective
 
@@ -23,4 +23,4 @@ V4.61 does not change amenity ownership checks, cancellation cutoff rules, booki
 
 ## Boundary
 
-This is a V4.61 development slice only. It does not claim V4.61.0 release closure, staging/main promotion, productionization, hosted acceptance, live provider integration, hardware certification, signed store release or field-pilot/business acceptance.
+V4.61 release closure is repository evidence on `develop`. It does not claim staging/main promotion, productionization, hosted acceptance, live provider integration, hardware certification, signed store release or field-pilot/business acceptance.
