@@ -30,10 +30,10 @@ for(const token of [
 
 const test=read('apps/resident/test/family_member_recovery_test.dart');
 must('V4.65 focused regression',test,[
-  'recovers add after commit-then-transport failure',
-  'recovers settings update only after authoritative state matches',
-  'recovers deactivation when authoritative occupancy disappears',
-  'does not manufacture add success when refreshed state does not match'
+  'recovers add from authoritative pending approval without inventing active occupancy',
+  'recovers settings update only after authoritative occupancy matches',
+  'recovers removal submission from authoritative pending approval while member remains active',
+  'does not manufacture add success when no matching approval request exists'
 ]);
 
 must('V4.65 development truth',read('docs/AARAAGATE-V4.65-FAMILY-MEMBER-RECOVERY.md'),[
