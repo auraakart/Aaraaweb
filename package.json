@@ -37,7 +37,8 @@
     "check:v4.62": "node scripts/check-v4.62-household-staff-recovery.mjs",
     "check:v4.63": "node scripts/check-v4.63-sos-recovery.mjs",
     "check:v4.64": "node scripts/check-v4.64-community-poll-recovery.mjs",
-    "check:v4.64.1": "node scripts/check-v4.64.1-visitor-invite-recovery.mjs"
+    "check:v4.64.1": "node scripts/check-v4.64.1-visitor-invite-recovery.mjs",
+    "check:v4.65": "node scripts/check-v4.65-family-member-recovery.mjs"
   },
   "pnpm": {
     "overrides": {

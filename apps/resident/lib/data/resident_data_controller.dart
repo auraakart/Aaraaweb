@@ -367,6 +367,160 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
+  Map<String, dynamic>? _householdById(String householdId) =>
+      households.where((item) => item['id']?.toString() == householdId).firstOrNull;
+
+  List<Map<String, dynamic>> familyMembersForHousehold(String householdId) {
+    final household = _householdById(householdId);
+    final unit = household?['unit'];
+    final occupancies = unit is Map ? unit['occupancies'] : null;
+    if (occupancies is! List) return const [];
+    return occupancies
+        .whereType<Map>()
+        .where((item) => item['relation']?.toString() == 'FAMILY_MEMBER')
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? familyMemberById(String householdId, String occupancyId) =>
+      familyMembersForHousehold(householdId)
+          .where((item) => item['id']?.toString() == occupancyId)
+          .firstOrNull;
+
+  bool hasMatchingFamilyMember({
+    required String householdId,
+    required String phone,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
+    return familyMembersForHousehold(householdId).any((item) {
+      final user = item['user'];
+      final userMap = user is Map ? user : const <String, dynamic>{};
+      return _normalizeHouseholdPhone(userMap['phone']?.toString() ?? '') == expectedPhone &&
+          item['gateApprovalEnabled'] == gateApprovalEnabled &&
+          item['gateNotificationEnabled'] == expectedNotification &&
+          item['primaryGateContact'] == primaryGateContact;
+    });
+  }
+
+  bool familyMemberSettingsMatch({
+    required String householdId,
+    required String occupancyId,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final member = familyMemberById(householdId, occupancyId);
+    if (member == null) return false;
+    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
+    return member['gateApprovalEnabled'] == gateApprovalEnabled &&
+        member['gateNotificationEnabled'] == expectedNotification &&
+        member['primaryGateContact'] == primaryGateContact;
+  }
+
+  Future<void> addFamilyMember({
+    required String householdId,
+    required String name,
+    required String phone,
+    bool gateApprovalEnabled = false,
+    bool gateNotificationEnabled = true,
+    bool primaryGateContact = false,
+  }) async {
+    if (_householdById(householdId) == null) {
+      throw StateError('Household is outside the active property context');
+    }
+    try {
+      await repository.addFamilyMember(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (hasMatchingFamilyMember(
+        householdId: householdId,
+        phone: phone,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      )) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> updateFamilyMember({
+    required String householdId,
+    required String occupancyId,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) async {
+    if (familyMemberById(householdId, occupancyId) == null) {
+      throw StateError('Family member is outside the active property context');
+    }
+    try {
+      await repository.updateFamilyMember(
+        householdId: householdId,
+        occupancyId: occupancyId,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (familyMemberSettingsMatch(
+        householdId: householdId,
+        occupancyId: occupancyId,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      )) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> deactivateFamilyMember({
+    required String householdId,
+    required String occupancyId,
+  }) async {
+    if (familyMemberById(householdId, occupancyId) == null) {
+      throw StateError('Family member is outside the active property context');
+    }
+    try {
+      await repository.deactivateFamilyMember(
+        householdId: householdId,
+        occupancyId: occupancyId,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (familyMemberById(householdId, occupancyId) == null) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> _reloadHouseholdsForMutationRecovery() async {
+    final selected = activeUnitId;
+    if (selected == null) throw StateError('Select a property before managing family members');
+    final rows = await repository.households();
+    final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
+    households = scoped;
+    householdError = rows.isNotEmpty && scoped.isEmpty
+        ? 'The selected property is no longer available in this society session.'
+        : null;
+    if (!_disposed) notifyListeners();
+  }
+
+  String _normalizeHouseholdPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
+
   Future<void> _loadAccess() async {
     if (!hasActiveProperty || !_canLoadAccess) {
       accessRequests = const [];
