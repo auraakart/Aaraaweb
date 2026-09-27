@@ -21,9 +21,15 @@ Pickup-code issuance is now serialized per society and parcel using the reposito
 
 The pickup dialog no longer hardcodes the ten-minute policy. It renders the server-returned expiry time and `maxAttempts` guidance, keeping the client aligned if the server policy changes.
 
+## Slice 3 — Guard pickup recovery clarity
+
+The Guard parcel desk now treats code verification failures as operational recovery states instead of exposing raw backend text. A malformed code is rejected locally before any handover call. Server responses for unissued, expired, locked or invalid codes instruct security to obtain/recheck a resident code and explicitly withhold handover until verification succeeds. Transport, session and permission failures likewise produce safe next steps.
+
+These messages do not weaken authorization: the Guard client still calls only `collect-with-code`, and the server remains the authority for code validity, attempt locking and the collected transition.
+
 ## Regression contract
 
-`pnpm check:v4.59` and CI require the verified security handover path, atomic/serialized pickup-code issuance, server-derived expiry/attempt guidance and duplicate-submit protection while forbidding the legacy resident self-confirm API/client/UI tokens. Resident widget coverage confirms active-property isolation and the pickup-code lifecycle.
+`pnpm check:v4.59` and CI require the verified security handover path, atomic/serialized pickup-code issuance, server-derived expiry/attempt guidance, Resident duplicate-submit protection and Guard recovery guidance while forbidding the legacy resident self-confirm API/client/UI tokens. Resident and Guard tests cover the pickup-code lifecycle and safe failure states.
 
 ## Boundary
 
