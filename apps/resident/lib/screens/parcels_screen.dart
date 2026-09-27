@@ -67,6 +67,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
             )
           : await widget.repository.issueParcelPickupCode(parcel.id);
       if (!mounted) return;
+      setState(() => _pickupCodeBusy.remove(parcel.id));
       await showDialog<void>(
         context: context,
         builder: (context) {
