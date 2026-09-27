@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
+import '../data/guard_api.dart';
 import '../data/models/guard_boundary_models.dart';
+import '../data/parcel_pickup_recovery.dart';
 import '../widgets/guard_state_card.dart';
 
 class GuardParcelsScreen extends StatefulWidget {
@@ -67,7 +69,22 @@ class _GuardParcelsScreenState extends State<GuardParcelsScreen> {
   Future<void> _verify(GuardParcel parcel) async {
     final code = await _textDialog(title: 'Verify pickup code', label: '6-digit code', numeric: true);
     if (code == null) return;
-    await _run(() => widget.controller.api.collectParcelWithCode(parcel.id, code));
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      if (mounted) setState(() => _error = 'Enter the full 6-digit pickup code. Do not hand over the parcel until verification succeeds.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await widget.controller.api.collectParcelWithCode(parcel.id, code);
+      await _load();
+    } on GuardApiException catch (error) {
+      if (mounted) setState(() { _error = guardParcelPickupRecovery(error); _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() {
+        _error = 'Pickup code could not be verified. Check the code with the resident and retry; do not hand over the parcel until verification succeeds.';
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _remind(GuardParcel parcel) => _run(() => widget.controller.api.remindParcel(parcel.id));
