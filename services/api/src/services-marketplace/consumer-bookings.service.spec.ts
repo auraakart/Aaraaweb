@@ -88,7 +88,6 @@ describe('ConsumerBookingsService', () => {
     await service.listBookingEvents(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
-      'Plans changed',
     );
 
     const values = sqlValues(prisma.$queryRaw.mock.calls[0][0]);
