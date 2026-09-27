@@ -201,6 +201,36 @@ class GateScreen extends StatelessWidget {
   }
 
   Future<void> _cancel(BuildContext context, Map<String, dynamic> request) async {
+    final strings = AaraagateStrings.device();
+    final validUntil = DateTime.tryParse(request['validUntil']?.toString() ?? '');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.text('cancelPass')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.text('cancelPassConfirm')),
+            if (validUntil != null) ...[
+              const SizedBox(height: 8),
+              Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())})),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(MaterialLocalizations.of(dialogContext).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(strings.text('cancelPass')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     try {
       await controller.cancelAccess(request['id'].toString());
     } catch (e) {
@@ -502,6 +532,9 @@ class _AccessCardState extends State<_AccessCard> {
         : request['status'] == 'PENDING' && rawType == 'DELIVERY'
             ? strings.text('allow30')
             : null;
+    final validUntil = rawType == 'VISITOR' && request['status'] == 'APPROVED'
+        ? DateTime.tryParse(request['validUntil']?.toString() ?? '')
+        : null;
 
     return Semantics(
       container: true,
@@ -560,6 +593,13 @@ class _AccessCardState extends State<_AccessCard> {
           if (approvalHint != null) ...[
             const SizedBox(height: 10),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+          ],
+          if (validUntil != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}),
+              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+            ),
           ],
           if (widget.onApprove != null || widget.onDeny != null || widget.onCancel != null) ...[
             const SizedBox(height: 16),

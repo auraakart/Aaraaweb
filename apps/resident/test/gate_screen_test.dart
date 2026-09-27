@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _InviteRepository extends DemoResidentRepository {
   Map<String, dynamic>? invite;
+  int cancelCalls = 0;
   final _requests = <Map<String, dynamic>>[];
 
   @override
@@ -34,6 +35,12 @@ class _InviteRepository extends DemoResidentRepository {
     };
     _requests.add(request);
     return {'request': request, 'credential': 'TEST-PASS'};
+  }
+
+  @override
+  Future<void> cancelAccess(String requestId) async {
+    cancelCalls++;
+    _requests.firstWhere((item) => item['id'] == requestId)['status'] = 'CANCELLED';
   }
 }
 
@@ -243,6 +250,40 @@ void main() {
     expect(find.text('This gate request changed. Latest status: Approved.'), findsOneWidget);
     expect(controller.accessRequests.single['status'], 'APPROVED');
 
+    controller.dispose();
+  });
+
+
+  testWidgets('approved visitor pass requires review before cancellation', (tester) async {
+    final repository = _InviteRepository();
+    await repository.inviteVisitor(
+      unitId: 'unit-1',
+      name: 'Priya Shah',
+      validFrom: DateTime(2026, 9, 27, 10),
+      validUntil: DateTime(2026, 9, 27, 14),
+    );
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'VISITOR_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..accessRequests = await repository.accessRequests();
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: GateScreen(controller: controller))));
+
+    expect(find.textContaining('Valid until'), findsOneWidget);
+    await tester.tap(find.text('Cancel pass'));
+    await tester.pumpAndSettle();
+
+    expect(repository.cancelCalls, 0);
+    expect(find.text('This stops the visitor pass immediately. Security will no longer accept it.'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Cancel pass'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel pass'));
+    await tester.pumpAndSettle();
+
+    expect(repository.cancelCalls, 1);
+    expect(controller.accessRequests.single['status'], 'CANCELLED');
     controller.dispose();
   });
 
