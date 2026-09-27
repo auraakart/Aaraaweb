@@ -18,7 +18,7 @@ describe('SosService relationship authorization', () => {
 
   it('persists explicit emergency category and severity after current-occupancy validation', async () => {
     const tx = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1' }]),
+      $queryRaw: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'incident-1' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {
@@ -34,18 +34,18 @@ describe('SosService relationship authorization', () => {
       message: 'Need ambulance support',
     });
 
-    const insert = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    const insert = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(insert.strings.join(' ')).toContain('"category", "severity"');
     expect(insert.values).toContain('MEDICAL');
     expect(insert.values).toContain('CRITICAL');
 
-    const event = tx.$executeRaw.mock.calls[0][0] as { values: unknown[] };
+    const event = tx.$executeRaw.mock.calls[1][0] as { values: unknown[] };
     expect(event.values).toContain('category=MEDICAL;severity=CRITICAL');
   });
 
   it('uses backward-compatible OTHER/HIGH defaults when older clients omit classification', async () => {
     const tx = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: 'incident-1' }]),
+      $queryRaw: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'incident-1' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {
@@ -56,9 +56,31 @@ describe('SosService relationship authorization', () => {
 
     await service.trigger('society-1', 'user-1', { unitId: 'unit-1' });
 
-    const insert = tx.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+    const insert = tx.$queryRaw.mock.calls[1][0] as { values: unknown[] };
     expect(insert.values).toContain('OTHER');
     expect(insert.values).toContain('HIGH');
+  });
+
+  it('serializes the resident/unit trigger scope and reuses an existing active incident', async () => {
+    const existing = { id: 'incident-existing', unitId: 'unit-1', residentUserId: 'user-1', status: 'ACTIVE' };
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([existing]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'occupancy-1' }]),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const service = new SosService(prisma as unknown as PrismaService);
+
+    const result = await service.trigger('society-1', 'user-1', { unitId: 'unit-1' });
+
+    expect(result).toEqual(existing);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const lock = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(lock.strings.join(' ')).toContain('pg_advisory_xact_lock');
+    expect(lock.values).toContain('sos:society-1:unit-1:user-1');
   });
 
   it('records escalation as an append-only incident event without changing incident status', async () => {

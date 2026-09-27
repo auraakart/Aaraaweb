@@ -136,6 +136,8 @@ jobs:
         run: node scripts/check-v4.61-amenity-cancellation-recovery.mjs
       - name: Check V4.62 household staff recovery
         run: node scripts/check-v4.62-household-staff-recovery.mjs
+      - name: Check V4.63 SOS recovery
+        run: node scripts/check-v4.63-sos-recovery.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
