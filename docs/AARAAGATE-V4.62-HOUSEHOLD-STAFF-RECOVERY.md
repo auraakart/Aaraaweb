@@ -23,13 +23,19 @@ For leave creation, the request is treated as recovered success only when the re
 
 This prevents duplicate leave/rating submissions after a server commit followed by a lost response without manufacturing local success state.
 
+## Slice 3 — Household-staff submission recovery
+
+Adding a household-staff assignment now follows the same uncertain-outcome contract. If the submission reports an error, Resident reloads the authoritative workforce read model and accepts recovered success only when an assignment exists for the selected household with the normalized worker name, phone digits and role that the resident submitted.
+
+If no matching assignment exists, the original error is rethrown and the **Submit for review** sheet remains retryable. Newly recovered assignments remain subject to the existing society review and verification lifecycle; this recovery does not make a pending worker gate-eligible.
+
 ## Authority boundary
 
 V4.62 does not change household ownership, society verification, assignment states, leave policy, staff ratings, gate eligibility rules or server mutation authorization. Recovery only re-reads existing authoritative workforce/access state after an uncertain workforce mutation and accepts success only when refreshed state proves the intended result.
 
 ## Regression contract
 
-`pnpm check:v4.62` and CI require controller recovery reads, stale-action removal, authoritative create/update matching, clear recovered-state messages and focused controller/widget regressions.
+`pnpm check:v4.62` and CI require controller recovery reads, stale-action removal, authoritative create/update/submission matching, clear recovered-state messages and focused controller/widget regressions.
 
 ## Boundary
 
