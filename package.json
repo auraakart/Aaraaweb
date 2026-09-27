@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.64.1",
+  "version": "4.65.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -38,7 +38,9 @@
     "check:v4.63": "node scripts/check-v4.63-sos-recovery.mjs",
     "check:v4.64": "node scripts/check-v4.64-community-poll-recovery.mjs",
     "check:v4.64.1": "node scripts/check-v4.64.1-visitor-invite-recovery.mjs",
-    "check:v4.65": "node scripts/check-v4.65-family-member-recovery.mjs"
+    "check:v4.65:family-member": "node scripts/check-v4.65-family-member-recovery.mjs",
+    "check:v4.65:autopay": "node scripts/check-v4.65-autopay-preference-recovery.mjs",
+    "check:v4.65": "pnpm check:v4.65:family-member && pnpm check:v4.65:autopay"
   },
   "pnpm": {
     "overrides": {

@@ -2,8 +2,8 @@ import fs from 'node:fs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 const root=JSON.parse(read('package.json')),api=JSON.parse(read('services/api/package.json')),admin=JSON.parse(read('apps/admin/package.json'));
-if(root.version!=='4.64.1'||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must be V4.64.1.');process.exit(1)}
-for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml'])must(file,read(file),['version: 4.64.1+46401']);
+if(!/^4\.\d+\.\d+$/.test(root.version)||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned on the supported V4.x line.');process.exit(1)}
+for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml'])must(file,read(file),[`version: ${root.version}+`]);
 must('V4.64.1 server invite recovery',read('services/api/src/access/access.service.ts'),['visitorInviteFingerprint(','visitorInviteIdempotencyKey','visitorInviteFingerprint: fingerprint','pg_advisory_xact_lock','Idempotency key was already used for a different visitor invite','Visitor invite is no longer active','credentialHash: rotated.hash','replayed: true']);
 must('V4.64.1 route idempotency',read('services/api/src/access/access.controller.ts'),["@Headers('idempotency-key') idempotencyKey",'Idempotency-Key header is required']);
 must('V4.64.1 Resident retry identity',read('apps/resident/lib/data/resident_data_controller.dart'),['_GuestInviteAttempt? _pendingGuestInviteAttempt;','_guestInviteInFlightSignature',"idempotencyKey: 'resident-visitor-",'previous != null && previous.signature == signature','idempotencyKey: attempt.idempotencyKey']);

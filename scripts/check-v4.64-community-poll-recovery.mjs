@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 const root=JSON.parse(read('package.json')),api=JSON.parse(read('services/api/package.json')),admin=JSON.parse(read('apps/admin/package.json'));
-if(!/^4\.64\.\d+$/.test(root.version)||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned on the V4.64.x line.');process.exit(1)}
+if(!/^4\.\d+\.\d+$/.test(root.version)||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned on the supported V4.x line.');process.exit(1)}
 for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml'])must(file,read(file),[`version: ${root.version}+`]);
 must('V4.64 Resident community poll interaction',read('apps/resident/lib/screens/community_screen.dart'),['_reloadPolls()','respondToCommunityPoll(pollId:pollId,optionId:chosen)',"['myOptionId']",'Community poll only — not statutory voting.','Response confirmed after refresh.','Response could not be verified. Review your selection and retry.','A different response is already recorded for this poll.']);
 must('V4.64 authoritative backend contract',read('services/api/src/governance/governance-poll-participation.controller.ts'),['p."statutoryUseProhibited"','r."optionId" AS "myOptionId"',"'A response has already been recorded for this poll'",'FOR UPDATE']);
