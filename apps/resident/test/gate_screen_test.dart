@@ -273,14 +273,16 @@ void main() {
 
     expect(find.textContaining('Valid until'), findsOneWidget);
     await tester.tap(find.text('Cancel pass'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(repository.cancelCalls, 0);
     expect(find.text('This stops the visitor pass immediately. Security will no longer accept it.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Cancel pass'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Cancel pass'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(repository.cancelCalls, 1);
     expect(controller.accessRequests.single['status'], 'CANCELLED');
