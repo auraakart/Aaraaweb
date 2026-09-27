@@ -9,8 +9,14 @@ class _WorkforceRecoveryRepository extends DemoResidentRepository {
   bool assignmentEnded = false;
   bool leaveCreated = false;
   bool ratingSaved = false;
+  bool assignmentCreated = false;
   bool commitLeaveBeforeFailure = true;
   bool commitRatingBeforeFailure = true;
+  bool commitAssignmentBeforeFailure = true;
+  String? createdHouseholdId;
+  String? createdName;
+  String? createdPhone;
+  String? createdRole;
   DateTime? createdStartsOn;
   DateTime? createdEndsOn;
   String? createdReason;
@@ -21,11 +27,12 @@ class _WorkforceRecoveryRepository extends DemoResidentRepository {
   @override
   Future<List<Map<String, dynamic>>> workforce() async {
     workforceReads++;
-    return [
+    final rows = <Map<String, dynamic>>[
       {
         'id': 'assignment-recovery',
         'active': !assignmentEnded,
         'status': assignmentEnded ? 'SUSPENDED' : 'APPROVED',
+        'householdId': 'demo-household-1',
         'household': {
           'unitId': 'demo-unit-1',
           'unit': {
@@ -41,6 +48,28 @@ class _WorkforceRecoveryRepository extends DemoResidentRepository {
         },
       },
     ];
+    if (assignmentCreated) {
+      rows.add({
+        'id': 'assignment-created-after-timeout',
+        'active': true,
+        'status': 'PENDING',
+        'householdId': createdHouseholdId,
+        'household': {
+          'unitId': 'demo-unit-1',
+          'unit': {
+            'number': 'A-1204',
+            'building': {'name': 'Maple Tower'},
+          },
+        },
+        'worker': {
+          'name': createdName,
+          'phone': createdPhone,
+          'role': createdRole,
+          'verification': 'PENDING',
+        },
+      });
+    }
+    return rows;
   }
 
   @override
@@ -79,6 +108,21 @@ class _WorkforceRecoveryRepository extends DemoResidentRepository {
           },
         ]
       : const [];
+
+  @override
+  Future<Map<String, dynamic>> addWorkforce({
+    required String householdId,
+    required String name,
+    required String phone,
+    required String role,
+  }) async {
+    createdHouseholdId = householdId;
+    createdName = name.trim();
+    createdPhone = phone.trim();
+    createdRole = role.trim().toUpperCase();
+    if (commitAssignmentBeforeFailure) assignmentCreated = true;
+    throw StateError('transport failed after assignment commit');
+  }
 
   @override
   Future<Map<String, dynamic>> createWorkforceLeave({
@@ -453,6 +497,72 @@ void main() {
 
     await expectLater(
       controller.rateWorkforce('assignment-recovery', score: 3, comment: 'Needs follow-up'),
+      throwsA(isA<StateError>()),
+    );
+    expect(repository.workforceReads, 2);
+  });
+
+
+  test('uncertain staff submission resolves as success when refreshed assignment matches intent', () async {
+    final repository = _WorkforceRecoveryRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    controller.households = [
+      {
+        'id': 'demo-household-1',
+        'unit': {'number': 'A-1204'},
+      },
+    ];
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await controller.addWorkforce(
+      householdId: 'demo-household-1',
+      name: '  Meena   S. ',
+      phone: '+91 98000 00002',
+      role: 'maid',
+    );
+
+    expect(
+      controller.hasMatchingWorkforceAssignment(
+        householdId: 'demo-household-1',
+        name: 'Meena S.',
+        phone: '+919800000002',
+        role: 'MAID',
+      ),
+      isTrue,
+    );
+    expect(repository.workforceReads, 2);
+  });
+
+  test('uncertain staff submission remains retryable when refreshed assignment is absent', () async {
+    final repository = _WorkforceRecoveryRepository()..commitAssignmentBeforeFailure = false;
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    controller.households = [
+      {
+        'id': 'demo-household-1',
+        'unit': {'number': 'A-1204'},
+      },
+    ];
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await expectLater(
+      controller.addWorkforce(
+        householdId: 'demo-household-1',
+        name: 'Meena S.',
+        phone: '+919800000002',
+        role: 'MAID',
+      ),
       throwsA(isA<StateError>()),
     );
     expect(repository.workforceReads, 2);

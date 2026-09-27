@@ -8,6 +8,9 @@ must('V4.62 workforce mutation recovery',controller,[
   'Map<String, dynamic>? workforceAssignmentFor(String assignmentId)',
   'bool hasMatchingWorkforceLeave({',
   'bool workforceRatingMatches(String assignmentId',
+  'bool hasMatchingWorkforceAssignment({',
+  "final expectedPhone = _normalizeWorkforcePhone(phone);",
+  'if (hasMatchingWorkforceAssignment(',
   'await _recoverWorkforceMutationFailure();',
   'await _recoverWorkforceMutationFailure(refreshAccess: true);',
   'if (hasMatchingWorkforceLeave(',
@@ -35,6 +38,8 @@ must('V4.62 focused regressions',tests,[
   'uncertain leave creation remains retryable when authoritative state did not change',
   'uncertain rating update resolves as success only when refreshed rating matches intent',
   'uncertain rating update rethrows when authoritative rating did not change',
+  'uncertain staff submission resolves as success when refreshed assignment matches intent',
+  'uncertain staff submission remains retryable when refreshed assignment is absent',
   "expect(repository.workforceReads, 2);"
 ]);
 
@@ -44,6 +49,8 @@ must('V4.62 development truth',read('docs/AARAAGATE-V4.62-HOUSEHOLD-STAFF-RECOVE
   'Leave creation and household-staff rating updates now use the same uncertain-outcome rule',
   'refreshed active leave matches the intended assignment',
   'refreshed score and normalized comment',
+  'Adding a household-staff assignment now follows the same uncertain-outcome contract',
+  'normalized worker name, phone digits and role',
   'does not claim V4.62.0 release closure'
 ]);
 

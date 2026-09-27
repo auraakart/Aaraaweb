@@ -515,6 +515,28 @@ class ResidentDataController extends ChangeNotifier {
     return currentScore == score && currentComment == (comment?.trim() ?? '');
   }
 
+  bool hasMatchingWorkforceAssignment({
+    required String householdId,
+    required String name,
+    required String phone,
+    required String role,
+  }) {
+    final expectedName = _normalizeWorkforceName(name);
+    final expectedPhone = _normalizeWorkforcePhone(phone);
+    final expectedRole = role.trim().toUpperCase();
+    return workforceAssignments.any((item) {
+      if (item['householdId']?.toString() != householdId) return false;
+      final worker = item['worker'];
+      final workerMap = worker is Map ? worker : item;
+      final actualName = _normalizeWorkforceName(workerMap['name']?.toString() ?? '');
+      final actualPhone = _normalizeWorkforcePhone(workerMap['phone']?.toString() ?? '');
+      final actualRole = workerMap['role']?.toString().trim().toUpperCase() ?? '';
+      return actualName == expectedName &&
+          actualPhone == expectedPhone &&
+          actualRole == expectedRole;
+    });
+  }
+
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     try {
       await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
@@ -555,7 +577,18 @@ class ResidentDataController extends ChangeNotifier {
   }
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     if (!households.any((item) => item['id']?.toString() == householdId)) throw StateError('Household is outside the active property context');
-    await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    try {
+      await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (hasMatchingWorkforceAssignment(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        role: role,
+      )) return;
+      rethrow;
+    }
     await _loadWorkforce();
     if (!_disposed) notifyListeners();
   }
@@ -585,6 +618,12 @@ class ResidentDataController extends ChangeNotifier {
         parsed.month == expected.month &&
         parsed.day == expected.day;
   }
+
+  String _normalizeWorkforceName(String value) =>
+      value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+  String _normalizeWorkforcePhone(String value) =>
+      value.replaceAll(RegExp(r'\D'), '');
 
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
