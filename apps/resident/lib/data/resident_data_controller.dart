@@ -55,6 +55,9 @@ class ResidentDataController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
   Timer? _reconnectTimer;
   Future<void>? _loadInFlight;
+  _GuestInviteAttempt? _pendingGuestInviteAttempt;
+  Future<Map<String, dynamic>>? _guestInviteInFlight;
+  String? _guestInviteInFlightSignature;
   bool _disposed = false;
 
   bool get hasActiveProperty => activeUnitId != null && activeUnitId!.isNotEmpty;
@@ -674,15 +677,57 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
+  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) {
     final unitId = primaryUnitId;
-    if (unitId == null) throw StateError('Select a property before creating a visitor pass');
-    final now = DateTime.now();
-    final result = await repository.inviteVisitor(unitId: unitId, name: name, phone: phone, purpose: purpose, validFrom: now, validUntil: now.add(duration));
+    if (unitId == null) return Future.error(StateError('Select a property before creating a visitor pass'));
+    final signature = [unitId, name.trim(), phone?.trim() ?? '', purpose?.trim() ?? '', duration.inSeconds.toString()].join('|');
+    final inFlight = _guestInviteInFlight;
+    if (inFlight != null) {
+      if (_guestInviteInFlightSignature == signature) return inFlight;
+      return Future.error(StateError('Another visitor pass is already being created'));
+    }
+    final previous = _pendingGuestInviteAttempt;
+    final attempt = previous != null && previous.signature == signature
+        ? previous
+        : _GuestInviteAttempt(
+            signature: signature,
+            idempotencyKey: 'resident-visitor-${DateTime.now().microsecondsSinceEpoch}',
+            validFrom: DateTime.now(),
+            duration: duration,
+          );
+    _pendingGuestInviteAttempt = attempt;
+    final operation = _createGuestAttempt(unitId: unitId, name: name, phone: phone, purpose: purpose, attempt: attempt);
+    _guestInviteInFlight = operation;
+    _guestInviteInFlightSignature = signature;
+    return operation.whenComplete(() {
+      if (identical(_guestInviteInFlight, operation)) {
+        _guestInviteInFlight = null;
+        _guestInviteInFlightSignature = null;
+      }
+    });
+  }
+
+  Future<Map<String, dynamic>> _createGuestAttempt({
+    required String unitId,
+    required String name,
+    required _GuestInviteAttempt attempt,
+    String? phone,
+    String? purpose,
+  }) async {
+    final result = await repository.inviteVisitor(
+      unitId: unitId,
+      name: name,
+      phone: phone,
+      purpose: purpose,
+      validFrom: attempt.validFrom,
+      validUntil: attempt.validUntil,
+      idempotencyKey: attempt.idempotencyKey,
+    );
     final rawRequest = result['request'];
     final credential = result['credential']?.toString();
     if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
     lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
+    if (identical(_pendingGuestInviteAttempt, attempt)) _pendingGuestInviteAttempt = null;
     await _loadAccess();
     if (!_disposed) notifyListeners();
     return lastIssuedVisitorPass!;
@@ -700,6 +745,16 @@ class ResidentDataController extends ChangeNotifier {
     push.dispose();
     super.dispose();
   }
+}
+
+class _GuestInviteAttempt {
+  _GuestInviteAttempt({required this.signature, required this.idempotencyKey, required this.validFrom, required Duration duration})
+      : validUntil = validFrom.add(duration);
+
+  final String signature;
+  final String idempotencyKey;
+  final DateTime validFrom;
+  final DateTime validUntil;
 }
 
 extension _FirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }
