@@ -27,9 +27,15 @@ Complaint detail shows **Still not fixed?** only for resolved/closed tickets. Th
 
 This slice does not expose reviewer assignment/status APIs to residents, add a new permission, or widen society/operator mutation roles. Reviewer reopen continues to use `HELPDESK_REVIEW`; resident reopen uses the pre-existing own-ticket permission and current-occupancy scope.
 
+## Slice 2 — Audited service-booking cancellation reason
+
+Resident cancellation remains limited to consumer-owned bookings in `REQUESTED` or `CONFIRMED`, but cancellation now requires a 3–500 character reason. The API validates the input and the service re-validates the normalized reason before taking the existing row lock. The same consumer-owned locked transition writes the reason into the existing `ConsumerServiceBookingEvent.note`, so the resident/provider timeline retains why the request was cancelled without adding a parallel record or new status.
+
+The Resident app collects the reason in a review dialog before calling the existing cancel route. The action is still server-authoritative: the client does not mark a booking cancelled until the server succeeds and the list reloads.
+
 ## Regression contract
 
-`pnpm check:v4.58` and CI verify the resident route permission, in-transaction occupancy predicate, audited REOPENED event, Resident API path and resolved/closed-only recovery UI.
+`pnpm check:v4.58` and CI verify the resident Helpdesk recovery boundary plus consumer-owned booking cancellation reason validation, locked transition evidence, timeline note and review-before-cancel UI.
 
 ## Boundary
 

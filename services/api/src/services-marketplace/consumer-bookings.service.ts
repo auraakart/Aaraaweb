@@ -286,7 +286,11 @@ export class ConsumerBookingsService {
     });
   }
 
-  async cancelBooking(userId: string, bookingId: string) {
+  async cancelBooking(userId: string, bookingId: string, reason: string) {
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+      throw new BadRequestException('Cancellation reason must be between 3 and 500 characters');
+    }
     return this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
         SELECT "id", "status" FROM "ConsumerServiceBooking"
@@ -313,10 +317,11 @@ export class ConsumerBookingsService {
 
       await tx.$queryRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceBookingEvent" (
-          "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "occurredAt"
+          "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "note", "occurredAt"
         ) VALUES (
           ${randomUUID()}::uuid, ${bookingId}::uuid, ${userId}::uuid, 'CANCELLED',
-          ${current.status}::"ServiceBookingStatus", ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", CURRENT_TIMESTAMP
+          ${current.status}::"ServiceBookingStatus", ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus",
+          ${normalizedReason}, CURRENT_TIMESTAMP
         )
       `);
       return rows[0];
