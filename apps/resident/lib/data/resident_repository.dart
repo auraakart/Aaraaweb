@@ -10,6 +10,11 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> householdChangeRequests() async {
+    final value = await api.get('/api/v1/household-change-requests/mine');
+    return _list(value);
+  }
+
   Future<Map<String, dynamic>> addFamilyMember({
     required String householdId,
     required String name,
