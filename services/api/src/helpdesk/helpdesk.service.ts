@@ -280,9 +280,31 @@ export class HelpdeskService {
     });
   }
 
+  async reopenMine(societyId: string, userId: string, ticketId: string, note: string) {
+    const normalized = this.normalizeReopenNote(note);
+    return this.prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT ht.* FROM "HelpdeskTicket" ht
+        WHERE ht."id"=${ticketId}::uuid
+          AND ht."societyId"=${societyId}::uuid
+          AND EXISTS (
+            SELECT 1 FROM "UnitOccupancy" uo
+            WHERE uo."unitId" = ht."unitId"
+              AND uo."societyId" = ${societyId}::uuid
+              AND uo."userId" = ${userId}::uuid
+              AND uo."active" = true
+              AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+              AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+          )
+        FOR UPDATE
+      `);
+      if (!current) throw new NotFoundException('Helpdesk ticket not found');
+      return this.reopenLocked(tx, societyId, userId, ticketId, current, normalized);
+    });
+  }
+
   async reopen(societyId: string, actorUserId: string, ticketId: string, note: string) {
-    const normalized = note.trim();
-    if (normalized.length < 3 || normalized.length > 1000) throw new BadRequestException('Reopen reason must be between 3 and 1000 characters');
+    const normalized = this.normalizeReopenNote(note);
     return this.prisma.$transaction(async (tx) => {
       const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         SELECT * FROM "HelpdeskTicket"
@@ -290,21 +312,42 @@ export class HelpdeskService {
         FOR UPDATE
       `);
       if (!current) throw new NotFoundException('Helpdesk ticket not found');
-      if (!['RESOLVED','CLOSED'].includes(current.status)) throw new BadRequestException('Only resolved or closed tickets can be reopened');
-      const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
-        UPDATE "HelpdeskTicket"
-        SET "status"='IN_PROGRESS', "resolvedAt"=NULL, "closedAt"=NULL,
-            "resolutionCode"=NULL, "closureCode"=NULL, "updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid AND "status"=${current.status}
-        RETURNING *
-      `);
-      if (!updated) throw new BadRequestException('Helpdesk ticket changed; refresh and retry');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message","fromStatus","toStatus")
-        VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'REOPENED',${normalized},${current.status},'IN_PROGRESS')
-      `);
-      return updated;
+      return this.reopenLocked(tx, societyId, actorUserId, ticketId, current, normalized);
     });
+  }
+
+  private normalizeReopenNote(note: string) {
+    const normalized = note.trim();
+    if (normalized.length < 3 || normalized.length > 1000) {
+      throw new BadRequestException('Reopen reason must be between 3 and 1000 characters');
+    }
+    return normalized;
+  }
+
+  private async reopenLocked(
+    tx: Prisma.TransactionClient,
+    societyId: string,
+    actorUserId: string,
+    ticketId: string,
+    current: TicketRow,
+    normalized: string,
+  ) {
+    if (!['RESOLVED','CLOSED'].includes(current.status)) {
+      throw new BadRequestException('Only resolved or closed tickets can be reopened');
+    }
+    const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+      UPDATE "HelpdeskTicket"
+      SET "status"='IN_PROGRESS', "resolvedAt"=NULL, "closedAt"=NULL,
+          "resolutionCode"=NULL, "closureCode"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid AND "status"=${current.status}
+      RETURNING *
+    `);
+    if (!updated) throw new BadRequestException('Helpdesk ticket changed; refresh and retry');
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message","fromStatus","toStatus")
+      VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'REOPENED',${normalized},${current.status},'IN_PROGRESS')
+    `);
+    return updated;
   }
 
   private activitiesForTicket(societyId: string, ticketId: string, includeInternal: boolean) {

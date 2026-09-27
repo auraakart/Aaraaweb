@@ -79,6 +79,17 @@ export class HelpdeskController {
     return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message);
   }
 
+  @Post(':ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  reopenMine(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopenMine(societyId, this.requireUser(userId), ticketId, dto.note);
+  }
+
   @Get(':ticketId/activities')
   @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
   activities(
