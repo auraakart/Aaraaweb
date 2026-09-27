@@ -78,9 +78,10 @@ describe('ParcelsService', () => {
     const result = await service.issuePickupCode(societyId, recipientId, parcelId);
     expect(result.code).toMatch(/^\d{6}$/);
     expect(result.maxAttempts).toBe(5);
-    const lock = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
-    expect(lock.strings.join(' ')).toContain('pg_advisory_xact_lock');
-    expect(lock.values).toContain(`${societyId}:${parcelId}`);
+    const lockCall = tx.$queryRaw.mock.calls[0] as unknown[];
+    const lockStrings = lockCall[0] as readonly string[];
+    expect(lockStrings.join(' ')).toContain('pg_advisory_xact_lock');
+    expect(lockCall).toContain(`${societyId}:${parcelId}`);
     const query = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"pickupCodeHash"');
     expect(query.strings.join(' ')).toContain('"recipientUserId"');
