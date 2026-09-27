@@ -7,13 +7,15 @@ must('Parcel verified desk route',controller,["desk/:parcelId/collect-with-code"
 forbid('Parcel resident routes',controller,["mine/:parcelId/collect",'confirmCollection(']);
 const service=read('services/api/src/parcels/parcels.service.ts');
 must('Parcel verified handover',service,['collectWithPickupCode(','PICKUP_CODE_VERIFIED',"'COLLECTED'",'pickupCodeExpiresAt','pickupCodeLockedAt']);
+must('Parcel pickup-code issuance integrity',service,['issuePickupCode(','pg_advisory_xact_lock','PICKUP_CODE_ISSUED','$transaction(async (tx)']);
 forbid('Parcel legacy service',service,['async confirmCollection(']);
 const actions=read('apps/resident/lib/data/parcel_actions.dart');
 must('Resident parcel action',actions,['issueParcelPickupCode','/pickup-code']);
 forbid('Resident parcel action',actions,['confirmParcelCollection','/collect']);
 const screen=read('apps/resident/lib/screens/parcels_screen.dart');
-must('Resident parcel UX',screen,['Show this code to security when collecting the parcel. It expires in 10 minutes.','Security verifies the code before handing over the parcel.']);
+must('Resident parcel UX',screen,['Show this code to security when collecting the parcel.','Security verifies the code before handing over the parcel.','_pickupCodeBusy',"Creating code…",'Valid until $hour:$minute.','up to $maxAttempts attempts']);
+must('Resident pickup-code model',read('apps/resident/lib/data/models/resident_parcel.dart'),['final int? maxAttempts;',"(json['maxAttempts'] as num?)?.toInt()"]);
 forbid('Resident parcel UX',screen,['I collected it','_confirmCollection(']);
-must('Resident parcel regression',read('apps/resident/test/parcels_screen_test.dart'),["expect(find.text('I collected it'),findsNothing)","/api/v1/parcels/mine/parcel-a/pickup-code"]);
+must('Resident parcel regression',read('apps/resident/test/parcels_screen_test.dart'),["expect(find.text('I collected it'),findsNothing)","/api/v1/parcels/mine/parcel-a/pickup-code",'pickup-code issuance disables duplicate submission','expect(api.postCalls,1)','up to 5 attempts']);
 must('V4.59 truth',read('docs/AARAAGATE-V4.59-SECURE-HANDOVER.md'),['release identity remains 4.58.0','collect-with-code','No parcel is marked collected merely from a Resident-client acknowledgement.']);
 console.log('V4.59 secure physical handover development contract: PASS');

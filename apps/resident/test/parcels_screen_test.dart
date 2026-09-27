@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/parcels_screen.dart';
@@ -36,7 +37,19 @@ class _ParcelsApi extends ApiClient {
   @override
   Future<dynamic> post(String path,[Map<String,dynamic>? body]) async {
     postPath=path;
-    return {'parcelId':'parcel-a','code':'482731','expiresAt':'2026-09-18T10:10:00Z'};
+    return {'parcelId':'parcel-a','code':'482731','expiresAt':'2026-09-18T10:10:00Z','maxAttempts':5};
+  }
+}
+
+class _SlowParcelsApi extends _ParcelsApi {
+  final Completer<dynamic> issuance = Completer<dynamic>();
+  int postCalls = 0;
+
+  @override
+  Future<dynamic> post(String path,[Map<String,dynamic>? body]) {
+    postPath=path;
+    postCalls++;
+    return issuance.future;
   }
 }
 
@@ -55,12 +68,34 @@ void main(){
     await tester.pumpAndSettle();
     expect(api.postPath,'/api/v1/parcels/mine/parcel-a/pickup-code');
     expect(find.text('482731'),findsOneWidget);
+    expect(find.textContaining('Valid until'),findsOneWidget);
+    expect(find.textContaining('up to 5 attempts'),findsOneWidget);
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
 
     expect(find.text('I collected it'),findsNothing);
     expect(find.text('Pickup codes are short-lived. Security verifies the code before handing over the parcel.'),findsOneWidget);
     expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('pickup-code issuance disables duplicate submission until the server responds',(tester) async {
+    final api=_SlowParcelsApi();
+    await tester.pumpWidget(MaterialApp(
+      home:ParcelsScreen(repository:ResidentRepository(api),unitId:'unit-a'),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pickup code'));
+    await tester.pump();
+    expect(api.postCalls,1);
+    expect(find.text('Creating code…'),findsOneWidget);
+    final button=tester.widget<FilledButton>(find.byType(FilledButton));
+    expect(button.onPressed,isNull);
+
+    api.issuance.complete({'parcelId':'parcel-a','code':'482731','expiresAt':'2026-09-18T10:10:00Z','maxAttempts':5});
+    await tester.pumpAndSettle();
+    expect(find.text('482731'),findsOneWidget);
+    expect(api.postCalls,1);
   });
 
   testWidgets('parcel screen remains usable with large accessibility text',(tester) async {

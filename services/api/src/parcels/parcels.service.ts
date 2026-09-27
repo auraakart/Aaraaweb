@@ -100,26 +100,29 @@ export class ParcelsService {
   }
 
   async issuePickupCode(societyId: string, userId: string, parcelId: string) {
-    const code = randomInt(100000, 1000000).toString();
-    const salt = randomBytes(16).toString('hex');
-    const digest = pickupDigest(salt, code);
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; pickupCodeExpiresAt: Date }>>(Prisma.sql`
-      UPDATE "Parcel"
-      SET "pickupCodeSalt"=${salt}, "pickupCodeHash"=${digest},
-          "pickupCodeIssuedAt"=CURRENT_TIMESTAMP,
-          "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + make_interval(mins => ${PICKUP_CODE_TTL_MINUTES}),
-          "pickupCodeAttempts"=0, "pickupCodeLockedAt"=NULL, "updatedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${parcelId}::uuid AND "societyId"=${societyId}::uuid
-        AND "recipientUserId"=${userId}::uuid AND "status"='RECEIVED'
-      RETURNING "id","pickupCodeExpiresAt"
-    `);
-    const parcel = rows[0];
-    if (!parcel) throw new NotFoundException('Uncollected parcel not found for current user');
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "ParcelEvent" ("societyId","parcelId","actorUserId","action")
-      VALUES (${societyId}::uuid,${parcelId}::uuid,${userId}::uuid,'PICKUP_CODE_ISSUED')
-    `);
-    return { parcelId, code, expiresAt: parcel.pickupCodeExpiresAt.toISOString(), maxAttempts: PICKUP_CODE_MAX_ATTEMPTS };
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${parcelId}`}))`;
+      const code = randomInt(100000, 1000000).toString();
+      const salt = randomBytes(16).toString('hex');
+      const digest = pickupDigest(salt, code);
+      const rows = await tx.$queryRaw<Array<{ id: string; pickupCodeExpiresAt: Date }>>(Prisma.sql`
+        UPDATE "Parcel"
+        SET "pickupCodeSalt"=${salt}, "pickupCodeHash"=${digest},
+            "pickupCodeIssuedAt"=CURRENT_TIMESTAMP,
+            "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + make_interval(mins => ${PICKUP_CODE_TTL_MINUTES}),
+            "pickupCodeAttempts"=0, "pickupCodeLockedAt"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${parcelId}::uuid AND "societyId"=${societyId}::uuid
+          AND "recipientUserId"=${userId}::uuid AND "status"='RECEIVED'
+        RETURNING "id","pickupCodeExpiresAt"
+      `);
+      const parcel = rows[0];
+      if (!parcel) throw new NotFoundException('Uncollected parcel not found for current user');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ParcelEvent" ("societyId","parcelId","actorUserId","action")
+        VALUES (${societyId}::uuid,${parcelId}::uuid,${userId}::uuid,'PICKUP_CODE_ISSUED')
+      `);
+      return { parcelId, code, expiresAt: parcel.pickupCodeExpiresAt.toISOString(), maxAttempts: PICKUP_CODE_MAX_ATTEMPTS };
+    });
   }
 
   async collectWithPickupCode(societyId: string, actorUserId: string, parcelId: string, code: string) {

@@ -15,9 +15,15 @@ The legacy resident `mine/:parcelId/collect` route allowed the recipient to mark
 
 V4.59 removes that resident self-confirm route and client action. Residents keep read-own and pickup-code issuance; security keeps `PARCEL_PROCESS` and the existing code-verification handover. No parcel is marked collected merely from a Resident-client acknowledgement.
 
+## Slice 2 — Pickup-code lifecycle integrity
+
+Pickup-code issuance is now serialized per society and parcel using the repository's existing PostgreSQL advisory-lock pattern, and the code update plus `PICKUP_CODE_ISSUED` evidence are committed in one transaction. Resident blocks duplicate issuance taps while a request is active so a second tap cannot silently invalidate the code being generated.
+
+The pickup dialog no longer hardcodes the ten-minute policy. It renders the server-returned expiry time and `maxAttempts` guidance, keeping the client aligned if the server policy changes.
+
 ## Regression contract
 
-`pnpm check:v4.59` and CI require the verified security handover path and forbid the legacy resident self-confirm API/client/UI tokens. Resident widget coverage confirms active-property isolation, pickup-code issuance and the absence of the self-confirm action.
+`pnpm check:v4.59` and CI require the verified security handover path, atomic/serialized pickup-code issuance, server-derived expiry/attempt guidance and duplicate-submit protection while forbidding the legacy resident self-confirm API/client/UI tokens. Resident widget coverage confirms active-property isolation and the pickup-code lifecycle.
 
 ## Boundary
 
