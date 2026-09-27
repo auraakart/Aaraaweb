@@ -370,6 +370,99 @@ class ResidentDataController extends ChangeNotifier {
   Map<String, dynamic>? _householdById(String householdId) =>
       households.where((item) => item['id']?.toString() == householdId).firstOrNull;
 
+  List<Map<String, dynamic>> pendingHouseholdChangeRequests(
+    String householdId, {
+    String? typePrefix,
+  }) {
+    final household = _householdById(householdId);
+    final preferences = household?['accessPreferences'];
+    if (preferences is! Map) return const [];
+    final raw = preferences['householdChangeRequests'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) {
+          final status = item['status']?.toString().toUpperCase();
+          final type = item['type']?.toString() ?? '';
+          return const {'PENDING', 'PROCESSING'}.contains(status) &&
+              (typePrefix == null || type.startsWith(typePrefix));
+        })
+        .toList(growable: false);
+  }
+
+  bool _hasPendingFamilyAdd({
+    required String householdId,
+    required String phone,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    return pendingHouseholdChangeRequests(householdId, typePrefix: 'FAMILY_MEMBER_').any((request) {
+      if (request['type'] != 'FAMILY_MEMBER_ADD') return false;
+      final payload = request['payload'];
+      if (payload is! Map) return false;
+      return _normalizeHouseholdPhone(payload['phone']?.toString() ?? '') == expectedPhone &&
+          payload['gateApprovalEnabled'] == gateApprovalEnabled &&
+          payload['gateNotificationEnabled'] == gateNotificationEnabled &&
+          payload['primaryGateContact'] == primaryGateContact;
+    });
+  }
+
+  bool _hasPendingFamilyRemove({
+    required String householdId,
+    required String occupancyId,
+  }) =>
+      pendingHouseholdChangeRequests(householdId, typePrefix: 'FAMILY_MEMBER_').any(
+        (request) => request['type'] == 'FAMILY_MEMBER_REMOVE' &&
+            request['targetId']?.toString() == occupancyId,
+      );
+
+  List<Map<String, dynamic>> vehiclesForHousehold(String householdId) {
+    final raw = _householdById(householdId)?['vehicles'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? vehicleById(String householdId, String vehicleId) =>
+      vehiclesForHousehold(householdId)
+          .where((item) => item['id']?.toString() == vehicleId)
+          .firstOrNull;
+
+  bool _hasPendingVehicleAdd({
+    required String householdId,
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) {
+    final expectedPlate = _normalizeVehiclePlate(plateNumber);
+    return pendingHouseholdChangeRequests(householdId, typePrefix: 'VEHICLE_').any((request) {
+      if (request['type'] != 'VEHICLE_ADD') return false;
+      final payload = request['payload'];
+      if (payload is! Map) return false;
+      return _normalizeVehiclePlate(payload['plateNumber']?.toString() ?? '') == expectedPlate &&
+          payload['vehicleType']?.toString() == vehicleType &&
+          _normalizeOptionalText(payload['make']) == _normalizeOptionalText(make) &&
+          _normalizeOptionalText(payload['model']) == _normalizeOptionalText(model) &&
+          _normalizeOptionalText(payload['color']) == _normalizeOptionalText(color);
+    });
+  }
+
+  bool _hasPendingVehicleRemove({
+    required String householdId,
+    required String vehicleId,
+  }) =>
+      pendingHouseholdChangeRequests(householdId, typePrefix: 'VEHICLE_').any(
+        (request) => request['type'] == 'VEHICLE_REMOVE' &&
+            request['targetId']?.toString() == vehicleId,
+      );
+
   List<Map<String, dynamic>> familyMembersForHousehold(String householdId) {
     final household = _householdById(householdId);
     final unit = household?['unit'];
@@ -443,13 +536,22 @@ class ResidentDataController extends ChangeNotifier {
       );
     } catch (_) {
       await _reloadHouseholdsForMutationRecovery();
-      if (hasMatchingFamilyMember(
-        householdId: householdId,
-        phone: phone,
-        gateApprovalEnabled: gateApprovalEnabled,
-        gateNotificationEnabled: gateNotificationEnabled,
-        primaryGateContact: primaryGateContact,
-      )) return;
+      if (_hasPendingFamilyAdd(
+            householdId: householdId,
+            phone: phone,
+            gateApprovalEnabled: gateApprovalEnabled,
+            gateNotificationEnabled: gateNotificationEnabled,
+            primaryGateContact: primaryGateContact,
+          ) ||
+          hasMatchingFamilyMember(
+            householdId: householdId,
+            phone: phone,
+            gateApprovalEnabled: gateApprovalEnabled,
+            gateNotificationEnabled: gateNotificationEnabled,
+            primaryGateContact: primaryGateContact,
+          )) {
+        return;
+      }
       rethrow;
     }
     await _reloadHouseholdsForMutationRecovery();
@@ -501,7 +603,65 @@ class ResidentDataController extends ChangeNotifier {
       );
     } catch (_) {
       await _reloadHouseholdsForMutationRecovery();
-      if (familyMemberById(householdId, occupancyId) == null) return;
+      if (_hasPendingFamilyRemove(householdId: householdId, occupancyId: occupancyId) ||
+          familyMemberById(householdId, occupancyId) == null) {
+        return;
+      }
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> addVehicle({
+    required String householdId,
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) async {
+    if (_householdById(householdId) == null) {
+      throw StateError('Household is outside the active property context');
+    }
+    try {
+      await repository.addVehicle(
+        householdId: householdId,
+        plateNumber: plateNumber,
+        vehicleType: vehicleType,
+        make: make,
+        model: model,
+        color: color,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (_hasPendingVehicleAdd(
+        householdId: householdId,
+        plateNumber: plateNumber,
+        vehicleType: vehicleType,
+        make: make,
+        model: model,
+        color: color,
+      )) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> deactivateVehicle({
+    required String householdId,
+    required String vehicleId,
+  }) async {
+    if (vehicleById(householdId, vehicleId) == null) {
+      throw StateError('Vehicle is outside the active household context');
+    }
+    try {
+      await repository.deactivateVehicle(householdId: householdId, vehicleId: vehicleId);
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (_hasPendingVehicleRemove(householdId: householdId, vehicleId: vehicleId) ||
+          vehicleById(householdId, vehicleId) == null) {
+        return;
+      }
       rethrow;
     }
     await _reloadHouseholdsForMutationRecovery();
@@ -520,6 +680,8 @@ class ResidentDataController extends ChangeNotifier {
   }
 
   String _normalizeHouseholdPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
+  String _normalizeVehiclePlate(String value) => value.toUpperCase().replaceAll(RegExp(r'[\s-]+'), '');
+  String _normalizeOptionalText(Object? value) => value?.toString().trim() ?? '';
 
   Future<void> _loadAccess() async {
     if (!hasActiveProperty || !_canLoadAccess) {

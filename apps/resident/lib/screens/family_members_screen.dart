@@ -29,7 +29,10 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
       ? DemoHouseholdState.pendingFor(widget.householdId)
           .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('FAMILY_MEMBER_') == true)
           .toList(growable: false)
-      : const [];
+      : widget.controller.pendingHouseholdChangeRequests(
+          widget.householdId,
+          typePrefix: 'FAMILY_MEMBER_',
+        );
 
   Map<String, dynamic>? get _household {
     for (final item in widget.controller.households) {

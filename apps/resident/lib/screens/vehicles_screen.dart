@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../data/demo_household_state.dart';
 import '../data/demo_resident_repository.dart';
 import '../data/resident_data_controller.dart';
-import '../data/vehicle_actions.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -31,7 +30,10 @@ class VehiclesScreen extends StatelessWidget {
       ? DemoHouseholdState.pendingFor(householdId)
           .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('VEHICLE_') == true)
           .toList(growable: false)
-      : const [];
+      : controller.pendingHouseholdChangeRequests(
+          householdId,
+          typePrefix: 'VEHICLE_',
+        );
 
   Map<String, String> get _parkingSlots {
     final preferences = _household?['accessPreferences'];
@@ -118,7 +120,7 @@ class VehiclesScreen extends StatelessWidget {
           'color': colorValue,
         });
       } else {
-        await controller.repository.addVehicle(
+        await controller.addVehicle(
           householdId: householdId,
           plateNumber: plateNumber,
           vehicleType: type,
@@ -126,7 +128,6 @@ class VehiclesScreen extends StatelessWidget {
           model: modelValue,
           color: colorValue,
         );
-        await controller.load();
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request submitted for society approval.')));
     } catch (_) {
@@ -153,8 +154,10 @@ class VehiclesScreen extends StatelessWidget {
           'plateNumber': vehicle['plateNumber'],
         }, targetId: vehicle['id']?.toString());
       } else {
-        await controller.repository.deactivateVehicle(householdId: householdId, vehicleId: vehicle['id'].toString());
-        await controller.load();
+        await controller.deactivateVehicle(
+          householdId: householdId,
+          vehicleId: vehicle['id'].toString(),
+        );
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal submitted for society approval.')));
     } catch (_) {
