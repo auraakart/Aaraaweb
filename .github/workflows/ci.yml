@@ -130,6 +130,8 @@ jobs:
         run: node scripts/check-v4.58-resident-service-recovery.mjs
       - name: Check V4.59 secure handover convergence
         run: node scripts/check-v4.59-secure-handover.mjs
+      - name: Check V4.60 gate decision recovery
+        run: node scripts/check-v4.60-gate-decision-recovery.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary

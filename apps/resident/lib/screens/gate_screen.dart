@@ -430,19 +430,38 @@ class _Metric extends StatelessWidget {
   }
 }
 
-class _AccessCard extends StatelessWidget {
+class _AccessCard extends StatefulWidget {
   const _AccessCard({required this.request, required this.strings, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
   final Map<String, dynamic> request;
   final AaraagateStrings strings;
-  final VoidCallback? onApprove;
-  final VoidCallback? onDeny;
-  final VoidCallback? onCancel;
+  final Future<void> Function()? onApprove;
+  final Future<void> Function()? onDeny;
+  final Future<void> Function()? onCancel;
   final bool prominent;
+
+  @override
+  State<_AccessCard> createState() => _AccessCardState();
+}
+
+class _AccessCardState extends State<_AccessCard> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final request = widget.request;
+    final strings = widget.strings;
     final title = request['subjectName']?.toString() ?? 'Unknown';
     final rawType = request['subjectType']?.toString();
     final type = _label(rawType);
@@ -471,8 +490,8 @@ class _AccessCard extends StatelessWidget {
       container: true,
       label: '$title, $type, $status',
       child: PremiumSurface(
-        elevated: prominent,
-        color: prominent ? scheme.surface : scheme.surfaceContainerLow,
+        elevated: widget.prominent,
+        color: widget.prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           LayoutBuilder(
             builder: (context, constraints) {
@@ -525,23 +544,32 @@ class _AccessCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ],
-          if (onApprove != null || onDeny != null || onCancel != null) ...[
+          if (widget.onApprove != null || widget.onDeny != null || widget.onCancel != null) ...[
             const SizedBox(height: 16),
             LayoutBuilder(
               builder: (context, constraints) {
                 final scale = MediaQuery.textScalerOf(context).scale(1);
-                final deny = onDeny == null ? null : OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')));
-                final approve = onApprove == null
+                final deny = widget.onDeny == null
+                    ? null
+                    : OutlinedButton(
+                        onPressed: _busy ? null : () => _run(widget.onDeny!),
+                        child: Text(strings.text('deny')),
+                      );
+                final approve = widget.onApprove == null
                     ? null
                     : FilledButton(
-                        onPressed: onApprove,
-                        child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
+                        onPressed: _busy ? null : () => _run(widget.onApprove!),
+                        child: _busy
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
                       );
-                final cancel = onCancel == null
+                final cancel = widget.onCancel == null
                     ? null
                     : OutlinedButton.icon(
-                        onPressed: onCancel,
-                        icon: const Icon(Icons.close_rounded),
+                        onPressed: _busy ? null : () => _run(widget.onCancel!),
+                        icon: _busy
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.close_rounded),
                         label: Text(strings.text('cancelPass')),
                       );
                 if (constraints.maxWidth < 420 || scale > 1.3) {
