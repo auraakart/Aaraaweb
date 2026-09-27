@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.62.0 Household Staff Mutation Recovery Release Closure on top of V4.61.0 Amenity Cancellation Recovery and V4.60.0 Gate Decision Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.63.0 SOS State Convergence & Recovery Release Closure on top of V4.62.0 Household Staff Mutation Recovery and V4.61.0 Amenity Cancellation Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
