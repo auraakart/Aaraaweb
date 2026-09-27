@@ -287,6 +287,7 @@ describe('ConsumerBookingsService', () => {
     await expect(service.cancelBooking(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
+      'Plans changed',
     )).rejects.toThrow('Booking cannot be cancelled');
 
     const values = sqlValues(tx.$queryRaw.mock.calls[0][0]);
@@ -304,10 +305,26 @@ describe('ConsumerBookingsService', () => {
     const result = await service.cancelBooking(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
+      'Plans changed',
     );
 
     expect(result.status).toBe('CANCELLED');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    const cancellationEvent = tx.$queryRaw.mock.calls[2][0];
+    expect(sqlText(cancellationEvent)).toContain('"note"');
+    expect(sqlValues(cancellationEvent)).toContain('Plans changed');
+  });
+
+  it('rejects a cancellation without a meaningful reason before locking the booking', async () => {
+    const { tx, service } = setup();
+
+    await expect(service.cancelBooking(
+      '11111111-1111-1111-1111-111111111111',
+      '66666666-6666-6666-6666-666666666666',
+      '  ',
+    )).rejects.toThrow('Cancellation reason must be between 3 and 500 characters');
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 });
