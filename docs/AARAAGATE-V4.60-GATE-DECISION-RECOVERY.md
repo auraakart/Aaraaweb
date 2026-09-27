@@ -15,6 +15,10 @@ Each visible gate request card now permits only one approve, deny or cancel muta
 
 ResidentDataController wraps approve/deny/cancel mutations with a recovery reload. If a mutation fails because Guard/realtime activity or another resident already changed the request, the controller reloads the current access-request state before rethrowing the failure. Network and authorization failures also attempt the same safe read refresh; the original mutation error remains the surfaced error.
 
+## Slice 3 — Authoritative outcome clarity
+
+When a Resident decision loses a race and the recovery reload shows a different status, Gate now reports that refreshed status instead of only showing a generic failure. Status pills also use state-appropriate tones: pending remains warning, approved/checked-in are positive, denied is danger, and cancelled/checked-out are neutral. This is presentation of authoritative state only; no client-side transition is invented.
+
 ## Authority boundary
 
 V4.60 does not change current-occupancy/gate-approver authorization, access-request states, visitor validity windows, credential issuance, Guard check-in/check-out authority or audit semantics. The server continues to perform conditional status updates and rejects stale transitions.

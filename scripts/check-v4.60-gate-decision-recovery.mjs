@@ -17,6 +17,19 @@ must('V4.60 Gate card serialization',read('apps/resident/lib/screens/gate_screen
   'onPressed: _busy ? null'
 ]);
 
+must('V4.60 authoritative outcome clarity',read('apps/resident/lib/screens/gate_screen.dart'),[
+  "_mutationErrorMessage(e, request)",
+  "'gateRequestChanged'",
+  "_accessStatusTone(request['status']?.toString())",
+  "case 'DENIED':",
+  "case 'CANCELLED':",
+  "case 'CHECKED_OUT':"
+]);
+must('V4.60 stale outcome regression',read('apps/resident/test/gate_screen_test.dart'),[
+  'stale gate decision surfaces the refreshed authoritative status',
+  'This gate request changed. Latest status: Approved.'
+]);
+
 must('V4.60 authoritative access recovery',read('apps/resident/lib/data/resident_data_controller.dart'),[
   'Future<T> _withAccessMutationRecovery<T>',
   'await _loadAccess();',
