@@ -4,8 +4,13 @@ Date: 2026-09-28
 
 ## Closed scope
 
+**Slice 1: family-member recovery**
+
 - Resident family-member add, gate-setting update and deactivation recover uncertain outcomes only from a fresh authoritative household read.
 - Family-member recovered success requires the intended active FAMILY_MEMBER state/settings, or deactivation by authoritative absence.
+
+**Slice 2: AutoPay preference recovery**
+
 - AutoPay preference mutations reconcile uncertain saves against the authoritative server preference.
 - AutoPay recovered success requires an exact match on enabled state, maximum amount and debit-day policy.
 - Mismatched or unavailable verification remains retryable and does not manufacture success.
