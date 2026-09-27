@@ -1,7 +1,7 @@
 # Aaraagate V4.57 — Admin Authorization Convergence
 
 Date: 2026-09-26
-Status: Development started on develop; release identity remains 4.56.0.
+Status: Release candidate closed on develop; release identity is 4.57.0.
 
 ## Objective
 
@@ -37,6 +37,10 @@ This slice changes client reachability only. It does not add backend permissions
 
 `pnpm check:v4.57` verifies the backend Auditor permissions, console reachability, overview read suppression, Finance read-only admission and unchanged mutation-role boundaries.
 
+## V4.57 release closure
+
+The authorization-convergence milestone is closed on `develop` as a 4.57.0 repository release candidate. Slices 1–3 align existing Auditor read authority across Overview, Finance, Society Workforce, Governance, Facilities, Occupancy Lifecycle and Parking while preserving the pre-existing mutation-role sets and reducing unnecessary Visitor Permit read-time data fetches.
+
 ## Boundary
 
-V4.57 remains under development on `develop`. This slice does not claim a 4.57.0 release, staging/main promotion, productionization, hosted acceptance, external provider certification or field-pilot acceptance.
+V4.57 is closed as a repository release candidate on `develop`. This does not claim staging/main promotion, productionization, hosted acceptance, external provider certification or field-pilot acceptance.
