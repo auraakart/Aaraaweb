@@ -60,7 +60,7 @@ if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('app
 
 must('V4.62 release truth',read('docs/AARAAGATE-V4.62-HOUSEHOLD-STAFF-RECOVERY.md'),[
   'Release candidate closed on `develop`; release identity is V4.62.0.',
-  'Recovery never manufactures a local mutation result',
+  'accepts success only when refreshed state proves the intended result.',
   'V4.62 release closure is repository evidence on `develop`'
 ]);
 must('V4.62 release closure evidence',read('docs/AARAAGATE-V4.62-RELEASE-CLOSURE.md'),[
