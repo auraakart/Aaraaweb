@@ -43,15 +43,32 @@ must('V4.62 focused regressions',tests,[
   "expect(repository.workforceReads, 2);"
 ]);
 
-must('V4.62 development truth',read('docs/AARAAGATE-V4.62-HOUSEHOLD-STAFF-RECOVERY.md'),[
-  'runtime identity remains V4.61.0 until release closure',
-  'Recovery only re-reads existing authoritative workforce/access state',
-  'Leave creation and household-staff rating updates now use the same uncertain-outcome rule',
-  'refreshed active leave matches the intended assignment',
-  'refreshed score and normalized comment',
-  'Adding a household-staff assignment now follows the same uncertain-outcome contract',
-  'normalized worker name, phone digits and role',
-  'does not claim V4.62.0 release closure'
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+const currentVersion=rootPackage.version.split('.').map(Number);
+const atLeastV462=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=62));
+if(!atLeastV462||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.62.0 or newer.');
+  process.exit(1);
+}
+const runtimeVersionToken='version: '+rootPackage.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){
+  console.error('Resident/Guard release identity must remain aligned with the current root release.');
+  process.exit(1);
+}
+
+must('V4.62 release truth',read('docs/AARAAGATE-V4.62-HOUSEHOLD-STAFF-RECOVERY.md'),[
+  'Release candidate closed on `develop`; release identity is V4.62.0.',
+  'Recovery never manufactures a local mutation result',
+  'V4.62 release closure is repository evidence on `develop`'
+]);
+must('V4.62 release closure evidence',read('docs/AARAAGATE-V4.62-RELEASE-CLOSURE.md'),[
+  'PR #930',
+  'PR #931',
+  'PR #932',
+  '4.62.0+46200',
+  'does not claim staging/main promotion'
 ]);
 
-console.log('V4.62 household staff mutation recovery development contract: PASS');
+console.log('V4.62 household staff mutation recovery release closure: PASS');
