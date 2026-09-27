@@ -55,6 +55,42 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     }
   }
 
+  Future<void> _reopenComplaint() async {
+    final selected = widget.controller.primaryUnitId;
+    if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
+    final reason = reopenReason.text.trim();
+    if (reason.length < 3) {
+      setState(() => reopenError = 'Add a short reason so the society team knows what still needs attention.');
+      return;
+    }
+    if (reopening) return;
+    setState(() {
+      reopening = true;
+      reopenError = null;
+    });
+    try {
+      final updated = await widget.controller.repository.reopenHelpdeskTicket(
+        widget.ticket['id'].toString(),
+        reason,
+      );
+      if (!mounted) return;
+      setState(() {
+        widget.ticket.addAll(updated);
+        reopenReason.clear();
+      });
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Complaint reopened and returned to the society team.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => reopenError = 'Complaint could not be reopened. Refresh and retry.');
+    } finally {
+      if (mounted) setState(() => reopening = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeCount = _tickets.where((ticket) {
@@ -406,10 +442,13 @@ class _TicketDetail extends StatefulWidget {
 class _TicketDetailState extends State<_TicketDetail> {
   bool loading = true;
   bool submittingComment = false;
+  bool reopening = false;
   String? activityError;
   String? commentError;
+  String? reopenError;
   List<Map<String, dynamic>> activities = const [];
   final comment = TextEditingController();
+  final reopenReason = TextEditingController();
 
   @override
   void initState() {
@@ -437,6 +476,7 @@ class _TicketDetailState extends State<_TicketDetail> {
   @override
   void dispose() {
     comment.dispose();
+    reopenReason.dispose();
     super.dispose();
   }
 
@@ -551,6 +591,33 @@ class _TicketDetailState extends State<_TicketDetail> {
               ],
             ),
           ),
+          if (status == 'RESOLVED' || status == 'CLOSED') ...[
+            const SizedBox(height: AaraagateTokens.space6),
+            const PremiumSectionHeader(
+              title: 'Still not fixed?',
+              supportingText: 'Reopen this complaint with a short reason. Your existing history stays attached.',
+            ),
+            const SizedBox(height: AaraagateTokens.space3),
+            TextField(
+              controller: reopenReason,
+              decoration: const InputDecoration(labelText: 'Why are you reopening this complaint?'),
+              maxLength: 1000,
+              minLines: 2,
+              maxLines: 4,
+            ),
+            if (reopenError != null) ...[
+              const SizedBox(height: AaraagateTokens.space1),
+              Text(reopenError!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
+            ],
+            const SizedBox(height: AaraagateTokens.space3),
+            FilledButton.icon(
+              onPressed: reopening ? null : _reopenComplaint,
+              icon: reopening
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.restart_alt_rounded),
+              label: Text(reopening ? 'Reopening…' : 'Reopen complaint'),
+            ),
+          ],
           const SizedBox(height: AaraagateTokens.space6),
           const PremiumSectionHeader(
             title: 'Activity',

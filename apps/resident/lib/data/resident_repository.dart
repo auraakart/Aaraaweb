@@ -217,6 +217,11 @@ class ResidentRepository {
 
   Future<void> addHelpdeskComment(String ticketId, String message) => api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
 
+  Future<Map<String, dynamic>> reopenHelpdeskTicket(String ticketId, String note) async {
+    final value = await api.post('/api/v1/helpdesk/$ticketId/reopen', {'note': note.trim()});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     final value = await api.post('/api/v1/workforce/leaves', {
       'assignmentId': assignmentId,

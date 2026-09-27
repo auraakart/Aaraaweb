@@ -8,6 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 class _HelpdeskRepository extends ResidentRepository {
   _HelpdeskRepository():super(ApiClient(baseUrl:'http://127.0.0.1:3000',accessToken:'test'));
 
+  int reopenCalls = 0;
+  String? reopenReason;
+
   @override
   Future<List<Map<String,dynamic>>> helpdeskTickets() async => [
     {
@@ -38,6 +41,13 @@ class _HelpdeskRepository extends ResidentRepository {
       'actorName':'Facility Manager','toStatus':'RESOLVED','occurredAt':'2026-09-19T05:00:00.000Z',
     },
   ];
+
+  @override
+  Future<Map<String,dynamic>> reopenHelpdeskTicket(String ticketId,String note) async {
+    reopenCalls++;
+    reopenReason=note;
+    return {'id':ticketId,'unitId':'unit-1','status':'IN_PROGRESS'};
+  }
 }
 
 void main(){
@@ -63,6 +73,16 @@ void main(){
     expect(find.text('Resolution target'),findsOneWidget);
     expect(find.text('Resolution evidence'),findsOneWidget);
     expect(find.text('Fixed'),findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Reopen complaint'),300,scrollable:find.byType(Scrollable).first);
+    await tester.enterText(find.widgetWithText(TextField,'Why are you reopening this complaint?'),'The leak has returned');
+    await tester.tap(find.text('Reopen complaint'));
+    await tester.pumpAndSettle();
+
+    expect(repository.reopenCalls,1);
+    expect(repository.reopenReason,'The leak has returned');
+    expect(find.text('Complaint reopened and returned to the society team.'),findsOneWidget);
+    expect(find.text('Reopen complaint'),findsNothing);
 
     await tester.scrollUntilVisible(find.text('Reopened'),300,scrollable:find.byType(Scrollable).first);
     await tester.pumpAndSettle();
