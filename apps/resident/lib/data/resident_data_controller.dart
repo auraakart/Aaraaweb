@@ -33,6 +33,7 @@ class ResidentDataController extends ChangeNotifier {
   String? billingError;
   String? helpdeskError;
   List<Map<String, dynamic>> households = const [];
+  List<Map<String, dynamic>> householdChangeRequests = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> notices = const [];
   List<Map<String, dynamic>> serviceCategories = const [];
@@ -191,6 +192,7 @@ class ResidentDataController extends ChangeNotifier {
 
   void _clearUnitScopedData() {
     households = const [];
+    householdChangeRequests = const [];
     accessRequests = const [];
     serviceCategories = const [];
     serviceOfferings = const [];
@@ -362,6 +364,13 @@ class ResidentDataController extends ChangeNotifier {
       if (rows.isNotEmpty && scoped.isEmpty) {
         householdError = 'The selected property is no longer available in this society session.';
       }
+      try {
+        await _reloadHouseholdChangeRequestsForMutationRecovery();
+      } catch (_) {
+        // Pending approval evidence enriches household UX but must not hide the
+        // authoritative household itself when the separate read is unavailable.
+        householdChangeRequests = const [];
+      }
     } catch (e) {
       _capture(e, (message) => householdError = message);
     }
@@ -386,6 +395,48 @@ class ResidentDataController extends ChangeNotifier {
       familyMembersForHousehold(householdId)
           .where((item) => item['id']?.toString() == occupancyId)
           .firstOrNull;
+
+  List<Map<String, dynamic>> pendingFamilyRequestsForHousehold(String householdId) =>
+      householdChangeRequests.where((item) {
+        final status = item['status']?.toString();
+        final type = item['type']?.toString() ?? '';
+        return item['householdId']?.toString() == householdId &&
+            const {'PENDING', 'PROCESSING'}.contains(status) &&
+            type.startsWith('FAMILY_MEMBER_');
+      }).toList(growable: false);
+
+  bool hasMatchingFamilyAddRequest({
+    required String householdId,
+    required String phone,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
+    return householdChangeRequests.any((item) {
+      if (item['householdId']?.toString() != householdId ||
+          item['type']?.toString() != 'FAMILY_MEMBER_ADD' ||
+          !const {'PENDING', 'PROCESSING', 'APPROVED'}.contains(item['status']?.toString())) {
+        return false;
+      }
+      final payload = item['payload'];
+      if (payload is! Map) return false;
+      return _normalizeHouseholdPhone(payload['phone']?.toString() ?? '') == expectedPhone &&
+          payload['gateApprovalEnabled'] == gateApprovalEnabled &&
+          payload['gateNotificationEnabled'] == expectedNotification &&
+          payload['primaryGateContact'] == primaryGateContact;
+    });
+  }
+
+  bool hasMatchingFamilyRemoveRequest({
+    required String householdId,
+    required String occupancyId,
+  }) => householdChangeRequests.any((item) =>
+      item['householdId']?.toString() == householdId &&
+      item['type']?.toString() == 'FAMILY_MEMBER_REMOVE' &&
+      item['targetId']?.toString() == occupancyId &&
+      const {'PENDING', 'PROCESSING', 'APPROVED'}.contains(item['status']?.toString()));
 
   bool hasMatchingFamilyMember({
     required String householdId,
@@ -442,8 +493,8 @@ class ResidentDataController extends ChangeNotifier {
         primaryGateContact: primaryGateContact,
       );
     } catch (_) {
-      await _reloadHouseholdsForMutationRecovery();
-      if (hasMatchingFamilyMember(
+      await _reloadHouseholdChangeRequestsForMutationRecovery();
+      if (hasMatchingFamilyAddRequest(
         householdId: householdId,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
@@ -452,7 +503,7 @@ class ResidentDataController extends ChangeNotifier {
       )) return;
       rethrow;
     }
-    await _reloadHouseholdsForMutationRecovery();
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
   }
 
   Future<void> updateFamilyMember({
@@ -500,11 +551,26 @@ class ResidentDataController extends ChangeNotifier {
         occupancyId: occupancyId,
       );
     } catch (_) {
+      await _reloadHouseholdChangeRequestsForMutationRecovery();
+      if (hasMatchingFamilyRemoveRequest(householdId: householdId, occupancyId: occupancyId)) return;
       await _reloadHouseholdsForMutationRecovery();
       if (familyMemberById(householdId, occupancyId) == null) return;
       rethrow;
     }
-    await _reloadHouseholdsForMutationRecovery();
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
+  }
+
+  Future<void> _reloadHouseholdChangeRequestsForMutationRecovery() async {
+    final householdIds = households.map((item) => item['id']?.toString()).whereType<String>().toSet();
+    if (householdIds.isEmpty) {
+      householdChangeRequests = const [];
+      return;
+    }
+    final rows = await repository.householdChangeRequests();
+    householdChangeRequests = rows
+        .where((item) => householdIds.contains(item['householdId']?.toString()))
+        .toList(growable: false);
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> _reloadHouseholdsForMutationRecovery() async {
