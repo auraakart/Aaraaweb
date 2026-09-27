@@ -19,6 +19,10 @@ ResidentDataController wraps approve/deny/cancel mutations with a recovery reloa
 
 When a Resident decision loses a race and the recovery reload shows a different status, Gate now reports that refreshed status instead of only showing a generic failure. Status pills also use state-appropriate tones: pending remains warning, approved/checked-in are positive, denied is danger, and cancelled/checked-out are neutral. This is presentation of authoritative state only; no client-side transition is invented.
 
+## Slice 4 — Visitor-pass cancellation review
+
+Approved visitor cards now show the server-returned validity window before offering cancellation. Cancelling an approved visitor pass requires an explicit review dialog that explains the credential becomes unusable immediately; the server cancellation call is not sent until the resident confirms. The existing audited cancellation transition remains authoritative.
+
 ## Authority boundary
 
 V4.60 does not change current-occupancy/gate-approver authorization, access-request states, visitor validity windows, credential issuance, Guard check-in/check-out authority or audit semantics. The server continues to perform conditional status updates and rejects stale transitions.

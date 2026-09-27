@@ -45,6 +45,19 @@ must('V4.60 focused regressions',read('apps/resident/test/gate_screen_test.dart'
   "expect(controller.accessRequests.single['status'], 'APPROVED');"
 ]);
 
+must('V4.60 visitor cancellation review',read('apps/resident/lib/screens/gate_screen.dart'),[
+  "strings.text('cancelPassConfirm')",
+  "showDialog<bool>",
+  "if (confirmed != true || !context.mounted) return;",
+  "rawType == 'VISITOR' && request['status'] == 'APPROVED'",
+  "strings.format('validUntil'"
+]);
+must('V4.60 visitor cancellation regression',read('apps/resident/test/gate_screen_test.dart'),[
+  'approved visitor pass requires review before cancellation',
+  'expect(repository.cancelCalls, 0);',
+  "expect(controller.accessRequests.single['status'], 'CANCELLED');"
+]);
+
 must('V4.60 development truth',read('docs/AARAAGATE-V4.60-GATE-DECISION-RECOVERY.md'),[
   'runtime identity remains V4.59.0',
   'server continues to perform conditional status updates',
