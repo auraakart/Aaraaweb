@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/service_catalog_models.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
+import 'vehicle_actions.dart';
 
 class ResidentDataController extends ChangeNotifier {
   ResidentDataController(
@@ -33,6 +34,7 @@ class ResidentDataController extends ChangeNotifier {
   String? billingError;
   String? helpdeskError;
   List<Map<String, dynamic>> households = const [];
+  List<Map<String, dynamic>> householdChangeRequests = const [];
   List<Map<String, dynamic>> accessRequests = const [];
   List<Map<String, dynamic>> notices = const [];
   List<Map<String, dynamic>> serviceCategories = const [];
@@ -118,6 +120,7 @@ class ResidentDataController extends ChangeNotifier {
 
     if (hasActiveProperty) {
       tasks.add(_loadHouseholds());
+      tasks.add(_loadHouseholdChangeRequests());
       if (_canLoadAccess) {
         tasks.add(_loadAccess());
       } else {
@@ -191,6 +194,7 @@ class ResidentDataController extends ChangeNotifier {
 
   void _clearUnitScopedData() {
     households = const [];
+    householdChangeRequests = const [];
     accessRequests = const [];
     serviceCategories = const [];
     serviceOfferings = const [];
@@ -367,6 +371,154 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadHouseholdChangeRequests() async {
+    if (!hasActiveProperty) {
+      householdChangeRequests = const [];
+      return;
+    }
+    try {
+      final rows = await repository.householdChangeRequests();
+      householdChangeRequests = _filterByUnit(rows, (item) => item['unitId']);
+    } catch (e) {
+      householdChangeRequests = const [];
+      _capture(e, (message) => householdError ??= message);
+    }
+  }
+
+  List<Map<String, dynamic>> vehicleChangeRequestsForHousehold(String householdId) =>
+      householdChangeRequests
+          .where((item) =>
+              item['householdId']?.toString() == householdId &&
+              item['type']?.toString().startsWith('VEHICLE_') == true &&
+              const {'PENDING', 'PROCESSING'}.contains(item['status']?.toString()))
+          .toList(growable: false);
+
+  bool _vehicleAddRequestMatches(
+    Map<String, dynamic> request, {
+    required String householdId,
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) {
+    if (request['householdId']?.toString() != householdId ||
+        request['type']?.toString() != 'VEHICLE_ADD' ||
+        !const {'PENDING', 'PROCESSING'}.contains(request['status']?.toString())) {
+      return false;
+    }
+    final payload = request['payload'];
+    final values = payload is Map ? payload : const <String, dynamic>{};
+    return _normalizeVehiclePlate(values['plateNumber']?.toString() ?? '') == _normalizeVehiclePlate(plateNumber) &&
+        values['vehicleType']?.toString() == vehicleType &&
+        _optionalHouseholdText(values['make']) == _optionalHouseholdText(make) &&
+        _optionalHouseholdText(values['model']) == _optionalHouseholdText(model) &&
+        _optionalHouseholdText(values['color']) == _optionalHouseholdText(color);
+  }
+
+  Future<void> requestVehicleAdd({
+    required String householdId,
+    required String plateNumber,
+    required String vehicleType,
+    String? make,
+    String? model,
+    String? color,
+  }) async {
+    if (_householdById(householdId) == null) throw StateError('Household is outside the active property context');
+
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
+    final beforeIds = vehicleChangeRequestsForHousehold(householdId)
+        .where((item) => _vehicleAddRequestMatches(
+              item,
+              householdId: householdId,
+              plateNumber: plateNumber,
+              vehicleType: vehicleType,
+              make: make,
+              model: model,
+              color: color,
+            ))
+        .map((item) => item['id']?.toString())
+        .whereType<String>()
+        .toSet();
+
+    try {
+      await repository.addVehicle(
+        householdId: householdId,
+        plateNumber: plateNumber,
+        vehicleType: vehicleType,
+        make: make,
+        model: model,
+        color: color,
+      );
+    } catch (_) {
+      await _reloadHouseholdChangeRequestsForMutationRecovery();
+      final recovered = vehicleChangeRequestsForHousehold(householdId).any((item) {
+        final id = item['id']?.toString();
+        return id != null &&
+            !beforeIds.contains(id) &&
+            _vehicleAddRequestMatches(
+              item,
+              householdId: householdId,
+              plateNumber: plateNumber,
+              vehicleType: vehicleType,
+              make: make,
+              model: model,
+              color: color,
+            );
+      });
+      if (recovered) return;
+      await _reloadHouseholdsForMutationRecovery();
+      rethrow;
+    }
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
+  }
+
+  Future<void> requestVehicleRemoval({
+    required String householdId,
+    required String vehicleId,
+  }) async {
+    final household = _householdById(householdId);
+    final vehicles = household?['vehicles'];
+    final activeVehicle = vehicles is List &&
+        vehicles.whereType<Map>().any((item) => item['id']?.toString() == vehicleId);
+    if (!activeVehicle) throw StateError('Vehicle is outside the active household context');
+
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
+    final beforeIds = vehicleChangeRequestsForHousehold(householdId)
+        .where((item) => item['type']?.toString() == 'VEHICLE_REMOVE' && item['targetId']?.toString() == vehicleId)
+        .map((item) => item['id']?.toString())
+        .whereType<String>()
+        .toSet();
+
+    try {
+      await repository.deactivateVehicle(householdId: householdId, vehicleId: vehicleId);
+    } catch (_) {
+      await _reloadHouseholdChangeRequestsForMutationRecovery();
+      final recovered = vehicleChangeRequestsForHousehold(householdId).any((item) {
+        final id = item['id']?.toString();
+        return id != null &&
+            !beforeIds.contains(id) &&
+            item['type']?.toString() == 'VEHICLE_REMOVE' &&
+            item['targetId']?.toString() == vehicleId;
+      });
+      if (recovered) return;
+      await _reloadHouseholdsForMutationRecovery();
+      rethrow;
+    }
+    await _reloadHouseholdChangeRequestsForMutationRecovery();
+  }
+
+  Future<void> _reloadHouseholdChangeRequestsForMutationRecovery() async {
+    final selected = activeUnitId;
+    if (selected == null) throw StateError('Select a property before managing household changes');
+    final rows = await repository.householdChangeRequests();
+    householdChangeRequests = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
+    if (!_disposed) notifyListeners();
+  }
+
+  String _normalizeVehiclePlate(String value) => value.trim().toUpperCase().replaceAll(RegExp(r'[\s-]+'), '');
+  String _optionalHouseholdText(Object? value) => value?.toString().trim() ?? '';
+
   Map<String, dynamic>? _householdById(String householdId) =>
       households.where((item) => item['id']?.toString() == householdId).firstOrNull;
 
@@ -509,7 +661,7 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> _reloadHouseholdsForMutationRecovery() async {
     final selected = activeUnitId;
-    if (selected == null) throw StateError('Select a property before managing family members');
+    if (selected == null) throw StateError('Select a property before managing household details');
     final rows = await repository.households();
     final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
     households = scoped;

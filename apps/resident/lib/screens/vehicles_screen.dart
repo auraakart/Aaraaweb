@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../data/demo_household_state.dart';
 import '../data/demo_resident_repository.dart';
 import '../data/resident_data_controller.dart';
-import '../data/vehicle_actions.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -31,7 +30,7 @@ class VehiclesScreen extends StatelessWidget {
       ? DemoHouseholdState.pendingFor(householdId)
           .where((item) => item['status'] == 'PENDING' && item['type']?.toString().startsWith('VEHICLE_') == true)
           .toList(growable: false)
-      : const [];
+      : controller.vehicleChangeRequestsForHousehold(householdId);
 
   Map<String, String> get _parkingSlots {
     final preferences = _household?['accessPreferences'];
@@ -118,7 +117,7 @@ class VehiclesScreen extends StatelessWidget {
           'color': colorValue,
         });
       } else {
-        await controller.repository.addVehicle(
+        await controller.requestVehicleAdd(
           householdId: householdId,
           plateNumber: plateNumber,
           vehicleType: type,
@@ -126,7 +125,6 @@ class VehiclesScreen extends StatelessWidget {
           model: modelValue,
           color: colorValue,
         );
-        await controller.load();
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle request submitted for society approval.')));
     } catch (_) {
@@ -153,8 +151,10 @@ class VehiclesScreen extends StatelessWidget {
           'plateNumber': vehicle['plateNumber'],
         }, targetId: vehicle['id']?.toString());
       } else {
-        await controller.repository.deactivateVehicle(householdId: householdId, vehicleId: vehicle['id'].toString());
-        await controller.load();
+        await controller.requestVehicleRemoval(
+          householdId: householdId,
+          vehicleId: vehicle['id'].toString(),
+        );
       }
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle removal submitted for society approval.')));
     } catch (_) {
@@ -234,8 +234,16 @@ class VehiclesScreen extends StatelessWidget {
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded),
-                          tooltip: 'Request vehicle removal',
-                          onPressed: () => _remove(context, vehicle),
+                          tooltip: pending.any((request) =>
+                                  request['type'] == 'VEHICLE_REMOVE' &&
+                                  request['targetId']?.toString() == vehicleId)
+                              ? 'Vehicle removal already pending'
+                              : 'Request vehicle removal',
+                          onPressed: pending.any((request) =>
+                                  request['type'] == 'VEHICLE_REMOVE' &&
+                                  request['targetId']?.toString() == vehicleId)
+                              ? null
+                              : () => _remove(context, vehicle),
                         ),
                       ],
                     ),
@@ -277,6 +285,7 @@ class _PendingVehicleRequestCard extends StatelessWidget {
     final theme = Theme.of(context);
     final payload = request['payload'] is Map ? request['payload'] as Map : const {};
     final adding = request['type'] == 'VEHICLE_ADD';
+    final processing = request['status'] == 'PROCESSING';
     return PremiumSurface(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,11 +296,11 @@ class _PendingVehicleRequestCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(payload['plateNumber']?.toString() ?? 'Vehicle change', style: theme.textTheme.titleSmall),
               const SizedBox(height: AaraagateTokens.space1),
-              Text(adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval', style: theme.textTheme.bodySmall),
+              Text(processing ? 'Society Admin review is in progress' : (adding ? 'Addition pending Society Admin approval' : 'Removal pending Society Admin approval'), style: theme.textTheme.bodySmall),
             ]),
           ),
           const SizedBox(width: AaraagateTokens.space2),
-          const AaraagateStatusPill(label: 'Pending', tone: AaraagateStatusTone.warning),
+          AaraagateStatusPill(label: processing ? 'In review' : 'Pending', tone: AaraagateStatusTone.warning),
         ],
       ),
     );
