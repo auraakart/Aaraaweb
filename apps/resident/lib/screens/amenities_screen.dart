@@ -207,10 +207,34 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       _showMessage('Booking cancelled.');
       await _load();
     } catch (error) {
-      if (mounted) _showMessage(_friendlyError(error));
+      final message = await _recoverCancellationFailure(booking, error);
+      if (mounted) _showMessage(message);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<String> _recoverCancellationFailure(Map<String, dynamic> booking, Object error) async {
+    final fallback = _friendlyError(error);
+    final bookingId = booking['id']?.toString();
+    await _load();
+    if (!mounted || _error != null || bookingId == null) return fallback;
+
+    Map<String, dynamic>? refreshed;
+    for (final item in _bookings) {
+      if (item['id']?.toString() == bookingId) {
+        refreshed = item;
+        break;
+      }
+    }
+    if (refreshed == null) {
+      return 'Booking changed and is no longer in your current booking list.';
+    }
+    if (!_isCancelable(refreshed)) {
+      final status = _titleCase((refreshed['status']?.toString() ?? 'updated').replaceAll('_', ' ').toLowerCase());
+      return 'Booking changed. Latest status: $status.';
+    }
+    return fallback;
   }
 
   @override
@@ -306,10 +330,17 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       && error.message.toLowerCase().contains('slot is no longer available');
 
   static String _friendlyError(Object error) {
-    final text = error.toString();
-    if (text.contains('403')) return 'Amenities are not enabled for this society or your role.';
-    if (text.contains('409')) return 'That slot is no longer available. Choose another time.';
-    if (text.contains('401')) return 'Your session has expired. Sign in again.';
+    if (error is ApiException) {
+      final message = error.message.trim();
+      if (error.statusCode == 403) return 'Amenities are not enabled for this society or your role.';
+      if (error.statusCode == 401) return 'Your session has expired. Sign in again.';
+      if (error.statusCode == 409) {
+        if (message.toLowerCase().contains('slot is no longer available')) {
+          return 'That slot is no longer available. Choose another time.';
+        }
+        if (message.isNotEmpty) return message.endsWith('.') ? message : '$message.';
+      }
+    }
     return 'Amenities could not be loaded. Check your connection and try again.';
   }
 }
