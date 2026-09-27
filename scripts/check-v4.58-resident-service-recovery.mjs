@@ -63,10 +63,33 @@ must('V4.58 booking cancellation regression',read('services/api/src/services-mar
   "expect(sqlValues(cancellationEvent)).toContain('Plans changed')",
   'rejects a cancellation without a meaningful reason before locking the booking',
 ]);
+must('V4.58 proposal rejection controller',read('services/api/src/services-marketplace/provider-marketplace-completion.controller.ts'),[
+  '@MaxLength(500) reason?:string',
+  'd.decision,d.reason',
+]);
+must('V4.58 proposal rejection transaction',read('services/api/src/services-marketplace/provider-marketplace-completion.service.ts'),[
+  'Proposal rejection reason must be between 3 and 500 characters',
+  'CUSTOMER_REJECTED_PROVIDER_PROPOSAL',
+  '"toStatus","note","occurredAt"',
+  '${normalizedReason},CURRENT_TIMESTAMP',
+]);
+must('V4.58 proposal rejection UI',read('apps/resident/lib/widgets/consumer_booking_post_service_panel.dart'),[
+  "labelText: 'Why does this time not work?'",
+  "'Add a short reason for the provider.'",
+  "if (rejectionReason != null) 'reason': rejectionReason",
+  'Reason saved to the timeline.',
+]);
+must('V4.58 proposal rejection regression',read('services/api/src/services-marketplace/provider-marketplace-completion.proposal-recovery.spec.ts'),[
+  'rejects a provider proposal with audited resident reason',
+  'CUSTOMER_REJECTED_PROVIDER_PROPOSAL',
+  'Schedule conflicts with school pickup',
+  'requires a meaningful reason before starting the rejection transaction',
+]);
 must('V4.58 development truth',read('docs/AARAAGATE-V4.58-RESIDENT-SERVICE-RECOVERY.md'),[
   'release identity remains 4.57.0',
   'does not claim a 4.58.0 release',
   'current-occupancy',
   'Audited service-booking cancellation reason',
+  'Audited provider-reschedule rejection',
 ]);
 console.log('V4.58 Resident service-recovery development contract: PASS');

@@ -206,7 +206,11 @@ export class ProviderMarketplaceCompletionService {
     return this.prisma.$queryRaw<BookingProposalRow[]>(Prisma.sql`SELECT * FROM "ProviderBookingProposal" WHERE "bookingId"=${bookingId}::uuid ORDER BY "createdAt" DESC`);
   }
 
-  async respondToProposal(userId:string,bookingId:string,proposalId:string,decision:'ACCEPT'|'REJECT'){
+  async respondToProposal(userId:string,bookingId:string,proposalId:string,decision:'ACCEPT'|'REJECT',reason?:string){
+    const normalizedReason=reason?.trim()??'';
+    if(decision==='REJECT'&&(normalizedReason.length<3||normalizedReason.length>500)){
+      throw new BadRequestException('Proposal rejection reason must be between 3 and 500 characters');
+    }
     return this.prisma.$transaction(async tx=>{
       const bookingRows=await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
         SELECT "id","userId","providerId","offeringId","status","addressSnapshot" FROM "ConsumerServiceBooking"
@@ -229,6 +233,12 @@ export class ProviderMarketplaceCompletionService {
           INSERT INTO "ConsumerServiceBookingEvent" ("id","bookingId","actorUserId","action","fromStatus","toStatus","occurredAt")
           VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,'CUSTOMER_ACCEPTED_PROVIDER_PROPOSAL',
             ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",CURRENT_TIMESTAMP)
+        `);
+      }else{
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "ConsumerServiceBookingEvent" ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+          VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,'CUSTOMER_REJECTED_PROVIDER_PROPOSAL',
+            ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus",${normalizedReason},CURRENT_TIMESTAMP)
         `);
       }
       const updated=await tx.$queryRaw<BookingProposalRow[]>(Prisma.sql`
