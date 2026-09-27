@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.64.0 Community Poll Participation & Recovery Release Closure on top of V4.63.0 SOS State Convergence & Recovery and V4.62.0 Household Staff Mutation Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.64.1 Visitor Invite Recovery Release Closure on top of V4.64.0 Community Poll Participation & Recovery and V4.63.0 SOS State Convergence & Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -70,6 +70,8 @@ V4.62.0 closes Resident household-staff mutation recovery as a repository releas
 V4.63.0 closes Resident SOS state convergence and recovery as a repository release candidate. The backend serializes SOS creation by society, unit and resident and reuses an existing ACTIVE/ACKNOWLEDGED incident instead of creating duplicate active emergencies after retries. Resident now recognizes backend ACTIVE status while retaining legacy TRIGGERED compatibility, and uncertain trigger/cancel outcomes reload authoritative SOS state before deciding whether success was recovered or the action remains retryable. Existing responder permissions, escalation/resolution authority and emergency-contact boundaries remain unchanged. Release identity is aligned to V4.63.0 across root/API/Admin and V4.63.0+46300 across Resident/Guard; staging/main promotion remains separate.
 
 V4.64.0 closes Resident community-poll participation and recovery as a repository release candidate. Eligible owner/occupant audiences can review an existing non-statutory community poll, choose one server-provided option and explicitly confirm it. The client reloads the authoritative poll read model after every response attempt and accepts success only when `myOptionId` exactly matches the selected option, allowing commit-then-transport-failure recovery without a second submission while keeping unverified outcomes retryable. Existing backend audience scope, opening/closing policy, option membership and one-response-per-user enforcement remain authoritative; V4.64 does not introduce statutory voting semantics. Release identity is aligned to V4.64.0 across root/API/Admin and V4.64.0+46400 across Resident/Guard; staging/main promotion remains separate.
+
+V4.64.1 closes Resident visitor-invite retry recovery as a repository patch release. Visitor invite creation requires request-bound idempotency; same-key attempts are serialized and bound to normalized invite intent, and a valid same-request replay rotates a fresh credential without storing the previous raw QR secret or creating another access request. Resident retry state preserves the same idempotency key and validity window after uncertain transport outcomes, while mismatched, cancelled, consumed or expired replays fail closed. Existing V4.64.0 non-statutory community-poll participation remains intact. Release identity is aligned to V4.64.1 across root/API/Admin and V4.64.1+46401 across Resident/Guard; staging/main promotion remains separate.
 
 ## External evidence boundary
 
