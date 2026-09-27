@@ -254,9 +254,11 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ListenableBuilder(
-          listenable: controller,
-          builder: (_, __) => WorkforceScreen(controller: controller),
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: controller,
+            builder: (_, __) => WorkforceScreen(controller: controller),
+          ),
         ),
       ),
     );
@@ -285,9 +287,11 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ListenableBuilder(
-          listenable: controller,
-          builder: (_, __) => WorkforceScreen(controller: controller),
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: controller,
+            builder: (_, __) => WorkforceScreen(controller: controller),
+          ),
         ),
       ),
     );
