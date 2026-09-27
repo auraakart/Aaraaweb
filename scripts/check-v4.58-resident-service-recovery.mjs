@@ -85,11 +85,27 @@ must('V4.58 proposal rejection regression',read('services/api/src/services-marke
   'Schedule conflicts with school pickup',
   'requires a meaningful reason before starting the rejection transaction',
 ]);
-must('V4.58 development truth',read('docs/AARAAGATE-V4.58-RESIDENT-SERVICE-RECOVERY.md'),[
-  'release identity remains 4.57.0',
-  'does not claim a 4.58.0 release',
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+if(rootPackage.version!=='4.58.0'||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must be V4.58.0.');
+  process.exit(1);
+}
+must('V4.58 Resident release identity',read('apps/resident/pubspec.yaml'),['version: 4.58.0+45800']);
+must('V4.58 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.58.0+45800']);
+must('V4.58 release truth',read('docs/AARAAGATE-V4.58-RESIDENT-SERVICE-RECOVERY.md'),[
+  'Release candidate closed on develop; release identity is 4.58.0.',
+  'V4.58 release closure',
   'current-occupancy',
   'Audited service-booking cancellation reason',
   'Audited provider-reschedule rejection',
 ]);
-console.log('V4.58 Resident service-recovery development contract: PASS');
+must('V4.58 release closure evidence',read('docs/AARAAGATE-V4.58-RELEASE-CLOSURE.md'),[
+  'PR #916',
+  'PR #917',
+  'PR #918',
+  '4.58.0+45800',
+  'does not claim staging/main promotion',
+]);
+console.log('V4.58 Resident service-recovery release closure: PASS');

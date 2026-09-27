@@ -19,7 +19,7 @@ const guardVersion=read('apps/guard/pubspec.yaml').match(/^version: (\d+\.\d+\.\
 assert.equal(residentVersion,root.version);
 assert.equal(guardVersion,root.version);
 const index=read('docs/CURRENT-CAPABILITY-INDEX.md');
-for (const token of ['V4.55.2 Release Truth Closure','late-fee batch idempotency','verified current ownership/current occupancy','payment reconciliation','reversal/refund evidence','unconfirmed Resident AI complaint proposal']) assert.ok(index.includes(token),`Missing capability evidence: ${token}`);
+for (const token of ['late-fee batch idempotency','verified current ownership/current occupancy','payment reconciliation','reversal/refund evidence','unconfirmed Resident AI complaint proposal']) assert.ok(index.includes(token),`Missing capability evidence: ${token}`);
 const closure=read('docs/AARAAGATE-V4.55.2-RELEASE-TRUTH-CLOSURE.md');
-for (const token of ['PRs #902–#906','does not claim staging/main promotion','4.55.2+45502']) assert.ok(closure.includes(token),`Missing closure boundary: ${token}`);
+for (const token of ['V4.55.2 — Release Truth Closure','PRs #902–#906','does not claim staging/main promotion','4.55.2+45502']) assert.ok(closure.includes(token),`Missing closure boundary: ${token}`);
 console.log('V4.55.2 historical release-truth closure: PASS');
