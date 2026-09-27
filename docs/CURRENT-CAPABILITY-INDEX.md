@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.57.0 Admin Authorization Convergence Release Closure on top of V4.56.0 Guided Operations & Action Clarity, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.57.0 Admin Authorization Convergence Release Closure on top of V4.56.0 Guided Operations & Action Clarity and V4.55.2 Release Truth Closure, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
