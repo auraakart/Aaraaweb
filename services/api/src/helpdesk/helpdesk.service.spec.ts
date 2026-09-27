@@ -100,4 +100,49 @@ describe('HelpdeskService', () => {
     ).rejects.toThrow('A valid resolution code is required');
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
+
+  it('scopes resident reopen to current occupancy inside the locked transaction', async () => {
+    const tx = {$queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn()};
+    const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.reopenMine(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+      '44444444-4444-4444-4444-444444444444',
+      'The leak has returned',
+    )).rejects.toThrow('Helpdesk ticket not found');
+
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).toContain('uo."userId" =');
+    expect(sql).toContain('uo."active" = true');
+    expect(sql).toContain('"effectiveFrom" <= CURRENT_TIMESTAMP');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('records an audited REOPENED event for an owned resolved ticket', async () => {
+    const current = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      title:'Water leak',description:'Leak near kitchen sink',category:null,priority:'HIGH',
+      status:'RESOLVED',assignedToId:null,resolutionCode:'FIXED',closureCode:null,
+      resolvedAt:new Date(),closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const updated = {...current,status:'IN_PROGRESS',resolutionCode:null,resolvedAt:null};
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([current]).mockResolvedValueOnce([updated]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    const result = await service.reopenMine(current.societyId,current.createdById,current.id,'The leak has returned');
+    expect(result.status).toBe('IN_PROGRESS');
+    const activity = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] };
+    expect(activity.strings.join(' ')).toContain("'REOPENED'");
+  });
 });
