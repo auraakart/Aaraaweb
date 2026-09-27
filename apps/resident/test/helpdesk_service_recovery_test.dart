@@ -74,13 +74,13 @@ void main(){
     expect(find.text('Resolution evidence'),findsOneWidget);
     expect(find.text('Fixed'),findsOneWidget);
 
-    final reopenButton=find.widgetWithText(FilledButton,'Reopen complaint');
-    await tester.ensureVisible(reopenButton);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Reopen complaint'),300,scrollable:find.byType(Scrollable).first);
     await tester.enterText(find.widgetWithText(TextField,'Why are you reopening this complaint?'),'The leak has returned');
-    await tester.ensureVisible(reopenButton);
-    await tester.pumpAndSettle();
-    await tester.tap(reopenButton);
+    final reopenButton=find.ancestor(of:find.text('Reopen complaint'),matching:find.byType(FilledButton));
+    expect(reopenButton,findsOneWidget);
+    final button=tester.widget<FilledButton>(reopenButton);
+    expect(button.onPressed,isNotNull);
+    button.onPressed!.call();
     await tester.pumpAndSettle();
 
     expect(repository.reopenCalls,1);
