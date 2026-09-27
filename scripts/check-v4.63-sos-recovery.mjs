@@ -5,11 +5,9 @@ const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includ
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-const currentVersion=root.version.split('.').map(Number);
-const atLeastV463=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=63));
-if(!atLeastV463||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.63.0 or newer.');process.exit(1)}
-const runtimeVersionToken='version: '+root.version+'+';
-for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) if(!read(file).includes(runtimeVersionToken)){console.error('Resident/Guard release identity must remain aligned with the current root release.');process.exit(1)}
+const [major,minor]=root.version.split('.').map(Number);
+if(major!==4||minor<63||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.63.0 or later.');process.exit(1)}
+for(const file of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) must(file,read(file),[`version: ${root.version}+`]);
 
 must('V4.63 SOS server recovery',read('services/api/src/sos/sos.service.ts'),['pg_advisory_xact_lock','const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;',"\"status\" IN ('ACTIVE', 'ACKNOWLEDGED')",'if (existing[0]) return existing[0];']);
 must('V4.63 Resident SOS status parity',read('apps/resident/lib/data/models/resident_sos_incident.dart'),["status == 'ACTIVE' || status == 'TRIGGERED' || status == 'ACKNOWLEDGED'"]);
