@@ -65,20 +65,28 @@ describe('ParcelsService', () => {
     expect(eventSql).toContain('COLLECTED');
   });
 
-  it('issues pickup codes only against the assigned resident parcel and stores a digest rather than plaintext', async () => {
+  it('serializes pickup-code issuance and stores the code evidence atomically without plaintext', async () => {
     const expiresAt = new Date(Date.now() + 600_000);
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: parcelId, pickupCodeExpiresAt: expiresAt }]),
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: parcelId, pickupCodeExpiresAt: expiresAt }]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
+    const prisma = { $transaction: vi.fn((cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new ParcelsService(prisma as unknown as PrismaService);
     const result = await service.issuePickupCode(societyId, recipientId, parcelId);
     expect(result.code).toMatch(/^\d{6}$/);
-    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(result.maxAttempts).toBe(5);
+    const lock = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
+    expect(lock.strings.join(' ')).toContain('pg_advisory_xact_lock');
+    expect(lock.values).toContain(`${societyId}:${parcelId}`);
+    const query = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"pickupCodeHash"');
     expect(query.strings.join(' ')).toContain('"recipientUserId"');
     expect(query.strings.join(' ')).toContain('make_interval(mins =>');
     expect(query.values).not.toContain(result.code);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('commits failed pickup attempts before returning an invalid-code error', async () => {
