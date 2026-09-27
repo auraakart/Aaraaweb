@@ -261,15 +261,15 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<Map<String, dynamic>> inviteVisitor({required String unitId, required String name, required DateTime validFrom, required DateTime validUntil, String? phone, String? purpose}) async {
-    final value = await api.post('/api/v1/access-requests/visitor-invites', {
+  Future<Map<String, dynamic>> inviteVisitor({required String unitId, required String name, required DateTime validFrom, required DateTime validUntil, required String idempotencyKey, String? phone, String? purpose}) async {
+    final value = await api.postWithHeaders('/api/v1/access-requests/visitor-invites', {
       'unitId': unitId,
       'name': name,
       'validFrom': validFrom.toUtc().toIso8601String(),
       'validUntil': validUntil.toUtc().toIso8601String(),
       if (phone != null) 'phone': phone,
       if (purpose != null) 'purpose': purpose,
-    });
+    }, {'Idempotency-Key': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);
   }
 

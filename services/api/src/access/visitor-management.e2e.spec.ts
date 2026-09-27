@@ -98,6 +98,7 @@ describe('Visitor Management end-to-end lifecycle', () => {
           return { id: `receipt-${receipts.size}`, ...data };
         }),
       },
+      $executeRaw: vi.fn().mockResolvedValue(0),
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };
     const entitlements = {
@@ -110,7 +111,7 @@ describe('Visitor Management end-to-end lifecycle', () => {
 
     const validFrom = new Date(Date.now() - 1000);
     const validUntil = new Date(Date.now() + 60 * 60 * 1000);
-    const invite = await service.inviteVisitor('society-1', 'resident-1', 'unit-1', 'Ravi Kumar', validFrom, validUntil, '9999999999', 'Dinner');
+    const invite = await service.inviteVisitor('society-1', 'resident-1', 'unit-1', 'Ravi Kumar', validFrom, validUntil, 'e2e-visitor-invite', '9999999999', 'Dinner');
 
     expect(invite.request.status).toBe(AccessRequestStatus.APPROVED);
     expect(invite.request.subjectType).toBe(AccessSubjectType.VISITOR);

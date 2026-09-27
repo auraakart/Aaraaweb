@@ -21,10 +21,11 @@ class _InviteRepository extends DemoResidentRepository {
     required String name,
     required DateTime validFrom,
     required DateTime validUntil,
+    required String idempotencyKey,
     String? phone,
     String? purpose,
   }) async {
-    invite = {'unitId': unitId, 'name': name, 'phone': phone, 'purpose': purpose};
+    invite = {'unitId': unitId, 'name': name, 'phone': phone, 'purpose': purpose, 'idempotencyKey': idempotencyKey, 'validFrom': validFrom, 'validUntil': validUntil};
     final request = <String, dynamic>{
       'id': 'visitor-1',
       'unitId': unitId,
@@ -41,6 +42,39 @@ class _InviteRepository extends DemoResidentRepository {
   Future<void> cancelAccess(String requestId) async {
     cancelCalls++;
     _requests.firstWhere((item) => item['id'] == requestId)['status'] = 'CANCELLED';
+  }
+}
+
+class _RetryInviteRepository extends _InviteRepository {
+  int calls = 0;
+  final keys = <String>[];
+  final from = <DateTime>[];
+  final until = <DateTime>[];
+
+  @override
+  Future<Map<String, dynamic>> inviteVisitor({
+    required String unitId,
+    required String name,
+    required DateTime validFrom,
+    required DateTime validUntil,
+    required String idempotencyKey,
+    String? phone,
+    String? purpose,
+  }) async {
+    calls++;
+    keys.add(idempotencyKey);
+    from.add(validFrom);
+    until.add(validUntil);
+    if (calls == 1) throw StateError('uncertain transport failure');
+    return super.inviteVisitor(
+      unitId: unitId,
+      name: name,
+      validFrom: validFrom,
+      validUntil: validUntil,
+      idempotencyKey: idempotencyKey,
+      phone: phone,
+      purpose: purpose,
+    );
   }
 }
 
@@ -74,6 +108,31 @@ class _GateMutationRepository extends DemoResidentRepository {
 }
 
 void main() {
+  test('visitor invite retry reuses the same idempotency identity and validity window', () async {
+    final repository = _RetryInviteRepository();
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'VISITOR_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..households = [
+        {'id': 'house-1', 'unitId': 'unit-1'},
+      ];
+
+    await expectLater(
+      controller.createGuest(name: 'Priya Shah', phone: '9999999999', purpose: 'Dinner'),
+      throwsA(isA<StateError>()),
+    );
+    final recovered = await controller.createGuest(name: 'Priya Shah', phone: '9999999999', purpose: 'Dinner');
+
+    expect(repository.calls, 2);
+    expect(repository.keys[1], repository.keys[0]);
+    expect(repository.from[1], repository.from[0]);
+    expect(repository.until[1], repository.until[0]);
+    expect(recovered['credential'], 'TEST-PASS');
+    controller.dispose();
+  });
+
   testWidgets('delivery and cab approvals show gate context and short approval windows', (tester) async {
     final controller = ResidentDataController(
       ResidentRepository(ApiClient(baseUrl: 'http://127.0.0.1:3000', accessToken: 'test-token')),
@@ -180,7 +239,11 @@ void main() {
     await tester.tap(find.text('Create visitor pass'));
     await tester.pumpAndSettle();
 
-    expect(repository.invite, {'unitId': 'unit-1', 'name': 'Priya Shah', 'phone': '9999999999', 'purpose': 'Dinner'});
+    expect(repository.invite, containsPair('unitId', 'unit-1'));
+    expect(repository.invite, containsPair('name', 'Priya Shah'));
+    expect(repository.invite, containsPair('phone', '9999999999'));
+    expect(repository.invite, containsPair('purpose', 'Dinner'));
+    expect(repository.invite?['idempotencyKey']?.toString(), startsWith('resident-visitor-'));
     expect(find.text('Visitor pass ready'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -261,6 +324,7 @@ void main() {
       name: 'Priya Shah',
       validFrom: DateTime(2026, 9, 27, 10),
       validUntil: DateTime(2026, 9, 27, 14),
+      idempotencyKey: 'cancel-pass-test',
     );
     final controller = ResidentDataController(
       repository,
