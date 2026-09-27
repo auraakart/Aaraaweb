@@ -59,6 +59,35 @@ must('Auditor workspace discovery',audit,[
   'Mutation controls remain unavailable.'
 ]);
 
+const parking=read('apps/admin/app/parking/page.tsx');
+must('Parking configuration read/manage split',parking,[
+  "const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR'])",
+  "const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])",
+  "const canRead=!!session&&readRoles.has(session.role)",
+  "const canManage=!!session&&manageRoles.has(session.role)",
+  "if(!session||!canManage)return",
+  "{canManage&&(editing?",
+  "session?.role==='AUDITOR'?'/audit':'/'"
+]);
+const advancedParking=read('apps/admin/app/parking/advanced/page.tsx');
+must('Advanced Parking read/manage split',advancedParking,[
+  "const viewRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR','SECURITY_SUPERVISOR'])",
+  "const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])",
+  "if(x&&viewRoles.has(x.role))void load(x)",
+  "if(!canView)return"
+]);
+const parkingPermits=read('apps/admin/app/parking/permits/page.tsx');
+must('Parking permits least-privilege read path',parkingPermits,[
+  "const viewRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR','SECURITY_SUPERVISOR'])",
+  "if(canManage){const[s,v,p]=await Promise.all",
+  "setSlots([]);setVisitors([]);setPermits(await api<Permit[]>('/parking/v2/permits'",
+  "session.role==='AUDITOR'?'/audit':'/parking'"
+]);
+must('Auditor Parking discovery',audit,[
+  'href="/parking"',
+  'Vehicle and parking assignment evidence'
+]);
+
 const root=JSON.parse(read('package.json'));
 if(root.version!=='4.56.0'){console.error('V4.57 development must not cut release identity early.');process.exit(1)}
 must('V4.57 truth',read('docs/AARAAGATE-V4.57-ADMIN-AUTHORIZATION-CONVERGENCE.md'),[

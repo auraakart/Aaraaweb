@@ -21,7 +21,13 @@ The backend assigns `AUDITOR` both `FINANCE_READ` and `SOCIETY_WORKFORCE_READ`. 
 
 The backend also grants `AUDITOR` `GOVERNANCE_READ`, `FACILITIES_READ` and `OCCUPANCY_LIFECYCLE_READ`. The corresponding Admin pages now admit Auditor sessions through their existing read gates while keeping their manage-role sets unchanged. Governance hides management-only navigation for Auditor, and Governance, Facilities and Occupancy return to the dedicated Audit workspace instead of dropping a read-only reviewer into the general Admin shell.
 
-The Audit workspace now exposes discoverable links to the already-authorized read-only operational surfaces: Finance, Society Workforce, Governance, Facilities, Occupancy Lifecycle, Society Vendors, Documents and Privacy Operations. No Parking link is exposed yet because the Parking client still needs an explicit read/manage split before Auditor access can be safely converged.
+The Audit workspace exposes discoverable links to the already-authorized read-only operational surfaces: Finance, Society Workforce, Governance, Facilities, Occupancy Lifecycle, Society Vendors, Documents and Privacy Operations.
+
+## Slice 3 — Parking read/manage and least-privilege convergence
+
+Parking now follows the permissions already enforced by its server routes instead of a single client-side administration gate. The legacy vehicle/assignment page separates `SOCIETY_CONFIGURATION_READ` visibility from `SOCIETY_CONFIGURATION_MANAGE` editing, while Advanced Parking and Visitor Permits separate `PARKING_READ` from `PARKING_MANAGE`. Auditor therefore receives read-only parking evidence and no assignment, policy, credential, violation or permit mutation controls.
+
+Read-only Visitor Permits no longer fetches eligible-visitor or slot-selection inputs. Those datasets are loaded only for existing parking-manage roles, reducing unnecessary resident/visitor data exposure for review-only sessions. Security Supervisor retains its existing `PARKING_READ` access to v2 parking evidence without receiving mutation controls. Parking is now discoverable from the Audit workspace.
 
 ## Security boundary
 
