@@ -140,6 +140,8 @@ jobs:
         run: node scripts/check-v4.63-sos-recovery.mjs
       - name: Check V4.64 community poll recovery
         run: node scripts/check-v4.64-community-poll-recovery.mjs
+      - name: Check V4.64.1 visitor invite recovery
+        run: node scripts/check-v4.64.1-visitor-invite-recovery.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary
