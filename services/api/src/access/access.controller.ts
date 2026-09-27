@@ -121,9 +121,11 @@ export class AccessController {
 
   @Post('visitor-invites')
   @RequiresPermissions(AppPermission.ACCESS_MANAGE_OWN)
-  inviteVisitor(@Body() dto: CreateVisitorInviteDto, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
+  inviteVisitor(@Body() dto: CreateVisitorInviteDto, @Headers('idempotency-key') idempotencyKey: string | undefined, @CurrentTenant() societyId: string, @CurrentUser() userId: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
-    return this.access.inviteVisitor(societyId, userId, dto.unitId, dto.name, new Date(dto.validFrom), new Date(dto.validUntil), dto.phone, dto.purpose);
+    const key = idempotencyKey?.trim();
+    if (!key) throw new BadRequestException('Idempotency-Key header is required');
+    return this.access.inviteVisitor(societyId, userId, dto.unitId, dto.name, new Date(dto.validFrom), new Date(dto.validUntil), key, dto.phone, dto.purpose);
   }
 
   @Post('gate/walk-ins')

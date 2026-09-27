@@ -522,6 +522,7 @@ class DemoResidentRepository extends ResidentRepository {
     required String name,
     required DateTime validFrom,
     required DateTime validUntil,
+    required String idempotencyKey,
     String? phone,
     String? purpose,
   }) async {

@@ -1,5 +1,5 @@
 import { AccessRequestStatus, AccessSubjectType, GateMutationAction } from '@prisma/client';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { AccessService } from './access.service';
@@ -33,6 +33,7 @@ function setup(overrides: Overrides = {}, enabled = true) {
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     },
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $transaction: vi.fn(),
     ...overrides,
   };
@@ -79,6 +80,7 @@ describe('AccessService', () => {
       'Rahul',
       new Date(Date.now() - 1000),
       new Date(Date.now() + 60_000),
+      'invite-key-1',
       '9999999999',
       'Dinner',
     );
@@ -90,9 +92,37 @@ describe('AccessService', () => {
         subjectType: AccessSubjectType.VISITOR,
         status: AccessRequestStatus.APPROVED,
         credentialHash: expect.any(String),
+        metadata: expect.objectContaining({ visitorInviteIdempotencyKey: 'invite-key-1', visitorInviteFingerprint: expect.any(String) }),
       }),
     }));
     expect(prisma.auditEvent.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses a same-key visitor invite with a rotated credential and rejects mismatched reuse', async () => {
+    let stored: Record<string, any> | undefined;
+    const create = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+      stored = { id: 'invite-1', createdAt: new Date(), updatedAt: new Date(), ...data };
+      return stored;
+    });
+    const findMany = vi.fn(async () => stored ? [stored] : []);
+    const updateMany = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+      if (!stored || stored.status !== AccessRequestStatus.APPROVED) return { count: 0 };
+      stored = { ...stored, ...data, updatedAt: new Date() };
+      return { count: 1 };
+    });
+    const findUniqueOrThrow = vi.fn(async () => stored);
+    const { svc, prisma } = setup({ accessRequest: { create, findMany, findFirst: vi.fn().mockResolvedValue(null), findUniqueOrThrow, updateMany } });
+    const validFrom = new Date('2026-09-27T18:00:00.000Z');
+    const validUntil = new Date('2026-09-28T22:00:00.000Z');
+    const first = await svc.inviteVisitor('society-1','user-1','unit-1','Rahul',validFrom,validUntil,'stable-key','9999999999','Dinner');
+    const replayed = await svc.inviteVisitor('society-1','user-1','unit-1','Rahul',validFrom,validUntil,'stable-key','9999999999','Dinner');
+    expect(replayed.request.id).toBe(first.request.id);
+    expect(replayed.replayed).toBe(true);
+    expect(replayed.credential).not.toBe(first.credential);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(prisma.auditEvent.create).toHaveBeenCalledTimes(2);
+    await expect(svc.inviteVisitor('society-1','user-1','unit-1','Rahul',validFrom,validUntil,'stable-key','9999999999','Different purpose')).rejects.toBeInstanceOf(ConflictException);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it('denies an access type disabled for the society tier', async () => {
