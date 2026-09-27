@@ -156,6 +156,23 @@ class GateScreen extends StatelessWidget {
     }
   }
 
+  String _mutationErrorMessage(Object error, Map<String, dynamic> request) {
+    final requestId = request['id']?.toString();
+    final previousStatus = request['status']?.toString();
+    for (final current in controller.accessRequests) {
+      if (current['id']?.toString() != requestId) continue;
+      final latestStatus = current['status']?.toString();
+      if (latestStatus != null && latestStatus != previousStatus) {
+        return AaraagateStrings.device().format(
+          'gateRequestChanged',
+          {'status': _displayGateStatus(latestStatus)},
+        );
+      }
+      break;
+    }
+    return residentErrorMessage(error);
+  }
+
   Future<void> _approve(BuildContext context, Map<String, dynamic> request) async {
     try {
       final result = await controller.approveAccess(request['id'].toString());
@@ -171,7 +188,7 @@ class GateScreen extends StatelessWidget {
       final label = subjectType == 'CAB' ? strings.text('cab') : subjectType == 'DELIVERY' ? strings.text('delivery') : strings.text('entry');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.format('approvedSecurity', {'label': label}))));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
@@ -179,7 +196,7 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.denyAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
@@ -187,7 +204,7 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.cancelAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
@@ -518,7 +535,7 @@ class _AccessCardState extends State<_AccessCard> {
               );
               final statusPill = AaraagateStatusPill(
                 label: status,
-                tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+                tone: _accessStatusTone(request['status']?.toString()),
               );
               if (stacked) {
                 return Column(
@@ -599,6 +616,26 @@ class _AccessCardState extends State<_AccessCard> {
   }
 
   static String _label(String? value) => (value ?? '').toLowerCase().split('_').map((e) => e.isEmpty ? e : '${e[0].toUpperCase()}${e.substring(1)}').join(' ');
+}
+
+String _displayGateStatus(String value) =>
+    value.toLowerCase().split('_').map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}').join(' ');
+
+AaraagateStatusTone _accessStatusTone(String? value) {
+  switch ((value ?? '').toUpperCase()) {
+    case 'PENDING':
+      return AaraagateStatusTone.warning;
+    case 'APPROVED':
+    case 'CHECKED_IN':
+      return AaraagateStatusTone.success;
+    case 'DENIED':
+      return AaraagateStatusTone.danger;
+    case 'CANCELLED':
+    case 'CHECKED_OUT':
+      return AaraagateStatusTone.neutral;
+    default:
+      return AaraagateStatusTone.neutral;
+  }
 }
 
 String _formatDateTime(DateTime value) {

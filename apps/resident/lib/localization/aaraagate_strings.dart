@@ -71,6 +71,7 @@ class AaraagateStrings {
       'cab': 'Cab',
       'delivery': 'Delivery',
       'approvedSecurity': '{label} approved. Security has been updated.',
+      'gateRequestChanged': 'This gate request changed. Latest status: {status}.',
       'validUntil': 'Valid until {time}',
       'visitorQr': 'Visitor access QR code',
     },

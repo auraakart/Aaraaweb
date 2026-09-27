@@ -226,4 +226,24 @@ void main() {
     controller.dispose();
   });
 
+
+  testWidgets('stale gate decision surfaces the refreshed authoritative status', (tester) async {
+    final repository = _GateMutationRepository()..failAsStale = true;
+    final controller = ResidentDataController(
+      repository,
+      activeUnitId: 'unit-1',
+      initialEnabledFeatures: {'DELIVERY_MANAGEMENT'},
+      fetchEntitlements: false,
+    )..accessRequests = await repository.accessRequests();
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: GateScreen(controller: controller))));
+    await tester.tap(find.text('Deny'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('This gate request changed. Latest status: Approved.'), findsOneWidget);
+    expect(controller.accessRequests.single['status'], 'APPROVED');
+
+    controller.dispose();
+  });
+
 }
