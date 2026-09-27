@@ -1,7 +1,7 @@
 # Aaraagate V4.58 — Resident Service Recovery
 
 Date: 2026-09-27
-Status: Development started on develop; release identity remains 4.57.0.
+Status: Release candidate closed on develop; release identity is 4.58.0.
 
 ## Objective
 
@@ -39,10 +39,14 @@ Provider counter-proposals already let residents accept or reject a suggested se
 
 The Resident app asks for the reason only when declining a proposed time. Acceptance remains a one-step action and keeps the existing availability re-check. No new proposal state, permission or provider mutation path is introduced.
 
+## V4.58 release closure
+
+The Resident service-recovery milestone is closed on `develop` as a 4.58.0 repository release candidate after slices #916–#918. The closure combines resident-owned Helpdesk reopen under current-occupancy scope, audited consumer booking cancellation reasons, and audited provider-reschedule rejection reasons. Each mutation remains server-authoritative, uses the existing ownership/locking boundary, and preserves the existing activity/event history rather than introducing parallel state.
+
 ## Regression contract
 
-`pnpm check:v4.58` and CI verify the resident Helpdesk recovery boundary plus consumer-owned booking cancellation reason validation, locked transition evidence, timeline note and review-before-cancel UI, and audited provider-reschedule rejection reasons.
+`pnpm check:v4.58` and CI verify the resident Helpdesk recovery boundary, consumer-owned booking cancellation reason validation, audited provider-reschedule rejection reasons, aligned 4.58.0 runtime identity and release-closure evidence.
 
 ## Boundary
 
-V4.58 is still in development and does not claim a 4.58.0 release, staging/main promotion, productionization, hosted acceptance, external-provider certification or field-pilot acceptance.
+V4.58 is closed as a repository release candidate on develop. This does not claim staging/main promotion, productionization, hosted acceptance, external-provider certification or field-pilot acceptance.

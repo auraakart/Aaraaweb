@@ -91,9 +91,11 @@ must('Auditor Parking discovery',audit,[
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-if(root.version!=='4.57.0'||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must be V4.57.0.');process.exit(1)}
-must('V4.57 Resident release identity',read('apps/resident/pubspec.yaml'),['version: 4.57.0+45700']);
-must('V4.57 Guard release identity',read('apps/guard/pubspec.yaml'),['version: 4.57.0+45700']);
+const currentVersion=root.version.split('.').map(Number);
+const atLeastV457=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=57));
+if(!atLeastV457||api.version!==root.version||admin.version!==root.version){console.error('Root/API/Admin release identity must remain aligned at V4.57.0 or newer.');process.exit(1)}
+const runtimeVersionToken='version: '+root.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){console.error('Resident/Guard release identity must remain aligned with the current root release.');process.exit(1)}
 must('V4.57 truth',read('docs/AARAAGATE-V4.57-ADMIN-AUTHORIZATION-CONVERGENCE.md'),[
   'Release candidate closed on develop; release identity is 4.57.0.',
   'does not add backend permissions',
