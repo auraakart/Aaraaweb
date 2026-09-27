@@ -1,7 +1,7 @@
 # Aaraagate V4.59 — Secure Physical Handover Convergence
 
 Date: 2026-09-27
-Status: Development started on develop; release identity remains 4.58.0.
+Status: Release candidate closed on develop; release identity is 4.59.0.
 
 ## Objective
 
@@ -27,10 +27,16 @@ The Guard parcel desk now treats code verification failures as operational recov
 
 These messages do not weaken authorization: the Guard client still calls only `collect-with-code`, and the server remains the authority for code validity, attempt locking and the collected transition.
 
+## V4.59 release closure
+
+The secure physical-handover milestone is closed on `develop` as a 4.59.0 repository release candidate after slices #920–#922. The closure removes Resident self-confirm collection, serializes and atomically records pickup-code issuance, keeps server-returned expiry/attempt policy authoritative in Resident, and gives Guard safe recovery guidance for invalid, expired, locked, unissued, transport and authorization failures.
+
+The authoritative handover remains the security-desk `collect-with-code` transition. Resident ownership scope, Guard `PARCEL_PROCESS` authority, pickup-code attempt locking, pickup verification and collection evidence remain server-authoritative; no client can manufacture collection success locally.
+
 ## Regression contract
 
-`pnpm check:v4.59` and CI require the verified security handover path, atomic/serialized pickup-code issuance, server-derived expiry/attempt guidance, Resident duplicate-submit protection and Guard recovery guidance while forbidding the legacy resident self-confirm API/client/UI tokens. Resident and Guard tests cover the pickup-code lifecycle and safe failure states.
+`pnpm check:v4.59` and CI require the verified security handover path, atomic/serialized pickup-code issuance, server-derived expiry/attempt guidance, Resident duplicate-submit protection, Guard recovery guidance, aligned 4.59.0 runtime identity and release-closure evidence while forbidding the legacy resident self-confirm API/client/UI tokens. Resident and Guard tests cover the pickup-code lifecycle and safe failure states.
 
 ## Boundary
 
-This is a V4.59 development slice. It does not claim a 4.59.0 release, staging/main promotion, productionization, physical-device certification or field acceptance.
+V4.59 is closed as a repository release candidate on develop. This does not claim staging/main promotion, productionization, hosted acceptance, physical-device certification, signed store release or field acceptance.
