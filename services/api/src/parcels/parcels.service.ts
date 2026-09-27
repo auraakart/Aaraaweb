@@ -177,27 +177,6 @@ export class ParcelsService {
     return outcome.parcel;
   }
 
-  async confirmCollection(societyId: string, userId: string, parcelId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ id: string; status: string; collectedAt: Date }>>(Prisma.sql`
-        UPDATE "Parcel"
-        SET "status"='COLLECTED', "collectedByUserId"=${userId}::uuid, "collectedAt"=CURRENT_TIMESTAMP,
-            "pickupCodeSalt"=NULL, "pickupCodeHash"=NULL, "pickupCodeIssuedAt"=NULL, "pickupCodeExpiresAt"=NULL,
-            "pickupCodeAttempts"=0, "pickupCodeLockedAt"=NULL, "updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${parcelId}::uuid AND "societyId"=${societyId}::uuid
-          AND "recipientUserId"=${userId}::uuid AND "status"='RECEIVED'
-        RETURNING "id","status","collectedAt"
-      `);
-      const parcel = rows[0];
-      if (!parcel) throw new NotFoundException('Uncollected parcel not found for current user');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "ParcelEvent" ("societyId","parcelId","actorUserId","action")
-        VALUES (${societyId}::uuid,${parcelId}::uuid,${userId}::uuid,'COLLECTED')
-      `);
-      return parcel;
-    });
-  }
-
   async returnToSender(societyId: string, actorUserId: string, parcelId: string, reason: string) {
     const cleanReason = reason.trim();
     if (cleanReason.length < 3 || cleanReason.length > 500) throw new BadRequestException('Return reason must be between 3 and 500 characters');

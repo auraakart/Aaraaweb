@@ -99,31 +99,6 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
     }
   }
 
-  Future<void> _confirmCollection(ResidentParcel parcel) async {
-    if (!_belongsToActiveProperty(parcel)) {
-      _showPropertyMismatch();
-      return;
-    }
-    try {
-      if (!widget.demoMode) await widget.repository.confirmParcelCollection(parcel.id);
-      if (widget.demoMode) {
-        setState(() {
-          _parcels = _parcels
-              .map((item) => item.id == parcel.id ? item.copyWith(status: 'COLLECTED', overdue: false) : item)
-              .toList(growable: false);
-        });
-      } else {
-        await _load();
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Collection could not be confirmed. Please try again.')),
-        );
-      }
-    }
-  }
-
   bool _belongsToActiveProperty(ResidentParcel parcel) => parcel.unitId == widget.unitId;
 
   void _showPropertyMismatch() {
@@ -181,7 +156,6 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
                   _ParcelCard(
                     parcel: parcel,
                     onPickupCode: () => _pickupCode(parcel),
-                    onConfirm: () => _confirmCollection(parcel),
                   ),
                   const SizedBox(height: AaraagateTokens.space3),
                 ],
@@ -234,12 +208,10 @@ class _ParcelCard extends StatelessWidget {
   const _ParcelCard({
     required this.parcel,
     required this.onPickupCode,
-    required this.onConfirm,
   });
 
   final ResidentParcel parcel;
   final VoidCallback onPickupCode;
-  final VoidCallback onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +273,7 @@ class _ParcelCard extends StatelessWidget {
                 icon: const Icon(Icons.pin_outlined),
                 label: const Text('Pickup code'),
               ),
-              OutlinedButton(onPressed: onConfirm, child: const Text('I collected it')),
+
             ],
           ),
         ],
