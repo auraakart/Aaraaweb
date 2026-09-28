@@ -67,6 +67,10 @@ class RemoveAmenityBlackoutDto {
   @IsDateString() endsAt!:string;
 }
 
+class AmenityOperatingHoursDto {
+  @IsOptional() @IsObject() weekly?: Record<string,unknown> | null;
+}
+
 class RevokeAmenityBookingDto {
   @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
@@ -207,6 +211,18 @@ export class AmenitiesController {
     @Body() dto:RemoveAmenityBlackoutDto,
   ){
     return this.amenities.removeBlackout(societyId,amenityId,dto);
+  }
+
+  @Post('manage/:amenityId/operating-hours/preview')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  previewOperatingHours(@CurrentTenant() societyId:string,@Param('amenityId',ParseUUIDPipe) amenityId:string,@Body() dto:AmenityOperatingHoursDto){
+    return this.amenities.previewOperatingHours(societyId,amenityId,dto.weekly??null);
+  }
+
+  @Patch('manage/:amenityId/operating-hours')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  applyOperatingHours(@CurrentTenant() societyId:string,@Param('amenityId',ParseUUIDPipe) amenityId:string,@Body() dto:AmenityOperatingHoursDto){
+    return this.amenities.applyOperatingHours(societyId,amenityId,dto.weekly??null);
   }
 
   @Get('manage/analytics')
