@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
@@ -172,6 +173,7 @@ class _BillingScreenState extends State<BillingScreen> {
       setState(() => error = 'This invoice is outside the active property context.');
       return;
     }
+    widget.repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
     setState(() { payingInvoiceId = id; error = null; });
     try {
       final attemptKey = _paymentAttemptKeys.putIfAbsent(id, () => 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
@@ -229,18 +231,6 @@ class _BillingScreenState extends State<BillingScreen> {
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
               _SummaryCard(outstanding: outstanding, summary: financeSummary),
-              if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space3),
-                _AutopayPreferenceCard(
-                  preference: autopayPreference,
-                  busy: autopayBusy,
-                  onChanged: _toggleAutopay,
-                ),
-                if (autopayError != null) ...[
-                  const SizedBox(height: AaraagateTokens.space2),
-                  Text(autopayError!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.error)),
-                ],
-              ],
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
@@ -255,6 +245,15 @@ class _BillingScreenState extends State<BillingScreen> {
               ] else ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
+              ],
+              if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space3),
+                _AutopayPreferenceCard(
+                  preference: autopayPreference,
+                  busy: autopayBusy,
+                  error: autopayError,
+                  onChanged: _toggleAutopay,
+                ),
               ],
               if (recoveryPayments.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
@@ -303,9 +302,15 @@ class _BillingScreenState extends State<BillingScreen> {
 }
 
 class _AutopayPreferenceCard extends StatelessWidget {
-  const _AutopayPreferenceCard({required this.preference, required this.busy, required this.onChanged});
+  const _AutopayPreferenceCard({
+    required this.preference,
+    required this.busy,
+    required this.onChanged,
+    this.error,
+  });
   final Map<String, dynamic>? preference;
   final bool busy;
+  final String? error;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -338,6 +343,16 @@ class _AutopayPreferenceCard extends StatelessWidget {
           ]),
           const SizedBox(height: AaraagateTokens.space2),
           Text(boundary, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4)),
+          if (error != null) ...[
+            const SizedBox(height: AaraagateTokens.space2),
+            Text(
+              error!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+                height: 1.4,
+              ),
+            ),
+          ],
           if (busy) ...[const SizedBox(height: AaraagateTokens.space2), const LinearProgressIndicator()],
         ]),
       ),
@@ -354,44 +369,81 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final total = outstanding.fold<int>(0, (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0));
-    final nextDue = outstanding.map((invoice) => DateTime.tryParse(invoice['dueDate']?.toString() ?? '')).whereType<DateTime>().fold<DateTime?>(null, (current, next) => current == null || next.isBefore(current) ? next : current);
+    final total = outstanding.fold<int>(
+      0,
+      (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0),
+    );
+    final nextDue = outstanding
+        .map((invoice) => DateTime.tryParse(invoice['dueDate']?.toString() ?? ''))
+        .whereType<DateTime>()
+        .fold<DateTime?>(
+          null,
+          (current, next) => current == null || next.isBefore(current) ? next : current,
+        );
     final overduePaise = (summary?['overduePaise'] as num?)?.toInt() ?? 0;
     final overdueCount = (summary?['overdueInvoiceCount'] as num?)?.toInt() ?? 0;
     final recoveryCount = (summary?['paymentRecoveryCount'] as num?)?.toInt() ?? 0;
-    final policy = summary?['checkoutPolicy'] is Map ? Map<String, dynamic>.from(summary!['checkoutPolicy'] as Map) : const <String, dynamic>{};
-    final detailParts=<String>[
-      if(overdueCount>0) 'Overdue ${_money(overduePaise)}',
-      if(nextDue!=null) 'Next due ${_date(nextDue)}',
-      if(recoveryCount>0) '$recoveryCount payment follow-up${recoveryCount==1?'':'s'}',
-      if(outstanding.isEmpty) 'All caught up',
-    ];
+    final policy = summary?['checkoutPolicy'] is Map
+        ? Map<String, dynamic>.from(summary!['checkoutPolicy'] as Map)
+        : const <String, dynamic>{};
+    final overdue = overdueCount > 0;
+    final overdueAmountLabel = 'Overdue ${_money(overduePaise)}';
 
     return PremiumSurface(
       elevated: true,
-      color: scheme.primaryContainer.withValues(alpha: .55),
+      color: scheme.surface,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text('Total outstanding', style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w700))),
-          Tooltip(
-            message: policy['explanation']?.toString() ?? 'Payments are verified by the server before a bill is marked paid.',
-            child:AaraagateStatusPill(
-              label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
-              tone: outstanding.isEmpty ? AaraagateStatusTone.success : AaraagateStatusTone.warning,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  overdue ? 'Payment overdue' : 'Amount due',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: overdue ? scheme.error : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: policy['explanation']?.toString() ??
+                    'Payments are verified by the server before a bill is marked paid.',
+                child: AaraagateStatusPill(
+                  label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
+                  tone: outstanding.isEmpty
+                      ? AaraagateStatusTone.success
+                      : overdue
+                          ? AaraagateStatusTone.danger
+                          : AaraagateStatusTone.warning,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AaraagateTokens.space2),
+          Text(_money(total), style: theme.textTheme.headlineMedium),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(
+            overdue
+                ? '$overdueAmountLabel · $overdueCount bill${overdueCount == 1 ? '' : 's'}'
+                : nextDue == null
+                    ? 'Everything is up to date.'
+                    : 'Next due ${_date(nextDue)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
             ),
           ),
-        ]),
-        const SizedBox(height: AaraagateTokens.space2),
-        Text(_money(total), style: theme.textTheme.headlineMedium?.copyWith(color: scheme.onPrimaryContainer)),
-        const SizedBox(height: AaraagateTokens.space1),
-        Text(
-          detailParts.join(' · '),
-          maxLines:1,
-          overflow:TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withValues(alpha: .82)),
-        ),
-      ]),
+          if (recoveryCount > 0) ...[
+            const SizedBox(height: AaraagateTokens.space2),
+            Text(
+              '$recoveryCount payment follow-up${recoveryCount == 1 ? '' : 's'} need confirmation.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -585,5 +637,8 @@ bool _isOverdueDate(DateTime due, DateTime now) {
   return dueDay.isBefore(today);
 }
 
-String _money(int paise) => '₹${(paise / 100).toStringAsFixed(2)}';
+String _money(int paise) {
+  final rupees = paise / 100;
+  return paise % 100 == 0 ? '₹${rupees.toStringAsFixed(0)}' : '₹${rupees.toStringAsFixed(2)}';
+}
 String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';

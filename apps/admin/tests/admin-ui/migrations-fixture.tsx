@@ -78,6 +78,18 @@ window.fetch=async(input,init={})=>{
     policy:{firstResponseMinutes:60,resolutionMinutes:480,escalationAfterMinutes:240,automaticEscalationEnabled:true,escalationTargetUserId:'reviewer-1',escalationTargetName:'Facility Reviewer'},
     boundary:'Readiness is descriptive; server authorization remains authoritative.',
   })
+  if(path==='/helpdesk/review/ticket-1/triage-intelligence') return json({
+    ticketId:'ticket-1',property:'Tower B · B-402',currentCategory:'MAINTENANCE',suggestedCategory:'MAINTENANCE',
+    classificationSignals:['EXISTING_CATEGORY_RETAINED'],
+    recurring:{sameUnitSimilarLast90Days:1,latestSimilarAt:'2026-09-15T02:30:00.000Z',recurring:true},
+    assignment:{
+      currentAssigneeId:'reviewer-1',
+      recommendedAssignee:null,
+      candidates:[{userId:'reviewer-1',name:'Facility Reviewer',phone:'+91 90000 00010',openTickets:1}],
+    },
+    classificationApplied:false,assignmentApplied:false,predictive:false,
+    boundary:'Fixture evidence only; category and assignment remain explicit operator decisions.',
+  })
 
   if(path==='/privacy/cases') return json([fixtures.privacyCase])
   if(path==='/privacy/operator-context') return json({
@@ -157,7 +169,7 @@ window.fetch=async(input,init={})=>{
   if(path==='/governance/meetings/meeting-1') return json({...fixtures.governanceMeeting,minutesSummary:'Reviewed maintenance, collections and resident communications.',agenda:[{id:'ga-1',ordinal:1,title:'Maintenance review',description:'Lift and pump maintenance'}],resolutions:[{id:'gr-1',title:'Approve preventive maintenance budget',resolutionText:'Approve preventive maintenance spend for Q4.',status:'PASSED',approvalRequired:4,approvalRecorded:5,approvalRuleReference:'Policy A-1',byeLawReference:'BL-12'}],actions:[{id:'gact-1',title:'Publish maintenance calendar',description:'Share quarterly schedule',ownerUserId:'committee-1',dueAt:later,status:'IN_PROGRESS'}],evidence:[{id:'ge-1',eventType:'OUTCOME_RECORDED',summary:'Meeting outcome and minutes recorded',createdAt:now}]})
 
   if(method!=='GET') return json({ok:true})
-  return json([])
+  return json({message:`Missing migration fixture for ${method} ${path}`},501)
 }
 
 const route=new URLSearchParams(window.location.search).get('route')??'helpdesk'

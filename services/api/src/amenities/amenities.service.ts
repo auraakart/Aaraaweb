@@ -21,6 +21,14 @@ type AmenityRow = {
 
 type CountRow = { count: bigint | number };
 
+type AmenityPricingBand = {
+  label?: string;
+  daysOfWeek: number[];
+  startMinute: number;
+  endMinute: number;
+  feePaise: number;
+};
+
 type AmenityBookingRules = {
   minAdvanceMinutes?: number;
   maxAdvanceDays?: number;
@@ -30,6 +38,8 @@ type AmenityBookingRules = {
   cancellationCutoffMinutes?: number;
   checkInOpenMinutesBefore?: number;
   noShowGraceMinutes?: number;
+  conflictGroup?: string;
+  pricingBands?: AmenityPricingBand[];
 };
 
 type AmenityUpdateInput = {
@@ -186,6 +196,24 @@ export class AmenitiesService {
         }
       }
 
+      if (rules.conflictGroup) {
+        const groupedConflicts = await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking" b
+          JOIN "Amenity" a ON a."id"=b."amenityId" AND a."societyId"=b."societyId"
+          WHERE b."societyId"=${societyId}::uuid
+            AND b."unitId"=${input.unitId}::uuid
+            AND b."amenityId"<>${amenityId}::uuid
+            AND b."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+            AND LOWER(TRIM(COALESCE(a."bookingRules"->>'conflictGroup','')))=LOWER(TRIM(${rules.conflictGroup}))
+            AND b."startsAt"<${endsAt}
+            AND b."endsAt">${startsAt}
+        `;
+        if (Number(groupedConflicts[0]?.count ?? 0) > 0) {
+          throw new ConflictException(`Unit already has an overlapping booking in amenity conflict group ${rules.conflictGroup}`);
+        }
+      }
+
       const overlaps = await tx.$queryRaw<CountRow[]>`
         SELECT COUNT(*)::int AS "count"
         FROM "AmenityBooking"
@@ -201,13 +229,14 @@ export class AmenitiesService {
       }
 
       const status = amenity.requiresApproval ? 'PENDING' : 'CONFIRMED';
+      const bookingFeePaise = this.resolveBookingFee(amenity.feePaise, rules, startsAt);
       const rows = await tx.$queryRaw`
         INSERT INTO "AmenityBooking" (
           "societyId", "amenityId", "unitId", "userId", "startsAt", "endsAt",
           "status", "feePaise", "currency", "idempotencyKey"
         ) VALUES (
           ${societyId}::uuid, ${amenityId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
-          ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${amenity.feePaise}, ${amenity.currency},
+          ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${bookingFeePaise}, ${amenity.currency},
           ${idempotencyKey}
         )
         RETURNING *
@@ -290,6 +319,23 @@ export class AmenitiesService {
           AND "startsAt"<${endsAt} AND "endsAt">${startsAt}
       `;
       if(Number(ownActive[0]?.count??0)>0) throw new ConflictException('This unit already has an active booking in that amenity window');
+
+      if(rules.conflictGroup){
+        const groupedConflicts=await tx.$queryRaw<CountRow[]>`
+          SELECT COUNT(*)::int AS "count"
+          FROM "AmenityBooking" b
+          JOIN "Amenity" a ON a."id"=b."amenityId" AND a."societyId"=b."societyId"
+          WHERE b."societyId"=${societyId}::uuid
+            AND b."unitId"=${input.unitId}::uuid
+            AND b."amenityId"<>${amenityId}::uuid
+            AND b."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+            AND LOWER(TRIM(COALESCE(a."bookingRules"->>'conflictGroup','')))=LOWER(TRIM(${rules.conflictGroup}))
+            AND b."startsAt"<${endsAt} AND b."endsAt">${startsAt}
+        `;
+        if(Number(groupedConflicts[0]?.count??0)>0){
+          throw new ConflictException(`Unit already has an overlapping booking in amenity conflict group ${rules.conflictGroup}`);
+        }
+      }
 
       const overlaps=await tx.$queryRaw<CountRow[]>`
         SELECT COUNT(*)::int AS "count"
@@ -735,6 +781,7 @@ export class AmenitiesService {
     `;
     const amenity=amenities[0];
     if(!amenity) return null;
+    const rules=this.parseBookingRules(amenity.bookingRules);
     const overlaps=await tx.$queryRaw<CountRow[]>`
       SELECT COUNT(*)::int AS "count"
       FROM "AmenityBooking"
@@ -779,6 +826,20 @@ export class AmenitiesService {
             AND b."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
             AND b."startsAt"<w."endsAt" AND b."endsAt">w."startsAt"
         )
+        AND (
+          ${rules.conflictGroup ?? null}::text IS NULL
+          OR NOT EXISTS (
+            SELECT 1
+            FROM "AmenityBooking" gb
+            JOIN "Amenity" ga ON ga."id"=gb."amenityId" AND ga."societyId"=gb."societyId"
+            WHERE gb."societyId"=w."societyId"
+              AND gb."unitId"=w."unitId"
+              AND gb."amenityId"<>w."amenityId"
+              AND gb."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+              AND LOWER(TRIM(COALESCE(ga."bookingRules"->>'conflictGroup','')))=LOWER(TRIM(${rules.conflictGroup ?? ''}))
+              AND gb."startsAt"<w."endsAt" AND gb."endsAt">w."startsAt"
+          )
+        )
       ORDER BY w."joinedAt",w."id"
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -786,12 +847,13 @@ export class AmenitiesService {
     const waiter=waiters[0];
     if(!waiter) return null;
     const status=amenity.requiresApproval?'PENDING':'CONFIRMED';
+    const bookingFeePaise=this.resolveBookingFee(amenity.feePaise,rules,waiter.startsAt);
     const bookings=await tx.$queryRaw<Array<{id:string}>>`
       INSERT INTO "AmenityBooking" (
         "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency"
       ) VALUES (
         ${societyId}::uuid,${amenityId}::uuid,${waiter.unitId}::uuid,${waiter.userId}::uuid,
-        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${amenity.feePaise},${amenity.currency}
+        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${bookingFeePaise},${amenity.currency}
       )
       RETURNING "id"
     `;
@@ -818,7 +880,62 @@ export class AmenitiesService {
       cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
       checkInOpenMinutesBefore: this.optionalPolicyInteger(source.checkInOpenMinutesBefore, 'checkInOpenMinutesBefore', 0),
       noShowGraceMinutes: this.optionalPolicyInteger(source.noShowGraceMinutes, 'noShowGraceMinutes', 0),
+      conflictGroup: this.optionalConflictGroup(source.conflictGroup),
+      pricingBands: this.parsePricingBands(source.pricingBands),
     };
+  }
+
+  private optionalConflictGroup(value:unknown){
+    if(value===undefined||value===null||value==='') return undefined;
+    if(typeof value!=='string') throw new BadRequestException('conflictGroup must be a string');
+    const normalized=value.trim().toUpperCase();
+    if(normalized.length<2||normalized.length>64||!/^[A-Z0-9_-]+$/.test(normalized)){
+      throw new BadRequestException('conflictGroup must be 2-64 letters, numbers, underscores or hyphens');
+    }
+    return normalized;
+  }
+
+  private parsePricingBands(value:unknown):AmenityPricingBand[]|undefined{
+    if(value===undefined||value===null) return undefined;
+    if(!Array.isArray(value)||value.length>12) throw new BadRequestException('pricingBands must be an array of at most 12 time bands');
+    const bands=value.map((item,index)=>{
+      if(!item||typeof item!=='object'||Array.isArray(item)) throw new BadRequestException(`pricingBands[${index}] must be an object`);
+      const source=item as Record<string,unknown>;
+      const startMinute=this.optionalPolicyInteger(source.startMinute,`pricingBands[${index}].startMinute`,0);
+      const endMinute=this.optionalPolicyInteger(source.endMinute,`pricingBands[${index}].endMinute`,1);
+      const feePaise=this.optionalPolicyInteger(source.feePaise,`pricingBands[${index}].feePaise`,0);
+      if(startMinute===undefined||endMinute===undefined||feePaise===undefined||startMinute>1439||endMinute>1440||endMinute<=startMinute){
+        throw new BadRequestException(`pricingBands[${index}] requires 0-1439 startMinute, 1-1440 endMinute and end after start`);
+      }
+      const rawDays=source.daysOfWeek;
+      if(rawDays!==undefined&&!Array.isArray(rawDays)) throw new BadRequestException(`pricingBands[${index}].daysOfWeek must be an array`);
+      const days=(rawDays===undefined?[0,1,2,3,4,5,6]:rawDays as unknown[]).map(day=>{
+        if(!Number.isInteger(day)||(day as number)<0||(day as number)>6) throw new BadRequestException(`pricingBands[${index}].daysOfWeek values must be integers 0-6`);
+        return day as number;
+      });
+      if(new Set(days).size!==days.length) throw new BadRequestException(`pricingBands[${index}].daysOfWeek cannot contain duplicates`);
+      const label=source.label===undefined?undefined:String(source.label).trim();
+      if(label&&label.length>80) throw new BadRequestException(`pricingBands[${index}].label is too long`);
+      return {label:label||undefined,daysOfWeek:days,startMinute,endMinute,feePaise};
+    });
+    for(let i=0;i<bands.length;i++){
+      for(let j=i+1;j<bands.length;j++){
+        const sharedDay=bands[i].daysOfWeek.some(day=>bands[j].daysOfWeek.includes(day));
+        const overlaps=sharedDay&&bands[i].startMinute<bands[j].endMinute&&bands[i].endMinute>bands[j].startMinute;
+        if(overlaps) throw new BadRequestException('pricingBands cannot overlap on the same day');
+      }
+    }
+    return bands;
+  }
+
+  private resolveBookingFee(baseFeePaise:number,rules:AmenityBookingRules,startsAt:Date){
+    const bands=rules.pricingBands??[];
+    if(!bands.length) return baseFeePaise;
+    const ist=new Date(startsAt.getTime()+330*60*1000);
+    const day=ist.getUTCDay();
+    const minute=ist.getUTCHours()*60+ist.getUTCMinutes();
+    const band=bands.find(item=>item.daysOfWeek.includes(day)&&minute>=item.startMinute&&minute<item.endMinute);
+    return band?.feePaise??baseFeePaise;
   }
 
   private optionalPolicyInteger(value: unknown, field: string, minimum: number) {

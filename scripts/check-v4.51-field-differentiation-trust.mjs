@@ -66,10 +66,15 @@ requireTokens('Resident finance clarity',billing,[
 const billingUi=read('apps/resident/lib/screens/billing_screen.dart');
 requireTokens('Resident finance UX',billingUi,[
   'maintenanceSummary',
-  "'Overdue \${_money(overduePaise)}'",
-  "payment follow-up",
+  '_money(overduePaise)',
+  'AaraagateStatusTone.danger',
+  'payment follow-up',
   "policy['explanation']",
 ]);
+// Protect finance trust semantics without coupling the regression contract to
+// one exact piece of display copy. Premium wording/layout may evolve while
+// overdue amount visibility, danger-state meaning, recovery visibility, and
+// server policy transparency remain mandatory.
 
 const access=read('services/api/src/access-integration/access-integration.service.ts');
 requireTokens('Access simulator certification',access,[

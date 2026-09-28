@@ -104,8 +104,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Check & book'));
-    await tester.tap(find.text('Check & book'));
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
     await tester.pumpAndSettle();
 
     expect(api.bookingPath, '/api/v1/amenities/clubhouse/bookings');
@@ -127,8 +127,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Check & book'));
-    await tester.tap(find.text('Check & book'));
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
     await tester.pumpAndSettle();
 
     expect(find.text('Slot just filled'),findsOneWidget);

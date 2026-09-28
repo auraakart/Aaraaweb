@@ -30,6 +30,84 @@ export class FinanceOperationsService {
     `);
   }
 
+  async expenseIntakeAssessment(
+    societyId:string,
+    input:Pick<CreateExpenseInput,'vendorName'|'invoiceReference'|'expenseDate'|'amountPaise'>,
+  ) {
+    const vendorName=input.vendorName.trim();
+    const invoiceReference=input.invoiceReference?.trim()||null;
+    if(!vendorName) throw new BadRequestException('Vendor name is required for expense intake assessment');
+    if(input.amountPaise<=0) throw new BadRequestException('Expense amount must be positive');
+
+    const candidates=await this.prisma.$queryRaw<Array<{
+      id:string;expenseNumber:string;vendorName:string;invoiceReference:string|null;expenseDate:Date;amountPaise:bigint;status:string;
+    }>>(Prisma.sql`
+      SELECT "id","expenseNumber","vendorName","invoiceReference","expenseDate","amountPaise","status"
+      FROM "SocietyExpense"
+      WHERE "societyId"=${societyId}::uuid
+        AND (
+          (${invoiceReference}::text IS NOT NULL AND LOWER(TRIM(COALESCE("invoiceReference",'')))=LOWER(TRIM(${invoiceReference})))
+          OR (
+            LOWER(TRIM("vendorName"))=LOWER(TRIM(${vendorName}))
+            AND "amountPaise"=${input.amountPaise}
+            AND ABS("expenseDate"-${input.expenseDate}::date)<=3
+          )
+        )
+      ORDER BY
+        CASE WHEN ${invoiceReference}::text IS NOT NULL AND LOWER(TRIM(COALESCE("invoiceReference",'')))=LOWER(TRIM(${invoiceReference})) THEN 0 ELSE 1 END,
+        ABS("expenseDate"-${input.expenseDate}::date),
+        "createdAt" DESC
+      LIMIT 12
+    `);
+
+    const reviewed=candidates.map(candidate=>{
+      const sameVendor=candidate.vendorName.trim().toLowerCase()===vendorName.toLowerCase();
+      const sameReference=Boolean(
+        invoiceReference
+        && candidate.invoiceReference
+        && candidate.invoiceReference.trim().toLowerCase()===invoiceReference.toLowerCase(),
+      );
+      const sameAmount=Number(candidate.amountPaise)===input.amountPaise;
+      const candidateDate=candidate.expenseDate instanceof Date
+        ? candidate.expenseDate.toISOString().slice(0,10)
+        : String(candidate.expenseDate).slice(0,10);
+      const dateDistanceDays=Math.abs(
+        Math.round((Date.parse(`${candidateDate}T00:00:00.000Z`)-Date.parse(`${input.expenseDate.slice(0,10)}T00:00:00.000Z`))/(24*60*60*1000)),
+      );
+      const signals:string[]=[];
+      if(sameVendor) signals.push('SAME_VENDOR');
+      if(sameReference) signals.push('SAME_INVOICE_REFERENCE');
+      if(sameAmount) signals.push('SAME_AMOUNT');
+      if(dateDistanceDays===0) signals.push('SAME_EXPENSE_DATE');
+      else if(dateDistanceDays<=3) signals.push('NEARBY_EXPENSE_DATE');
+      const classification=
+        sameVendor&&sameReference&&sameAmount?'DUPLICATE_EXACT':
+        sameReference?'REVIEW_REFERENCE_CONFLICT':
+        sameVendor&&sameAmount&&dateDistanceDays<=3?'REVIEW_SIMILAR':
+        'RELATED';
+      return {
+        id:candidate.id,expenseNumber:candidate.expenseNumber,vendorName:candidate.vendorName,
+        invoiceReference:candidate.invoiceReference,expenseDate:candidateDate,
+        amountPaise:candidate.amountPaise.toString(),status:candidate.status,
+        dateDistanceDays,signals,classification,
+      };
+    });
+    const status=reviewed.some(item=>item.classification==='DUPLICATE_EXACT')
+      ? 'DUPLICATE_EXACT'
+      : reviewed.some(item=>item.classification==='REVIEW_REFERENCE_CONFLICT')
+        ? 'REVIEW_REFERENCE_CONFLICT'
+        : reviewed.some(item=>item.classification==='REVIEW_SIMILAR')
+          ? 'REVIEW_SIMILAR'
+          : 'CLEAR';
+    return {
+      status,
+      candidates:reviewed,
+      mutationPerformed:false,
+      automaticPosting:false,
+      boundary:'Deterministic intake evidence only. A reviewer still decides whether to create, reject or correct the expense; no journal or payable is created by this assessment.',
+    };
+  }
+
   async createExpense(societyId:string,userId:string,input:CreateExpenseInput) {
     if (input.amountPaise<=0) throw new BadRequestException('Expense amount must be positive');
     if (input.dueDate && input.dueDate<input.expenseDate) throw new BadRequestException('Due date cannot be before expense date');

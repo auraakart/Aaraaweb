@@ -15,6 +15,29 @@ class NoticesScreen extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         final activeCount = controller.notices.length;
+        final actionRequired = controller.notices
+            .where(
+              (notice) =>
+                  (notice['requiresAcknowledgement'] == true && notice['acknowledgedAt'] == null) ||
+                  _isUrgent(notice['category']?.toString(), notice['title']?.toString()),
+            )
+            .toList(growable: false);
+        final latest = controller.notices
+            .where((notice) => !actionRequired.contains(notice))
+            .toList(growable: false);
+
+        Widget noticeCard(Map<String, dynamic> notice) => _NoticeCard(
+              notice: notice,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NoticeDetailScreen(
+                    controller: controller,
+                    noticeId: notice['id'].toString(),
+                  ),
+                ),
+              ),
+            );
+
         return Scaffold(
           appBar: AppBar(
             title: const Text('Notices'),
@@ -67,21 +90,36 @@ class NoticesScreen extends StatelessWidget {
                     icon: Icons.campaign_outlined,
                     message: 'No active notices right now.',
                   )
-                else
-                  for (final notice in controller.notices) ...[
-                    _NoticeCard(
-                      notice: notice,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => NoticeDetailScreen(
-                            controller: controller,
-                            noticeId: notice['id'].toString(),
-                          ),
-                        ),
+                else ...[
+                  if (actionRequired.isNotEmpty) ...[
+                    PremiumSectionHeader(
+                      title: 'Action required',
+                      supportingText: 'Read or acknowledge these updates first.',
+                      trailing: AaraagateStatusPill(
+                        label: '${actionRequired.length}',
+                        tone: AaraagateStatusTone.warning,
                       ),
                     ),
                     const SizedBox(height: AaraagateTokens.space3),
+                    for (final notice in actionRequired) ...[
+                      noticeCard(notice),
+                      const SizedBox(height: AaraagateTokens.space3),
+                    ],
                   ],
+                  if (latest.isNotEmpty) ...[
+                    if (actionRequired.isNotEmpty)
+                      const SizedBox(height: AaraagateTokens.space3),
+                    const PremiumSectionHeader(
+                      title: 'Latest updates',
+                      supportingText: 'Recent information from your society.',
+                    ),
+                    const SizedBox(height: AaraagateTokens.space3),
+                    for (final notice in latest) ...[
+                      noticeCard(notice),
+                      const SizedBox(height: AaraagateTokens.space3),
+                    ],
+                  ],
+                ],
               ],
             ),
           ),
