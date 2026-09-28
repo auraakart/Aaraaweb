@@ -10,6 +10,9 @@ class _HelpdeskRepository extends ResidentRepository {
 
   int reopenCalls = 0;
   String? reopenReason;
+  int commentCalls = 0;
+  bool failFirstComment = false;
+  final List<String> commentKeys = <String>[];
 
   @override
   Future<List<Map<String,dynamic>>> helpdeskTickets() async => [
@@ -47,6 +50,13 @@ class _HelpdeskRepository extends ResidentRepository {
     reopenCalls++;
     reopenReason=note;
     return {'id':ticketId,'unitId':'unit-1','status':'IN_PROGRESS'};
+  }
+
+  @override
+  Future<void> addHelpdeskComment(String ticketId,String message,{required String idempotencyKey}) async {
+    commentCalls++;
+    commentKeys.add(idempotencyKey);
+    if(failFirstComment && commentCalls==1) throw StateError('transport lost after commit');
   }
 }
 
@@ -94,4 +104,34 @@ void main(){
 
     controller.dispose();
   });
+
+  testWidgets('resident comment retry reuses request identity after ambiguous transport failure',(tester) async{
+    final repository=_HelpdeskRepository()..failFirstComment=true;
+    final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);
+    controller.households=[{'id':'house-1','unitId':'unit-1'}];
+
+    await tester.pumpWidget(MaterialApp(home:HelpdeskScreen(controller:controller)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Water leak'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Add a comment'),300,scrollable:find.byType(Scrollable).first);
+    await tester.enterText(find.widgetWithText(TextField,'Comment'),'Please share the repair update');
+    await tester.tap(find.text('Send comment'));
+    await tester.pumpAndSettle();
+
+    expect(repository.commentCalls,1);
+    expect(repository.commentKeys.single,startsWith('resident-helpdesk-comment-'));
+    expect(find.textContaining('Retry will reuse this comment submission'),findsOneWidget);
+
+    await tester.tap(find.text('Send comment'));
+    await tester.pumpAndSettle();
+
+    expect(repository.commentCalls,2);
+    expect(repository.commentKeys[1],repository.commentKeys[0]);
+    expect(find.textContaining('Retry will reuse this comment submission'),findsNothing);
+
+    controller.dispose();
+  });
+
 }

@@ -422,6 +422,8 @@ class _TicketDetailState extends State<_TicketDetail> {
   bool reopening = false;
   String? activityError;
   String? commentError;
+  String? commentSubmissionKey;
+  String? commentSubmissionShape;
   String? reopenError;
   List<Map<String, dynamic>> activities = const [];
   final comment = TextEditingController();
@@ -463,16 +465,31 @@ class _TicketDetailState extends State<_TicketDetail> {
     final message = comment.text.trim();
     if (message.isEmpty || submittingComment) return;
 
+    if (commentSubmissionShape != message || commentSubmissionKey == null) {
+      commentSubmissionShape = message;
+      commentSubmissionKey =
+          'resident-helpdesk-comment-${DateTime.now().microsecondsSinceEpoch}-${widget.ticket['id']}';
+    }
+
     setState(() {
       submittingComment = true;
       commentError = null;
     });
     try {
-      await widget.controller.repository.addHelpdeskComment(widget.ticket['id'].toString(), message);
+      await widget.controller.repository.addHelpdeskComment(
+        widget.ticket['id'].toString(),
+        message,
+        idempotencyKey: commentSubmissionKey!,
+      );
       comment.clear();
+      commentSubmissionKey = null;
+      commentSubmissionShape = null;
       await load();
     } catch (_) {
-      if (mounted) setState(() => commentError = 'Comment could not be sent. Please retry.');
+      if (mounted) {
+        setState(() => commentError =
+            'Comment could not be confirmed. Retry will reuse this comment submission unless you edit the message.');
+      }
     } finally {
       if (mounted) setState(() => submittingComment = false);
     }

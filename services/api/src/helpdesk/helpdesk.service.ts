@@ -222,18 +222,57 @@ export class HelpdeskService {
     return this.activitiesForTicket(societyId, ticketId, true);
   }
 
-  async addComment(societyId: string, userId: string, ticketId: string, message: string, reviewer = false) {
+  async addComment(
+    societyId: string,
+    userId: string,
+    ticketId: string,
+    message: string,
+    reviewer = false,
+    idempotencyKey?: string,
+  ) {
     const normalized = message.trim();
     if (normalized.length < 1 || normalized.length > 1000) throw new BadRequestException('Comment must be between 1 and 1000 characters');
+    const normalizedKey = idempotencyKey?.trim() || null;
+    if (!reviewer && (!normalizedKey || normalizedKey.length < 8 || normalizedKey.length > 120)) {
+      throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
+    }
     const access = reviewer
       ? await this.findTicket(societyId, ticketId)
       : await this.findOwnedTicket(societyId, userId, ticketId);
     if (!access) throw new NotFoundException('Helpdesk ticket not found');
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message")
-      VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized})
-    `);
-    return { ok: true };
+
+    if (reviewer) {
+      await this.prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message")
+        VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized})
+      `);
+      return { ok: true };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const lockKey = `helpdesk-comment:${societyId}:${userId}:${normalizedKey}`;
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      `);
+      const [existing] = await tx.$queryRaw<{ ticketId: string; type: string; message: string | null }[]>(Prisma.sql`
+        SELECT "ticketId", "type", "message"
+        FROM "HelpdeskActivity"
+        WHERE "societyId"=${societyId}::uuid
+          AND "actorUserId"=${userId}::uuid
+          AND "idempotencyKey"=${normalizedKey}
+        LIMIT 1
+      `);
+      if (existing) {
+        const sameIntent = existing.type === 'COMMENT' && existing.ticketId === ticketId && (existing.message ?? '') === normalized;
+        if (!sameIntent) throw new ConflictException('Idempotency key already used for a different helpdesk comment');
+        return { ok: true };
+      }
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message", "idempotencyKey")
+        VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized}, ${normalizedKey})
+      `);
+      return { ok: true };
+    });
   }
 
   async addInternalNote(societyId: string, actorUserId: string, ticketId: string, message: string) {

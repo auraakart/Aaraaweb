@@ -216,7 +216,8 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<void> addHelpdeskComment(String ticketId, String message) => api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
+  Future<void> addHelpdeskComment(String ticketId, String message, {required String idempotencyKey}) =>
+      api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim(), 'idempotencyKey': idempotencyKey});
 
   Future<Map<String, dynamic>> reopenHelpdeskTicket(String ticketId, String note) async {
     final value = await api.post('/api/v1/helpdesk/$ticketId/reopen', {'note': note.trim()});

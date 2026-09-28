@@ -189,4 +189,63 @@ describe('HelpdeskService', () => {
     const activity = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] };
     expect(activity.strings.join(' ')).toContain("'REOPENED'");
   });
+  it('returns success for an exact resident comment same-key replay without a second activity', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Please update me'}]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    const result=await service.addComment(societyId,userId,ticketId,'  Please update me  ',false,'resident-comment-attempt-1');
+
+    expect(result).toEqual({ok:true});
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a resident comment same-key replay when ticket or normalized message changes', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Original update'}]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.addComment(
+      societyId,userId,ticketId,'Different update',false,'resident-comment-attempt-2',
+    )).rejects.toThrow('Idempotency key already used for a different helpdesk comment');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('keeps reviewer comments backward-compatible without resident idempotency keys', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $executeRaw:vi.fn().mockResolvedValue(1),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.addComment(societyId,userId,ticketId,'Reviewer update',true)).resolves.toEqual({ok:true});
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
 });

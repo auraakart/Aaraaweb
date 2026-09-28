@@ -661,7 +661,7 @@ class DemoResidentRepository extends ResidentRepository {
       };
 
   @override
-  Future<void> addHelpdeskComment(String ticketId, String message) async {}
+  Future<void> addHelpdeskComment(String ticketId, String message, {required String idempotencyKey}) async {}
 
   @override
   Future<void> cancelAccess(String requestId) async {

@@ -790,6 +790,7 @@ model HelpdeskActivity {
   actorUserId String         @db.Uuid
   type        String
   message     String?
+  idempotencyKey String?
   fromStatus  String?
   toStatus    String?
   occurredAt  DateTime       @default(now()) @db.Timestamptz(6)
@@ -797,6 +798,7 @@ model HelpdeskActivity {
   ticket      HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   actor       User           @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
+  @@unique([societyId, actorUserId, idempotencyKey], map: "HelpdeskActivity_society_actor_idempotency_key")
   @@index([ticketId, occurredAt], map: "HelpdeskActivity_ticket_time_idx")
   @@index([societyId, occurredAt(sort: Desc)], map: "HelpdeskActivity_society_time_idx")
 }
