@@ -43,9 +43,24 @@ must('V4.66 idempotency regression',read('services/api/src/helpdesk/helpdesk.ser
   'rejects a same-key replay when normalized complaint intent changes',
   'expect(tx.$executeRaw).not.toHaveBeenCalled()'
 ]);
-must('V4.66 development truth',read('docs/AARAAGATE-V4.66-HELPDESK-SUBMISSION-RECOVERY.md'),[
-  'release identity remains 4.65.0',
+const root=JSON.parse(read('package.json'));
+const api=JSON.parse(read('services/api/package.json'));
+const admin=JSON.parse(read('apps/admin/package.json'));
+if(root.version!=='4.66.0'||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must be V4.66.0.');
+  process.exit(1);
+}
+for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){
+  must(pubspec,read(pubspec),['version: 4.66.0+46600']);
+}
+must('V4.66 release truth',read('docs/AARAAGATE-V4.66-HELPDESK-SUBMISSION-RECOVERY.md'),[
+  'release identity is 4.66.0',
   'Same-key requests are serialized inside the transaction.',
   'does not widen Helpdesk permissions'
 ]);
-console.log('V4.66 Helpdesk submission recovery contract: PASS');
+must('V4.66 closure',read('docs/AARAAGATE-V4.66-RELEASE-CLOSURE.md'),[
+  'root/API/Admin: `4.66.0`',
+  'Resident/Guard: `4.66.0+46600`',
+  'Repository release truth is closed on `develop` only.'
+]);
+console.log('V4.66 Helpdesk submission recovery release contract: PASS');

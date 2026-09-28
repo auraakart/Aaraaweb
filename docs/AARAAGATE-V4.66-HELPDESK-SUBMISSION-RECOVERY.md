@@ -1,7 +1,7 @@
 # Aaraagate V4.66 — Helpdesk Submission Recovery
 
 Date: 2026-09-28
-Status: Development started on develop; release identity remains 4.65.0.
+Status: Repository release candidate closed on develop; release identity is 4.66.0.
 
 ## Slice 1 — Complaint creation idempotency
 
@@ -21,4 +21,4 @@ Historical HelpdeskTicket rows remain valid because the persisted idempotency co
 
 ## Boundary
 
-This slice does not widen Helpdesk permissions, change complaint states, alter reviewer authority or claim V4.66 release closure. Staging/main promotion and production/external acceptance remain separate.
+This release does not widen Helpdesk permissions, change complaint states or alter reviewer authority. Repository release truth is closed on `develop`; staging/main promotion and production/external acceptance remain separate.
