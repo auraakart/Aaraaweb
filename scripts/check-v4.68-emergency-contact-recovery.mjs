@@ -17,6 +17,8 @@ must('V4.68 controller DTO',read('services/api/src/households/households.control
 must('V4.68 service recovery',read('services/api/src/households/household.service.ts'),[
   'emergency-contact:${societyId}:${householdId}:${idempotencyKey}',
   'pg_advisory_xact_lock',
+  "existing.name.trim().toLowerCase() === name.toLowerCase()",
+  "existing.phone.replace(/\\D/g, '') === phone.replace(/\\D/g, '')",
   'Idempotency key already used for a different emergency contact',
   'if (!contact.active) return contact;'
 ]);
