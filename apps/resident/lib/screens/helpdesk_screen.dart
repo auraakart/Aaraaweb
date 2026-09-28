@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../localization/aaraagate_strings.dart';
@@ -124,6 +125,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
       );
       return;
     }
+
+    widget.controller.repository.recordUsage('HELPDESK_DRAFT_STARTED').ignore();
 
     final title = TextEditingController();
     final description = TextEditingController();

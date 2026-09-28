@@ -198,7 +198,10 @@ export class BankReconciliationService {
     if(!transaction) throw new NotFoundException('Bank transaction not found');
     if(transaction.status!=='UNMATCHED') throw new ConflictException('Suggestions are available only for unmatched bank transactions');
     const expected=transaction.direction==='CREDIT'?transaction.amountPaise:-transaction.amountPaise;
-    const candidates=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+    const candidates=await this.prisma.$queryRaw<Array<{
+      journalEntryId:string;entryNumber:string;entryDate:Date|string;description:string|null;externalReference:string|null;
+      bankMovementPaise:string;dateDistanceDays:number;
+    }>>(Prisma.sql`
       SELECT je."id" AS "journalEntryId",je."entryNumber",je."entryDate",je."description",je."externalReference",
              SUM(jl."debitPaise"-jl."creditPaise")::text AS "bankMovementPaise",
              ABS(je."entryDate"-${transaction.transactionDate}::date)::int AS "dateDistanceDays"
@@ -216,10 +219,28 @@ export class BankReconciliationService {
       ORDER BY "dateDistanceDays",je."entryNumber"
       LIMIT 12
     `);
+    const explainedCandidates=candidates.map(candidate=>{
+      const days=Number(candidate.dateDistanceDays);
+      const matchSignals=['EXACT_BANK_MOVEMENT'];
+      if(days===0) matchSignals.push('SAME_DATE');
+      else if(days<=2) matchSignals.push('WITHIN_TWO_DAYS');
+      else matchSignals.push('WITHIN_SEVEN_DAYS');
+      return {
+        ...candidate,
+        dateDistanceDays:days,
+        matchSignals,
+        explanation:days===0
+          ? 'Posted journal movement exactly matches the bank amount and direction on the same date.'
+          : `Posted journal movement exactly matches the bank amount and direction within ${days} day${days===1?'':'s'}.`,
+      };
+    });
     return {
       transaction:{id:transaction.id,bankCode:transaction.bankCode,transactionDate:transaction.transactionDate,direction:transaction.direction,amountPaise:transaction.amountPaise.toString()},
-      candidates,
+      candidates:explainedCandidates,
       autoMatched:false,
+      deterministic:true,
+      confirmationRequired:true,
+      boundary:'Suggestions are ordered deterministic evidence only. A finance operator must explicitly confirm reconciliation; no candidate is auto-matched.',
     };
   }
 

@@ -55,6 +55,68 @@ export class ReportsAnalyticsService{
     };
   }
 
+  async experienceFunnel(societyId:string,from?:string,to?:string){
+    const range=this.dateRange(from,to);
+    const [usageRows,amenityRows,paymentRows,helpdeskRows]=await Promise.all([
+      this.prisma.$queryRaw<Array<{amenityStarters:number;paymentStarters:number;helpdeskStarters:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='AMENITY_BOOKING_STARTED')::int AS "amenityStarters",
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PAYMENT_CHECKOUT_STARTED')::int AS "paymentStarters",
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='HELPDESK_DRAFT_STARTED')::int AS "helpdeskStarters"
+        FROM "OperationalUsageEvent"
+        WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{bookers:number;bookings:number}>>(Prisma.sql`
+        SELECT COUNT(DISTINCT "userId")::int AS "bookers",COUNT(*)::int AS "bookings"
+        FROM "AmenityBooking"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{orderCreators:number;orders:number;capturedUsers:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "payerUserId")::int AS "orderCreators",
+          COUNT(*)::int AS "orders",
+          COUNT(DISTINCT "payerUserId") FILTER (WHERE "status"='CAPTURED')::int AS "capturedUsers"
+        FROM "Payment"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{submitters:number;tickets:number;resolvedUsers:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "createdById")::int AS "submitters",
+          COUNT(*)::int AS "tickets",
+          COUNT(DISTINCT "createdById") FILTER (WHERE "status" IN ('RESOLVED','CLOSED'))::int AS "resolvedUsers"
+        FROM "HelpdeskTicket"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+    ]);
+    const usage=usageRows[0]??{amenityStarters:0,paymentStarters:0,helpdeskStarters:0};
+    const amenity=amenityRows[0]??{bookers:0,bookings:0};
+    const payment=paymentRows[0]??{orderCreators:0,orders:0,capturedUsers:0};
+    const helpdesk=helpdeskRows[0]??{submitters:0,tickets:0,resolvedUsers:0};
+    const rate=(n:number,d:number)=>d>0?Math.round((n/d)*10000)/100:null;
+    const funnel=(started:number,completedUsers:number)=>{
+      const coverageState=started>=completedUsers?'TRACKED':'PARTIAL_CLIENT_COVERAGE';
+      return {
+        startedUsers:started,
+        completedUsers,
+        completionPercent:coverageState==='TRACKED'?rate(completedUsers,started):null,
+        coverageState,
+      };
+    };
+    return {
+      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+      amenity:{...funnel(usage.amenityStarters,amenity.bookers),bookings:amenity.bookings},
+      payment:{...funnel(usage.paymentStarters,payment.orderCreators),orders:payment.orders,capturedUsers:payment.capturedUsers},
+      helpdesk:{...funnel(usage.helpdeskStarters,helpdesk.submitters),tickets:helpdesk.tickets,resolvedUsers:helpdesk.resolvedUsers},
+      privacy:{
+        subject:'sha256-pseudonymous-user',
+        frequency:'at-most-one-event-type-per-user-per-day',
+        rawInteractionTraceStored:false,
+      },
+      evidence:'pseudonymous-daily-start-signals-plus-authoritative-domain-outcomes',
+      boundary:'Start-signal coverage depends on clients carrying V4.70 telemetry. Partial coverage is reported explicitly and never interpreted as user intent, satisfaction or individual behavior.',
+    };
+  }
+
   async operationsDashboard(societyId:string,from?:string,to?:string){
     const range=this.dateRange(from,to);
     const [helpdeskRows,facilityRows,incidentRows]=await Promise.all([
@@ -340,6 +402,68 @@ export class ReportsAnalyticsService{
         propertySwitchers:usage.propertySwitchers,
       },
       evidence:'authoritative-domain-records-and-pseudonymous-usage-events',
+    };
+  }
+
+  async platformPortfolioCommandCentre(){
+    const rows=await this.prisma.$queryRaw<Array<{
+      societyId:string;societyName:string;societyCode:string;societyStatus:string;productTier:string;
+      openHelpdesk:number;breachedHelpdesk:number;pendingGateApprovals:number;activeSos:number;
+      criticalFacilityWork:number;overdueFacilityWork:number;overdueInvoices:number;activeResidents:number;
+    }>>(Prisma.sql`
+      SELECT s."id" AS "societyId",s."name" AS "societyName",s."code" AS "societyCode",
+             s."status"::text AS "societyStatus",s."productTier"::text AS "productTier",
+        (SELECT COUNT(*)::int FROM "HelpdeskTicket" h
+          WHERE h."societyId"=s."id" AND h."status" NOT IN ('RESOLVED','CLOSED')) AS "openHelpdesk",
+        (SELECT COUNT(*)::int FROM "HelpdeskTicket" h
+          WHERE h."societyId"=s."id" AND h."status" NOT IN ('RESOLVED','CLOSED')
+            AND h."slaState" IN ('RESPONSE_BREACHED','RESOLUTION_BREACHED')) AS "breachedHelpdesk",
+        (SELECT COUNT(*)::int FROM "AccessRequest" a
+          WHERE a."societyId"=s."id" AND a."status"='PENDING') AS "pendingGateApprovals",
+        (SELECT COUNT(*)::int FROM "SosIncident" i
+          WHERE i."societyId"=s."id" AND i."status" IN ('ACTIVE','ACKNOWLEDGED')) AS "activeSos",
+        (SELECT COUNT(*)::int FROM "FacilityWorkOrder" w
+          WHERE w."societyId"=s."id" AND w."status" IN ('OPEN','IN_PROGRESS') AND w."priority"='CRITICAL') AS "criticalFacilityWork",
+        (SELECT COUNT(*)::int FROM "FacilityWorkOrder" w
+          WHERE w."societyId"=s."id" AND w."status" IN ('OPEN','IN_PROGRESS')
+            AND w."dueAt" IS NOT NULL AND w."dueAt"<CURRENT_TIMESTAMP) AS "overdueFacilityWork",
+        (SELECT COUNT(*)::int FROM "MaintenanceInvoice" m
+          WHERE m."societyId"=s."id" AND m."status"='ISSUED' AND m."dueDate"<CURRENT_DATE) AS "overdueInvoices",
+        (SELECT COUNT(DISTINCT uo."userId")::int FROM "UnitOccupancy" uo
+          WHERE uo."societyId"=s."id" AND uo."active"=true
+            AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)) AS "activeResidents"
+      FROM "Society" s
+      ORDER BY CASE s."status" WHEN 'ACTIVE' THEN 0 ELSE 1 END,s."name"
+    `);
+    const societies=rows.map(row=>{
+      const reasons:string[]=[];
+      if(row.activeSos>0) reasons.push('ACTIVE_SOS');
+      if(row.criticalFacilityWork>0) reasons.push('CRITICAL_FACILITY_WORK');
+      if(row.breachedHelpdesk>0) reasons.push('HELPDESK_SLA_BREACH');
+      if(row.overdueFacilityWork>0) reasons.push('OVERDUE_FACILITY_WORK');
+      if(row.overdueInvoices>0) reasons.push('OVERDUE_MAINTENANCE');
+      if(row.pendingGateApprovals>0) reasons.push('PENDING_GATE_APPROVALS');
+      const attentionLevel=
+        row.activeSos>0||row.criticalFacilityWork>0?'CRITICAL':
+        row.breachedHelpdesk>0||row.overdueFacilityWork>0||row.overdueInvoices>0?'HIGH':
+        row.pendingGateApprovals>0||row.openHelpdesk>0?'WATCH':'NORMAL';
+      return {...row,attentionLevel,reasons};
+    });
+    const summary={
+      societies:societies.length,
+      active:societies.filter(row=>row.societyStatus==='ACTIVE').length,
+      critical:societies.filter(row=>row.attentionLevel==='CRITICAL').length,
+      high:societies.filter(row=>row.attentionLevel==='HIGH').length,
+      watch:societies.filter(row=>row.attentionLevel==='WATCH').length,
+    };
+    return {
+      generatedAt:new Date().toISOString(),
+      summary,
+      societies,
+      predictive:false,
+      mutationPerformed:false,
+      boundary:'Portfolio attention is deterministic current-state evidence across societies. It does not predict failure, rank society quality, or mutate any operational workflow.',
     };
   }
 

@@ -644,7 +644,7 @@ class _AccessCardState extends State<_AccessCard> {
                 return Row(children: [
                   if (deny != null) Expanded(child: deny),
                   if (deny != null && approve != null) const SizedBox(width: 12),
-                  if (approve != null) Expanded(child: approve),
+                  if (approve != null) Expanded(flex: 2, child: approve),
                   if (cancel != null) Expanded(child: cancel),
                 ]);
               },

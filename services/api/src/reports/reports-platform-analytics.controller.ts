@@ -10,6 +10,12 @@ import { ReportsAnalyticsService } from './reports-analytics.service';
 export class ReportsPlatformAnalyticsController{
   constructor(private readonly analytics:ReportsAnalyticsService){}
 
+  @Get('portfolio-command-centre')
+  @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_BOOKING_READ)
+  portfolioCommandCentre(){
+    return this.analytics.platformPortfolioCommandCentre();
+  }
+
   @Get('outcomes')
   @RequiresPermissions(AppPermission.PLATFORM_CONSUMER_BOOKING_READ)
   outcomes(@Query('from') from?:string,@Query('to') to?:string){
