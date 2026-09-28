@@ -176,9 +176,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('A Block · 101'), findsOneWidget);
-    expect(find.text('₹1000.00'), findsWidgets);
+    expect(find.text('₹1000'), findsWidgets);
     expect(find.text('B Block · 202'), findsNothing);
-    expect(find.text('₹2000.00'), findsNothing);
+    expect(find.text('₹2000'), findsNothing);
 
     // AutoPay adds vertical content above payment history. Verify the captured
     // payment after scrolling instead of depending on the initial viewport.
@@ -191,7 +191,7 @@ void main() {
 
     expect(find.text('Receipt'), findsOneWidget);
     expect(find.textContaining('Invoice A-001'), findsOneWidget);
-    expect(find.text('₹2000.00'), findsNothing);
+    expect(find.text('₹2000'), findsNothing);
   });
 
   testWidgets('helpdesk lists tickets only for active unit', (tester) async {

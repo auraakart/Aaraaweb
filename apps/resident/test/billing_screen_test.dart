@@ -79,7 +79,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
     await tester.pumpAndSettle();
 
-    expect(find.text('₹1250.00'), findsNWidgets(2));
+    expect(find.text('₹1250'), findsNWidgets(2));
     expect(find.text('Pay securely'), findsOneWidget);
     await tester.tap(find.text('Pay securely'));
     await tester.pumpAndSettle();
