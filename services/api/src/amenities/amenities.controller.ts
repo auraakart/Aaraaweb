@@ -45,12 +45,14 @@ class CreateAmenityBookingDto {
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(50) guestCount?: number;
 }
 
 class JoinAmenityWaitlistDto {
   @IsString() @Matches(/^[0-9a-f-]{36}$/i) unitId!: string;
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
+  @IsOptional() @IsInt() @Min(0) @Max(50) guestCount?: number;
 }
 
 class RevokeAmenityBookingDto {

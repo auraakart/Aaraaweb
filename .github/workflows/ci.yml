@@ -209,6 +209,8 @@ jobs:
         run: node scripts/check-v4.71-operational-depth-usability.mjs
       - name: Check V4.72 cross-domain handoff and discovery
         run: node scripts/check-v4.72-cross-domain-handoff-discovery.mjs
+      - name: Check V4.73 amenity participation policy
+        run: node scripts/check-v4.73-amenity-participation-policy.mjs
       - name: Check staging release-history classifier
         run: node scripts/check-staging-release-history.mjs --self-test
       - name: Generate and validate V4.36 API contract
