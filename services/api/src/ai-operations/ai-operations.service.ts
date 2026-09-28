@@ -179,7 +179,11 @@ export class AiOperationsService {
 
   confirm(societyId:string,userId:string,proposalId:string) {
     return this.confirmAction(societyId,userId,proposalId,'CREATE_HELPDESK_TICKET',async payload=>{
-      const ticket=await this.helpdesk.createMine(societyId,userId,payload as HelpdeskProposalInput);
+      const input=payload as HelpdeskProposalInput;
+      const ticket=await this.helpdesk.createMine(societyId,userId,{
+        ...input,
+        idempotencyKey:`ai-helpdesk:${proposalId}`,
+      });
       return {ticketId:String((ticket as {id?:unknown}).id??'')};
     });
   }

@@ -15,6 +15,7 @@ Resident complaint creation is now safe to retry after an ambiguous transport ou
 - A same-key replay returns the original complaint only when unit, normalized title, description, category and priority match exactly.
 - A same-key request with changed intent fails closed with conflict.
 - Only the first successful creation writes the Helpdesk CREATED activity.
+- AI-confirmed complaint creation derives its stable idempotency identity from the already-reviewed AI proposal ID, so a retry of the same confirmed proposal cannot create a second complaint.
 
 Historical HelpdeskTicket rows remain valid because the persisted idempotency column is nullable; the unique constraint applies to non-null new request identities without rewriting historical records.
 

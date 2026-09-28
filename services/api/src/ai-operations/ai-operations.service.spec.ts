@@ -85,7 +85,10 @@ describe('AiOperationsService',()=>{
     await expect(service.confirm('society-1','user-1','proposal-1')).resolves.toEqual({
       proposalId:'proposal-1',status:'EXECUTED',result:{ticketId:'ticket-1'},
     });
-    expect(helpdesk.createMine).toHaveBeenCalledWith('society-1','user-1',expect.objectContaining({unitId:'unit-1'}));
+    expect(helpdesk.createMine).toHaveBeenCalledWith('society-1','user-1',expect.objectContaining({
+      unitId:'unit-1',
+      idempotencyKey:'ai-helpdesk:proposal-1',
+    }));
   });
 
   it('executes a confirmed amenity proposal through AmenitiesService',async()=>{

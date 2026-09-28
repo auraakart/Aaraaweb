@@ -21,6 +21,12 @@ must('V4.66 Helpdesk service',read('services/api/src/helpdesk/helpdesk.service.t
   '"societyId", "unitId", "createdById", "idempotencyKey"',
   'return existing;'
 ]);
+must('V4.66 AI confirmed complaint identity',read('services/api/src/ai-operations/ai-operations.service.ts'),[
+  'idempotencyKey:`ai-helpdesk:${proposalId}`'
+]);
+must('V4.66 AI idempotency regression',read('services/api/src/ai-operations/ai-operations.service.spec.ts'),[
+  "idempotencyKey:'ai-helpdesk:proposal-1'"
+]);
 must('V4.66 Resident repository',read('apps/resident/lib/data/resident_repository.dart'),[
   'required String idempotencyKey',
   "'idempotencyKey': idempotencyKey"
