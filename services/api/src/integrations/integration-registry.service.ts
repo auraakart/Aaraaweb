@@ -77,6 +77,64 @@ export class IntegrationRegistryService {
     });
   }
 
+  async activationPlan(societyId:string){
+    const conformance=await this.conformance(societyId);
+    const items=conformance.map(item=>{
+      const nextActions:string[]=[];
+      if(item.status==='CONTRACT_GAP'){
+        nextActions.push('Close the versioned adapter contract gaps before enabling this provider family.');
+      }
+      if(item.configurationBlockers.includes('ADAPTER_CONFIGURATION_NOT_READY')){
+        nextActions.push('Complete deployment adapter configuration and validate health without exposing credentials.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_SELECTION_MISSING')){
+        nextActions.push('Select the approved provider for this society.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_SELECTION_DISABLED')){
+        nextActions.push('Enable the society provider selection after operator review.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_PROVIDER_MISMATCH')){
+        nextActions.push('Align the society provider selection with the configured adapter.');
+      }
+      if(item.status==='FIELD_EVIDENCE_REQUIRED'){
+        nextActions.push('Capture real provider or hardware field-acceptance evidence before production activation.');
+      }
+      if(item.productionActivationApproved){
+        nextActions.push('Keep configuration evidence current and monitor provider health.');
+      }
+      return {
+        family:item.family,
+        provider:item.provider,
+        status:item.status,
+        productionActivationApproved:item.productionActivationApproved,
+        fieldEvidenceRequired:item.fieldEvidenceRequired,
+        blockers:[...item.missing,...item.configurationBlockers],
+        nextActions,
+      };
+    });
+    const summary={
+      total:items.length,
+      activationReady:items.filter(item=>item.productionActivationApproved).length,
+      contractGaps:items.filter(item=>item.status==='CONTRACT_GAP').length,
+      configurationRequired:items.filter(item=>item.status==='CONFIGURATION_REQUIRED').length,
+      fieldEvidenceRequired:items.filter(item=>item.status==='FIELD_EVIDENCE_REQUIRED').length,
+    };
+    const status=
+      summary.contractGaps>0?'BLOCKED_CONTRACT':
+      summary.configurationRequired>0?'CONFIGURATION_REQUIRED':
+      summary.fieldEvidenceRequired>0?'FIELD_EVIDENCE_REQUIRED':
+      'READY_FOR_INTERNAL_ENABLEMENT';
+    return {
+      status,
+      summary,
+      items,
+      generatedAt:new Date().toISOString(),
+      certificationClaim:false,
+      mutationPerformed:false,
+      boundary:'Activation planning is repository/configuration evidence only. It does not certify provider credentials, SLA, payment acceptance, physical-device compatibility, legal acceptance or field deployment.',
+    };
+  }
+
   private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
     const environment = process.env.NODE_ENV ?? 'development';
     const provider = (process.env.OTP_DELIVERY_PROVIDER ?? '').trim().toLowerCase();

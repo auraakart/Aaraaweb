@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../localization/guard_strings.dart';
+import '../theme/aaraagate_guard_theme.dart';
 import '../qr_scanner.dart';
 import '../widgets/guard_state_card.dart';
 import '../widgets/guard_operation_ui.dart';
@@ -162,13 +163,55 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   GuardStatusPill(label: gateReady ? 'READY' : 'SELECT GATE', tone: gateReady ? GuardStatusTone.ready : GuardStatusTone.waiting),
                 ]),
               ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: c.gateId,
-                decoration: InputDecoration(labelText: strings.get('activeGate'), prefixIcon: const Icon(Icons.door_front_door_outlined)),
-                items: c.gates.map((gate) => DropdownMenuItem(value: gate['id']?.toString(), child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()))).toList(),
-                onChanged: c.busy ? null : c.selectGate,
-              ),
+              const SizedBox(height: AaraagateGuardTokens.space2),
+              if (!gateReady)
+                DropdownButtonFormField<String>(
+                  initialValue: c.gateId,
+                  decoration: InputDecoration(
+                    labelText: strings.get('activeGate'),
+                    prefixIcon: const Icon(Icons.door_front_door_outlined),
+                  ),
+                  items: c.gates
+                      .map(
+                        (gate) => DropdownMenuItem(
+                          value: gate['id']?.toString(),
+                          child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: c.busy ? null : c.selectGate,
+                )
+              else
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(
+                    bottom: AaraagateGuardTokens.space2,
+                  ),
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: const Text(
+                    'Change active gate',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(c.gateName ?? strings.get('activeGate')),
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: c.gateId,
+                      decoration: InputDecoration(
+                        labelText: strings.get('activeGate'),
+                        prefixIcon: const Icon(Icons.door_front_door_outlined),
+                      ),
+                      items: c.gates
+                          .map(
+                            (gate) => DropdownMenuItem(
+                              value: gate['id']?.toString(),
+                              child: Text((gate['name'] ?? gate['code'] ?? 'Gate').toString()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: c.busy ? null : c.selectGate,
+                    ),
+                  ],
+                ),
               const SizedBox(height: 24),
               Text(strings.get('scanPass'), style: theme.textTheme.titleLarge),
               const SizedBox(height: 5),
@@ -180,6 +223,57 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                 label: Text(strings.get('scanQr').toUpperCase(), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(76)),
               ),
+              const SizedBox(height: 26),
+              Text(strings.get('quickArrival'), style: theme.textTheme.titleLarge),
+              const SizedBox(height: 5),
+              Text('Create an approval request when there is no pre-approved pass.', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(height: AaraagateGuardTokens.space3),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final textScale = MediaQuery.textScalerOf(context).scale(1);
+                  final columns = constraints.maxWidth >= 360 && textScale <= 1.2 ? 3 : 1;
+                  final gap = AaraagateGuardTokens.space2;
+                  final itemWidth =
+                      (constraints.maxWidth - gap * (columns - 1)) / columns;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      SizedBox(
+                        width: itemWidth,
+                        child: GuardQuickAction(
+                          icon: Icons.delivery_dining_rounded,
+                          label: strings.get('delivery').toUpperCase(),
+                          onTap: c.busy || !gateReady
+                              ? null
+                              : () => _quickArrival('DELIVERY'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: itemWidth,
+                        child: GuardQuickAction(
+                          icon: Icons.local_taxi_rounded,
+                          label: strings.get('cab').toUpperCase(),
+                          tonal: true,
+                          onTap: c.busy || !gateReady
+                              ? null
+                              : () => _quickArrival('CAB'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: itemWidth,
+                        child: GuardQuickAction(
+                          icon: Icons.person_add_alt_1_rounded,
+                          label: strings.get('walkInVisitor').toUpperCase(),
+                          tonal: true,
+                          onTap: c.busy || !gateReady ? null : _walkIn,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: AaraagateGuardTokens.space3),
               const SizedBox(height: 12),
               ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -202,18 +296,6 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
                   Expanded(child: OutlinedButton.icon(onPressed: c.busy || status != 'CHECKED_IN' ? null : () => c.checkOut(credential.text), icon: const Icon(Icons.logout_rounded), label: Text(strings.get('exit').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)))),
                 ]),
               ],
-              const SizedBox(height: 26),
-              Text(strings.get('quickArrival'), style: theme.textTheme.titleLarge),
-              const SizedBox(height: 5),
-              Text('Create an approval request when there is no pre-approved pass.', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: _QuickAction(icon: Icons.delivery_dining_rounded, label: strings.get('delivery').toUpperCase(), onPressed: c.busy || !gateReady ? null : () => _quickArrival('DELIVERY'))),
-                const SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.local_taxi_rounded, label: strings.get('cab').toUpperCase(), tonal: true, onPressed: c.busy || !gateReady ? null : () => _quickArrival('CAB'))),
-              ]),
-              const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: c.busy || !gateReady ? null : _walkIn, icon: const Icon(Icons.person_add_alt_1_rounded), label: Text(strings.get('walkInVisitor').toUpperCase()))),
               if (gateRequest != null) ...[
                 const SizedBox(height: 14),
                 _GateApprovalCard(
@@ -421,32 +503,6 @@ class _QuickArrivalSheetState extends State<_QuickArrivalSheet> {
 String? _optional(String value) {
   final trimmed = value.trim();
   return trimmed.isEmpty ? null : trimmed;
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.label, required this.onPressed, this.tonal = false});
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool tonal;
-
-  @override
-  Widget build(BuildContext context) {
-    if (tonal) {
-      return FilledButton.tonalIcon(
-        onPressed: onPressed,
-        icon: Icon(icon),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
-        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
-      );
-    }
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
-      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(68)),
-    );
-  }
 }
 
 class _SyncHealthCard extends StatelessWidget {

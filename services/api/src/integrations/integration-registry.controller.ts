@@ -31,6 +31,12 @@ export class IntegrationRegistryController {
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   conformance(@CurrentTenant() societyId:string) { return this.registry.conformance(societyId); }
 
+  @Get('activation-plan')
+  @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
+  activationPlan(@CurrentTenant() societyId:string) {
+    return this.registry.activationPlan(societyId);
+  }
+
   @Get('configuration')
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   configurationList(@CurrentTenant() societyId:string) {

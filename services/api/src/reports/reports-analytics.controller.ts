@@ -30,6 +30,12 @@ export class ReportsAnalyticsController{
     return this.analytics.journeyFunnel(societyId,from,to);
   }
 
+  @Get('experience')
+  @RequiresPermissions(AppPermission.REPORTS_READ)
+  experience(@CurrentTenant() societyId:string,@Query('from') from?:string,@Query('to') to?:string){
+    return this.analytics.experienceFunnel(societyId,from,to);
+  }
+
   @Get('operations')
   @RequiresPermissions(AppPermission.REPORTS_READ)
   operations(@CurrentTenant() societyId:string,@Query('from') from?:string,@Query('to') to?:string){

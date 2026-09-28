@@ -14,10 +14,25 @@ const routes=[
 for(const route of routes){
   for(const width of [360,768,1440]){
     test(`migrated ${route.key} route is responsive at ${width}px`,async({page},testInfo)=>{
+      const apiFailures=[]
+      const runtimeFailure=new Promise((_,reject)=>{
+        page.once('pageerror',error=>reject(new Error(`Migration fixture ${route.key} runtime error: ${error.message}`)))
+      })
+      page.on('response',response=>{
+        if(response.url().includes('/api/v1/')&&response.status()>=400){
+          const url=new URL(response.url())
+          apiFailures.push(`${response.status()} ${url.pathname}`)
+        }
+      })
       await page.setViewportSize({width,height:1100})
       await page.goto(`/migrations.html?route=${route.key}`)
-      await expect(page.getByRole('heading',{level:1,name:route.title,exact:true})).toBeVisible()
+      await Promise.race([
+        expect(page.getByRole('heading',{level:1,name:route.title,exact:true})).toBeVisible({timeout:2000}),
+        runtimeFailure,
+      ])
       await expect(page.getByText(route.ready,{exact:false}).first()).toBeVisible()
+      await page.waitForLoadState('networkidle')
+      expect(apiFailures,`Unstubbed or failing API request(s) in ${route.key} migration fixture`).toEqual([])
 
       if(route.openDetail){
         const candidate=page.getByRole('button').filter({hasText:route.openDetail}).first()
