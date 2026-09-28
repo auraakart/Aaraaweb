@@ -46,12 +46,13 @@ must('V4.66 idempotency regression',read('services/api/src/helpdesk/helpdesk.ser
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-if(root.version!=='4.66.0'||api.version!==root.version||admin.version!==root.version){
-  console.error('Root/API/Admin release identity must be V4.66.0.');
+const [major,minor]=root.version.split('.').map(Number);
+if(major!==4||minor<66||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.66.0 or later on the V4 release line.');
   process.exit(1);
 }
 for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){
-  must(pubspec,read(pubspec),['version: 4.66.0+46600']);
+  must(pubspec,read(pubspec),['version: '+root.version+'+']);
 }
 must('V4.66 release truth',read('docs/AARAAGATE-V4.66-HELPDESK-SUBMISSION-RECOVERY.md'),[
   'release identity is 4.66.0',
