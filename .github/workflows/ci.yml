@@ -213,6 +213,18 @@ jobs:
         run: node scripts/check-v4.73-amenity-participation-policy.mjs
       - name: Check V4.74 amenity blackout convergence
         run: node scripts/check-v4.74-amenity-blackout-convergence.mjs
+      - name: Check required merge-gate orchestration
+        run: node scripts/check-required-merge-gates.mjs
+      - name: Check lightweight pilot and evidence contracts
+        run: |
+          node scripts/check-v2-pilot-acceptance-plan.mjs
+          node scripts/check-v2-role-uat-plan.mjs
+          node scripts/check-v2-security-privacy-controls.mjs
+          node scripts/check-v2-policy-pilot-plan.mjs
+          node scripts/check-v4.11-pilot-readiness.mjs
+          node scripts/check-v4.28-deployable-evidence.mjs
+          node scripts/check-v4.29-pilot-evidence-capture.mjs
+          node scripts/check-competitive-readiness.mjs
       - name: Check staging release-history classifier
         run: node scripts/check-staging-release-history.mjs --self-test
       - name: Generate and validate V4.36 API contract
@@ -591,3 +603,27 @@ jobs:
             exit 0
           fi
           test "$FULL_RESULT" = "success"
+
+
+  required-merge-gates:
+    name: Required merge gates
+    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve merge readiness
+        env:
+          REPOSITORY_STRUCTURE: ${{ needs.repository-structure.result }}
+          API_VALIDATION: ${{ needs.api-validation.result }}
+          ADMIN_VALIDATION: ${{ needs.admin-validation.result }}
+          FLUTTER_VALIDATION: ${{ needs.flutter-validation.result }}
+          DEPENDENCY_SECURITY: ${{ needs.dependency-security.result }}
+        run: |
+          printf '%s\n'             "Repository structure: $REPOSITORY_STRUCTURE"             "API validation: $API_VALIDATION"             "Admin validation: $ADMIN_VALIDATION"             "Flutter validation: $FLUTTER_VALIDATION"             "Dependency security: $DEPENDENCY_SECURITY"
+
+          for result in             "$REPOSITORY_STRUCTURE"             "$API_VALIDATION"             "$ADMIN_VALIDATION"             "$FLUTTER_VALIDATION"             "$DEPENDENCY_SECURITY"; do
+            test "$result" = "success"
+          done
+
+          echo "All required merge gates passed."
