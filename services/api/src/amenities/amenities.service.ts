@@ -38,6 +38,7 @@ type AmenityBookingRules = {
   cancellationCutoffMinutes?: number;
   checkInOpenMinutesBefore?: number;
   noShowGraceMinutes?: number;
+  maxGuestsPerBooking?: number;
   conflictGroup?: string;
   pricingBands?: AmenityPricingBand[];
 };
@@ -87,7 +88,7 @@ export class AmenitiesService {
     societyId: string,
     userId: string,
     amenityId: string,
-    input: { unitId: string; startsAt: string; endsAt: string; idempotencyKey?: string },
+    input: { unitId: string; startsAt: string; endsAt: string; idempotencyKey?: string; guestCount?: number },
   ) {
     await this.assertUnitAccess(societyId, userId, input.unitId);
     const startsAt = new Date(input.startsAt);
@@ -99,12 +100,13 @@ export class AmenitiesService {
     if (startsAt.getTime() <= now) throw new BadRequestException('Amenity bookings must start in the future');
 
     const idempotencyKey = input.idempotencyKey?.trim() || null;
+    const guestCount = input.guestCount ?? 0;
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
 
       if (idempotencyKey) {
-        const existing = await tx.$queryRaw<Array<{ id: string; amenityId: string; unitId: string; startsAt: Date; endsAt: Date }>>`
-          SELECT "id","amenityId","unitId","startsAt","endsAt"
+        const existing = await tx.$queryRaw<Array<{ id: string; amenityId: string; unitId: string; startsAt: Date; endsAt: Date; guestCount:number }>>`
+          SELECT "id","amenityId","unitId","startsAt","endsAt","guestCount"
           FROM "AmenityBooking"
           WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid
             AND "idempotencyKey"=${idempotencyKey}
@@ -114,7 +116,8 @@ export class AmenitiesService {
           const samePayload = existing[0].amenityId === amenityId
             && existing[0].unitId === input.unitId
             && existing[0].startsAt.getTime() === startsAt.getTime()
-            && existing[0].endsAt.getTime() === endsAt.getTime();
+            && existing[0].endsAt.getTime() === endsAt.getTime()
+            && Number(existing[0].guestCount ?? 0) === guestCount;
           if (!samePayload) throw new ConflictException('Idempotency key is already used for another amenity booking');
           const replay = await tx.$queryRaw`
             SELECT * FROM "AmenityBooking"
@@ -142,6 +145,7 @@ export class AmenitiesService {
       }
 
       const rules = this.parseBookingRules(amenity.bookingRules);
+      this.validateGuestCount(rules, guestCount);
       const minutesUntilStart = (startsAt.getTime() - now) / 60000;
       if (rules.minAdvanceMinutes !== undefined && minutesUntilStart < rules.minAdvanceMinutes) {
         throw new BadRequestException(`Amenity must be booked at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -233,11 +237,11 @@ export class AmenitiesService {
       const rows = await tx.$queryRaw`
         INSERT INTO "AmenityBooking" (
           "societyId", "amenityId", "unitId", "userId", "startsAt", "endsAt",
-          "status", "feePaise", "currency", "idempotencyKey"
+          "status", "feePaise", "currency", "guestCount", "idempotencyKey"
         ) VALUES (
           ${societyId}::uuid, ${amenityId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
           ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${bookingFeePaise}, ${amenity.currency},
-          ${idempotencyKey}
+          ${guestCount}, ${idempotencyKey}
         )
         RETURNING *
       `;
@@ -275,7 +279,7 @@ export class AmenitiesService {
     societyId: string,
     userId: string,
     amenityId: string,
-    input: { unitId: string; startsAt: string; endsAt: string },
+    input: { unitId: string; startsAt: string; endsAt: string; guestCount?: number },
   ) {
     await this.assertUnitAccess(societyId, userId, input.unitId);
     const startsAt = new Date(input.startsAt);
@@ -301,6 +305,8 @@ export class AmenitiesService {
         throw new BadRequestException(`Waitlist duration must be exactly ${amenity.slotMinutes} minutes`);
       }
       const rules=this.parseBookingRules(amenity.bookingRules);
+      const guestCount=input.guestCount??0;
+      this.validateGuestCount(rules,guestCount);
       const minutesUntilStart=(startsAt.getTime()-now)/60000;
       if(rules.minAdvanceMinutes!==undefined&&minutesUntilStart<rules.minAdvanceMinutes){
         throw new BadRequestException(`Amenity must be joined at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -351,8 +357,8 @@ export class AmenitiesService {
 
       try {
         const rows=await tx.$queryRaw<Array<Record<string,unknown>>>`
-          INSERT INTO "AmenityWaitlistEntry" ("societyId","amenityId","unitId","userId","startsAt","endsAt")
-          VALUES (${societyId}::uuid,${amenityId}::uuid,${input.unitId}::uuid,${userId}::uuid,${startsAt},${endsAt})
+          INSERT INTO "AmenityWaitlistEntry" ("societyId","amenityId","unitId","userId","startsAt","endsAt","guestCount")
+          VALUES (${societyId}::uuid,${amenityId}::uuid,${input.unitId}::uuid,${userId}::uuid,${startsAt},${endsAt},${guestCount})
           RETURNING *
         `;
         const entry=rows[0];
@@ -676,7 +682,27 @@ export class AmenitiesService {
       `;
       const existing = existingRows[0];
       if (!existing) throw new NotFoundException('Amenity not found');
-      this.parseBookingRules(input.bookingRules ?? existing.bookingRules);
+      const existingRules=this.parseBookingRules(existing.bookingRules);
+      const nextRules=this.parseBookingRules(input.bookingRules ?? existing.bookingRules);
+
+      const nextGuestLimit=nextRules.maxGuestsPerBooking??0;
+      const existingGuestLimit=existingRules.maxGuestsPerBooking??0;
+      if(nextGuestLimit<existingGuestLimit){
+        const guestRows=await tx.$queryRaw<Array<{maxGuestCount:number}>>`
+          SELECT GREATEST(
+            COALESCE((SELECT MAX("guestCount") FROM "AmenityBooking"
+              WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+                AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN') AND "endsAt">CURRENT_TIMESTAMP),0),
+            COALESCE((SELECT MAX("guestCount") FROM "AmenityWaitlistEntry"
+              WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+                AND "status"='WAITING' AND "endsAt">CURRENT_TIMESTAMP),0)
+          )::int AS "maxGuestCount"
+        `;
+        const futureGuestCount=Number(guestRows[0]?.maxGuestCount??0);
+        if(futureGuestCount>nextGuestLimit){
+          throw new ConflictException(`Guest limit cannot be reduced below ${futureGuestCount} while future bookings or waitlist entries require that allowance`);
+        }
+      }
 
       const structuralChange = existing.slotMinutes !== input.slotMinutes || existing.maxConcurrentBookings !== input.maxConcurrentBookings;
       if (structuralChange) {
@@ -792,14 +818,15 @@ export class AmenitiesService {
     `;
     if(Number(overlaps[0]?.count??0)>=amenity.maxConcurrentBookings) return null;
 
-    const waiters=await tx.$queryRaw<Array<{id:string;unitId:string;userId:string;startsAt:Date;endsAt:Date}>>`
-      SELECT w."id",w."unitId",w."userId",w."startsAt",w."endsAt"
+    const waiters=await tx.$queryRaw<Array<{id:string;unitId:string;userId:string;startsAt:Date;endsAt:Date;guestCount:number}>>`
+      SELECT w."id",w."unitId",w."userId",w."startsAt",w."endsAt",w."guestCount"
       FROM "AmenityWaitlistEntry" w
       WHERE w."societyId"=${societyId}::uuid
         AND w."amenityId"=${amenityId}::uuid
         AND w."startsAt"=${startsAt}
         AND w."endsAt"=${endsAt}
         AND w."status"='WAITING'
+        AND w."guestCount" <= ${rules.maxGuestsPerBooking ?? 0}
         AND EXISTS (
           SELECT 1 FROM "Unit" u
           WHERE u."id"=w."unitId" AND u."societyId"=w."societyId"
@@ -850,10 +877,10 @@ export class AmenitiesService {
     const bookingFeePaise=this.resolveBookingFee(amenity.feePaise,rules,waiter.startsAt);
     const bookings=await tx.$queryRaw<Array<{id:string}>>`
       INSERT INTO "AmenityBooking" (
-        "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency"
+        "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency","guestCount"
       ) VALUES (
         ${societyId}::uuid,${amenityId}::uuid,${waiter.unitId}::uuid,${waiter.userId}::uuid,
-        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${bookingFeePaise},${amenity.currency}
+        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${bookingFeePaise},${amenity.currency},${waiter.guestCount}
       )
       RETURNING "id"
     `;
@@ -880,9 +907,21 @@ export class AmenitiesService {
       cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
       checkInOpenMinutesBefore: this.optionalPolicyInteger(source.checkInOpenMinutesBefore, 'checkInOpenMinutesBefore', 0),
       noShowGraceMinutes: this.optionalPolicyInteger(source.noShowGraceMinutes, 'noShowGraceMinutes', 0),
+      maxGuestsPerBooking: this.optionalPolicyInteger(source.maxGuestsPerBooking, 'maxGuestsPerBooking', 0, 50),
       conflictGroup: this.optionalConflictGroup(source.conflictGroup),
       pricingBands: this.parsePricingBands(source.pricingBands),
     };
+  }
+
+  private validateGuestCount(rules:AmenityBookingRules,guestCount:number){
+    if(!Number.isInteger(guestCount)||guestCount<0||guestCount>50){
+      throw new BadRequestException('guestCount must be an integer between 0 and 50');
+    }
+    const allowed=rules.maxGuestsPerBooking??0;
+    if(guestCount>allowed){
+      if(allowed===0) throw new BadRequestException('Guests are not enabled for this amenity');
+      throw new BadRequestException(`This amenity allows at most ${allowed} guest${allowed===1?'':'s'} per booking`);
+    }
   }
 
   private optionalConflictGroup(value:unknown){
@@ -938,10 +977,11 @@ export class AmenitiesService {
     return band?.feePaise??baseFeePaise;
   }
 
-  private optionalPolicyInteger(value: unknown, field: string, minimum: number) {
+  private optionalPolicyInteger(value: unknown, field: string, minimum: number, maximum?: number) {
     if (value === undefined || value === null) return undefined;
-    if (!Number.isInteger(value) || (value as number) < minimum) {
-      throw new BadRequestException(`${field} must be an integer greater than or equal to ${minimum}`);
+    if (!Number.isInteger(value) || (value as number) < minimum || (maximum !== undefined && (value as number) > maximum)) {
+      const range=maximum===undefined?`greater than or equal to ${minimum}`:`between ${minimum} and ${maximum}`;
+      throw new BadRequestException(`${field} must be an integer ${range}`);
     }
     return value as number;
   }

@@ -83,6 +83,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         unitId: widget.unitId,
         startsAt: startsAt,
         endsAt: endsAt,
+        guestCount: selection.guestCount,
       );
       if (!mounted) return;
       _showMessage(created['status']?.toString() == 'PENDING'
@@ -92,7 +93,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     } catch (error) {
       if (!mounted) return;
       if (_isCapacityConflict(error)) {
-        final join = await _confirmWaitlist(amenity, startsAt);
+        final join = await _confirmWaitlist(amenity, startsAt, selection.guestCount);
         if (join == true && mounted) {
           try {
             final entry = await widget.repository.joinAmenityWaitlist(
@@ -100,6 +101,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
               unitId: widget.unitId,
               startsAt: startsAt,
               endsAt: endsAt,
+              guestCount: selection.guestCount,
             );
             if (!mounted) return;
             final position = _asInt(entry['position'], fallback: 0);
@@ -117,7 +119,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     }
   }
 
-  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt) {
+  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt,int guestCount) {
     return showModalBottomSheet<bool>(
       context:context,
       useSafeArea:true,
@@ -132,6 +134,10 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
               Text('Slot just filled',style:theme.textTheme.headlineSmall),
               const SizedBox(height:AaraagateTokens.space2),
               Text('${amenity['name'] ?? 'Amenity'} · ${_formatDateTime(startsAt)}'),
+              if(guestCount>0) ...[
+                const SizedBox(height:AaraagateTokens.space1),
+                Text('$guestCount guest${guestCount==1?'':'s'} will be preserved if this waitlist entry is promoted.'),
+              ],
               const SizedBox(height:AaraagateTokens.space2),
               const Text('You can join the first-in waitlist for this exact time. A cancellation may promote the oldest eligible resident automatically.'),
               const SizedBox(height:AaraagateTokens.space5),
@@ -348,8 +354,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
 }
 
 class _BookingSelection {
-  const _BookingSelection(this.startsAt);
+  const _BookingSelection(this.startsAt, this.guestCount);
   final DateTime startsAt;
+  final int guestCount;
 }
 
 class _BookingSheet extends StatefulWidget {
@@ -365,6 +372,7 @@ class _BookingSheet extends StatefulWidget {
 class _BookingSheetState extends State<_BookingSheet> {
   late DateTime _date;
   TimeOfDay? _time;
+  int _guestCount=0;
 
   @override
   void initState() {
@@ -408,6 +416,8 @@ class _BookingSheetState extends State<_BookingSheet> {
       return day;
     });
     final approval = widget.amenity['requiresApproval'] == true;
+    final rules=widget.amenity['bookingRules'];
+    final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
     final startsAt = _startsAt;
     final invalidPast = startsAt != null && !startsAt.isAfter(now);
 
@@ -427,6 +437,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                 AaraagateStatusPill(label: '${widget.slotMinutes} min', tone: AaraagateStatusTone.neutral),
                 AaraagateStatusPill(label: _feeLabel(widget.amenity['feePaise']), tone: AaraagateStatusTone.neutral),
                 AaraagateStatusPill(label: approval ? 'Approval required' : 'Server confirmed', tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info),
+                AaraagateStatusPill(label:maxGuests>0?'Up to $maxGuests guests':'No guests',tone:AaraagateStatusTone.neutral),
               ],
             ),
             const SizedBox(height: AaraagateTokens.space6),
@@ -492,6 +503,32 @@ class _BookingSheetState extends State<_BookingSheet> {
               const SizedBox(height: AaraagateTokens.space2),
               Text('Choose a future time.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
             ],
+            if(maxGuests>0) ...[
+              const SizedBox(height:AaraagateTokens.space5),
+              const PremiumSectionHeader(title:'Guests'),
+              const SizedBox(height:AaraagateTokens.space2),
+              PremiumSurface(
+                semanticLabel:'Selected guest count $_guestCount of maximum $maxGuests',
+                child:Row(children:[
+                  const Icon(Icons.group_outlined),
+                  const SizedBox(width:AaraagateTokens.space3),
+                  Expanded(child:Text('Guests joining you',style:theme.textTheme.bodyLarge?.copyWith(fontWeight:FontWeight.w700))),
+                  IconButton(
+                    tooltip:'Remove guest',
+                    onPressed:_guestCount>0?()=>setState(()=>_guestCount--):null,
+                    icon:const Icon(Icons.remove_circle_outline),
+                  ),
+                  SizedBox(width:32,child:Text('$_guestCount',textAlign:TextAlign.center,style:theme.textTheme.titleMedium)),
+                  IconButton(
+                    tooltip:'Add guest',
+                    onPressed:_guestCount<maxGuests?()=>setState(()=>_guestCount++):null,
+                    icon:const Icon(Icons.add_circle_outline),
+                  ),
+                ]),
+              ),
+              const SizedBox(height:AaraagateTokens.space1),
+              Text('Only the number of guests is stored; guest names are not collected.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
+            ],
             const SizedBox(height: AaraagateTokens.space5),
             PremiumSurface(
               child: Row(
@@ -516,7 +553,7 @@ class _BookingSheetState extends State<_BookingSheet> {
               child: FilledButton.icon(
                 onPressed: startsAt == null || invalidPast
                     ? null
-                    : () => Navigator.pop(context, _BookingSelection(startsAt)),
+                    : () => Navigator.pop(context, _BookingSelection(startsAt, _guestCount)),
                 icon: const Icon(Icons.event_available_rounded),
                 label: Text(approval ? 'Request booking' : 'Confirm booking'),
               ),
@@ -541,6 +578,8 @@ class _AmenityCard extends StatelessWidget {
     final approval = amenity['requiresApproval'] == true;
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
     final description = amenity['description']?.toString() ?? '';
+    final rules=amenity['bookingRules'];
+    final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
 
     return PremiumSurface(
       color: scheme.surface,
@@ -585,11 +624,13 @@ class _AmenityCard extends StatelessWidget {
             Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
           ],
           const SizedBox(height: AaraagateTokens.space3),
-          Row(
+          Wrap(
+            spacing:AaraagateTokens.space4,
+            runSpacing:AaraagateTokens.space2,
             children: [
               _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
-              const SizedBox(width: AaraagateTokens.space4),
               _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
+              _Meta(icon:Icons.group_outlined,label:maxGuests>0?'Up to $maxGuests guests':'No guests'),
             ],
           ),
           const SizedBox(height: AaraagateTokens.space4),
@@ -618,9 +659,11 @@ class _WaitlistCard extends StatelessWidget {
     final theme=Theme.of(context),scheme=theme.colorScheme;
     final status=entry['status']?.toString()??'WAITING';
     final position=_asInt(entry['position'],fallback:0);
+    final guests=_asInt(entry['guestCount'],fallback:0);
+    final guestLabel=guests>0?' · $guests guest${guests==1?'':'s'}':'';
     final detail=status=='WAITING'&&position>0
-      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}'
-      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}';
+      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}$guestLabel'
+      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}$guestLabel';
     return PremiumSurface(
       padding:const EdgeInsets.fromLTRB(AaraagateTokens.space4,AaraagateTokens.space3,AaraagateTokens.space3,AaraagateTokens.space3),
       child:Row(children:[
@@ -653,6 +696,7 @@ class _BookingCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final status = booking['status']?.toString() ?? 'PENDING';
     final statusLabel = status.replaceAll('_', ' ').toLowerCase();
+    final guests=_asInt(booking['guestCount'],fallback:0);
 
     return PremiumSurface(
       padding: const EdgeInsets.fromLTRB(AaraagateTokens.space4, AaraagateTokens.space3, AaraagateTokens.space3, AaraagateTokens.space3),
@@ -677,7 +721,7 @@ class _BookingCard extends StatelessWidget {
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
                 const SizedBox(height: AaraagateTokens.space1),
-                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
               ],
             ),
           ),

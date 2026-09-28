@@ -1009,6 +1009,7 @@ model AmenityBooking {
   status           AmenityBookingStatus @default(PENDING)
   feePaise         Int                  @default(0)
   currency         String               @default("INR")
+  guestCount       Int                  @default(0)
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
   checkedInAt      DateTime?            @db.Timestamptz(6)
@@ -1034,6 +1035,7 @@ model AmenityWaitlistEntry {
   userId            String   @db.Uuid
   startsAt          DateTime @db.Timestamptz(6)
   endsAt            DateTime @db.Timestamptz(6)
+  guestCount         Int      @default(0)
   status            String   @default("WAITING")
   joinedAt          DateTime @default(now()) @db.Timestamptz(6)
   promotedAt        DateTime? @db.Timestamptz(6)
