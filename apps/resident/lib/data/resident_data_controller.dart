@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/service_catalog_models.dart';
+import 'emergency_contact_actions.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
@@ -58,6 +59,7 @@ class ResidentDataController extends ChangeNotifier {
   _GuestInviteAttempt? _pendingGuestInviteAttempt;
   Future<Map<String, dynamic>>? _guestInviteInFlight;
   String? _guestInviteInFlightSignature;
+  final Map<String, String> _emergencyContactAttemptKeys = <String, String>{};
   bool _disposed = false;
 
   bool get hasActiveProperty => activeUnitId != null && activeUnitId!.isNotEmpty;
@@ -505,6 +507,123 @@ class ResidentDataController extends ChangeNotifier {
       rethrow;
     }
     await _reloadHouseholdsForMutationRecovery();
+  }
+
+  List<Map<String, dynamic>> emergencyContactsForHousehold(String householdId) {
+    final household = _householdById(householdId);
+    final contacts = household?['emergencyContacts'];
+    if (contacts is! List) return const [];
+    return contacts
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? emergencyContactById(String householdId, String contactId) =>
+      emergencyContactsForHousehold(householdId)
+          .where((item) => item['id']?.toString() == contactId)
+          .firstOrNull;
+
+  bool hasMatchingEmergencyContact({
+    required String householdId,
+    required String name,
+    required String phone,
+    String? relation,
+    required int priority,
+    Set<String> excludingIds = const <String>{},
+  }) {
+    final expectedName = name.trim().toLowerCase();
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    final expectedRelation = relation?.trim().toLowerCase() ?? '';
+    return emergencyContactsForHousehold(householdId).any((item) {
+      final id = item['id']?.toString();
+      if (id != null && excludingIds.contains(id)) return false;
+      return (item['name']?.toString().trim().toLowerCase() ?? '') == expectedName &&
+          _normalizeHouseholdPhone(item['phone']?.toString() ?? '') == expectedPhone &&
+          (item['relation']?.toString().trim().toLowerCase() ?? '') == expectedRelation &&
+          (item['priority'] as num?)?.toInt() == priority;
+    });
+  }
+
+  Future<void> addEmergencyContact({
+    required String householdId,
+    required String name,
+    required String phone,
+    String? relation,
+    int priority = 1,
+  }) async {
+    if (_householdById(householdId) == null) {
+      throw StateError('Household is outside the active property context');
+    }
+    final existingIds = emergencyContactsForHousehold(householdId)
+        .map((item) => item['id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final shape = [
+      householdId,
+      name.trim().toLowerCase(),
+      _normalizeHouseholdPhone(phone),
+      relation?.trim().toLowerCase() ?? '',
+      priority.toString(),
+    ].join('|');
+    final idempotencyKey = _emergencyContactAttemptKeys.putIfAbsent(
+      shape,
+      () => 'resident-emergency-contact-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    try {
+      await repository.addEmergencyContact(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        relation: relation,
+        priority: priority,
+        idempotencyKey: idempotencyKey,
+      );
+      await _reloadHouseholdsForMutationRecovery();
+      _emergencyContactAttemptKeys.remove(shape);
+    } catch (_) {
+      try {
+        await _reloadHouseholdsForMutationRecovery();
+      } catch (_) {
+        rethrow;
+      }
+      if (hasMatchingEmergencyContact(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        relation: relation,
+        priority: priority,
+        excludingIds: existingIds,
+      )) {
+        _emergencyContactAttemptKeys.remove(shape);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deactivateEmergencyContact({
+    required String householdId,
+    required String contactId,
+  }) async {
+    if (emergencyContactById(householdId, contactId) == null) {
+      throw StateError('Emergency contact is outside the active property context');
+    }
+    try {
+      await repository.deactivateEmergencyContact(
+        householdId: householdId,
+        contactId: contactId,
+      );
+      await _reloadHouseholdsForMutationRecovery();
+    } catch (_) {
+      try {
+        await _reloadHouseholdsForMutationRecovery();
+      } catch (_) {
+        rethrow;
+      }
+      if (emergencyContactById(householdId, contactId) == null) return;
+      rethrow;
+    }
   }
 
   Future<void> _reloadHouseholdsForMutationRecovery() async {
