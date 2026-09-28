@@ -516,7 +516,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                     ? null
                     : () => Navigator.pop(context, _BookingSelection(startsAt)),
                 icon: const Icon(Icons.event_available_rounded),
-                label: Text(approval ? 'Request booking' : 'Check & book'),
+                label: Text(approval ? 'Request booking' : 'Confirm booking'),
               ),
             ),
           ],
@@ -542,7 +542,7 @@ class _AmenityCard extends StatelessWidget {
 
     return PremiumSurface(
       color: scheme.surface,
-      elevated: true,
+      elevated: false,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -573,7 +573,7 @@ class _AmenityCard extends StatelessWidget {
                 ),
               ),
               AaraagateStatusPill(
-                label: approval ? 'Approval' : 'Instant',
+                label: approval ? 'Approval required' : 'Instant booking',
                 tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
               ),
             ],
