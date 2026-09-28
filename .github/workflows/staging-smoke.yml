@@ -147,15 +147,7 @@ jobs:
               echo "Staging differs from main without attributable staging-only release history."
               exit 1
             fi
-            while IFS= read -r subject; do
-              case "$subject" in
-                Release:*|chore\(release\):*) ;;
-                *)
-                  echo "Staging contains non-release-only history that cannot be superseded automatically: $subject"
-                  exit 1
-                  ;;
-              esac
-            done <<< "$STAGING_ONLY_SUBJECTS"
+            printf '%s\n' "$STAGING_ONLY_SUBJECTS" | bash scripts/validate-staging-release-history.sh
             {
               echo "- Staging baseline: superseding stale release-only candidate history"
               echo "- Staging-only commits reviewed: $(printf '%s\n' "$STAGING_ONLY_SUBJECTS" | wc -l | tr -d ' ')"

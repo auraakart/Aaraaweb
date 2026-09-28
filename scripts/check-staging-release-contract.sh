@@ -2,8 +2,10 @@
 set -euo pipefail
 
 WORKFLOW=".github/workflows/staging-smoke.yml"
+HISTORY_VALIDATOR="scripts/validate-staging-release-history.sh"
 
 test -f "$WORKFLOW"
+test -f "$HISTORY_VALIDATOR"
 
 required_literals=(
   'CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}'
@@ -24,7 +26,6 @@ required_literals=(
   'if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then'
   'git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .'
   'STAGING_ONLY_SUBJECTS="$(git log --format='\''%s'\'' "${DEVELOP_SHA}..${TARGET_SHA}")"'
-  'Release:*|chore\(release\):*)'
   'superseding stale release-only candidate history'
   'ref: ${{ github.event.pull_request.head.sha || github.sha }}'
   'test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"'
@@ -45,8 +46,25 @@ if ! grep -Fq 'develop|release/*-staging-candidate)' "$WORKFLOW"; then
   exit 1
 fi
 
+if ! grep -Fq 'scripts/validate-staging-release-history.sh' "$WORKFLOW"; then
+  echo "Staging release contract must delegate release-only history validation to the shared validator." >&2
+  exit 1
+fi
+
 if ! grep -Fq 'Release candidate source tree must exactly match current develop.' "$WORKFLOW"; then
   echo "Staging release contract must enforce develop tree equivalence for release candidates." >&2
+  exit 1
+fi
+
+valid_release_subjects=(
+  'Release: promote exact V4.70 develop tree to staging'
+  'release(v4.68): exact develop tree staging candidate'
+  'chore(release): reconcile main history into staging'
+)
+printf '%s\n' "${valid_release_subjects[@]}" | bash "$HISTORY_VALIDATOR"
+
+if printf '%s\n' 'feat: ordinary product change' | bash "$HISTORY_VALIDATOR" >/dev/null 2>&1; then
+  echo "Staging release-history validator must reject non-release product history." >&2
   exit 1
 fi
 
