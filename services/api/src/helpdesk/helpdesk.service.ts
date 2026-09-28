@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { HELPDESK_TICKET_SLA_STATE_SQL } from './helpdesk-sla-state';
@@ -16,6 +16,7 @@ type TicketRow = {
   societyId: string;
   unitId: string;
   createdById: string;
+  idempotencyKey: string | null;
   title: string;
   description: string;
   category: string | null;
@@ -58,14 +59,16 @@ export class HelpdeskService {
   async createMine(
     societyId: string,
     userId: string,
-    input: { unitId: string; title: string; description: string; category?: string; priority?: TicketPriority },
+    input: { unitId: string; idempotencyKey: string; title: string; description: string; category?: string; priority?: TicketPriority },
   ) {
     const title = input.title.trim();
     const description = input.description.trim();
     const category = input.category?.trim() || null;
     const priority = input.priority ?? 'NORMAL';
+    const idempotencyKey = input.idempotencyKey.trim();
     if (title.length < 3 || title.length > 120) throw new BadRequestException('Title must be between 3 and 120 characters');
     if (description.length < 5 || description.length > 2000) throw new BadRequestException('Description must be between 5 and 2000 characters');
+    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
 
     const occupancy = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT uo."id"
@@ -83,11 +86,32 @@ export class HelpdeskService {
     if (!occupancy[0]) throw new NotFoundException('Unit not found');
 
     return this.prisma.$transaction(async (tx) => {
+      const lockKey = `${societyId}:${userId}:${idempotencyKey}`;
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      `);
+      const [existing] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT * FROM "HelpdeskTicket"
+        WHERE "societyId"=${societyId}::uuid
+          AND "createdById"=${userId}::uuid
+          AND "idempotencyKey"=${idempotencyKey}
+        LIMIT 1
+      `);
+      if (existing) {
+        const sameIntent =
+          existing.unitId === input.unitId &&
+          existing.title === title &&
+          existing.description === description &&
+          (existing.category ?? null) === category &&
+          existing.priority === priority;
+        if (!sameIntent) throw new ConflictException('Idempotency key already used for a different complaint');
+        return existing;
+      }
       const rows = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         INSERT INTO "HelpdeskTicket" (
-          "societyId", "unitId", "createdById", "title", "description", "category", "priority"
+          "societyId", "unitId", "createdById", "idempotencyKey", "title", "description", "category", "priority"
         ) VALUES (
-          ${societyId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
+          ${societyId}::uuid, ${input.unitId}::uuid, ${userId}::uuid, ${idempotencyKey},
           ${title}, ${description}, ${category}, ${priority}
         )
         RETURNING *

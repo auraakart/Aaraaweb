@@ -21,6 +21,7 @@ describe('HelpdeskService', () => {
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
         unitId: '33333333-3333-3333-3333-333333333333',
+        idempotencyKey: 'helpdesk-test-invalid-title',
         title: 'x',
         description: 'Water leakage near kitchen sink',
       }),
@@ -36,12 +37,55 @@ describe('HelpdeskService', () => {
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
         unitId: '33333333-3333-3333-3333-333333333333',
+        idempotencyKey: 'helpdesk-test-unit-scope',
         title: 'Water leakage',
         description: 'Water leakage near kitchen sink',
       }),
     ).rejects.toThrow('Unit not found');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the original complaint for an exact same-key replay without a second create event', async () => {
+    const existing = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      idempotencyKey:'resident-helpdesk-attempt-1',
+      title:'Water leakage',description:'Water leakage near kitchen sink',category:'Plumbing',
+      priority:'HIGH',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const result=await service.createMine(existing.societyId,existing.createdById,{
+      unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:'  Water leakage  ',
+      description:existing.description,category:' Plumbing ',priority:'HIGH',
+    });
+    expect(result.id).toBe(existing.id);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a same-key replay when normalized complaint intent changes', async () => {
+    const existing = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      idempotencyKey:'resident-helpdesk-attempt-2',
+      title:'Water leakage',description:'Water leakage near kitchen sink',category:null,
+      priority:'NORMAL',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    await expect(service.createMine(existing.societyId,existing.createdById,{
+      unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:existing.title,
+      description:'A different issue description',priority:'NORMAL',
+    })).rejects.toThrow('Idempotency key already used for a different complaint');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('does not expose activity history for a ticket outside resident ownership', async () => {

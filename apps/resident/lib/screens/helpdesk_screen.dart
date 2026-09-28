@@ -131,6 +131,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     String priority = 'NORMAL';
     String? validationMessage;
     String? voiceStatus;
+    String? submissionKey;
+    String? submissionShape;
     bool submitting = false;
     bool listening = false;
     final languageCode = AaraagateStrings.device().languageCode;
@@ -254,6 +256,16 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             });
                             return;
                           }
+                          final cleanCategory = category.text.trim();
+                          final shape = '$unitId\n$cleanTitle\n$cleanDescription\n$cleanCategory\n$priority';
+                          if (submissionKey == null || submissionShape != shape) {
+                            final stamp = DateTime.now().microsecondsSinceEpoch;
+                            final suffix = Object.hash(unitId, cleanTitle, cleanDescription, cleanCategory, priority, stamp)
+                                .toUnsigned(32)
+                                .toRadixString(36);
+                            submissionKey = 'resident-helpdesk-${stamp.toRadixString(36)}-$suffix';
+                            submissionShape = shape;
+                          }
                           setModalState(() {
                             submitting = true;
                             validationMessage = null;
@@ -261,9 +273,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                           try {
                             await widget.controller.repository.createHelpdeskTicket(
                               unitId: unitId,
+                              idempotencyKey: submissionKey!,
                               title: cleanTitle,
                               description: cleanDescription,
-                              category: category.text.trim(),
+                              category: cleanCategory,
                               priority: priority,
                             );
                             if (sheetContext.mounted) Navigator.pop(sheetContext, true);
@@ -271,7 +284,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             if (sheetContext.mounted) {
                               setModalState(() {
                                 submitting = false;
-                                validationMessage = 'Complaint could not be submitted. Check your connection and retry.';
+                                validationMessage = 'Complaint could not be confirmed. Retry will reuse this submission unless you edit the complaint.';
                               });
                             }
                           }
