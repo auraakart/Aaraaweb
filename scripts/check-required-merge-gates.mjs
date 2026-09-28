@@ -20,26 +20,41 @@ if(!workflow.includes('if: always()')){
   console.error('Required merge gate must resolve even when an upstream gate fails.');
   process.exit(1);
 }
-const autoMerge=fs.readFileSync('.github/workflows/develop-auto-merge.yml','utf8');
+const autoMergeStart=workflow.indexOf('\n  develop-auto-merge:\n');
+if(autoMergeStart<0){
+  console.error('In-CI develop auto-merge job is missing.');
+  process.exit(1);
+}
+const autoMerge=workflow.slice(autoMergeStart);
 const autoRequired=[
   'name: Develop auto merge',
-  'workflows: ["CI"]',
-  "github.event.workflow_run.conclusion == 'success'",
-  "github.event.workflow_run.event == 'pull_request'",
-  'pulls?state=open&base=develop&per_page=100',
-  'startswith("mastermind/")',
-  'test "$current_sha" = "$TESTED_SHA"',
+  'needs: [required-merge-gates]',
+  "github.event_name == 'pull_request'",
+  "github.event.pull_request.base.ref == 'develop'",
+  "github.event.pull_request.head.repo.full_name == github.repository",
+  "startsWith(github.event.pull_request.head.ref, 'mastermind/')",
+  "needs.required-merge-gates.result == 'success'",
+  'contents: write',
+  'pull-requests: write',
+  'EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
+  'EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}',
+  'test "$current_sha" = "$EXPECTED_HEAD_SHA"',
   'test "$current_base" = "develop"',
+  'test "$current_develop_sha" = "$EXPECTED_BASE_SHA"',
   '-f merge_method=squash',
-  '-f sha="$TESTED_SHA"',
+  '-f sha="$EXPECTED_HEAD_SHA"',
 ];
 const autoMissing=autoRequired.filter(token=>!autoMerge.includes(token));
 if(autoMissing.length){
-  console.error('Develop auto-merge safety contract missing: '+autoMissing.join(', '));
+  console.error('In-CI develop auto-merge safety contract missing: '+autoMissing.join(', '));
   process.exit(1);
 }
 if(autoMerge.includes('base=main')||autoMerge.includes('base=staging')){
-  console.error('Develop auto-merge workflow must never target staging or main.');
+  console.error('Develop auto-merge job must never target staging or main.');
+  process.exit(1);
+}
+if(fs.existsSync('.github/workflows/develop-auto-merge.yml')){
+  console.error('Standalone workflow_run auto-merge must not return; it depends on default-branch dispatch.');
   process.exit(1);
 }
 
