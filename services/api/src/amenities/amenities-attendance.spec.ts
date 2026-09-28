@@ -42,17 +42,25 @@ describe('V4.12 amenity attendance lifecycle',()=>{
   it('marks no-show only after the configured grace period',async()=>{
     const start=new Date(Date.now()-30*60*1000);
     const txQuery=vi.fn()
+      .mockResolvedValueOnce([{amenityId:'amenity-1'}])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{startsAt:start,status:'CONFIRMED',bookingRules:{noShowGraceMinutes:15}}])
       .mockResolvedValueOnce([{id:bookingId,status:'NO_SHOW'}]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQuery })=>Promise<unknown>)=>cb({$queryRaw:txQuery}));
     await expect(serviceWith(vi.fn(),transaction).markNoShow(societyId,actorId,bookingId,'Did not arrive')).resolves.toMatchObject({status:'NO_SHOW'});
+    expect((txQuery.mock.calls[1][0] as readonly string[]).join(' ')).toContain('pg_advisory_xact_lock');
+    expect((txQuery.mock.calls[3][0] as readonly string[]).join(' ')).toContain('"status"=\'NO_SHOW\'');
   });
 
   it('does not allow a no-show before the grace period expires',async()=>{
     const start=new Date(Date.now()-5*60*1000);
-    const txQuery=vi.fn().mockResolvedValue([{startsAt:start,status:'CONFIRMED',bookingRules:{noShowGraceMinutes:15}}]);
+    const txQuery=vi.fn()
+      .mockResolvedValueOnce([{amenityId:'amenity-1'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{startsAt:start,status:'CONFIRMED',bookingRules:{noShowGraceMinutes:15}}]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQuery })=>Promise<unknown>)=>cb({$queryRaw:txQuery}));
     await expect(serviceWith(vi.fn(),transaction).markNoShow(societyId,actorId,bookingId)).rejects.toBeInstanceOf(ConflictException);
-    expect(txQuery).toHaveBeenCalledTimes(1);
+    expect(txQuery).toHaveBeenCalledTimes(3);
+    expect((txQuery.mock.calls[1][0] as readonly string[]).join(' ')).toContain('pg_advisory_xact_lock');
   });
 });
