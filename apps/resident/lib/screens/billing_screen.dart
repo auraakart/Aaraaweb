@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
@@ -172,6 +173,7 @@ class _BillingScreenState extends State<BillingScreen> {
       setState(() => error = 'This invoice is outside the active property context.');
       return;
     }
+    widget.repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
     setState(() { payingInvoiceId = id; error = null; });
     try {
       final attemptKey = _paymentAttemptKeys.putIfAbsent(id, () => 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');

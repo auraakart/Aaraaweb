@@ -152,6 +152,80 @@ export class HelpdeskService {
     `);
   }
 
+  async triageIntelligence(societyId:string,ticketId:string){
+    const [ticket]=await this.prisma.$queryRaw<Array<TicketRow & {unitNumber:string;buildingName:string}>>(Prisma.sql`
+      SELECT ht.*,u."number" AS "unitNumber",b."name" AS "buildingName"
+      FROM "HelpdeskTicket" ht
+      JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=ht."societyId"
+      WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
+      LIMIT 1
+    `);
+    if(!ticket) throw new NotFoundException('Helpdesk ticket not found');
+
+    const classification=this.classifyTriageText(`${ticket.title} ${ticket.description}`);
+    const suggestedCategory=ticket.category?.trim()||classification.category;
+    const [recurrenceRows,candidates]=await Promise.all([
+      this.prisma.$queryRaw<Array<{recurringCount:number;latestSimilarAt:Date|null}>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "recurringCount",MAX("createdAt") AS "latestSimilarAt"
+        FROM "HelpdeskTicket"
+        WHERE "societyId"=${societyId}::uuid
+          AND "id"<>${ticketId}::uuid
+          AND "unitId"=${ticket.unitId}::uuid
+          AND "createdAt">=CURRENT_TIMESTAMP-INTERVAL '90 days'
+          AND (
+            (${ticket.category}::text IS NOT NULL AND LOWER(TRIM(COALESCE("category",'')))=LOWER(TRIM(${ticket.category})))
+            OR
+            (${ticket.category}::text IS NULL AND LOWER(TRIM("title"))=LOWER(TRIM(${ticket.title})))
+          )
+      `),
+      this.prisma.$queryRaw<Array<{userId:string;name:string;phone:string;openTickets:number}>>(Prisma.sql`
+        SELECT u."id" AS "userId",u."name",u."phone",
+          COUNT(ht."id") FILTER (WHERE ht."status" NOT IN ('RESOLVED','CLOSED'))::int AS "openTickets"
+        FROM "SocietyMembership" sm
+        JOIN "User" u ON u."id"=sm."userId"
+        LEFT JOIN "HelpdeskTicket" ht
+          ON ht."societyId"=sm."societyId" AND ht."assignedToId"=u."id"
+        WHERE sm."societyId"=${societyId}::uuid AND sm."active"=true
+        GROUP BY u."id",u."name",u."phone"
+        ORDER BY "openTickets" ASC,u."name" ASC
+        LIMIT 20
+      `),
+    ]);
+
+    const recurrence=recurrenceRows[0]??{recurringCount:0,latestSimilarAt:null};
+    const lowest=candidates[0];
+    const second=candidates[1];
+    const recommendedAssignee=
+      !ticket.assignedToId
+      && lowest
+      && (!second||lowest.openTickets<second.openTickets)
+        ? {userId:lowest.userId,name:lowest.name,openTickets:lowest.openTickets,reason:'Unique lowest active helpdesk workload among current society members.'}
+        : null;
+
+    return {
+      ticketId:ticket.id,
+      property:`${ticket.buildingName} · ${ticket.unitNumber}`,
+      currentCategory:ticket.category,
+      suggestedCategory,
+      classificationSignals:ticket.category?['EXISTING_CATEGORY_RETAINED']:classification.matchedTerms,
+      recurring:{
+        sameUnitSimilarLast90Days:recurrence.recurringCount,
+        latestSimilarAt:recurrence.latestSimilarAt,
+        recurring:recurrence.recurringCount>0,
+      },
+      assignment:{
+        currentAssigneeId:ticket.assignedToId,
+        recommendedAssignee,
+        candidates:candidates.slice(0,8),
+      },
+      classificationApplied:false,
+      assignmentApplied:false,
+      predictive:false,
+      boundary:'Triage intelligence is deterministic advisory evidence. Category and assignment remain explicit operator decisions through the normal helpdesk workflow.',
+    };
+  }
+
   async assignmentPreview(societyId:string,ticketId:string,assignedToId:string|null){
     const [ticket]=await this.prisma.$queryRaw<Array<TicketRow & {assignedToName?:string|null;unitNumber:string;buildingName:string}>>(Prisma.sql`
       SELECT ht.*,assignee."name" AS "assignedToName",u."number" AS "unitNumber",b."name" AS "buildingName"
@@ -423,6 +497,23 @@ export class HelpdeskService {
         AND (${includeInternal} OR ha."type" <> 'INTERNAL_NOTE')
       ORDER BY ha."occurredAt" ASC
     `);
+  }
+
+  private classifyTriageText(value:string){
+    const normalized=value.toLowerCase();
+    const groups:Array<{category:string;terms:string[]}>= [
+      {category:'PLUMBING',terms:['water','leak','pipe','plumbing','tap','drain']},
+      {category:'ELECTRICAL',terms:['power','electricity','electrical','light','switch','socket']},
+      {category:'LIFT',terms:['lift','elevator']},
+      {category:'SECURITY',terms:['security','gate','access','visitor']},
+      {category:'HOUSEKEEPING',terms:['cleaning','garbage','waste','housekeeping','trash']},
+      {category:'PARKING',terms:['parking','vehicle','car park']},
+    ];
+    for(const group of groups){
+      const matched=group.terms.filter(term=>normalized.includes(term));
+      if(matched.length) return {category:group.category,matchedTerms:matched.map(term=>`KEYWORD:${term.toUpperCase().replaceAll(' ','_')}`)};
+    }
+    return {category:'GENERAL',matchedTerms:['NO_DOMAIN_KEYWORD']};
   }
 
   private async findTicket(societyId: string, ticketId: string) {
