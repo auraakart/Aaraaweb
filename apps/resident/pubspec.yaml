@@ -1,7 +1,7 @@
 name: aaraagate_resident
 description: aaraagate Resident mobile application.
 publish_to: 'none'
-version: 4.66.0+46600
+version: 4.67.0+46700
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

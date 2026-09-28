@@ -42,9 +42,24 @@ must('V4.67 Resident retry regression',read('apps/resident/test/helpdesk_service
   'resident comment retry reuses request identity after ambiguous transport failure',
   'expect(repository.commentKeys[1],repository.commentKeys[0])'
 ]);
-must('V4.67 development truth',read('docs/AARAAGATE-V4.67-HELPDESK-COMMENT-RETRY-SAFETY.md'),[
-  'release identity remains 4.66.0',
+const root=JSON.parse(read('package.json'));
+const api=JSON.parse(read('services/api/package.json'));
+const admin=JSON.parse(read('apps/admin/package.json'));
+if(root.version!=='4.67.0'||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must be V4.67.0.');
+  process.exit(1);
+}
+for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){
+  must(pubspec,read(pubspec),['version: 4.67.0+46700']);
+}
+must('V4.67 release truth',read('docs/AARAAGATE-V4.67-HELPDESK-COMMENT-RETRY-SAFETY.md'),[
+  'release identity is 4.67.0',
   'Reviewer comments remain backward-compatible',
   'does not widen Helpdesk permissions'
 ]);
-console.log('V4.67 Helpdesk comment retry-safety development contract: PASS');
+must('V4.67 closure',read('docs/AARAAGATE-V4.67-RELEASE-CLOSURE.md'),[
+  'root/API/Admin: `4.67.0`',
+  'Resident/Guard: `4.67.0+46700`',
+  'Repository release truth is closed on `develop` only.'
+]);
+console.log('V4.67 Helpdesk comment retry-safety release contract: PASS');

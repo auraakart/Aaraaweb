@@ -1,7 +1,7 @@
 # Aaraagate V4.67 — Helpdesk Comment Retry Safety
 
 Date: 2026-09-28
-Status: Development started on develop; release identity remains 4.66.0.
+Status: Repository release candidate closed on develop; release identity is 4.67.0.
 
 ## Slice 1 — Resident comment idempotency
 
@@ -20,4 +20,4 @@ Historical HelpdeskActivity rows remain valid because the new idempotency key is
 
 ## Boundary
 
-This slice does not widen Helpdesk permissions, expose internal notes, change ticket states or alter reviewer authority. Release identity remains 4.66.0 until V4.67 is explicitly closed. Staging/main promotion and production/external acceptance remain separate.
+This release does not widen Helpdesk permissions, expose internal notes, change ticket states or alter reviewer authority. Repository release truth is closed on `develop`; staging/main promotion and production/external acceptance remain separate.

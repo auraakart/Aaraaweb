@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.66.0 Helpdesk Submission Recovery Release Closure on top of V4.65.0 Household & AutoPay Recovery and V4.64.1 Visitor Invite Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.67.0 Helpdesk Comment Retry Safety Release Closure on top of V4.66.0 Helpdesk Submission Recovery and V4.65.0 Household & AutoPay Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -77,7 +77,7 @@ V4.65.0 closes two Resident mutation-recovery gaps as one repository release can
 
 V4.66.0 closes Resident Helpdesk submission recovery as a repository release candidate. New complaint submissions carry a request-bound idempotency key persisted on the HelpdeskTicket, same-key attempts are serialized per society/resident, exact normalized replays return the original ticket without writing another CREATED activity, and mismatched replays fail closed. The Resident client reuses the same key only while the complaint draft is unchanged, while AI-confirmed complaint creation derives a stable identity from the reviewed proposal ID. Existing current-occupancy authorization, Helpdesk workflow states and reviewer authority remain unchanged. Release identity is aligned to V4.66.0 across root/API/Admin and V4.66.0+46600 across Resident/Guard; staging/main promotion remains separate.
 
-V4.67 development starts by hardening Resident Helpdesk comment submission against ambiguous network outcomes. Resident comments carry a request-bound idempotency key, same-key attempts are serialized per society/resident, exact ticket/message replays return success without another COMMENT activity, and mismatched replays fail closed. The Resident client reuses the key only while the normalized comment text is unchanged. Reviewer comments retain the existing HELPDESK_REVIEW path without a resident retry key. Existing ticket ownership, activity visibility, internal-note privacy and workflow authority remain unchanged. Release identity remains V4.66.0 until V4.67 is explicitly closed.
+V4.67.0 closes Resident Helpdesk comment retry safety as a repository release candidate. Resident comments carry a request-bound idempotency key, same-key attempts are serialized per society/resident, exact ticket/message replays return success without another COMMENT activity, and mismatched replays fail closed. The Resident client reuses the key only while normalized comment text is unchanged. Reviewer comments retain the existing HELPDESK_REVIEW path without a resident retry key. Existing ticket ownership, activity visibility, internal-note privacy and workflow authority remain unchanged. Release identity is aligned to V4.67.0 across root/API/Admin and V4.67.0+46700 across Resident/Guard; staging/main promotion remains separate.
 
 ## External evidence boundary
 
