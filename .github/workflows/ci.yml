@@ -148,6 +148,8 @@ jobs:
         run: node scripts/check-v4.65-autopay-preference-recovery.mjs
       - name: Check V4.66 Helpdesk submission recovery
         run: node scripts/check-v4.66-helpdesk-submission-recovery.mjs
+      - name: Check V4.67 Helpdesk comment retry safety
+        run: node scripts/check-v4.67-helpdesk-comment-retry-safety.mjs
       - name: Generate and validate V4.36 API contract
         run: node scripts/check-v4.36-api-contract.mjs
       - name: Enforce Aaraagate product branding boundary

@@ -31,6 +31,7 @@ class CreateHelpdeskTicketDto {
 
 class AddHelpdeskCommentDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(120) idempotencyKey?: string;
 }
 
 class AddInternalNoteDto {
@@ -77,7 +78,7 @@ export class HelpdeskController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId?: string,
   ) {
-    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message);
+    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, false, dto.idempotencyKey);
   }
 
   @Post(':ticketId/reopen')
