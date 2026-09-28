@@ -20,6 +20,12 @@ must('V4.68 service recovery',read('services/api/src/households/household.servic
   'Idempotency key already used for a different emergency contact',
   'if (!contact.active) return contact;'
 ]);
+must('V4.68 risk coverage',read('services/api/vitest.risk-coverage.config.ts'),[
+  'src/households/household.service.spec.ts',
+  "'src/households/household.service.ts':",
+  'statements: 12',
+  'lines: 12'
+]);
 must('V4.68 API regression',read('services/api/src/households/household.service.spec.ts'),[
   'exact emergency-contact same-key replay without a second insert',
   'same-key replay when normalized intent changes',
