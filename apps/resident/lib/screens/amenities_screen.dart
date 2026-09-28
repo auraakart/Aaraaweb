@@ -580,6 +580,7 @@ class _AmenityCard extends StatelessWidget {
     final description = amenity['description']?.toString() ?? '';
     final rules=amenity['bookingRules'];
     final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
+    final blackout=_nextAmenityBlackout(amenity);
 
     return PremiumSurface(
       color: scheme.surface,
@@ -622,6 +623,18 @@ class _AmenityCard extends StatelessWidget {
           if (description.isNotEmpty) ...[
             const SizedBox(height: AaraagateTokens.space3),
             Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
+          ],
+          if(blackout!=null) ...[
+            const SizedBox(height:AaraagateTokens.space3),
+            PremiumSurface(
+              color:scheme.surfaceContainer,
+              elevated:false,
+              child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Icon(Icons.construction_outlined,color:scheme.primary),
+                const SizedBox(width:AaraagateTokens.space2),
+                Expanded(child:Text('Upcoming ${(blackout['kind']??'MAINTENANCE').toString().replaceAll('_',' ').toLowerCase()}: ${_formatApiDate(blackout['start'])} to ${_formatApiDate(blackout['end'])}${blackout['reason']?.toString().trim().isNotEmpty==true?' · ${blackout['reason']}':''}',style:theme.textTheme.bodySmall)),
+              ]),
+            ),
           ],
           const SizedBox(height: AaraagateTokens.space3),
           Wrap(
@@ -755,6 +768,24 @@ class _Meta extends StatelessWidget {
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
 bool _isQuickDate(DateTime date, List<DateTime> quickDates) => quickDates.any((item) => _sameDay(item, date));
+
+Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map) return null;
+  final raw=schedule['blackouts'];
+  if(raw is! List) return null;
+  final now=DateTime.now();
+  final candidates=<Map<String,dynamic>>[];
+  for(final item in raw){
+    if(item is! Map) continue;
+    final start=DateTime.tryParse(item['start']?.toString()??'');
+    final end=DateTime.tryParse(item['end']?.toString()??'');
+    if(start==null||end==null||!end.isAfter(now)) continue;
+    candidates.add(item.map((key,value)=>MapEntry(key.toString(),value)));
+  }
+  candidates.sort((a,b)=>(DateTime.tryParse(a['start']?.toString()??'')??DateTime(9999)).compareTo(DateTime.tryParse(b['start']?.toString()??'')??DateTime(9999)));
+  return candidates.isEmpty?null:candidates.first;
+}
 
 String _weekday(DateTime date) {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
