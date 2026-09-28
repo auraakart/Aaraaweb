@@ -40,7 +40,8 @@
     "check:v4.64.1": "node scripts/check-v4.64.1-visitor-invite-recovery.mjs",
     "check:v4.65:family-member": "node scripts/check-v4.65-family-member-recovery.mjs",
     "check:v4.65:autopay": "node scripts/check-v4.65-autopay-preference-recovery.mjs",
-    "check:v4.65": "pnpm check:v4.65:family-member && pnpm check:v4.65:autopay"
+    "check:v4.65": "pnpm check:v4.65:family-member && pnpm check:v4.65:autopay",
+    "check:v4.66": "node scripts/check-v4.66-helpdesk-submission-recovery.mjs"
   },
   "pnpm": {
     "overrides": {

@@ -645,6 +645,7 @@ class DemoResidentRepository extends ResidentRepository {
   @override
   Future<Map<String, dynamic>> createHelpdeskTicket({
     required String unitId,
+    required String idempotencyKey,
     required String title,
     required String description,
     String? category,

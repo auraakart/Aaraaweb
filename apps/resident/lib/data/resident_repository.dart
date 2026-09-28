@@ -204,9 +204,10 @@ class ResidentRepository {
     return _list(value);
   }
 
-  Future<Map<String, dynamic>> createHelpdeskTicket({required String unitId, required String title, required String description, String? category, String priority = 'NORMAL'}) async {
+  Future<Map<String, dynamic>> createHelpdeskTicket({required String unitId, required String idempotencyKey, required String title, required String description, String? category, String priority = 'NORMAL'}) async {
     final value = await api.post('/api/v1/helpdesk', {
       'unitId': unitId,
+      'idempotencyKey': idempotencyKey,
       'title': title.trim(),
       'description': description.trim(),
       'priority': priority,

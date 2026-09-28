@@ -22,6 +22,7 @@ const STATUS_REASON_CODES = [
 
 class CreateHelpdeskTicketDto {
   @IsUUID() unitId!: string;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
   @IsString() @MinLength(3) @MaxLength(120) title!: string;
   @IsString() @MinLength(5) @MaxLength(2000) description!: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;

@@ -760,6 +760,7 @@ model HelpdeskTicket {
   societyId    String             @db.Uuid
   unitId       String             @db.Uuid
   createdById  String             @db.Uuid
+  idempotencyKey String?
   title        String
   description  String
   category     String?
@@ -777,6 +778,7 @@ model HelpdeskTicket {
   activities   HelpdeskActivity[]
 
   @@index([societyId, status, createdAt(sort: Desc)], map: "HelpdeskTicket_society_status_created_idx")
+  @@unique([societyId, createdById, idempotencyKey], map: "HelpdeskTicket_society_creator_idempotency_key")
   @@index([societyId, createdById, createdAt(sort: Desc)], map: "HelpdeskTicket_society_creator_created_idx")
   @@index([societyId, unitId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_unit_created_idx")
 }
