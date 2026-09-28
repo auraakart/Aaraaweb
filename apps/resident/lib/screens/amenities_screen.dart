@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/amenity_actions.dart';
 import '../data/api_client.dart';
@@ -66,6 +67,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       ),
     );
     if (selection == null || !mounted) return;
+    widget.repository.recordUsage('AMENITY_BOOKING_STARTED').ignore();
 
     final startsAt = selection.startsAt;
     final endsAt = startsAt.add(Duration(minutes: slotMinutes));

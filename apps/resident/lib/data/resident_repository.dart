@@ -184,6 +184,10 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<void> recordUsage(String eventType) async {
+    await api.post('/api/v1/analytics/usage', {'eventType': eventType});
+  }
+
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
     final value = await api.post('/api/v1/billing/payments', {'invoiceId': invoiceId, 'idempotencyKey': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);

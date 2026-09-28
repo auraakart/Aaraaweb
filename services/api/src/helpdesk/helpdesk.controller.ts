@@ -114,6 +114,12 @@ export class HelpdeskController {
     return this.helpdesk.listReview(societyId);
   }
 
+  @Get('review/:ticketId/triage-intelligence')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  triageIntelligence(@Param('ticketId', ParseUUIDPipe) ticketId:string,@CurrentTenant() societyId:string) {
+    return this.helpdesk.triageIntelligence(societyId,ticketId);
+  }
+
   @Patch('review/:ticketId/assignment')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   assignment(
