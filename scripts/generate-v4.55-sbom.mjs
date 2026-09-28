@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const [output, ...inputs] = process.argv.slice(2);
+const releaseVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 if (!output || inputs.length === 0) {
   console.error('usage: node scripts/generate-v4.55-sbom.mjs <output> <dependency-json>...');
   process.exit(2);
@@ -59,7 +60,7 @@ const bom = {
     component: {
       type: 'application',
       name: 'aaraagate',
-      version: '4.55.0',
+      version: releaseVersion,
     },
     properties: [
       { name: 'aaraagate:sbom-scope', value: 'resolved CI dependency inventories' },

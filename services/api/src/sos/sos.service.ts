@@ -62,6 +62,22 @@ export class SosService {
     const message = input.message?.trim() || null;
 
     return this.prisma.$transaction(async (tx) => {
+      const activeScopeKey = `sos:${societyId}:${input.unitId}:${residentUserId}`;
+      await tx.$executeRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${activeScopeKey}))
+      `);
+      const existing = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
+        SELECT *
+        FROM "SosIncident"
+        WHERE "societyId" = ${societyId}::uuid
+          AND "unitId" = ${input.unitId}::uuid
+          AND "residentUserId" = ${residentUserId}::uuid
+          AND "status" IN ('ACTIVE', 'ACKNOWLEDGED')
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `);
+      if (existing[0]) return existing[0];
+
       const rows = await tx.$queryRaw<SosIncidentRow[]>(Prisma.sql`
         INSERT INTO "SosIncident" (
           "societyId", "unitId", "residentUserId", "category", "severity", "message", "latitude", "longitude"

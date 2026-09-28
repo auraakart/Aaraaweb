@@ -22,6 +22,7 @@ const STATUS_REASON_CODES = [
 
 class CreateHelpdeskTicketDto {
   @IsUUID() unitId!: string;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
   @IsString() @MinLength(3) @MaxLength(120) title!: string;
   @IsString() @MinLength(5) @MaxLength(2000) description!: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;
@@ -30,6 +31,7 @@ class CreateHelpdeskTicketDto {
 
 class AddHelpdeskCommentDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(120) idempotencyKey?: string;
 }
 
 class AddInternalNoteDto {
@@ -76,7 +78,18 @@ export class HelpdeskController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId?: string,
   ) {
-    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message);
+    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, false, dto.idempotencyKey);
+  }
+
+  @Post(':ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  reopenMine(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopenMine(societyId, this.requireUser(userId), ticketId, dto.note);
   }
 
   @Get(':ticketId/activities')

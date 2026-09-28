@@ -26,13 +26,13 @@ class DeviceResidentSpeech implements ResidentSpeech {
   @override
   Future<String?> listenOnce({required String languageCode}) async {
     final completer = Completer<String?>();
-    final available = await _speech.initialize(
-      onError: (_) {
-        if (!completer.isCompleted) completer.complete(null);
-      },
-    );
-    if (!available) return null;
     try {
+      final available = await _speech.initialize(
+        onError: (_) {
+          if (!completer.isCompleted) completer.complete(null);
+        },
+      );
+      if (!available) return null;
       await _speech.listen(
         listenOptions: SpeechListenOptions(
           localeId: localeByLanguage[languageCode] ?? 'en_IN',
@@ -48,13 +48,25 @@ class DeviceResidentSpeech implements ResidentSpeech {
         },
       );
       return await completer.future.timeout(const Duration(seconds: 17), onTimeout: () => null);
+    } catch (_) {
+      return null;
     } finally {
-      await _speech.stop();
+      try {
+        await _speech.stop();
+      } catch (_) {
+        // Device/plugin shutdown failures are non-fatal for the assistant draft flow.
+      }
     }
   }
 
   @override
-  Future<void> stop() => _speech.stop();
+  Future<void> stop() async {
+    try {
+      await _speech.stop();
+    } catch (_) {
+      // Treat plugin/device stop failures as already stopped.
+    }
+  }
 }
 
 class SilentResidentSpeech implements ResidentSpeech {

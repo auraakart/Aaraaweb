@@ -21,6 +21,7 @@ describe('HelpdeskService', () => {
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
         unitId: '33333333-3333-3333-3333-333333333333',
+        idempotencyKey: 'helpdesk-test-invalid-title',
         title: 'x',
         description: 'Water leakage near kitchen sink',
       }),
@@ -36,12 +37,55 @@ describe('HelpdeskService', () => {
     await expect(
       service.createMine('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
         unitId: '33333333-3333-3333-3333-333333333333',
+        idempotencyKey: 'helpdesk-test-unit-scope',
         title: 'Water leakage',
         description: 'Water leakage near kitchen sink',
       }),
     ).rejects.toThrow('Unit not found');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the original complaint for an exact same-key replay without a second create event', async () => {
+    const existing = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      idempotencyKey:'resident-helpdesk-attempt-1',
+      title:'Water leakage',description:'Water leakage near kitchen sink',category:'Plumbing',
+      priority:'HIGH',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    const result=await service.createMine(existing.societyId,existing.createdById,{
+      unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:'  Water leakage  ',
+      description:existing.description,category:' Plumbing ',priority:'HIGH',
+    });
+    expect(result.id).toBe(existing.id);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a same-key replay when normalized complaint intent changes', async () => {
+    const existing = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      idempotencyKey:'resident-helpdesk-attempt-2',
+      title:'Water leakage',description:'Water leakage near kitchen sink',category:null,
+      priority:'NORMAL',status:'OPEN',assignedToId:null,resolvedAt:null,closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const tx={$queryRaw:vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([existing]),$executeRaw:vi.fn()};
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([{id:'occupancy-1'}]),$transaction:vi.fn(async(cb:(client:typeof tx)=>unknown)=>cb(tx))};
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+    await expect(service.createMine(existing.societyId,existing.createdById,{
+      unitId:existing.unitId,idempotencyKey:existing.idempotencyKey,title:existing.title,
+      description:'A different issue description',priority:'NORMAL',
+    })).rejects.toThrow('Idempotency key already used for a different complaint');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('does not expose activity history for a ticket outside resident ownership', async () => {
@@ -100,4 +144,108 @@ describe('HelpdeskService', () => {
     ).rejects.toThrow('A valid resolution code is required');
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
+
+  it('scopes resident reopen to current occupancy inside the locked transaction', async () => {
+    const tx = {$queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn()};
+    const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.reopenMine(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+      '44444444-4444-4444-4444-444444444444',
+      'The leak has returned',
+    )).rejects.toThrow('Helpdesk ticket not found');
+
+    const query = tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('"UnitOccupancy"');
+    expect(sql).toContain('uo."userId" =');
+    expect(sql).toContain('uo."active" = true');
+    expect(sql).toContain('"effectiveFrom" <= CURRENT_TIMESTAMP');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('records an audited REOPENED event for an owned resolved ticket', async () => {
+    const current = {
+      id:'44444444-4444-4444-4444-444444444444',
+      societyId:'11111111-1111-1111-1111-111111111111',
+      unitId:'33333333-3333-3333-3333-333333333333',
+      createdById:'22222222-2222-2222-2222-222222222222',
+      title:'Water leak',description:'Leak near kitchen sink',category:null,priority:'HIGH',
+      status:'RESOLVED',assignedToId:null,resolutionCode:'FIXED',closureCode:null,
+      resolvedAt:new Date(),closedAt:null,createdAt:new Date(),updatedAt:new Date(),
+    };
+    const updated = {...current,status:'IN_PROGRESS',resolutionCode:null,resolvedAt:null};
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([current]).mockResolvedValueOnce([updated]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = {$transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))};
+    const service = new HelpdeskService(prisma as unknown as PrismaService);
+
+    const result = await service.reopenMine(current.societyId,current.createdById,current.id,'The leak has returned');
+    expect(result.status).toBe('IN_PROGRESS');
+    const activity = tx.$executeRaw.mock.calls[0][0] as { strings: readonly string[] };
+    expect(activity.strings.join(' ')).toContain("'REOPENED'");
+  });
+  it('returns success for an exact resident comment same-key replay without a second activity', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Please update me'}]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    const result=await service.addComment(societyId,userId,ticketId,'  Please update me  ',false,'resident-comment-attempt-1');
+
+    expect(result).toEqual({ok:true});
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects a resident comment same-key replay when ticket or normalized message changes', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ticketId,type:'COMMENT',message:'Original update'}]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $transaction:vi.fn(async(callback:(client:typeof tx)=>unknown)=>callback(tx)),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.addComment(
+      societyId,userId,ticketId,'Different update',false,'resident-comment-attempt-2',
+    )).rejects.toThrow('Idempotency key already used for a different helpdesk comment');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('keeps reviewer comments backward-compatible without resident idempotency keys', async () => {
+    const societyId='11111111-1111-1111-1111-111111111111';
+    const userId='22222222-2222-2222-2222-222222222222';
+    const ticketId='44444444-4444-4444-4444-444444444444';
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:ticketId}]),
+      $executeRaw:vi.fn().mockResolvedValue(1),
+    };
+    const service=new HelpdeskService(prisma as unknown as PrismaService);
+
+    await expect(service.addComment(societyId,userId,ticketId,'Reviewer update',true)).resolves.toEqual({ok:true});
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
 });

@@ -19,6 +19,10 @@ function sqlValues(call: unknown): unknown[] {
   return (call as { values?: unknown[] }).values ?? [];
 }
 
+function sqlText(call: unknown): string {
+  return ((call as { strings?: readonly string[] }).strings ?? []).join('?');
+}
+
 const userId = '11111111-1111-1111-1111-111111111111';
 const unitId = '22222222-2222-2222-2222-222222222222';
 const offeringId = '33333333-3333-3333-3333-333333333333';
@@ -35,6 +39,23 @@ describe('ConsumerServiceLocationService', () => {
     const values = sqlValues(prisma.$queryRaw.mock.calls[0][0]);
     expect(values).toContain(userId);
     expect(values).toContain(unitId);
+  });
+
+  it('requires verified ownership when exposing society-unit service locations', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValue([]);
+
+    await service.listLocations(userId);
+    const listSql = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(listSql).toContain('ow."verified" = true');
+
+    prisma.$queryRaw.mockClear();
+    prisma.$queryRaw.mockResolvedValue([]);
+    await expect(service.resolveLocation(userId, 'SOCIETY_UNIT', unitId)).rejects.toThrow(
+      'Service-ready society unit not found',
+    );
+    const resolveSql = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(resolveSql).toContain('ow."verified" = true');
   });
 
   it('uses the resolved postal code when filtering serviceable offerings', async () => {

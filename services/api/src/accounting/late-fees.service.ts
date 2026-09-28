@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +19,7 @@ type Candidate = {
   incomeAccountId: string;
   fundId: string | null;
   receivableNumber: string;
+  dueDate: Date;
   lateFeeMode: 'FIXED' | 'PERCENTAGE';
   lateFeeFixedPaise: bigint | null;
   lateFeeBasisPoints: number | null;
@@ -40,6 +42,7 @@ export class LateFeesService {
       assessments: candidates.map((row) => ({
         receivableId: row.receivableId,
         receivableNumber: row.receivableNumber,
+        dueDate: row.dueDate,
         baseOutstandingPaise: row.baseOutstandingPaise.toString(),
         feePaise: this.calculateFee(row).toString(),
         lateFeeMode: row.lateFeeMode,
@@ -52,18 +55,26 @@ export class LateFeesService {
     const prefix = input.journalPrefix.trim().toUpperCase();
     if (!key) throw new BadRequestException('Idempotency key is required');
     if (!prefix) throw new BadRequestException('Journal prefix is required');
+    const asOfDate=input.asOfDate.slice(0,10);
+    const entryDate=input.entryDate.slice(0,10);
+    const requestHash=createHash('sha256').update(JSON.stringify({userId,asOfDate,entryDate,journalPrefix:prefix})).digest('hex');
 
     return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.$queryRaw<Array<{ id: string; status: string }>>(Prisma.sql`
-        SELECT "id", "status" FROM "LateFeeBatch"
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
+      const existing = await tx.$queryRaw<Array<{ id: string; status: string; requestHash:string|null }>>(Prisma.sql`
+        SELECT "id", "status", "requestHash" FROM "LateFeeBatch"
         WHERE "societyId" = ${societyId}::uuid AND "idempotencyKey" = ${key}
-        LIMIT 1 FOR UPDATE
+        LIMIT 1
       `);
-      if (existing.length) return this.getBatch(tx, societyId, existing[0].id);
+      if (existing.length) {
+        if(!existing[0].requestHash) throw new ConflictException('Legacy late-fee idempotency key cannot be replayed safely; use a new key');
+        if(existing[0].requestHash!==requestHash) throw new ConflictException('Idempotency key was already used for a different late-fee request');
+        return this.getBatch(tx, societyId, existing[0].id);
+      }
 
       const periods = await tx.$queryRaw<Array<{ id: string; status: string }>>(Prisma.sql`
         SELECT "id", "status" FROM "AccountingPeriod"
-        WHERE "societyId" = ${societyId}::uuid AND ${input.entryDate}::date BETWEEN "startsOn" AND "endsOn"
+        WHERE "societyId" = ${societyId}::uuid AND ${entryDate}::date BETWEEN "startsOn" AND "endsOn"
         ORDER BY "startsOn" DESC LIMIT 1 FOR UPDATE
       `);
       if (!periods.length || periods[0].status !== 'OPEN') {
@@ -71,12 +82,12 @@ export class LateFeesService {
       }
 
       const batchRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        INSERT INTO "LateFeeBatch" ("societyId", "asOfDate", "idempotencyKey", "status", "createdByUserId")
-        VALUES (${societyId}::uuid, ${input.asOfDate}::date, ${key}, 'PREVIEWED', ${userId}::uuid)
+        INSERT INTO "LateFeeBatch" ("societyId", "asOfDate", "idempotencyKey", "requestHash", "status", "createdByUserId")
+        VALUES (${societyId}::uuid, ${asOfDate}::date, ${key}, ${requestHash}, 'PREVIEWED', ${userId}::uuid)
         RETURNING "id"
       `);
       const batchId = batchRows[0].id;
-      const candidates = await this.loadCandidates(tx, societyId, input.asOfDate);
+      const candidates = await this.loadCandidates(tx, societyId, asOfDate);
 
       let sequence = 1;
       for (const row of candidates) {
@@ -90,7 +101,7 @@ export class LateFeesService {
             "societyId", "periodId", "entryNumber", "entryDate", "description", "status",
             "sourceType", "sourceId", "createdByUserId", "postedByUserId", "postedAt"
           ) VALUES (
-            ${societyId}::uuid, ${periods[0].id}::uuid, ${journalNumber}, ${input.entryDate}::date,
+            ${societyId}::uuid, ${periods[0].id}::uuid, ${journalNumber}, ${entryDate}::date,
             ${`Late fee for ${row.receivableNumber}`}, 'POSTED', 'LATE_FEE', ${`${batchId}:${row.receivableId}`},
             ${userId}::uuid, ${userId}::uuid, CURRENT_TIMESTAMP
           ) RETURNING "id"
@@ -112,7 +123,7 @@ export class LateFeesService {
             "societyId", "receivableId", "type", "amountPaise", "reason", "journalEntryId", "createdByUserId"
           ) VALUES (
             ${societyId}::uuid, ${row.receivableId}::uuid, 'DEBIT', ${fee},
-            ${`Late fee assessed as of ${input.asOfDate}`}, ${journalId}::uuid, ${userId}::uuid
+            ${`Late fee assessed as of ${asOfDate}`}, ${journalId}::uuid, ${userId}::uuid
           ) RETURNING "id"
         `);
 
@@ -122,7 +133,7 @@ export class LateFeesService {
             "baseOutstandingPaise", "feePaise", "adjustmentId", "journalEntryId"
           ) VALUES (
             ${societyId}::uuid, ${batchId}::uuid, ${row.receivableId}::uuid, ${row.chargeRuleId}::uuid,
-            ${input.asOfDate}::date, ${row.baseOutstandingPaise}, ${fee}, ${adjustmentRows[0].id}::uuid, ${journalId}::uuid
+            ${asOfDate}::date, ${row.baseOutstandingPaise}, ${fee}, ${adjustmentRows[0].id}::uuid, ${journalId}::uuid
           )
         `);
       }
@@ -166,6 +177,10 @@ export class LateFeesService {
                              FROM "ReceivableAdjustment" ra WHERE ra."societyId" = r."societyId" AND ra."receivableId" = r."id"), 0)
                  - COALESCE((SELECT SUM(x."amountPaise") FROM "ReceivableAllocation" x
                              WHERE x."societyId" = r."societyId" AND x."receivableId" = r."id"), 0)
+                 + COALESCE((SELECT SUM(rv."amountPaise")
+                             FROM "ReceivableAllocationReversal" rv
+                             JOIN "ReceivableAllocation" x ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                             WHERE rv."societyId" = r."societyId" AND x."receivableId" = r."id"), 0)
                  - COALESCE((SELECT SUM(lfa."feePaise") FROM "LateFeeAssessment" lfa
                              WHERE lfa."societyId" = r."societyId" AND lfa."receivableId" = r."id"), 0)
                )::bigint AS "baseOutstandingPaise"
@@ -174,7 +189,7 @@ export class LateFeesService {
         WHERE r."societyId" = ${societyId}::uuid AND r."status" <> 'VOID' AND cr."lateFeeMode" <> 'NONE'
           AND r."dueDate" + cr."graceDays" <= ${asOfDate}::date
       )
-      SELECT b."receivableId", b."chargeRuleId", b."unitId", b."receivableNumber", b."receivableAccountId",
+      SELECT b."receivableId", b."chargeRuleId", b."unitId", b."receivableNumber", b."dueDate", b."receivableAccountId",
              b."incomeAccountId", b."fundId", b."lateFeeMode", b."lateFeeFixedPaise", b."lateFeeBasisPoints",
              b."baseOutstandingPaise"
       FROM balances b

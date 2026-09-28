@@ -15,8 +15,4 @@ extension ResidentParcelActions on ResidentRepository {
     final value = await api.post('/api/v1/parcels/mine/$parcelId/pickup-code', const {});
     return ParcelPickupCode.fromJson(Map<String, dynamic>.from(value as Map));
   }
-
-  Future<void> confirmParcelCollection(String parcelId) async {
-    await api.patch('/api/v1/parcels/mine/$parcelId/collect');
-  }
 }

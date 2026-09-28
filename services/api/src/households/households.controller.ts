@@ -1,6 +1,6 @@
 import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { VehicleType } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { BearerGuard, AuthenticatedRequest } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -34,6 +34,7 @@ class AddEmergencyContactDto {
   @IsString() @IsNotEmpty() phone!: string;
   @IsOptional() @IsString() relation?: string;
   @IsOptional() @IsInt() @Min(1) priority?: number;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
 }
 class AddFamilyMemberDto {
   @IsString() @IsNotEmpty() name!: string;

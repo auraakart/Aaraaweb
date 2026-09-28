@@ -41,13 +41,15 @@ class ResidentParcel {
 }
 
 class ParcelPickupCode {
-  const ParcelPickupCode({required this.code, this.expiresAt});
+  const ParcelPickupCode({required this.code, this.expiresAt, this.maxAttempts});
 
   final String code;
   final DateTime? expiresAt;
+  final int? maxAttempts;
 
   factory ParcelPickupCode.fromJson(Map<String, dynamic> json) => ParcelPickupCode(
         code: json['code']?.toString() ?? '',
         expiresAt: DateTime.tryParse(json['expiresAt']?.toString() ?? ''),
+        maxAttempts: (json['maxAttempts'] as num?)?.toInt(),
       );
 }

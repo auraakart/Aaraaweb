@@ -7,12 +7,14 @@ extension EmergencyContactActions on ResidentRepository {
     required String phone,
     String? relation,
     int priority = 1,
+    required String idempotencyKey,
   }) async {
     final value = await api.post('/api/v1/households/$householdId/emergency-contacts', {
       'name': name.trim(),
       'phone': phone.trim(),
       if (relation != null && relation.trim().isNotEmpty) 'relation': relation.trim(),
       'priority': priority,
+      'idempotencyKey': idempotencyKey,
     });
     return Map<String, dynamic>.from(value as Map);
   }

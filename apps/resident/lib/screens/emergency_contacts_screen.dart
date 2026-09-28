@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../data/demo_household_state.dart';
-import '../data/emergency_contact_actions.dart';
 import '../data/resident_data_controller.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
@@ -21,18 +20,9 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   String? _error;
   bool get _demo => widget.householdId.startsWith('demo-');
 
-  Map<String, dynamic>? get _household {
-    for (final item in widget.controller.households) {
-      if (item['id']?.toString() == widget.householdId) return item;
-    }
-    return null;
-  }
-
   List<Map<String, dynamic>> get _contacts {
     if (_demo) return DemoHouseholdState.contactsFor(widget.householdId);
-    final raw = _household?['emergencyContacts'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false);
+    return widget.controller.emergencyContactsForHousehold(widget.householdId);
   }
 
   Future<void> _add() async {
@@ -53,14 +43,13 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         });
         return;
       }
-      await widget.controller.repository.addEmergencyContact(
+      await widget.controller.addEmergencyContact(
         householdId: widget.householdId,
         name: result['name'].toString(),
         phone: result['phone'].toString(),
         relation: result['relation']?.toString(),
         priority: result['priority'] as int? ?? 1,
       );
-      await widget.controller.load();
     });
   }
 
@@ -82,11 +71,10 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         DemoHouseholdState.contactsFor(widget.householdId).removeWhere((item) => item['id'] == contact['id']);
         return;
       }
-      await widget.controller.repository.deactivateEmergencyContact(
+      await widget.controller.deactivateEmergencyContact(
         householdId: widget.householdId,
         contactId: contact['id'].toString(),
       );
-      await widget.controller.load();
     });
   }
 
@@ -99,7 +87,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     try {
       await action();
     } catch (_) {
-      if (mounted) setState(() => _error = 'This contact change could not be saved. Please try again.');
+      if (mounted) setState(() => _error = 'This contact change could not be confirmed. It is safe to retry.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

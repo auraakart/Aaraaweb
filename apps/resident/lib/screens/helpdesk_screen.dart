@@ -131,6 +131,8 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
     String priority = 'NORMAL';
     String? validationMessage;
     String? voiceStatus;
+    String? submissionKey;
+    String? submissionShape;
     bool submitting = false;
     bool listening = false;
     final languageCode = AaraagateStrings.device().languageCode;
@@ -254,6 +256,16 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             });
                             return;
                           }
+                          final cleanCategory = category.text.trim();
+                          final shape = '$unitId\n$cleanTitle\n$cleanDescription\n$cleanCategory\n$priority';
+                          if (submissionKey == null || submissionShape != shape) {
+                            final stamp = DateTime.now().microsecondsSinceEpoch;
+                            final suffix = Object.hash(unitId, cleanTitle, cleanDescription, cleanCategory, priority, stamp)
+                                .toUnsigned(32)
+                                .toRadixString(36);
+                            submissionKey = 'resident-helpdesk-${stamp.toRadixString(36)}-$suffix';
+                            submissionShape = shape;
+                          }
                           setModalState(() {
                             submitting = true;
                             validationMessage = null;
@@ -261,9 +273,10 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                           try {
                             await widget.controller.repository.createHelpdeskTicket(
                               unitId: unitId,
+                              idempotencyKey: submissionKey!,
                               title: cleanTitle,
                               description: cleanDescription,
-                              category: category.text.trim(),
+                              category: cleanCategory,
                               priority: priority,
                             );
                             if (sheetContext.mounted) Navigator.pop(sheetContext, true);
@@ -271,7 +284,7 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             if (sheetContext.mounted) {
                               setModalState(() {
                                 submitting = false;
-                                validationMessage = 'Complaint could not be submitted. Check your connection and retry.';
+                                validationMessage = 'Complaint could not be confirmed. Retry will reuse this submission unless you edit the complaint.';
                               });
                             }
                           }
@@ -406,10 +419,15 @@ class _TicketDetail extends StatefulWidget {
 class _TicketDetailState extends State<_TicketDetail> {
   bool loading = true;
   bool submittingComment = false;
+  bool reopening = false;
   String? activityError;
   String? commentError;
+  String? commentSubmissionKey;
+  String? commentSubmissionShape;
+  String? reopenError;
   List<Map<String, dynamic>> activities = const [];
   final comment = TextEditingController();
+  final reopenReason = TextEditingController();
 
   @override
   void initState() {
@@ -437,6 +455,7 @@ class _TicketDetailState extends State<_TicketDetail> {
   @override
   void dispose() {
     comment.dispose();
+    reopenReason.dispose();
     super.dispose();
   }
 
@@ -446,18 +465,69 @@ class _TicketDetailState extends State<_TicketDetail> {
     final message = comment.text.trim();
     if (message.isEmpty || submittingComment) return;
 
+    if (commentSubmissionShape != message || commentSubmissionKey == null) {
+      commentSubmissionShape = message;
+      commentSubmissionKey =
+          'resident-helpdesk-comment-${DateTime.now().microsecondsSinceEpoch}-${widget.ticket['id']}';
+    }
+
     setState(() {
       submittingComment = true;
       commentError = null;
     });
     try {
-      await widget.controller.repository.addHelpdeskComment(widget.ticket['id'].toString(), message);
+      await widget.controller.repository.addHelpdeskComment(
+        widget.ticket['id'].toString(),
+        message,
+        idempotencyKey: commentSubmissionKey!,
+      );
       comment.clear();
+      commentSubmissionKey = null;
+      commentSubmissionShape = null;
       await load();
     } catch (_) {
-      if (mounted) setState(() => commentError = 'Comment could not be sent. Please retry.');
+      if (mounted) {
+        setState(() => commentError =
+            'Comment could not be confirmed. Retry will reuse this comment submission unless you edit the message.');
+      }
     } finally {
       if (mounted) setState(() => submittingComment = false);
+    }
+  }
+
+  Future<void> _reopenComplaint() async {
+    final selected = widget.controller.primaryUnitId;
+    if (selected != null && widget.ticket['unitId']?.toString() != selected) return;
+    final reason = reopenReason.text.trim();
+    if (reason.length < 3) {
+      setState(() => reopenError = 'Add a short reason so the society team knows what still needs attention.');
+      return;
+    }
+    if (reopening) return;
+    setState(() {
+      reopening = true;
+      reopenError = null;
+    });
+    try {
+      final updated = await widget.controller.repository.reopenHelpdeskTicket(
+        widget.ticket['id'].toString(),
+        reason,
+      );
+      if (!mounted) return;
+      setState(() {
+        widget.ticket.addAll(updated);
+        reopenReason.clear();
+      });
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Complaint reopened and returned to the society team.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => reopenError = 'Complaint could not be reopened. Refresh and retry.');
+    } finally {
+      if (mounted) setState(() => reopening = false);
     }
   }
 
@@ -551,6 +621,33 @@ class _TicketDetailState extends State<_TicketDetail> {
               ],
             ),
           ),
+          if (status == 'RESOLVED' || status == 'CLOSED') ...[
+            const SizedBox(height: AaraagateTokens.space6),
+            const PremiumSectionHeader(
+              title: 'Still not fixed?',
+              supportingText: 'Reopen this complaint with a short reason. Your existing history stays attached.',
+            ),
+            const SizedBox(height: AaraagateTokens.space3),
+            TextField(
+              controller: reopenReason,
+              decoration: const InputDecoration(labelText: 'Why are you reopening this complaint?'),
+              maxLength: 1000,
+              minLines: 2,
+              maxLines: 4,
+            ),
+            if (reopenError != null) ...[
+              const SizedBox(height: AaraagateTokens.space1),
+              Text(reopenError!, style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
+            ],
+            const SizedBox(height: AaraagateTokens.space3),
+            FilledButton.icon(
+              onPressed: reopening ? null : _reopenComplaint,
+              icon: reopening
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.restart_alt_rounded),
+              label: Text(reopening ? 'Reopening…' : 'Reopen complaint'),
+            ),
+          ],
           const SizedBox(height: AaraagateTokens.space6),
           const PremiumSectionHeader(
             title: 'Activity',

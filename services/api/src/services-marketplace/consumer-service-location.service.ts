@@ -110,7 +110,7 @@ export class ConsumerServiceLocationService {
           AND (o."effectiveTo" IS NULL OR o."effectiveTo" > CURRENT_TIMESTAMP)
       ) OR EXISTS (
         SELECT 1 FROM "UnitOwnership" ow
-        WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true
+        WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true AND ow."verified" = true
           AND ow."effectiveFrom" <= CURRENT_TIMESTAMP
           AND (ow."effectiveTo" IS NULL OR ow."effectiveTo" > CURRENT_TIMESTAMP)
       )
@@ -175,7 +175,7 @@ export class ConsumerServiceLocationService {
               AND (o."effectiveTo" IS NULL OR o."effectiveTo" > CURRENT_TIMESTAMP)
           ) OR EXISTS (
             SELECT 1 FROM "UnitOwnership" ow
-            WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true
+            WHERE ow."unitId" = u."id" AND ow."userId" = ${userId}::uuid AND ow."active" = true AND ow."verified" = true
               AND ow."effectiveFrom" <= CURRENT_TIMESTAMP
               AND (ow."effectiveTo" IS NULL OR ow."effectiveTo" > CURRENT_TIMESTAMP)
           )

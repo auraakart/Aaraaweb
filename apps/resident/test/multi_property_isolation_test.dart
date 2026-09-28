@@ -18,6 +18,7 @@ class _MultiPropertyRepository extends ResidentRepository {
   int bookingCalls = 0;
   int workforceCalls = 0;
   int invoiceCalls = 0;
+  int paymentCalls = 0;
 
   @override
   Future<Map<String, dynamic>> currentEntitlements() async => {
@@ -108,6 +109,15 @@ class _MultiPropertyRepository extends ResidentRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> maintenancePayments() async {
+    paymentCalls++;
+    return [
+      {'id': 'payment-a', 'invoiceId': 'invoice-a', 'amountPaise': 350000, 'status': 'CREATED', 'createdAt': '2026-09-26T08:00:00Z'},
+      {'id': 'payment-b', 'invoiceId': 'invoice-b', 'amountPaise': 420000, 'status': 'FAILED', 'createdAt': '2026-09-26T08:05:00Z'},
+    ];
+  }
+
+  @override
   Stream<Map<String, dynamic>> accessEvents() => events.stream;
 
   @override
@@ -120,6 +130,13 @@ class _MultiPropertyRepository extends ResidentRepository {
     deactivateWorkforceCalls++;
     return {'id': assignmentId};
   }
+}
+class _BillingOnlyRepository extends _MultiPropertyRepository {
+  @override
+  Future<Map<String, dynamic>> currentEntitlements() async => {
+        'productTier': 'STANDARD',
+        'enabledFeatures': ['MAINTENANCE_BILLING'],
+      };
 }
 
 void main() {
@@ -137,6 +154,7 @@ void main() {
     expect(controller.workforceLeaves.map((item) => item['id']), ['leave-a']);
     expect(controller.workforceRatings.map((item) => item['id']), ['rating-a']);
     expect(controller.maintenanceInvoices.map((item) => item['id']), ['invoice-a']);
+    expect(controller.maintenancePayments.map((item) => item['id']), ['payment-a']);
     expect(controller.notices.map((item) => item['id']), ['notice-society']);
     expect(controller.hasFeature('AMENITIES'), isTrue);
 
@@ -146,15 +164,18 @@ void main() {
     expect(repository.deactivateWorkforceCalls, 0);
 
     final initialInvoiceCalls = repository.invoiceCalls;
+    final initialPaymentCalls = repository.paymentCalls;
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-b', 'unitId': 'unit-b'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent, isNull);
     expect(repository.invoiceCalls, initialInvoiceCalls);
+    expect(repository.paymentCalls, initialPaymentCalls);
 
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-a', 'unitId': 'unit-a'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent?['invoiceId'], 'invoice-a');
     expect(repository.invoiceCalls, initialInvoiceCalls + 1);
+    expect(repository.paymentCalls, initialPaymentCalls + 1);
 
     repository.events.add({'type': 'GENERAL_NOTICE_PUBLISHED', 'noticeId': 'notice-society'});
     await Future<void>.delayed(Duration.zero);
@@ -177,6 +198,7 @@ void main() {
     expect(controller.bookings, isEmpty);
     expect(controller.workforceAssignments, isEmpty);
     expect(controller.maintenanceInvoices, isEmpty);
+    expect(controller.maintenancePayments, isEmpty);
     expect(controller.notices.map((item) => item['id']), ['notice-society']);
     expect(repository.householdCalls, 0);
     expect(repository.accessCalls, 0);
@@ -184,15 +206,32 @@ void main() {
     expect(repository.bookingCalls, 0);
     expect(repository.workforceCalls, 0);
     expect(repository.invoiceCalls, 0);
+    expect(repository.paymentCalls, 0);
 
     repository.events.add({'type': 'MAINTENANCE_DUE_ISSUED', 'invoiceId': 'invoice-a', 'unitId': 'unit-a'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent, isNull);
     expect(repository.invoiceCalls, 0);
+    expect(repository.paymentCalls, 0);
 
     repository.events.add({'type': 'GENERAL_NOTICE_PUBLISHED', 'noticeId': 'notice-society'});
     await Future<void>.delayed(Duration.zero);
     expect(controller.latestNotificationEvent?['noticeId'], 'notice-society');
+
+    controller.dispose();
+    await repository.events.close();
+  });
+
+  test('billing without PAYMENTS does not request payment history', () async {
+    final repository = _BillingOnlyRepository();
+    final controller = ResidentDataController(repository, activeUnitId: 'unit-a');
+
+    await controller.load();
+
+    expect(controller.maintenanceInvoices.map((item) => item['id']), ['invoice-a']);
+    expect(controller.maintenancePayments, isEmpty);
+    expect(repository.invoiceCalls, 1);
+    expect(repository.paymentCalls, 0);
 
     controller.dispose();
     await repository.events.close();

@@ -15,7 +15,7 @@ type ActionItem={id:string;resolutionId?:string|null;title:string;description?:s
 type Evidence={id:string;eventType:string;summary:string;createdAt:string}
 type MeetingDetail=Meeting&{minutesSummary?:string|null;agenda:Agenda[];resolutions:Resolution[];actions:ActionItem[];evidence:Evidence[]}
 
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER'])
 const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
 const iso=(v:string)=>new Date(v).toISOString()
@@ -157,7 +157,7 @@ export default function GovernancePage(){
       context={`${s.societyName??'Current society'} · ${human(s.role)}`}
       title="Governance workspace"
       description="Manage committee tenure, meetings, agenda, minutes, resolutions and action evidence without hard-coding statutory thresholds."
-      actions={<><a href="/">← Admin home</a><a href="/governance/polls">Community polls</a><a href="/governance/readiness">Readiness & closure evidence →</a></>}
+      actions={<><a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>{canManage&&<><a href="/governance/polls">Community polls</a><a href="/governance/readiness">Readiness & closure evidence →</a></>}</>}
     />
     {error&&<ErrorState title="Governance operation failed" description={error}/>}
     <ActionBar feedback={success} label="Governance workspace actions"><SecondaryButton loading={loading} disabled={busy} onClick={()=>void load()}>Refresh workspace</SecondaryButton></ActionBar>

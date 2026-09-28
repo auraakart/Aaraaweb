@@ -117,6 +117,16 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Branch-hygiene evidence is reviewed; canonical branches remain only `develop`, `staging` and `main`.
 - [ ] Real society/device/provider evidence remains external and is not inferred from repository CI.
 
+## V4.55.1 engineering evidence closure
+- [ ] API risk coverage thresholds pass for access/occupancy authority, payment availability, controlled AI and privacy surfaces.
+- [ ] Resident risk LCOV thresholds pass for property isolation, Gate, Billing, Privacy and Home Action Inbox paths.
+- [ ] Guard risk LCOV thresholds pass for offline/realtime controller behaviour and workforce boundary models.
+- [ ] API and Flutter coverage evidence artifacts are retained for the exact candidate SHA.
+- [ ] Branch hygiene evaluates squash/exact-tree integration using source-tree equivalence and safely deletes only proven-integrated branches.
+- [ ] Branches with unproven unique source remain retained for explicit review rather than automatic deletion.
+- [ ] Root, API, Admin, Resident and Guard source identities align on V4.55.1.
+- [ ] Productionization remains outside V4.55.1 evidence.
+
 ## Exit criteria
 Production promotion may proceed only when:
 - [ ] all mandatory scenarios pass or have an explicitly accepted non-blocking exception;

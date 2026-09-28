@@ -9,6 +9,7 @@ class _BillingRepository extends ResidentRepository {
   final bool denied;
   int paymentCalls = 0;
   int receiptCalls = 0;
+  final List<String> paymentAttemptKeys = <String>[];
 
   @override
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
@@ -25,6 +26,7 @@ class _BillingRepository extends ResidentRepository {
   @override
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
     paymentCalls++;
+    paymentAttemptKeys.add(idempotencyKey);
     return {'id': 'payment-1', 'providerOrderId': 'aaraagate_order_1', 'status': 'CREATED'};
   }
 
@@ -38,6 +40,21 @@ class _BillingRepository extends ResidentRepository {
   Future<Map<String, dynamic>> maintenanceReceipt(String paymentId) async {
     receiptCalls++;
     return {'receiptNumber': 'AGR-12345678', 'societyName': 'Aaraagate Heights', 'buildingName': 'A Block', 'unitNumber': '101', 'invoiceNumber': '202609-A101', 'amountPaise': 125000, 'status': 'CAPTURED'};
+  }
+}
+
+class _RetryBillingRepository extends _BillingRepository {
+  bool failFirst = true;
+
+  @override
+  Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
+    paymentCalls++;
+    paymentAttemptKeys.add(idempotencyKey);
+    if (failFirst) {
+      failFirst = false;
+      throw Exception('response lost');
+    }
+    return {'id': 'payment-1', 'providerOrderId': 'aaraagate_order_1', 'status': 'CREATED'};
   }
 }
 
@@ -70,6 +87,26 @@ void main() {
     expect(repository.paymentCalls, 1);
     expect(find.text('Secure payment order ready'), findsOneWidget);
     expect(find.textContaining('No payment is marked successful'), findsOneWidget);
+  });
+
+  testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
+    final repository = _RetryBillingRepository();
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pay securely'));
+    await tester.pumpAndSettle();
+    expect(find.text('Payment preparation failed. Nothing was charged; please retry.'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pay securely'));
+    await tester.pumpAndSettle();
+
+    expect(repository.paymentCalls, 2);
+    expect(repository.paymentAttemptKeys, hasLength(2));
+    expect(repository.paymentAttemptKeys[1], repository.paymentAttemptKeys[0]);
+    expect(find.text('Secure payment order ready'), findsOneWidget);
   });
 
   testWidgets('invoice due today remains due rather than overdue', (tester) async {
