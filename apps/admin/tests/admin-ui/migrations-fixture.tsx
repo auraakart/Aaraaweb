@@ -79,6 +79,13 @@ window.fetch=async(input,init={})=>{
     policy:{firstResponseMinutes:60,resolutionMinutes:480,escalationAfterMinutes:240,automaticEscalationEnabled:true,escalationTargetUserId:'reviewer-1',escalationTargetName:'Facility Reviewer'},
     boundary:'Readiness is descriptive; server authorization remains authoritative.',
   })
+  if(path==='/facilities/helpdesk-handoffs/ticket-1/preview') return json({
+    ticket:{id:'ticket-1',title:'Lift maintenance follow-up',status:'IN_PROGRESS',priority:'HIGH'},
+    asset:{id:'asset-1',code:'LIFT-B',name:'Tower B Lift'},activeWorkOrder:null,
+    suggested:{workType:'CORRECTIVE',priority:'HIGH',title:'Lift maintenance follow-up'},
+    blockers:[],confirmationRequired:true,mutationPerformed:false,
+    boundary:'Fixture preview only; creation requires explicit Facilities authority.',
+  })
   if(path==='/helpdesk/review/ticket-1/triage-intelligence') return json({
     ticketId:'ticket-1',property:'Tower B · B-402',asset:{id:'asset-1',code:'LIFT-B',name:'Tower B Lift'},currentCategory:'MAINTENANCE',suggestedCategory:'MAINTENANCE',
     classificationSignals:['EXISTING_CATEGORY_RETAINED'],

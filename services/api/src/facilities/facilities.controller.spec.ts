@@ -11,10 +11,12 @@ describe('FacilitiesController permission boundaries',()=>{
     expect(permissions('listAssets')).toEqual([AppPermission.FACILITIES_READ]);
     expect(permissions('listWorkOrders')).toEqual([AppPermission.FACILITIES_READ]);
     expect(permissions('listWorkOrderEvents')).toEqual([AppPermission.FACILITIES_READ]);
+    expect(permissions('previewHelpdeskHandoff')).toEqual([AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_READ]);
   });
   it('keeps facilities mutations behind FACILITIES_MANAGE',()=>{
     expect(permissions('createAsset')).toEqual([AppPermission.FACILITIES_MANAGE]);
     expect(permissions('createWorkOrder')).toEqual([AppPermission.FACILITIES_MANAGE]);
     expect(permissions('setWorkOrderStatus')).toEqual([AppPermission.FACILITIES_MANAGE]);
+    expect(permissions('createHelpdeskWorkOrder')).toEqual([AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_MANAGE]);
   });
 });

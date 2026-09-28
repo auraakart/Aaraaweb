@@ -2,6 +2,7 @@
 
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
 import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
+import { operatorConfirm } from '../../lib/operator-dialog'
 import {
   ActionBar,
   DetailPanel,
@@ -32,6 +33,7 @@ type Activity={id:string;type:string;message?:string|null;fromStatus?:string|nul
 type SlaEvent={id:string;eventType:string;fromState?:string|null;toState?:string|null;note?:string|null;actorName?:string|null;escalatedToName?:string|null;createdAt:string}
 type Readiness={ticketId:string;status:string;priority:string;assigned:boolean;computedSlaState:string;firstResponded:boolean;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;escalationLevel:number;escalated:boolean;critical:boolean;blockers:string[];nextActions:string[];policy?:{firstResponseMinutes:number;resolutionMinutes:number;escalationAfterMinutes:number;automaticEscalationEnabled:boolean;escalationTargetUserId?:string|null;escalationTargetName?:string|null}|null;boundary:string}
 type TriageIntelligence={ticketId:string;property:string;asset?:{id:string;code?:string|null;name?:string|null}|null;currentCategory?:string|null;suggestedCategory:string;classificationSignals:string[];recurring:{scope:'SAME_ASSET'|'SAME_UNIT_CATEGORY';similarLast90Days:number;sameUnitSimilarLast90Days:number;sameAssetSimilarLast90Days:number;latestSimilarAt?:string|null;recurring:boolean};assignment:{currentAssigneeId?:string|null;recommendedAssignee?:{userId:string;name:string;openTickets:number;reason:string}|null;candidates:Array<{userId:string;name:string;phone:string;openTickets:number}>};classificationApplied:false;assignmentApplied:false;predictive:false;boundary:string}
+type FacilityHandoffPreview={ticket:{id:string;title:string;status:string;priority:string};asset?:{id:string;code?:string|null;name?:string|null}|null;activeWorkOrder?:{id:string;title:string;status:string;priority:string}|null;suggested:{workType:'CORRECTIVE';priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';title:string};blockers:string[];confirmationRequired:true;mutationPerformed:false;boundary:string}
 
 const allowedRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 const statusOptions=['OPEN','IN_PROGRESS','RESOLVED','CLOSED']
@@ -45,7 +47,7 @@ export default function HelpdeskAdminPage(){
   const s=typeof window==='undefined'?null:getAdminSession()
   const allowed=!!s&&allowedRoles.has(s.role)
   const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[assets,setAssets]=useState<FacilityAsset[]>([]),[selectedId,setSelectedId]=useState('')
-  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null),[triage,setTriage]=useState<TriageIntelligence|null>(null)
+  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null),[triage,setTriage]=useState<TriageIntelligence|null>(null),[facilityHandoff,setFacilityHandoff]=useState<FacilityHandoffPreview|null>(null)
   const[queueLoading,setQueueLoading]=useState(false),[detailLoading,setDetailLoading]=useState(false),[mutationBusy,setMutationBusy]=useState(false)
   const[queueError,setQueueError]=useState(''),[detailError,setDetailError]=useState(''),[operationError,setOperationError]=useState(''),[success,setSuccess]=useState('')
   const[assignedToId,setAssignedToId]=useState(''),[assetId,setAssetId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
@@ -69,16 +71,17 @@ export default function HelpdeskAdminPage(){
 
   const loadDetail=useCallback(async(id:string)=>{if(!s||!id)return
     const requestId=++detailRequest.current
-    setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null)
+    setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setFacilityHandoff(null)
     try{
-      const[a,h,r,t]=await Promise.all([
+      const[a,h,r,t,f]=await Promise.all([
         adminApi<Activity[]>(s,`/helpdesk/review/${id}/activities`),
         adminApi<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
         adminApi<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
         adminApi<TriageIntelligence>(s,`/helpdesk/review/${id}/triage-intelligence`),
+        adminApi<FacilityHandoffPreview>(s,`/facilities/helpdesk-handoffs/${id}/preview`),
       ])
       if(requestId!==detailRequest.current)return
-      setActivities(a);setSlaHistory(h);setReadiness(r);setTriage(t)
+      setActivities(a);setSlaHistory(h);setReadiness(r);setTriage(t);setFacilityHandoff(f)
     }catch(e){
       if(requestId===detailRequest.current)setDetailError(e instanceof Error?e.message:'Helpdesk history could not be loaded')
     }finally{
@@ -87,7 +90,7 @@ export default function HelpdeskAdminPage(){
   },[s?.accessToken])
 
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{if(selectedId)void loadDetail(selectedId);else{detailRequest.current++;setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setDetailError('');setDetailLoading(false)}},[selectedId,loadDetail])
+  useEffect(()=>{if(selectedId)void loadDetail(selectedId);else{detailRequest.current++;setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setFacilityHandoff(null);setDetailError('');setDetailLoading(false)}},[selectedId,loadDetail])
   useEffect(()=>{if(!selected)return;setAssignedToId(selected.assignedToId??'');setAssetId(selected.assetId??'');setStatus(selected.status==='OPEN'?'IN_PROGRESS':selected.status);setReasonCode('');setEscalatedToId(selected.escalatedToId??'');setStatusNote('');setComment('');setInternalNote('');setReopenNote('');setEscalationNote('');setOperationError('');setSuccess('')},[selectedId,selected?.status,selected?.assignedToId,selected?.escalatedToId])
 
   const run=async(task:()=>Promise<void>,message:string)=>{setMutationBusy(true);setOperationError('');setSuccess('')
@@ -95,6 +98,8 @@ export default function HelpdeskAdminPage(){
     catch(e){setOperationError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setMutationBusy(false)}
   }
 
+  const canManageFacilities=!!s&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(s.role)
+  const createFacilityWorkOrder=async()=>{if(!s||!selected||!facilityHandoff||!canManageFacilities||facilityHandoff.blockers.length)return;const confirmed=await operatorConfirm(`Create a ${facilityHandoff.suggested.priority} corrective Facilities work order from “${selected.title}”?`);if(!confirmed)return;void run(()=>adminApi(s,`/facilities/helpdesk-handoffs/${selected.id}`,{method:'POST',body:'{}'}).then(()=>undefined),'Facilities work order created.')}
   const linkAsset=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/asset`,{method:'PATCH',body:JSON.stringify({assetId:assetId||null})}).then(()=>undefined),'Facility asset linkage updated.')}
   const assign=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/assignment`,{method:'PATCH',body:JSON.stringify({assignedToId:assignedToId||null})}).then(()=>undefined),'Assignment updated.')}
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
@@ -190,6 +195,18 @@ export default function HelpdeskAdminPage(){
               {id:'automation',label:'Automatic mutation',value:'None'},
             ]}/>}
           />}
+
+          {facilityHandoff&&<DetailPanel title="Facilities handoff">
+            <EvidenceGrid items={[
+              {id:'handoff-source',label:'Source ticket',value:facilityHandoff.ticket.title},
+              {id:'handoff-asset',label:'Facility asset',value:facilityHandoff.asset?`${facilityHandoff.asset.code??''} · ${facilityHandoff.asset.name??''}`:'No asset linked'},
+              {id:'handoff-priority',label:'Suggested work priority',value:facilityHandoff.suggested.priority},
+              {id:'handoff-active',label:'Active work order',value:facilityHandoff.activeWorkOrder?`${facilityHandoff.activeWorkOrder.priority} · ${facilityHandoff.activeWorkOrder.title} · ${facilityHandoff.activeWorkOrder.status}`:'None'},
+            ]}/>
+            {facilityHandoff.blockers.length>0&&<><h4>Blockers</h4><ul>{facilityHandoff.blockers.map(blocker=><li key={blocker}>{human(blocker)}</li>)}</ul></>}
+            <p>{facilityHandoff.boundary}</p>
+            {canManageFacilities&&facilityHandoff.blockers.length===0&&<ActionBar feedback={success}><PrimaryButton loading={mutationBusy} onClick={()=>void createFacilityWorkOrder()}>Create corrective work order</PrimaryButton></ActionBar>}
+          </DetailPanel>}
 
           <ReadinessPanel
             title="Service-recovery readiness"
