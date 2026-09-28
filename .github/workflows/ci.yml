@@ -213,6 +213,8 @@ jobs:
         run: node scripts/check-v4.73-amenity-participation-policy.mjs
       - name: Check V4.74 amenity blackout convergence
         run: node scripts/check-v4.74-amenity-blackout-convergence.mjs
+      - name: Check V4.75 portfolio outcome depth
+        run: node scripts/check-v4.75-portfolio-outcome-depth.mjs
       - name: Check required merge-gate orchestration
         run: node scripts/check-required-merge-gates.mjs
       - name: Check lightweight pilot and evidence contracts
