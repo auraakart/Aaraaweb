@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.67.0 Helpdesk Comment Retry Safety Release Closure on top of V4.66.0 Helpdesk Submission Recovery and V4.65.0 Household & AutoPay Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.68.0 Emergency Contact Mutation Recovery Release Closure on top of V4.67.0 Helpdesk Comment Retry Safety and V4.66.0 Helpdesk Submission Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -79,7 +79,7 @@ V4.66.0 closes Resident Helpdesk submission recovery as a repository release can
 
 V4.67.0 closes Resident Helpdesk comment retry safety as a repository release candidate. Resident comments carry a request-bound idempotency key, same-key attempts are serialized per society/resident, exact ticket/message replays return success without another COMMENT activity, and mismatched replays fail closed. The Resident client reuses the key only while normalized comment text is unchanged. Reviewer comments retain the existing HELPDESK_REVIEW path without a resident retry key. Existing ticket ownership, activity visibility, internal-note privacy and workflow authority remain unchanged. Release identity is aligned to V4.67.0 across root/API/Admin and V4.67.0+46700 across Resident/Guard; staging/main promotion remains separate.
 
-V4.68 development starts by hardening Resident emergency-contact add/remove flows against ambiguous network outcomes. New contact creation carries a household-scoped request identity, same-key attempts are serialized and bound to normalized contact intent, the Resident controller retains that identity across ambiguous retries and reconciles against authoritative household state, and scoped contact deactivation is idempotent when a prior attempt already committed. Emergency contacts remain household information only and do not confer residency, occupancy or gate-approval authority. Release identity remains V4.67.0 until V4.68 is explicitly closed.
+V4.68.0 closes Resident emergency-contact add/remove recovery as a repository release candidate. New contact creation carries a household-scoped request identity, same-key attempts are serialized and bound to normalized contact intent, the Resident controller retains that identity across ambiguous retries and reconciles against authoritative household state, and scoped contact deactivation is idempotent when a prior attempt already committed. API replay matching now aligns with the Resident retry identity across case-only name/relation changes and phone formatting differences. Emergency contacts remain household information only and do not confer residency, occupancy or gate-approval authority. Release identity is aligned to V4.68.0 across root/API/Admin and V4.68.0+46800 across Resident/Guard; staging/main promotion remains separate.
 
 ## External evidence boundary
 

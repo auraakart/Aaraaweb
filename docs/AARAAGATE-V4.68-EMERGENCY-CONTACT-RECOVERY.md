@@ -1,7 +1,7 @@
 # Aaraagate V4.68 — Emergency Contact Mutation Recovery
 
 Date: 2026-09-28
-Status: Development started on develop; release identity remains 4.67.0.
+Status: Repository release candidate closed on develop; release identity is 4.68.0.
 
 ## Slice 1 — Emergency contact retry safety
 
@@ -19,4 +19,4 @@ Historical EmergencyContact rows remain valid because the new idempotency key is
 
 ## Boundary
 
-Emergency contacts remain household information only. This slice does not create resident membership, occupancy, gate-approval authority or new administrative permissions. Release identity remains 4.67.0 until V4.68 is explicitly closed. Staging/main promotion and production/external acceptance remain separate.
+Emergency contacts remain household information only. This release does not create resident membership, occupancy, gate-approval authority or new administrative permissions. Repository release truth is closed on `develop`; staging/main promotion and production/external acceptance remain separate.

@@ -55,9 +55,24 @@ must('V4.68 Resident regression',read('apps/resident/test/emergency_contact_reco
   'expect(api.addKeys[1], api.addKeys[0])',
   'accepts authoritative absence after a lost response'
 ]);
-must('V4.68 development truth',read('docs/AARAAGATE-V4.68-EMERGENCY-CONTACT-RECOVERY.md'),[
-  'release identity remains 4.67.0',
+const root=JSON.parse(read('package.json'));
+const api=JSON.parse(read('services/api/package.json'));
+const admin=JSON.parse(read('apps/admin/package.json'));
+if(root.version!=='4.68.0'||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must be V4.68.0.');
+  process.exit(1);
+}
+for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){
+  must(pubspec,read(pubspec),['version: 4.68.0+46800']);
+}
+must('V4.68 release truth',read('docs/AARAAGATE-V4.68-EMERGENCY-CONTACT-RECOVERY.md'),[
+  'release identity is 4.68.0',
   'Emergency contacts remain household information only.',
   'does not create resident membership'
 ]);
-console.log('V4.68 emergency-contact mutation recovery development contract: PASS');
+must('V4.68 closure',read('docs/AARAAGATE-V4.68-RELEASE-CLOSURE.md'),[
+  'root/API/Admin: `4.68.0`',
+  'Resident/Guard: `4.68.0+46800`',
+  'Repository release truth is closed on `develop` only.'
+]);
+console.log('V4.68 emergency-contact mutation recovery release contract: PASS');
