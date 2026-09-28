@@ -23,6 +23,7 @@ type TicketRow = {
   priority: TicketPriority;
   status: TicketStatus;
   assignedToId: string | null;
+  assetId?: string | null;
   resolutionCode?: ResolutionCode | null;
   closureCode?: ClosureCode | null;
   resolvedAt: Date | null;
@@ -128,13 +129,15 @@ export class HelpdeskService {
   listReview(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT ht.*, u."number" AS "unitNumber", b."name" AS "buildingName", creator."name" AS "createdByName",
-             assignee."name" AS "assignedToName", escalated."name" AS "escalatedToName"
+             assignee."name" AS "assignedToName", escalated."name" AS "escalatedToName",
+             asset."code" AS "assetCode", asset."name" AS "assetName"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id" = ht."unitId"
       JOIN "Building" b ON b."id" = u."buildingId"
       JOIN "User" creator ON creator."id" = ht."createdById"
       LEFT JOIN "User" assignee ON assignee."id" = ht."assignedToId"
       LEFT JOIN "User" escalated ON escalated."id" = ht."escalatedToId"
+      LEFT JOIN "FacilityAsset" asset ON asset."id"=ht."assetId" AND asset."societyId"=ht."societyId"
       WHERE ht."societyId" = ${societyId}::uuid
         AND u."societyId" = ${societyId}::uuid
       ORDER BY CASE ht."priority" WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
@@ -152,12 +155,58 @@ export class HelpdeskService {
     `);
   }
 
+  reviewAssets(societyId:string){
+    return this.prisma.$queryRaw<Array<{id:string;code:string;name:string;category:string;location:string|null;status:string}>>(Prisma.sql`
+      SELECT "id","code","name","category","location","status"
+      FROM "FacilityAsset"
+      WHERE "societyId"=${societyId}::uuid AND "status"<>'RETIRED'
+      ORDER BY CASE "status" WHEN 'ACTIVE' THEN 0 ELSE 1 END,"name"
+      LIMIT 500
+    `);
+  }
+
+  async linkAsset(societyId:string,actorUserId:string,ticketId:string,assetId:string|null){
+    return this.prisma.$transaction(async tx=>{
+      const [ticket]=await tx.$queryRaw<Array<{id:string;status:string;assetId:string|null}>>(Prisma.sql`
+        SELECT "id","status","assetId" FROM "HelpdeskTicket"
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if(!ticket) throw new NotFoundException('Helpdesk ticket not found');
+      if(ticket.status==='CLOSED') throw new BadRequestException('Closed tickets cannot change facility asset linkage');
+      let assetLabel:string|null=null;
+      if(assetId){
+        const [asset]=await tx.$queryRaw<Array<{id:string;code:string;name:string}>>(Prisma.sql`
+          SELECT "id","code","name" FROM "FacilityAsset"
+          WHERE "id"=${assetId}::uuid AND "societyId"=${societyId}::uuid AND "status"<>'RETIRED'
+          LIMIT 1
+        `);
+        if(!asset) throw new BadRequestException('Active or out-of-service facility asset not found');
+        assetLabel=`${asset.code} · ${asset.name}`;
+      }
+      const [updated]=await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        UPDATE "HelpdeskTicket"
+        SET "assetId"=${assetId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid
+        RETURNING *
+      `);
+      if((ticket.assetId??null)!==(assetId??null)){
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message")
+          VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,${assetId?'ASSET_LINKED':'ASSET_UNLINKED'},${assetLabel})
+        `);
+      }
+      return updated;
+    });
+  }
+
   async triageIntelligence(societyId:string,ticketId:string){
-    const [ticket]=await this.prisma.$queryRaw<Array<TicketRow & {unitNumber:string;buildingName:string}>>(Prisma.sql`
-      SELECT ht.*,u."number" AS "unitNumber",b."name" AS "buildingName"
+    const [ticket]=await this.prisma.$queryRaw<Array<TicketRow & {unitNumber:string;buildingName:string;assetCode:string|null;assetName:string|null}>>(Prisma.sql`
+      SELECT ht.*,u."number" AS "unitNumber",b."name" AS "buildingName",asset."code" AS "assetCode",asset."name" AS "assetName"
       FROM "HelpdeskTicket" ht
       JOIN "Unit" u ON u."id"=ht."unitId" AND u."societyId"=ht."societyId"
       JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=ht."societyId"
+      LEFT JOIN "FacilityAsset" asset ON asset."id"=ht."assetId" AND asset."societyId"=ht."societyId"
       WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid
       LIMIT 1
     `);
@@ -171,12 +220,18 @@ export class HelpdeskService {
         FROM "HelpdeskTicket"
         WHERE "societyId"=${societyId}::uuid
           AND "id"<>${ticketId}::uuid
-          AND "unitId"=${ticket.unitId}::uuid
           AND "createdAt">=CURRENT_TIMESTAMP-INTERVAL '90 days'
           AND (
-            (${ticket.category}::text IS NOT NULL AND LOWER(TRIM(COALESCE("category",'')))=LOWER(TRIM(${ticket.category})))
-            OR
-            (${ticket.category}::text IS NULL AND LOWER(TRIM("title"))=LOWER(TRIM(${ticket.title})))
+            (${ticket.assetId??null}::uuid IS NOT NULL AND "assetId"=${ticket.assetId??null}::uuid)
+            OR (
+              ${ticket.assetId??null}::uuid IS NULL
+              AND "unitId"=${ticket.unitId}::uuid
+              AND (
+                (${ticket.category}::text IS NOT NULL AND LOWER(TRIM(COALESCE("category",'')))=LOWER(TRIM(${ticket.category})))
+                OR
+                (${ticket.category}::text IS NULL AND LOWER(TRIM("title"))=LOWER(TRIM(${ticket.title})))
+              )
+            )
           )
       `),
       this.prisma.$queryRaw<Array<{userId:string;name:string;phone:string;openTickets:number}>>(Prisma.sql`
@@ -206,11 +261,15 @@ export class HelpdeskService {
     return {
       ticketId:ticket.id,
       property:`${ticket.buildingName} · ${ticket.unitNumber}`,
+      asset:ticket.assetId?{id:ticket.assetId,code:ticket.assetCode,name:ticket.assetName}:null,
       currentCategory:ticket.category,
       suggestedCategory,
       classificationSignals:ticket.category?['EXISTING_CATEGORY_RETAINED']:classification.matchedTerms,
       recurring:{
-        sameUnitSimilarLast90Days:recurrence.recurringCount,
+        scope:ticket.assetId?'SAME_ASSET':'SAME_UNIT_CATEGORY',
+        similarLast90Days:recurrence.recurringCount,
+        sameUnitSimilarLast90Days:ticket.assetId?0:recurrence.recurringCount,
+        sameAssetSimilarLast90Days:ticket.assetId?recurrence.recurringCount:0,
         latestSimilarAt:recurrence.latestSimilarAt,
         recurring:recurrence.recurringCount>0,
       },
