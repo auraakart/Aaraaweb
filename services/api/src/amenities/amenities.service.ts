@@ -43,6 +43,13 @@ type AmenityBookingRules = {
   pricingBands?: AmenityPricingBand[];
 };
 
+type AmenityBlackoutWindow = {
+  start:string;
+  end:string;
+  reason?:string;
+  kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';
+};
+
 type AmenityUpdateInput = {
   name: string;
   description?: string | null;
@@ -146,6 +153,7 @@ export class AmenitiesService {
 
       const rules = this.parseBookingRules(amenity.bookingRules);
       this.validateGuestCount(rules, guestCount);
+      this.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
       const minutesUntilStart = (startsAt.getTime() - now) / 60000;
       if (rules.minAdvanceMinutes !== undefined && minutesUntilStart < rules.minAdvanceMinutes) {
         throw new BadRequestException(`Amenity must be booked at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -307,6 +315,7 @@ export class AmenitiesService {
       const rules=this.parseBookingRules(amenity.bookingRules);
       const guestCount=input.guestCount??0;
       this.validateGuestCount(rules,guestCount);
+      this.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
       const minutesUntilStart=(startsAt.getTime()-now)/60000;
       if(rules.minAdvanceMinutes!==undefined&&minutesUntilStart<rules.minAdvanceMinutes){
         throw new BadRequestException(`Amenity must be joined at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -622,6 +631,88 @@ export class AmenitiesService {
     };
   }
 
+  async previewBlackout(
+    societyId:string,
+    amenityId:string,
+    input:{startsAt:string;endsAt:string;kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';reason:string},
+  ){
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      return this.blackoutAssessment(tx,societyId,amenityId,input);
+    });
+  }
+
+  async applyBlackout(
+    societyId:string,
+    amenityId:string,
+    input:{startsAt:string;endsAt:string;kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';reason:string},
+  ){
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const assessment=await this.blackoutAssessment(tx,societyId,amenityId,input);
+      if(assessment.impactedBookings.length||assessment.impactedWaitlist.length){
+        throw new ConflictException(`Resolve ${assessment.impactedBookings.length} active booking(s) and ${assessment.impactedWaitlist.length} waitlist entry/entries before applying this blackout`);
+      }
+      const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
+        SELECT "schedule" FROM "Amenity"
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `;
+      if(!amenity) throw new NotFoundException('Amenity not found');
+      const schedule=this.scheduleObject(amenity.schedule);
+      const blackouts=this.scheduleBlackouts(schedule);
+      const newWindow: AmenityBlackoutWindow = {
+        start:assessment.blackout.start,
+        end:assessment.blackout.end,
+        kind:assessment.blackout.kind,
+        reason:assessment.blackout.reason,
+      };
+      const nextSchedule={...schedule,blackouts:[...blackouts,newWindow]};
+      await tx.$executeRaw`
+        UPDATE "Amenity" SET "schedule"=${JSON.stringify(nextSchedule)}::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+      `;
+      return {
+        blackout:newWindow,
+        impactedBookings:[],
+        impactedWaitlist:[],
+        automaticCancellation:false,
+        boundary:'Blackout was added only after impact revalidation. Existing reservation lifecycles are never mutated automatically.',
+      };
+    });
+  }
+
+  async removeBlackout(
+    societyId:string,
+    amenityId:string,
+    input:{startsAt:string;endsAt:string},
+  ){
+    const startsAt=new Date(input.startsAt),endsAt=new Date(input.endsAt);
+    if(!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime())||startsAt>=endsAt){
+      throw new BadRequestException('A valid blackout window is required');
+    }
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
+        SELECT "schedule" FROM "Amenity"
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `;
+      if(!amenity) throw new NotFoundException('Amenity not found');
+      const schedule=this.scheduleObject(amenity.schedule);
+      const blackouts=this.scheduleBlackouts(schedule);
+      const startIso=startsAt.toISOString(),endIso=endsAt.toISOString();
+      const next=blackouts.filter(item=>new Date(item.start).toISOString()!==startIso||new Date(item.end).toISOString()!==endIso);
+      if(next.length===blackouts.length) throw new NotFoundException('Amenity blackout not found');
+      const nextSchedule={...schedule,blackouts:next};
+      await tx.$executeRaw`
+        UPDATE "Amenity" SET "schedule"=${JSON.stringify(nextSchedule)}::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+      `;
+      return {removed:true,start:startIso,end:endIso,automaticPromotion:false};
+    });
+  }
+
   async listManage(societyId: string) {
     return this.prisma.$queryRaw<AmenityRow[]>`
       SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
@@ -807,6 +898,7 @@ export class AmenitiesService {
     `;
     const amenity=amenities[0];
     if(!amenity) return null;
+    if(this.findScheduleBlackout(amenity.schedule,startsAt,endsAt)) return null;
     const rules=this.parseBookingRules(amenity.bookingRules);
     const overlaps=await tx.$queryRaw<CountRow[]>`
       SELECT COUNT(*)::int AS "count"
@@ -911,6 +1003,95 @@ export class AmenitiesService {
       conflictGroup: this.optionalConflictGroup(source.conflictGroup),
       pricingBands: this.parsePricingBands(source.pricingBands),
     };
+  }
+
+  private async blackoutAssessment(
+    tx:Prisma.TransactionClient,
+    societyId:string,
+    amenityId:string,
+    input:{startsAt:string;endsAt:string;kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';reason:string},
+  ){
+    const startsAt=new Date(input.startsAt),endsAt=new Date(input.endsAt);
+    if(!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime())||startsAt>=endsAt){
+      throw new BadRequestException('A valid blackout window is required');
+    }
+    if(endsAt.getTime()<=Date.now()) throw new BadRequestException('Amenity blackout must end in the future');
+    const reason=input.reason.trim();
+    if(reason.length<3) throw new BadRequestException('Blackout reason must contain at least 3 characters');
+    const kind=input.kind??'MAINTENANCE';
+    const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
+      SELECT "schedule" FROM "Amenity"
+      WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+      LIMIT 1
+    `;
+    if(!amenity) throw new NotFoundException('Amenity not found');
+    if(this.findScheduleBlackout(amenity.schedule,startsAt,endsAt)){
+      throw new ConflictException('Amenity already has an overlapping configured blackout');
+    }
+    const impactedBookings=await tx.$queryRaw<Array<{id:string;unitNumber:string;buildingName:string;status:string;startsAt:Date;endsAt:Date}>>`
+      SELECT b."id",u."number" AS "unitNumber",bd."name" AS "buildingName",b."status"::text AS "status",b."startsAt",b."endsAt"
+      FROM "AmenityBooking" b
+      JOIN "Unit" u ON u."id"=b."unitId" AND u."societyId"=b."societyId"
+      JOIN "Building" bd ON bd."id"=u."buildingId" AND bd."societyId"=u."societyId"
+      WHERE b."societyId"=${societyId}::uuid AND b."amenityId"=${amenityId}::uuid
+        AND b."status" IN ('PENDING','CONFIRMED','CHECKED_IN')
+        AND b."startsAt"<${endsAt} AND b."endsAt">${startsAt}
+      ORDER BY b."startsAt" ASC
+    `;
+    const impactedWaitlist=await tx.$queryRaw<Array<{id:string;unitNumber:string;startsAt:Date;endsAt:Date}>>`
+      SELECT w."id",u."number" AS "unitNumber",w."startsAt",w."endsAt"
+      FROM "AmenityWaitlistEntry" w
+      JOIN "Unit" u ON u."id"=w."unitId" AND u."societyId"=w."societyId"
+      WHERE w."societyId"=${societyId}::uuid AND w."amenityId"=${amenityId}::uuid
+        AND w."status"='WAITING'
+        AND w."startsAt"<${endsAt} AND w."endsAt">${startsAt}
+      ORDER BY w."startsAt" ASC,w."joinedAt" ASC
+    `;
+    return {
+      blackout:{start:startsAt.toISOString(),end:endsAt.toISOString(),kind,reason},
+      impactedBookings,
+      impactedWaitlist,
+      canApply:impactedBookings.length===0&&impactedWaitlist.length===0,
+      mutationPerformed:false,
+      automaticCancellation:false,
+      boundary:'Preview only. Resolve overlapping bookings and waitlist entries explicitly before applying the blackout.',
+    };
+  }
+
+  private scheduleObject(value:unknown):Record<string,unknown>{
+    if(!value||typeof value!=='object'||Array.isArray(value)) return {};
+    return value as Record<string,unknown>;
+  }
+
+  private scheduleBlackouts(value:unknown):AmenityBlackoutWindow[]{
+    const source=this.scheduleObject(value);
+    const raw=source.blackouts;
+    if(!Array.isArray(raw)) return [];
+    return raw.flatMap(item=>{
+      if(!item||typeof item!=='object'||Array.isArray(item)) return [];
+      const candidate=item as Record<string,unknown>;
+      if(typeof candidate.start!=='string'||typeof candidate.end!=='string') return [];
+      const start=new Date(candidate.start),end=new Date(candidate.end);
+      if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||start>=end) return [];
+      const kind=typeof candidate.kind==='string'&&['MAINTENANCE','CLOSURE','PRIVATE_EVENT'].includes(candidate.kind)
+        ? candidate.kind as AmenityBlackoutWindow['kind']
+        : 'MAINTENANCE';
+      return [{start:start.toISOString(),end:end.toISOString(),reason:typeof candidate.reason==='string'?candidate.reason:undefined,kind}];
+    });
+  }
+
+  private findScheduleBlackout(schedule:unknown,startsAt:Date,endsAt:Date){
+    return this.scheduleBlackouts(schedule).find(item=>{
+      const start=new Date(item.start),end=new Date(item.end);
+      return startsAt<end&&endsAt>start;
+    })??null;
+  }
+
+  private assertScheduleWindowOpen(schedule:unknown,startsAt:Date,endsAt:Date){
+    const blackout=this.findScheduleBlackout(schedule,startsAt,endsAt);
+    if(blackout){
+      throw new ConflictException(`Amenity is unavailable during the configured ${(blackout.kind??'MAINTENANCE').toLowerCase().replaceAll('_',' ')} window`);
+    }
   }
 
   private validateGuestCount(rules:AmenityBookingRules,guestCount:number){

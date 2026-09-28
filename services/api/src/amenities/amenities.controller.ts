@@ -55,6 +55,18 @@ class JoinAmenityWaitlistDto {
   @IsOptional() @IsInt() @Min(0) @Max(50) guestCount?: number;
 }
 
+class AmenityBlackoutDto {
+  @IsDateString() startsAt!:string;
+  @IsDateString() endsAt!:string;
+  @IsOptional() @IsString() @Matches(/^(MAINTENANCE|CLOSURE|PRIVATE_EVENT)$/) kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';
+  @IsString() @MinLength(3) @MaxLength(200) reason!:string;
+}
+
+class RemoveAmenityBlackoutDto {
+  @IsDateString() startsAt!:string;
+  @IsDateString() endsAt!:string;
+}
+
 class RevokeAmenityBookingDto {
   @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
@@ -165,6 +177,36 @@ export class AmenitiesController {
     @Param('bookingId', ParseUUIDPipe) bookingId: string,
   ) {
     return this.amenities.cancelMine(societyId, this.requireUser(userId), bookingId);
+  }
+
+  @Post('manage/:amenityId/blackouts/preview')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  previewBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:AmenityBlackoutDto,
+  ){
+    return this.amenities.previewBlackout(societyId,amenityId,dto);
+  }
+
+  @Post('manage/:amenityId/blackouts')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  applyBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:AmenityBlackoutDto,
+  ){
+    return this.amenities.applyBlackout(societyId,amenityId,dto);
+  }
+
+  @Patch('manage/:amenityId/blackouts/remove')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  removeBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:RemoveAmenityBlackoutDto,
+  ){
+    return this.amenities.removeBlackout(societyId,amenityId,dto);
   }
 
   @Get('manage/analytics')
