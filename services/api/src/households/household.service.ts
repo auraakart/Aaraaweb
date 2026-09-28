@@ -264,11 +264,11 @@ export class HouseholdService {
         where: { societyId, householdId, idempotencyKey },
       });
       if (existing) {
-        const sameIntent =
-          existing.name === name &&
-          existing.phone === phone &&
-          (existing.relation ?? null) === relation &&
-          existing.priority === priority;
+        const sameName = existing.name.trim().toLowerCase() === name.toLowerCase();
+        const samePhone = existing.phone.replace(/\D/g, '') === phone.replace(/\D/g, '');
+        const sameRelation =
+          (existing.relation?.trim().toLowerCase() ?? null) === (relation?.toLowerCase() ?? null);
+        const sameIntent = sameName && samePhone && sameRelation && existing.priority === priority;
         if (!sameIntent) {
           throw new ConflictException('Idempotency key already used for a different emergency contact');
         }
