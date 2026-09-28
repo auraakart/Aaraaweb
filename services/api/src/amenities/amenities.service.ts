@@ -38,6 +38,9 @@ type AmenityBookingRules = {
   cancellationCutoffMinutes?: number;
   checkInOpenMinutesBefore?: number;
   noShowGraceMinutes?: number;
+  noShowRestrictionCount?: number;
+  noShowLookbackDays?: number;
+  noShowBlockDays?: number;
   maxGuestsPerBooking?: number;
   conflictGroup?: string;
   pricingBands?: AmenityPricingBand[];
@@ -157,6 +160,7 @@ export class AmenitiesService {
       const rules = this.parseBookingRules(amenity.bookingRules);
       this.validateGuestCount(rules, guestCount);
       this.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
+      await this.assertNoShowEligibility(tx,societyId,amenityId,userId,rules);
       const minutesUntilStart = (startsAt.getTime() - now) / 60000;
       if (rules.minAdvanceMinutes !== undefined && minutesUntilStart < rules.minAdvanceMinutes) {
         throw new BadRequestException(`Amenity must be booked at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -319,6 +323,7 @@ export class AmenitiesService {
       const guestCount=input.guestCount??0;
       this.validateGuestCount(rules,guestCount);
       this.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
+      await this.assertNoShowEligibility(tx,societyId,amenityId,userId,rules);
       const minutesUntilStart=(startsAt.getTime()-now)/60000;
       if(rules.minAdvanceMinutes!==undefined&&minutesUntilStart<rules.minAdvanceMinutes){
         throw new BadRequestException(`Amenity must be joined at least ${rules.minAdvanceMinutes} minutes in advance`);
@@ -527,6 +532,13 @@ export class AmenitiesService {
 
   async markNoShow(societyId: string, actorUserId: string, bookingId: string, note?: string) {
     return this.prisma.$transaction(async (tx) => {
+      const identity=await tx.$queryRaw<Array<{amenityId:string}>>`
+        SELECT "amenityId" FROM "AmenityBooking"
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1
+      `;
+      if(!identity[0]) throw new NotFoundException('Amenity booking not found');
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${identity[0].amenityId}`}))`;
       const rows = await tx.$queryRaw<Array<{ startsAt: Date; status: string; bookingRules: unknown }>>`
         SELECT b."startsAt", b."status"::text AS "status", a."bookingRules"
         FROM "AmenityBooking" b
@@ -980,6 +992,22 @@ export class AmenitiesService {
         AND w."endsAt"=${endsAt}
         AND w."status"='WAITING'
         AND w."guestCount" <= ${rules.maxGuestsPerBooking ?? 0}
+        AND (
+          ${rules.noShowRestrictionCount ?? null}::int IS NULL
+          OR NOT EXISTS (
+            SELECT 1
+            FROM "AmenityBooking" ns
+            WHERE ns."societyId"=w."societyId"
+              AND ns."amenityId"=w."amenityId"
+              AND ns."userId"=w."userId"
+              AND ns."status"='NO_SHOW'
+              AND ns."noShowAt" IS NOT NULL
+              AND ns."noShowAt">=CURRENT_TIMESTAMP-(${rules.noShowLookbackDays ?? 1} * INTERVAL '1 day')
+            GROUP BY ns."userId"
+            HAVING COUNT(*)>=${rules.noShowRestrictionCount ?? 2147483647}
+              AND MAX(ns."noShowAt")+(${rules.noShowBlockDays ?? 1} * INTERVAL '1 day')>CURRENT_TIMESTAMP
+          )
+        )
         AND EXISTS (
           SELECT 1 FROM "Unit" u
           WHERE u."id"=w."unitId" AND u."societyId"=w."societyId"
@@ -1051,6 +1079,13 @@ export class AmenitiesService {
     if (value === null || value === undefined) return {};
     if (typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('Amenity booking rules must be an object');
     const source = value as Record<string, unknown>;
+    const noShowRestrictionCount=this.optionalPolicyInteger(source.noShowRestrictionCount,'noShowRestrictionCount',1,10);
+    const noShowLookbackDays=this.optionalPolicyInteger(source.noShowLookbackDays,'noShowLookbackDays',1,365);
+    const noShowBlockDays=this.optionalPolicyInteger(source.noShowBlockDays,'noShowBlockDays',1,365);
+    const noShowParts=[noShowRestrictionCount,noShowLookbackDays,noShowBlockDays].filter(item=>item!==undefined).length;
+    if(noShowParts!==0&&noShowParts!==3){
+      throw new BadRequestException('noShowRestrictionCount, noShowLookbackDays and noShowBlockDays must be configured together');
+    }
     return {
       minAdvanceMinutes: this.optionalPolicyInteger(source.minAdvanceMinutes, 'minAdvanceMinutes', 0),
       maxAdvanceDays: this.optionalPolicyInteger(source.maxAdvanceDays, 'maxAdvanceDays', 1),
@@ -1060,6 +1095,9 @@ export class AmenitiesService {
       cancellationCutoffMinutes: this.optionalPolicyInteger(source.cancellationCutoffMinutes, 'cancellationCutoffMinutes', 0),
       checkInOpenMinutesBefore: this.optionalPolicyInteger(source.checkInOpenMinutesBefore, 'checkInOpenMinutesBefore', 0),
       noShowGraceMinutes: this.optionalPolicyInteger(source.noShowGraceMinutes, 'noShowGraceMinutes', 0),
+      noShowRestrictionCount,
+      noShowLookbackDays,
+      noShowBlockDays,
       maxGuestsPerBooking: this.optionalPolicyInteger(source.maxGuestsPerBooking, 'maxGuestsPerBooking', 0, 50),
       conflictGroup: this.optionalConflictGroup(source.conflictGroup),
       pricingBands: this.parsePricingBands(source.pricingBands),
@@ -1222,6 +1260,53 @@ export class AmenitiesService {
   private hhmmToMinute(value:string){
     const [hour,minute]=value.split(':').map(Number);
     return hour*60+minute;
+  }
+
+  private async noShowEligibility(
+    tx:Prisma.TransactionClient,
+    societyId:string,
+    amenityId:string,
+    userId:string,
+    rules:AmenityBookingRules,
+  ){
+    if(
+      rules.noShowRestrictionCount===undefined
+      || rules.noShowLookbackDays===undefined
+      || rules.noShowBlockDays===undefined
+    ){
+      return {restricted:false,noShowCount:0,restrictedUntil:null as Date|null};
+    }
+    const rows=await tx.$queryRaw<Array<{noShowCount:number;latestNoShowAt:Date|null}>>`
+      SELECT COUNT(*)::int AS "noShowCount",MAX("noShowAt") AS "latestNoShowAt"
+      FROM "AmenityBooking"
+      WHERE "societyId"=${societyId}::uuid
+        AND "amenityId"=${amenityId}::uuid
+        AND "userId"=${userId}::uuid
+        AND "status"='NO_SHOW'
+        AND "noShowAt" IS NOT NULL
+        AND "noShowAt">=CURRENT_TIMESTAMP-(${rules.noShowLookbackDays} * INTERVAL '1 day')
+    `;
+    const noShowCount=Number(rows[0]?.noShowCount??0);
+    const latest=rows[0]?.latestNoShowAt??null;
+    const restrictedUntil=latest?new Date(latest.getTime()+rules.noShowBlockDays*24*60*60*1000):null;
+    return {
+      restricted:noShowCount>=rules.noShowRestrictionCount&&restrictedUntil!==null&&restrictedUntil.getTime()>Date.now(),
+      noShowCount,
+      restrictedUntil,
+    };
+  }
+
+  private async assertNoShowEligibility(
+    tx:Prisma.TransactionClient,
+    societyId:string,
+    amenityId:string,
+    userId:string,
+    rules:AmenityBookingRules,
+  ){
+    const state=await this.noShowEligibility(tx,societyId,amenityId,userId,rules);
+    if(!state.restricted) return state;
+    const until=state.restrictedUntil?.toISOString().slice(0,10)??'the configured pause period';
+    throw new ConflictException(`New bookings for this amenity are paused until ${until} after repeated no-shows`);
   }
 
   private validateGuestCount(rules:AmenityBookingRules,guestCount:number){

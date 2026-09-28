@@ -418,6 +418,7 @@ class _BookingSheetState extends State<_BookingSheet> {
     final approval = widget.amenity['requiresApproval'] == true;
     final rules=widget.amenity['bookingRules'];
     final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
+    final noShowPolicy=_amenityNoShowPolicyLabel(widget.amenity);
     final startsAt = _startsAt;
     final invalidPast = startsAt != null && !startsAt.isAfter(now);
 
@@ -438,6 +439,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                 AaraagateStatusPill(label: _feeLabel(widget.amenity['feePaise']), tone: AaraagateStatusTone.neutral),
                 AaraagateStatusPill(label: approval ? 'Approval required' : 'Server confirmed', tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info),
                 AaraagateStatusPill(label:maxGuests>0?'Up to $maxGuests guests':'No guests',tone:AaraagateStatusTone.neutral),
+                if(noShowPolicy!=null)const AaraagateStatusPill(label:'Fair-use no-show rule',tone:AaraagateStatusTone.warning),
               ],
             ),
             const SizedBox(height: AaraagateTokens.space6),
@@ -529,6 +531,18 @@ class _BookingSheetState extends State<_BookingSheet> {
               const SizedBox(height:AaraagateTokens.space1),
               Text('Only the number of guests is stored; guest names are not collected.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
             ],
+            if(noShowPolicy!=null) ...[
+              const SizedBox(height:AaraagateTokens.space5),
+              PremiumSurface(
+                color:scheme.surfaceContainer,
+                elevated:false,
+                child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  Icon(Icons.event_busy_outlined,color:scheme.primary),
+                  const SizedBox(width:AaraagateTokens.space3),
+                  Expanded(child:Text('Fair-use policy: $noShowPolicy. This never posts a fee or cancels an existing booking; it only pauses new booking/waitlist eligibility while the configured period is active.',style:theme.textTheme.bodySmall)),
+                ]),
+              ),
+            ],
             const SizedBox(height: AaraagateTokens.space5),
             PremiumSurface(
               child: Row(
@@ -580,6 +594,7 @@ class _AmenityCard extends StatelessWidget {
     final description = amenity['description']?.toString() ?? '';
     final rules=amenity['bookingRules'];
     final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
+    final noShowPolicy=_amenityNoShowPolicyLabel(amenity);
     final blackout=_nextAmenityBlackout(amenity);
     final todayHours=_amenityHoursForIndiaDay(amenity,DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)).weekday);
 
@@ -645,6 +660,7 @@ class _AmenityCard extends StatelessWidget {
               _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
               _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
               _Meta(icon:Icons.group_outlined,label:maxGuests>0?'Up to $maxGuests guests':'No guests'),
+              if(noShowPolicy!=null)_Meta(icon:Icons.event_busy_outlined,label:noShowPolicy),
               if(todayHours!=null)_Meta(icon:Icons.access_time_rounded,label:todayHours),
             ],
           ),
@@ -786,6 +802,16 @@ String? _amenityHoursForIndiaDay(Map<String,dynamic> amenity,int isoWeekday){
     if(start!=null&&end!=null)windows.add('$start–$end');
   }
   return windows.isEmpty?'Closed today':'Today ${windows.join(', ')}';
+}
+
+String? _amenityNoShowPolicyLabel(Map<String,dynamic> amenity){
+  final rules=amenity['bookingRules'];
+  if(rules is! Map) return null;
+  final count=_asInt(rules['noShowRestrictionCount'],fallback:0);
+  final lookback=_asInt(rules['noShowLookbackDays'],fallback:0);
+  final block=_asInt(rules['noShowBlockDays'],fallback:0);
+  if(count<=0||lookback<=0||block<=0) return null;
+  return '$count no-show${count==1?'':'s'} in ${lookback}d → ${block}d booking pause';
 }
 
 Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){
