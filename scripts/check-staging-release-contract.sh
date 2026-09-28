@@ -24,7 +24,7 @@ required_literals=(
   'if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then'
   'git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .'
   'STAGING_ONLY_SUBJECTS="$(git log --format='\''%s'\'' "${DEVELOP_SHA}..${TARGET_SHA}")"'
-  'Release:*|chore\(release\):*)'
+  "node scripts/check-staging-release-history.mjs"
   'superseding stale release-only candidate history'
   'ref: ${{ github.event.pull_request.head.sha || github.sha }}'
   'test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"'
@@ -47,6 +47,14 @@ fi
 
 if ! grep -Fq 'Release candidate source tree must exactly match current develop.' "$WORKFLOW"; then
   echo "Staging release contract must enforce develop tree equivalence for release candidates." >&2
+  exit 1
+fi
+
+test -f scripts/check-staging-release-history.mjs
+node scripts/check-staging-release-history.mjs --self-test
+
+if ! grep -Fq "node scripts/check-staging-release-history.mjs" "$WORKFLOW"; then
+  echo "Staging release contract must delegate release-history classification to the version-tolerant validator." >&2
   exit 1
 fi
 
