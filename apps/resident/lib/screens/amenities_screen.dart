@@ -581,6 +581,7 @@ class _AmenityCard extends StatelessWidget {
     final rules=amenity['bookingRules'];
     final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
     final blackout=_nextAmenityBlackout(amenity);
+    final todayHours=_amenityHoursForIndiaDay(amenity,DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)).weekday);
 
     return PremiumSurface(
       color: scheme.surface,
@@ -644,6 +645,7 @@ class _AmenityCard extends StatelessWidget {
               _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
               _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
               _Meta(icon:Icons.group_outlined,label:maxGuests>0?'Up to $maxGuests guests':'No guests'),
+              if(todayHours!=null)_Meta(icon:Icons.access_time_rounded,label:todayHours),
             ],
           ),
           const SizedBox(height: AaraagateTokens.space4),
@@ -768,6 +770,23 @@ class _Meta extends StatelessWidget {
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
 bool _isQuickDate(DateTime date, List<DateTime> quickDates) => quickDates.any((item) => _sameDay(item, date));
+
+String? _amenityHoursForIndiaDay(Map<String,dynamic> amenity,int isoWeekday){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map)return null;
+  final weekly=schedule['weekly'];
+  if(weekly is! Map)return null;
+  const keys=['mon','tue','wed','thu','fri','sat','sun'];
+  final raw=weekly[keys[isoWeekday-1]];
+  if(raw is! List||raw.isEmpty)return 'Closed today';
+  final windows=<String>[];
+  for(final item in raw){
+    if(item is! Map)continue;
+    final start=item['start']?.toString(),end=item['end']?.toString();
+    if(start!=null&&end!=null)windows.add('$start–$end');
+  }
+  return windows.isEmpty?'Closed today':'Today ${windows.join(', ')}';
+}
 
 Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){
   final schedule=amenity['schedule'];
