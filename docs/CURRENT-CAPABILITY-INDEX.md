@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.65.0 Household & AutoPay Recovery Release Closure on top of V4.64.1 Visitor Invite Recovery and V4.64.0 Community Poll Participation & Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.66.0 Helpdesk Submission Recovery Release Closure on top of V4.65.0 Household & AutoPay Recovery and V4.64.1 Visitor Invite Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -75,7 +75,7 @@ V4.64.1 closes Resident visitor-invite retry recovery as a repository patch rele
 
 V4.65.0 closes two Resident mutation-recovery gaps as one repository release candidate. Family-member add, gate-setting update and deactivation now run through controller-owned authoritative recovery: uncertain outcomes are accepted only when a fresh household read proves the intended active FAMILY_MEMBER state/settings or proves deactivation by absence, while existing verified-current-owner authorization and server transaction rules remain authoritative. AutoPay preference updates now reconcile an uncertain save against the authoritative server preference; recovered success requires an exact match on enabled state, maximum amount and debit-day policy, otherwise the latest server state remains visible and the action stays retryable. Neither path manufactures success locally or activates any payment mandate/debit. Release identity is aligned to V4.65.0 across root/API/Admin and V4.65.0+46500 across Resident/Guard; staging/main promotion remains separate.
 
-V4.66 development starts by hardening Resident Helpdesk complaint creation against ambiguous network outcomes. New complaint submissions carry a request-bound idempotency key persisted on the HelpdeskTicket, same-key attempts are serialized per society/resident, exact normalized replays return the original ticket without writing another CREATED activity, and mismatched replays fail closed. The Resident client reuses the same key only while the complaint draft is unchanged. Existing current-occupancy authorization, Helpdesk workflow states and reviewer authority remain unchanged. Release identity remains V4.65.0 until V4.66 is explicitly closed.
+V4.66.0 closes Resident Helpdesk submission recovery as a repository release candidate. New complaint submissions carry a request-bound idempotency key persisted on the HelpdeskTicket, same-key attempts are serialized per society/resident, exact normalized replays return the original ticket without writing another CREATED activity, and mismatched replays fail closed. The Resident client reuses the same key only while the complaint draft is unchanged, while AI-confirmed complaint creation derives a stable identity from the reviewed proposal ID. Existing current-occupancy authorization, Helpdesk workflow states and reviewer authority remain unchanged. Release identity is aligned to V4.66.0 across root/API/Admin and V4.66.0+46600 across Resident/Guard; staging/main promotion remains separate.
 
 ## External evidence boundary
 
