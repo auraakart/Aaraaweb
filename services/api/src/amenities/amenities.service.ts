@@ -50,6 +50,9 @@ type AmenityBlackoutWindow = {
   kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';
 };
 
+type AmenityWeeklyWindow = { start:string; end:string };
+type AmenityWeeklySchedule = Partial<Record<'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun',AmenityWeeklyWindow[]>>;
+
 type AmenityUpdateInput = {
   name: string;
   description?: string | null;
@@ -713,6 +716,63 @@ export class AmenitiesService {
     });
   }
 
+  async previewOperatingHours(societyId:string,amenityId:string,weekly:Record<string,unknown>|null){
+    const normalized=this.normalizeWeeklySchedule(weekly);
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const [amenity]=await tx.$queryRaw<Array<{id:string}>>`
+        SELECT "id" FROM "Amenity"
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1
+      `;
+      if(!amenity) throw new NotFoundException('Amenity not found');
+      const [counts]=await tx.$queryRaw<Array<{bookingCount:number;waitlistCount:number}>>`
+        SELECT
+          (SELECT COUNT(*)::int FROM "AmenityBooking"
+            WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+              AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN') AND "endsAt">CURRENT_TIMESTAMP) AS "bookingCount",
+          (SELECT COUNT(*)::int FROM "AmenityWaitlistEntry"
+            WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+              AND "status"='WAITING' AND "endsAt">CURRENT_TIMESTAMP) AS "waitlistCount"
+      `;
+      const futureBookingCount=Number(counts?.bookingCount??0);
+      const futureWaitlistCount=Number(counts?.waitlistCount??0);
+      return {weekly:normalized,futureBookingCount,futureWaitlistCount,canApply:futureBookingCount===0&&futureWaitlistCount===0,mutationPerformed:false,boundary:'Preview only. Existing future bookings and waitlist entries must be resolved before operating hours change.'};
+    });
+  }
+
+  async applyOperatingHours(societyId:string,amenityId:string,weekly:Record<string,unknown>|null){
+    const normalized=this.normalizeWeeklySchedule(weekly);
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
+        SELECT "schedule" FROM "Amenity"
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `;
+      if(!amenity) throw new NotFoundException('Amenity not found');
+      const [counts]=await tx.$queryRaw<Array<{bookingCount:number;waitlistCount:number}>>`
+        SELECT
+          (SELECT COUNT(*)::int FROM "AmenityBooking"
+            WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+              AND "status" IN ('PENDING','CONFIRMED','CHECKED_IN') AND "endsAt">CURRENT_TIMESTAMP) AS "bookingCount",
+          (SELECT COUNT(*)::int FROM "AmenityWaitlistEntry"
+            WHERE "societyId"=${societyId}::uuid AND "amenityId"=${amenityId}::uuid
+              AND "status"='WAITING' AND "endsAt">CURRENT_TIMESTAMP) AS "waitlistCount"
+      `;
+      const bookingCount=Number(counts?.bookingCount??0),waitlistCount=Number(counts?.waitlistCount??0);
+      if(bookingCount||waitlistCount) throw new ConflictException(`Resolve ${bookingCount} future booking(s) and ${waitlistCount} waiting entry/entries before changing operating hours`);
+      const schedule=this.scheduleObject(amenity.schedule);
+      const nextSchedule={...schedule};
+      if(normalized===null) delete nextSchedule.weekly; else nextSchedule.weekly=normalized;
+      await tx.$executeRaw`
+        UPDATE "Amenity" SET "schedule"=${JSON.stringify(nextSchedule)}::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
+      `;
+      return {weekly:normalized,mutationPerformed:true,automaticReservationChange:false};
+    });
+  }
+
   async listManage(societyId: string) {
     return this.prisma.$queryRaw<AmenityRow[]>`
       SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
@@ -899,6 +959,7 @@ export class AmenitiesService {
     const amenity=amenities[0];
     if(!amenity) return null;
     if(this.findScheduleBlackout(amenity.schedule,startsAt,endsAt)) return null;
+    if(!this.isWeeklyOperatingWindowOpen(amenity.schedule,startsAt,endsAt)) return null;
     const rules=this.parseBookingRules(amenity.bookingRules);
     const overlaps=await tx.$queryRaw<CountRow[]>`
       SELECT COUNT(*)::int AS "count"
@@ -1092,6 +1153,75 @@ export class AmenitiesService {
     if(blackout){
       throw new ConflictException(`Amenity is unavailable during the configured ${(blackout.kind??'MAINTENANCE').toLowerCase().replaceAll('_',' ')} window`);
     }
+    const weekly=this.scheduleWeekly(schedule);
+    if(weekly&&!this.isWeeklyOperatingWindowOpen(schedule,startsAt,endsAt)){
+      const istStart=new Date(startsAt.getTime()+330*60*1000);
+      const istEnd=new Date(endsAt.getTime()+330*60*1000);
+      if(istStart.getUTCFullYear()!==istEnd.getUTCFullYear()||istStart.getUTCMonth()!==istEnd.getUTCMonth()||istStart.getUTCDate()!==istEnd.getUTCDate()) throw new ConflictException('Amenity booking must fit within one India-local operating day');
+      const windows=weekly[this.indiaDayKey(istStart)]??[];
+      if(!windows.length) throw new ConflictException('Amenity is closed for the requested India-local day');
+      throw new ConflictException('Amenity request is outside configured operating hours');
+    }
+  }
+
+  private scheduleWeekly(value:unknown):AmenityWeeklySchedule|null{
+    const raw=this.scheduleObject(value).weekly;
+    if(raw===undefined||raw===null) return null;
+    if(typeof raw!=='object'||Array.isArray(raw)) return null;
+    const source=raw as Record<string,unknown>;
+    const result:AmenityWeeklySchedule={};
+    for(const day of ['mon','tue','wed','thu','fri','sat','sun'] as const){
+      const items=source[day];
+      if(items===undefined){result[day]=[];continue}
+      if(!Array.isArray(items)){result[day]=[];continue}
+      result[day]=items.flatMap(item=>{
+        if(!item||typeof item!=='object'||Array.isArray(item)) return [];
+        const candidate=item as Record<string,unknown>;
+        if(typeof candidate.start!=='string'||typeof candidate.end!=='string') return [];
+        if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.end)||candidate.start>=candidate.end) return [];
+        return [{start:candidate.start,end:candidate.end}];
+      });
+    }
+    return result;
+  }
+
+  private normalizeWeeklySchedule(value:Record<string,unknown>|null):AmenityWeeklySchedule|null{
+    if(value===null) return null;
+    const days=['mon','tue','wed','thu','fri','sat','sun'] as const;
+    const allowed=new Set<string>(days);
+    for(const key of Object.keys(value)) if(!allowed.has(key)) throw new BadRequestException(`Unsupported amenity weekday key: ${key}`);
+    const normalized=this.scheduleWeekly({weekly:value});
+    if(!normalized) throw new BadRequestException('Amenity schedule.weekly must be an object');
+    for(const day of days){
+      const raw=value[day];
+      if(raw===undefined) throw new BadRequestException(`Operating hours must explicitly include ${day}`);
+      if(!Array.isArray(raw)) throw new BadRequestException(`Amenity schedule day ${day} must be an array`);
+      if((normalized[day]??[]).length!==raw.length) throw new BadRequestException(`Amenity schedule day ${day} contains an invalid HH:MM operating window`);
+    }
+    return normalized;
+  }
+
+  private indiaDayKey(value:Date):keyof AmenityWeeklySchedule{
+    switch(value.getUTCDay()){
+      case 0:return 'sun';case 1:return 'mon';case 2:return 'tue';case 3:return 'wed';
+      case 4:return 'thu';case 5:return 'fri';default:return 'sat';
+    }
+  }
+
+  private isWeeklyOperatingWindowOpen(schedule:unknown,startsAt:Date,endsAt:Date){
+    const weekly=this.scheduleWeekly(schedule);
+    if(!weekly) return true;
+    const localStart=new Date(startsAt.getTime()+330*60*1000),localEnd=new Date(endsAt.getTime()+330*60*1000);
+    if(localStart.getUTCFullYear()!==localEnd.getUTCFullYear()||localStart.getUTCMonth()!==localEnd.getUTCMonth()||localStart.getUTCDate()!==localEnd.getUTCDate()) return false;
+    const windows=weekly[this.indiaDayKey(localStart)]??[];
+    const startMinute=localStart.getUTCHours()*60+localStart.getUTCMinutes();
+    const endMinute=localEnd.getUTCHours()*60+localEnd.getUTCMinutes();
+    return windows.some(window=>startMinute>=this.hhmmToMinute(window.start)&&endMinute<=this.hhmmToMinute(window.end));
+  }
+
+  private hhmmToMinute(value:string){
+    const [hour,minute]=value.split(':').map(Number);
+    return hour*60+minute;
   }
 
   private validateGuestCount(rules:AmenityBookingRules,guestCount:number){
