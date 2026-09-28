@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { HELPDESK_TICKET_SLA_STATE_SQL } from './helpdesk-sla-state';
@@ -16,6 +16,7 @@ type TicketRow = {
   societyId: string;
   unitId: string;
   createdById: string;
+  idempotencyKey: string | null;
   title: string;
   description: string;
   category: string | null;
@@ -58,14 +59,16 @@ export class HelpdeskService {
   async createMine(
     societyId: string,
     userId: string,
-    input: { unitId: string; title: string; description: string; category?: string; priority?: TicketPriority },
+    input: { unitId: string; idempotencyKey: string; title: string; description: string; category?: string; priority?: TicketPriority },
   ) {
     const title = input.title.trim();
     const description = input.description.trim();
     const category = input.category?.trim() || null;
     const priority = input.priority ?? 'NORMAL';
+    const idempotencyKey = input.idempotencyKey.trim();
     if (title.length < 3 || title.length > 120) throw new BadRequestException('Title must be between 3 and 120 characters');
     if (description.length < 5 || description.length > 2000) throw new BadRequestException('Description must be between 5 and 2000 characters');
+    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
 
     const occupancy = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT uo."id"
@@ -83,11 +86,32 @@ export class HelpdeskService {
     if (!occupancy[0]) throw new NotFoundException('Unit not found');
 
     return this.prisma.$transaction(async (tx) => {
+      const lockKey = `${societyId}:${userId}:${idempotencyKey}`;
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      `);
+      const [existing] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT * FROM "HelpdeskTicket"
+        WHERE "societyId"=${societyId}::uuid
+          AND "createdById"=${userId}::uuid
+          AND "idempotencyKey"=${idempotencyKey}
+        LIMIT 1
+      `);
+      if (existing) {
+        const sameIntent =
+          existing.unitId === input.unitId &&
+          existing.title === title &&
+          existing.description === description &&
+          (existing.category ?? null) === category &&
+          existing.priority === priority;
+        if (!sameIntent) throw new ConflictException('Idempotency key already used for a different complaint');
+        return existing;
+      }
       const rows = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         INSERT INTO "HelpdeskTicket" (
-          "societyId", "unitId", "createdById", "title", "description", "category", "priority"
+          "societyId", "unitId", "createdById", "idempotencyKey", "title", "description", "category", "priority"
         ) VALUES (
-          ${societyId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
+          ${societyId}::uuid, ${input.unitId}::uuid, ${userId}::uuid, ${idempotencyKey},
           ${title}, ${description}, ${category}, ${priority}
         )
         RETURNING *
@@ -198,18 +222,57 @@ export class HelpdeskService {
     return this.activitiesForTicket(societyId, ticketId, true);
   }
 
-  async addComment(societyId: string, userId: string, ticketId: string, message: string, reviewer = false) {
+  async addComment(
+    societyId: string,
+    userId: string,
+    ticketId: string,
+    message: string,
+    reviewer = false,
+    idempotencyKey?: string,
+  ) {
     const normalized = message.trim();
     if (normalized.length < 1 || normalized.length > 1000) throw new BadRequestException('Comment must be between 1 and 1000 characters');
+    const normalizedKey = idempotencyKey?.trim() || null;
+    if (!reviewer && (!normalizedKey || normalizedKey.length < 8 || normalizedKey.length > 120)) {
+      throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
+    }
     const access = reviewer
       ? await this.findTicket(societyId, ticketId)
       : await this.findOwnedTicket(societyId, userId, ticketId);
     if (!access) throw new NotFoundException('Helpdesk ticket not found');
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message")
-      VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized})
-    `);
-    return { ok: true };
+
+    if (reviewer) {
+      await this.prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message")
+        VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized})
+      `);
+      return { ok: true };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const lockKey = `helpdesk-comment:${societyId}:${userId}:${normalizedKey}`;
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      `);
+      const [existing] = await tx.$queryRaw<{ ticketId: string; type: string; message: string | null }[]>(Prisma.sql`
+        SELECT "ticketId", "type", "message"
+        FROM "HelpdeskActivity"
+        WHERE "societyId"=${societyId}::uuid
+          AND "actorUserId"=${userId}::uuid
+          AND "idempotencyKey"=${normalizedKey}
+        LIMIT 1
+      `);
+      if (existing) {
+        const sameIntent = existing.type === 'COMMENT' && existing.ticketId === ticketId && (existing.message ?? '') === normalized;
+        if (!sameIntent) throw new ConflictException('Idempotency key already used for a different helpdesk comment');
+        return { ok: true };
+      }
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "HelpdeskActivity" ("societyId", "ticketId", "actorUserId", "type", "message", "idempotencyKey")
+        VALUES (${societyId}::uuid, ${ticketId}::uuid, ${userId}::uuid, 'COMMENT', ${normalized}, ${normalizedKey})
+      `);
+      return { ok: true };
+    });
   }
 
   async addInternalNote(societyId: string, actorUserId: string, ticketId: string, message: string) {
@@ -280,9 +343,31 @@ export class HelpdeskService {
     });
   }
 
+  async reopenMine(societyId: string, userId: string, ticketId: string, note: string) {
+    const normalized = this.normalizeReopenNote(note);
+    return this.prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+        SELECT ht.* FROM "HelpdeskTicket" ht
+        WHERE ht."id"=${ticketId}::uuid
+          AND ht."societyId"=${societyId}::uuid
+          AND EXISTS (
+            SELECT 1 FROM "UnitOccupancy" uo
+            WHERE uo."unitId" = ht."unitId"
+              AND uo."societyId" = ${societyId}::uuid
+              AND uo."userId" = ${userId}::uuid
+              AND uo."active" = true
+              AND uo."effectiveFrom" <= CURRENT_TIMESTAMP
+              AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
+          )
+        FOR UPDATE
+      `);
+      if (!current) throw new NotFoundException('Helpdesk ticket not found');
+      return this.reopenLocked(tx, societyId, userId, ticketId, current, normalized);
+    });
+  }
+
   async reopen(societyId: string, actorUserId: string, ticketId: string, note: string) {
-    const normalized = note.trim();
-    if (normalized.length < 3 || normalized.length > 1000) throw new BadRequestException('Reopen reason must be between 3 and 1000 characters');
+    const normalized = this.normalizeReopenNote(note);
     return this.prisma.$transaction(async (tx) => {
       const [current] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         SELECT * FROM "HelpdeskTicket"
@@ -290,21 +375,42 @@ export class HelpdeskService {
         FOR UPDATE
       `);
       if (!current) throw new NotFoundException('Helpdesk ticket not found');
-      if (!['RESOLVED','CLOSED'].includes(current.status)) throw new BadRequestException('Only resolved or closed tickets can be reopened');
-      const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
-        UPDATE "HelpdeskTicket"
-        SET "status"='IN_PROGRESS', "resolvedAt"=NULL, "closedAt"=NULL,
-            "resolutionCode"=NULL, "closureCode"=NULL, "updatedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid AND "status"=${current.status}
-        RETURNING *
-      `);
-      if (!updated) throw new BadRequestException('Helpdesk ticket changed; refresh and retry');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message","fromStatus","toStatus")
-        VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'REOPENED',${normalized},${current.status},'IN_PROGRESS')
-      `);
-      return updated;
+      return this.reopenLocked(tx, societyId, actorUserId, ticketId, current, normalized);
     });
+  }
+
+  private normalizeReopenNote(note: string) {
+    const normalized = note.trim();
+    if (normalized.length < 3 || normalized.length > 1000) {
+      throw new BadRequestException('Reopen reason must be between 3 and 1000 characters');
+    }
+    return normalized;
+  }
+
+  private async reopenLocked(
+    tx: Prisma.TransactionClient,
+    societyId: string,
+    actorUserId: string,
+    ticketId: string,
+    current: TicketRow,
+    normalized: string,
+  ) {
+    if (!['RESOLVED','CLOSED'].includes(current.status)) {
+      throw new BadRequestException('Only resolved or closed tickets can be reopened');
+    }
+    const [updated] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
+      UPDATE "HelpdeskTicket"
+      SET "status"='IN_PROGRESS', "resolvedAt"=NULL, "closedAt"=NULL,
+          "resolutionCode"=NULL, "closureCode"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid AND "status"=${current.status}
+      RETURNING *
+    `);
+    if (!updated) throw new BadRequestException('Helpdesk ticket changed; refresh and retry');
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message","fromStatus","toStatus")
+      VALUES (${societyId}::uuid,${ticketId}::uuid,${actorUserId}::uuid,'REOPENED',${normalized},${current.status},'IN_PROGRESS')
+    `);
+    return updated;
   }
 
   private activitiesForTicket(societyId: string, ticketId: string, includeInternal: boolean) {

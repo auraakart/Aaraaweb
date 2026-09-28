@@ -97,7 +97,76 @@ class _PropertyScopedRepository extends ResidentRepository {
       ];
 }
 
+class _AutopayRecoveryRepository extends _PropertyScopedRepository {
+  _AutopayRecoveryRepository({this.commitBeforeFailure = true});
+
+  final bool commitBeforeFailure;
+  bool serverEnabled = false;
+  int saveCalls = 0;
+  int preferenceReads = 0;
+
+  @override
+  Future<Map<String, dynamic>> autopayPreference({required String unitId}) async {
+    preferenceReads++;
+    return {
+      'unitId': unitId,
+      'enabled': serverEnabled,
+      'automaticDebitAvailable': false,
+      'debitDaysBefore': 1,
+      'boundary': 'Test preference only; no automatic debit is active.',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> saveAutopayPreference({
+    required String unitId,
+    required bool enabled,
+    int? maxAmountPaise,
+    int debitDaysBefore = 1,
+  }) async {
+    saveCalls++;
+    if (commitBeforeFailure) serverEnabled = enabled;
+    throw StateError('transport lost after preference request');
+  }
+}
+
 void main() {
+  testWidgets('autopay commit-then-transport failure recovers authoritative preference', (tester) async {
+    final repository = _AutopayRecoveryRepository();
+
+    await tester.pumpWidget(MaterialApp(
+      home: BillingScreen(repository: repository, activeUnitId: 'unit-a'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(repository.saveCalls, 1);
+    expect(repository.preferenceReads, greaterThanOrEqualTo(2));
+    expect(repository.serverEnabled, isTrue);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(find.textContaining('could not be confirmed'), findsNothing);
+  });
+
+  testWidgets('autopay unconfirmed failure restores server preference and remains retryable', (tester) async {
+    final repository = _AutopayRecoveryRepository(commitBeforeFailure: false);
+
+    await tester.pumpWidget(MaterialApp(
+      home: BillingScreen(repository: repository, activeUnitId: 'unit-a'),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(repository.saveCalls, 1);
+    expect(repository.serverEnabled, isFalse);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(find.textContaining('latest server preference is shown'), findsOneWidget);
+  });
+
   testWidgets('billing shows invoices and payments only for active unit', (tester) async {
     final repository = _PropertyScopedRepository();
 

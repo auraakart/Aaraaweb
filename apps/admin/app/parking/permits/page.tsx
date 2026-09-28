@@ -7,7 +7,7 @@ type Slot={id:string;code:string;label?:string|null;slotType:string;active:boole
 type EligibleVisitor={visitorId:string;visitorName:string;visitorPhone?:string|null;unitNumber:string;buildingName:string;visitorPassId:string;validFrom:string;validUntil:string}
 type Permit={id:string;slotId:string;slotCode:string;slotType:string;visitorId:string;visitorName:string;visitorPhone?:string|null;unitNumber:string;buildingName:string;plateNumber:string;startsAt:string;endsAt:string;status:string;note?:string|null}
 
-const viewRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','SECURITY_SUPERVISOR'])
+const viewRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR','SECURITY_SUPERVISOR'])
 const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
 const fmt=(value:string)=>new Date(value).toLocaleString('en-IN')
@@ -31,7 +31,7 @@ export default function VisitorParkingPermitsPage(){
   const eligibleSlots=useMemo(()=>slots.filter(s=>s.active&&['VISITOR','TEMPORARY','ACCESSIBLE'].includes(s.slotType)),[slots])
   const selectedVisitor=useMemo(()=>visitors.find(v=>v.visitorPassId===visitorPassId)??null,[visitors,visitorPassId])
 
-  async function load(){if(!session||!canView)return;setBusy(true);setError('');try{const[s,v,p]=await Promise.all([api<Slot[]>('/parking/v2/slots',{},session),api<EligibleVisitor[]>('/parking/v2/eligible-visitors',{},session),api<Permit[]>('/parking/v2/permits',{},session)]);setSlots(s);setVisitors(v);setPermits(p)}catch(e){setError(e instanceof Error?e.message:'Could not load parking permits')}finally{setBusy(false)}}
+  async function load(){if(!session||!canView)return;setBusy(true);setError('');try{if(canManage){const[s,v,p]=await Promise.all([api<Slot[]>('/parking/v2/slots',{},session),api<EligibleVisitor[]>('/parking/v2/eligible-visitors',{},session),api<Permit[]>('/parking/v2/permits',{},session)]);setSlots(s);setVisitors(v);setPermits(p)}else{setSlots([]);setVisitors([]);setPermits(await api<Permit[]>('/parking/v2/permits',{},session))}}catch(e){setError(e instanceof Error?e.message:'Could not load parking permits')}finally{setBusy(false)}}
   useEffect(()=>{void load()},[])
 
   async function submit(e:FormEvent){e.preventDefault();if(!session||!canManage||!selectedVisitor)return;setBusy(true);setError('');try{await api('/parking/v2/permits',{method:'POST',body:JSON.stringify({slotId,visitorId:selectedVisitor.visitorId,visitorPassId:selectedVisitor.visitorPassId,plateNumber,startsAt:localIso(startsAt),endsAt:localIso(endsAt),note:note||undefined})},session);setPlateNumber('');setNote('');await load()}catch(err){setError(err instanceof Error?err.message:'Could not create parking permit')}finally{setBusy(false)}}
@@ -51,7 +51,7 @@ export default function VisitorParkingPermitsPage(){
       <label>Note<input maxLength={300} value={note} onChange={e=>setNote(e.target.value)} style={input}/></label>
     </div>{selectedVisitor&&<p style={hint}>Visitor pass validity: {fmt(selectedVisitor.validFrom)} → {fmt(selectedVisitor.validUntil)}</p>}<button disabled={busy||!visitorPassId||!slotId||!plateNumber||!startsAt||!endsAt} style={button}>{busy?'Saving…':'Issue parking permit'}</button></form>}
     <section style={{...panel,marginTop:18}}><div style={row}><div><h2 style={{marginBottom:4}}>Permits</h2><small>{permits.length} records</small></div><button disabled={busy} onClick={()=>void load()} style={secondary}>Refresh</button></div><div style={{overflowX:'auto',marginTop:14}}><table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><Th>Status</Th><Th>Visitor</Th><Th>Unit</Th><Th>Slot</Th><Th>Vehicle</Th><Th>Window</Th>{canManage&&<Th>Actions</Th>}</tr></thead><tbody>{permits.map(p=><tr key={p.id}><Td><b>{p.status}</b></Td><Td>{p.visitorName}<br/><small>{p.visitorPhone??'No phone'}</small></Td><Td>{p.buildingName} {p.unitNumber}</Td><Td>{p.slotCode}<br/><small>{p.slotType}</small></Td><Td>{p.plateNumber}</Td><Td>{fmt(p.startsAt)}<br/>to {fmt(p.endsAt)}</Td>{canManage&&<Td>{p.status==='ACTIVE'?<div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button onClick={()=>void closePermit(p.id,'complete')} style={secondary}>Complete</button><button onClick={()=>void closePermit(p.id,'cancel')} style={danger}>Cancel</button></div>:'—'}</Td>}</tr>)}{permits.length===0&&<tr><Td colSpan={canManage?7:6}>No parking permits yet.</Td></tr>}</tbody></table></div></section>
-    <p style={{marginTop:22}}><a href="/parking">← Back to parking</a></p>
+    <p style={{marginTop:22}}><a href={session.role==='AUDITOR'?'/audit':'/parking'}>← Back</a></p>
   </main>
 }
 

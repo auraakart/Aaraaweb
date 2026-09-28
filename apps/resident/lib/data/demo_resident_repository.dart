@@ -5,6 +5,8 @@ class DemoResidentRepository extends ResidentRepository {
   DemoResidentRepository()
       : super(ApiClient(baseUrl: 'http://demo.invalid', accessToken: 'demo'));
 
+  final Map<String, String> _communityPollResponses = <String, String>{};
+
   final List<Map<String, dynamic>> _access = [
     {
       'id': 'demo-access-1',
@@ -522,6 +524,7 @@ class DemoResidentRepository extends ResidentRepository {
     required String name,
     required DateTime validFrom,
     required DateTime validUntil,
+    required String idempotencyKey,
     String? phone,
     String? purpose,
   }) async {
@@ -595,6 +598,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-poll-1',
           'question': 'Preferred timing for Sunday yoga?',
           'status': 'OPEN',
+          'myOptionId': _communityPollResponses['demo-poll-1'],
           'options': [
             {'id': 'demo-option-1', 'label': '6:30 AM'},
             {'id': 'demo-option-2', 'label': '7:30 AM'},
@@ -605,6 +609,7 @@ class DemoResidentRepository extends ResidentRepository {
           'id': 'demo-poll-2',
           'question': 'Choose the clubhouse movie night genre',
           'status': 'OPEN',
+          'myOptionId': _communityPollResponses['demo-poll-2'],
           'options': [
             {'id': 'demo-option-4', 'label': 'Family'},
             {'id': 'demo-option-5', 'label': 'Comedy'},
@@ -613,8 +618,13 @@ class DemoResidentRepository extends ResidentRepository {
       ];
 
   @override
-  Future<Map<String, dynamic>> respondToCommunityPoll({required String pollId, required String optionId}) async =>
-      {'pollId': pollId, 'optionId': optionId, 'status': 'RECORDED'};
+  Future<Map<String, dynamic>> respondToCommunityPoll({required String pollId, required String optionId}) async {
+    if (_communityPollResponses.containsKey(pollId)) {
+      throw StateError('A response is already recorded for this poll.');
+    }
+    _communityPollResponses[pollId] = optionId;
+    return {'pollId': pollId, 'optionId': optionId, 'status': 'RECORDED'};
+  }
 
   @override
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async =>
@@ -635,6 +645,7 @@ class DemoResidentRepository extends ResidentRepository {
   @override
   Future<Map<String, dynamic>> createHelpdeskTicket({
     required String unitId,
+    required String idempotencyKey,
     required String title,
     required String description,
     String? category,
@@ -650,7 +661,7 @@ class DemoResidentRepository extends ResidentRepository {
       };
 
   @override
-  Future<void> addHelpdeskComment(String ticketId, String message) async {}
+  Future<void> addHelpdeskComment(String ticketId, String message, {required String idempotencyKey}) async {}
 
   @override
   Future<void> cancelAccess(String requestId) async {

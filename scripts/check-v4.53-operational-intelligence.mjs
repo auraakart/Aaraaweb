@@ -58,7 +58,7 @@ requireTokens('Resident voice safety copy',read('apps/resident/lib/voice/residen
 ]);
 
 requireTokens('Architecture / branch hygiene convergence',read('scripts/cleanup-merged-branches.mjs'),[
-  'local-git-ancestry+canonical-pr-head-evidence','supersededCanonicalHeadShas','backup/recovery/archive/snapshot preservation rule',
+  'local-git-ancestry+tree-equivalence+canonical-pr-head-evidence','supersededCanonicalHeadShas','backup/recovery/archive/snapshot preservation rule',
 ]);
 requireTokens('V4.53 milestone evidence',read('docs/AARAAGATE-V4.53-OPERATIONAL-INTELLIGENCE-EXECUTION-DEPTH.md'),[
   'Operational Intelligence & Execution Depth','Finance execution closure','AI Action Centre 2.0','Gate command workflow',

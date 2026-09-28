@@ -156,6 +156,23 @@ class GateScreen extends StatelessWidget {
     }
   }
 
+  String _mutationErrorMessage(Object error, Map<String, dynamic> request) {
+    final requestId = request['id']?.toString();
+    final previousStatus = request['status']?.toString();
+    for (final current in controller.accessRequests) {
+      if (current['id']?.toString() != requestId) continue;
+      final latestStatus = current['status']?.toString();
+      if (latestStatus != null && latestStatus != previousStatus) {
+        return AaraagateStrings.device().format(
+          'gateRequestChanged',
+          {'status': _displayGateStatus(latestStatus)},
+        );
+      }
+      break;
+    }
+    return residentErrorMessage(error);
+  }
+
   Future<void> _approve(BuildContext context, Map<String, dynamic> request) async {
     try {
       final result = await controller.approveAccess(request['id'].toString());
@@ -171,7 +188,7 @@ class GateScreen extends StatelessWidget {
       final label = subjectType == 'CAB' ? strings.text('cab') : subjectType == 'DELIVERY' ? strings.text('delivery') : strings.text('entry');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.format('approvedSecurity', {'label': label}))));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
@@ -179,15 +196,45 @@ class GateScreen extends StatelessWidget {
     try {
       await controller.denyAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
   Future<void> _cancel(BuildContext context, Map<String, dynamic> request) async {
+    final strings = AaraagateStrings.device();
+    final validUntil = DateTime.tryParse(request['validUntil']?.toString() ?? '');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.text('cancelPass')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.text('cancelPassConfirm')),
+            if (validUntil != null) ...[
+              const SizedBox(height: 8),
+              Text(strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())})),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(MaterialLocalizations.of(dialogContext).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(strings.text('cancelPass')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     try {
       await controller.cancelAccess(request['id'].toString());
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(residentErrorMessage(e))));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mutationErrorMessage(e, request))));
     }
   }
 
@@ -430,19 +477,38 @@ class _Metric extends StatelessWidget {
   }
 }
 
-class _AccessCard extends StatelessWidget {
+class _AccessCard extends StatefulWidget {
   const _AccessCard({required this.request, required this.strings, this.onApprove, this.onDeny, this.onCancel, this.prominent = false});
   final Map<String, dynamic> request;
   final AaraagateStrings strings;
-  final VoidCallback? onApprove;
-  final VoidCallback? onDeny;
-  final VoidCallback? onCancel;
+  final Future<void> Function()? onApprove;
+  final Future<void> Function()? onDeny;
+  final Future<void> Function()? onCancel;
   final bool prominent;
+
+  @override
+  State<_AccessCard> createState() => _AccessCardState();
+}
+
+class _AccessCardState extends State<_AccessCard> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final request = widget.request;
+    final strings = widget.strings;
     final title = request['subjectName']?.toString() ?? 'Unknown';
     final rawType = request['subjectType']?.toString();
     final type = _label(rawType);
@@ -466,13 +532,16 @@ class _AccessCard extends StatelessWidget {
         : request['status'] == 'PENDING' && rawType == 'DELIVERY'
             ? strings.text('allow30')
             : null;
+    final validUntil = rawType == 'VISITOR' && request['status'] == 'APPROVED'
+        ? DateTime.tryParse(request['validUntil']?.toString() ?? '')
+        : null;
 
     return Semantics(
       container: true,
       label: '$title, $type, $status',
       child: PremiumSurface(
-        elevated: prominent,
-        color: prominent ? scheme.surface : scheme.surfaceContainerLow,
+        elevated: widget.prominent,
+        color: widget.prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           LayoutBuilder(
             builder: (context, constraints) {
@@ -499,7 +568,7 @@ class _AccessCard extends StatelessWidget {
               );
               final statusPill = AaraagateStatusPill(
                 label: status,
-                tone: request['status'] == 'PENDING' ? AaraagateStatusTone.warning : AaraagateStatusTone.success,
+                tone: _accessStatusTone(request['status']?.toString()),
               );
               if (stacked) {
                 return Column(
@@ -525,23 +594,39 @@ class _AccessCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ],
-          if (onApprove != null || onDeny != null || onCancel != null) ...[
+          if (validUntil != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}),
+              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+            ),
+          ],
+          if (widget.onApprove != null || widget.onDeny != null || widget.onCancel != null) ...[
             const SizedBox(height: 16),
             LayoutBuilder(
               builder: (context, constraints) {
                 final scale = MediaQuery.textScalerOf(context).scale(1);
-                final deny = onDeny == null ? null : OutlinedButton(onPressed: onDeny, child: Text(strings.text('deny')));
-                final approve = onApprove == null
+                final deny = widget.onDeny == null
+                    ? null
+                    : OutlinedButton(
+                        onPressed: _busy ? null : () => _run(widget.onDeny!),
+                        child: Text(strings.text('deny')),
+                      );
+                final approve = widget.onApprove == null
                     ? null
                     : FilledButton(
-                        onPressed: onApprove,
-                        child: Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
+                        onPressed: _busy ? null : () => _run(widget.onApprove!),
+                        child: _busy
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
                       );
-                final cancel = onCancel == null
+                final cancel = widget.onCancel == null
                     ? null
                     : OutlinedButton.icon(
-                        onPressed: onCancel,
-                        icon: const Icon(Icons.close_rounded),
+                        onPressed: _busy ? null : () => _run(widget.onCancel!),
+                        icon: _busy
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.close_rounded),
                         label: Text(strings.text('cancelPass')),
                       );
                 if (constraints.maxWidth < 420 || scale > 1.3) {
@@ -571,6 +656,26 @@ class _AccessCard extends StatelessWidget {
   }
 
   static String _label(String? value) => (value ?? '').toLowerCase().split('_').map((e) => e.isEmpty ? e : '${e[0].toUpperCase()}${e.substring(1)}').join(' ');
+}
+
+String _displayGateStatus(String value) =>
+    value.toLowerCase().split('_').map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}').join(' ');
+
+AaraagateStatusTone _accessStatusTone(String? value) {
+  switch ((value ?? '').toUpperCase()) {
+    case 'PENDING':
+      return AaraagateStatusTone.warning;
+    case 'APPROVED':
+    case 'CHECKED_IN':
+      return AaraagateStatusTone.success;
+    case 'DENIED':
+      return AaraagateStatusTone.danger;
+    case 'CANCELLED':
+    case 'CHECKED_OUT':
+      return AaraagateStatusTone.neutral;
+    default:
+      return AaraagateStatusTone.neutral;
+  }
 }
 
 String _formatDateTime(DateTime value) {

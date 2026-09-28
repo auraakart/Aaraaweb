@@ -216,7 +216,7 @@ describe('ConsumerBookingsService', () => {
       scheduledFrom: from,
       scheduledUntil: until,
       servicePricePaise: 75000,
-      notes: null,
+      notes: 'Call before arrival',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -227,12 +227,37 @@ describe('ConsumerBookingsService', () => {
       offeringId: existing.offeringId,
       scheduledFrom: from,
       scheduledUntil: until,
+      notes: '  Call before arrival  ',
       idempotencyKey: 'service-retry-123',
     })).resolves.toEqual(existing);
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
     expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+  });
+
+  it('rejects reuse of a booking key when only service instructions change', async () => {
+    const { tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      id: '77777777-7777-4777-8777-777777777777',
+      homeId: home.id,
+      societyUnitId: null,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: from,
+      scheduledUntil: until,
+      notes: 'Use back entrance',
+    }]);
+
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: from,
+      scheduledUntil: until,
+      notes: 'Call before arrival',
+      idempotencyKey: 'service-retry-123',
+    })).rejects.toThrow('Idempotency key is already used for another service booking');
   });
 
   it('rejects reuse of an external-service booking key for a changed payload', async () => {
@@ -262,6 +287,7 @@ describe('ConsumerBookingsService', () => {
     await expect(service.cancelBooking(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
+      'Plans changed',
     )).rejects.toThrow('Booking cannot be cancelled');
 
     const values = sqlValues(tx.$queryRaw.mock.calls[0][0]);
@@ -279,10 +305,26 @@ describe('ConsumerBookingsService', () => {
     const result = await service.cancelBooking(
       '11111111-1111-1111-1111-111111111111',
       '66666666-6666-6666-6666-666666666666',
+      'Plans changed',
     );
 
     expect(result.status).toBe('CANCELLED');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    const cancellationEvent = tx.$queryRaw.mock.calls[2][0];
+    expect(sqlText(cancellationEvent)).toContain('"note"');
+    expect(sqlValues(cancellationEvent)).toContain('Plans changed');
+  });
+
+  it('rejects a cancellation without a meaningful reason before locking the booking', async () => {
+    const { tx, service } = setup();
+
+    await expect(service.cancelBooking(
+      '11111111-1111-1111-1111-111111111111',
+      '66666666-6666-6666-6666-666666666666',
+      '  ',
+    )).rejects.toThrow('Cancellation reason must be between 3 and 500 characters');
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 });

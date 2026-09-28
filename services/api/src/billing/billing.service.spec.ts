@@ -53,12 +53,12 @@ describe('BillingService', () => {
   });
 
   it('rejects invalid invoice amounts before persistence', async () => {
-    const prisma = { $queryRaw: vi.fn() };
+    const prisma = { $transaction: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService);
     await expect(service.issue('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222',{
       unitId:'33333333-3333-3333-3333-333333333333', billingPeriod:'2026-09', amountPaise:99, dueDate:'2026-09-30',
     })).rejects.toThrow('Invoice amount must be at least one rupee');
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('does not expose a cross-tenant invoice for payment', async () => {
@@ -74,29 +74,54 @@ describe('BillingService', () => {
   });
 
   it('notifies the verified owner and current tenant when dues are issued', async () => {
-    const prisma = {
+    const tx = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333' }])
         .mockResolvedValueOnce([{ id: 'invoice-1', invoiceNumber: '202609-33333333', amountPaise: 125000 }])
         .mockResolvedValueOnce([{ userId: 'owner-1' }, { userId: 'tenant-1' }]),
     };
+    const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
     const realtime = { publishResident: vi.fn() };
     const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
     await service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
       unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
     });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(realtime.publishResident).toHaveBeenCalledTimes(2);
     expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'owner-1' }));
     expect(realtime.publishResident).toHaveBeenCalledWith(expect.objectContaining({ type: 'MAINTENANCE_DUE_ISSUED', userId: 'tenant-1' }));
   });
 
+  it('keeps invoice creation and recipient resolution in one transaction', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333' }])
+        .mockResolvedValueOnce([{ id: 'invoice-1', invoiceNumber: '202609-33333333', amountPaise: 125000 }])
+        .mockRejectedValueOnce(new Error('recipient lookup failed')),
+    };
+    const prisma = { $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)) };
+    const realtime = { publishResident: vi.fn() };
+    const service = new BillingService(prisma as unknown as PrismaService, realtime as never);
+
+    await expect(service.issue('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', {
+      unitId: '33333333-3333-3333-3333-333333333333', billingPeriod: '2026-09', amountPaise: 125000, dueDate: '2026-09-30',
+    })).rejects.toThrow('recipient lookup failed');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(realtime.publishResident).not.toHaveBeenCalled();
+  });
+
   it('rejects an idempotency key reused for another invoice', async () => {
     const tx = {
-      $queryRaw: vi.fn().mockResolvedValue([{ invoiceId: '44444444-4444-4444-4444-444444444444' }]),
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: '33333333-3333-3333-3333-333333333333', amountPaise: 1000, status: 'ISSUED' }])
+        .mockResolvedValueOnce([{ invoiceId: '44444444-4444-4444-4444-444444444444' }]),
       $executeRaw: vi.fn(),
     };
     const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: '33333333-3333-3333-3333-333333333333', amountPaise: 1000, status: 'ISSUED' }]),
+      $queryRaw: vi.fn().mockResolvedValue([{ id: '33333333-3333-3333-3333-333333333333' }]),
       $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
     };
     const service = new BillingService(prisma as unknown as PrismaService);
@@ -106,6 +131,51 @@ describe('BillingService', () => {
       '33333333-3333-3333-3333-333333333333',
       'payment-key-123',
     )).rejects.toThrow('Idempotency key is already used for another invoice');
+    const lockSql=(tx.$queryRaw.mock.calls[0][0] as {strings:readonly string[]}).strings.join(' ');
+    expect(lockSql).toContain('FOR UPDATE');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('reuses an active payment order for the same payer even when the retry key changes', async () => {
+    const active={id:'payment-1',invoiceId:'33333333-3333-3333-3333-333333333333',payerUserId:'22222222-2222-2222-2222-222222222222',status:'CREATED',providerOrderId:'order-1'};
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:active.invoiceId,amountPaise:1000,status:'ISSUED'}])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([active]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:active.invoiceId}]),
+      $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+    };
+    const service=new BillingService(prisma as unknown as PrismaService);
+    await expect(service.createPayment(
+      '11111111-1111-1111-1111-111111111111',active.payerUserId,active.invoiceId,'new-retry-key',
+    )).resolves.toEqual(active);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('serializes an invoice and blocks a second payer while another payment order is active', async () => {
+    const invoiceId='33333333-3333-3333-3333-333333333333';
+    const tx={
+      $queryRaw:vi.fn()
+        .mockResolvedValueOnce([{id:invoiceId,amountPaise:1000,status:'ISSUED'}])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{id:'payment-1',invoiceId,payerUserId:'owner-user',status:'CREATED'}]),
+      $executeRaw:vi.fn(),
+    };
+    const prisma={
+      $queryRaw:vi.fn().mockResolvedValue([{id:invoiceId}]),
+      $transaction:vi.fn((run:(client:typeof tx)=>unknown)=>run(tx)),
+    };
+    const service=new BillingService(prisma as unknown as PrismaService);
+    await expect(service.createPayment(
+      '11111111-1111-1111-1111-111111111111','tenant-user',invoiceId,'tenant-attempt-key',
+    )).rejects.toThrow('Payment is already in progress for this invoice');
+    const lockSql=(tx.$queryRaw.mock.calls[0][0] as {strings:readonly string[]}).strings.join(' ');
+    expect(lockSql).toContain('FOR UPDATE');
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 

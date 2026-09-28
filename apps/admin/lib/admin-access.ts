@@ -15,6 +15,7 @@ const roleViews: Readonly<Record<string, readonly AdminView[]>> = {
   COMMITTEE_MEMBER: ['overview', 'gates', 'sos', 'helpdesk', 'notices'],
   FACILITY_MANAGER: ['overview', 'gates', 'workforce', 'marketplace', 'sos', 'helpdesk', 'notices'],
   ACCOUNTANT: ['billing'],
+  AUDITOR: ['overview'],
   SECURITY_SUPERVISOR: ['gates', 'sos'],
 }
 

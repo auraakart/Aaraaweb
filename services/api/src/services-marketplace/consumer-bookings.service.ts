@@ -201,6 +201,7 @@ export class ConsumerBookingsService {
     }
 
     const idempotencyKey = input.idempotencyKey?.trim() || null;
+    const notes = input.notes?.trim() || null;
     return this.prisma.$transaction(async (tx) => {
       if (idempotencyKey) {
         await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${idempotencyKey}`}))`);
@@ -216,7 +217,8 @@ export class ConsumerBookingsService {
             && existing[0].homeId === expectedHomeId
             && existing[0].societyUnitId === expectedUnitId
             && existing[0].scheduledFrom.getTime() === input.scheduledFrom.getTime()
-            && existing[0].scheduledUntil.getTime() === input.scheduledUntil.getTime();
+            && existing[0].scheduledUntil.getTime() === input.scheduledUntil.getTime()
+            && existing[0].notes === notes;
           if (!samePayload) throw new ConflictException('Idempotency key is already used for another service booking');
           return existing[0];
         }
@@ -273,7 +275,7 @@ export class ConsumerBookingsService {
           ${id}::uuid, ${userId}::uuid, ${location.homeId}::uuid, ${location.societyUnitId}::uuid,
           ${offering.providerId}::uuid, ${offering.id}::uuid, ${offering.name}, ${offering.provider.businessName},
           ${addressSnapshot}::jsonb, ${ServiceBookingStatus.REQUESTED}::"ServiceBookingStatus", ${input.scheduledFrom},
-          ${input.scheduledUntil}, ${offering.pricePaise}, ${input.notes ?? null}, ${idempotencyKey}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          ${input.scheduledUntil}, ${offering.pricePaise}, ${notes}, ${idempotencyKey}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         ) RETURNING *
       `);
       return rows[0];
@@ -284,7 +286,11 @@ export class ConsumerBookingsService {
     });
   }
 
-  async cancelBooking(userId: string, bookingId: string) {
+  async cancelBooking(userId: string, bookingId: string, reason: string) {
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+      throw new BadRequestException('Cancellation reason must be between 3 and 500 characters');
+    }
     return this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<Array<{ id: string; status: ServiceBookingStatus }>>(Prisma.sql`
         SELECT "id", "status" FROM "ConsumerServiceBooking"
@@ -311,10 +317,11 @@ export class ConsumerBookingsService {
 
       await tx.$queryRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceBookingEvent" (
-          "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "occurredAt"
+          "id", "bookingId", "actorUserId", "action", "fromStatus", "toStatus", "note", "occurredAt"
         ) VALUES (
           ${randomUUID()}::uuid, ${bookingId}::uuid, ${userId}::uuid, 'CANCELLED',
-          ${current.status}::"ServiceBookingStatus", ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus", CURRENT_TIMESTAMP
+          ${current.status}::"ServiceBookingStatus", ${ServiceBookingStatus.CANCELLED}::"ServiceBookingStatus",
+          ${normalizedReason}, CURRENT_TIMESTAMP
         )
       `);
       return rows[0];

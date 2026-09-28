@@ -37,8 +37,19 @@ export class PaymentExceptionsService{
     if(input.amountPaise<=0)throw new BadRequestException('Reversal amount must be positive');
     const reason=input.reason.trim(),key=input.idempotencyKey.trim();if(!reason||!key)throw new BadRequestException('Reason and idempotency key are required');
     return this.prisma.$transaction(async tx=>{
-      const existing=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "ReceivableAllocationReversal" WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key} LIMIT 1`);
-      if(existing.length)return this.getReversal(tx,societyId,existing[0].id);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
+      const existing=await tx.$queryRaw<Array<{id:string;allocationId:string;amountPaise:string;reason:string;reversedByUserId:string}>>(Prisma.sql`
+        SELECT "id","allocationId","amountPaise"::text AS "amountPaise","reason","reversedByUserId"
+        FROM "ReceivableAllocationReversal"
+        WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key} LIMIT 1
+      `);
+      if(existing.length){
+        const prior=existing[0];
+        if(prior.allocationId!==allocationId||prior.amountPaise!==String(input.amountPaise)||prior.reason!==reason||prior.reversedByUserId!==userId){
+          throw new ConflictException('Idempotency key was already used for a different allocation reversal request');
+        }
+        return this.getReversal(tx,societyId,prior.id);
+      }
       const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         INSERT INTO "ReceivableAllocationReversal" ("societyId","allocationId","amountPaise","reason","idempotencyKey","reversedByUserId")
         VALUES (${societyId}::uuid,${allocationId}::uuid,${input.amountPaise},${reason},${key},${userId}::uuid) RETURNING "id"
@@ -49,12 +60,24 @@ export class PaymentExceptionsService{
   async recordRefund(societyId:string,userId:string,paymentId:string,input:RefundInput){
     if(input.amountPaise<=0)throw new BadRequestException('Refund amount must be positive');
     const reason=input.reason.trim(),key=input.idempotencyKey.trim();if(!reason||!key)throw new BadRequestException('Reason and idempotency key are required');
+    const providerReference=input.providerReference?.trim()||null;
     return this.prisma.$transaction(async tx=>{
-      const existing=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "PaymentRefund" WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key} LIMIT 1`);
-      if(existing.length)return this.getRefund(tx,societyId,existing[0].id);
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
+      const existing=await tx.$queryRaw<Array<{id:string;paymentId:string;amountPaise:string;reason:string;providerReference:string|null;refundedByUserId:string}>>(Prisma.sql`
+        SELECT "id","paymentId","amountPaise"::text AS "amountPaise","reason","providerReference","refundedByUserId"
+        FROM "PaymentRefund"
+        WHERE "societyId"=${societyId}::uuid AND "idempotencyKey"=${key} LIMIT 1
+      `);
+      if(existing.length){
+        const prior=existing[0];
+        if(prior.paymentId!==paymentId||prior.amountPaise!==String(input.amountPaise)||prior.reason!==reason||prior.providerReference!==providerReference||prior.refundedByUserId!==userId){
+          throw new ConflictException('Idempotency key was already used for a different refund request');
+        }
+        return this.getRefund(tx,societyId,prior.id);
+      }
       const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         INSERT INTO "PaymentRefund" ("societyId","paymentId","amountPaise","reason","providerReference","idempotencyKey","refundedByUserId")
-        VALUES (${societyId}::uuid,${paymentId}::uuid,${input.amountPaise},${reason},${input.providerReference?.trim()||null},${key},${userId}::uuid) RETURNING "id"
+        VALUES (${societyId}::uuid,${paymentId}::uuid,${input.amountPaise},${reason},${providerReference},${key},${userId}::uuid) RETURNING "id"
       `);return this.getRefund(tx,societyId,rows[0].id);
     }).catch(e=>this.rethrow(e,'Refund could not be recorded'));
   }

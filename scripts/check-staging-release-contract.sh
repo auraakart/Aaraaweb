@@ -23,6 +23,9 @@ required_literals=(
   'git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"'
   'if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then'
   'git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .'
+  'STAGING_ONLY_SUBJECTS="$(git log --format='\''%s'\'' "${DEVELOP_SHA}..${TARGET_SHA}")"'
+  'Release:*|chore\(release\):*)'
+  'superseding stale release-only candidate history'
   'ref: ${{ github.event.pull_request.head.sha || github.sha }}'
   'test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"'
   "Publish exact-SHA staging evidence"

@@ -50,7 +50,7 @@ jobs:
       - name: Generate CycloneDX SBOM
         run: >-
           node scripts/generate-v4.55-sbom.mjs
-          supply-chain-evidence/aaraagate-v4.55.cdx.json
+          supply-chain-evidence/aaraagate.cdx.json
           supply-chain-evidence/pnpm-deps.json
           supply-chain-evidence/resident-pub-deps.json
           supply-chain-evidence/guard-pub-deps.json

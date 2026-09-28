@@ -6,19 +6,23 @@ import { api, type Session } from '../../../lib/admin-client'
 type Policy={maxActiveResidentVehicles:number;requireCredential:boolean;allowTemporaryOverflow:boolean}
 type Credential={id:string;credential:string;status:string;plateNumber:string;unitNumber:string;buildingName:string;issuedAt:string}
 type Violation={id:string;code:string;severity:string;status:string;slotCode?:string|null;plateNumber?:string|null;note?:string|null;reportedAt:string}
+const viewRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','AUDITOR','SECURITY_SUPERVISOR'])
+const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
 function session():Session|null{try{const r=sessionStorage.getItem('aaraagate.admin.session');return r?JSON.parse(r):null}catch{return null}}
 
 export default function AdvancedParkingPage(){
  const[s,setS]=useState<Session|null>(null),[policy,setPolicy]=useState<Policy>({maxActiveResidentVehicles:2,requireCredential:false,allowTemporaryOverflow:true}),[credentials,setCredentials]=useState<Credential[]>([]),[violations,setViolations]=useState<Violation[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false)
- const canManage=!!s&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(s.role)
+ const canView=!!s&&viewRoles.has(s.role)
+ const canManage=!!s&&manageRoles.has(s.role)
  const load=useCallback(async(x:Session)=>{setError('');try{const[p,c,v]=await Promise.all([api<Policy[]>('/parking/v2/policy',{},x),api<Credential[]>('/parking/v2/credentials',{},x),api<Violation[]>('/parking/v2/violations',{},x)]);if(p[0])setPolicy(p[0]);setCredentials(c);setViolations(v)}catch(e){setError(e instanceof Error?e.message:'Could not load advanced parking')}},[])
- useEffect(()=>{const x=session();setS(x);if(x)void load(x)},[load])
+ useEffect(()=>{const x=session();setS(x);if(x&&viewRoles.has(x.role))void load(x)},[load])
  const save=async()=>{if(!s||!canManage)return;setBusy(true);setError('');try{await api('/parking/v2/policy',{method:'PUT',body:JSON.stringify(policy)},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not save policy')}finally{setBusy(false)}}
  const revoke=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(`/parking/v2/credentials/${id}/revoke`,{method:'PATCH',body:'{}'},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not revoke credential')}finally{setBusy(false)}}
  const resolve=async(id:string)=>{if(!s||!canManage)return;setBusy(true);try{await api(`/parking/v2/violations/${id}/resolve`,{method:'PATCH',body:'{}'},s);await load(s)}catch(e){setError(e instanceof Error?e.message:'Could not resolve violation')}finally{setBusy(false)}}
  if(!s)return <main style={{padding:32}}><h1>Sign in required</h1></main>
+ if(!canView)return <main style={{padding:32}}><h1>Parking read access required</h1><a href="/">Return to Admin</a></main>
  return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 22px 80px'}}>
-  <header style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><small>{s.societyName??'Current society'}</small><h1>Advanced parking</h1><p>Repository-managed policy, credentials, temporary/visitor controls and violation evidence. Hardware integrations are intentionally excluded.</p></div><div><a href="/parking">Parking</a> · <a href="/parking/permits">Visitor permits</a></div></header>
+  <header style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><small>{s.societyName??'Current society'}</small><h1>Advanced parking</h1><p>Repository-managed policy, credentials, temporary/visitor controls and violation evidence. Hardware integrations are intentionally excluded.</p></div><div><a href="/parking">Parking</a> · <a href="/parking/permits">Visitor permits</a> · <a href={s.role==='AUDITOR'?'/audit':'/parking'}>← Back</a></div></header>
   {error&&<div style={{padding:12,border:'1px solid #ef4444',borderRadius:10,margin:'16px 0'}}>{error}</div>}
   <section style={panel}><h2>Society policy</h2><div style={{display:'grid',gap:12,maxWidth:520}}>
    <label>Maximum active resident parking allocations<input type="number" min={1} max={12} value={policy.maxActiveResidentVehicles} disabled={!canManage} onChange={e=>setPolicy({...policy,maxActiveResidentVehicles:Number(e.target.value)})} style={input}/></label>

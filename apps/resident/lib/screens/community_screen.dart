@@ -34,6 +34,194 @@ class _CommunityScreenState extends State<CommunityScreen> {
       if(mounted)setState(()=>error='Community information could not be loaded.');
     } finally { if(mounted)setState(()=>loading=false); }
   }
+  Future<List<Map<String,dynamic>>> _reloadPolls() async {
+    final fresh=await widget.controller.repository.communityPolls();
+    if(mounted)setState(()=>polls=fresh);
+    return fresh;
+  }
+
+  static Map<String,dynamic>? _pollById(List<Map<String,dynamic>> source,String id){
+    for(final poll in source){
+      if(poll['id']?.toString()==id)return poll;
+    }
+    return null;
+  }
+
+  static String? _pollOptionLabel(Map<String,dynamic> poll,String? optionId){
+    if(optionId==null)return null;
+    final raw=poll['options'];
+    if(raw is! List)return null;
+    for(final item in raw){
+      if(item is Map&&item['id']?.toString()==optionId)return item['label']?.toString();
+    }
+    return null;
+  }
+
+  static String _pollSubtitle(Map<String,dynamic> poll){
+    final myOptionId=poll['myOptionId']?.toString();
+    final recorded=_pollOptionLabel(poll,myOptionId);
+    if(myOptionId!=null)return recorded==null?'Response recorded':'Response recorded · $recorded';
+    final status=(poll['status']?.toString()??'OPEN').toUpperCase();
+    if(status=='CLOSED')return 'Closed community poll · no response recorded';
+    return 'Open community poll · review before responding';
+  }
+
+  Future<void> _openPoll(Map<String,dynamic> poll) async {
+    final pollId=poll['id']?.toString();
+    if(pollId==null||pollId.isEmpty)return;
+    final rawOptions=poll['options'];
+    final options=rawOptions is List
+        ? rawOptions.whereType<Map>().map((item)=>Map<String,dynamic>.from(item)).where((item)=>item['id']!=null).toList(growable:false)
+        : const <Map<String,dynamic>>[];
+    final title=poll['question']?.toString()??poll['title']?.toString()??'Community poll';
+    final description=poll['description']?.toString().trim()??'';
+    final status=(poll['status']?.toString()??'OPEN').toUpperCase();
+    final currentOptionId=poll['myOptionId']?.toString();
+    String? selectedOptionId=currentOptionId;
+    bool submitting=false;
+    String? actionError;
+
+    await showModalBottomSheet<void>(
+      context:context,
+      isScrollControlled:true,
+      builder:(sheetContext)=>StatefulBuilder(
+        builder:(sheetContext,setModalState){
+          final theme=Theme.of(sheetContext),scheme=theme.colorScheme;
+          final canRespond=status=='OPEN'&&currentOptionId==null&&options.isNotEmpty;
+          final recordedLabel=_pollOptionLabel(poll,currentOptionId);
+          return SafeArea(
+            child:Padding(
+              padding:EdgeInsets.fromLTRB(
+                AaraagateTokens.pageGutter,
+                AaraagateTokens.space5,
+                AaraagateTokens.pageGutter,
+                MediaQuery.viewInsetsOf(sheetContext).bottom+AaraagateTokens.space5,
+              ),
+              child:SingleChildScrollView(
+                child:Column(
+                  mainAxisSize:MainAxisSize.min,
+                  crossAxisAlignment:CrossAxisAlignment.start,
+                  children:[
+                    Text('Community poll',style:theme.textTheme.labelLarge?.copyWith(color:scheme.primary,fontWeight:FontWeight.w800)),
+                    const SizedBox(height:AaraagateTokens.space2),
+                    Text(title,style:theme.textTheme.headlineSmall),
+                    if(description.isNotEmpty)...[
+                      const SizedBox(height:AaraagateTokens.space2),
+                      Text(description,style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+                    ],
+                    const SizedBox(height:AaraagateTokens.space4),
+                    PremiumSurface(
+                      color:scheme.surfaceContainerLow,
+                      child:Row(
+                        crossAxisAlignment:CrossAxisAlignment.start,
+                        children:[
+                          Icon(Icons.info_outline_rounded,color:scheme.primary),
+                          const SizedBox(width:AaraagateTokens.space3),
+                          const Expanded(child:Text('Community poll only — not statutory voting. A recorded response cannot be changed from the Resident app.')),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height:AaraagateTokens.space4),
+                    if(options.isEmpty)
+                      const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No response options are available for this poll.')
+                    else
+                      for(final option in options)...[
+                        InkWell(
+                          key:ValueKey('poll-option-${option['id']}'),
+                          onTap:canRespond&&!submitting?()=>setModalState(()=>selectedOptionId=option['id'].toString()):null,
+                          borderRadius:BorderRadius.circular(AaraagateTokens.radiusControl),
+                          child:Padding(
+                            padding:const EdgeInsets.symmetric(vertical:AaraagateTokens.space2),
+                            child:Row(children:[
+                              Icon(
+                                selectedOptionId==option['id']?.toString()?Icons.radio_button_checked_rounded:Icons.radio_button_unchecked_rounded,
+                                color:selectedOptionId==option['id']?.toString()?scheme.primary:scheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width:AaraagateTokens.space3),
+                              Expanded(child:Text(option['label']?.toString()??'Option',style:theme.textTheme.bodyLarge)),
+                            ]),
+                          ),
+                        ),
+                      ],
+                    if(currentOptionId!=null)...[
+                      const SizedBox(height:AaraagateTokens.space3),
+                      Text('Your recorded response: ${recordedLabel??'Recorded option'}',style:theme.textTheme.bodyMedium?.copyWith(fontWeight:FontWeight.w700)),
+                    ],
+                    if(status=='CLOSED'&&currentOptionId==null)...[
+                      const SizedBox(height:AaraagateTokens.space3),
+                      Text('This poll is closed. No response is recorded for your account.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+                    ],
+                    if(actionError!=null)...[
+                      const SizedBox(height:AaraagateTokens.space3),
+                      Text(actionError!,style:theme.textTheme.bodySmall?.copyWith(color:scheme.error)),
+                    ],
+                    if(canRespond)...[
+                      const SizedBox(height:AaraagateTokens.space5),
+                      SizedBox(
+                        width:double.infinity,
+                        child:FilledButton.icon(
+                          key:ValueKey('poll-confirm-$pollId'),
+                          onPressed:submitting?null:() async {
+                            final chosen=selectedOptionId;
+                            if(chosen==null){
+                              setModalState(()=>actionError='Choose one option before confirming your response.');
+                              return;
+                            }
+                            setModalState((){submitting=true;actionError=null;});
+                            var requestReturned=false;
+                            try{
+                              await widget.controller.repository.respondToCommunityPoll(pollId:pollId,optionId:chosen);
+                              requestReturned=true;
+                            }catch(_){}
+
+                            try{
+                              final fresh=await _reloadPolls();
+                              final authoritative=_pollById(fresh,pollId)?['myOptionId']?.toString();
+                              if(authoritative==chosen){
+                                if(sheetContext.mounted)Navigator.pop(sheetContext);
+                                if(mounted){
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(requestReturned?'Response recorded.':'Response confirmed after refresh.')));
+                                }
+                                return;
+                              }
+                              if(sheetContext.mounted){
+                                setModalState((){
+                                  submitting=false;
+                                  actionError=authoritative==null
+                                      ? 'Response could not be verified. Review your selection and retry.'
+                                      : 'A different response is already recorded for this poll. Refresh before taking another action.';
+                                });
+                              }
+                            }catch(_){
+                              if(sheetContext.mounted){
+                                setModalState((){
+                                  submitting=false;
+                                  actionError=requestReturned
+                                      ? 'Response was sent but confirmation could not be verified. Refresh before trying again.'
+                                      : 'Response could not be verified. Review your selection and retry.';
+                                });
+                              }
+                            }
+                          },
+                          icon:submitting
+                              ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))
+                              : const Icon(Icons.how_to_vote_rounded),
+                          label:Text(submitting?'Confirming…':'Confirm response'),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height:AaraagateTokens.space2),
+                    SizedBox(width:double.infinity,child:TextButton(onPressed:submitting?null:()=>Navigator.pop(sheetContext),child:const Text('Close'))),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _openSocietyDocument(String id) async {
     try {
       final intent=await widget.controller.repository.societyDocumentDownloadIntent(id);
@@ -87,7 +275,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       if(loading)...[const SizedBox(height:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
       if(error!=null)...[const SizedBox(height:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest notices',supportingText:'Recent updates published for your society.'),const SizedBox(height:AaraagateTokens.space3),
-      if(notices.isEmpty)const AppStateCard(icon:Icons.campaign_outlined,message:'No current notices.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<notices.length;i++)...[_Tile(icon:Icons.campaign_outlined,title:notices[i]['title']?.toString()??'Society notice',subtitle:notices[i]['requiresAcknowledgement']==true?'Acknowledgement requested':'Published update'),if(i<notices.length-1)Divider(height:1,color:scheme.outlineVariant)]])),
+      if(notices.isEmpty)const AppStateCard(icon:Icons.campaign_outlined,message:'No current notices.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<notices.length;i++)...[_Tile(icon:Icons.campaign_outlined,title:notices[i]['title']?.toString()??'Society notice',subtitle:notices[i]['requiresAcknowledgement']==true?(notices[i]['acknowledgedAt']!=null?'Acknowledged':'Acknowledgement requested'):'Published update'),if(i<notices.length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Meetings & decisions',supportingText:'Community-visible governance meetings and closure information.'),const SizedBox(height:AaraagateTokens.space3),
       if(meetings.isEmpty)const AppStateCard(icon:Icons.groups_outlined,message:'No community-visible meetings.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<meetings.take(3).length;i++)...[_Tile(icon:Icons.groups_outlined,title:meetings[i]['title']?.toString()??'Society meeting',subtitle:_meetingSubtitle(meetings[i])),if(i<meetings.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Society documents',supportingText:'Published documents authorized for your current relationship and property.'),const SizedBox(height:AaraagateTokens.space3),
@@ -95,7 +283,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Governance references',supportingText:'Meeting-related document references published through governance workflows.'),const SizedBox(height:AaraagateTokens.space3),
       if(governanceDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No governance references available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<governanceDocuments.take(3).length;i++)...[_Tile(icon:Icons.description_outlined,title:_label(governanceDocuments[i]['kind']?.toString()??'Document'),subtitle:governanceDocuments[i]['note']?.toString()??'Governance document'),if(i<governanceDocuments.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Polls',supportingText:'Current non-statutory community participation.'),const SizedBox(height:AaraagateTokens.space3),
-      if(polls.isEmpty)const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No community polls open.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<polls.take(3).length;i++)...[_Tile(icon:Icons.how_to_vote_outlined,title:polls[i]['question']?.toString()??polls[i]['title']?.toString()??'Community poll',subtitle:'Open community poll'),if(i<polls.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
+      if(polls.isEmpty)const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No community polls open.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<polls.take(3).length;i++)...[_Tile(icon:Icons.how_to_vote_outlined,title:polls[i]['question']?.toString()??polls[i]['title']?.toString()??'Community poll',subtitle:_pollSubtitle(polls[i]),actionLabel:polls[i]['myOptionId']!=null||(polls[i]['status']?.toString()??'OPEN').toUpperCase()=='CLOSED'?'Review':'Respond',onAction:()=>_openPoll(polls[i])),if(i<polls.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       if(openTickets.isNotEmpty)...[const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Your open helpdesk',supportingText:'Requests from this selected property.'),const SizedBox(height:AaraagateTokens.space3),PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<openTickets.length;i++)...[_Tile(icon:Icons.support_agent_outlined,title:openTickets[i]['title']?.toString()??'Helpdesk request',subtitle:_label(openTickets[i]['status']?.toString()??'Open')),if(i<openTickets.length-1)Divider(height:1,color:scheme.outlineVariant)]]))]
     ])));
   }
