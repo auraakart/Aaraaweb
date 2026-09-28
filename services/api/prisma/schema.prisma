@@ -252,11 +252,13 @@ model EmergencyContact {
   phone       String
   relation    String?
   priority    Int       @default(1)
+  idempotencyKey String?
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
   society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
+  @@unique([societyId, householdId, idempotencyKey], map: "EmergencyContact_society_household_idempotency_key")
   @@index([householdId, active, priority])
 }
 

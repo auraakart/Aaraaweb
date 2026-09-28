@@ -8,6 +8,7 @@ export default defineConfig({
       'src/accounting/payment-availability.service.spec.ts',
       'src/ai-operations/ai-operations.controlled-assignment.spec.ts',
       'src/privacy/privacy-self-context.spec.ts',
+      'src/households/household.service.spec.ts',
     ],
     coverage: {
       enabled: true,

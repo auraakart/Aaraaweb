@@ -29,6 +29,7 @@ function service(overrides: Overrides = {}) {
       update: vi.fn().mockResolvedValue({ id: 'contact-1', active: false }),
     },
     $executeRaw: vi.fn().mockResolvedValue(1),
+    $queryRaw: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
   Object.assign(prisma, {
@@ -239,4 +240,108 @@ describe('HouseholdService', () => {
       svc.updatePreferences('society-1', 'user-1', 'household-x', { delivery: 'gate' }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('returns an exact emergency-contact same-key replay without a second insert', async () => {
+    const existing = {
+      id: 'contact-1',
+      societyId: 'society-1',
+      householdId: 'household-1',
+      name: 'Anita Rao',
+      phone: '+919876543210',
+      relation: 'Sister',
+      priority: 1,
+      active: true,
+      idempotencyKey: 'resident-emergency-contact-1',
+    };
+    const create = vi.fn();
+    const { svc, prisma } = service({
+      emergencyContact: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        create,
+        update: vi.fn(),
+      },
+    });
+
+    await expect(svc.addEmergencyContact('society-1', 'user-1', 'household-1', {
+      name: ' Anita Rao ',
+      phone: ' +919876543210 ',
+      relation: ' Sister ',
+      priority: 1,
+      idempotencyKey: 'resident-emergency-contact-1',
+    })).resolves.toEqual(existing);
+
+    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('rejects emergency-contact same-key replay when normalized intent changes', async () => {
+    const create = vi.fn();
+    const { svc } = service({
+      emergencyContact: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'contact-1',
+          name: 'Anita Rao',
+          phone: '+919876543210',
+          relation: 'Sister',
+          priority: 1,
+          active: true,
+          idempotencyKey: 'resident-emergency-contact-2',
+        }),
+        create,
+        update: vi.fn(),
+      },
+    });
+
+    await expect(svc.addEmergencyContact('society-1', 'user-1', 'household-1', {
+      name: 'Anita Rao',
+      phone: '+919876543210',
+      relation: 'Sister',
+      priority: 2,
+      idempotencyKey: 'resident-emergency-contact-2',
+    })).rejects.toThrow('Idempotency key already used for a different emergency contact');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('persists the emergency-contact request identity on the first successful create', async () => {
+    const create = vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: 'contact-new', active: true, ...data }),
+    );
+    const { svc } = service({
+      emergencyContact: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create,
+        update: vi.fn(),
+      },
+    });
+
+    await svc.addEmergencyContact('society-1', 'user-1', 'household-1', {
+      name: 'Anita Rao',
+      phone: '+919876543210',
+      relation: 'Sister',
+      priority: 1,
+      idempotencyKey: 'resident-emergency-contact-3',
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ idempotencyKey: 'resident-emergency-contact-3' }),
+    });
+  });
+
+  it('treats scoped emergency-contact deactivation replay as success', async () => {
+    const update = vi.fn();
+    const inactive = { id: 'contact-1', householdId: 'household-1', societyId: 'society-1', active: false };
+    const { svc } = service({
+      emergencyContact: {
+        findFirst: vi.fn().mockResolvedValue(inactive),
+        create: vi.fn(),
+        update,
+      },
+    });
+
+    await expect(
+      svc.deactivateEmergencyContact('society-1', 'user-1', 'household-1', 'contact-1'),
+    ).resolves.toEqual(inactive);
+    expect(update).not.toHaveBeenCalled();
+  });
+
 });
