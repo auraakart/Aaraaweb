@@ -263,9 +263,9 @@ describe('HouseholdService', () => {
     });
 
     await expect(svc.addEmergencyContact('society-1', 'user-1', 'household-1', {
-      name: ' Anita Rao ',
-      phone: ' +919876543210 ',
-      relation: ' Sister ',
+      name: ' anita rao ',
+      phone: ' +91 98765-43210 ',
+      relation: ' sister ',
       priority: 1,
       idempotencyKey: 'resident-emergency-contact-1',
     })).resolves.toEqual(existing);
