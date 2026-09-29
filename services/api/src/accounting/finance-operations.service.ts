@@ -387,11 +387,20 @@ export class FinanceOperationsService {
     if(metrics.contractsExpiring30d>0)nextActions.push('Review expiring vendor contracts or AMCs before their renewal notice window closes.');
     if(metrics.draftBudgets>0)nextActions.push('Review draft budgets before approval and lock.');
     if(nextActions.length===0)nextActions.push('No execution exception is visible; continue routine finance controls and period-close review.');
+    const resolutionActions=[
+      ...(metrics.unresolvedReconciliation>0?[{code:'RECONCILIATION_OPEN',label:'Open reconciliation queue',detail:'Review provider evidence, disputes, reversals and chargebacks before resolving the case.',href:'/finance/reconciliation'}]:[]),
+      ...(metrics.unsettledGatewayOperations>0?[{code:'GATEWAY_OPERATIONS_UNSETTLED',label:'Review gateway operations',detail:'Inspect pending status/refund requests and their provider evidence.',href:'/finance/reconciliation'}]:[]),
+      ...(metrics.overduePayables>0?[{code:'PAYABLES_OVERDUE',label:'Review overdue payables',detail:'Use the controlled finance-operations workspace and posted journal evidence before settlement.',href:'/finance/operations'}]:[]),
+      ...(metrics.approvedUnpostedExpenses>0?[{code:'EXPENSES_APPROVED_NOT_POSTED',label:'Post approved expenses',detail:'Complete the existing explicit expense-posting workflow before period close.',href:'/finance/operations'}]:[]),
+      ...(metrics.unlinkedPurchaseOrders>0?[{code:'PROCUREMENT_ACCOUNTING_HANDOFF_PENDING',label:'Complete procurement handoff',detail:'Link issued purchase orders to the authoritative accounting expense workflow.',href:'/finance/procurement'}]:[]),
+      ...(metrics.contractsExpiring30d>0?[{code:'VENDOR_CONTRACTS_EXPIRING',label:'Review expiring contracts',detail:'Inspect contract/AMC expiry evidence and renewal notice timing.',href:'/society-vendors/contracts'}]:[]),
+      ...(metrics.draftBudgets>0?[{code:'DRAFT_BUDGETS',label:'Review draft budgets',detail:'Review, approve and lock budgets through the existing finance-operations controls.',href:'/finance/operations'}]:[]),
+    ];
     const critical=metrics.unresolvedReconciliation+metrics.unsettledGatewayOperations+metrics.overduePayables;
     return {
       ...metrics,
       status:critical>0?'AT_RISK':blockers.length>0?'WATCH':'READY',
-      blockers,nextActions,
+      blockers,nextActions,resolutionActions,
       automaticDebitAvailable:false,
       providerExecution:'ADAPTER_CONTROLLED',
       boundary:'Deterministic current-state execution readiness from recorded finance, payment, procurement and contract evidence. This does not certify provider settlement, execute AutoPay mandates, or close accounting periods automatically.',
@@ -415,7 +424,14 @@ export class FinanceOperationsService {
     ]);
     const bank=bankRows[0]??{unmatchedBank:0,unmatchedMovementPaise:'0'},cash={unappliedCount:cashSummary.paymentCount,unappliedPaise:cashSummary.unappliedPaise},budget=budgetRows[0]??{overrunLines:0,overrunPaise:'0'},tax=taxRows[0]??{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds=refundRows[0]??{refunds30d:0,refundedPaise30d:'0'};
     const attention=readiness.blockers.length+bank.unmatchedBank+cash.unappliedCount+budget.overrunLines+tax.documentsMissingTaxEvidence;
-    return {status:attention===0?'CLEAR':readiness.status==='AT_RISK'?'ACTION_REQUIRED':'ATTENTION',financeReadiness:readiness,bank,cash,budget,tax,refunds,nextActions:[...(bank.unmatchedBank?['Review deterministic bank-match suggestions before posting or matching.']:[]),...(cash.unappliedCount?['Allocate captured cash or document the exception before period close.']:[]),...(budget.overrunLines?['Review budget-versus-actual overruns with the Treasurer/Committee.']:[]),...(tax.documentsMissingTaxEvidence?['Complete GST/TDS metadata for approved or posted expenses where configured.']:[]),...readiness.nextActions].slice(0,10),automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation. It does not post journals, match bank transactions, execute refunds, determine tax liability, or close periods automatically.',generatedAt:new Date().toISOString()};
+    const resolutionActions=[
+      ...(bank.unmatchedBank?[{code:'BANK_UNMATCHED',label:'Reconcile bank items',detail:'Review deterministic bank-match suggestions and explicitly confirm any match.',href:'/finance/bank-reconciliation'}]:[]),
+      ...(cash.unappliedCount?[{code:'CASH_UNAPPLIED',label:'Allocate captured cash',detail:'Inspect payment availability, reversals and refunds before allocating the remaining amount.',href:'/finance#payment-allocation'}]:[]),
+      ...(budget.overrunLines?[{code:'BUDGET_OVERRUN',label:'Review budget overruns',detail:'Compare approved budget lines with posted actuals before committee action.',href:'/finance/operations'}]:[]),
+      ...(tax.documentsMissingTaxEvidence?[{code:'TAX_EVIDENCE_MISSING',label:'Complete GST/TDS evidence',detail:'Review configured tax metadata for approved or posted expenses.',href:'/finance/tax'}]:[]),
+      ...readiness.resolutionActions,
+    ];
+    return {status:attention===0?'CLEAR':readiness.status==='AT_RISK'?'ACTION_REQUIRED':'ATTENTION',financeReadiness:readiness,bank,cash,budget,tax,refunds,nextActions:[...(bank.unmatchedBank?['Review deterministic bank-match suggestions before posting or matching.']:[]),...(cash.unappliedCount?['Allocate captured cash or document the exception before period close.']:[]),...(budget.overrunLines?['Review budget-versus-actual overruns with the Treasurer/Committee.']:[]),...(tax.documentsMissingTaxEvidence?['Complete GST/TDS metadata for approved or posted expenses where configured.']:[]),...readiness.nextActions].slice(0,10),resolutionActions:resolutionActions.filter((action,index,items)=>items.findIndex(candidate=>candidate.code===action.code)===index).slice(0,12),automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation. Resolution links navigate to existing permission-checked workflows; they do not post journals, match bank transactions, execute refunds, determine tax liability, or close periods automatically.',generatedAt:new Date().toISOString()};
   }
 
   async exportSnapshot(societyId:string){const [expenses,payables,budgets,funds]=await Promise.all([this.listExpenses(societyId),this.listPayables(societyId),this.listBudgets(societyId),this.fundUtilization(societyId)]);return {generatedAt:new Date().toISOString(),expenses,payables,budgets,funds};}
