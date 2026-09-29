@@ -86,6 +86,7 @@ export class DocumentsService {
     const genericTerms = new Set([
       'society','community','document','documents','policy','policies','rule','rules','bylaw','bylaws','handbook','circular',
       'please','show','tell','what','where','when','which','about','does','have','with','from','this','that','your','there','need','know',
+      'the','and','for','are','our','can','you','me',
     ]);
     const distinctiveTokens = rawTokens.filter(token => !genericTerms.has(token));
     const tokens = distinctiveTokens.length > 0 ? distinctiveTokens : rawTokens;
