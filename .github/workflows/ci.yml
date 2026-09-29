@@ -679,6 +679,7 @@ jobs:
   develop-auto-merge:
     name: Develop auto merge
     needs: [required-merge-gates]
+    if: ${{ !cancelled() && needs.required-merge-gates.result == 'success' }}
     permissions:
       contents: write
       pull-requests: write
