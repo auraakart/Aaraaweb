@@ -4,6 +4,11 @@ on:
   push:
     branches: [staging]
   pull_request:
+    branches: [develop, main]
+    paths:
+      - 'services/api/prisma/**'
+      - '.github/workflows/backup-restore-smoke.yml'
+      - 'docs/BACKUP-RESTORE-EVIDENCE.md'
   workflow_dispatch:
 
 permissions:

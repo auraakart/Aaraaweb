@@ -117,6 +117,8 @@ V4.80.4 hardens develop delivery orchestration after concurrent green V4.80 PRs 
 
 V4.80.5 hardens the Resident amenity waitlist against uncertain network outcomes without adding a second queue identity. If a waitlist join response is lost or a retry receives the existing duplicate-window conflict, Resident reloads the authenticated user's authoritative waitlist and accepts recovery only when a WAITING entry exactly matches amenity, unit, start, end and guest count. The server's existing partial unique index remains the duplicate-prevention authority, and unrelated conflicts still surface normally.
 
+V4.80.6 removes avoidable develop-PR runner contention without weakening protected-branch gates. Canonical CI now distinguishes Resident and Guard changes so a Resident-only PR does not execute the Guard suite and vice versa, while cross-cutting changes still validate both. The lightweight cross-role source contract runs inside Repository Structure. Full Cross-role E2E, CodeQL and supply-chain evidence move from ordinary develop PRs to post-merge develop pushes and retain pre-main coverage; Backup Restore PR runs are path-gated to schema/restore-control changes. The five required branch checks remain unchanged.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.

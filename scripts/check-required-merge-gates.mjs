@@ -115,6 +115,63 @@ if(fs.existsSync('.github/workflows/develop-auto-merge.yml')){
   process.exit(1);
 }
 
+const appScopedRequired=[
+  'run_resident: ${{ steps.detect.outputs.run_resident }}',
+  'run_guard: ${{ steps.detect.outputs.run_guard }}',
+  "if grep -Eq '^apps/resident/' /tmp/aaraagate-changed-files.txt",
+  "if grep -Eq '^apps/guard/' /tmp/aaraagate-changed-files.txt",
+  "if: needs.change-scope.outputs.run_resident == 'true'",
+  "if: needs.change-scope.outputs.run_guard == 'true'",
+  'test/amenities_screen_test.dart',
+  'node scripts/v4.34-cross-app-journey-contract.mjs',
+  'Upload Resident risk coverage evidence',
+  'Upload Guard risk coverage evidence',
+];
+const appScopedMissing=appScopedRequired.filter(token=>!workflow.includes(token));
+if(appScopedMissing.length){
+  console.error('App-scoped Flutter validation contract missing: '+appScopedMissing.join(', '));
+  process.exit(1);
+}
+
+const workflowSource=(path)=>fs.readFileSync(path,'utf8');
+const eventBranches=(source,event)=>{
+  const match=source.match(new RegExp('(?:^|\\n)\\s*'+event+':\\s*\\n\\s*branches:\\s*\\[([^\\]]+)\\]'));
+  return match?match[1].split(',').map(value=>value.trim()):[];
+};
+const codeqlWorkflow=workflowSource('.github/workflows/codeql.yml');
+const supplyWorkflow=workflowSource('.github/workflows/supply-chain-security.yml');
+const crossRoleWorkflow=workflowSource('.github/workflows/cross-role-e2e.yml');
+const backupWorkflow=workflowSource('.github/workflows/backup-restore-smoke.yml');
+
+for(const [label,source] of [
+  ['CodeQL',codeqlWorkflow],
+  ['Supply-chain security',supplyWorkflow],
+  ['Cross-role E2E',crossRoleWorkflow],
+]){
+  if(eventBranches(source,'pull_request').includes('develop')){
+    console.error(label+' must not consume develop PR runners outside canonical CI.');
+    process.exit(1);
+  }
+}
+if(!eventBranches(codeqlWorkflow,'push').includes('develop')||
+   !eventBranches(supplyWorkflow,'push').includes('develop')||
+   !eventBranches(crossRoleWorkflow,'push').includes('develop')){
+  console.error('Deferred security/E2E workflows must retain post-merge develop push coverage.');
+  process.exit(1);
+}
+if(!eventBranches(codeqlWorkflow,'pull_request').includes('main')||
+   !eventBranches(supplyWorkflow,'pull_request').includes('main')||
+   !eventBranches(crossRoleWorkflow,'pull_request').includes('main')){
+  console.error('Deferred security/E2E workflows must retain pre-main pull-request coverage.');
+  process.exit(1);
+}
+for(const token of ["branches: [develop, main]","services/api/prisma/**","docs/BACKUP-RESTORE-EVIDENCE.md"]){
+  if(!backupWorkflow.includes(token)){
+    console.error('Backup restore PR path gate missing: '+token);
+    process.exit(1);
+  }
+}
+
 const developDeferred=[
   '.github/workflows/v2-pilot-acceptance-contract.yml',
   '.github/workflows/v2-staging-pilot-execution-contract.yml',

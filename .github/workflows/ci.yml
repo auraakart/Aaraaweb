@@ -24,6 +24,8 @@ jobs:
       run_api: ${{ steps.detect.outputs.run_api }}
       run_admin: ${{ steps.detect.outputs.run_admin }}
       run_flutter: ${{ steps.detect.outputs.run_flutter }}
+      run_resident: ${{ steps.detect.outputs.run_resident }}
+      run_guard: ${{ steps.detect.outputs.run_guard }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -41,6 +43,8 @@ jobs:
             echo "run_api=true" >> "$GITHUB_OUTPUT"
             echo "run_admin=true" >> "$GITHUB_OUTPUT"
             echo "run_flutter=true" >> "$GITHUB_OUTPUT"
+            echo "run_resident=true" >> "$GITHUB_OUTPUT"
+            echo "run_guard=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -53,6 +57,8 @@ jobs:
             echo "run_api=true" >> "$GITHUB_OUTPUT"
             echo "run_admin=true" >> "$GITHUB_OUTPUT"
             echo "run_flutter=true" >> "$GITHUB_OUTPUT"
+            echo "run_resident=true" >> "$GITHUB_OUTPUT"
+            echo "run_guard=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -62,6 +68,8 @@ jobs:
             echo "run_api=false" >> "$GITHUB_OUTPUT"
             echo "run_admin=false" >> "$GITHUB_OUTPUT"
             echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+            echo "run_resident=false" >> "$GITHUB_OUTPUT"
+            echo "run_guard=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -74,12 +82,16 @@ jobs:
             echo "run_api=false" >> "$GITHUB_OUTPUT"
             echo "run_admin=false" >> "$GITHUB_OUTPUT"
             echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+            echo "run_resident=false" >> "$GITHUB_OUTPUT"
+            echo "run_guard=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           run_api=false
           run_admin=false
           run_flutter=false
+          run_resident=false
+          run_guard=false
 
           if grep -Eq '^services/api/' /tmp/aaraagate-changed-files.txt; then
             run_api=true
@@ -87,8 +99,13 @@ jobs:
           if grep -Eq '^apps/admin/' /tmp/aaraagate-changed-files.txt; then
             run_admin=true
           fi
-          if grep -Eq '^apps/(resident|guard)/' /tmp/aaraagate-changed-files.txt; then
+          if grep -Eq '^apps/resident/' /tmp/aaraagate-changed-files.txt; then
             run_flutter=true
+            run_resident=true
+          fi
+          if grep -Eq '^apps/guard/' /tmp/aaraagate-changed-files.txt; then
+            run_flutter=true
+            run_guard=true
           fi
 
           # Cross-cutting build/config changes conservatively validate all surfaces.
@@ -98,11 +115,15 @@ jobs:
             run_api=true
             run_admin=true
             run_flutter=true
+            run_resident=true
+            run_guard=true
           fi
           if grep '^scripts/' /tmp/aaraagate-changed-files.txt | grep -Ev '^scripts/check-v[0-9][0-9A-Za-z._-]*\.mjs$' | grep -q .; then
             run_api=true
             run_admin=true
             run_flutter=true
+            run_resident=true
+            run_guard=true
           fi
 
           # Unknown non-doc runtime paths default to full validation rather than under-testing.
@@ -110,11 +131,15 @@ jobs:
             run_api=true
             run_admin=true
             run_flutter=true
+            run_resident=true
+            run_guard=true
           fi
 
           echo "run_api=$run_api" >> "$GITHUB_OUTPUT"
           echo "run_admin=$run_admin" >> "$GITHUB_OUTPUT"
           echo "run_flutter=$run_flutter" >> "$GITHUB_OUTPUT"
+          echo "run_resident=$run_resident" >> "$GITHUB_OUTPUT"
+          echo "run_guard=$run_guard" >> "$GITHUB_OUTPUT"
 
 
   repository-structure:
@@ -160,6 +185,8 @@ jobs:
           bash -n scripts/hosted-staging-smoke.sh
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
+      - name: Check cross-role source contract
+        run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Check V4.36 architecture convergence
         run: node scripts/check-v4.36-architecture-convergence.mjs
       - name: Check V4.37 repository integrity
@@ -533,9 +560,11 @@ jobs:
           channel: stable
           cache: true
       - name: Resident dependencies
+        if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: flutter pub get
       - name: Risk-weighted Resident behavioural regression gate
+        if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: >-
           flutter test --coverage
@@ -545,18 +574,24 @@ jobs:
           test/privacy_data_screen_test.dart
           test/home_action_inbox_dedup_test.dart
           test/community_poll_participation_test.dart
+          test/amenities_screen_test.dart
       - name: Risk-weighted Resident coverage gate
+        if: needs.change-scope.outputs.run_resident == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/resident/coverage/lcov.info resident
       - name: Analyze resident app
+        if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: flutter analyze
       - name: Test resident app
+        if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: flutter test
       - name: Guard dependencies
+        if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: flutter pub get
       - name: Risk-weighted Guard behavioural regression gate
+        if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: >-
           flutter test --coverage
@@ -564,21 +599,30 @@ jobs:
           test/guard_realtime_lifecycle_test.dart
           test/guard_workforce_assignment_test.dart
       - name: Risk-weighted Guard coverage gate
+        if: needs.change-scope.outputs.run_guard == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/guard/coverage/lcov.info guard
       - name: Analyze guard app
+        if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: flutter analyze
       - name: Test guard app
+        if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: flutter test
-      - name: Upload Flutter risk coverage evidence
-        if: always()
+      - name: Upload Resident risk coverage evidence
+        if: always() && needs.change-scope.outputs.run_resident == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: flutter-risk-coverage-${{ github.sha }}
-          path: |
-            apps/resident/coverage/
-            apps/guard/coverage/
+          name: resident-risk-coverage-${{ github.sha }}
+          path: apps/resident/coverage/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Guard risk coverage evidence
+        if: always() && needs.change-scope.outputs.run_guard == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: guard-risk-coverage-${{ github.sha }}
+          path: apps/guard/coverage/
           if-no-files-found: error
           retention-days: 30
 
