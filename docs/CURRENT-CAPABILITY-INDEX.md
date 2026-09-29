@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.79 competitive convergence closure on top of the V4.79.0–V4.79.5 product slices and V4.79 delivery-hardening patches.  
+**Current-state review baseline:** V4.79 competitive convergence closure on top of the V4.79.0–V4.79.5 product slices and V4.79 delivery-hardening patches, retaining V4.51.1 Post-Release Regression Hardening as the prior post-main/packaging regression baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
