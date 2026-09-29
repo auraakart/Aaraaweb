@@ -705,10 +705,10 @@ jobs:
           if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then
             echo "Release-control-only PR: dependency graph and product surfaces are unchanged; tracked-secret scan ran in required validation."
             exit 0
+          fi
           if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then
             echo "Dependency graph unchanged: full package audit skipped; tracked-secret scan passed in Repository structure."
             exit 0
-          fi
           fi
           test "$FULL_RESULT" = "success"
 
