@@ -49,8 +49,8 @@ const autoMerge=workflow.slice(autoMergeStart);
 const autoRequired=[
   'name: Develop auto merge',
   'needs: [required-merge-gates]',
-  "github.event_name == 'pull_request'",
-  "needs.required-merge-gates.result == 'success'",
+  'EVENT_NAME: ${{ github.event_name }}',
+  'if [ "$EVENT_NAME" != "pull_request" ]',
   'contents: write',
   'pull-requests: write',
   'EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
@@ -70,6 +70,11 @@ const autoRequired=[
 const autoMissing=autoRequired.filter(token=>!autoMerge.includes(token));
 if(autoMissing.length){
   console.error('In-CI develop auto-merge safety contract missing: '+autoMissing.join(', '));
+  process.exit(1);
+}
+const autoHeader=autoMerge.slice(0,autoMerge.indexOf('    permissions:'));
+if(autoHeader.includes('\n    if:')){
+  console.error('Develop auto-merge must not use any job-level if condition; applicability belongs inside the observable merge step.');
   process.exit(1);
 }
 if(autoMerge.includes("github.event.pull_request.base.ref == 'develop'")||
