@@ -30,10 +30,95 @@ export class FinanceOperationsService {
     `);
   }
 
+  async expenseIntakeAssessment(
+    societyId:string,
+    input:Pick<CreateExpenseInput,'vendorName'|'invoiceReference'|'expenseDate'|'amountPaise'>,
+  ) {
+    const vendorName=input.vendorName.trim();
+    const invoiceReference=input.invoiceReference?.trim()||null;
+    if(!vendorName) throw new BadRequestException('Vendor name is required for expense intake assessment');
+    if(input.amountPaise<=0) throw new BadRequestException('Expense amount must be positive');
+
+    const candidates=await this.prisma.$queryRaw<Array<{
+      id:string;expenseNumber:string;vendorName:string;invoiceReference:string|null;expenseDate:Date;amountPaise:bigint;status:string;
+    }>>(Prisma.sql`
+      SELECT "id","expenseNumber","vendorName","invoiceReference","expenseDate","amountPaise","status"
+      FROM "SocietyExpense"
+      WHERE "societyId"=${societyId}::uuid
+        AND (
+          (${invoiceReference}::text IS NOT NULL AND LOWER(TRIM(COALESCE("invoiceReference",'')))=LOWER(TRIM(${invoiceReference})))
+          OR (
+            LOWER(TRIM("vendorName"))=LOWER(TRIM(${vendorName}))
+            AND "amountPaise"=${input.amountPaise}
+            AND ABS("expenseDate"-${input.expenseDate}::date)<=3
+          )
+        )
+      ORDER BY
+        CASE WHEN ${invoiceReference}::text IS NOT NULL AND LOWER(TRIM(COALESCE("invoiceReference",'')))=LOWER(TRIM(${invoiceReference})) THEN 0 ELSE 1 END,
+        ABS("expenseDate"-${input.expenseDate}::date),
+        "createdAt" DESC
+      LIMIT 12
+    `);
+
+    const reviewed=candidates.map(candidate=>{
+      const sameVendor=candidate.vendorName.trim().toLowerCase()===vendorName.toLowerCase();
+      const sameReference=Boolean(
+        invoiceReference
+        && candidate.invoiceReference
+        && candidate.invoiceReference.trim().toLowerCase()===invoiceReference.toLowerCase(),
+      );
+      const sameAmount=Number(candidate.amountPaise)===input.amountPaise;
+      const candidateDate=candidate.expenseDate instanceof Date
+        ? candidate.expenseDate.toISOString().slice(0,10)
+        : String(candidate.expenseDate).slice(0,10);
+      const dateDistanceDays=Math.abs(
+        Math.round((Date.parse(`${candidateDate}T00:00:00.000Z`)-Date.parse(`${input.expenseDate.slice(0,10)}T00:00:00.000Z`))/(24*60*60*1000)),
+      );
+      const signals:string[]=[];
+      if(sameVendor) signals.push('SAME_VENDOR');
+      if(sameReference) signals.push('SAME_INVOICE_REFERENCE');
+      if(sameAmount) signals.push('SAME_AMOUNT');
+      if(dateDistanceDays===0) signals.push('SAME_EXPENSE_DATE');
+      else if(dateDistanceDays<=3) signals.push('NEARBY_EXPENSE_DATE');
+      const classification=
+        sameVendor&&sameReference&&sameAmount?'DUPLICATE_EXACT':
+        sameReference?'REVIEW_REFERENCE_CONFLICT':
+        sameVendor&&sameAmount&&dateDistanceDays<=3?'REVIEW_SIMILAR':
+        'RELATED';
+      return {
+        id:candidate.id,expenseNumber:candidate.expenseNumber,vendorName:candidate.vendorName,
+        invoiceReference:candidate.invoiceReference,expenseDate:candidateDate,
+        amountPaise:candidate.amountPaise.toString(),status:candidate.status,
+        dateDistanceDays,signals,classification,
+      };
+    });
+    const status=reviewed.some(item=>item.classification==='DUPLICATE_EXACT')
+      ? 'DUPLICATE_EXACT'
+      : reviewed.some(item=>item.classification==='REVIEW_REFERENCE_CONFLICT')
+        ? 'REVIEW_REFERENCE_CONFLICT'
+        : reviewed.some(item=>item.classification==='REVIEW_SIMILAR')
+          ? 'REVIEW_SIMILAR'
+          : 'CLEAR';
+    return {
+      status,
+      candidates:reviewed,
+      mutationPerformed:false,
+      automaticPosting:false,
+      boundary:'Deterministic intake evidence only. A reviewer still decides whether to create, reject or correct the expense; no journal or payable is created by this assessment.',
+    };
+  }
+
   async createExpense(societyId:string,userId:string,input:CreateExpenseInput) {
     if (input.amountPaise<=0) throw new BadRequestException('Expense amount must be positive');
     if (input.dueDate && input.dueDate<input.expenseDate) throw new BadRequestException('Due date cannot be before expense date');
     try {
+      const accounts=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "LedgerAccount"
+        WHERE "id"=${input.expenseAccountId}::uuid AND "societyId"=${societyId}::uuid
+          AND "type"='EXPENSE' AND "active"=true
+        LIMIT 1
+      `);
+      if(!accounts[0]) throw new BadRequestException('Expense account must be an active EXPENSE ledger account');
       const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         INSERT INTO "SocietyExpense" ("societyId","expenseNumber","vendorName","invoiceReference","expenseDate","dueDate","description","amountPaise","expenseAccountId","fundId","createdByUserId")
         VALUES (${societyId}::uuid,${input.expenseNumber.trim().toUpperCase()},${input.vendorName.trim()},${input.invoiceReference?.trim()||null},${input.expenseDate}::date,${input.dueDate||null}::date,${input.description.trim()},${input.amountPaise},${input.expenseAccountId}::uuid,${input.fundId??null}::uuid,${userId}::uuid)
@@ -47,6 +132,13 @@ export class FinanceOperationsService {
       const rows=await tx.$queryRaw<Array<{id:string;status:string;amountPaise:bigint;dueDate:Date|null}>>(Prisma.sql`
         SELECT "id","status","amountPaise","dueDate" FROM "SocietyExpense" WHERE "id"=${expenseId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
       `); const e=rows[0]; if(!e) throw new NotFoundException('Expense not found'); if(e.status!=='DRAFT') throw new ConflictException('Only draft expenses can be approved');
+      const payableAccounts=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "LedgerAccount"
+        WHERE "id"=${input.payableAccountId}::uuid AND "societyId"=${societyId}::uuid
+          AND "type"='LIABILITY' AND "active"=true
+        LIMIT 1
+      `);
+      if(!payableAccounts[0]) throw new BadRequestException('Payable account must be an active LIABILITY ledger account');
       await tx.$executeRaw(Prisma.sql`UPDATE "SocietyExpense" SET "status"='APPROVED',"approvedByUserId"=${userId}::uuid,"approvedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${expenseId}::uuid AND "societyId"=${societyId}::uuid`);
       const p=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         INSERT INTO "SocietyPayable" ("societyId","expenseId","payableAccountId","originalAmountPaise","dueDate") VALUES (${societyId}::uuid,${expenseId}::uuid,${input.payableAccountId}::uuid,${e.amountPaise},${e.dueDate}) RETURNING "id"
@@ -83,12 +175,101 @@ export class FinanceOperationsService {
 
   async settlePayable(societyId:string,userId:string,payableId:string,input:SettlePayableInput) {
     if(input.amountPaise<=0) throw new BadRequestException('Settlement amount must be positive');
+    const key=input.idempotencyKey.trim();
+    if(!key) throw new BadRequestException('Settlement idempotency key is required');
+    const requestedDate=input.settlementDate.slice(0,10);
+    const requestedReference=input.reference?.trim()||null;
     return this.prisma.$transaction(async tx=>{
-      const p=await tx.$queryRaw<Array<{id:string;originalAmountPaise:bigint;status:string}>>(Prisma.sql`SELECT "id","originalAmountPaise","status" FROM "SocietyPayable" WHERE "id"=${payableId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`); if(!p.length) throw new NotFoundException('Payable not found'); if(p[0].status==='PAID'||p[0].status==='VOID') throw new ConflictException('Payable is not open');
-      const j=await tx.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`SELECT "id","status" FROM "JournalEntry" WHERE "id"=${input.journalEntryId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`); if(!j.length||j[0].status!=='POSTED') throw new ConflictException('Settlement requires a posted payment journal');
-      await tx.$executeRaw(Prisma.sql`INSERT INTO "PayableSettlement" ("societyId","payableId","amountPaise","settlementDate","journalEntryId","idempotencyKey","reference","createdByUserId") VALUES (${societyId}::uuid,${payableId}::uuid,${input.amountPaise},${input.settlementDate}::date,${input.journalEntryId}::uuid,${input.idempotencyKey.trim()},${input.reference?.trim()||null},${userId}::uuid)`);
-      const totals=await tx.$queryRaw<Array<{settled:bigint}>>(Prisma.sql`SELECT COALESCE(SUM("amountPaise"),0) AS settled FROM "PayableSettlement" WHERE "payableId"=${payableId}::uuid AND "societyId"=${societyId}::uuid`);
-      const status=totals[0].settled===p[0].originalAmountPaise?'PAID':'PARTIALLY_PAID'; await tx.$executeRaw(Prisma.sql`UPDATE "SocietyPayable" SET "status"=${status}::"SocietyPayableStatus","updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${payableId}::uuid AND "societyId"=${societyId}::uuid`); return {payableId,status,settledPaise:totals[0].settled.toString()};
+      const p=await tx.$queryRaw<Array<{id:string;originalAmountPaise:bigint;status:string;payableAccountId:string}>>(Prisma.sql`
+        SELECT "id","originalAmountPaise","status","payableAccountId"
+        FROM "SocietyPayable"
+        WHERE "id"=${payableId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if(!p.length) throw new NotFoundException('Payable not found');
+
+      const existing=await tx.$queryRaw<Array<{payableId:string;amountPaise:bigint;settledOn:Date|string;journalEntryId:string;idempotencyKey:string;reference:string|null}>>(Prisma.sql`
+        SELECT "payableId","amountPaise","settledOn","journalEntryId","idempotencyKey","reference"
+        FROM "PayableSettlement"
+        WHERE "societyId"=${societyId}::uuid
+          AND ("idempotencyKey"=${key} OR "journalEntryId"=${input.journalEntryId}::uuid)
+        ORDER BY CASE WHEN "idempotencyKey"=${key} THEN 0 ELSE 1 END,"createdAt" ASC
+        LIMIT 1
+      `);
+      if(existing[0]){
+        const settledOn=existing[0].settledOn instanceof Date
+          ? existing[0].settledOn.toISOString().slice(0,10)
+          : String(existing[0].settledOn).slice(0,10);
+        const samePayload=
+          existing[0].payableId===payableId
+          && existing[0].amountPaise===BigInt(input.amountPaise)
+          && settledOn===requestedDate
+          && existing[0].journalEntryId===input.journalEntryId
+          && (existing[0].reference??null)===requestedReference;
+        if(!samePayload){
+          if(existing[0].idempotencyKey===key) throw new ConflictException('Idempotency key is already used for another payable settlement');
+          throw new ConflictException('Payment journal is already linked to another payable settlement');
+        }
+        const totals=await tx.$queryRaw<Array<{settled:bigint}>>(Prisma.sql`
+          SELECT COALESCE(SUM("amountPaise"),0)::bigint AS settled
+          FROM "PayableSettlement"
+          WHERE "payableId"=${payableId}::uuid AND "societyId"=${societyId}::uuid
+        `);
+        return {payableId,status:p[0].status,settledPaise:totals[0].settled.toString(),idempotent:true};
+      }
+
+      if(p[0].status==='PAID'||p[0].status==='VOID') throw new ConflictException('Payable is not open');
+
+      const before=await tx.$queryRaw<Array<{settled:bigint}>>(Prisma.sql`
+        SELECT COALESCE(SUM("amountPaise"),0)::bigint AS settled
+        FROM "PayableSettlement"
+        WHERE "payableId"=${payableId}::uuid AND "societyId"=${societyId}::uuid
+      `);
+      const alreadySettled=before[0]?.settled??0n;
+      const outstanding=p[0].originalAmountPaise-alreadySettled;
+      if(outstanding<=0n) throw new ConflictException('Payable has no outstanding amount');
+      if(BigInt(input.amountPaise)>outstanding) throw new BadRequestException('Settlement exceeds outstanding payable amount');
+
+      const j=await tx.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`
+        SELECT "id","status" FROM "JournalEntry"
+        WHERE "id"=${input.journalEntryId}::uuid AND "societyId"=${societyId}::uuid
+        FOR UPDATE
+      `);
+      if(!j.length||j[0].status!=='POSTED') throw new ConflictException('Settlement requires a posted payment journal');
+
+      const evidence=await tx.$queryRaw<Array<{payableDebit:bigint;assetCredit:bigint}>>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN jl."accountId"=${p[0].payableAccountId}::uuid THEN jl."debitPaise" ELSE 0 END),0)::bigint AS "payableDebit",
+          COALESCE(SUM(CASE WHEN a."type"='ASSET' THEN jl."creditPaise" ELSE 0 END),0)::bigint AS "assetCredit"
+        FROM "JournalLine" jl
+        JOIN "LedgerAccount" a ON a."id"=jl."accountId" AND a."societyId"=jl."societyId"
+        WHERE jl."entryId"=${input.journalEntryId}::uuid AND jl."societyId"=${societyId}::uuid
+      `);
+      if((evidence[0]?.payableDebit??0n)!==BigInt(input.amountPaise)) {
+        throw new ConflictException('Settlement journal must debit the payable account for the settlement amount');
+      }
+      if((evidence[0]?.assetCredit??0n)<BigInt(input.amountPaise)) {
+        throw new ConflictException('Settlement journal must credit an asset account for the settlement amount');
+      }
+
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "PayableSettlement"
+          ("societyId","payableId","amountPaise","settledOn","journalEntryId","idempotencyKey","reference","createdByUserId")
+        VALUES
+          (${societyId}::uuid,${payableId}::uuid,${input.amountPaise},${requestedDate}::date,${input.journalEntryId}::uuid,${key},${requestedReference},${userId}::uuid)
+      `);
+      const totals=await tx.$queryRaw<Array<{settled:bigint}>>(Prisma.sql`
+        SELECT COALESCE(SUM("amountPaise"),0)::bigint AS settled
+        FROM "PayableSettlement"
+        WHERE "payableId"=${payableId}::uuid AND "societyId"=${societyId}::uuid
+      `);
+      const status=totals[0].settled===p[0].originalAmountPaise?'PAID':'PARTIALLY_PAID';
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "SocietyPayable"
+        SET "status"=${status}::"SocietyPayableStatus","updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${payableId}::uuid AND "societyId"=${societyId}::uuid
+      `);
+      return {payableId,status,settledPaise:totals[0].settled.toString(),idempotent:false};
     }).catch(e=>this.rethrow(e,'Payable could not be settled'));
   }
 
@@ -175,5 +356,5 @@ export class FinanceOperationsService {
 
   async exportSnapshot(societyId:string){const [expenses,payables,budgets,funds]=await Promise.all([this.listExpenses(societyId),this.listPayables(societyId),this.listBudgets(societyId),this.fundUtilization(societyId)]);return {generatedAt:new Date().toISOString(),expenses,payables,budgets,funds};}
 
-  private rethrow(error:unknown,fallback:string):never{if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof NotFoundException)throw error;const m=error instanceof Error?error.message:'';if(m.includes('duplicate')||m.includes('unique'))throw new ConflictException('Finance record already exists');if(m.includes('foreign key'))throw new BadRequestException('Referenced finance resource does not belong to this society or does not exist');if(m.includes('immutable')||m.includes('over-settlement'))throw new ConflictException(m);throw new BadRequestException(fallback);}
+  private rethrow(error:unknown,fallback:string):never{if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof NotFoundException)throw error;const m=error instanceof Error?error.message:'';if(m.includes('duplicate')||m.includes('unique'))throw new ConflictException('Finance record already exists');if(m.includes('foreign key'))throw new BadRequestException('Referenced finance resource does not belong to this society or does not exist');if(m.includes('immutable')||m.includes('over-settlement')||m.includes('exceeds outstanding amount'))throw new ConflictException(m);throw new BadRequestException(fallback);}
 }

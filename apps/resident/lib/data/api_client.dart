@@ -19,6 +19,7 @@ class ApiClient {
 
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
+  Future<dynamic> postWithHeaders(String path, Map<String, dynamic>? body, Map<String, String> headers) => _send('POST', path, body, headers);
   Future<dynamic> put(String path, [Map<String, dynamic>? body]) => _send('PUT', path, body);
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) => _send('PATCH', path, body);
 
@@ -42,12 +43,13 @@ class ApiClient {
     }
   }
 
-  Future<dynamic> _send(String method, String path, [Map<String, dynamic>? body]) async {
+  Future<dynamic> _send(String method, String path, [Map<String, dynamic>? body, Map<String, String>? headers]) async {
     if (accessToken.isEmpty) throw ApiException(401, 'Sign in is required');
     final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${path.replaceFirst(RegExp(r'^/'), '')}');
     final request = await _client.openUrl(method, uri);
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    if (headers != null) for (final entry in headers.entries) { request.headers.set(entry.key, entry.value); }
     if (body != null) {
       request.headers.contentType = ContentType.json;
       request.write(jsonEncode(body));

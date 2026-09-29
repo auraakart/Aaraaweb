@@ -51,6 +51,45 @@ class _FullAmenityApi extends _AmenitiesApi {
   }
 }
 
+class _AmenityCancellationApi extends _AmenitiesApi {
+  _AmenityCancellationApi({required this.raceToStatus, this.cutoffConflict = false});
+
+  final String? raceToStatus;
+  final bool cutoffConflict;
+  int bookingReads = 0;
+  int cancelCalls = 0;
+
+  @override
+  Future<dynamic> get(String path) async {
+    if (path == '/api/v1/amenities/bookings/mine?unitId=unit-1') {
+      bookingReads++;
+      final status = bookingReads > 1 && raceToStatus != null ? raceToStatus! : 'CONFIRMED';
+      return [
+        {
+          'id': 'booking-race',
+          'amenityName': 'Clubhouse',
+          'startsAt': '2099-01-01T10:00:00Z',
+          'status': status,
+          'feePaise': 0,
+        },
+      ];
+    }
+    return super.get(path);
+  }
+
+  @override
+  Future<dynamic> patch(String path, [Map<String, dynamic>? body]) async {
+    if (path == '/api/v1/amenities/bookings/booking-race/cancel') {
+      cancelCalls++;
+      if (cutoffConflict) {
+        throw ApiException(409, 'Booking cannot be cancelled within 60 minutes of start time');
+      }
+      throw ApiException(409, 'Booking changed; refresh and retry');
+    }
+    return super.patch(path, body);
+  }
+}
+
 void main() {
   testWidgets('amenity sheet selects a slot and submits the selected property window', (tester) async {
     final api = _AmenitiesApi();
@@ -65,8 +104,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Check & book'));
-    await tester.tap(find.text('Check & book'));
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
     await tester.pumpAndSettle();
 
     expect(api.bookingPath, '/api/v1/amenities/clubhouse/bookings');
@@ -88,8 +127,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Check & book'));
-    await tester.tap(find.text('Check & book'));
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
     await tester.pumpAndSettle();
 
     expect(find.text('Slot just filled'),findsOneWidget);
@@ -103,4 +142,44 @@ void main() {
     expect(api.waitlistBody?['endsAt'],api.bookingBody?['endsAt']);
     expect(tester.takeException(),isNull);
   });
+  testWidgets('failed amenity cancellation reloads authoritative booking state before messaging', (tester) async {
+    final api = _AmenityCancellationApi(raceToStatus: 'CANCELLED');
+    await tester.pumpWidget(
+      MaterialApp(home: AmenitiesScreen(repository: ResidentRepository(api), unitId: 'unit-1')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Cancel'), 400);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel booking'));
+    await tester.pumpAndSettle();
+
+    expect(api.cancelCalls, 1);
+    expect(api.bookingReads, greaterThanOrEqualTo(2));
+    expect(find.text('Booking changed. Latest status: Cancelled.'), findsOneWidget);
+    expect(find.text('Cancel'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('amenity cancellation cutoff preserves the server conflict reason', (tester) async {
+    final api = _AmenityCancellationApi(raceToStatus: null, cutoffConflict: true);
+    await tester.pumpWidget(
+      MaterialApp(home: AmenitiesScreen(repository: ResidentRepository(api), unitId: 'unit-1')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Cancel'), 400);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel booking'));
+    await tester.pumpAndSettle();
+
+    expect(api.cancelCalls, 1);
+    expect(api.bookingReads, greaterThanOrEqualTo(2));
+    expect(find.text('Booking cannot be cancelled within 60 minutes of start time.'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

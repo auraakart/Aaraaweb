@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { integrationContractMetadata, IntegrationContractMetadata } from './integration-provider.contract';
+import { IntegrationConfigurationService } from './integration-configuration.service';
 
 export type IntegrationFamily =
   | 'OTP'
@@ -25,8 +26,12 @@ export type IntegrationCapabilityView = IntegrationContractMetadata & {
   boundary: string;
 };
 
+const SOCIETY_SELECTABLE_FAMILIES: readonly IntegrationFamily[] = ['OTP','WHATSAPP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR'];
+
 @Injectable()
 export class IntegrationRegistryService {
+  constructor(@Optional() private readonly configuration?: IntegrationConfigurationService) {}
+
   list(societyId: string): IntegrationCapabilityView[] {
     void societyId;
     return [
@@ -42,21 +47,92 @@ export class IntegrationRegistryService {
     ].map((item) => ({ ...item, ...integrationContractMetadata(item.family) }));
   }
 
-  conformance(societyId:string){
+  async conformance(societyId:string){
+    const selections=await this.configuration?.list(societyId)??[];
     return this.list(societyId).map(item=>{
       const simulatorOrReference=item.provider==='simulator'||item.provider==='reference-adapters'||item.provider==='utility-integration-v2';
       const checks={versionedContract:Boolean(item.contractVersion),explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),explicitDegradationMode:Boolean(item.degradationMode),domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),simulatorOrConfiguredEvidence:simulatorOrReference||item.configured};
-      const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key),fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
-      const configurationReady=item.configured;
+      const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key);
+      const fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
+      const selectionRequired=SOCIETY_SELECTABLE_FAMILIES.includes(item.family);
+      const selection=selectionRequired?selections.find(row=>row.family===item.family):undefined;
+      const societySelectionReady=!selectionRequired||Boolean(selection?.enabled&&selection.providerKey===item.provider);
+      const adapterConfigurationReady=item.configured;
+      const configurationReady=adapterConfigurationReady&&societySelectionReady;
+      const configurationBlockers:string[]=[];
+      if(!adapterConfigurationReady)configurationBlockers.push('ADAPTER_CONFIGURATION_NOT_READY');
+      if(selectionRequired&&!selection)configurationBlockers.push('SOCIETY_SELECTION_MISSING');
+      else if(selectionRequired&&!selection?.enabled)configurationBlockers.push('SOCIETY_SELECTION_DISABLED');
+      else if(selectionRequired&&selection?.providerKey!==item.provider)configurationBlockers.push('SOCIETY_PROVIDER_MISMATCH');
       const contractReady=missing.length===0;
       const productionActivationApproved=configurationReady&&contractReady&&!fieldEvidenceRequired&&item.health==='READY';
       return {
-        family:item.family,provider:item.provider,health:item.health,checks,missing,
-        status:missing.length?'CONTRACT_GAP':!configurationReady&&!simulatorOrReference?'CONFIGURATION_REQUIRED':fieldEvidenceRequired?'FIELD_EVIDENCE_REQUIRED':'CONTRACT_READY',
-        certificationClaim:false,configurationReady,contractReady,fieldEvidenceRequired,productionActivationApproved,
-        boundary:'Conformance proves configuration and adapter-contract readiness only. Production activation stays false when external field evidence is required; this does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.',
+        family:item.family,provider:item.provider,health:item.health,checks,missing,configurationBlockers,
+        status:missing.length?'CONTRACT_GAP':!configurationReady?'CONFIGURATION_REQUIRED':fieldEvidenceRequired?'FIELD_EVIDENCE_REQUIRED':'CONTRACT_READY',
+        certificationClaim:false,adapterConfigurationReady,selectionRequired,societySelectionReady,
+        selectedProviderKey:selection?.providerKey??null,societyEnabled:selection?.enabled??null,
+        configurationReady,contractReady,fieldEvidenceRequired,productionActivationApproved,
+        boundary:'Conformance combines adapter/deployment readiness with the society provider selection. Production activation stays false when the society selection is missing, disabled or points to another provider. Production activation stays false when external field evidence is required; this does not certify live provider acceptance, credentials, SLA, hardware compatibility or field deployment.',
       };
     });
+  }
+
+  async activationPlan(societyId:string){
+    const conformance=await this.conformance(societyId);
+    const items=conformance.map(item=>{
+      const nextActions:string[]=[];
+      if(item.status==='CONTRACT_GAP'){
+        nextActions.push('Close the versioned adapter contract gaps before enabling this provider family.');
+      }
+      if(item.configurationBlockers.includes('ADAPTER_CONFIGURATION_NOT_READY')){
+        nextActions.push('Complete deployment adapter configuration and validate health without exposing credentials.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_SELECTION_MISSING')){
+        nextActions.push('Select the approved provider for this society.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_SELECTION_DISABLED')){
+        nextActions.push('Enable the society provider selection after operator review.');
+      }
+      if(item.configurationBlockers.includes('SOCIETY_PROVIDER_MISMATCH')){
+        nextActions.push('Align the society provider selection with the configured adapter.');
+      }
+      if(item.status==='FIELD_EVIDENCE_REQUIRED'){
+        nextActions.push('Capture real provider or hardware field-acceptance evidence before production activation.');
+      }
+      if(item.productionActivationApproved){
+        nextActions.push('Keep configuration evidence current and monitor provider health.');
+      }
+      return {
+        family:item.family,
+        provider:item.provider,
+        status:item.status,
+        productionActivationApproved:item.productionActivationApproved,
+        fieldEvidenceRequired:item.fieldEvidenceRequired,
+        blockers:[...item.missing,...item.configurationBlockers],
+        nextActions,
+      };
+    });
+    const summary={
+      total:items.length,
+      activationReady:items.filter(item=>item.productionActivationApproved).length,
+      contractGaps:items.filter(item=>item.status==='CONTRACT_GAP').length,
+      configurationRequired:items.filter(item=>item.status==='CONFIGURATION_REQUIRED').length,
+      fieldEvidenceRequired:items.filter(item=>item.status==='FIELD_EVIDENCE_REQUIRED').length,
+    };
+    const status=
+      summary.contractGaps>0?'BLOCKED_CONTRACT':
+      summary.configurationRequired>0?'CONFIGURATION_REQUIRED':
+      summary.fieldEvidenceRequired>0?'FIELD_EVIDENCE_REQUIRED':
+      'READY_FOR_INTERNAL_ENABLEMENT';
+    return {
+      status,
+      summary,
+      items,
+      generatedAt:new Date().toISOString(),
+      certificationClaim:false,
+      mutationPerformed:false,
+      boundary:'Activation planning is repository/configuration evidence only. It does not certify provider credentials, SLA, payment acceptance, physical-device compatibility, legal acceptance or field deployment.',
+    };
   }
 
   private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {

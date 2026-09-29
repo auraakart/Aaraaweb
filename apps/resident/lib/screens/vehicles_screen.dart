@@ -64,7 +64,7 @@ class VehiclesScreen extends StatelessWidget {
               ),
               const SizedBox(height: AaraagateTokens.space3),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: const InputDecoration(labelText: 'Vehicle type'),
                 items: const [
                   DropdownMenuItem(value: 'CAR', child: Text('Car')),

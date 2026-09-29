@@ -57,7 +57,7 @@ class _GuardSchoolTransportScreenState extends State<GuardSchoolTransportScreen>
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: unitId,
+              initialValue: unitId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Destination', prefixIcon: Icon(Icons.apartment_rounded)),
               items: units.map((unit) => DropdownMenuItem(value: unit['id']?.toString(), child: Text(_unitLabel(unit), overflow: TextOverflow.ellipsis))).toList(),

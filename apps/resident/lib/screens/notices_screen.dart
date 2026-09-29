@@ -11,73 +11,120 @@ class NoticesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = controller.notices.length;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final activeCount = controller.notices.length;
+        final actionRequired = controller.notices
+            .where(
+              (notice) =>
+                  (notice['requiresAcknowledgement'] == true && notice['acknowledgedAt'] == null) ||
+                  _isUrgent(notice['category']?.toString(), notice['title']?.toString()),
+            )
+            .toList(growable: false);
+        final latest = controller.notices
+            .where((notice) => !actionRequired.contains(notice))
+            .toList(growable: false);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notices'),
-        actions: [
-          IconButton(
-            tooltip: 'Community polls',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => CommunityPollsScreen(repository: controller.repository),
-              ),
-            ),
-            icon: const Icon(Icons.poll_outlined),
-          ),
-          const SizedBox(width: AaraagateTokens.space2),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: controller.refreshNotices,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space3,
-            AaraagateTokens.pageGutter,
-            AaraagateTokens.space8,
-          ),
-          children: [
-            PremiumSectionHeader(
-              title: 'Society updates',
-              supportingText: activeCount == 0
-                  ? 'Important announcements from your current community appear here.'
-                  : '$activeCount active update${activeCount == 1 ? '' : 's'} from your current community.',
-            ),
-            const SizedBox(height: AaraagateTokens.space4),
-            if (controller.loading && controller.notices.isEmpty)
-              const AppStateCard(
-                icon: Icons.sync_rounded,
-                message: 'Loading society notices…',
-                loading: true,
-              )
-            else if (controller.noticesError != null)
-              AppStateCard(
-                icon: Icons.error_outline_rounded,
-                message: 'Notices could not be loaded.',
-                actionLabel: 'Retry',
-                onAction: controller.refreshNotices,
-              )
-            else if (controller.notices.isEmpty)
-              const AppStateCard(
-                icon: Icons.campaign_outlined,
-                message: 'No active notices right now.',
-              )
-            else
-              for (final notice in controller.notices) ...[
-                _NoticeCard(
-                  notice: notice,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => NoticeDetailScreen(notice: notice)),
+        Widget noticeCard(Map<String, dynamic> notice) => _NoticeCard(
+              notice: notice,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NoticeDetailScreen(
+                    controller: controller,
+                    noticeId: notice['id'].toString(),
                   ),
                 ),
-                const SizedBox(height: AaraagateTokens.space3),
+              ),
+            );
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Notices'),
+            actions: [
+              IconButton(
+                tooltip: 'Community polls',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CommunityPollsScreen(repository: controller.repository),
+                  ),
+                ),
+                icon: const Icon(Icons.poll_outlined),
+              ),
+              const SizedBox(width: AaraagateTokens.space2),
+            ],
+          ),
+          body: RefreshIndicator(
+            onRefresh: controller.refreshNotices,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AaraagateTokens.pageGutter,
+                AaraagateTokens.space3,
+                AaraagateTokens.pageGutter,
+                AaraagateTokens.space8,
+              ),
+              children: [
+                PremiumSectionHeader(
+                  title: 'Society updates',
+                  supportingText: activeCount == 0
+                      ? 'Important announcements from your current community appear here.'
+                      : '$activeCount active update${activeCount == 1 ? '' : 's'} from your current community.',
+                ),
+                const SizedBox(height: AaraagateTokens.space4),
+                if (controller.loading && controller.notices.isEmpty)
+                  const AppStateCard(
+                    icon: Icons.sync_rounded,
+                    message: 'Loading society notices…',
+                    loading: true,
+                  )
+                else if (controller.noticesError != null)
+                  AppStateCard(
+                    icon: Icons.error_outline_rounded,
+                    message: 'Notices could not be loaded.',
+                    actionLabel: 'Retry',
+                    onAction: controller.refreshNotices,
+                  )
+                else if (controller.notices.isEmpty)
+                  const AppStateCard(
+                    icon: Icons.campaign_outlined,
+                    message: 'No active notices right now.',
+                  )
+                else ...[
+                  if (actionRequired.isNotEmpty) ...[
+                    PremiumSectionHeader(
+                      title: 'Action required',
+                      supportingText: 'Read or acknowledge these updates first.',
+                      trailing: AaraagateStatusPill(
+                        label: '${actionRequired.length}',
+                        tone: AaraagateStatusTone.warning,
+                      ),
+                    ),
+                    const SizedBox(height: AaraagateTokens.space3),
+                    for (final notice in actionRequired) ...[
+                      noticeCard(notice),
+                      const SizedBox(height: AaraagateTokens.space3),
+                    ],
+                  ],
+                  if (latest.isNotEmpty) ...[
+                    if (actionRequired.isNotEmpty)
+                      const SizedBox(height: AaraagateTokens.space3),
+                    const PremiumSectionHeader(
+                      title: 'Latest updates',
+                      supportingText: 'Recent information from your society.',
+                    ),
+                    const SizedBox(height: AaraagateTokens.space3),
+                    for (final notice in latest) ...[
+                      noticeCard(notice),
+                      const SizedBox(height: AaraagateTokens.space3),
+                    ],
+                  ],
+                ],
               ],
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -95,12 +142,19 @@ class _NoticeCard extends StatelessWidget {
     final published = _formatDate(notice['publishedAt']?.toString());
     final body = notice['body']?.toString() ?? '';
     final urgent = _isUrgent(notice['category']?.toString(), notice['title']?.toString());
+    final requiresAcknowledgement = notice['requiresAcknowledgement'] == true;
+    final acknowledged = notice['acknowledgedAt'] != null;
     final metadata = [if (category.isNotEmpty) category, if (published != null) published].join(' • ');
+    final acknowledgementLabel = requiresAcknowledgement
+        ? acknowledged
+            ? 'Acknowledged'
+            : 'Acknowledgement required'
+        : null;
 
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: '${notice['title'] ?? 'Society notice'}${urgent ? ', urgent' : ''}',
-      color: urgent ? scheme.errorContainer.withOpacity(.28) : scheme.surfaceContainerLow,
+      semanticLabel: '${notice['title'] ?? 'Society notice'}${urgent ? ', urgent' : ''}${acknowledgementLabel == null ? '' : ', $acknowledgementLabel'}',
+      color: urgent ? scheme.errorContainer.withValues(alpha: .28) : scheme.surfaceContainerLow,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -130,20 +184,21 @@ class _NoticeCard extends StatelessWidget {
                     ),
                   ),
                 if (metadata.isNotEmpty) const SizedBox(height: AaraagateTokens.space1),
-                Text(
-                  notice['title']?.toString() ?? 'Society notice',
-                  style: theme.textTheme.titleMedium,
-                ),
+                Text(notice['title']?.toString() ?? 'Society notice', style: theme.textTheme.titleMedium),
                 if (body.isNotEmpty) ...[
                   const SizedBox(height: AaraagateTokens.space1),
                   Text(
                     body,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      height: 1.4,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.4, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                if (acknowledgementLabel != null) ...[
+                  const SizedBox(height: AaraagateTokens.space2),
+                  AaraagateStatusPill(
+                    label: acknowledgementLabel,
+                    tone: acknowledged ? AaraagateStatusTone.neutral : AaraagateStatusTone.warning,
                   ),
                 ],
               ],
@@ -152,10 +207,7 @@ class _NoticeCard extends StatelessWidget {
           const SizedBox(width: AaraagateTokens.space2),
           Padding(
             padding: const EdgeInsets.only(top: AaraagateTokens.space2),
-            child: Icon(
-              Icons.chevron_right_rounded,
-              color: scheme.onSurfaceVariant,
-            ),
+            child: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -163,76 +215,135 @@ class _NoticeCard extends StatelessWidget {
   }
 }
 
-class NoticeDetailScreen extends StatelessWidget {
-  const NoticeDetailScreen({super.key, required this.notice});
-  final Map<String, dynamic> notice;
+class NoticeDetailScreen extends StatefulWidget {
+  const NoticeDetailScreen({super.key, required this.controller, required this.noticeId});
+  final ResidentDataController controller;
+  final String noticeId;
+
+  @override
+  State<NoticeDetailScreen> createState() => _NoticeDetailScreenState();
+}
+
+class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
+  bool _acknowledging = false;
+
+  Map<String, dynamic>? _notice() {
+    for (final item in widget.controller.notices) {
+      if (item['id']?.toString() == widget.noticeId) return item;
+    }
+    return null;
+  }
+
+  Future<void> _acknowledge() async {
+    if (_acknowledging) return;
+    setState(() => _acknowledging = true);
+    try {
+      await widget.controller.acknowledgeNotice(widget.noticeId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notice acknowledged.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Acknowledgement could not be saved. Please retry.')),
+      );
+    } finally {
+      if (mounted) setState(() => _acknowledging = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final category = _label(notice['category']?.toString());
-    final published = _formatDate(notice['publishedAt']?.toString());
-    final expires = _formatDate(notice['expiresAt']?.toString());
-    final urgent = _isUrgent(notice['category']?.toString(), notice['title']?.toString());
-    final metadata = [if (category.isNotEmpty) category, if (published != null) published].join(' • ');
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) {
+        final notice = _notice();
+        if (notice == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Notice')),
+            body: const Padding(
+              padding: EdgeInsets.all(AaraagateTokens.pageGutter),
+              child: AppStateCard(icon: Icons.info_outline_rounded, message: 'This notice is no longer available.'),
+            ),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notice')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AaraagateTokens.pageGutter,
-          AaraagateTokens.space4,
-          AaraagateTokens.pageGutter,
-          36,
-        ),
-        children: [
-          Row(
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final category = _label(notice['category']?.toString());
+        final published = _formatDate(notice['publishedAt']?.toString());
+        final expires = _formatDate(notice['expiresAt']?.toString());
+        final urgent = _isUrgent(notice['category']?.toString(), notice['title']?.toString());
+        final requiresAcknowledgement = notice['requiresAcknowledgement'] == true;
+        final acknowledged = notice['acknowledgedAt'] != null;
+        final metadata = [if (category.isNotEmpty) category, if (published != null) published].join(' • ');
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('Notice')),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AaraagateTokens.pageGutter,
+              AaraagateTokens.space4,
+              AaraagateTokens.pageGutter,
+              36,
+            ),
             children: [
-              Container(
-                width: AaraagateTokens.iconContainer,
-                height: AaraagateTokens.iconContainer,
-                decoration: BoxDecoration(
-                  color: urgent ? scheme.errorContainer : scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-                ),
-                child: Icon(
-                  urgent ? Icons.warning_amber_rounded : Icons.campaign_outlined,
-                  color: urgent ? scheme.onErrorContainer : scheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(width: AaraagateTokens.space3),
-              if (metadata.isNotEmpty)
-                Expanded(
-                  child: Text(
-                    metadata,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: urgent ? scheme.error : scheme.primary,
-                      fontWeight: FontWeight.w700,
+              Row(
+                children: [
+                  Container(
+                    width: AaraagateTokens.iconContainer,
+                    height: AaraagateTokens.iconContainer,
+                    decoration: BoxDecoration(
+                      color: urgent ? scheme.errorContainer : scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+                    ),
+                    child: Icon(
+                      urgent ? Icons.warning_amber_rounded : Icons.campaign_outlined,
+                      color: urgent ? scheme.onErrorContainer : scheme.onPrimaryContainer,
                     ),
                   ),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  if (metadata.isNotEmpty)
+                    Expanded(
+                      child: Text(
+                        metadata,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: urgent ? scheme.error : scheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AaraagateTokens.space5),
+              Text(notice['title']?.toString() ?? 'Society notice', style: theme.textTheme.headlineSmall),
+              if (expires != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                AaraagateStatusPill(
+                  label: 'Valid until $expires',
+                  tone: urgent ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
                 ),
+              ],
+              const SizedBox(height: AaraagateTokens.space6),
+              Text(notice['body']?.toString() ?? '', style: theme.textTheme.bodyLarge?.copyWith(height: 1.6)),
+              if (requiresAcknowledgement) ...[
+                const SizedBox(height: AaraagateTokens.space6),
+                if (acknowledged)
+                  const AaraagateStatusPill(label: 'Acknowledged', tone: AaraagateStatusTone.neutral)
+                else
+                  FilledButton.icon(
+                    onPressed: _acknowledging ? null : _acknowledge,
+                    icon: _acknowledging
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.task_alt_rounded),
+                    label: Text(_acknowledging ? 'Acknowledging…' : 'Acknowledge notice'),
+                  ),
+              ],
             ],
           ),
-          const SizedBox(height: AaraagateTokens.space5),
-          Text(
-            notice['title']?.toString() ?? 'Society notice',
-            style: theme.textTheme.headlineSmall,
-          ),
-          if (expires != null) ...[
-            const SizedBox(height: AaraagateTokens.space2),
-            AaraagateStatusPill(
-              label: 'Valid until $expires',
-              tone: urgent ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
-            ),
-          ],
-          const SizedBox(height: AaraagateTokens.space6),
-          Text(
-            notice['body']?.toString() ?? '',
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

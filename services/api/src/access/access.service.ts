@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AccessRequestStatus, AccessSubjectType, AuditEventType, GateMutationAction, Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { EntitlementService } from '../entitlements/entitlement.service';
@@ -65,6 +65,10 @@ export class AccessService {
 
   private hash(value: string) {
     return createHash('sha256').update(value).digest('hex');
+  }
+
+  private visitorInviteFingerprint(unitId: string, subjectName: string, validFrom: Date, validUntil: Date, subjectPhone?: string, purpose?: string) {
+    return this.hash(JSON.stringify([unitId, subjectName.trim(), subjectPhone?.trim() || '', purpose?.trim() || '', validFrom.toISOString(), validUntil.toISOString()]));
   }
 
   private isGateOriginated(metadata: Prisma.JsonValue) {
@@ -135,32 +139,52 @@ export class AccessService {
     });
   }
 
-  async inviteVisitor(societyId: string, userId: string, unitId: string, subjectName: string, validFrom: Date, validUntil: Date, subjectPhone?: string, purpose?: string) {
+  async inviteVisitor(societyId: string, userId: string, unitId: string, subjectName: string, validFrom: Date, validUntil: Date, idempotencyKey: string, subjectPhone?: string, purpose?: string) {
     if (validUntil <= validFrom) throw new BadRequestException('Access validity window is invalid');
+    const key = idempotencyKey.trim();
+    if (!key || key.length > 200) throw new BadRequestException('A valid idempotency key is required');
     await this.assertSubjectEnabled(societyId, AccessSubjectType.VISITOR);
     await this.assertResidentUnit(societyId, userId, unitId);
-    const credential = this.credential();
-    const request = await this.prisma.$transaction(async (tx) => {
+    const fingerprint = this.visitorInviteFingerprint(unitId, subjectName, validFrom, validUntil, subjectPhone, purpose);
+
+    return this.prisma.$transaction(async (tx) => {
+      const scopeKey = `visitor-invite:${societyId}:${userId}:${key}`;
+      await tx.$executeRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${scopeKey}))
+      `);
+      const replay = await tx.accessRequest.findMany({
+        where: { societyId, requestedById: userId, subjectType: AccessSubjectType.VISITOR, metadata: { path: ['visitorInviteIdempotencyKey'], equals: key } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      });
+      const existing = replay[0];
+      if (existing) {
+        const metadata = existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata) ? existing.metadata as Record<string, unknown> : {};
+        if (metadata.visitorInviteFingerprint !== fingerprint) throw new ConflictException('Idempotency key was already used for a different visitor invite');
+        if (existing.status !== AccessRequestStatus.APPROVED || !existing.validUntil || existing.validUntil <= new Date()) throw new ConflictException('Visitor invite is no longer active');
+        const rotated = this.credential();
+        const changed = await tx.accessRequest.updateMany({
+          where: { id: existing.id, societyId, requestedById: userId, status: AccessRequestStatus.APPROVED },
+          data: { credentialHash: rotated.hash },
+        });
+        if (changed.count !== 1) throw new ConflictException('Visitor invite changed before recovery could complete');
+        const request = await tx.accessRequest.findUniqueOrThrow({ where: { id: existing.id } });
+        return { request, credential: rotated.raw, replayed: true };
+      }
+
+      const credential = this.credential();
       const created = await tx.accessRequest.create({
         data: {
-          societyId,
-          unitId,
-          requestedById: userId,
-          subjectType: AccessSubjectType.VISITOR,
-          subjectName: subjectName.trim(),
-          subjectPhone: subjectPhone?.trim() || null,
-          purpose: purpose?.trim() || null,
-          status: AccessRequestStatus.APPROVED,
-          validFrom,
-          validUntil,
-          credentialHash: credential.hash,
+          societyId, unitId, requestedById: userId, subjectType: AccessSubjectType.VISITOR,
+          subjectName: subjectName.trim(), subjectPhone: subjectPhone?.trim() || null, purpose: purpose?.trim() || null,
+          status: AccessRequestStatus.APPROVED, validFrom, validUntil, credentialHash: credential.hash,
+          metadata: { visitorInviteIdempotencyKey: key, visitorInviteFingerprint: fingerprint },
         },
       });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_CREATED } });
       await tx.auditEvent.create({ data: { societyId, actorUserId: userId, accessRequestId: created.id, event: AuditEventType.ACCESS_APPROVED } });
-      return created;
+      return { request: created, credential: credential.raw, replayed: false };
     });
-    return { request, credential: credential.raw };
   }
 
   async listMine(societyId: string, userId: string) {

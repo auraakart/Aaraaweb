@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
+  pull-requests: write
 
 env:
   CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -133,12 +135,27 @@ jobs:
             echo "Staging target moved after this promotion run started."
             exit 1
           fi
-          # Staging is the release-candidate branch. Before a new promotion it
-          # must still represent the currently released main source. Squash
-          # promotion can diverge commit ancestry, so compare source directly.
+          # Staging normally represents the currently released main source.
+          # If a prior staging candidate was never promoted, permit it to be
+          # superseded only through an exact-develop-tree release candidate and
+          # only when every staging-only commit is release/reconciliation history.
           if ! git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .; then
-            echo "Staging source differs from current main. Reconcile the staging baseline before promoting develop."
-            exit 1
+            if [ "$SOURCE_REF" = "develop" ]; then
+              echo "A stale staging candidate must be superseded through release/*-staging-candidate so ancestry is preserved."
+              exit 1
+            fi
+            STAGING_ONLY_SUBJECTS="$(git log --format='%s' "${DEVELOP_SHA}..${TARGET_SHA}")"
+            if [ -z "$STAGING_ONLY_SUBJECTS" ]; then
+              echo "Staging differs from main without attributable staging-only release history."
+              exit 1
+            fi
+            if ! printf '%s\n' "$STAGING_ONLY_SUBJECTS" | node scripts/check-staging-release-history.mjs; then
+              exit 1
+            fi
+            {
+              echo "- Staging baseline: superseding stale release-only candidate history"
+              echo "- Staging-only commits reviewed: $(printf '%s\n' "$STAGING_ONLY_SUBJECTS" | wc -l | tr -d ' ')"
+            } >> staging-evidence/staging-evidence.md
           fi
 
       - name: Setup pnpm
@@ -254,3 +271,29 @@ jobs:
           path: staging-evidence/
           if-no-files-found: error
           retention-days: 7
+
+
+  staging-auto-merge:
+    name: Staging auto merge after API smoke
+    needs: staging-smoke
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.base_ref == 'staging' &&
+      needs.staging-smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate for release controller
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Auto-merge exact staging candidate after companion gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COMPANION_WORKFLOW: Backup restore smoke
+          COMPANION_JOB: PostgreSQL backup restore drill
+        run: bash scripts/try-staging-auto-merge.sh

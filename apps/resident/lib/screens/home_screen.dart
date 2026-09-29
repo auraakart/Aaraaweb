@@ -53,6 +53,7 @@ class HomeScreen extends StatelessWidget {
     final hasQuickActions = showStaff || showBilling || showAmenities || showHelpdesk;
     final highlights = ResidentHomeHighlights.build(
       invoices: showBilling ? controller.maintenanceInvoices : const [],
+      payments: showBilling ? controller.maintenancePayments : const [],
       bookings: showServices ? controller.bookings : const [],
       notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],
@@ -86,15 +87,13 @@ class HomeScreen extends StatelessWidget {
             if (hasQuickActions) ...[
               const PremiumSectionHeader(
                 title: 'Quick actions',
-                supportingText: 'Frequent tasks without duplicating the bottom navigation.',
+                supportingText: 'Your most common home tasks.',
               ),
               const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final textScale = MediaQuery.textScalerOf(context).scale(1.0);
-                  final compactFourAcross = constraints.maxWidth >= 340 && textScale <= 1.15;
-                  final columns = compactFourAcross ? 4 : 2;
-                  final gap = compactFourAcross ? AaraagateTokens.space2 : AaraagateTokens.space3;
+                  final columns = constraints.maxWidth >= 720 ? 4 : 2;
+                  const gap = AaraagateTokens.space3;
                   final itemWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
                   return Wrap(
                     spacing: gap,
@@ -103,7 +102,7 @@ class HomeScreen extends StatelessWidget {
                       if (showStaff)
                         SizedBox(
                           width: itemWidth,
-                          child: _QuickAction(
+                          child: PremiumQuickAction(
                             icon: Icons.badge_outlined,
                             label: 'Staff',
                             onTap: onOpenStaff,
@@ -112,7 +111,7 @@ class HomeScreen extends StatelessWidget {
                       if (showBilling)
                         SizedBox(
                           width: itemWidth,
-                          child: _QuickAction(
+                          child: PremiumQuickAction(
                             icon: Icons.receipt_long_outlined,
                             label: 'Billing',
                             onTap: onOpenBilling,
@@ -121,7 +120,7 @@ class HomeScreen extends StatelessWidget {
                       if (showAmenities)
                         SizedBox(
                           width: itemWidth,
-                          child: _QuickAction(
+                          child: PremiumQuickAction(
                             icon: Icons.sports_tennis_rounded,
                             label: 'Amenities',
                             onTap: onOpenAmenities,
@@ -130,7 +129,7 @@ class HomeScreen extends StatelessWidget {
                       if (showHelpdesk)
                         SizedBox(
                           width: itemWidth,
-                          child: _QuickAction(
+                          child: PremiumQuickAction(
                             icon: Icons.support_agent_rounded,
                             label: 'Helpdesk',
                             onTap: onOpenHelpdesk,
@@ -374,7 +373,7 @@ class _AssistantEntryCard extends StatelessWidget {
       onTap: onTap,
       semanticLabel: 'Open Aaraagate Assistant',
       elevated: true,
-      color: scheme.primaryContainer.withOpacity(.34),
+      color: scheme.primaryContainer.withValues(alpha: .34),
       padding: const EdgeInsets.all(AaraagateTokens.space4),
       child: Row(
         children: [
@@ -561,61 +560,6 @@ class _AllClearCard extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final background = scheme.surfaceContainerLow;
-    final foreground = scheme.primary;
-
-    return PremiumSurface(
-      onTap: onTap,
-      semanticLabel: label,
-      color: background,
-      padding: const EdgeInsets.symmetric(
-        vertical: AaraagateTokens.space3,
-        horizontal: AaraagateTokens.space2,
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 78),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: foreground.withOpacity(.10),
-                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-              ),
-              child: Icon(icon, color: foreground, size: 20),
-            ),
-            const SizedBox(height: AaraagateTokens.space2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CommunityPreview extends StatelessWidget {
   const _CommunityPreview({required this.notice, required this.onTap});
 
@@ -698,9 +642,10 @@ class _HomeSummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final urgencyLabel = urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info';
     return PremiumSurface(
       onTap: onTap,
-      semanticLabel: '$title. $actionLabel',
+      semanticLabel: '$urgencyLabel. $title. $subtitle. $actionLabel',
       color: scheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: ConstrainedBox(
@@ -733,7 +678,7 @@ class _HomeSummaryRow extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       AaraagateStatusPill(
-                        label: urgency == ResidentHomeUrgency.immediate ? 'Act now' : urgency == ResidentHomeUrgency.soon ? 'Soon' : 'Info',
+                        label: urgencyLabel,
                         tone: urgency == ResidentHomeUrgency.immediate ? AaraagateStatusTone.danger : urgency == ResidentHomeUrgency.soon ? AaraagateStatusTone.warning : AaraagateStatusTone.neutral,
                       ),
                     ],

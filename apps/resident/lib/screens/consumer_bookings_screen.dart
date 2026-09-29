@@ -72,24 +72,55 @@ class _ConsumerBookingsScreenState extends State<ConsumerBookingsScreen> {
   Future<void> _cancel(Map<String, dynamic> booking) async {
     final id = booking['id']?.toString();
     if (id == null || id.isEmpty) return;
-    final confirmed = await showDialog<bool>(
+    final reasonController = TextEditingController();
+    String? validationMessage;
+    final reason = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel service request?'),
-        content: Text('Cancel ${booking['offeringName'] ?? 'this service'}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep booking')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cancel booking')),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Cancel service request?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cancel ${booking['offeringName'] ?? 'this service'}? The reason will be kept in the service timeline.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                autofocus: true,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  labelText: 'Why are you cancelling?',
+                  errorText: validationMessage,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Keep booking')),
+            FilledButton(
+              onPressed: () {
+                final value = reasonController.text.trim();
+                if (value.length < 3) {
+                  setModalState(() => validationMessage = 'Add a short cancellation reason.');
+                  return;
+                }
+                Navigator.of(context).pop(value);
+              },
+              child: const Text('Review & cancel'),
+            ),
+          ],
+        ),
       ),
     );
-    if (confirmed != true || !mounted) return;
+    reasonController.dispose();
+    if (reason == null || !mounted) return;
 
     setState(() => _cancelling.add(id));
     try {
-      await widget.apiClient.post('/api/v1/consumer/services/bookings/$id/cancel');
+      await widget.apiClient.post('/api/v1/consumer/services/bookings/$id/cancel', {'reason': reason});
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service request cancelled.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service request cancelled. Reason saved to the timeline.')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {

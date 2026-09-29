@@ -4,6 +4,7 @@ const files = [
   '../app/finance/operations/page.tsx',
   '../app/finance/payment-exceptions/page.tsx',
   '../app/finance/reconciliation/page.tsx',
+  '../app/finance/page.tsx',
 ];
 
 const sources = files.map((file) => [file, fs.readFileSync(new URL(file, import.meta.url), 'utf8')]);
@@ -48,6 +49,23 @@ for (const fragment of [
 ]) {
   if (!reconciliation.includes(fragment)) {
     throw new Error(`Payment reconciliation operator contract missing: ${fragment}`);
+  }
+}
+
+console.log('Finance operator ergonomics contract: PASS');
+
+
+const finance = sources.find(([file]) => file === '../app/finance/page.tsx')?.[1] ?? '';
+for (const fragment of [
+  'grossAllocatedPaise',
+  'reversedPaise',
+  'refundedPaise',
+  '/accounting/payment-exceptions/payments/',
+  'Allocation reversals',
+  'Refund history',
+]) {
+  if (!finance.includes(fragment)) {
+    throw new Error('Finance payment evidence contract missing: ' + fragment);
   }
 }
 

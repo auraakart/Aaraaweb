@@ -56,6 +56,7 @@ void main() {
       unitId: 'unit-22',
       startsAt: startsAt,
       endsAt: endsAt,
+      guestCount: 2,
       idempotencyKey: 'amenity-test-123',
     );
 
@@ -65,7 +66,30 @@ void main() {
       'unitId': 'unit-22',
       'startsAt': '2027-01-02T10:00:00.000Z',
       'endsAt': '2027-01-02T11:00:00.000Z',
+      'guestCount': 2,
       'idempotencyKey': 'amenity-test-123',
+    });
+  });
+
+  test('amenity waitlist preserves guest count', () async {
+    final api = FakeApiClient();
+    final repository = ResidentRepository(api);
+
+    await repository.joinAmenityWaitlist(
+      amenityId: 'amenity-1',
+      unitId: 'unit-22',
+      startsAt: DateTime.utc(2027, 1, 2, 10),
+      endsAt: DateTime.utc(2027, 1, 2, 11),
+      guestCount: 3,
+    );
+
+    expect(api.method, 'POST');
+    expect(api.path, '/api/v1/amenities/amenity-1/waitlist');
+    expect(api.body, {
+      'unitId': 'unit-22',
+      'startsAt': '2027-01-02T10:00:00.000Z',
+      'endsAt': '2027-01-02T11:00:00.000Z',
+      'guestCount': 3,
     });
   });
 

@@ -106,6 +106,27 @@ This checklist is the acceptance evidence for a production candidate after techn
 - [ ] Exact candidate/develop/staging/main Git tree SHAs are captured in release evidence.
 - [ ] Field-pilot identifier, society, devices, approver and accepted exceptions are recorded externally before any claim of pilot acceptance.
 
+## V4.55 field-readiness and engineering-consolidation evidence
+- [ ] Hosted staging acceptance is green for the exact staging SHA before any main promotion.
+- [ ] `AARAAGATE_STAGING_API_BASE_URL` is configured as a non-secret staging environment/repository variable.
+- [ ] Resident and Guard validation run on Flutter 3.47.0 with no packaging-only theme patch.
+- [ ] Risk-weighted API, Resident and Guard behavioural regression gates are green.
+- [ ] CodeQL and supply-chain security workflows are green; the generated CycloneDX SBOM artifact is retained for the candidate.
+- [ ] High-confidence tracked-secret scan is green.
+- [ ] API, Admin, Resident and Guard source versions identify the same V4.55 release line.
+- [ ] Branch-hygiene evidence is reviewed; canonical branches remain only `develop`, `staging` and `main`.
+- [ ] Real society/device/provider evidence remains external and is not inferred from repository CI.
+
+## V4.55.1 engineering evidence closure
+- [ ] API risk coverage thresholds pass for access/occupancy authority, payment availability, controlled AI and privacy surfaces.
+- [ ] Resident risk LCOV thresholds pass for property isolation, Gate, Billing, Privacy and Home Action Inbox paths.
+- [ ] Guard risk LCOV thresholds pass for offline/realtime controller behaviour and workforce boundary models.
+- [ ] API and Flutter coverage evidence artifacts are retained for the exact candidate SHA.
+- [ ] Branch hygiene evaluates squash/exact-tree integration using source-tree equivalence and safely deletes only proven-integrated branches.
+- [ ] Branches with unproven unique source remain retained for explicit review rather than automatic deletion.
+- [ ] Root, API, Admin, Resident and Guard source identities align on V4.55.1.
+- [ ] Productionization remains outside V4.55.1 evidence.
+
 ## Exit criteria
 Production promotion may proceed only when:
 - [ ] all mandatory scenarios pass or have an explicitly accepted non-blocking exception;

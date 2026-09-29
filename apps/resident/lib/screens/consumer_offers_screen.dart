@@ -209,14 +209,21 @@ class _ConsumerOffersScreenState extends State<ConsumerOffersScreen> {
             if (_locations.length > 1) ...[
               Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
-              for (final location in _locations)
-                RadioListTile<String>(
-                  value: _locationKey(location),
-                  groupValue: _selectedLocationKey,
-                  onChanged: _loading || location['serviceAddressConfigured'] == false ? null : _selectLocation,
-                  title: Text(location['label']?.toString() ?? 'Home'),
-                  subtitle: location['serviceAddressConfigured'] == false ? const Text('Service address not configured') : null,
+              RadioGroup<String>(
+                groupValue: _selectedLocationKey,
+                onChanged: _selectLocation,
+                child: Column(
+                  children: [
+                    for (final location in _locations)
+                      RadioListTile<String>(
+                        value: _locationKey(location),
+                        enabled: !_loading && location['serviceAddressConfigured'] != false,
+                        title: Text(location['label']?.toString() ?? 'Home'),
+                        subtitle: location['serviceAddressConfigured'] == false ? const Text('Service address not configured') : null,
+                      ),
+                  ],
                 ),
+              ),
               const SizedBox(height: 8),
             ],
             if (_loading)

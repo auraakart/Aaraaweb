@@ -207,7 +207,7 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
           const Text('Add household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _householdId,
+            initialValue: _householdId,
             decoration: const InputDecoration(labelText: 'Household', border: OutlineInputBorder()),
             items: widget.controller.households.map((household) {
               final id = household['id']?.toString() ?? '';
@@ -234,7 +234,7 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _role,
+            initialValue: _role,
             decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
             items: const ['MAID', 'COOK', 'DRIVER', 'NANNY', 'OTHER']
                 .map((value) => DropdownMenuItem(value: value, child: Text(_StaffCard._friendly(value))))
@@ -282,6 +282,7 @@ class _StaffCard extends StatelessWidget {
     final rating = controller.ratingFor(assignmentId);
     final leaves = controller.leavesFor(assignmentId);
     final canRate = status == 'APPROVED' || status == 'SUSPENDED';
+    final canDeactivate = assignment['active'] != false && status.toUpperCase() != 'SUSPENDED';
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -323,11 +324,12 @@ class _StaffCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: assignmentId.isEmpty ? null : () => _confirmDeactivate(context, assignmentId),
-              icon: const Icon(Icons.person_remove_outlined),
-              label: const Text('END ASSIGNMENT'),
-            ),
+            if (canDeactivate)
+              TextButton.icon(
+                onPressed: assignmentId.isEmpty ? null : () => _confirmDeactivate(context, assignmentId),
+                icon: const Icon(Icons.person_remove_outlined),
+                label: const Text('END ASSIGNMENT'),
+              ),
             const SizedBox(height: 14),
             Wrap(
               spacing: 8,
@@ -413,7 +415,12 @@ class _StaffCard extends StatelessWidget {
       await controller.cancelWorkforceLeave(leaveId);
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave cancelled.')));
     } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (context.mounted) {
+        final message = controller.isWorkforceLeaveActive(leaveId)
+            ? error.toString()
+            : 'Leave changed. It is no longer active.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
     }
   }
 
@@ -434,7 +441,15 @@ class _StaffCard extends StatelessWidget {
       await controller.deactivateWorkforce(assignmentId);
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff assignment ended.')));
     } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (context.mounted) {
+        final latest = controller.workforceAssignmentFor(assignmentId);
+        final latestStatus = latest?['status']?.toString().toUpperCase() ?? '';
+        final ended = latest == null || latest['active'] == false || latestStatus == 'SUSPENDED';
+        final message = ended
+            ? 'Staff assignment changed and is no longer active.'
+            : error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
     }
   }
 

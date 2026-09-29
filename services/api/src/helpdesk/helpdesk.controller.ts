@@ -22,6 +22,7 @@ const STATUS_REASON_CODES = [
 
 class CreateHelpdeskTicketDto {
   @IsUUID() unitId!: string;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
   @IsString() @MinLength(3) @MaxLength(120) title!: string;
   @IsString() @MinLength(5) @MaxLength(2000) description!: string;
   @IsOptional() @IsString() @MaxLength(80) category?: string;
@@ -30,10 +31,15 @@ class CreateHelpdeskTicketDto {
 
 class AddHelpdeskCommentDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(120) idempotencyKey?: string;
 }
 
 class AddInternalNoteDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+}
+
+class LinkHelpdeskAssetDto {
+  @IsOptional() @IsUUID() assetId?: string | null;
 }
 
 class AssignHelpdeskTicketDto {
@@ -76,7 +82,18 @@ export class HelpdeskController {
     @CurrentTenant() societyId: string,
     @CurrentUser() userId?: string,
   ) {
-    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message);
+    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, false, dto.idempotencyKey);
+  }
+
+  @Post(':ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  reopenMine(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopenMine(societyId, this.requireUser(userId), ticketId, dto.note);
   }
 
   @Get(':ticketId/activities')
@@ -99,6 +116,24 @@ export class HelpdeskController {
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   queue(@CurrentTenant() societyId: string) {
     return this.helpdesk.listReview(societyId);
+  }
+
+  @Get('review/assets')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  reviewAssets(@CurrentTenant() societyId:string) {
+    return this.helpdesk.reviewAssets(societyId);
+  }
+
+  @Patch('review/:ticketId/asset')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  linkAsset(@Param('ticketId',ParseUUIDPipe) ticketId:string,@Body() dto:LinkHelpdeskAssetDto,@CurrentTenant() societyId:string,@CurrentUser() userId?:string) {
+    return this.helpdesk.linkAsset(societyId,this.requireUser(userId),ticketId,dto.assetId??null);
+  }
+
+  @Get('review/:ticketId/triage-intelligence')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  triageIntelligence(@Param('ticketId', ParseUUIDPipe) ticketId:string,@CurrentTenant() societyId:string) {
+    return this.helpdesk.triageIntelligence(societyId,ticketId);
   }
 
   @Patch('review/:ticketId/assignment')

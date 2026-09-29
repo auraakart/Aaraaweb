@@ -20,6 +20,9 @@ describe('HelpdeskController authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, HelpdeskController.prototype.activities)).toEqual([
       AppPermission.HELPDESK_READ_OWN,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, HelpdeskController.prototype.reopenMine)).toEqual([
+      AppPermission.HELPDESK_MANAGE_OWN,
+    ]);
   });
 
   it('uses reviewer permission for society operations', () => {

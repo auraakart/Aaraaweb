@@ -1,0 +1,51 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
+const forbid=(label,source,tokens)=>{const present=tokens.filter(t=>source.includes(t));if(present.length){console.error(label+' contains retired handover tokens: '+present.join(', '));process.exit(1)}};
+const controller=read('services/api/src/parcels/parcels.controller.ts');
+must('Parcel verified desk route',controller,["desk/:parcelId/collect-with-code",'AppPermission.PARCEL_PROCESS']);
+forbid('Parcel resident routes',controller,["mine/:parcelId/collect",'confirmCollection(']);
+const service=read('services/api/src/parcels/parcels.service.ts');
+must('Parcel verified handover',service,['collectWithPickupCode(','PICKUP_CODE_VERIFIED',"'COLLECTED'",'pickupCodeExpiresAt','pickupCodeLockedAt']);
+must('Parcel pickup-code issuance integrity',service,['issuePickupCode(','pg_advisory_xact_lock','PICKUP_CODE_ISSUED','$transaction(async (tx)']);
+forbid('Parcel legacy service',service,['async confirmCollection(']);
+const actions=read('apps/resident/lib/data/parcel_actions.dart');
+must('Resident parcel action',actions,['issueParcelPickupCode','/pickup-code']);
+forbid('Resident parcel action',actions,['confirmParcelCollection','/collect']);
+const screen=read('apps/resident/lib/screens/parcels_screen.dart');
+must('Resident parcel UX',screen,['Show this code to security when collecting the parcel.','Security verifies the code before handing over the parcel.','_pickupCodeBusy',"Creating code…",'Valid until $hour:$minute.','up to $maxAttempts attempts']);
+must('Resident pickup-code model',read('apps/resident/lib/data/models/resident_parcel.dart'),['final int? maxAttempts;',"(json['maxAttempts'] as num?)?.toInt()"]);
+const guardParcel=read('apps/guard/lib/screens/guard_parcels_screen.dart');
+must('Guard parcel recovery',guardParcel,["RegExp(r'^\\d{6}$')","guardParcelPickupRecovery(error)","do not hand over the parcel until verification succeeds."]);
+must('Guard parcel recovery mapping',read('apps/guard/lib/data/parcel_pickup_recovery.dart'),["has not been issued","has expired","locked after too many attempts","Repeated failures can lock the code","could not reach the server","security supervisor"]);
+must('Guard parcel recovery regression',read('apps/guard/test/guard_parcel_pickup_recovery_test.dart'),["safe operational recovery","authorization failures without suggesting handover"]);
+forbid('Resident parcel UX',screen,['I collected it','_confirmCollection(']);
+must('Resident parcel regression',read('apps/resident/test/parcels_screen_test.dart'),["expect(find.text('I collected it'),findsNothing)","/api/v1/parcels/mine/parcel-a/pickup-code",'pickup-code issuance disables duplicate submission','expect(api.postCalls,1)','up to 5 attempts']);
+const rootPackage=JSON.parse(read('package.json'));
+const apiPackage=JSON.parse(read('services/api/package.json'));
+const adminPackage=JSON.parse(read('apps/admin/package.json'));
+const currentVersion=rootPackage.version.split('.').map(Number);
+const atLeastV459=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(currentVersion[0]>4||(currentVersion[0]===4&&currentVersion[1]>=59));
+if(!atLeastV459||apiPackage.version!==rootPackage.version||adminPackage.version!==rootPackage.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.59.0 or newer.');
+  process.exit(1);
+}
+const runtimeVersionToken='version: '+rootPackage.version+'+';
+if(!read('apps/resident/pubspec.yaml').includes(runtimeVersionToken)||!read('apps/guard/pubspec.yaml').includes(runtimeVersionToken)){
+  console.error('Resident/Guard release identity must remain aligned with the current root release.');
+  process.exit(1);
+}
+must('V4.59 release truth',read('docs/AARAAGATE-V4.59-SECURE-HANDOVER.md'),[
+  'Release candidate closed on develop; release identity is 4.59.0.',
+  'V4.59 release closure',
+  'collect-with-code',
+  'No parcel is marked collected merely from a Resident-client acknowledgement.'
+]);
+must('V4.59 release closure evidence',read('docs/AARAAGATE-V4.59-RELEASE-CLOSURE.md'),[
+  'PR #920',
+  'PR #921',
+  'PR #922',
+  '4.59.0+45900',
+  'does not claim staging/main promotion'
+]);
+console.log('V4.59 secure physical handover release closure: PASS');

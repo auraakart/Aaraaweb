@@ -362,17 +362,24 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
             if (_locations.isEmpty && !_loading)
               const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No service location is available yet. Open a service to add a home address.')))
             else
-              for (final location in _locations)
-                RadioListTile<String>(
-                  value: _locationKey(location),
-                  groupValue: _selectedLocationKey,
-                  onChanged: _loading || location['serviceAddressConfigured'] == false ? null : _selectLocation,
-                  title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(location['serviceAddressConfigured'] == false
-                      ? 'Society service address is not configured yet.'
-                      : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}'),
-                  secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
+              RadioGroup<String>(
+                groupValue: _selectedLocationKey,
+                onChanged: _selectLocation,
+                child: Column(
+                  children: [
+                    for (final location in _locations)
+                      RadioListTile<String>(
+                        value: _locationKey(location),
+                        enabled: !_loading && location['serviceAddressConfigured'] != false,
+                        title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(location['serviceAddressConfigured'] == false
+                            ? 'Society service address is not configured yet.'
+                            : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}'),
+                        secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
+                      ),
+                  ],
                 ),
+              ),
             const SizedBox(height: 16),
             Text('Service categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),

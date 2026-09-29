@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/resident_repository.dart';
@@ -22,15 +23,17 @@ class _BillingScreenState extends State<BillingScreen> {
   Map<String, dynamic>? financeSummary;
   Map<String, dynamic>? autopayPreference;
   bool autopayBusy = false;
+  String? autopayError;
   bool loading = true;
   String? error;
   String? payingInvoiceId;
+  final Map<String, String> _paymentAttemptKeys = <String, String>{};
 
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() { loading = true; error = null; });
+    setState(() { loading = true; error = null; autopayError = null; });
     try {
       final result = await Future.wait([widget.repository.maintenanceInvoices(), widget.repository.maintenancePayments()]);
       final selected = widget.activeUnitId;
@@ -58,6 +61,8 @@ class _BillingScreenState extends State<BillingScreen> {
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
+      final payableInvoiceIds = scopedInvoices.where((invoice) => invoice['status'] == 'ISSUED').map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
+      _paymentAttemptKeys.removeWhere((invoiceId, _) => !payableInvoiceIds.contains(invoiceId));
       if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
@@ -74,7 +79,7 @@ class _BillingScreenState extends State<BillingScreen> {
     final current = autopayPreference ?? const <String, dynamic>{};
     final maxAmount = (current['maxAmountPaise'] as num?)?.toInt();
     final debitDays = (current['debitDaysBefore'] as num?)?.toInt() ?? 1;
-    setState(() { autopayBusy = true; error = null; });
+    setState(() { autopayBusy = true; autopayError = null; });
     try {
       final updated = await widget.repository.saveAutopayPreference(
         unitId: unitId,
@@ -90,7 +95,35 @@ class _BillingScreenState extends State<BillingScreen> {
             : 'AutoPay preference turned off.'),
       ));
     } catch (_) {
-      if (mounted) setState(() => error = 'AutoPay preference could not be saved. No debit was attempted.');
+      Map<String, dynamic>? refreshed;
+      try {
+        refreshed = await widget.repository.autopayPreference(unitId: unitId);
+      } catch (_) {
+        refreshed = null;
+      }
+      if (!mounted) return;
+
+      if (refreshed != null) {
+        setState(() => autopayPreference = refreshed);
+      }
+      final refreshedMax = (refreshed?['maxAmountPaise'] as num?)?.toInt();
+      final refreshedDays = (refreshed?['debitDaysBefore'] as num?)?.toInt() ?? 1;
+      final recovered = refreshed != null &&
+          refreshed['enabled'] == enabled &&
+          refreshedMax == maxAmount &&
+          refreshedDays == debitDays;
+
+      if (recovered) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(enabled
+              ? 'AutoPay preference confirmed after reconnect. Automatic debit is not active until a provider mandate is connected.'
+              : 'AutoPay preference is confirmed off after reconnect.'),
+        ));
+      } else {
+        setState(() => autopayError = refreshed == null
+            ? 'AutoPay preference could not be confirmed. Refresh Billing before retrying. No debit was attempted.'
+            : 'AutoPay preference could not be confirmed. The latest server preference is shown; review it before retrying. No debit was attempted.');
+      }
     } finally {
       if (mounted) setState(() => autopayBusy = false);
     }
@@ -140,9 +173,11 @@ class _BillingScreenState extends State<BillingScreen> {
       setState(() => error = 'This invoice is outside the active property context.');
       return;
     }
+    widget.repository.recordUsage('PAYMENT_CHECKOUT_STARTED').ignore();
     setState(() { payingInvoiceId = id; error = null; });
     try {
-      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
+      final attemptKey = _paymentAttemptKeys.putIfAbsent(id, () => 'resident-${DateTime.now().microsecondsSinceEpoch}-$id');
+      final order = await widget.repository.createMaintenancePayment(invoiceId: id, idempotencyKey: attemptKey);
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
@@ -196,14 +231,6 @@ class _BillingScreenState extends State<BillingScreen> {
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
               _SummaryCard(outstanding: outstanding, summary: financeSummary),
-              if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
-                const SizedBox(height: AaraagateTokens.space3),
-                _AutopayPreferenceCard(
-                  preference: autopayPreference,
-                  busy: autopayBusy,
-                  onChanged: _toggleAutopay,
-                ),
-              ],
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
@@ -218,6 +245,15 @@ class _BillingScreenState extends State<BillingScreen> {
               ] else ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 const AppStateCard(icon: Icons.check_circle_outline_rounded, message: 'You have no outstanding dues.'),
+              ],
+              if (widget.activeUnitId != null && widget.activeUnitId!.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space3),
+                _AutopayPreferenceCard(
+                  preference: autopayPreference,
+                  busy: autopayBusy,
+                  error: autopayError,
+                  onChanged: _toggleAutopay,
+                ),
               ],
               if (recoveryPayments.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
@@ -266,9 +302,15 @@ class _BillingScreenState extends State<BillingScreen> {
 }
 
 class _AutopayPreferenceCard extends StatelessWidget {
-  const _AutopayPreferenceCard({required this.preference, required this.busy, required this.onChanged});
+  const _AutopayPreferenceCard({
+    required this.preference,
+    required this.busy,
+    required this.onChanged,
+    this.error,
+  });
   final Map<String, dynamic>? preference;
   final bool busy;
+  final String? error;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -301,6 +343,16 @@ class _AutopayPreferenceCard extends StatelessWidget {
           ]),
           const SizedBox(height: AaraagateTokens.space2),
           Text(boundary, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4)),
+          if (error != null) ...[
+            const SizedBox(height: AaraagateTokens.space2),
+            Text(
+              error!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+                height: 1.4,
+              ),
+            ),
+          ],
           if (busy) ...[const SizedBox(height: AaraagateTokens.space2), const LinearProgressIndicator()],
         ]),
       ),
@@ -317,44 +369,81 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final total = outstanding.fold<int>(0, (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0));
-    final nextDue = outstanding.map((invoice) => DateTime.tryParse(invoice['dueDate']?.toString() ?? '')).whereType<DateTime>().fold<DateTime?>(null, (current, next) => current == null || next.isBefore(current) ? next : current);
+    final total = outstanding.fold<int>(
+      0,
+      (sum, invoice) => sum + ((invoice['amountPaise'] as num?)?.toInt() ?? 0),
+    );
+    final nextDue = outstanding
+        .map((invoice) => DateTime.tryParse(invoice['dueDate']?.toString() ?? ''))
+        .whereType<DateTime>()
+        .fold<DateTime?>(
+          null,
+          (current, next) => current == null || next.isBefore(current) ? next : current,
+        );
     final overduePaise = (summary?['overduePaise'] as num?)?.toInt() ?? 0;
     final overdueCount = (summary?['overdueInvoiceCount'] as num?)?.toInt() ?? 0;
     final recoveryCount = (summary?['paymentRecoveryCount'] as num?)?.toInt() ?? 0;
-    final policy = summary?['checkoutPolicy'] is Map ? Map<String, dynamic>.from(summary!['checkoutPolicy'] as Map) : const <String, dynamic>{};
-    final detailParts=<String>[
-      if(overdueCount>0) 'Overdue ${_money(overduePaise)}',
-      if(nextDue!=null) 'Next due ${_date(nextDue)}',
-      if(recoveryCount>0) '$recoveryCount payment follow-up${recoveryCount==1?'':'s'}',
-      if(outstanding.isEmpty) 'All caught up',
-    ];
+    final policy = summary?['checkoutPolicy'] is Map
+        ? Map<String, dynamic>.from(summary!['checkoutPolicy'] as Map)
+        : const <String, dynamic>{};
+    final overdue = overdueCount > 0;
+    final overdueAmountLabel = 'Overdue ${_money(overduePaise)}';
 
     return PremiumSurface(
       elevated: true,
-      color: scheme.primaryContainer.withOpacity(.55),
+      color: scheme.surface,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text('Total outstanding', style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w700))),
-          Tooltip(
-            message: policy['explanation']?.toString() ?? 'Payments are verified by the server before a bill is marked paid.',
-            child:AaraagateStatusPill(
-              label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
-              tone: outstanding.isEmpty ? AaraagateStatusTone.success : AaraagateStatusTone.warning,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  overdue ? 'Payment overdue' : 'Amount due',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: overdue ? scheme.error : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: policy['explanation']?.toString() ??
+                    'Payments are verified by the server before a bill is marked paid.',
+                child: AaraagateStatusPill(
+                  label: outstanding.isEmpty ? 'Paid up' : '${outstanding.length} due',
+                  tone: outstanding.isEmpty
+                      ? AaraagateStatusTone.success
+                      : overdue
+                          ? AaraagateStatusTone.danger
+                          : AaraagateStatusTone.warning,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AaraagateTokens.space2),
+          Text(_money(total), style: theme.textTheme.headlineMedium),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(
+            overdue
+                ? '$overdueAmountLabel · $overdueCount bill${overdueCount == 1 ? '' : 's'}'
+                : nextDue == null
+                    ? 'Everything is up to date.'
+                    : 'Next due ${_date(nextDue)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
             ),
           ),
-        ]),
-        const SizedBox(height: AaraagateTokens.space2),
-        Text(_money(total), style: theme.textTheme.headlineMedium?.copyWith(color: scheme.onPrimaryContainer)),
-        const SizedBox(height: AaraagateTokens.space1),
-        Text(
-          detailParts.join(' · '),
-          maxLines:1,
-          overflow:TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer.withOpacity(.82)),
-        ),
-      ]),
+          if (recoveryCount > 0) ...[
+            const SizedBox(height: AaraagateTokens.space2),
+            Text(
+              '$recoveryCount payment follow-up${recoveryCount == 1 ? '' : 's'} need confirmation.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -420,7 +509,7 @@ class _MetricPill extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withOpacity(.65), borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: .65), borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
       child: Text('$label · $value', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
     );
   }
@@ -501,7 +590,7 @@ class _PaymentRecoveryCard extends StatelessWidget {
             ? 'Gateway authorization received. Waiting for captured confirmation before marking the bill paid.'
             : 'Payment order created. Complete the gateway step; no amount is treated as paid yet.';
     return PremiumSurface(
-      color: failed ? scheme.errorContainer.withOpacity(.45) : scheme.surfaceContainerLow,
+      color: failed ? scheme.errorContainer.withValues(alpha: .45) : scheme.surfaceContainerLow,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(failed ? Icons.error_outline_rounded : Icons.schedule_rounded, color: failed ? scheme.error : scheme.primary),
         const SizedBox(width: AaraagateTokens.space3),
@@ -548,5 +637,8 @@ bool _isOverdueDate(DateTime due, DateTime now) {
   return dueDay.isBefore(today);
 }
 
-String _money(int paise) => '₹${(paise / 100).toStringAsFixed(2)}';
+String _money(int paise) {
+  final rupees = paise / 100;
+  return paise % 100 == 0 ? '₹${rupees.toStringAsFixed(0)}' : '₹${rupees.toStringAsFixed(2)}';
+}
 String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';

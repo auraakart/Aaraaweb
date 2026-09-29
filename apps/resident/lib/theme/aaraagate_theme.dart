@@ -8,11 +8,13 @@ class AaraagateTokens {
   static const double space5 = 20;
   static const double space6 = 24;
   static const double space8 = 32;
+  static const double space10 = 40;
 
   static const double radiusSmall = 12;
   static const double radiusControl = 16;
   static const double radiusCard = 20;
   static const double radiusSheet = 24;
+  static const double radiusPill = 999;
 
   static const double minTouchTarget = 48;
   static const double primaryActionHeight = 52;
@@ -24,6 +26,16 @@ class AaraagateMotion {
   static const Duration quick = Duration(milliseconds: 120);
   static const Duration standard = Duration(milliseconds: 220);
   static const Curve emphasized = Curves.easeOutCubic;
+}
+
+class AaraagateElevation {
+  static List<BoxShadow> raised(Color shadow) => [
+        BoxShadow(
+          color: shadow.withValues(alpha: .06),
+          blurRadius: 20,
+          offset: const Offset(0, 6),
+        ),
+      ];
 }
 
 class AaraagateTheme {
@@ -125,12 +137,12 @@ class AaraagateTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withOpacity(.08),
+        shadowColor: Colors.black.withValues(alpha: .08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
         ),
@@ -235,7 +247,7 @@ class AaraagateTheme {
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 4),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
         ),
         labelStyle: TextStyle(
           color: scheme.onSurface,
@@ -256,7 +268,7 @@ class AaraagateTheme {
           ),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(

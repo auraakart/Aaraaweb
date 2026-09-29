@@ -37,7 +37,7 @@ class _GuardToolsScreenState extends State<GuardToolsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             DropdownButtonFormField<String>(
-              value: c.languageCode,
+              initialValue: c.languageCode,
               decoration: InputDecoration(labelText: strings.get('language'), prefixIcon: const Icon(Icons.translate_rounded)),
               items: guardLanguages.map((language) => DropdownMenuItem(
                 value: language.code,

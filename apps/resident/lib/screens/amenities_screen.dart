@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/amenity_actions.dart';
 import '../data/api_client.dart';
@@ -66,6 +67,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       ),
     );
     if (selection == null || !mounted) return;
+    widget.repository.recordUsage('AMENITY_BOOKING_STARTED').ignore();
 
     final startsAt = selection.startsAt;
     final endsAt = startsAt.add(Duration(minutes: slotMinutes));
@@ -81,6 +83,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         unitId: widget.unitId,
         startsAt: startsAt,
         endsAt: endsAt,
+        guestCount: selection.guestCount,
       );
       if (!mounted) return;
       _showMessage(created['status']?.toString() == 'PENDING'
@@ -90,7 +93,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     } catch (error) {
       if (!mounted) return;
       if (_isCapacityConflict(error)) {
-        final join = await _confirmWaitlist(amenity, startsAt);
+        final join = await _confirmWaitlist(amenity, startsAt, selection.guestCount);
         if (join == true && mounted) {
           try {
             final entry = await widget.repository.joinAmenityWaitlist(
@@ -98,6 +101,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
               unitId: widget.unitId,
               startsAt: startsAt,
               endsAt: endsAt,
+              guestCount: selection.guestCount,
             );
             if (!mounted) return;
             final position = _asInt(entry['position'], fallback: 0);
@@ -115,7 +119,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     }
   }
 
-  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt) {
+  Future<bool?> _confirmWaitlist(Map<String,dynamic> amenity,DateTime startsAt,int guestCount) {
     return showModalBottomSheet<bool>(
       context:context,
       useSafeArea:true,
@@ -130,6 +134,10 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
               Text('Slot just filled',style:theme.textTheme.headlineSmall),
               const SizedBox(height:AaraagateTokens.space2),
               Text('${amenity['name'] ?? 'Amenity'} · ${_formatDateTime(startsAt)}'),
+              if(guestCount>0) ...[
+                const SizedBox(height:AaraagateTokens.space1),
+                Text('$guestCount guest${guestCount==1?'':'s'} will be preserved if this waitlist entry is promoted.'),
+              ],
               const SizedBox(height:AaraagateTokens.space2),
               const Text('You can join the first-in waitlist for this exact time. A cancellation may promote the oldest eligible resident automatically.'),
               const SizedBox(height:AaraagateTokens.space5),
@@ -207,10 +215,34 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       _showMessage('Booking cancelled.');
       await _load();
     } catch (error) {
-      if (mounted) _showMessage(_friendlyError(error));
+      final message = await _recoverCancellationFailure(booking, error);
+      if (mounted) _showMessage(message);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<String> _recoverCancellationFailure(Map<String, dynamic> booking, Object error) async {
+    final fallback = _friendlyError(error);
+    final bookingId = booking['id']?.toString();
+    await _load();
+    if (!mounted || _error != null || bookingId == null) return fallback;
+
+    Map<String, dynamic>? refreshed;
+    for (final item in _bookings) {
+      if (item['id']?.toString() == bookingId) {
+        refreshed = item;
+        break;
+      }
+    }
+    if (refreshed == null) {
+      return 'Booking changed and is no longer in your current booking list.';
+    }
+    if (!_isCancelable(refreshed)) {
+      final status = _titleCase((refreshed['status']?.toString() ?? 'updated').replaceAll('_', ' ').toLowerCase());
+      return 'Booking changed. Latest status: $status.';
+    }
+    return fallback;
   }
 
   @override
@@ -306,17 +338,25 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       && error.message.toLowerCase().contains('slot is no longer available');
 
   static String _friendlyError(Object error) {
-    final text = error.toString();
-    if (text.contains('403')) return 'Amenities are not enabled for this society or your role.';
-    if (text.contains('409')) return 'That slot is no longer available. Choose another time.';
-    if (text.contains('401')) return 'Your session has expired. Sign in again.';
+    if (error is ApiException) {
+      final message = error.message.trim();
+      if (error.statusCode == 403) return 'Amenities are not enabled for this society or your role.';
+      if (error.statusCode == 401) return 'Your session has expired. Sign in again.';
+      if (error.statusCode == 409) {
+        if (message.toLowerCase().contains('slot is no longer available')) {
+          return 'That slot is no longer available. Choose another time.';
+        }
+        if (message.isNotEmpty) return message.endsWith('.') ? message : '$message.';
+      }
+    }
     return 'Amenities could not be loaded. Check your connection and try again.';
   }
 }
 
 class _BookingSelection {
-  const _BookingSelection(this.startsAt);
+  const _BookingSelection(this.startsAt, this.guestCount);
   final DateTime startsAt;
+  final int guestCount;
 }
 
 class _BookingSheet extends StatefulWidget {
@@ -332,6 +372,7 @@ class _BookingSheet extends StatefulWidget {
 class _BookingSheetState extends State<_BookingSheet> {
   late DateTime _date;
   TimeOfDay? _time;
+  int _guestCount=0;
 
   @override
   void initState() {
@@ -375,6 +416,9 @@ class _BookingSheetState extends State<_BookingSheet> {
       return day;
     });
     final approval = widget.amenity['requiresApproval'] == true;
+    final rules=widget.amenity['bookingRules'];
+    final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
+    final noShowPolicy=_amenityNoShowPolicyLabel(widget.amenity);
     final startsAt = _startsAt;
     final invalidPast = startsAt != null && !startsAt.isAfter(now);
 
@@ -394,6 +438,8 @@ class _BookingSheetState extends State<_BookingSheet> {
                 AaraagateStatusPill(label: '${widget.slotMinutes} min', tone: AaraagateStatusTone.neutral),
                 AaraagateStatusPill(label: _feeLabel(widget.amenity['feePaise']), tone: AaraagateStatusTone.neutral),
                 AaraagateStatusPill(label: approval ? 'Approval required' : 'Server confirmed', tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info),
+                AaraagateStatusPill(label:maxGuests>0?'Up to $maxGuests guests':'No guests',tone:AaraagateStatusTone.neutral),
+                if(noShowPolicy!=null)const AaraagateStatusPill(label:'Fair-use no-show rule',tone:AaraagateStatusTone.warning),
               ],
             ),
             const SizedBox(height: AaraagateTokens.space6),
@@ -459,6 +505,44 @@ class _BookingSheetState extends State<_BookingSheet> {
               const SizedBox(height: AaraagateTokens.space2),
               Text('Choose a future time.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
             ],
+            if(maxGuests>0) ...[
+              const SizedBox(height:AaraagateTokens.space5),
+              const PremiumSectionHeader(title:'Guests'),
+              const SizedBox(height:AaraagateTokens.space2),
+              PremiumSurface(
+                semanticLabel:'Selected guest count $_guestCount of maximum $maxGuests',
+                child:Row(children:[
+                  const Icon(Icons.group_outlined),
+                  const SizedBox(width:AaraagateTokens.space3),
+                  Expanded(child:Text('Guests joining you',style:theme.textTheme.bodyLarge?.copyWith(fontWeight:FontWeight.w700))),
+                  IconButton(
+                    tooltip:'Remove guest',
+                    onPressed:_guestCount>0?()=>setState(()=>_guestCount--):null,
+                    icon:const Icon(Icons.remove_circle_outline),
+                  ),
+                  SizedBox(width:32,child:Text('$_guestCount',textAlign:TextAlign.center,style:theme.textTheme.titleMedium)),
+                  IconButton(
+                    tooltip:'Add guest',
+                    onPressed:_guestCount<maxGuests?()=>setState(()=>_guestCount++):null,
+                    icon:const Icon(Icons.add_circle_outline),
+                  ),
+                ]),
+              ),
+              const SizedBox(height:AaraagateTokens.space1),
+              Text('Only the number of guests is stored; guest names are not collected.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
+            ],
+            if(noShowPolicy!=null) ...[
+              const SizedBox(height:AaraagateTokens.space5),
+              PremiumSurface(
+                color:scheme.surfaceContainer,
+                elevated:false,
+                child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  Icon(Icons.event_busy_outlined,color:scheme.primary),
+                  const SizedBox(width:AaraagateTokens.space3),
+                  Expanded(child:Text('Fair-use policy: $noShowPolicy. This never posts a fee or cancels an existing booking; it only pauses new booking/waitlist eligibility while the configured period is active.',style:theme.textTheme.bodySmall)),
+                ]),
+              ),
+            ],
             const SizedBox(height: AaraagateTokens.space5),
             PremiumSurface(
               child: Row(
@@ -483,9 +567,9 @@ class _BookingSheetState extends State<_BookingSheet> {
               child: FilledButton.icon(
                 onPressed: startsAt == null || invalidPast
                     ? null
-                    : () => Navigator.pop(context, _BookingSelection(startsAt)),
+                    : () => Navigator.pop(context, _BookingSelection(startsAt, _guestCount)),
                 icon: const Icon(Icons.event_available_rounded),
-                label: Text(approval ? 'Request booking' : 'Check & book'),
+                label: Text(approval ? 'Request booking' : 'Confirm booking'),
               ),
             ),
           ],
@@ -508,10 +592,15 @@ class _AmenityCard extends StatelessWidget {
     final approval = amenity['requiresApproval'] == true;
     final slotMinutes = _asInt(amenity['slotMinutes'], fallback: 60);
     final description = amenity['description']?.toString() ?? '';
+    final rules=amenity['bookingRules'];
+    final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
+    final noShowPolicy=_amenityNoShowPolicyLabel(amenity);
+    final blackout=_nextAmenityBlackout(amenity);
+    final todayHours=_amenityHoursForIndiaDay(amenity,DateTime.now().toUtc().add(const Duration(hours:5,minutes:30)).weekday);
 
     return PremiumSurface(
       color: scheme.surface,
-      elevated: true,
+      elevated: false,
       padding: const EdgeInsets.all(AaraagateTokens.space5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +631,7 @@ class _AmenityCard extends StatelessWidget {
                 ),
               ),
               AaraagateStatusPill(
-                label: approval ? 'Approval' : 'Instant',
+                label: approval ? 'Approval required' : 'Instant booking',
                 tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
               ),
             ],
@@ -551,12 +640,28 @@ class _AmenityCard extends StatelessWidget {
             const SizedBox(height: AaraagateTokens.space3),
             Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
           ],
+          if(blackout!=null) ...[
+            const SizedBox(height:AaraagateTokens.space3),
+            PremiumSurface(
+              color:scheme.surfaceContainer,
+              elevated:false,
+              child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Icon(Icons.construction_outlined,color:scheme.primary),
+                const SizedBox(width:AaraagateTokens.space2),
+                Expanded(child:Text('Upcoming ${(blackout['kind']??'MAINTENANCE').toString().replaceAll('_',' ').toLowerCase()}: ${_formatApiDate(blackout['start'])} to ${_formatApiDate(blackout['end'])}${blackout['reason']?.toString().trim().isNotEmpty==true?' · ${blackout['reason']}':''}',style:theme.textTheme.bodySmall)),
+              ]),
+            ),
+          ],
           const SizedBox(height: AaraagateTokens.space3),
-          Row(
+          Wrap(
+            spacing:AaraagateTokens.space4,
+            runSpacing:AaraagateTokens.space2,
             children: [
               _Meta(icon: Icons.schedule_outlined, label: '$slotMinutes min'),
-              const SizedBox(width: AaraagateTokens.space4),
               _Meta(icon: Icons.payments_outlined, label: _feeLabel(amenity['feePaise'])),
+              _Meta(icon:Icons.group_outlined,label:maxGuests>0?'Up to $maxGuests guests':'No guests'),
+              if(noShowPolicy!=null)_Meta(icon:Icons.event_busy_outlined,label:noShowPolicy),
+              if(todayHours!=null)_Meta(icon:Icons.access_time_rounded,label:todayHours),
             ],
           ),
           const SizedBox(height: AaraagateTokens.space4),
@@ -585,9 +690,11 @@ class _WaitlistCard extends StatelessWidget {
     final theme=Theme.of(context),scheme=theme.colorScheme;
     final status=entry['status']?.toString()??'WAITING';
     final position=_asInt(entry['position'],fallback:0);
+    final guests=_asInt(entry['guestCount'],fallback:0);
+    final guestLabel=guests>0?' · $guests guest${guests==1?'':'s'}':'';
     final detail=status=='WAITING'&&position>0
-      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}'
-      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}';
+      ? 'Position $position · ${_formatApiDate(entry['startsAt'])}$guestLabel'
+      : '${_titleCase(status.toLowerCase())} · ${_formatApiDate(entry['startsAt'])}$guestLabel';
     return PremiumSurface(
       padding:const EdgeInsets.fromLTRB(AaraagateTokens.space4,AaraagateTokens.space3,AaraagateTokens.space3,AaraagateTokens.space3),
       child:Row(children:[
@@ -620,6 +727,7 @@ class _BookingCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final status = booking['status']?.toString() ?? 'PENDING';
     final statusLabel = status.replaceAll('_', ' ').toLowerCase();
+    final guests=_asInt(booking['guestCount'],fallback:0);
 
     return PremiumSurface(
       padding: const EdgeInsets.fromLTRB(AaraagateTokens.space4, AaraagateTokens.space3, AaraagateTokens.space3, AaraagateTokens.space3),
@@ -644,7 +752,7 @@ class _BookingCard extends StatelessWidget {
                 const SizedBox(height: AaraagateTokens.space1),
                 Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
                 const SizedBox(height: AaraagateTokens.space1),
-                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -678,6 +786,51 @@ class _Meta extends StatelessWidget {
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
 bool _isQuickDate(DateTime date, List<DateTime> quickDates) => quickDates.any((item) => _sameDay(item, date));
+
+String? _amenityHoursForIndiaDay(Map<String,dynamic> amenity,int isoWeekday){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map)return null;
+  final weekly=schedule['weekly'];
+  if(weekly is! Map)return null;
+  const keys=['mon','tue','wed','thu','fri','sat','sun'];
+  final raw=weekly[keys[isoWeekday-1]];
+  if(raw is! List||raw.isEmpty)return 'Closed today';
+  final windows=<String>[];
+  for(final item in raw){
+    if(item is! Map)continue;
+    final start=item['start']?.toString(),end=item['end']?.toString();
+    if(start!=null&&end!=null)windows.add('$start–$end');
+  }
+  return windows.isEmpty?'Closed today':'Today ${windows.join(', ')}';
+}
+
+String? _amenityNoShowPolicyLabel(Map<String,dynamic> amenity){
+  final rules=amenity['bookingRules'];
+  if(rules is! Map) return null;
+  final count=_asInt(rules['noShowRestrictionCount'],fallback:0);
+  final lookback=_asInt(rules['noShowLookbackDays'],fallback:0);
+  final block=_asInt(rules['noShowBlockDays'],fallback:0);
+  if(count<=0||lookback<=0||block<=0) return null;
+  return '$count no-show${count==1?'':'s'} in ${lookback}d → ${block}d booking pause';
+}
+
+Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){
+  final schedule=amenity['schedule'];
+  if(schedule is! Map) return null;
+  final raw=schedule['blackouts'];
+  if(raw is! List) return null;
+  final now=DateTime.now();
+  final candidates=<Map<String,dynamic>>[];
+  for(final item in raw){
+    if(item is! Map) continue;
+    final start=DateTime.tryParse(item['start']?.toString()??'');
+    final end=DateTime.tryParse(item['end']?.toString()??'');
+    if(start==null||end==null||!end.isAfter(now)) continue;
+    candidates.add(item.map((key,value)=>MapEntry(key.toString(),value)));
+  }
+  candidates.sort((a,b)=>(DateTime.tryParse(a['start']?.toString()??'')??DateTime(9999)).compareTo(DateTime.tryParse(b['start']?.toString()??'')??DateTime(9999)));
+  return candidates.isEmpty?null:candidates.first;
+}
 
 String _weekday(DateTime date) {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

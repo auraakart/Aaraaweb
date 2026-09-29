@@ -6,15 +6,16 @@ The `Staging smoke` workflow is the repository gate for an immutable Aaraagate s
 
 ## Promotion contract
 
-- A pull request targeting `staging` must originate from `develop`.
-- The current `staging` commit must be an ancestor of the candidate. If histories diverge, reconcile `staging` into `develop` through a reviewed PR before promotion.
+- A pull request targeting `staging` normally originates from `develop`; a `release/*-staging-candidate` branch is allowed only when its tree exactly matches current `develop`.
+- A release-candidate branch must descend from the current `staging` target so promotion ancestry is preserved.
+- If `staging` still contains an older candidate that was never promoted to `main`, it may be superseded only when every commit unique to `staging` is release/reconciliation history (`Release:*` or `chore(release):*`). Any staging-only feature/fix commit blocks automatic supersession.
 - The workflow checks out `github.event.pull_request.head.sha`, not GitHub's synthetic pull-request merge ref.
 - `GIT_SHA`, the checked-out commit and the evidence candidate SHA must be identical.
 - Direct `develop` and `staging` pushes continue to exercise the same runtime smoke without changing the production branch.
 
 ## Retained evidence
 
-Every run uploads a 30-day `staging-evidence-<run-id>` artifact containing:
+Every run uploads a 7-day `staging-evidence-<run-id>` artifact containing:
 
 - immutable candidate and checked-out SHAs;
 - source and target refs;

@@ -31,8 +31,12 @@ class ConsumerBookingDto {
   @IsUUID() offeringId!: string;
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
-  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
+}
+
+class ConsumerBookingCancelDto {
+  @IsString() @MinLength(3) @MaxLength(500) reason!: string;
 }
 
 class ConsumerPaymentIntentDto {
@@ -115,8 +119,12 @@ export class ConsumerBookingsController {
   }
 
   @Post('services/bookings/:id/cancel')
-  cancelBooking(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
-    return this.bookings.cancelBooking(this.requireUser(userId), bookingId);
+  cancelBooking(
+    @CurrentConsumerUser() userId: string,
+    @Param('id', ParseUUIDPipe) bookingId: string,
+    @Body() dto: ConsumerBookingCancelDto,
+  ) {
+    return this.bookings.cancelBooking(this.requireUser(userId), bookingId, dto.reason);
   }
 
   @Post('services/bookings/:id/completion/confirm')

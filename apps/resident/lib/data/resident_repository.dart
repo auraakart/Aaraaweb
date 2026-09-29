@@ -56,6 +56,11 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> acknowledgeNotice(String noticeId) async {
+    final value = await api.patch('/api/v1/notices/$noticeId/acknowledge');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> communityMeetings() async {
     final value = await api.get('/api/v1/governance/community/meetings');
     return _list(value);
@@ -179,6 +184,10 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<void> recordUsage(String eventType) async {
+    await api.post('/api/v1/analytics/usage', {'eventType': eventType});
+  }
+
   Future<Map<String, dynamic>> createMaintenancePayment({required String invoiceId, required String idempotencyKey}) async {
     final value = await api.post('/api/v1/billing/payments', {'invoiceId': invoiceId, 'idempotencyKey': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);
@@ -199,9 +208,10 @@ class ResidentRepository {
     return _list(value);
   }
 
-  Future<Map<String, dynamic>> createHelpdeskTicket({required String unitId, required String title, required String description, String? category, String priority = 'NORMAL'}) async {
+  Future<Map<String, dynamic>> createHelpdeskTicket({required String unitId, required String idempotencyKey, required String title, required String description, String? category, String priority = 'NORMAL'}) async {
     final value = await api.post('/api/v1/helpdesk', {
       'unitId': unitId,
+      'idempotencyKey': idempotencyKey,
       'title': title.trim(),
       'description': description.trim(),
       'priority': priority,
@@ -210,7 +220,13 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<void> addHelpdeskComment(String ticketId, String message) => api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim()});
+  Future<void> addHelpdeskComment(String ticketId, String message, {required String idempotencyKey}) =>
+      api.post('/api/v1/helpdesk/$ticketId/comments', {'message': message.trim(), 'idempotencyKey': idempotencyKey});
+
+  Future<Map<String, dynamic>> reopenHelpdeskTicket(String ticketId, String note) async {
+    final value = await api.post('/api/v1/helpdesk/$ticketId/reopen', {'note': note.trim()});
+    return Map<String, dynamic>.from(value as Map);
+  }
 
   Future<Map<String, dynamic>> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     final value = await api.post('/api/v1/workforce/leaves', {
@@ -251,15 +267,15 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
-  Future<Map<String, dynamic>> inviteVisitor({required String unitId, required String name, required DateTime validFrom, required DateTime validUntil, String? phone, String? purpose}) async {
-    final value = await api.post('/api/v1/access-requests/visitor-invites', {
+  Future<Map<String, dynamic>> inviteVisitor({required String unitId, required String name, required DateTime validFrom, required DateTime validUntil, required String idempotencyKey, String? phone, String? purpose}) async {
+    final value = await api.postWithHeaders('/api/v1/access-requests/visitor-invites', {
       'unitId': unitId,
       'name': name,
       'validFrom': validFrom.toUtc().toIso8601String(),
       'validUntil': validUntil.toUtc().toIso8601String(),
       if (phone != null) 'phone': phone,
       if (purpose != null) 'purpose': purpose,
-    });
+    }, {'Idempotency-Key': idempotencyKey});
     return Map<String, dynamic>.from(value as Map);
   }
 

@@ -271,19 +271,26 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
           else if (_locations.isEmpty)
             const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Add a service address to continue.')))
           else
-            for (final location in _locations)
-              RadioListTile<String>(
-                value: _key(location),
-                groupValue: _locationKey,
-                onChanged: _submitting || _checkingAvailability || location['serviceAddressConfigured'] == false ? null : _selectLocation,
-                title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(
-                  location['serviceAddressConfigured'] == false
-                      ? 'Society service address is not configured yet.'
-                      : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}',
-                ),
-                secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
+            RadioGroup<String>(
+              groupValue: _locationKey,
+              onChanged: _selectLocation,
+              child: Column(
+                children: [
+                  for (final location in _locations)
+                    RadioListTile<String>(
+                      value: _key(location),
+                      enabled: !_submitting && !_checkingAvailability && location['serviceAddressConfigured'] != false,
+                      title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(
+                        location['serviceAddressConfigured'] == false
+                            ? 'Society service address is not configured yet.'
+                            : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}',
+                      ),
+                      secondary: Icon(location['type'] == 'SOCIETY_UNIT' ? Icons.apartment_rounded : Icons.home_rounded),
+                    ),
+                ],
               ),
+            ),
           const SizedBox(height: 18),
           Text('Schedule', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
