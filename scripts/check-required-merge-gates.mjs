@@ -16,13 +16,15 @@ if(missing.length){
   console.error('Required merge-gate orchestration missing: '+missing.join(', '));
   process.exit(1);
 }
-if(!workflow.includes('if: always()')){
-  console.error('Required merge gate must resolve even when an upstream gate fails.');
+const requiredGateStart=workflow.indexOf('\n  required-merge-gates:\n');
+const autoMergeStart=workflow.indexOf('\n  develop-auto-merge:\n');
+if(requiredGateStart<0||autoMergeStart<0||autoMergeStart<=requiredGateStart){
+  console.error('Required merge gate or develop auto-merge job is missing.');
   process.exit(1);
 }
-const autoMergeStart=workflow.indexOf('\n  develop-auto-merge:\n');
-if(autoMergeStart<0){
-  console.error('In-CI develop auto-merge job is missing.');
+const requiredGate=workflow.slice(requiredGateStart,autoMergeStart);
+if(!requiredGate.includes('if: ${{ !cancelled() }}')){
+  console.error('Required merge gate must stop on whole-workflow cancellation while still evaluating failed/skipped upstream results.');
   process.exit(1);
 }
 const autoMerge=workflow.slice(autoMergeStart);
@@ -30,23 +32,33 @@ const autoRequired=[
   'name: Develop auto merge',
   'needs: [required-merge-gates]',
   "github.event_name == 'pull_request'",
-  "github.event.pull_request.base.ref == 'develop'",
-  "github.event.pull_request.head.repo.full_name == github.repository",
-  "startsWith(github.event.pull_request.head.ref, 'mastermind/')",
   "needs.required-merge-gates.result == 'success'",
   'contents: write',
   'pull-requests: write',
   'EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
   'EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}',
+  'if [ "$current_base" != "develop" ]',
+  'if [ "$current_draft" != "false" ]',
+  'if [ "$current_repo" != "$REPOSITORY" ]',
+  'mastermind/*)',
   'test "$current_sha" = "$EXPECTED_HEAD_SHA"',
-  'test "$current_base" = "develop"',
   'test "$current_develop_sha" = "$EXPECTED_BASE_SHA"',
+  'current_merged=',
+  'already merged at the exact tested head',
   '-f merge_method=squash',
   '-f sha="$EXPECTED_HEAD_SHA"',
+  'if [ "$merged" != "true" ]',
 ];
 const autoMissing=autoRequired.filter(token=>!autoMerge.includes(token));
 if(autoMissing.length){
   console.error('In-CI develop auto-merge safety contract missing: '+autoMissing.join(', '));
+  process.exit(1);
+}
+if(autoMerge.includes("github.event.pull_request.base.ref == 'develop'")||
+   autoMerge.includes("github.event.pull_request.head.repo.full_name == github.repository")||
+   autoMerge.includes("startsWith(github.event.pull_request.head.ref, 'mastermind/')")||
+   autoMerge.includes("github.event.pull_request.draft == false")){
+  console.error('Develop auto-merge eligibility must be evaluated inside the observable merge step, not as a silent job-level skip condition.');
   process.exit(1);
 }
 if(autoMerge.includes('base=main')||autoMerge.includes('base=staging')){
