@@ -31,7 +31,7 @@ const releaseControlRequired=[
   'release_control_only: ${{ steps.detect.outputs.release_control_only }}',
   'node scripts/classify-release-control-change.mjs "$BASE_SHA" "${{ github.sha }}"',
   'node scripts/check-secret-patterns.mjs',
-  "needs.change-scope.outputs.release_control_only != 'true'",
+  "needs.change-scope.outputs.run_dependency_audit == 'true'",
   'RELEASE_CONTROL_ONLY: ${{ needs.change-scope.outputs.release_control_only }}',
   'Release-control-only PR: dependency graph and product surfaces are unchanged',
 ];
