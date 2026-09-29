@@ -29,6 +29,8 @@ export type IntegrationCapabilityView = IntegrationContractMetadata & {
 
 const SOCIETY_SELECTABLE_FAMILIES: readonly IntegrationFamily[] = ['OTP','WHATSAPP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR'];
 
+type IntegrationBaseCapability=Omit<IntegrationCapabilityView,keyof IntegrationContractMetadata|'operations'>;
+
 @Injectable()
 export class IntegrationRegistryService {
   constructor(@Optional() private readonly configuration?: IntegrationConfigurationService) {}
@@ -150,7 +152,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private otp(): IntegrationBaseCapability {
     const environment = process.env.NODE_ENV ?? 'development';
     const provider = (process.env.OTP_DELIVERY_PROVIDER ?? '').trim().toLowerCase();
     const testFallback = environment === 'test' || (!provider && environment !== 'production');
@@ -170,7 +172,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private whatsApp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private whatsApp(): IntegrationBaseCapability {
     return {
       family: 'WHATSAPP',
       provider: (process.env.WHATSAPP_DELIVERY_PROVIDER ?? 'unconfigured').trim().toLowerCase() || 'unconfigured',
@@ -182,7 +184,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private push(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private push(): IntegrationBaseCapability {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     let valid = false;
     if (raw) {
@@ -204,7 +206,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private telephonyIvr(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private telephonyIvr(): IntegrationBaseCapability {
     const environment=process.env.NODE_ENV??'development';
     const provider=(process.env.GATE_IVR_PROVIDER??'').trim().toLowerCase();
     const simulator=environment!=='production'&&(!provider||provider==='simulator');
@@ -219,7 +221,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private paymentGateway(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private paymentGateway(): IntegrationBaseCapability {
     const environment = (process.env.PAYMENT_GATEWAY_RECONCILIATION_ENVIRONMENT ?? 'sandbox').trim().toLowerCase();
     const provider = (process.env.PAYMENT_GATEWAY_RECONCILIATION_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const live = environment === 'live';
@@ -247,7 +249,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accessControl(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private accessControl(): IntegrationBaseCapability {
     return {
       family: 'ACCESS_CONTROL',
       provider: 'reference-adapters',
@@ -259,7 +261,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private objectStorage(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private objectStorage(): IntegrationBaseCapability {
     const driver = (process.env.OBJECT_STORAGE_DRIVER ?? '').trim().toLowerCase();
     const configured =
       driver === 's3' &&
@@ -281,7 +283,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private smartMeter(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private smartMeter(): IntegrationBaseCapability {
     return {
       family: 'SMART_METER',
       provider: 'utility-integration-v2',
@@ -293,7 +295,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accountingConnector(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private accountingConnector(): IntegrationBaseCapability {
     const provider = (process.env.ACCOUNTING_CONNECTOR_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const configured = this.present('ACCOUNTING_CONNECTOR_BASE_URL');
     return {
