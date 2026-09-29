@@ -89,7 +89,10 @@ export function AdminShortcuts(){
     if(parcelRoles.has(role))add(operations,{href:'/parcels',label:'Parcel desk',description:'Parcel receiving and handover'})
     if(helpdeskRoles.has(role)&&features.has('HELPDESK'))add(operations,{href:'/helpdesk',label:'Helpdesk',description:'Ticket review, assignment and SLA escalation'})
     if(amenityRoles.has(role)&&features.has('AMENITIES'))add(operations,{href:'/amenities',label:'Amenities',description:'Amenity configuration and bookings'})
-    if(noticeRoles.has(role)&&features.has('NOTICES'))add(operations,{href:'/notices/metrics',label:'Notice metrics',description:'Announcement delivery and engagement'})
+    if(noticeRoles.has(role)&&features.has('NOTICES')){
+      add(operations,{href:'/community-events',label:'Community events',description:'Publish activities and review aggregate RSVP capacity'})
+      add(operations,{href:'/notices/metrics',label:'Notice metrics',description:'Announcement delivery and engagement'})
+    }
     if(marketplaceRoles.has(role)&&features.has('HOUSEHOLD_SERVICES'))add(operations,{href:'/marketplace-control',label:'Marketplace controls',description:'Society marketplace operations'})
 
     if(features.has('AI_ASSISTANT')&&['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','ACCOUNTANT','AUDITOR','SECURITY_SUPERVISOR'].includes(role))add(operations,{href:'/ai-assistant',label:'Aaraagate Assistant',description:'Grounded, permission-aware operational assistance'})
