@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const RELEASE_SUBJECT = /^(?:release(?:\([^\r\n)]{1,80}\))?:|chore\(release\):)/i;
+const RELEASE_SUBJECT = /^(?:release(?:\([^\r\n)]{1,80}\))?:|release\s+(?:aaraagate\s+)?v\d+(?:\.\d+){1,2}\b[^\r\n]*\bstaging\b|chore\(release\):)/i;
 
 export function isReleaseHistorySubject(subject) {
   return RELEASE_SUBJECT.test(String(subject ?? '').trim());
@@ -11,12 +11,16 @@ function selfTest() {
     'release: promote Aaraagate V4.70',
     'release(v4.68): exact develop tree staging candidate',
     'release(V4.70.1): exact develop tree staging candidate',
+    'Release V4.78 exact develop tree to staging (#969)',
+    'Release Aaraagate V4.78.2 exact develop tree to staging',
     'chore(release): reconcile V4.51 main history into V4.52 staging',
   ];
   const rejected = [
     'feat: change resident billing behavior',
     'fix(helpdesk): patch assignment',
     'Merge pull request #123 from auraakart/feature/foo',
+    'Release feature behavior to staging',
+    'Release V4.78 product behavior',
     '',
   ];
   for (const subject of accepted) {
