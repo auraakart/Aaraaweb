@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
+  pull-requests: write
 
 env:
   CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -269,3 +271,14 @@ jobs:
           path: staging-evidence/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Auto-merge exact staging candidate after companion gate
+        if: github.event_name == 'pull_request' && github.base_ref == 'staging' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COMPANION_WORKFLOW: Backup restore smoke
+        run: bash scripts/try-staging-auto-merge.sh
