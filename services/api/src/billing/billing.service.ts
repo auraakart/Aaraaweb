@@ -5,7 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 
 type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
-type PaymentWebhookRow = { id: string; invoiceId: string; societyId: string; status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' };
+type PaymentWebhookRow = {
+  id:string;invoiceId:string|null;amenityBookingId:string|null;societyId:string;purposeType:'MAINTENANCE_INVOICE'|'AMENITY_DEPOSIT';
+  status:'CREATED'|'AUTHORIZED'|'CAPTURED'|'FAILED'|'REFUNDED';
+};
 export type PaymentWebhookEvent = { eventId: string; providerOrderId: string; providerPaymentId: string; status: 'CAPTURED' | 'FAILED' | 'REFUNDED' };
 type PaymentWebhookReceiptRow = {
   id: string;
@@ -166,6 +169,7 @@ export class BillingService {
       JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = p."societyId"
       JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = p."societyId"
       WHERE p."societyId" = ${societyId}::uuid
+        AND p."purposeType"='MAINTENANCE_INVOICE'
         AND (p."payerUserId" = ${userId}::uuid OR EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
           WHERE uo."unitId" = i."unitId" AND uo."societyId" = ${societyId}::uuid
@@ -189,6 +193,7 @@ export class BillingService {
       JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = p."societyId"
       JOIN "Society" s ON s."id" = p."societyId"
       WHERE p."id" = ${paymentId}::uuid AND p."societyId" = ${societyId}::uuid
+        AND p."purposeType"='MAINTENANCE_INVOICE'
         AND p."status" IN ('CAPTURED', 'REFUNDED')
         AND (p."payerUserId" = ${userId}::uuid OR EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
@@ -207,17 +212,21 @@ export class BillingService {
 
   listPaymentAudit(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
-      SELECT p."id", p."providerOrderId", p."providerPaymentId", p."amountPaise", p."status",
-        p."createdAt", p."completedAt", i."invoiceNumber", u."number" AS "unitNumber", b."name" AS "buildingName",
+      SELECT p."id",p."purposeType",p."providerOrderId",p."providerPaymentId",p."amountPaise",p."status",
+        p."createdAt",p."completedAt",
+        COALESCE(i."invoiceNumber",CONCAT('Amenity deposit · ',a."name")) AS "invoiceNumber",
+        u."number" AS "unitNumber",b."name" AS "buildingName",
         COALESCE(json_agg(json_build_object('type', pe."type", 'occurredAt', pe."occurredAt", 'providerEventId', pe."providerEventId")
           ORDER BY pe."occurredAt") FILTER (WHERE pe."id" IS NOT NULL), '[]') AS "events"
       FROM "Payment" p
-      JOIN "MaintenanceInvoice" i ON i."id" = p."invoiceId" AND i."societyId" = p."societyId"
-      JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = p."societyId"
-      JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = p."societyId"
-      LEFT JOIN "PaymentEvent" pe ON pe."paymentId" = p."id" AND pe."societyId" = p."societyId"
-      WHERE p."societyId" = ${societyId}::uuid
-      GROUP BY p."id", i."invoiceNumber", u."number", b."name"
+      LEFT JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      LEFT JOIN "AmenityBooking" ab ON ab."id"=p."amenityBookingId" AND ab."societyId"=p."societyId"
+      LEFT JOIN "Amenity" a ON a."id"=ab."amenityId" AND a."societyId"=ab."societyId"
+      JOIN "Unit" u ON u."id"=COALESCE(i."unitId",ab."unitId") AND u."societyId"=p."societyId"
+      JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=p."societyId"
+      LEFT JOIN "PaymentEvent" pe ON pe."paymentId"=p."id" AND pe."societyId"=p."societyId"
+      WHERE p."societyId"=${societyId}::uuid
+      GROUP BY p."id",i."invoiceNumber",a."name",u."number",b."name"
       ORDER BY p."createdAt" DESC
     `);
   }
@@ -358,8 +367,8 @@ export class BillingService {
 
       const providerOrderId = `aaraagate_${randomUUID()}`;
       const rows = await tx.$queryRaw(Prisma.sql`
-        INSERT INTO "Payment" ("societyId","invoiceId","payerUserId","idempotencyKey","provider","providerOrderId","amountPaise")
-        VALUES (${societyId}::uuid,${invoiceId}::uuid,${userId}::uuid,${normalizedKey},'gateway-adapter',${providerOrderId},${invoice.amountPaise})
+        INSERT INTO "Payment" ("societyId","invoiceId","purposeType","payerUserId","idempotencyKey","provider","providerOrderId","amountPaise")
+        VALUES (${societyId}::uuid,${invoiceId}::uuid,'MAINTENANCE_INVOICE',${userId}::uuid,${normalizedKey},'gateway-adapter',${providerOrderId},${invoice.amountPaise})
         ON CONFLICT ("societyId","payerUserId","idempotencyKey") DO UPDATE SET "idempotencyKey"=EXCLUDED."idempotencyKey"
         RETURNING *
       `);
@@ -369,15 +378,73 @@ export class BillingService {
     });
   }
 
+  async createAmenityDepositPayment(societyId:string,userId:string,bookingId:string,idempotencyKey:string) {
+    const normalizedKey=idempotencyKey.trim();
+    return this.prisma.$transaction(async(tx)=>{
+      const bookings=await tx.$queryRaw<Array<{
+        id:string;userId:string;status:string;depositPaise:number;depositStatus:string;depositDueAt:Date|null;paymentOpen:boolean;
+      }>>(Prisma.sql`
+        SELECT "id","userId","status"::text AS "status","depositPaise","depositStatus","depositDueAt",
+               ("depositDueAt" IS NOT NULL AND "depositDueAt">CURRENT_TIMESTAMP) AS "paymentOpen"
+        FROM "AmenityBooking"
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid
+        FOR UPDATE
+      `);
+      const booking=bookings[0];
+      if(!booking) throw new NotFoundException('Amenity booking not found');
+
+      const existing=await tx.$queryRaw<Array<{id:string;amenityBookingId:string|null;purposeType:string}&Record<string,unknown>>>(Prisma.sql`
+        SELECT * FROM "Payment"
+        WHERE "societyId"=${societyId}::uuid AND "payerUserId"=${userId}::uuid AND "idempotencyKey"=${normalizedKey}
+        LIMIT 1
+      `);
+      if(existing[0]){
+        if(existing[0].purposeType!=='AMENITY_DEPOSIT'||existing[0].amenityBookingId!==bookingId){
+          throw new ConflictException('Idempotency key is already used for another payment');
+        }
+        return existing[0];
+      }
+
+      if(booking.status!=='CONFIRMED') throw new ConflictException('Amenity deposit can be paid only for a confirmed booking');
+      if(booking.depositPaise<=0) throw new BadRequestException('Amenity booking does not require a refundable deposit');
+      if(booking.depositStatus!=='PAYMENT_REQUIRED') throw new ConflictException(`Amenity deposit is ${booking.depositStatus.toLowerCase().replaceAll('_',' ')}`);
+      if(!booking.paymentOpen) throw new ConflictException('Amenity deposit payment deadline has elapsed');
+
+      const active=await tx.$queryRaw<Array<{id:string;payerUserId:string}&Record<string,unknown>>>(Prisma.sql`
+        SELECT * FROM "Payment"
+        WHERE "societyId"=${societyId}::uuid AND "amenityBookingId"=${bookingId}::uuid
+          AND "purposeType"='AMENITY_DEPOSIT' AND "status" IN ('CREATED','AUTHORIZED','CAPTURED')
+        ORDER BY "createdAt" DESC LIMIT 1
+      `);
+      if(active[0]) return active[0];
+
+      const providerOrderId=`aaraagate_amenity_${randomUUID()}`;
+      const rows=await tx.$queryRaw<Array<{id:string}&Record<string,unknown>>>(Prisma.sql`
+        INSERT INTO "Payment" ("societyId","amenityBookingId","purposeType","payerUserId","idempotencyKey","provider","providerOrderId","amountPaise")
+        VALUES (${societyId}::uuid,${bookingId}::uuid,'AMENITY_DEPOSIT',${userId}::uuid,${normalizedKey},'gateway-adapter',${providerOrderId},${booking.depositPaise})
+        RETURNING *
+      `);
+      const payment=rows[0];
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "PaymentEvent" ("societyId","paymentId","actorUserId","type")
+        VALUES (${societyId}::uuid,${payment.id}::uuid,${userId}::uuid,'AMENITY_DEPOSIT_ORDER_CREATED')
+      `);
+      return payment;
+    });
+  }
+
   listWebhookReceipts(societyId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT r."id",r."paymentId",r."providerEventId",r."providerOrderId",r."providerPaymentId",
              r."eventStatus",r."processingStatus",r."receiveCount",r."lastReceivedAt",r."processedAt",
              r."lastError",r."replayCount",r."lastReplayedAt",r."lastReplayedByUserId",r."createdAt",
-             p."status" AS "paymentStatus",i."invoiceNumber"
+             p."status" AS "paymentStatus",p."purposeType",
+             COALESCE(i."invoiceNumber",CONCAT('Amenity deposit · ',a."name")) AS "invoiceNumber"
       FROM "PaymentWebhookReceipt" r
       JOIN "Payment" p ON p."id"=r."paymentId" AND p."societyId"=r."societyId"
-      JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      LEFT JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
+      LEFT JOIN "AmenityBooking" ab ON ab."id"=p."amenityBookingId" AND ab."societyId"=p."societyId"
+      LEFT JOIN "Amenity" a ON a."id"=ab."amenityId" AND a."societyId"=ab."societyId"
       WHERE r."societyId"=${societyId}::uuid
       ORDER BY r."createdAt" DESC
       LIMIT 200
@@ -401,7 +468,7 @@ export class BillingService {
   async reconcile(signature: string | undefined, event: PaymentWebhookEvent) {
     const digest = this.verifyWebhookSignature(signature, event);
     const orders = await this.prisma.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
-      SELECT "id","invoiceId","societyId","status"
+      SELECT "id","invoiceId","amenityBookingId","societyId","purposeType","status"
       FROM "Payment"
       WHERE "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
       LIMIT 1
@@ -462,7 +529,7 @@ export class BillingService {
         if (receipt.processingStatus === 'PROCESSED') return { duplicate: true, receiptId };
 
         const orders = await tx.$queryRaw<PaymentWebhookRow[]>(Prisma.sql`
-          SELECT "id","invoiceId","societyId","status"
+          SELECT "id","invoiceId","amenityBookingId","societyId","purposeType","status"
           FROM "Payment"
           WHERE "id"=${receipt.paymentId}::uuid AND "societyId"=${societyId}::uuid
             AND "providerOrderId"=${event.providerOrderId} AND "provider"='gateway-adapter'
@@ -489,7 +556,7 @@ export class BillingService {
           return { duplicate: true, receiptId };
         }
 
-        const rows = await tx.$queryRaw<{ id: string; invoiceId: string; societyId: string }[]>(Prisma.sql`
+        const rows = await tx.$queryRaw<Array<{id:string;invoiceId:string|null;amenityBookingId:string|null;societyId:string;purposeType:string}>>(Prisma.sql`
           UPDATE "Payment"
           SET "status"=${event.status}::"PaymentStatus",
               "providerPaymentId"=${event.providerPaymentId},
@@ -498,24 +565,48 @@ export class BillingService {
           WHERE "id"=${order.id}::uuid
             AND ((${event.status} IN ('CAPTURED','FAILED') AND "status" IN ('CREATED','AUTHORIZED'))
               OR (${event.status}='REFUNDED' AND "status"='CAPTURED'))
-          RETURNING "id","invoiceId","societyId"
+          RETURNING "id","invoiceId","amenityBookingId","societyId","purposeType"
         `);
         const payment = rows[0];
         if (!payment) throw new BadRequestException('Invalid payment state transition');
 
-        if (event.status === 'CAPTURED') {
-          await tx.$executeRaw(Prisma.sql`
-            UPDATE "MaintenanceInvoice"
-            SET "status"='PAID',"paidAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
-            WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='ISSUED'
-          `);
+        if(payment.purposeType==='MAINTENANCE_INVOICE'&&payment.invoiceId){
+          if(event.status==='CAPTURED'){
+            await tx.$executeRaw(Prisma.sql`
+              UPDATE "MaintenanceInvoice"
+              SET "status"='PAID',"paidAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+              WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='ISSUED'
+            `);
+          }
+          if(event.status==='REFUNDED'){
+            await tx.$executeRaw(Prisma.sql`
+              UPDATE "MaintenanceInvoice"
+              SET "status"='ISSUED',"paidAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+              WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='PAID'
+            `);
+          }
         }
-        if (event.status === 'REFUNDED') {
-          await tx.$executeRaw(Prisma.sql`
-            UPDATE "MaintenanceInvoice"
-            SET "status"='ISSUED',"paidAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
-            WHERE "id"=${payment.invoiceId}::uuid AND "societyId"=${payment.societyId}::uuid AND "status"='PAID'
-          `);
+        if(payment.purposeType==='AMENITY_DEPOSIT'&&payment.amenityBookingId){
+          if(event.status==='CAPTURED'){
+            await tx.$executeRaw(Prisma.sql`
+              UPDATE "AmenityBooking"
+              SET "depositStatus"=CASE
+                    WHEN "status" IN ('PENDING','CONFIRMED','CHECKED_IN') THEN 'CAPTURED'
+                    ELSE 'REFUND_REQUIRED'
+                  END,
+                  "updatedAt"=CURRENT_TIMESTAMP
+              WHERE "id"=${payment.amenityBookingId}::uuid AND "societyId"=${payment.societyId}::uuid
+                AND "depositPaise">0 AND "depositStatus" IN ('PAYMENT_REQUIRED','VOIDED')
+            `);
+          }
+          if(event.status==='REFUNDED'){
+            await tx.$executeRaw(Prisma.sql`
+              UPDATE "AmenityBooking"
+              SET "depositStatus"='REFUNDED',"updatedAt"=CURRENT_TIMESTAMP
+              WHERE "id"=${payment.amenityBookingId}::uuid AND "societyId"=${payment.societyId}::uuid
+                AND "depositPaise">0 AND "depositStatus" IN ('CAPTURED','REFUND_REQUIRED')
+            `);
+          }
         }
 
         await tx.$executeRaw(Prisma.sql`
