@@ -6,7 +6,8 @@ import { api, type Session } from '../../lib/admin-client'
 
 type Family='OTP'|'WHATSAPP'|'PUSH'|'PAYMENT_GATEWAY'|'ACCESS_CONTROL'|'OBJECT_STORAGE'|'SMART_METER'|'ACCOUNTING_CONNECTOR'
 type RegistryFamily=Family|'TELEPHONY_IVR'
-type Capability={family:RegistryFamily;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
+type OperationContract={operationId:string;contractVersion:string;direction:string;idempotency:string;timeoutMs:number;reconciliationRequired:boolean;callbackVerification:string;providerAuthority:'NONE'|'QUARANTINED_INPUT';fieldEvidenceRequired:boolean;degradationMode:string}
+type Capability={family:RegistryFamily;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];operations:OperationContract[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
 type Configuration={societyId:string;family:Family;providerKey:string;enabled:boolean;updatedByUserId:string;createdAt:string;updatedAt:string}
 type Conformance={family:RegistryFamily;provider:string;health:Capability['health'];checks:Record<string,boolean>;missing:string[];configurationBlockers:string[];status:'CONTRACT_READY'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'CONTRACT_GAP';certificationClaim:false;adapterConfigurationReady:boolean;selectionRequired:boolean;societySelectionReady:boolean;selectedProviderKey:string|null;societyEnabled:boolean|null;configurationReady:boolean;contractReady:boolean;fieldEvidenceRequired:boolean;productionActivationApproved:boolean;boundary:string}
 type ConfigurationEvent={id:string;family:Family;eventType:string;providerKey:string;enabled:boolean;actorUserId:string;occurredAt:string}
@@ -52,7 +53,14 @@ export default function IntegrationReadinessPage(){
       <div style={{display:'grid',gap:12}}>{registry.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:7}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.health} tone={tone(item.health)}/></div>
         <span>{item.provider} · {item.configurationScope.toLowerCase()} scope · {item.contractVersion}</span>
-        <small>{item.capabilities.join(' · ')}</small><small>Retry: {item.retryDisposition.replaceAll('_',' ')} · owner {item.retryOwner}</small><small>{item.degradationMode}</small><small>{item.boundary}</small>
+        <small>{item.capabilities.join(' · ')}</small><small>Retry: {item.retryDisposition.replaceAll('_',' ')} · owner {item.retryOwner}</small><small>{item.degradationMode}</small>
+        <div style={{display:'grid',gap:6,marginTop:4}}>{item.operations.map(operation=><div key={operation.operationId} style={{padding:8,borderRadius:10,background:'var(--surface-muted,#f8fafc)'}}>
+          <strong>{operation.operationId.replaceAll('_',' ')}</strong><br/>
+          <small>{operation.direction.replaceAll('_',' ')} · idempotency {operation.idempotency.replaceAll('_',' ')} · timeout {operation.timeoutMs} ms</small><br/>
+          <small>Callback {operation.callbackVerification.replaceAll('_',' ')} · provider authority {operation.providerAuthority.replaceAll('_',' ')} · reconciliation {operation.reconciliationRequired?'required':'not required'} · field evidence {operation.fieldEvidenceRequired?'required':'not required'}</small><br/>
+          <small>{operation.degradationMode}</small>
+        </div>)}</div>
+        <small>{item.boundary}</small>
       </article>)}</div>
     </DetailPanel>
     {canManage&&<DetailPanel title="Society provider selection"><form onSubmit={save} style={{display:'grid',gap:14}}>
