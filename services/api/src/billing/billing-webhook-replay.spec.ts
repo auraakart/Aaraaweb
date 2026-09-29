@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { BillingService, type PaymentWebhookEvent } from './billing.service';
+import { BillingService, type PaymentWebhookEvent, type PaymentWebhookRow } from './billing.service';
 
 const societyId = '11111111-1111-4111-8111-111111111111';
 const paymentId = '22222222-2222-4222-8222-222222222222';
@@ -9,7 +9,7 @@ const actorId = '44444444-4444-4444-8444-444444444444';
 const invoiceId = '55555555-5555-4555-8555-555555555555';
 const amenityBookingId = '66666666-6666-4666-8666-666666666666';
 
-const maintenancePayment = (status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' = 'CREATED') => ({
+const maintenancePayment = (status: PaymentWebhookRow['status'] = 'CREATED'): PaymentWebhookRow => ({
   id: paymentId,
   invoiceId,
   amenityBookingId: null,
@@ -18,7 +18,7 @@ const maintenancePayment = (status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAI
   status,
 });
 
-const amenityDepositPayment = (status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' = 'CREATED') => ({
+const amenityDepositPayment = (status: PaymentWebhookRow['status'] = 'CREATED'): PaymentWebhookRow => ({
   id: paymentId,
   invoiceId: null,
   amenityBookingId,
