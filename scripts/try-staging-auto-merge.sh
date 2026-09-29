@@ -80,7 +80,12 @@ test "$(jq -r '.state' <<<"$latest")" = "open"
 test "$(jq -r '.head.sha' <<<"$latest")" = "$EXPECTED_HEAD_SHA"
 test "$(jq -r '.base.sha' <<<"$latest")" = "$EXPECTED_BASE_SHA"
 
-api --method PUT "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"   -f merge_method=merge   -f sha="$EXPECTED_HEAD_SHA" >/tmp/aaraagate-staging-merge.json
+api --method PUT "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+  -f merge_method=merge \
+  -f sha="$EXPECTED_HEAD_SHA" \
+  -f commit_title="Release: promote exact develop tree to staging (#$PR_NUMBER)" \
+  -f commit_message="Automatically merged after Staging smoke and Backup restore smoke succeeded for exact candidate $EXPECTED_HEAD_SHA. Main is not changed by this workflow." \
+  >/tmp/aaraagate-staging-merge.json
 
 test "$(jq -r '.merged' /tmp/aaraagate-staging-merge.json)" = "true"
 echo "Merged staging PR #$PR_NUMBER at exact tested head $EXPECTED_HEAD_SHA after both release gates passed."
