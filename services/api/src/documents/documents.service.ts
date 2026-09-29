@@ -82,14 +82,14 @@ export class DocumentsService {
 
   async searchKnowledgeForUser(societyId: string, userId: string, query: string, includeManagement = false) {
     const normalized = query.toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0980-\u09ff\u0b80-\u0bff\u0c00-\u0c7f\u0c80-\u0cff\u0d00-\u0d7f ]/gu, ' ');
-    const rawTokens = [...new Set(normalized.split(/\s+/).map(token => token.trim()).filter(token => token.length >= 3))].slice(0, 8);
+    const rawTokens = [...new Set(normalized.split(/\s+/).map(token => token.trim()).filter(token => token.length >= 3))];
     const genericTerms = new Set([
       'society','community','document','documents','policy','policies','rule','rules','bylaw','bylaws','handbook','circular',
       'please','show','tell','what','where','when','which','about','does','have','with','from','this','that','your','there','need','know',
       'the','and','for','are','our','can','you','me',
     ]);
-    const distinctiveTokens = rawTokens.filter(token => !genericTerms.has(token));
-    const tokens = distinctiveTokens.length > 0 ? distinctiveTokens : rawTokens;
+    const distinctiveTokens = rawTokens.filter(token => !genericTerms.has(token)).slice(0, 8);
+    const tokens = distinctiveTokens.length > 0 ? distinctiveTokens : rawTokens.slice(0, 8);
     if (tokens.length === 0) return [];
     const matchClauses = tokens.map(token => {
       const like = `%${token}%`;
