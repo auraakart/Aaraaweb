@@ -10,9 +10,9 @@ The job-level `if` expression combined required-gate success with PR eligibility
 
 ## Permanent fix
 
-- Remove the auto-merge job-level `if` entirely.
-- `needs: [required-merge-gates]` remains the only scheduling dependency, so GitHub starts the controller only after that required job succeeds.
-- Always start the merge controller after successful gates.
+- Keep exactly one job-level status condition: `!cancelled() && needs.required-merge-gates.result == 'success'`.
+- This explicitly overrides GitHub's implicit `success()` skip propagation from intentionally skipped full validation jobs.
+- Always start the merge controller after successful required gates unless the workflow is cancelled.
 - Evaluate event type, develop-base, draft, repository and `mastermind/*` eligibility inside the shell step.
 - Ineligible PRs exit successfully with an explicit reason.
 - Eligible mastermind PRs continue to require:
@@ -29,7 +29,13 @@ The job-level `if` expression combined required-gate success with PR eligibility
 
 A second repeat-delay source was also confirmed: changing only the CI orchestration controller still woke full API, Admin, Flutter and dependency-audit runners because every `.github/**` change was conservatively treated as cross-cutting product code.
 
-The first reduced job-level condition still reproduced the skipped controller on #996. That proved the stable fix is to remove **all** auto-merge job-level applicability conditions rather than trying to find a smaller safe expression.
+The first reduced job-level condition and then a condition-free controller both reproduced the skipped controller on #996 when some full validation jobs were intentionally skipped. The exact cause is GitHub's implicit `success()` status semantics: downstream jobs can inherit skipped-state suppression through the dependency graph even when `Required merge gates` itself reports success.
+
+The stable controller therefore uses exactly one **status-only** condition:
+
+`!cancelled() && needs.required-merge-gates.result == 'success'`
+
+Including an explicit status function overrides the implicit `success()` skip propagation, while `!cancelled()` prevents merge activity after workflow cancellation. PR event/base/repository/draft/branch eligibility remains inside the observable shell step.
 
 The new fast path is deliberately narrow:
 - only `.github/workflows/ci.yml`, this orchestration guard/classifier and documentation are eligible;
