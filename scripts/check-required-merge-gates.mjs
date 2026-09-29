@@ -73,8 +73,12 @@ if(autoMissing.length){
   process.exit(1);
 }
 const autoHeader=autoMerge.slice(0,autoMerge.indexOf('    permissions:'));
-if(autoHeader.includes('\n    if:')){
-  console.error('Develop auto-merge must not use any job-level if condition; applicability belongs inside the observable merge step.');
+if(!autoHeader.includes("if: ${{ !cancelled() && needs.required-merge-gates.result == 'success' }}")){
+  console.error('Develop auto-merge must override transitive skipped-job suppression while still requiring successful merge gates.');
+  process.exit(1);
+}
+if((autoHeader.match(/\n    if:/g)||[]).length!==1){
+  console.error('Develop auto-merge must have exactly one status-only job condition.');
   process.exit(1);
 }
 if(autoMerge.includes("github.event.pull_request.base.ref == 'develop'")||
