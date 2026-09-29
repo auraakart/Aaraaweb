@@ -15,6 +15,7 @@ import { FinanceOperationsService } from './finance-operations.service';
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 class CreateExpenseDto{ @IsString() @MinLength(1) @MaxLength(40) expenseNumber!:string; @IsString() @MinLength(1) @MaxLength(160) vendorName!:string; @IsOptional() @IsString() @MaxLength(120) invoiceReference?:string; @IsDateString() expenseDate!:string; @IsOptional() @IsDateString() dueDate?:string; @IsString() @MinLength(1) @MaxLength(500) description!:string; @IsInt() @Min(1) amountPaise!:number; @IsUUID() expenseAccountId!:string; @IsOptional() @IsUUID() fundId?:string; }
 class ExpenseIntakeAssessmentDto{ @IsString() @MinLength(1) @MaxLength(160) vendorName!:string; @IsOptional() @IsString() @MaxLength(120) invoiceReference?:string; @IsDateString() expenseDate!:string; @IsInt() @Min(1) amountPaise!:number; }
+class FinanceDocumentIntakePreviewDto{ @IsString() @MinLength(20) @MaxLength(12000) reviewedText!:string; }
 class ApproveExpenseDto{ @IsUUID() payableAccountId!:string; }
 class PostExpenseDto{ @IsString() @MinLength(1) @MaxLength(60) entryNumber!:string; }
 class SettlePayableDto{ @IsInt() @Min(1) amountPaise!:number; @IsDateString() settlementDate!:string; @IsUUID() journalEntryId!:string; @IsString() @MinLength(1) @MaxLength(120) idempotencyKey!:string; @IsOptional() @IsString() @MaxLength(120) reference?:string; }
@@ -28,6 +29,7 @@ export class FinanceOperationsController{
   constructor(private readonly finance:FinanceOperationsService){}
   @Get('expenses') @RequiresPermissions(AppPermission.FINANCE_READ) listExpenses(@CurrentTenant() societyId:string){return this.finance.listExpenses(societyId);}
   @Post('expenses/intake-assessment') @RequiresPermissions(AppPermission.FINANCE_MANAGE) expenseIntakeAssessment(@CurrentTenant() societyId:string,@Body() dto:ExpenseIntakeAssessmentDto){return this.finance.expenseIntakeAssessment(societyId,dto);}
+  @Post('expenses/document-intake-preview') @RequiresPermissions(AppPermission.FINANCE_MANAGE) documentIntakePreview(@CurrentTenant() societyId:string,@Body() dto:FinanceDocumentIntakePreviewDto){return this.finance.documentIntakePreview(societyId,dto.reviewedText);}
   @Post('expenses') @RequiresPermissions(AppPermission.FINANCE_MANAGE) createExpense(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateExpenseDto){return this.finance.createExpense(societyId,this.user(userId),dto);}
   @Post('expenses/:id/approve') @RequiresPermissions(AppPermission.FINANCE_MANAGE) approveExpense(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:ApproveExpenseDto){return this.finance.approveExpense(societyId,this.user(userId),id,dto);}
   @Post('expenses/:id/post') @RequiresPermissions(AppPermission.FINANCE_MANAGE) postExpense(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PostExpenseDto){return this.finance.postExpense(societyId,this.user(userId),id,dto.entryNumber);}

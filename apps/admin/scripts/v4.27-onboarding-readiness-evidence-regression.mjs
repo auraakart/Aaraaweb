@@ -22,15 +22,33 @@ if(checksum!==expectedChecksum)throw new Error(`Representative migration fixture
 
 const onboarding=fs.readFileSync(new URL('../app/onboarding/page.tsx',import.meta.url),'utf8');
 for(const fragment of [
+  '/onboarding/readiness',
+  'No duplicate configuration store is introduced',
+  'step.blockers',
+  'step.nextActions',
+  'Productionization claimed',
+]) if(!onboarding.includes(fragment))throw new Error(`Missing onboarding authority/readiness contract: ${fragment}`);
+
+for(const stale of [
   '/migration/batches',
   '/society-roles',
   '/entitlements/current',
   '/integrations/registry/configuration',
-  'No duplicate configuration store is introduced',
-  'Financial mutation remains permission-scoped',
-  'Owner/tenant relationships remain occupancy-driven',
-  'Hosted production, physical hardware, live provider credentials and real-society policy acceptance remain external gates',
-]) if(!onboarding.includes(fragment))throw new Error(`Missing onboarding authority/readiness contract: ${fragment}`);
+]) if(onboarding.includes(stale))throw new Error(`Browser-derived onboarding readiness must not return: ${stale}`);
+
+const onboardingService=fs.readFileSync(new URL('../../../services/api/src/migration/onboarding-readiness.service.ts',import.meta.url),'utf8');
+for(const fragment of [
+  'this.migration.readiness(societyId)',
+  'this.prisma.building.count',
+  'this.prisma.societyMembership.count',
+  'this.entitlements.current(societyId)',
+  '"SocietyIntegrationConfiguration"',
+  '"Amenity"',
+  '"AccountingPeriod"',
+  '"GovernanceCommitteeTenure"',
+  'productionizationClaim:false',
+  'Hosted infrastructure',
+]) if(!onboardingService.includes(fragment))throw new Error(`Missing server-authoritative onboarding evidence: ${fragment}`);
 
 const migration=fs.readFileSync(new URL('../app/migration/import-stager.tsx',import.meta.url),'utf8');
 for(const fragment of ['/migration/preview','/migration/batches','parseXlsx(file)','Preview never mutates operational society data'])if(!migration.includes(fragment))throw new Error(`Missing migration safety contract: ${fragment}`);

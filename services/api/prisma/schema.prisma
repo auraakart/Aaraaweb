@@ -889,26 +889,29 @@ model PaymentAutopayPreference {
 }
 
 model Payment {
-  id                String             @id @default(uuid()) @db.Uuid
-  societyId         String             @db.Uuid
-  invoiceId         String             @db.Uuid
-  payerUserId       String             @db.Uuid
+  id                String              @id @default(uuid()) @db.Uuid
+  societyId         String              @db.Uuid
+  invoiceId         String?             @db.Uuid
+  amenityBookingId  String?             @db.Uuid
+  purposeType       String              @default("MAINTENANCE_INVOICE")
+  payerUserId       String              @db.Uuid
   idempotencyKey    String
   provider          String
-  providerOrderId   String             @unique
+  providerOrderId   String              @unique
   providerPaymentId String?
   amountPaise       Int
-  status            PaymentStatus      @default(CREATED)
+  status            PaymentStatus       @default(CREATED)
   failureCode       String?
-  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
-  completedAt       DateTime?          @db.Timestamptz(6)
-  society           Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
-  invoice           MaintenanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(6)
+  completedAt       DateTime?           @db.Timestamptz(6)
+  society           Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  invoice           MaintenanceInvoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   events            PaymentEvent[]
 
   @@unique([societyId, payerUserId, idempotencyKey])
   @@index([societyId, invoiceId, status])
+  @@index([societyId, purposeType, amenityBookingId, status], map: "Payment_society_purpose_amenity_status_idx")
 }
 
 model PaymentEvent {
@@ -1010,6 +1013,10 @@ model AmenityBooking {
   feePaise         Int                  @default(0)
   currency         String               @default("INR")
   guestCount       Int                  @default(0)
+  depositPaise     Int                  @default(0)
+  depositStatus    String               @default("NOT_REQUIRED")
+  depositDueAt     DateTime?            @db.Timestamptz(6)
+  depositPaymentWindowMinutes Int?
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
   checkedInAt      DateTime?            @db.Timestamptz(6)

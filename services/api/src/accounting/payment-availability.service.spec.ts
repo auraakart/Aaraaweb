@@ -12,6 +12,7 @@ describe('PaymentAvailabilityService',()=>{
     expect(sql).toContain('refund_totals AS');
     expect(sql).toContain('"ReceivableAllocationReversal"');
     expect(sql).toContain('"PaymentRefund"');
+    expect(sql).toContain('"purposeType"=\'MAINTENANCE_INVOICE\'');
     expect(sql).not.toContain('SELECT SUM(a."amountPaise") FROM "ReceivableAllocation"');
   });
 });
