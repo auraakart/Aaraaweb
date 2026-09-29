@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 
 type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
-type PaymentWebhookRow = {
+export type PaymentWebhookRow = {
   id:string;invoiceId:string|null;amenityBookingId:string|null;societyId:string;purposeType:'MAINTENANCE_INVOICE'|'AMENITY_DEPOSIT';
   status:'CREATED'|'AUTHORIZED'|'CAPTURED'|'FAILED'|'REFUNDED';
 };
