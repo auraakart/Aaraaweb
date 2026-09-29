@@ -2,6 +2,7 @@
 
 import { FormEvent,useCallback,useEffect,useMemo,useRef,useState } from 'react'
 import { adminApi, getAdminSession } from '../../lib/aaraagate-api'
+import { operatorConfirm } from '../../lib/operator-dialog'
 import {
   ActionBar,
   DetailPanel,
@@ -21,16 +22,18 @@ import {
 } from '../../components/admin-ui'
 
 type Reviewer={id:string;name:string;phone:string}
+type FacilityAsset={id:string;code:string;name:string;category:string;location?:string|null;status:string}
 type Ticket={
   id:string;title:string;description:string;category?:string|null;priority:string;status:string;
   unitNumber?:string;buildingName?:string;createdByName?:string;assignedToId?:string|null;assignedToName?:string|null;
   slaState?:string;computedSlaState?:string;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;
-  escalationLevel?:number;escalatedToId?:string|null;escalatedToName?:string|null;resolutionCode?:string|null;closureCode?:string|null
+  escalationLevel?:number;escalatedToId?:string|null;escalatedToName?:string|null;resolutionCode?:string|null;closureCode?:string|null;assetId?:string|null;assetCode?:string|null;assetName?:string|null
 }
 type Activity={id:string;type:string;message?:string|null;fromStatus?:string|null;toStatus?:string|null;actorName?:string|null;occurredAt:string}
 type SlaEvent={id:string;eventType:string;fromState?:string|null;toState?:string|null;note?:string|null;actorName?:string|null;escalatedToName?:string|null;createdAt:string}
 type Readiness={ticketId:string;status:string;priority:string;assigned:boolean;computedSlaState:string;firstResponded:boolean;firstResponseDueAt?:string|null;resolutionDueAt?:string|null;escalationLevel:number;escalated:boolean;critical:boolean;blockers:string[];nextActions:string[];policy?:{firstResponseMinutes:number;resolutionMinutes:number;escalationAfterMinutes:number;automaticEscalationEnabled:boolean;escalationTargetUserId?:string|null;escalationTargetName?:string|null}|null;boundary:string}
-type TriageIntelligence={ticketId:string;property:string;currentCategory?:string|null;suggestedCategory:string;classificationSignals:string[];recurring:{sameUnitSimilarLast90Days:number;latestSimilarAt?:string|null;recurring:boolean};assignment:{currentAssigneeId?:string|null;recommendedAssignee?:{userId:string;name:string;openTickets:number;reason:string}|null;candidates:Array<{userId:string;name:string;phone:string;openTickets:number}>};classificationApplied:false;assignmentApplied:false;predictive:false;boundary:string}
+type TriageIntelligence={ticketId:string;property:string;asset?:{id:string;code?:string|null;name?:string|null}|null;currentCategory?:string|null;suggestedCategory:string;classificationSignals:string[];recurring:{scope:'SAME_ASSET'|'SAME_UNIT_CATEGORY';similarLast90Days:number;sameUnitSimilarLast90Days:number;sameAssetSimilarLast90Days:number;latestSimilarAt?:string|null;recurring:boolean};assignment:{currentAssigneeId?:string|null;recommendedAssignee?:{userId:string;name:string;openTickets:number;reason:string}|null;candidates:Array<{userId:string;name:string;phone:string;openTickets:number}>};classificationApplied:false;assignmentApplied:false;predictive:false;boundary:string}
+type FacilityHandoffPreview={ticket:{id:string;title:string;status:string;priority:string};asset?:{id:string;code?:string|null;name?:string|null}|null;activeWorkOrder?:{id:string;title:string;status:string;priority:string}|null;suggested:{workType:'CORRECTIVE';priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';title:string};blockers:string[];confirmationRequired:true;mutationPerformed:false;boundary:string}
 
 const allowedRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER'])
 const statusOptions=['OPEN','IN_PROGRESS','RESOLVED','CLOSED']
@@ -43,11 +46,11 @@ const human=(v?:string|null)=>v?.replaceAll('_',' ')??'Not recorded'
 export default function HelpdeskAdminPage(){
   const s=typeof window==='undefined'?null:getAdminSession()
   const allowed=!!s&&allowedRoles.has(s.role)
-  const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[selectedId,setSelectedId]=useState('')
-  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null),[triage,setTriage]=useState<TriageIntelligence|null>(null)
+  const[tickets,setTickets]=useState<Ticket[]>([]),[reviewers,setReviewers]=useState<Reviewer[]>([]),[assets,setAssets]=useState<FacilityAsset[]>([]),[selectedId,setSelectedId]=useState('')
+  const[activities,setActivities]=useState<Activity[]>([]),[slaHistory,setSlaHistory]=useState<SlaEvent[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null),[triage,setTriage]=useState<TriageIntelligence|null>(null),[facilityHandoff,setFacilityHandoff]=useState<FacilityHandoffPreview|null>(null)
   const[queueLoading,setQueueLoading]=useState(false),[detailLoading,setDetailLoading]=useState(false),[mutationBusy,setMutationBusy]=useState(false)
   const[queueError,setQueueError]=useState(''),[detailError,setDetailError]=useState(''),[operationError,setOperationError]=useState(''),[success,setSuccess]=useState('')
-  const[assignedToId,setAssignedToId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
+  const[assignedToId,setAssignedToId]=useState(''),[assetId,setAssetId]=useState(''),[status,setStatus]=useState('IN_PROGRESS'),[reasonCode,setReasonCode]=useState(''),[statusNote,setStatusNote]=useState('')
   const[comment,setComment]=useState(''),[internalNote,setInternalNote]=useState(''),[reopenNote,setReopenNote]=useState('')
   const[escalatedToId,setEscalatedToId]=useState(''),[escalationNote,setEscalationNote]=useState('')
   const detailRequest=useRef(0)
@@ -56,27 +59,29 @@ export default function HelpdeskAdminPage(){
 
   const load=useCallback(async()=>{if(!s||!allowed)return;setQueueLoading(true);setQueueError('')
     try{
-      const[queue,ctx]=await Promise.all([
+      const[queue,ctx,assetRows]=await Promise.all([
         adminApi<Ticket[]>(s,'/helpdesk/sla/queue'),
         adminApi<Reviewer[]>(s,'/helpdesk/review/context'),
+        adminApi<FacilityAsset[]>(s,'/helpdesk/review/assets'),
       ])
-      setTickets(queue);setReviewers(ctx)
+      setTickets(queue);setReviewers(ctx);setAssets(assetRows)
       setSelectedId(current=>current&&queue.some(t=>t.id===current)?current:queue[0]?.id??'')
     }catch(e){setQueueError(e instanceof Error?e.message:'Helpdesk queue could not be loaded')}finally{setQueueLoading(false)}
   },[s?.accessToken,allowed])
 
   const loadDetail=useCallback(async(id:string)=>{if(!s||!id)return
     const requestId=++detailRequest.current
-    setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null)
+    setDetailLoading(true);setDetailError('');setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setFacilityHandoff(null)
     try{
-      const[a,h,r,t]=await Promise.all([
+      const[a,h,r,t,f]=await Promise.all([
         adminApi<Activity[]>(s,`/helpdesk/review/${id}/activities`),
         adminApi<SlaEvent[]>(s,`/helpdesk/sla/${id}/history`),
         adminApi<Readiness>(s,`/helpdesk/sla/${id}/readiness`),
         adminApi<TriageIntelligence>(s,`/helpdesk/review/${id}/triage-intelligence`),
+        adminApi<FacilityHandoffPreview>(s,`/facilities/helpdesk-handoffs/${id}/preview`),
       ])
       if(requestId!==detailRequest.current)return
-      setActivities(a);setSlaHistory(h);setReadiness(r);setTriage(t)
+      setActivities(a);setSlaHistory(h);setReadiness(r);setTriage(t);setFacilityHandoff(f)
     }catch(e){
       if(requestId===detailRequest.current)setDetailError(e instanceof Error?e.message:'Helpdesk history could not be loaded')
     }finally{
@@ -85,14 +90,17 @@ export default function HelpdeskAdminPage(){
   },[s?.accessToken])
 
   useEffect(()=>{void load()},[load])
-  useEffect(()=>{if(selectedId)void loadDetail(selectedId);else{detailRequest.current++;setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setDetailError('');setDetailLoading(false)}},[selectedId,loadDetail])
-  useEffect(()=>{if(!selected)return;setAssignedToId(selected.assignedToId??'');setStatus(selected.status==='OPEN'?'IN_PROGRESS':selected.status);setReasonCode('');setEscalatedToId(selected.escalatedToId??'');setStatusNote('');setComment('');setInternalNote('');setReopenNote('');setEscalationNote('');setOperationError('');setSuccess('')},[selectedId,selected?.status,selected?.assignedToId,selected?.escalatedToId])
+  useEffect(()=>{if(selectedId)void loadDetail(selectedId);else{detailRequest.current++;setActivities([]);setSlaHistory([]);setReadiness(null);setTriage(null);setFacilityHandoff(null);setDetailError('');setDetailLoading(false)}},[selectedId,loadDetail])
+  useEffect(()=>{if(!selected)return;setAssignedToId(selected.assignedToId??'');setAssetId(selected.assetId??'');setStatus(selected.status==='OPEN'?'IN_PROGRESS':selected.status);setReasonCode('');setEscalatedToId(selected.escalatedToId??'');setStatusNote('');setComment('');setInternalNote('');setReopenNote('');setEscalationNote('');setOperationError('');setSuccess('')},[selectedId,selected?.status,selected?.assignedToId,selected?.escalatedToId])
 
   const run=async(task:()=>Promise<void>,message:string)=>{setMutationBusy(true);setOperationError('');setSuccess('')
     try{await task();setSuccess(message);await load();if(selectedId)await loadDetail(selectedId)}
     catch(e){setOperationError(e instanceof Error?e.message:'Helpdesk operation failed')}finally{setMutationBusy(false)}
   }
 
+  const canManageFacilities=!!s&&['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'].includes(s.role)
+  const createFacilityWorkOrder=async()=>{if(!s||!selected||!facilityHandoff||!canManageFacilities||facilityHandoff.blockers.length)return;const confirmed=await operatorConfirm(`Create a ${facilityHandoff.suggested.priority} corrective Facilities work order from “${selected.title}”?`);if(!confirmed)return;void run(()=>adminApi(s,`/facilities/helpdesk-handoffs/${selected.id}`,{method:'POST',body:'{}'}).then(()=>undefined),'Facilities work order created.')}
+  const linkAsset=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/asset`,{method:'PATCH',body:JSON.stringify({assetId:assetId||null})}).then(()=>undefined),'Facility asset linkage updated.')}
   const assign=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return;void run(()=>adminApi(s,`/helpdesk/review/${selected.id}/assignment`,{method:'PATCH',body:JSON.stringify({assignedToId:assignedToId||null})}).then(()=>undefined),'Assignment updated.')}
   const updateStatus=(e:FormEvent)=>{e.preventDefault();if(!s||!selected)return
     if((status==='RESOLVED'||status==='CLOSED')&&!reasonCode){setOperationError('Select a resolution/closure code.');return}
@@ -162,6 +170,7 @@ export default function HelpdeskAdminPage(){
             {id:'property',label:'Property',value:`${selected.buildingName??'—'} · ${selected.unitNumber??'—'}`},
             {id:'resident',label:'Resident',value:selected.createdByName??'—'},
             {id:'priority',label:'Priority',value:human(selected.priority)},
+            {id:'facility-asset',label:'Facility asset',value:selected.assetName?`${selected.assetCode??''} · ${selected.assetName}`:'Not linked'},
             {id:'first-response-due',label:'First response due',value:fmt(selected.firstResponseDueAt)},
             {id:'resolution-due',label:'Resolution due',value:fmt(selected.resolutionDueAt)},
             {id:'escalation',label:'Escalation',value:`Level ${selected.escalationLevel??0}${selected.escalatedToName?` · ${selected.escalatedToName}`:''}`},
@@ -182,10 +191,22 @@ export default function HelpdeskAdminPage(){
             checks={<EvidenceGrid items={[
               {id:'category',label:'Category signal',value:triage.currentCategory??triage.suggestedCategory},
               {id:'classification',label:'Classification evidence',value:triage.classificationSignals.map(human).join(' · ')},
-              {id:'recurrence',label:'Similar same-unit tickets / 90d',value:triage.recurring.sameUnitSimilarLast90Days},
+              {id:'recurrence',label:triage.recurring.scope==='SAME_ASSET'?'Similar same-asset tickets / 90d':'Similar same-unit tickets / 90d',value:triage.recurring.similarLast90Days},
               {id:'automation',label:'Automatic mutation',value:'None'},
             ]}/>}
           />}
+
+          {facilityHandoff&&<DetailPanel title="Facilities handoff">
+            <EvidenceGrid items={[
+              {id:'handoff-source',label:'Source ticket',value:facilityHandoff.ticket.title},
+              {id:'handoff-asset',label:'Facility asset',value:facilityHandoff.asset?`${facilityHandoff.asset.code??''} · ${facilityHandoff.asset.name??''}`:'No asset linked'},
+              {id:'handoff-priority',label:'Suggested work priority',value:facilityHandoff.suggested.priority},
+              {id:'handoff-active',label:'Active work order',value:facilityHandoff.activeWorkOrder?`${facilityHandoff.activeWorkOrder.priority} · ${facilityHandoff.activeWorkOrder.title} · ${facilityHandoff.activeWorkOrder.status}`:'None'},
+            ]}/>
+            {facilityHandoff.blockers.length>0&&<><h4>Blockers</h4><ul>{facilityHandoff.blockers.map(blocker=><li key={blocker}>{human(blocker)}</li>)}</ul></>}
+            <p>{facilityHandoff.boundary}</p>
+            {canManageFacilities&&facilityHandoff.blockers.length===0&&<ActionBar feedback={success}><PrimaryButton loading={mutationBusy} onClick={()=>void createFacilityWorkOrder()}>Create corrective work order</PrimaryButton></ActionBar>}
+          </DetailPanel>}
 
           <ReadinessPanel
             title="Service-recovery readiness"
@@ -205,6 +226,14 @@ export default function HelpdeskAdminPage(){
           />
 
           <div style={formGrid}>
+            <form onSubmit={linkAsset} style={formCard}>
+              <h3>Facility asset linkage</h3>
+              <SelectField label="Related asset" value={assetId} onChange={e=>setAssetId(e.target.value)}>
+                <option value="">No linked asset</option>{assets.map(asset=><option key={asset.id} value={asset.id}>{asset.code} · {asset.name} · {human(asset.status)}</option>)}
+              </SelectField>
+              <small>Optional operational linkage. Residents do not need to know an asset ID when raising a complaint.</small>
+              <ActionBar feedback={success}><SecondaryButton type="submit" loading={mutationBusy}>Update asset link</SecondaryButton></ActionBar>
+            </form>
             <form onSubmit={assign} style={formCard}>
               <h3>Assignment</h3>
               <SelectField label="Assignee" value={assignedToId} onChange={e=>setAssignedToId(e.target.value)}>
