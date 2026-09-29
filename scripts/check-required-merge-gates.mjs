@@ -141,6 +141,25 @@ if(appScopedMissing.length){
   process.exit(1);
 }
 
+const dependencyWrapperSequence=[
+  'if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then',
+  'exit 0',
+  'fi',
+  'if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then',
+  'Dependency graph unchanged: full package audit skipped',
+  'fi',
+  'test "$FULL_RESULT" = "success"',
+].join('\n');
+const dependencyWrapperStart=workflow.indexOf('  dependency-security:\n');
+const requiredMergeStart=workflow.indexOf('  required-merge-gates:\n');
+const dependencyWrapper=dependencyWrapperStart>=0&&requiredMergeStart>dependencyWrapperStart
+  ? workflow.slice(dependencyWrapperStart,requiredMergeStart)
+  : '';
+if(!dependencyWrapper.includes(dependencyWrapperSequence)){
+  console.error('Dependency security wrapper control-flow contract is malformed.');
+  process.exit(1);
+}
+
 const workflowSource=(path)=>fs.readFileSync(path,'utf8');
 const eventBranches=(source,event)=>{
   const match=source.match(new RegExp('(?:^|\\n)\\s*'+event+':\\s*\\n\\s*branches:\\s*\\[([^\\]]+)\\]'));
