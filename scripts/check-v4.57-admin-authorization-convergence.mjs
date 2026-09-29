@@ -25,6 +25,16 @@ must('Finance Auditor read-only access',finance,[
   "const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])",
   "const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])"
 ]);
+for(const [label,path] of [
+  ['Finance Operations','apps/admin/app/finance/operations/page.tsx'],
+  ['Bank Reconciliation','apps/admin/app/finance/bank-reconciliation/page.tsx'],
+  ['GST / TDS','apps/admin/app/finance/tax/page.tsx'],
+]){
+  must(label+' Auditor read-only access',read(path),[
+    "const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])",
+    "const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])"
+  ]);
+}
 const workforce=read('apps/admin/app/society-workforce/page.tsx');
 must('Society Workforce Auditor read-only access',workforce,[
   "const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER','SECURITY_SUPERVISOR','AUDITOR'])",
