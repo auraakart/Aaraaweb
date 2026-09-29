@@ -40,7 +40,7 @@ function stripJob(source,job){
 
 function nonControl(source){
   let value=source;
-  for(const job of ['change-scope','develop-auto-merge']) value=stripJob(value,job);
+  for(const job of ['change-scope','dependency-security-full','dependency-security','develop-auto-merge']) value=stripJob(value,job);
   return value.replace(/\n{3,}/g,'\n\n').trim();
 }
 
