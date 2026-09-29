@@ -6,6 +6,26 @@ const societyId = '11111111-1111-4111-8111-111111111111';
 const paymentId = '22222222-2222-4222-8222-222222222222';
 const receiptId = '33333333-3333-4333-8333-333333333333';
 const actorId = '44444444-4444-4444-8444-444444444444';
+const invoiceId = '55555555-5555-4555-8555-555555555555';
+const amenityBookingId = '66666666-6666-4666-8666-666666666666';
+
+const maintenancePayment = (status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' = 'CREATED') => ({
+  id: paymentId,
+  invoiceId,
+  amenityBookingId: null,
+  societyId,
+  purposeType: 'MAINTENANCE_INVOICE' as const,
+  status,
+});
+
+const amenityDepositPayment = (status: 'CREATED' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' = 'CREATED') => ({
+  id: paymentId,
+  invoiceId: null,
+  amenityBookingId,
+  societyId,
+  purposeType: 'AMENITY_DEPOSIT' as const,
+  status,
+});
 
 const event: PaymentWebhookEvent = {
   eventId: 'evt-100',
@@ -26,14 +46,14 @@ describe('BillingService webhook replay reliability', () => {
       const tx = {
         $queryRaw: vi.fn()
           .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: digest, processingStatus: 'RECEIVED' }])
-          .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId, status: 'CREATED' }])
+          .mockResolvedValueOnce([maintenancePayment()])
           .mockResolvedValueOnce([{ id: 'event-row' }])
-          .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId }]),
+          .mockResolvedValueOnce([maintenancePayment()]),
         $executeRaw: vi.fn().mockResolvedValue(1),
       };
       const prisma = {
         $queryRaw: vi.fn()
-          .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId, status: 'CREATED' }])
+          .mockResolvedValueOnce([maintenancePayment()])
           .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: digest, processingStatus: 'RECEIVED' }]),
         $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
         $executeRaw: vi.fn(),
@@ -58,7 +78,7 @@ describe('BillingService webhook replay reliability', () => {
       const signature = crypto.createHmac('sha256', 'test-webhook-secret').update(canonical).digest('hex');
       const prisma = {
         $queryRaw: vi.fn()
-          .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId, status: 'CREATED' }])
+          .mockResolvedValueOnce([maintenancePayment()])
           .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: 'b'.repeat(64), processingStatus: 'FAILED' }]),
         $transaction: vi.fn(),
       };
@@ -91,9 +111,9 @@ describe('BillingService webhook replay reliability', () => {
     const tx = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: 'a'.repeat(64), processingStatus: 'FAILED' }])
-        .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId, status: 'CREATED' }])
+        .mockResolvedValueOnce([maintenancePayment()])
         .mockResolvedValueOnce([{ id: 'event-row' }])
-        .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId }]),
+        .mockResolvedValueOnce([maintenancePayment()]),
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
     const prisma = {
@@ -110,17 +130,48 @@ describe('BillingService webhook replay reliability', () => {
       receiptId,
     });
     expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
     const transitionSql = (tx.$queryRaw.mock.calls[3][0] as { strings: readonly string[] }).strings.join(' ');
     expect(transitionSql).toContain('UPDATE "Payment"');
     expect(transitionSql).toContain('"status" IN (\'CREATED\',\'AUTHORIZED\')');
+    const sideEffects = tx.$executeRaw.mock.calls.map(([query]) => (query as { strings: readonly string[] }).strings.join(' '));
+    expect(sideEffects.some((sql) => sql.includes('UPDATE "MaintenanceInvoice"') && sql.includes('"status"=\'PAID\''))).toBe(true);
+    expect(sideEffects.some((sql) => sql.includes('UPDATE "PaymentWebhookReceipt"') && sql.includes('"processingStatus"=\'PROCESSED\''))).toBe(true);
+  });
+
+  it('routes an amenity-deposit replay to the booking deposit state without touching maintenance invoices', async () => {
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: 'a'.repeat(64), processingStatus: 'FAILED' }])
+        .mockResolvedValueOnce([amenityDepositPayment()])
+        .mockResolvedValueOnce([{ id: 'event-row' }])
+        .mockResolvedValueOnce([amenityDepositPayment()]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ payload: event }]),
+      $transaction: vi.fn((run: (client: typeof tx) => unknown) => run(tx)),
+      $executeRaw: vi.fn(),
+    };
+    const service = new BillingService(prisma as never);
+
+    await expect(service.replayWebhookReceipt(societyId, actorId, receiptId)).resolves.toEqual({
+      ok: true,
+      paymentId,
+      status: 'CAPTURED',
+      receiptId,
+    });
+
+    const sideEffects = tx.$executeRaw.mock.calls.map(([query]) => (query as { strings: readonly string[] }).strings.join(' '));
+    expect(sideEffects.some((sql) => sql.includes('UPDATE "AmenityBooking"') && sql.includes('"depositStatus"'))).toBe(true);
+    expect(sideEffects.some((sql) => sql.includes('UPDATE "MaintenanceInvoice"'))).toBe(false);
+    expect(sideEffects.some((sql) => sql.includes('UPDATE "PaymentWebhookReceipt"') && sql.includes('"processingStatus"=\'PROCESSED\''))).toBe(true);
   });
 
   it('persists processing failure evidence when replay cannot satisfy the payment state machine', async () => {
     const tx = {
       $queryRaw: vi.fn()
         .mockResolvedValueOnce([{ id: receiptId, societyId, paymentId, payloadDigest: 'a'.repeat(64), processingStatus: 'FAILED' }])
-        .mockResolvedValueOnce([{ id: paymentId, invoiceId: '55555555-5555-4555-8555-555555555555', societyId, status: 'REFUNDED' }])
+        .mockResolvedValueOnce([maintenancePayment('REFUNDED')])
         .mockResolvedValueOnce([{ id: 'event-row' }])
         .mockResolvedValueOnce([]),
       $executeRaw: vi.fn(),
