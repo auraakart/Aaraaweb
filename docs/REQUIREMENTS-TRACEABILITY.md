@@ -301,3 +301,31 @@ Traceability:
 Detailed contract: `docs/AARAAGATE-V4.28-PILOT-DEPLOYABLE-CLOSURE.md`.
 
 This status does not claim a real-society pilot, hosted provider verification, physical hardware acceptance, signed Play release, legal/policy approval or production promotion.
+
+
+## V4.79 Competitive Convergence closure
+
+Repository status: **complete on `develop` after the closure PR; production/field evidence remains external**.
+
+Traceability:
+1. **Society Knowledge AI** — human-reviewed published society-document knowledge is permission-scoped, version-bound and citation-bearing; no OCR/RAG provider, hidden-document access or unsupported policy answer is introduced.
+2. **Finance Document Intake** — reviewed invoice text prepares editable finance draft fields and duplicate/conflict evidence only; expense creation, approval, posting, tax treatment and accounting truth remain explicit authoritative workflows.
+3. **Amenity Deposit Lifecycle** — booking-level deposit terms are snapshotted and existing Payment/refund/reconciliation state remains financial truth; client success, automatic forfeiture/refund and maintenance allocation are rejected.
+4. **Community Events + RSVP** — non-statutory events use current owner/occupant audience rules, server-side capacity and aggregate-only RSVP counts; RSVP is not voting, quorum, legal consent or statutory meeting attendance.
+5. **Operation-Level Integration Contracts** — each provider operation exposes direction, idempotency, timeout, verification, reconciliation, authority and field-evidence requirements; external providers remain non-authoritative or quarantined input.
+6. **Onboarding Readiness Intelligence** — the Admin onboarding view consumes one server-derived tenant-scoped readiness plan spanning property, migration, roles, entitlements, integrations, amenities, finance and governance; no duplicate configuration authority is created.
+7. **Delivery hardening** — CI scope, cancellation, Demo APK scheduling, develop auto-merge observability and Backup Restore scope classification were hardened so superseded/control-only work does not repeatedly consume full product validation or fail on avoidable metadata/API dependencies.
+8. **Cross-slice invariants** — tenant/resource scoping, capability permissions, segregation of duties, owner/occupant privacy, database/server authority for sensitive state, idempotency, fail-closed provider/device/storage behavior and auditable domain mutations remain authoritative.
+
+Detailed closure evidence: `docs/AARAAGATE-V4.79-COMPETITIVE-CONVERGENCE-CLOSURE.md`.
+
+Remaining external acceptance:
+- hosted staging/production infrastructure and operational acceptance;
+- live provider credentials/certification and real payment/notification/accounting execution;
+- physical access-device/site certification;
+- real-society migration rehearsal and representative human/device UAT;
+- jurisdiction/society-specific legal, tax, bye-law and policy acceptance;
+- signed mobile-store release evidence, monitoring/alerting and restore/PITR operational proof;
+- promotion to `main`.
+
+V4.79 repository completion does **not** increase Production/field readiness without those external proofs.
