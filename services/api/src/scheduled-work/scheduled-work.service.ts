@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { PushNotificationService } from '../notifications/push-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AmenitiesService } from '../amenities/amenities.service';
 
 const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 const MIN_SWEEP_INTERVAL_MS = 15_000;
@@ -46,6 +47,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly realtime?: NotificationRealtimeService,
     private readonly push?: PushNotificationService,
+    private readonly amenities?: AmenitiesService,
   ) {}
 
   onModuleInit() {
@@ -241,6 +243,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
 
       if (sweep.skipped) return { skipped: true, reason: sweep.reason };
 
+      const depositExpiry=this.amenities?await this.amenities.expireUnpaidDeposits():{expired:0};
       const dispatchResult = await this.dispatchNotices(sweep.noticeDispatches);
       const pushResult = this.push ? await this.push.drainDurableOutbox() : null;
       return {
@@ -248,6 +251,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
         processed: sweep.processed,
         escalated: sweep.escalated,
         sosEscalated: sweep.sosEscalated,
+        amenityDepositsExpired:depositExpiry.expired,
         noticeDispatched: dispatchResult.dispatched,
         noticeDispatchFailed: dispatchResult.failed,
         ...(pushResult ? {

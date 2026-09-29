@@ -56,6 +56,15 @@ extension ResidentAmenityActions on ResidentRepository {
     return Map<String,dynamic>.from(value as Map);
   }
 
+  Future<Map<String,dynamic>> createAmenityDepositPayment({
+    required String bookingId,
+    String? idempotencyKey,
+  }) async {
+    final key=idempotencyKey??'amenity-deposit-${DateTime.now().microsecondsSinceEpoch}';
+    final value=await api.post('/api/v1/billing/amenity-deposits',{'bookingId':bookingId,'idempotencyKey':key});
+    return Map<String,dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> cancelAmenityBooking(String bookingId) async {
     final value = await api.patch('/api/v1/amenities/bookings/$bookingId/cancel');
     return Map<String, dynamic>.from(value as Map);

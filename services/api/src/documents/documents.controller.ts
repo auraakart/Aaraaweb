@@ -24,6 +24,7 @@ class ReplacementDocumentDto {
   @IsString() @MaxLength(120) mimeType!: string;
   @IsInt() @Min(1) @Max(5 * 1024 * 1024) sizeBytes!: number;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsOptional() @IsString() @MaxLength(12000) knowledgeText?: string;
 }
 
 class CreateDocumentDto {
@@ -32,6 +33,7 @@ class CreateDocumentDto {
   @IsIn(['MANAGEMENT','ALL_MEMBERS','OWNERS_ONLY','PROPERTY_OWNER_ONLY']) audience!: 'MANAGEMENT' | 'ALL_MEMBERS' | 'OWNERS_ONLY' | 'PROPERTY_OWNER_ONLY';
   @IsString() @MaxLength(180) title!: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsOptional() @IsString() @MaxLength(12000) knowledgeText?: string;
   @IsString() @MaxLength(500) storageKey!: string;
   @IsString() @MaxLength(255) fileName!: string;
   @IsString() @MaxLength(120) mimeType!: string;
