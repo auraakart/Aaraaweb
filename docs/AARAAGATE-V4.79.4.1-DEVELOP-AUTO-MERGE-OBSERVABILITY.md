@@ -26,6 +26,18 @@ The job-level `if` expression combined required-gate success with PR eligibility
 - Already-merged exact-head races are treated as idempotent success.
 - The repository semantic guard now inspects the specific required-gate job for `!cancelled()` rather than accepting an unrelated `always()` elsewhere in CI.
 
+## Release-control validation fast path
+
+A second repeat-delay source was also confirmed: changing only the CI orchestration controller still woke full API, Admin, Flutter and dependency-audit runners because every `.github/**` change was conservatively treated as cross-cutting product code.
+
+The new fast path is deliberately narrow:
+- only `.github/workflows/ci.yml`, this orchestration guard/classifier and documentation are eligible;
+- inside `ci.yml`, only `change-scope`, `dependency-security-full`, `dependency-security` and `develop-auto-merge` may differ from the PR base;
+- the classifier compares the rest of `ci.yml` byte-for-byte after masking those approved jobs;
+- any application/API/schema/package/lockfile or other CI-job change falls back to the normal full validation;
+- tracked-secret scanning still runs before the fast path is accepted;
+- Repository structure still runs all semantic release-control contracts.
+
 ## Boundary
 
-This changes develop integration orchestration only. It does not automate staging or main, weaken required checks, bypass branch protection, or change productionization policy.
+This changes develop integration orchestration only. It does not automate staging or main, weaken required product checks for product changes, bypass branch protection, or change productionization policy.
