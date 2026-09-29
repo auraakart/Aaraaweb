@@ -7,6 +7,7 @@ set -euo pipefail
 : "${EXPECTED_HEAD_SHA:?EXPECTED_HEAD_SHA is required}"
 : "${EXPECTED_BASE_SHA:?EXPECTED_BASE_SHA is required}"
 : "${COMPANION_WORKFLOW:?COMPANION_WORKFLOW is required}"
+: "${COMPANION_JOB:?COMPANION_JOB is required}"
 
 api(){
   gh api -H "Accept: application/vnd.github+json" "$@"
@@ -64,14 +65,23 @@ runs="$(api "/repos/$REPOSITORY/actions/runs?head_sha=$EXPECTED_HEAD_SHA&event=p
 companion="$(jq -c --arg name "$COMPANION_WORKFLOW" '[.workflow_runs[] | select(.name == $name)] | sort_by(.run_number) | last // empty' <<<"$runs")"
 
 if [ -z "$companion" ]; then
-  echo "Companion gate '$COMPANION_WORKFLOW' has not started for $EXPECTED_HEAD_SHA; leaving PR open."
+  echo "Companion workflow '$COMPANION_WORKFLOW' has not started for $EXPECTED_HEAD_SHA; leaving PR open."
   exit 0
 fi
 
-companion_status="$(jq -r '.status' <<<"$companion")"
-companion_conclusion="$(jq -r '.conclusion // ""' <<<"$companion")"
+companion_run_id="$(jq -r '.id' <<<"$companion")"
+companion_jobs="$(api "/repos/$REPOSITORY/actions/runs/$companion_run_id/jobs?per_page=100")"
+companion_job="$(jq -c --arg name "$COMPANION_JOB" '[.jobs[] | select(.name == $name)] | sort_by(.id) | last // empty' <<<"$companion_jobs")"
+
+if [ -z "$companion_job" ]; then
+  echo "Companion job '$COMPANION_JOB' has not started in workflow '$COMPANION_WORKFLOW'; leaving PR open."
+  exit 0
+fi
+
+companion_status="$(jq -r '.status' <<<"$companion_job")"
+companion_conclusion="$(jq -r '.conclusion // ""' <<<"$companion_job")"
 if [ "$companion_status" != "completed" ] || [ "$companion_conclusion" != "success" ]; then
-  echo "Companion gate '$COMPANION_WORKFLOW' is $companion_status/$companion_conclusion; leaving PR open for the other workflow to retry."
+  echo "Companion job '$COMPANION_JOB' is $companion_status/$companion_conclusion; leaving PR open for the other release controller to retry."
   exit 0
 fi
 
@@ -80,12 +90,27 @@ test "$(jq -r '.state' <<<"$latest")" = "open"
 test "$(jq -r '.head.sha' <<<"$latest")" = "$EXPECTED_HEAD_SHA"
 test "$(jq -r '.base.sha' <<<"$latest")" = "$EXPECTED_BASE_SHA"
 
+set +e
 api --method PUT "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
   -f merge_method=merge \
   -f sha="$EXPECTED_HEAD_SHA" \
   -f commit_title="Release: promote exact develop tree to staging (#$PR_NUMBER)" \
   -f commit_message="Automatically merged after Staging smoke and Backup restore smoke succeeded for exact candidate $EXPECTED_HEAD_SHA. Main is not changed by this workflow." \
-  >/tmp/aaraagate-staging-merge.json
+  >/tmp/aaraagate-staging-merge.json 2>/tmp/aaraagate-staging-merge.err
+merge_status=$?
+set -e
+
+if [ "$merge_status" -ne 0 ]; then
+  latest_after_race="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
+  if [ "$(jq -r '.state' <<<"$latest_after_race")" = "closed" ] \
+    && [ "$(jq -r '.merged_at // ""' <<<"$latest_after_race")" != "" ] \
+    && [ "$(jq -r '.head.sha' <<<"$latest_after_race")" = "$EXPECTED_HEAD_SHA" ]; then
+    echo "Staging PR #$PR_NUMBER was already merged at the exact tested head by the companion release controller."
+    exit 0
+  fi
+  cat /tmp/aaraagate-staging-merge.err >&2
+  exit "$merge_status"
+fi
 
 test "$(jq -r '.merged' /tmp/aaraagate-staging-merge.json)" = "true"
 echo "Merged staging PR #$PR_NUMBER at exact tested head $EXPECTED_HEAD_SHA after both release gates passed."

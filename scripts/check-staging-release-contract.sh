@@ -101,3 +101,44 @@ if grep -Fq '/branches/main' "$AUTOMERGE_SCRIPT"; then
 fi
 
 echo "Staging auto-merge contract validated."
+
+for literal in \
+  'staging-auto-merge:' \
+  'needs: staging-smoke' \
+  'needs.staging-smoke.result == '\''success'\''' \
+  'COMPANION_JOB: PostgreSQL backup restore drill'; do
+  if ! grep -Fq "$literal" "$WORKFLOW"; then
+    echo "Staging protected-check orchestration is missing from $WORKFLOW: $literal" >&2
+    exit 1
+  fi
+done
+
+for literal in \
+  'staging-auto-merge:' \
+  'needs: backup-restore' \
+  'needs.backup-restore.result == '\''success'\''' \
+  'COMPANION_JOB: Staging API smoke'; do
+  if ! grep -Fq "$literal" "$BACKUP_WORKFLOW"; then
+    echo "Staging protected-check orchestration is missing from $BACKUP_WORKFLOW: $literal" >&2
+    exit 1
+  fi
+done
+
+for literal in \
+  'COMPANION_JOB' \
+  '/actions/runs/$companion_run_id/jobs?per_page=100' \
+  'Companion job' \
+  'already merged at the exact tested head by the companion release controller'; do
+  if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
+    echo "Staging race-safe controller is missing: $literal" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'staging' && success()" "$WORKFLOW" \
+  || grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'staging' && success()" "$BACKUP_WORKFLOW"; then
+  echo "Staging auto-merge must run only in downstream jobs after protected checks complete." >&2
+  exit 1
+fi
+
+echo "Staging protected-check orchestration contract validated."

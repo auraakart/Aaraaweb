@@ -87,6 +87,8 @@ V4.78.1 hardens release orchestration after the V4.78 consolidation cycle expose
 
 V4.78.2 closes staging release-history compatibility discovered by the V4.78.1 end-to-end proof. The staging classifier now accepts the narrow historical versioned staging-release title form already present in repository history while still rejecting arbitrary feature/fix subjects. Future automated staging merges emit the canonical `Release: promote exact develop tree to staging (#PR)` subject, so the next exact-tree candidate can supersede prior staging release commits without classifier drift. This changes release metadata/control only; main remains manual and approval-gated.
 
+V4.78.3 closes the branch-protection self-dependency found by the V4.78.2 staging proof. Auto-merge no longer runs inside the protected `Staging API smoke` or backup/restore job. Each workflow now completes its protected validation first and then starts a downstream release-controller job. The controller evaluates the named companion job on the same candidate SHA rather than waiting for the whole companion workflow, and simultaneous controllers recover idempotently when the other controller wins the merge race. Branch protection therefore remains authoritative instead of being bypassed or weakened; main remains approval-gated.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
