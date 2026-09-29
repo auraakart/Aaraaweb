@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentAvailabilityService } from './payment-availability.service';
 
@@ -28,6 +29,51 @@ export class FinanceOperationsService {
       WHERE e."societyId"=${societyId}::uuid
       GROUP BY e."id",p."id" ORDER BY e."expenseDate" DESC,e."createdAt" DESC LIMIT 250
     `);
+  }
+
+  async documentIntakePreview(societyId:string, reviewedText:string) {
+    const text=reviewedText.replace(/\r\n?/g,'\n').replace(/[ \t]+/g,' ').trim();
+    if(text.length<20) throw new BadRequestException('Reviewed invoice text must contain at least 20 characters');
+    if(text.length>12000) throw new BadRequestException('Reviewed invoice text must not exceed 12000 characters');
+
+    const vendorMatch=text.match(/^(?:vendor|supplier|billed by|from)\s*[:\-]\s*(.{2,160})$/im);
+    const referenceMatch=text.match(/^(?:invoice(?:\s*(?:no|number|#))?|bill\s*(?:no|number|#)|reference|ref)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9./_-]{1,119})\s*$/im);
+    const dateMatch=text.match(/^(?:invoice\s*date|bill\s*date|date)\s*[:\-]\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4})\s*$/im);
+    const totalMatch=text.match(/^(?:grand\s*total|invoice\s*total|total\s*amount|amount\s*due|net\s*payable|total)\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
+    const gstinMatch=text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/i);
+
+    const vendorName=vendorMatch?.[1]?.trim()||null;
+    const invoiceReference=referenceMatch?.[1]?.trim()||null;
+    const expenseDate=this.normalizeReviewedInvoiceDate(dateMatch?.[1]??null);
+    const amountValue=totalMatch?.[1]?.replaceAll(',','')??null;
+    const amountNumber=amountValue?Number(amountValue):NaN;
+    const amountPaise=Number.isFinite(amountNumber)&&amountNumber>0?Math.round(amountNumber*100):null;
+    const gstin=gstinMatch?.[0]?.toUpperCase()??null;
+
+    const signals:string[]=[];
+    if(vendorName) signals.push('VENDOR_LABEL_MATCH');
+    if(invoiceReference) signals.push('INVOICE_REFERENCE_MATCH');
+    if(expenseDate) signals.push('DATE_LABEL_MATCH');
+    if(amountPaise) signals.push('TOTAL_LABEL_MATCH');
+    if(gstin) signals.push('GSTIN_PATTERN_MATCH');
+
+    const missingFields:string[]=[];
+    if(!vendorName) missingFields.push('vendorName');
+    if(!expenseDate) missingFields.push('expenseDate');
+    if(!amountPaise) missingFields.push('amountPaise');
+    const quality=missingFields.length===0?'COMPLETE':missingFields.length===1?'PARTIAL':'LIMITED';
+    const duplicateAssessment=vendorName&&expenseDate&&amountPaise
+      ? await this.expenseIntakeAssessment(societyId,{vendorName,invoiceReference:invoiceReference??undefined,expenseDate,amountPaise})
+      : null;
+
+    return {
+      extracted:{vendorName,invoiceReference,expenseDate,amountPaise,gstin},
+      quality,signals,missingFields,
+      source:{sha256:createHash('sha256').update(text).digest('hex'),characterCount:text.length,rawTextPersisted:false},
+      duplicateAssessment,
+      mutationPerformed:false,automaticPosting:false,humanReviewRequired:true,
+      boundary:'Deterministic reviewed-text preparation only. Extracted fields must be checked by a finance operator; expense creation, approval and posting remain separate explicit controls.',
+    };
   }
 
   async expenseIntakeAssessment(
@@ -106,6 +152,24 @@ export class FinanceOperationsService {
       automaticPosting:false,
       boundary:'Deterministic intake evidence only. A reviewer still decides whether to create, reject or correct the expense; no journal or payable is created by this assessment.',
     };
+  }
+
+  private normalizeReviewedInvoiceDate(value:string|null) {
+    if(!value) return null;
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(value)){
+      const [year,month,day]=value.split('-').map(Number);
+      return this.validInvoiceDate(year,month,day);
+    }
+    const match=value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if(!match) return null;
+    return this.validInvoiceDate(Number(match[3]),Number(match[2]),Number(match[1]));
+  }
+
+  private validInvoiceDate(year:number,month:number,day:number) {
+    if(year<2000||year>2100||month<1||month>12||day<1||day>31) return null;
+    const date=new Date(Date.UTC(year,month-1,day));
+    if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day) return null;
+    return `${year.toString().padStart(4,'0')}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}`;
   }
 
   async createExpense(societyId:string,userId:string,input:CreateExpenseInput) {
