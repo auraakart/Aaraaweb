@@ -141,22 +141,31 @@ if(appScopedMissing.length){
   process.exit(1);
 }
 
-const dependencyWrapperSequence=[
-  'if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then',
-  'exit 0',
-  'fi',
-  'if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then',
-  'Dependency graph unchanged: full package audit skipped',
-  'fi',
-  'test "$FULL_RESULT" = "success"',
-].join('\n');
 const dependencyWrapperStart=workflow.indexOf('  dependency-security:\n');
 const requiredMergeStart=workflow.indexOf('  required-merge-gates:\n');
 const dependencyWrapper=dependencyWrapperStart>=0&&requiredMergeStart>dependencyWrapperStart
   ? workflow.slice(dependencyWrapperStart,requiredMergeStart)
   : '';
-if(!dependencyWrapper.includes(dependencyWrapperSequence)){
-  console.error('Dependency security wrapper control-flow contract is malformed.');
+const dependencyWrapperOrder=[
+  'if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then',
+  'Release-control-only PR: dependency graph and product surfaces are unchanged',
+  'if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then',
+  'Dependency graph unchanged: full package audit skipped',
+  'test "$FULL_RESULT" = "success"',
+];
+let dependencyCursor=-1;
+for(const token of dependencyWrapperOrder){
+  const nextIndex=dependencyWrapper.indexOf(token,dependencyCursor+1);
+  if(nextIndex<0){
+    console.error('Dependency security wrapper control-flow token missing/out of order: '+token);
+    process.exit(1);
+  }
+  dependencyCursor=nextIndex;
+}
+const releaseClose=dependencyWrapper.indexOf('          fi',dependencyWrapper.indexOf('if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then'));
+const auditStart=dependencyWrapper.indexOf('if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then');
+if(releaseClose<0||auditStart<0||releaseClose>auditStart){
+  console.error('Dependency security wrapper must close the release-control branch before dependency-audit resolution.');
   process.exit(1);
 }
 
