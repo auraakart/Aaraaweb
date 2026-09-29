@@ -20,7 +20,7 @@ class CreateCommunityEventDto{
   @IsISO8601() startsAt!:string;
   @IsISO8601() endsAt!:string;
   @IsOptional() @IsString() @MaxLength(240) location?:string;
-  @IsOptional() @IsInt() @Min(1) @Max(10000) capacity?:number;
+  @IsOptional() @IsInt() @Min(1) @Max(10000) capacity?:number|null;
 }
 
 class CommunityEventStatusDto{

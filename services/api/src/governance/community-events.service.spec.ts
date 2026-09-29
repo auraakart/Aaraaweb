@@ -1,8 +1,29 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe,expect,it,vi } from 'vitest';
 import { CommunityEventsService } from './community-events.service';
 
 describe('CommunityEventsService',()=>{
+  it.each([undefined,null,1,10000])('accepts optional or bounded capacity %s',async capacity=>{
+    const query=vi.fn().mockResolvedValue([{id:'event-1'}]);
+    const service=new CommunityEventsService({$queryRaw:query} as never);
+    await expect(service.create('society-1','user-1',{
+      title:'Community games',audienceScope:'COMMUNITY',
+      startsAt:new Date('2027-01-01T10:00:00Z'),endsAt:new Date('2027-01-01T12:00:00Z'),capacity,
+    })).resolves.toEqual({id:'event-1'});
+    expect(query).toHaveBeenCalledOnce();
+    expect(query.mock.calls[0][0].values).toContain(capacity??null);
+  });
+
+  it.each([0,-1,1.5,10001,NaN])('rejects invalid capacity %s before writing',async capacity=>{
+    const query=vi.fn();
+    const service=new CommunityEventsService({$queryRaw:query} as never);
+    await expect(service.create('society-1','user-1',{
+      title:'Community games',audienceScope:'COMMUNITY',
+      startsAt:new Date('2027-01-01T10:00:00Z'),endsAt:new Date('2027-01-01T12:00:00Z'),capacity,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('enforces server capacity before inserting a new GOING RSVP',async()=>{
     const tx={
       $queryRaw:vi.fn()
