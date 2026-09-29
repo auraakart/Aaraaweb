@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.detect.outputs.docs_only }}
+      release_control_only: ${{ steps.detect.outputs.release_control_only }}
       run_api: ${{ steps.detect.outputs.run_api }}
       run_admin: ${{ steps.detect.outputs.run_admin }}
       run_flutter: ${{ steps.detect.outputs.run_flutter }}
@@ -36,6 +37,7 @@ jobs:
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "release_control_only=false" >> "$GITHUB_OUTPUT"
             echo "run_api=true" >> "$GITHUB_OUTPUT"
             echo "run_admin=true" >> "$GITHUB_OUTPUT"
             echo "run_flutter=true" >> "$GITHUB_OUTPUT"
@@ -47,6 +49,7 @@ jobs:
 
           if [ ! -s /tmp/aaraagate-changed-files.txt ]; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "release_control_only=false" >> "$GITHUB_OUTPUT"
             echo "run_api=true" >> "$GITHUB_OUTPUT"
             echo "run_admin=true" >> "$GITHUB_OUTPUT"
             echo "run_flutter=true" >> "$GITHUB_OUTPUT"
@@ -55,6 +58,7 @@ jobs:
 
           if ! grep -Ev '^(docs/|[^/]+\.md$)' /tmp/aaraagate-changed-files.txt >/dev/null; then
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "release_control_only=false" >> "$GITHUB_OUTPUT"
             echo "run_api=false" >> "$GITHUB_OUTPUT"
             echo "run_admin=false" >> "$GITHUB_OUTPUT"
             echo "run_flutter=false" >> "$GITHUB_OUTPUT"
@@ -62,6 +66,16 @@ jobs:
           fi
 
           echo "docs_only=false" >> "$GITHUB_OUTPUT"
+
+          release_control_only="$(node scripts/classify-release-control-change.mjs "$BASE_SHA" "${{ github.sha }}")"
+          echo "release_control_only=$release_control_only" >> "$GITHUB_OUTPUT"
+          if [ "$release_control_only" = "true" ]; then
+            node scripts/check-secret-patterns.mjs
+            echo "run_api=false" >> "$GITHUB_OUTPUT"
+            echo "run_admin=false" >> "$GITHUB_OUTPUT"
+            echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           run_api=false
           run_admin=false
@@ -590,7 +604,7 @@ jobs:
   dependency-security-full:
     name: Dependency security (full)
     needs: [change-scope, repository-structure]
-    if: needs.change-scope.outputs.docs_only != 'true'
+    if: needs.change-scope.outputs.docs_only != 'true' && needs.change-scope.outputs.release_control_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -624,10 +638,15 @@ jobs:
       - name: Resolve required dependency security status
         env:
           DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          RELEASE_CONTROL_ONLY: ${{ needs.change-scope.outputs.release_control_only }}
           FULL_RESULT: ${{ needs.dependency-security-full.result }}
         run: |
           if [ "$DOCS_ONLY" = "true" ]; then
             echo "Documentation-only PR: dependency graph is unchanged and full audit is intentionally skipped."
+            exit 0
+          fi
+          if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then
+            echo "Release-control-only PR: dependency graph and product surfaces are unchanged; tracked-secret scan ran in Change scope."
             exit 0
           fi
           test "$FULL_RESULT" = "success"
@@ -660,13 +679,7 @@ jobs:
   develop-auto-merge:
     name: Develop auto merge
     needs: [required-merge-gates]
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.base.ref == 'develop' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'mastermind/') &&
-      github.event.pull_request.draft == false &&
-      needs.required-merge-gates.result == 'success'
+    if: ${{ !cancelled() && needs.required-merge-gates.result == 'success' }}
     permissions:
       contents: write
       pull-requests: write
@@ -676,12 +689,18 @@ jobs:
       - name: Merge exact tested mastermind PR
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Develop auto-merge not applicable: workflow event is $EVENT_NAME."
+            exit 0
+          fi
 
           current="$(gh api             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
           develop="$(gh api             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/branches/develop")"
@@ -694,19 +713,43 @@ jobs:
           current_ref="$(printf '%s' "$current" | jq -r '.head.ref')"
           current_develop_sha="$(printf '%s' "$develop" | jq -r '.commit.sha')"
 
-          test "$current_sha" = "$EXPECTED_HEAD_SHA"
-          test "$current_base" = "develop"
-          test "$current_state" = "open"
-          test "$current_draft" = "false"
-          test "$current_repo" = "$REPOSITORY"
-          test "$current_develop_sha" = "$EXPECTED_BASE_SHA"
+          if [ "$current_state" != "open" ]; then
+            current_merged="$(printf '%s' "$current" | jq -r '.merged // false')"
+            if [ "$current_merged" = "true" ] && [ "$current_sha" = "$EXPECTED_HEAD_SHA" ]; then
+              echo "PR #$PR_NUMBER is already merged at the exact tested head $EXPECTED_HEAD_SHA."
+              exit 0
+            fi
+            echo "Develop auto-merge not applicable: PR state is $current_state."
+            exit 0
+          fi
 
+          if [ "$current_base" != "develop" ]; then
+            echo "Develop auto-merge not applicable: base is $current_base."
+            exit 0
+          fi
+          if [ "$current_draft" != "false" ]; then
+            echo "Develop auto-merge not applicable: PR is draft."
+            exit 0
+          fi
+          if [ "$current_repo" != "$REPOSITORY" ]; then
+            echo "Develop auto-merge not applicable: head repository is $current_repo."
+            exit 0
+          fi
           case "$current_ref" in
             mastermind/*) ;;
-            *) echo "Head branch is outside mastermind/*"; exit 1 ;;
+            *) echo "Develop auto-merge not applicable: head branch $current_ref is outside mastermind/*."; exit 0 ;;
           esac
 
-          gh api             --method PUT             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"             -f merge_method=squash             -f sha="$EXPECTED_HEAD_SHA"
+          test "$current_sha" = "$EXPECTED_HEAD_SHA"
+          test "$current_develop_sha" = "$EXPECTED_BASE_SHA"
+
+          response="$(gh api             --method PUT             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"             -f merge_method=squash             -f sha="$EXPECTED_HEAD_SHA")"
+          merged="$(printf '%s' "$response" | jq -r '.merged // false')"
+          message="$(printf '%s' "$response" | jq -r '.message // ""')"
+          if [ "$merged" != "true" ]; then
+            echo "Exact-head develop merge was not completed: $message" >&2
+            exit 1
+          fi
 
           echo "Merged PR #$PR_NUMBER to develop at exact tested head $EXPECTED_HEAD_SHA."
 
