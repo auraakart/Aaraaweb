@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-09-25",
+  "policy": "Retain only at the exact reviewed SHA. A SHA change invalidates retention and returns the branch to hygiene review.",
+  "branches": [
+    {
+      "name": "feat/v2-accounting-api-20260912",
+      "sha": "d223e075f3a4e9d5943797230a90608d3382293c",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "feat/v2-admin-finance-operations-ui-20260912",
+      "sha": "c1b40282b5021bca0e5bb59223c872e74e9b6f56",
+      "reason": "closed unmerged PR #402 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feat/v2-admin-parcel-operations-20260914",
+      "sha": "1d406ac64a0eeb6e678d7954eed4ccf109c4e233",
+      "reason": "closed unmerged PR #480 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feat/v2-notification-outbox-20260914",
+      "sha": "613cc44a619f93935dad2af7ff311cb6a3e58c21",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "feat/v2-parcel-desk-20260914",
+      "sha": "4634c79ec76d54efe5e1ab07a4e0c323cc4d339d",
+      "reason": "closed unmerged PR #464 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feat/v22b-admin-trust-review-20260913",
+      "sha": "a4cfde6b1a5c8e712fd5580271e04ec7ff85cdb8",
+      "reason": "closed unmerged PR #435 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feat/v23-parking-entitlement-policy-20260914",
+      "sha": "ebf721b812c6b5dcd4e1d71520722f8f4036e78d",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "feature/consumer-service-notifications",
+      "sha": "5278f84e0550fa6982dde1733b868812736b181d",
+      "reason": "closed unmerged PR #233 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feature/provider-dispatch-self-service",
+      "sha": "a2eb30d3d2ac0edc863a48bc23271ffe21a4c64b",
+      "reason": "closed unmerged PR #224 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "feature/v3-m5-facility-erp",
+      "sha": "944b5c87733139a6d5a85360fbf28b67cf0be94b",
+      "reason": "closed unmerged PR #593 exact head after earlier merged PR; preserve delta"
+    },
+    {
+      "name": "fix/admin-marketplace-access-lifecycle",
+      "sha": "dc72dc95925b67baf5c919eab1dee15d7e4648bf",
+      "reason": "branch advanced beyond merged PR #201 head; preserve unique delta"
+    },
+    {
+      "name": "fix/gate-operation-role-boundary-20260908",
+      "sha": "133c10d0137bc1619499818218b392421ec30195",
+      "reason": "branch advanced beyond merged PR #254 head; preserve unique delta"
+    },
+    {
+      "name": "fix/resident-household-approvals-profile-20260910",
+      "sha": "d09c2c3bddd474206dbfad960bacd8a88ff6c4da",
+      "reason": "closed unmerged PR #297 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "fix/resident-workforce-modal-lifecycle-20260910",
+      "sha": "8afacc2c8620feb0f8583be98b878b0d242d53ad",
+      "reason": "closed unmerged PR #296 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "fix/verified-ownership-service-booking-20260908",
+      "sha": "132e6b30fc2e1a481dce23e00038a128ac1388e5",
+      "reason": "closed unmerged PR #256 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "mastermind/v4.16.3-facilities-inventory-ergonomics",
+      "sha": "9b7c7501b15e40300c7e53125401d1ee6adfad4f",
+      "reason": "closed unmerged PR #690 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "mastermind/v4.16.4-resident-community-hub",
+      "sha": "b6ac42e6ae1a435620fb02c22f32817784bc0d90",
+      "reason": "closed unmerged PR #692 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "mastermind/v4.16.4-vendor-evidence-reconciliation",
+      "sha": "7a79ab6f39131b77a16dd7dbe6b22e3fe91d6a37",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "mastermind/v4.16.5-integration-readiness-contract",
+      "sha": "c1cd5db277c2a651127ff8ca9a023a007eecb4ed",
+      "reason": "closed unmerged PR #693 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "mastermind/v4.23-admin-consolidation-closure",
+      "sha": "be8219a4af1f9b2607ea8613821af0e83b5f0f21",
+      "reason": "closed unmerged PR #739 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "mastermind/v4.23-mobile-presentation-closure",
+      "sha": "6b9d6f8cb32dc802172340af11265669a96a6f73",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "mastermind/v4.24-ai-domain-grounding",
+      "sha": "dad02277e1490be0cd35f197573b5fcf534a8d21",
+      "reason": "closed unmerged PR #743 exact head; preserve for explicit reconciliation"
+    },
+    {
+      "name": "v4/milestone-3-parking-adapter",
+      "sha": "fb0ec82d6abbe8b48ea39c9f1023d6077f4ab9f8",
+      "reason": "unique source not proven present in canonical branches"
+    },
+    {
+      "name": "v4/milestone-4-reliability-metrics",
+      "sha": "6b06aa2ce28dfbb4a341097cfb9945fadeed6021",
+      "reason": "unique source not proven present in canonical branches"
+    }
+  ]
+}

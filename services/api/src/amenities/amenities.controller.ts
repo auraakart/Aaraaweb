@@ -45,12 +45,30 @@ class CreateAmenityBookingDto {
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(50) guestCount?: number;
 }
 
 class JoinAmenityWaitlistDto {
   @IsString() @Matches(/^[0-9a-f-]{36}$/i) unitId!: string;
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
+  @IsOptional() @IsInt() @Min(0) @Max(50) guestCount?: number;
+}
+
+class AmenityBlackoutDto {
+  @IsDateString() startsAt!:string;
+  @IsDateString() endsAt!:string;
+  @IsOptional() @IsString() @Matches(/^(MAINTENANCE|CLOSURE|PRIVATE_EVENT)$/) kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';
+  @IsString() @MinLength(3) @MaxLength(200) reason!:string;
+}
+
+class RemoveAmenityBlackoutDto {
+  @IsDateString() startsAt!:string;
+  @IsDateString() endsAt!:string;
+}
+
+class AmenityOperatingHoursDto {
+  @IsOptional() @IsObject() weekly?: Record<string,unknown> | null;
 }
 
 class RevokeAmenityBookingDto {
@@ -163,6 +181,48 @@ export class AmenitiesController {
     @Param('bookingId', ParseUUIDPipe) bookingId: string,
   ) {
     return this.amenities.cancelMine(societyId, this.requireUser(userId), bookingId);
+  }
+
+  @Post('manage/:amenityId/blackouts/preview')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  previewBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:AmenityBlackoutDto,
+  ){
+    return this.amenities.previewBlackout(societyId,amenityId,dto);
+  }
+
+  @Post('manage/:amenityId/blackouts')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  applyBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:AmenityBlackoutDto,
+  ){
+    return this.amenities.applyBlackout(societyId,amenityId,dto);
+  }
+
+  @Patch('manage/:amenityId/blackouts/remove')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  removeBlackout(
+    @CurrentTenant() societyId:string,
+    @Param('amenityId',ParseUUIDPipe) amenityId:string,
+    @Body() dto:RemoveAmenityBlackoutDto,
+  ){
+    return this.amenities.removeBlackout(societyId,amenityId,dto);
+  }
+
+  @Post('manage/:amenityId/operating-hours/preview')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  previewOperatingHours(@CurrentTenant() societyId:string,@Param('amenityId',ParseUUIDPipe) amenityId:string,@Body() dto:AmenityOperatingHoursDto){
+    return this.amenities.previewOperatingHours(societyId,amenityId,dto.weekly??null);
+  }
+
+  @Patch('manage/:amenityId/operating-hours')
+  @RequiresPermissions(AppPermission.AMENITY_MANAGE)
+  applyOperatingHours(@CurrentTenant() societyId:string,@Param('amenityId',ParseUUIDPipe) amenityId:string,@Body() dto:AmenityOperatingHoursDto){
+    return this.amenities.applyOperatingHours(societyId,amenityId,dto.weekly??null);
   }
 
   @Get('manage/analytics')

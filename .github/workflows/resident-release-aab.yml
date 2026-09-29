@@ -39,6 +39,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RELEASE_VERSION"
+          SOURCE_VERSION="$(sed -n 's/^version: \([^+]*\).*/\1/p' apps/resident/pubspec.yaml)"
+          test "$RELEASE_VERSION" = "$SOURCE_VERSION" || { echo "release_version must match Resident source version $SOURCE_VERSION" >&2; exit 1; }
           [[ "$API_BASE_URL" =~ ^https:// ]] || { echo 'api_base_url must use HTTPS' >&2; exit 1; }
           [[ ! "$API_BASE_URL" =~ (localhost|127\.0\.0\.1) ]] || { echo 'api_base_url must not be local' >&2; exit 1; }
           for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
@@ -54,7 +56,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'
+          flutter-version: '3.47.0'
           channel: stable
           cache: true
 
@@ -67,8 +69,6 @@ jobs:
           set -euo pipefail
           git checkout -- apps/resident/pubspec.yaml apps/resident/lib apps/resident/test
           rm -f apps/resident/analysis_options.yaml apps/resident/test/widget_test.dart
-          sed -i 's/cardTheme: CardTheme(/cardTheme: CardThemeData(/' apps/resident/lib/theme/aaraagate_theme.dart
-          sed -i 's/dialogTheme: DialogTheme(/dialogTheme: DialogThemeData(/' apps/resident/lib/theme/aaraagate_theme.dart
           grep -Fq 'cardTheme: CardThemeData(' apps/resident/lib/theme/aaraagate_theme.dart
           grep -Fq 'dialogTheme: DialogThemeData(' apps/resident/lib/theme/aaraagate_theme.dart
           ! grep -Fq 'cardTheme: CardTheme(' apps/resident/lib/theme/aaraagate_theme.dart

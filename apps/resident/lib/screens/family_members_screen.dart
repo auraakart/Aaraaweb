@@ -67,7 +67,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         });
         return;
       }
-      await widget.controller.repository.addFamilyMember(
+      await widget.controller.addFamilyMember(
         householdId: widget.householdId,
         name: result['name'].toString(),
         phone: result['phone'].toString(),
@@ -75,7 +75,6 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         gateNotificationEnabled: result['gateNotificationEnabled'] == true,
         primaryGateContact: result['primaryGateContact'] == true,
       );
-      await widget.controller.load();
     });
     if (mounted && _error == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Family member request submitted for society approval.')));
@@ -116,14 +115,13 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         member['primaryGateContact'] = result['primary'];
         return;
       }
-      await widget.controller.repository.updateFamilyMember(
+      await widget.controller.updateFamilyMember(
         householdId: widget.householdId,
         occupancyId: member['id'].toString(),
-        gateNotificationEnabled: result['notifications'],
-        gateApprovalEnabled: result['approvals'],
-        primaryGateContact: result['primary'],
+        gateNotificationEnabled: result['notifications'] == true,
+        gateApprovalEnabled: result['approvals'] == true,
+        primaryGateContact: result['primary'] == true,
       );
-      await widget.controller.load();
     });
   }
 
@@ -149,8 +147,10 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         }, targetId: member['id']?.toString());
         return;
       }
-      await widget.controller.repository.deactivateFamilyMember(householdId: widget.householdId, occupancyId: member['id'].toString());
-      await widget.controller.load();
+      await widget.controller.deactivateFamilyMember(
+        householdId: widget.householdId,
+        occupancyId: member['id'].toString(),
+      );
     });
     if (mounted && _error == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removal request submitted for society approval.')));

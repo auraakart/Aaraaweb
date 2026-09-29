@@ -24,6 +24,7 @@ class ParcelsScreen extends StatefulWidget {
 
 class _ParcelsScreenState extends State<ParcelsScreen> {
   List<ResidentParcel> _parcels = const [];
+  final Set<String> _pickupCodeBusy = <String>{};
   bool _loading = true;
   String? _error;
 
@@ -55,14 +56,18 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
       _showPropertyMismatch();
       return;
     }
+    if (_pickupCodeBusy.contains(parcel.id)) return;
+    setState(() => _pickupCodeBusy.add(parcel.id));
     try {
       final result = widget.demoMode
           ? ParcelPickupCode(
               code: '482731',
               expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+              maxAttempts: 5,
             )
           : await widget.repository.issueParcelPickupCode(parcel.id);
       if (!mounted) return;
+      setState(() => _pickupCodeBusy.remove(parcel.id));
       await showDialog<void>(
         context: context,
         builder: (context) {
@@ -81,7 +86,7 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
               ),
               const SizedBox(height: AaraagateTokens.space3),
               Text(
-                'Show this code to security when collecting the parcel. It expires in 10 minutes.',
+                _pickupCodeGuidance(result),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),
@@ -96,32 +101,24 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
           const SnackBar(content: Text('Pickup code could not be created. Please try again.')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _pickupCodeBusy.remove(parcel.id));
     }
   }
 
-  Future<void> _confirmCollection(ResidentParcel parcel) async {
-    if (!_belongsToActiveProperty(parcel)) {
-      _showPropertyMismatch();
-      return;
+  String _pickupCodeGuidance(ParcelPickupCode result) {
+    final details = <String>['Show this code to security when collecting the parcel.'];
+    final expiresAt = result.expiresAt?.toLocal();
+    if (expiresAt != null) {
+      final hour = expiresAt.hour.toString().padLeft(2, '0');
+      final minute = expiresAt.minute.toString().padLeft(2, '0');
+      details.add('Valid until $hour:$minute.');
     }
-    try {
-      if (!widget.demoMode) await widget.repository.confirmParcelCollection(parcel.id);
-      if (widget.demoMode) {
-        setState(() {
-          _parcels = _parcels
-              .map((item) => item.id == parcel.id ? item.copyWith(status: 'COLLECTED', overdue: false) : item)
-              .toList(growable: false);
-        });
-      } else {
-        await _load();
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Collection could not be confirmed. Please try again.')),
-        );
-      }
+    final maxAttempts = result.maxAttempts;
+    if (maxAttempts != null && maxAttempts > 0) {
+      details.add('Security has up to $maxAttempts attempts before a new code is required.');
     }
+    return details.join(' ');
   }
 
   bool _belongsToActiveProperty(ResidentParcel parcel) => parcel.unitId == widget.unitId;
@@ -180,8 +177,8 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
                 for (final parcel in _parcels) ...[
                   _ParcelCard(
                     parcel: parcel,
+                    busy: _pickupCodeBusy.contains(parcel.id),
                     onPickupCode: () => _pickupCode(parcel),
-                    onConfirm: () => _confirmCollection(parcel),
                   ),
                   const SizedBox(height: AaraagateTokens.space3),
                 ],
@@ -233,13 +230,13 @@ class _ParcelsScreenState extends State<ParcelsScreen> {
 class _ParcelCard extends StatelessWidget {
   const _ParcelCard({
     required this.parcel,
+    required this.busy,
     required this.onPickupCode,
-    required this.onConfirm,
   });
 
   final ResidentParcel parcel;
+  final bool busy;
   final VoidCallback onPickupCode;
-  final VoidCallback onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -297,11 +294,13 @@ class _ParcelCard extends StatelessWidget {
             runSpacing: AaraagateTokens.space2,
             children: [
               FilledButton.icon(
-                onPressed: onPickupCode,
-                icon: const Icon(Icons.pin_outlined),
-                label: const Text('Pickup code'),
+                onPressed: busy ? null : onPickupCode,
+                icon: busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.pin_outlined),
+                label: Text(busy ? 'Creating code…' : 'Pickup code'),
               ),
-              OutlinedButton(onPressed: onConfirm, child: const Text('I collected it')),
+
             ],
           ),
         ],

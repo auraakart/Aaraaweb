@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/service_catalog_models.dart';
+import 'emergency_contact_actions.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
 
@@ -47,6 +48,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
+  List<Map<String, dynamic>> maintenancePayments = const [];
   List<Map<String, dynamic>> helpdeskTickets = const [];
   Map<String, dynamic>? lastIssuedVisitorPass;
   Map<String, dynamic>? latestAccessEvent;
@@ -54,6 +56,10 @@ class ResidentDataController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
   Timer? _reconnectTimer;
   Future<void>? _loadInFlight;
+  _GuestInviteAttempt? _pendingGuestInviteAttempt;
+  Future<Map<String, dynamic>>? _guestInviteInFlight;
+  String? _guestInviteInFlightSignature;
+  final Map<String, String> _emergencyContactAttemptKeys = <String, String>{};
   bool _disposed = false;
 
   bool get hasActiveProperty => activeUnitId != null && activeUnitId!.isNotEmpty;
@@ -138,6 +144,7 @@ class ResidentDataController extends ChangeNotifier {
         tasks.add(_loadMaintenanceInvoices());
       } else {
         maintenanceInvoices = const [];
+        maintenancePayments = const [];
       }
       if (hasFeature('HELPDESK')) {
         tasks.add(_loadHelpdesk());
@@ -194,6 +201,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceLeaves = const [];
     workforceRatings = const [];
     maintenanceInvoices = const [];
+    maintenancePayments = const [];
     helpdeskTickets = const [];
     latestAccessEvent = null;
     lastIssuedVisitorPass = null;
@@ -205,6 +213,37 @@ class ResidentDataController extends ChangeNotifier {
       notices = const [];
     } else {
       await _loadNotices();
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> acknowledgeNotice(String noticeId) async {
+    if (!hasFeature('NOTICES')) {
+      throw StateError('Notices are not enabled for this society session.');
+    }
+    Map<String, dynamic>? notice;
+    for (final item in notices) {
+      if (item['id']?.toString() == noticeId) {
+        notice = item;
+        break;
+      }
+    }
+    if (notice == null) throw StateError('Notice is not available in the current society session.');
+    if (notice['requiresAcknowledgement'] != true) {
+      throw StateError('This notice does not require acknowledgement.');
+    }
+    if (notice['acknowledgedAt'] != null) return;
+
+    final result = await repository.acknowledgeNotice(noticeId);
+    if (result['acknowledgedAt'] == null) {
+      throw StateError('Notice acknowledgement was not confirmed by the server.');
+    }
+    await _loadNotices();
+    final confirmed = notices.any(
+      (item) => item['id']?.toString() == noticeId && item['acknowledgedAt'] != null,
+    );
+    if (!confirmed) {
+      throw StateError('Notice acknowledgement could not be confirmed from the refreshed notice state.');
     }
     if (!_disposed) notifyListeners();
   }
@@ -330,6 +369,277 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
+  Map<String, dynamic>? _householdById(String householdId) =>
+      households.where((item) => item['id']?.toString() == householdId).firstOrNull;
+
+  List<Map<String, dynamic>> familyMembersForHousehold(String householdId) {
+    final household = _householdById(householdId);
+    final unit = household?['unit'];
+    final occupancies = unit is Map ? unit['occupancies'] : null;
+    if (occupancies is! List) return const [];
+    return occupancies
+        .whereType<Map>()
+        .where((item) => item['relation']?.toString() == 'FAMILY_MEMBER')
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? familyMemberById(String householdId, String occupancyId) =>
+      familyMembersForHousehold(householdId)
+          .where((item) => item['id']?.toString() == occupancyId)
+          .firstOrNull;
+
+  bool hasMatchingFamilyMember({
+    required String householdId,
+    required String phone,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
+    return familyMembersForHousehold(householdId).any((item) {
+      final user = item['user'];
+      final userMap = user is Map ? user : const <String, dynamic>{};
+      return _normalizeHouseholdPhone(userMap['phone']?.toString() ?? '') == expectedPhone &&
+          item['gateApprovalEnabled'] == gateApprovalEnabled &&
+          item['gateNotificationEnabled'] == expectedNotification &&
+          item['primaryGateContact'] == primaryGateContact;
+    });
+  }
+
+  bool familyMemberSettingsMatch({
+    required String householdId,
+    required String occupancyId,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) {
+    final member = familyMemberById(householdId, occupancyId);
+    if (member == null) return false;
+    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
+    return member['gateApprovalEnabled'] == gateApprovalEnabled &&
+        member['gateNotificationEnabled'] == expectedNotification &&
+        member['primaryGateContact'] == primaryGateContact;
+  }
+
+  Future<void> addFamilyMember({
+    required String householdId,
+    required String name,
+    required String phone,
+    bool gateApprovalEnabled = false,
+    bool gateNotificationEnabled = true,
+    bool primaryGateContact = false,
+  }) async {
+    if (_householdById(householdId) == null) {
+      throw StateError('Household is outside the active property context');
+    }
+    try {
+      await repository.addFamilyMember(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (hasMatchingFamilyMember(
+        householdId: householdId,
+        phone: phone,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      )) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> updateFamilyMember({
+    required String householdId,
+    required String occupancyId,
+    required bool gateApprovalEnabled,
+    required bool gateNotificationEnabled,
+    required bool primaryGateContact,
+  }) async {
+    if (familyMemberById(householdId, occupancyId) == null) {
+      throw StateError('Family member is outside the active property context');
+    }
+    try {
+      await repository.updateFamilyMember(
+        householdId: householdId,
+        occupancyId: occupancyId,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (familyMemberSettingsMatch(
+        householdId: householdId,
+        occupancyId: occupancyId,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      )) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  Future<void> deactivateFamilyMember({
+    required String householdId,
+    required String occupancyId,
+  }) async {
+    if (familyMemberById(householdId, occupancyId) == null) {
+      throw StateError('Family member is outside the active property context');
+    }
+    try {
+      await repository.deactivateFamilyMember(
+        householdId: householdId,
+        occupancyId: occupancyId,
+      );
+    } catch (_) {
+      await _reloadHouseholdsForMutationRecovery();
+      if (familyMemberById(householdId, occupancyId) == null) return;
+      rethrow;
+    }
+    await _reloadHouseholdsForMutationRecovery();
+  }
+
+  List<Map<String, dynamic>> emergencyContactsForHousehold(String householdId) {
+    final household = _householdById(householdId);
+    final contacts = household?['emergencyContacts'];
+    if (contacts is! List) return const [];
+    return contacts
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? emergencyContactById(String householdId, String contactId) =>
+      emergencyContactsForHousehold(householdId)
+          .where((item) => item['id']?.toString() == contactId)
+          .firstOrNull;
+
+  bool hasMatchingEmergencyContact({
+    required String householdId,
+    required String name,
+    required String phone,
+    String? relation,
+    required int priority,
+    Set<String> excludingIds = const <String>{},
+  }) {
+    final expectedName = name.trim().toLowerCase();
+    final expectedPhone = _normalizeHouseholdPhone(phone);
+    final expectedRelation = relation?.trim().toLowerCase() ?? '';
+    return emergencyContactsForHousehold(householdId).any((item) {
+      final id = item['id']?.toString();
+      if (id != null && excludingIds.contains(id)) return false;
+      return (item['name']?.toString().trim().toLowerCase() ?? '') == expectedName &&
+          _normalizeHouseholdPhone(item['phone']?.toString() ?? '') == expectedPhone &&
+          (item['relation']?.toString().trim().toLowerCase() ?? '') == expectedRelation &&
+          (item['priority'] as num?)?.toInt() == priority;
+    });
+  }
+
+  Future<void> addEmergencyContact({
+    required String householdId,
+    required String name,
+    required String phone,
+    String? relation,
+    int priority = 1,
+  }) async {
+    if (_householdById(householdId) == null) {
+      throw StateError('Household is outside the active property context');
+    }
+    final existingIds = emergencyContactsForHousehold(householdId)
+        .map((item) => item['id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final shape = [
+      householdId,
+      name.trim().toLowerCase(),
+      _normalizeHouseholdPhone(phone),
+      relation?.trim().toLowerCase() ?? '',
+      priority.toString(),
+    ].join('|');
+    final idempotencyKey = _emergencyContactAttemptKeys.putIfAbsent(
+      shape,
+      () => 'resident-emergency-contact-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    try {
+      await repository.addEmergencyContact(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        relation: relation,
+        priority: priority,
+        idempotencyKey: idempotencyKey,
+      );
+      await _reloadHouseholdsForMutationRecovery();
+      _emergencyContactAttemptKeys.remove(shape);
+    } catch (_) {
+      try {
+        await _reloadHouseholdsForMutationRecovery();
+      } catch (_) {
+        rethrow;
+      }
+      if (hasMatchingEmergencyContact(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        relation: relation,
+        priority: priority,
+        excludingIds: existingIds,
+      )) {
+        _emergencyContactAttemptKeys.remove(shape);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deactivateEmergencyContact({
+    required String householdId,
+    required String contactId,
+  }) async {
+    if (emergencyContactById(householdId, contactId) == null) {
+      throw StateError('Emergency contact is outside the active property context');
+    }
+    try {
+      await repository.deactivateEmergencyContact(
+        householdId: householdId,
+        contactId: contactId,
+      );
+      await _reloadHouseholdsForMutationRecovery();
+    } catch (_) {
+      try {
+        await _reloadHouseholdsForMutationRecovery();
+      } catch (_) {
+        rethrow;
+      }
+      if (emergencyContactById(householdId, contactId) == null) return;
+      rethrow;
+    }
+  }
+
+  Future<void> _reloadHouseholdsForMutationRecovery() async {
+    final selected = activeUnitId;
+    if (selected == null) throw StateError('Select a property before managing family members');
+    final rows = await repository.households();
+    final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
+    households = scoped;
+    householdError = rows.isNotEmpty && scoped.isEmpty
+        ? 'The selected property is no longer available in this society session.'
+        : null;
+    if (!_disposed) notifyListeners();
+  }
+
+  String _normalizeHouseholdPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
+
   Future<void> _loadAccess() async {
     if (!hasActiveProperty || !_canLoadAccess) {
       accessRequests = const [];
@@ -413,11 +723,26 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> _loadMaintenanceInvoices() async {
     if (!hasActiveProperty || !hasFeature('MAINTENANCE_BILLING')) {
       maintenanceInvoices = const [];
+      maintenancePayments = const [];
       return;
     }
     try {
       final rows = await repository.maintenanceInvoices();
       maintenanceInvoices = _filterByUnit(rows, (item) => item['unitId']);
+      maintenancePayments = const [];
+      if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;
+
+      final invoiceIds = maintenanceInvoices.map((item) => item['id']?.toString()).whereType<String>().toSet();
+      try {
+        final payments = await repository.maintenancePayments();
+        maintenancePayments = payments
+            .where((item) => invoiceIds.contains(item['invoiceId']?.toString()))
+            .toList(growable: false);
+      } catch (_) {
+        // Payment recovery is optional Home enrichment. Keep invoice visibility
+        // authoritative even if the separately entitled payment read is unavailable.
+        maintenancePayments = const [];
+      }
     } catch (e) {
       _capture(e, (message) => billingError = message);
     }
@@ -440,33 +765,159 @@ class ResidentDataController extends ChangeNotifier {
 
   Map<String, dynamic>? ratingFor(String assignmentId) => workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
   List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves.where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false).toList(growable: false);
+  bool isWorkforceLeaveActive(String leaveId) => workforceLeaves.any((item) => item['id']?.toString() == leaveId && item['active'] != false);
+  Map<String, dynamic>? workforceAssignmentFor(String assignmentId) => workforceAssignments.where((item) => item['id']?.toString() == assignmentId).firstOrNull;
+
+  bool hasMatchingWorkforceLeave({
+    required String assignmentId,
+    required DateTime startsOn,
+    required DateTime endsOn,
+    String? reason,
+  }) {
+    final normalizedReason = reason?.trim() ?? '';
+    return leavesFor(assignmentId).any((item) {
+      final itemReason = item['reason']?.toString().trim() ?? '';
+      return _sameDateOnly(item['startsOn'], startsOn) &&
+          _sameDateOnly(item['endsOn'], endsOn) &&
+          itemReason == normalizedReason;
+    });
+  }
+
+  bool workforceRatingMatches(String assignmentId, {required int score, String? comment}) {
+    final rating = ratingFor(assignmentId);
+    if (rating == null) return false;
+    final currentScore = int.tryParse(rating['score']?.toString() ?? '');
+    final currentComment = rating['comment']?.toString().trim() ?? '';
+    return currentScore == score && currentComment == (comment?.trim() ?? '');
+  }
+
+  bool hasMatchingWorkforceAssignment({
+    required String householdId,
+    required String name,
+    required String phone,
+    required String role,
+  }) {
+    final expectedName = _normalizeWorkforceName(name);
+    final expectedPhone = _normalizeWorkforcePhone(phone);
+    final expectedRole = role.trim().toUpperCase();
+    return workforceAssignments.any((item) {
+      if (item['householdId']?.toString() != householdId) return false;
+      final worker = item['worker'];
+      final workerMap = worker is Map ? worker : item;
+      final actualName = _normalizeWorkforceName(workerMap['name']?.toString() ?? '');
+      final actualPhone = _normalizeWorkforcePhone(workerMap['phone']?.toString() ?? '');
+      final actualRole = workerMap['role']?.toString().trim().toUpperCase() ?? '';
+      return actualName == expectedName &&
+          actualPhone == expectedPhone &&
+          actualRole == expectedRole;
+    });
+  }
 
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
-    await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
+    try {
+      await repository.createWorkforceLeave(assignmentId: assignmentId, startsOn: startsOn, endsOn: endsOn, reason: reason);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (hasMatchingWorkforceLeave(
+        assignmentId: assignmentId,
+        startsOn: startsOn,
+        endsOn: endsOn,
+        reason: reason,
+      )) return;
+      rethrow;
+    }
     await _loadWorkforce();
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> cancelWorkforceLeave(String leaveId) async { await repository.cancelWorkforceLeave(leaveId); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
-  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async { await repository.rateWorkforce(assignmentId, score: score, comment: comment); await _loadWorkforce(); if (!_disposed) notifyListeners(); }
+  Future<void> cancelWorkforceLeave(String leaveId) async {
+    try {
+      await repository.cancelWorkforceLeave(leaveId);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      rethrow;
+    }
+    await _loadWorkforce();
+    if (!_disposed) notifyListeners();
+  }
+  Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
+    try {
+      await repository.rateWorkforce(assignmentId, score: score, comment: comment);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (workforceRatingMatches(assignmentId, score: score, comment: comment)) return;
+      rethrow;
+    }
+    await _loadWorkforce();
+    if (!_disposed) notifyListeners();
+  }
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     if (!households.any((item) => item['id']?.toString() == householdId)) throw StateError('Household is outside the active property context');
-    await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    try {
+      await repository.addWorkforce(householdId: householdId, name: name, phone: phone, role: role);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure();
+      if (hasMatchingWorkforceAssignment(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        role: role,
+      )) return;
+      rethrow;
+    }
     await _loadWorkforce();
     if (!_disposed) notifyListeners();
   }
   Future<void> deactivateWorkforce(String assignmentId) async {
     if (!workforceAssignments.any((item) => item['id']?.toString() == assignmentId)) throw StateError('Staff assignment is outside the active property context');
-    await repository.deactivateWorkforce(assignmentId);
+    try {
+      await repository.deactivateWorkforce(assignmentId);
+    } catch (_) {
+      await _recoverWorkforceMutationFailure(refreshAccess: true);
+      rethrow;
+    }
     await _loadWorkforce();
     await _loadAccess();
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async {
+    await _loadWorkforce();
+    if (refreshAccess) await _loadAccess();
+    if (!_disposed) notifyListeners();
+  }
+
+  bool _sameDateOnly(Object? raw, DateTime expected) {
+    final parsed = DateTime.tryParse(raw?.toString() ?? '');
+    return parsed != null &&
+        parsed.year == expected.year &&
+        parsed.month == expected.month &&
+        parsed.day == expected.day;
+  }
+
+  String _normalizeWorkforceName(String value) =>
+      value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+  String _normalizeWorkforcePhone(String value) =>
+      value.replaceAll(RegExp(r'\D'), '');
+
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
     final text = error.toString();
     if (text.contains('Sign in is required') || text.contains('ApiException(401)')) authError = 'Sign in is required'; else assign(text);
+  }
+
+  Future<T> _withAccessMutationRecovery<T>(Future<T> Function() operation) async {
+    try {
+      return await operation();
+    } catch (_) {
+      // A resident decision can lose a race to Guard/realtime activity. Always
+      // reload the authoritative request state before surfacing the failure so
+      // the Gate screen does not keep offering an action that is already stale.
+      await _loadAccess();
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> approveAccess(String requestId, {Duration? duration}) async {
@@ -475,7 +926,9 @@ class ResidentDataController extends ChangeNotifier {
     final type = request['subjectType']?.toString();
     final effectiveDuration = duration ?? switch (type) { 'CAB' => const Duration(minutes: 15), 'DELIVERY' => const Duration(minutes: 30), _ => const Duration(hours: 4) };
     final now = DateTime.now();
-    final result = await repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration));
+    final result = await _withAccessMutationRecovery(
+      () => repository.approveAccess(requestId, validFrom: now, validUntil: now.add(effectiveDuration)),
+    );
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
     if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
@@ -486,22 +939,68 @@ class ResidentDataController extends ChangeNotifier {
 
   Future<void> denyAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
-    await repository.denyAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
+    await _withAccessMutationRecovery(() => repository.denyAccess(requestId));
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
   }
   Future<void> cancelAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
-    await repository.cancelAccess(requestId); await _loadAccess(); if (!_disposed) notifyListeners();
+    await _withAccessMutationRecovery(() => repository.cancelAccess(requestId));
+    await _loadAccess();
+    if (!_disposed) notifyListeners();
   }
 
-  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) async {
+  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) {
     final unitId = primaryUnitId;
-    if (unitId == null) throw StateError('Select a property before creating a visitor pass');
-    final now = DateTime.now();
-    final result = await repository.inviteVisitor(unitId: unitId, name: name, phone: phone, purpose: purpose, validFrom: now, validUntil: now.add(duration));
+    if (unitId == null) return Future.error(StateError('Select a property before creating a visitor pass'));
+    final signature = [unitId, name.trim(), phone?.trim() ?? '', purpose?.trim() ?? '', duration.inSeconds.toString()].join('|');
+    final inFlight = _guestInviteInFlight;
+    if (inFlight != null) {
+      if (_guestInviteInFlightSignature == signature) return inFlight;
+      return Future.error(StateError('Another visitor pass is already being created'));
+    }
+    final previous = _pendingGuestInviteAttempt;
+    final attempt = previous != null && previous.signature == signature
+        ? previous
+        : _GuestInviteAttempt(
+            signature: signature,
+            idempotencyKey: 'resident-visitor-${DateTime.now().microsecondsSinceEpoch}',
+            validFrom: DateTime.now(),
+            duration: duration,
+          );
+    _pendingGuestInviteAttempt = attempt;
+    final operation = _createGuestAttempt(unitId: unitId, name: name, phone: phone, purpose: purpose, attempt: attempt);
+    _guestInviteInFlight = operation;
+    _guestInviteInFlightSignature = signature;
+    return operation.whenComplete(() {
+      if (identical(_guestInviteInFlight, operation)) {
+        _guestInviteInFlight = null;
+        _guestInviteInFlightSignature = null;
+      }
+    });
+  }
+
+  Future<Map<String, dynamic>> _createGuestAttempt({
+    required String unitId,
+    required String name,
+    required _GuestInviteAttempt attempt,
+    String? phone,
+    String? purpose,
+  }) async {
+    final result = await repository.inviteVisitor(
+      unitId: unitId,
+      name: name,
+      phone: phone,
+      purpose: purpose,
+      validFrom: attempt.validFrom,
+      validUntil: attempt.validUntil,
+      idempotencyKey: attempt.idempotencyKey,
+    );
     final rawRequest = result['request'];
     final credential = result['credential']?.toString();
     if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
     lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
+    if (identical(_pendingGuestInviteAttempt, attempt)) _pendingGuestInviteAttempt = null;
     await _loadAccess();
     if (!_disposed) notifyListeners();
     return lastIssuedVisitorPass!;
@@ -519,6 +1018,16 @@ class ResidentDataController extends ChangeNotifier {
     push.dispose();
     super.dispose();
   }
+}
+
+class _GuestInviteAttempt {
+  _GuestInviteAttempt({required this.signature, required this.idempotencyKey, required this.validFrom, required Duration duration})
+      : validUntil = validFrom.add(duration);
+
+  final String signature;
+  final String idempotencyKey;
+  final DateTime validFrom;
+  final DateTime validUntil;
 }
 
 extension _FirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }

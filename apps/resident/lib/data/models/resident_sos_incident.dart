@@ -13,7 +13,7 @@ class ResidentSosIncident {
   final String? message;
   final DateTime? createdAt;
 
-  bool get isActive => status == 'TRIGGERED' || status == 'ACKNOWLEDGED';
+  bool get isActive => status == 'ACTIVE' || status == 'TRIGGERED' || status == 'ACKNOWLEDGED';
 
   factory ResidentSosIncident.fromJson(Map<String, dynamic> json) => ResidentSosIncident(
         id: json['id']?.toString() ?? '',

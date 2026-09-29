@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { MembershipRole, Prisma, UnitRelation, VehicleType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -239,17 +239,52 @@ export class HouseholdService {
     return this.prisma.householdVehicle.update({ where: { id: vehicle.id }, data: { active: false } });
   }
 
-  async addEmergencyContact(societyId: string, userId: string, householdId: string, input: { name: string; phone: string; relation?: string; priority?: number }) {
+  async addEmergencyContact(
+    societyId: string,
+    userId: string,
+    householdId: string,
+    input: { name: string; phone: string; relation?: string; priority?: number; idempotencyKey: string },
+  ) {
     await this.assertOwnHousehold(societyId, userId, householdId);
-    return this.prisma.emergencyContact.create({
-      data: { societyId, householdId, name: input.name.trim(), phone: input.phone.trim(), relation: input.relation?.trim() || null, priority: input.priority ?? 1 },
+    const name = input.name.trim();
+    const phone = input.phone.trim();
+    const relation = input.relation?.trim() || null;
+    const priority = input.priority ?? 1;
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) {
+      throw new BadRequestException('Idempotency key must be between 8 and 120 characters');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const lockKey = `emergency-contact:${societyId}:${householdId}:${idempotencyKey}`;
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      `);
+      const existing = await tx.emergencyContact.findFirst({
+        where: { societyId, householdId, idempotencyKey },
+      });
+      if (existing) {
+        const sameName = existing.name.trim().toLowerCase() === name.toLowerCase();
+        const samePhone = existing.phone.replace(/\D/g, '') === phone.replace(/\D/g, '');
+        const sameRelation =
+          (existing.relation?.trim().toLowerCase() ?? null) === (relation?.toLowerCase() ?? null);
+        const sameIntent = sameName && samePhone && sameRelation && existing.priority === priority;
+        if (!sameIntent) {
+          throw new ConflictException('Idempotency key already used for a different emergency contact');
+        }
+        return existing;
+      }
+      return tx.emergencyContact.create({
+        data: { societyId, householdId, name, phone, relation, priority, idempotencyKey },
+      });
     });
   }
 
   async deactivateEmergencyContact(societyId: string, userId: string, householdId: string, contactId: string) {
     await this.assertOwnHousehold(societyId, userId, householdId);
-    const contact = await this.prisma.emergencyContact.findFirst({ where: { id: contactId, householdId, societyId, active: true } });
-    if (!contact) throw new NotFoundException('Active emergency contact not found');
+    const contact = await this.prisma.emergencyContact.findFirst({ where: { id: contactId, householdId, societyId } });
+    if (!contact) throw new NotFoundException('Emergency contact not found');
+    if (!contact.active) return contact;
     return this.prisma.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
   }
 

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { operatorConfirm, operatorPrompt } from '../lib/operator-dialog'
 import { api, logoutAdminSession, refreshAdminSession, type Session } from '../lib/admin-client'
 import { AdminLogin } from './admin-login'
+import { AdminGlobalSearch } from './admin-global-search'
 import { AdminOverview } from './admin-overview'
 import { Billing, Marketplace } from './admin-commerce-panels'
 import { Badge, Empty, Header, Metric } from './admin-ui-primitives'
@@ -18,7 +19,7 @@ export function AdminConsole(){
   if(restoring)return <div className="center">Restoring secure session…</div>;if(!session)return <AdminLogin onSession={accept}/>
   const allowedViews=viewsForRole(session.role)
   const activeView=allowedViews.includes(view)?view:allowedViews[0]
-  return <main className="shell"><aside className="sidebar"><div className="brand">aaraagate</div><div className="society"><small>Current society</small><strong>{session.societyName}</strong><span>{session.role.replaceAll('_',' ')}</span></div><nav className="nav">{allowedViews.map(item=><button key={item} className={activeView===item?'active':''} onClick={()=>setView(item)}>{item==='sos'?'SOS':item[0].toUpperCase()+item.slice(1)}</button>)}</nav><button className="signOut" onClick={()=>void logout()}>Sign out</button></aside><section className="content">{activeView==='overview'&&<AdminOverview session={session} open={setView} allowedViews={allowedViews}/>} {activeView==='residents'&&<Residents session={session}/>} {activeView==='gates'&&<Gates session={session}/>} {activeView==='workforce'&&<Workforce session={session}/>} {activeView==='marketplace'&&<Marketplace session={session}/>} {activeView==='sos'&&<SosOperations session={session}/>} {activeView==='helpdesk'&&<Helpdesk session={session}/>} {activeView==='notices'&&<Notices session={session}/>} {activeView==='billing'&&<Billing session={session}/>}</section></main>
+  return <main className="shell"><aside className="sidebar"><div className="brand">aaraagate</div><div className="society"><small>Current society</small><strong>{session.societyName}</strong><span>{session.role.replaceAll('_',' ')}</span></div><nav className="nav">{allowedViews.map(item=><button key={item} className={activeView===item?'active':''} onClick={()=>setView(item)}>{item==='sos'?'SOS':item[0].toUpperCase()+item.slice(1)}</button>)}</nav><button className="signOut" onClick={()=>void logout()}>Sign out</button></aside><section className="content"><AdminGlobalSearch session={session} allowedViews={allowedViews} open={setView}/>{activeView==='overview'&&<AdminOverview session={session} open={setView} allowedViews={allowedViews}/>} {activeView==='residents'&&<Residents session={session}/>} {activeView==='gates'&&<Gates session={session}/>} {activeView==='workforce'&&<Workforce session={session}/>} {activeView==='marketplace'&&<Marketplace session={session}/>} {activeView==='sos'&&<SosOperations session={session}/>} {activeView==='helpdesk'&&<Helpdesk session={session}/>} {activeView==='notices'&&<Notices session={session}/>} {activeView==='billing'&&<Billing session={session}/>}</section></main>
 }
 
 function Gates({session}:{session:Session}){

@@ -63,6 +63,12 @@ class _SosScreenState extends State<SosScreen> {
     }
     return null;
   }
+  ResidentSosIncident? _incidentById(String incidentId) {
+    for (final incident in _incidents) {
+      if (incident.id == incidentId) return incident;
+    }
+    return null;
+  }
 
   Future<void> _trigger() async {
     final unitId = widget.controller.primaryUnitId;
@@ -93,8 +99,16 @@ class _SosScreenState extends State<SosScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SOS sent. Security has been notified.')));
     } catch (e) {
+      await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+      final recovered = _activeIncident;
+      if (recovered != null && recovered.unitId == unitId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SOS is active. Security has been notified.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -127,7 +141,14 @@ class _SosScreenState extends State<SosScreen> {
       await widget.controller.repository.cancelSos(incident.id, note: 'Cancelled by resident');
       await _load();
     } catch (error) {
-      if (mounted) {
+      await _load();
+      if (!mounted) return;
+      final refreshed = _incidentById(incident.id);
+      if (refreshed == null || !refreshed.isActive) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SOS state refreshed. This incident is no longer active.')),
+        );
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_friendlyError(error))),
         );
@@ -156,7 +177,7 @@ class _SosScreenState extends State<SosScreen> {
           children: [
             PremiumSurface(
               elevated: true,
-              color: active == null ? theme.colorScheme.errorContainer.withOpacity(.18) : theme.colorScheme.primaryContainer.withOpacity(.28),
+              color: active == null ? theme.colorScheme.errorContainer.withValues(alpha: .18) : theme.colorScheme.primaryContainer.withValues(alpha: .28),
               padding: const EdgeInsets.all(AaraagateTokens.space5),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -289,7 +310,7 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   static String _statusLabel(String? status) => switch (status) {
-    'TRIGGERED' => 'SOS sent',
+    'ACTIVE' || 'TRIGGERED' => 'SOS sent',
     'ACKNOWLEDGED' => 'Security acknowledged',
     'RESOLVED' => 'Resolved',
     'CANCELLED' => 'Cancelled',
@@ -306,7 +327,7 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   static IconData _statusIcon(String? status) => switch (status) {
-    'TRIGGERED' => Icons.sos_rounded,
+    'ACTIVE' || 'TRIGGERED' => Icons.sos_rounded,
     'ACKNOWLEDGED' => Icons.visibility_rounded,
     'RESOLVED' => Icons.check_circle_rounded,
     'CANCELLED' => Icons.cancel_outlined,

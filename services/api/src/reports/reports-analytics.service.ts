@@ -55,6 +55,68 @@ export class ReportsAnalyticsService{
     };
   }
 
+  async experienceFunnel(societyId:string,from?:string,to?:string){
+    const range=this.dateRange(from,to);
+    const [usageRows,amenityRows,paymentRows,helpdeskRows]=await Promise.all([
+      this.prisma.$queryRaw<Array<{amenityStarters:number;paymentStarters:number;helpdeskStarters:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='AMENITY_BOOKING_STARTED')::int AS "amenityStarters",
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='PAYMENT_CHECKOUT_STARTED')::int AS "paymentStarters",
+          COUNT(DISTINCT "subjectHash") FILTER (WHERE "eventType"='HELPDESK_DRAFT_STARTED')::int AS "helpdeskStarters"
+        FROM "OperationalUsageEvent"
+        WHERE "societyId"=${societyId}::uuid AND "occurredAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{bookers:number;bookings:number}>>(Prisma.sql`
+        SELECT COUNT(DISTINCT "userId")::int AS "bookers",COUNT(*)::int AS "bookings"
+        FROM "AmenityBooking"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{orderCreators:number;orders:number;capturedUsers:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "payerUserId")::int AS "orderCreators",
+          COUNT(*)::int AS "orders",
+          COUNT(DISTINCT "payerUserId") FILTER (WHERE "status"='CAPTURED')::int AS "capturedUsers"
+        FROM "Payment"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+      this.prisma.$queryRaw<Array<{submitters:number;tickets:number;resolvedUsers:number}>>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT "createdById")::int AS "submitters",
+          COUNT(*)::int AS "tickets",
+          COUNT(DISTINCT "createdById") FILTER (WHERE "status" IN ('RESOLVED','CLOSED'))::int AS "resolvedUsers"
+        FROM "HelpdeskTicket"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
+    ]);
+    const usage=usageRows[0]??{amenityStarters:0,paymentStarters:0,helpdeskStarters:0};
+    const amenity=amenityRows[0]??{bookers:0,bookings:0};
+    const payment=paymentRows[0]??{orderCreators:0,orders:0,capturedUsers:0};
+    const helpdesk=helpdeskRows[0]??{submitters:0,tickets:0,resolvedUsers:0};
+    const rate=(n:number,d:number)=>d>0?Math.round((n/d)*10000)/100:null;
+    const funnel=(started:number,completedUsers:number)=>{
+      const coverageState=started>=completedUsers?'TRACKED':'PARTIAL_CLIENT_COVERAGE';
+      return {
+        startedUsers:started,
+        completedUsers,
+        completionPercent:coverageState==='TRACKED'?rate(completedUsers,started):null,
+        coverageState,
+      };
+    };
+    return {
+      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+      amenity:{...funnel(usage.amenityStarters,amenity.bookers),bookings:amenity.bookings},
+      payment:{...funnel(usage.paymentStarters,payment.orderCreators),orders:payment.orders,capturedUsers:payment.capturedUsers},
+      helpdesk:{...funnel(usage.helpdeskStarters,helpdesk.submitters),tickets:helpdesk.tickets,resolvedUsers:helpdesk.resolvedUsers},
+      privacy:{
+        subject:'sha256-pseudonymous-user',
+        frequency:'at-most-one-event-type-per-user-per-day',
+        rawInteractionTraceStored:false,
+      },
+      evidence:'pseudonymous-daily-start-signals-plus-authoritative-domain-outcomes',
+      boundary:'Start-signal coverage depends on clients carrying V4.70 telemetry. Partial coverage is reported explicitly and never interpreted as user intent, satisfaction or individual behavior.',
+    };
+  }
+
   async operationsDashboard(societyId:string,from?:string,to?:string){
     const range=this.dateRange(from,to);
     const [helpdeskRows,facilityRows,incidentRows]=await Promise.all([
@@ -340,6 +402,240 @@ export class ReportsAnalyticsService{
         propertySwitchers:usage.propertySwitchers,
       },
       evidence:'authoritative-domain-records-and-pseudonymous-usage-events',
+    };
+  }
+
+  async platformPortfolioCommandCentre(from?:string,to?:string){
+    const range=this.dateRange(from,to);
+    const [rows,outcomeRows]=await Promise.all([
+      this.prisma.$queryRaw<Array<{
+        societyId:string;societyName:string;societyCode:string;societyStatus:string;productTier:string;
+        openHelpdesk:number;breachedHelpdesk:number;pendingGateApprovals:number;activeSos:number;
+        criticalFacilityWork:number;overdueFacilityWork:number;overdueInvoices:number;activeResidents:number;
+        contractsExpiring30d:number;
+      }>>(Prisma.sql`
+        SELECT s."id" AS "societyId",s."name" AS "societyName",s."code" AS "societyCode",
+               s."status"::text AS "societyStatus",s."productTier"::text AS "productTier",
+          (SELECT COUNT(*)::int FROM "HelpdeskTicket" h
+            WHERE h."societyId"=s."id" AND h."status" NOT IN ('RESOLVED','CLOSED')) AS "openHelpdesk",
+          (SELECT COUNT(*)::int FROM "HelpdeskTicket" h
+            WHERE h."societyId"=s."id" AND h."status" NOT IN ('RESOLVED','CLOSED')
+              AND h."slaState" IN ('RESPONSE_BREACHED','RESOLUTION_BREACHED')) AS "breachedHelpdesk",
+          (SELECT COUNT(*)::int FROM "AccessRequest" a
+            WHERE a."societyId"=s."id" AND a."status"='PENDING') AS "pendingGateApprovals",
+          (SELECT COUNT(*)::int FROM "SosIncident" i
+            WHERE i."societyId"=s."id" AND i."status" IN ('ACTIVE','ACKNOWLEDGED')) AS "activeSos",
+          (SELECT COUNT(*)::int FROM "FacilityWorkOrder" w
+            WHERE w."societyId"=s."id" AND w."status" IN ('OPEN','IN_PROGRESS') AND w."priority"='CRITICAL') AS "criticalFacilityWork",
+          (SELECT COUNT(*)::int FROM "FacilityWorkOrder" w
+            WHERE w."societyId"=s."id" AND w."status" IN ('OPEN','IN_PROGRESS')
+              AND w."dueAt" IS NOT NULL AND w."dueAt"<CURRENT_TIMESTAMP) AS "overdueFacilityWork",
+          (SELECT COUNT(*)::int FROM "MaintenanceInvoice" m
+            WHERE m."societyId"=s."id" AND m."status"='ISSUED' AND m."dueDate"<CURRENT_DATE) AS "overdueInvoices",
+          (SELECT COUNT(DISTINCT uo."userId")::int FROM "UnitOccupancy" uo
+            WHERE uo."societyId"=s."id" AND uo."active"=true
+              AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)) AS "activeResidents",
+          (SELECT COUNT(*)::int FROM "SocietyVendorContract" c
+            WHERE c."societyId"=s."id" AND c."status"='ACTIVE'
+              AND c."endsOn"<=CURRENT_DATE+INTERVAL '30 days') AS "contractsExpiring30d"
+        FROM "Society" s
+        ORDER BY CASE s."status" WHEN 'ACTIVE' THEN 0 ELSE 1 END,s."name"
+      `),
+      this.prisma.$queryRaw<Array<{
+        societyId:string;billedPaise:bigint|number;collectedPaise:bigint|number;
+        resolvedHelpdesk:number;slaMet:number;slaBreached:number;
+        gateProcessed:number;avgGateProcessingSeconds:number|null;
+        noticeAttempted:number;noticeDispatched:number;
+      }>>(Prisma.sql`
+        WITH cohort AS (
+          SELECT
+            r."societyId",
+            r."id",
+            GREATEST(
+              r."amountPaise"
+              + COALESCE((
+                  SELECT SUM(CASE WHEN a."type"='DEBIT' THEN a."amountPaise" ELSE -a."amountPaise" END)
+                  FROM "ReceivableAdjustment" a
+                  WHERE a."societyId"=r."societyId" AND a."receivableId"=r."id"
+                    AND a."createdAt"<=${range.lte}
+                ),0),
+              0
+            ) AS "netBilledPaise",
+            GREATEST(
+              COALESCE((
+                SELECT SUM(x."amountPaise")
+                FROM "ReceivableAllocation" x
+                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                  AND x."allocatedAt"<=${range.lte}
+              ),0)
+              - COALESCE((
+                SELECT SUM(rv."amountPaise")
+                FROM "ReceivableAllocationReversal" rv
+                JOIN "ReceivableAllocation" x
+                  ON x."id"=rv."allocationId" AND x."societyId"=rv."societyId"
+                WHERE x."societyId"=r."societyId" AND x."receivableId"=r."id"
+                  AND rv."reversedAt"<=${range.lte}
+              ),0),
+              0
+            ) AS "allocatedPaise"
+          FROM "Receivable" r
+          WHERE r."issuedAt" BETWEEN ${range.gte} AND ${range.lte}
+            AND (r."status"<>'VOID' OR r."voidedAt">${range.lte})
+        ),
+        finance AS (
+          SELECT "societyId",
+            COALESCE(SUM("netBilledPaise"),0)::bigint AS "billedPaise",
+            COALESCE(SUM(LEAST("allocatedPaise","netBilledPaise")),0)::bigint AS "collectedPaise"
+          FROM cohort
+          GROUP BY "societyId"
+        ),
+        helpdesk AS (
+          SELECT "societyId",
+            COUNT(*)::int AS "resolvedHelpdesk",
+            COUNT(*) FILTER (
+              WHERE "resolutionDueAt" IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt")<="resolutionDueAt"
+            )::int AS "slaMet",
+            COUNT(*) FILTER (
+              WHERE "resolutionDueAt" IS NOT NULL
+                AND COALESCE("resolvedAt","closedAt")>"resolutionDueAt"
+            )::int AS "slaBreached"
+          FROM "HelpdeskTicket"
+          WHERE COALESCE("resolvedAt","closedAt") BETWEEN ${range.gte} AND ${range.lte}
+          GROUP BY "societyId"
+        ),
+        gate AS (
+          SELECT "societyId",
+            COUNT(*) FILTER (WHERE "enteredAt" BETWEEN ${range.gte} AND ${range.lte})::int AS "gateProcessed",
+            ROUND(AVG(EXTRACT(EPOCH FROM ("enteredAt"-"createdAt"))) FILTER (
+              WHERE "enteredAt" BETWEEN ${range.gte} AND ${range.lte} AND "enteredAt">="createdAt"
+            )::numeric,2)::float8 AS "avgGateProcessingSeconds"
+          FROM "AccessRequest"
+          WHERE "subjectType"='VISITOR'
+          GROUP BY "societyId"
+        ),
+        notices AS (
+          SELECT "societyId",
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "attemptCount">0)::int AS "noticeAttempted",
+            COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='DISPATCHED')::int AS "noticeDispatched"
+          FROM "NoticeDispatch"
+          GROUP BY "societyId"
+        )
+        SELECT s."id" AS "societyId",
+          COALESCE(f."billedPaise",0)::bigint AS "billedPaise",
+          COALESCE(f."collectedPaise",0)::bigint AS "collectedPaise",
+          COALESCE(h."resolvedHelpdesk",0)::int AS "resolvedHelpdesk",
+          COALESCE(h."slaMet",0)::int AS "slaMet",
+          COALESCE(h."slaBreached",0)::int AS "slaBreached",
+          COALESCE(g."gateProcessed",0)::int AS "gateProcessed",
+          g."avgGateProcessingSeconds" AS "avgGateProcessingSeconds",
+          COALESCE(n."noticeAttempted",0)::int AS "noticeAttempted",
+          COALESCE(n."noticeDispatched",0)::int AS "noticeDispatched"
+        FROM "Society" s
+        LEFT JOIN finance f ON f."societyId"=s."id"
+        LEFT JOIN helpdesk h ON h."societyId"=s."id"
+        LEFT JOIN gate g ON g."societyId"=s."id"
+        LEFT JOIN notices n ON n."societyId"=s."id"
+      `),
+    ]);
+
+    const number=(value:unknown)=>Number(value??0);
+    const rate=(numerator:number,denominator:number)=>denominator>0?Math.round((numerator/denominator)*10000)/100:null;
+    const outcomesBySociety=new Map(outcomeRows.map(row=>[row.societyId,row]));
+
+    const societies=rows.map(row=>{
+      const outcome=outcomesBySociety.get(row.societyId);
+      const billedPaise=number(outcome?.billedPaise);
+      const collectedPaise=number(outcome?.collectedPaise);
+      const slaMet=number(outcome?.slaMet);
+      const slaBreached=number(outcome?.slaBreached);
+      const noticeAttempted=number(outcome?.noticeAttempted);
+      const noticeDispatched=number(outcome?.noticeDispatched);
+      const reasons:string[]=[];
+      if(row.activeSos>0) reasons.push('ACTIVE_SOS');
+      if(row.criticalFacilityWork>0) reasons.push('CRITICAL_FACILITY_WORK');
+      if(row.breachedHelpdesk>0) reasons.push('HELPDESK_SLA_BREACH');
+      if(row.overdueFacilityWork>0) reasons.push('OVERDUE_FACILITY_WORK');
+      if(row.overdueInvoices>0) reasons.push('OVERDUE_MAINTENANCE');
+      if(row.pendingGateApprovals>0) reasons.push('PENDING_GATE_APPROVALS');
+      if(row.contractsExpiring30d>0) reasons.push('CONTRACTS_EXPIRING');
+      const attentionLevel=
+        row.activeSos>0||row.criticalFacilityWork>0?'CRITICAL':
+        row.breachedHelpdesk>0||row.overdueFacilityWork>0||row.overdueInvoices>0?'HIGH':
+        row.pendingGateApprovals>0||row.openHelpdesk>0||row.contractsExpiring30d>0?'WATCH':'NORMAL';
+      return {
+        ...row,
+        attentionLevel,
+        reasons,
+        outcomes:{
+          finance:{
+            billedPaise,
+            collectedPaise,
+            collectionPercent:rate(collectedPaise,billedPaise),
+          },
+          helpdesk:{
+            resolved:number(outcome?.resolvedHelpdesk),
+            slaMet,
+            slaBreached,
+            slaCompliancePercent:rate(slaMet,slaMet+slaBreached),
+          },
+          gate:{
+            processed:number(outcome?.gateProcessed),
+            avgProcessingSeconds:outcome?.avgGateProcessingSeconds??null,
+          },
+          notifications:{
+            attempted:noticeAttempted,
+            dispatched:noticeDispatched,
+            deliverySuccessPercent:rate(noticeDispatched,noticeAttempted),
+            scope:'scheduled notice dispatch handoff',
+          },
+        },
+      };
+    });
+
+    const total=(selector:(row:(typeof societies)[number])=>number)=>societies.reduce((sum,row)=>sum+selector(row),0);
+    const billedPaise=total(row=>row.outcomes.finance.billedPaise);
+    const collectedPaise=total(row=>row.outcomes.finance.collectedPaise);
+    const slaMet=total(row=>row.outcomes.helpdesk.slaMet);
+    const slaBreached=total(row=>row.outcomes.helpdesk.slaBreached);
+    const noticeAttempted=total(row=>row.outcomes.notifications.attempted);
+    const noticeDispatched=total(row=>row.outcomes.notifications.dispatched);
+
+    const summary={
+      societies:societies.length,
+      active:societies.filter(row=>row.societyStatus==='ACTIVE').length,
+      critical:societies.filter(row=>row.attentionLevel==='CRITICAL').length,
+      high:societies.filter(row=>row.attentionLevel==='HIGH').length,
+      watch:societies.filter(row=>row.attentionLevel==='WATCH').length,
+      outcomes:{
+        finance:{billedPaise,collectedPaise,collectionPercent:rate(collectedPaise,billedPaise)},
+        helpdesk:{
+          resolved:total(row=>row.outcomes.helpdesk.resolved),
+          slaMet,
+          slaBreached,
+          slaCompliancePercent:rate(slaMet,slaMet+slaBreached),
+        },
+        gate:{processed:total(row=>row.outcomes.gate.processed)},
+        notifications:{
+          attempted:noticeAttempted,
+          dispatched:noticeDispatched,
+          deliverySuccessPercent:rate(noticeDispatched,noticeAttempted),
+          scope:'scheduled notice dispatch handoff',
+        },
+        contractsExpiring30d:total(row=>row.contractsExpiring30d),
+      },
+    };
+
+    return {
+      generatedAt:new Date().toISOString(),
+      range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
+      summary,
+      societies,
+      predictive:false,
+      mutationPerformed:false,
+      aggregateOnly:true,
+      boundary:'Portfolio outcomes are aggregate, deterministic evidence across societies. No resident or unit records are returned, no society quality is ranked, and no operational workflow is mutated.',
     };
   }
 

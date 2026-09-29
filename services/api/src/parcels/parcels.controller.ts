@@ -51,12 +51,6 @@ export class ParcelsController {
     return this.parcels.issuePickupCode(societyId, this.requireUser(userId), parcelId);
   }
 
-  @Patch('mine/:parcelId/collect')
-  @RequiresPermissions(AppPermission.PARCEL_READ_OWN)
-  collect(@CurrentTenant() societyId: string, @CurrentUser() userId: string | undefined, @Param('parcelId', ParseUUIDPipe) parcelId: string) {
-    return this.parcels.confirmCollection(societyId, this.requireUser(userId), parcelId);
-  }
-
   @Get('desk')
   @RequiresPermissions(AppPermission.PARCEL_PROCESS)
   desk(@CurrentTenant() societyId: string) {

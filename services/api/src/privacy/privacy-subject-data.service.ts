@@ -182,11 +182,50 @@ export class PrivacySubjectDataService {
   async executeErasure(societyId:string|undefined,actorUserId:string,caseId:string){
     const plan=await this.erasurePlan(societyId,caseId);
     if(!plan.executable) throw new BadRequestException(`Erasure cannot execute: ${plan.blockers.join(', ')||'case is closed'}`);
-    const privacyCase=await this.caseByScope(societyId,caseId);
-    const userId=privacyCase.subjectUserId;
-    const subjectHash=createHash('sha256').update(userId).digest('hex');
 
     return this.prisma.$transaction(async tx=>{
+      const cases=await tx.$queryRaw<PrivacyCase[]>(Prisma.sql`
+        SELECT "id","societyId","subjectUserId","requestType","status","legalHold","retentionDecision"
+        FROM "PrivacyRequestCase"
+        WHERE "id"=${caseId}::uuid
+          AND "societyId" IS NOT DISTINCT FROM ${societyId??null}::uuid
+        FOR UPDATE
+      `);
+      const current=cases[0];
+      if(!current) throw new NotFoundException('Privacy request not found');
+      if(current.requestType!=='ERASURE') throw new BadRequestException('Erasure plan is only available for ERASURE cases');
+      if(['COMPLETED','REJECTED','CANCELLED'].includes(current.status)) throw new BadRequestException('Erasure cannot execute: case is closed');
+      if(current.legalHold) throw new BadRequestException('Erasure cannot execute: LEGAL_HOLD_ACTIVE');
+      if(current.retentionDecision!=='ALLOW') throw new BadRequestException('Erasure cannot execute: RETENTION_REVIEW_NOT_ALLOWED');
+
+      const userId=current.subjectUserId;
+      const users=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "User"
+        WHERE "id"=${userId}::uuid
+        FOR UPDATE
+      `);
+      if(!users[0]) throw new NotFoundException('Privacy request subject not found');
+
+      const activeRelations=societyId
+        ? await tx.$queryRaw<Array<{count:number}>>(Prisma.sql`
+            SELECT (
+              (SELECT COUNT(*) FROM "SocietyMembership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true)
+              +(SELECT COUNT(*) FROM "UnitOwnership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
+              +(SELECT COUNT(*) FROM "UnitOccupancy" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
+            )::int AS count
+          `)
+        : await tx.$queryRaw<Array<{count:number}>>(Prisma.sql`
+            SELECT (
+              (SELECT COUNT(*) FROM "SocietyMembership" WHERE "userId"=${userId}::uuid AND "active"=true)
+              +(SELECT COUNT(*) FROM "UnitOwnership" WHERE "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
+              +(SELECT COUNT(*) FROM "UnitOccupancy" WHERE "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
+            )::int AS count
+          `);
+      if((activeRelations[0]?.count??0)>0){
+        throw new BadRequestException(`Erasure cannot execute: ${societyId?'ACTIVE_SOCIETY_RELATIONSHIP':'ACTIVE_ACCOUNT_RELATIONSHIP'}`);
+      }
+
+      const subjectHash=createHash('sha256').update(userId).digest('hex');
       const revoked=await tx.$executeRaw(Prisma.sql`
         UPDATE "Session" SET "revokedAt"=COALESCE("revokedAt",CURRENT_TIMESTAMP),"revocationReason"='PRIVACY_ERASURE'
         WHERE "userId"=${userId}::uuid ${societyId?Prisma.sql`AND "societyId"=${societyId}::uuid`:Prisma.empty}

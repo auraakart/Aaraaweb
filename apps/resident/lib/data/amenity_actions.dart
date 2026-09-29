@@ -16,6 +16,7 @@ extension ResidentAmenityActions on ResidentRepository {
     required String unitId,
     required DateTime startsAt,
     required DateTime endsAt,
+    int guestCount = 0,
     String? idempotencyKey,
   }) async {
     final bookingKey = idempotencyKey ?? 'amenity-${DateTime.now().microsecondsSinceEpoch}';
@@ -23,6 +24,7 @@ extension ResidentAmenityActions on ResidentRepository {
       'unitId': unitId,
       'startsAt': startsAt.toUtc().toIso8601String(),
       'endsAt': endsAt.toUtc().toIso8601String(),
+      'guestCount': guestCount,
       'idempotencyKey': bookingKey,
     });
     return Map<String, dynamic>.from(value as Map);
@@ -38,11 +40,13 @@ extension ResidentAmenityActions on ResidentRepository {
     required String unitId,
     required DateTime startsAt,
     required DateTime endsAt,
+    int guestCount = 0,
   }) async {
     final value=await api.post('/api/v1/amenities/$amenityId/waitlist',{
       'unitId':unitId,
       'startsAt':startsAt.toUtc().toIso8601String(),
       'endsAt':endsAt.toUtc().toIso8601String(),
+      'guestCount':guestCount,
     });
     return Map<String,dynamic>.from(value as Map);
   }

@@ -48,9 +48,7 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
         decoration: BoxDecoration(
           color: widget.color ?? (widget.elevated ? scheme.surface : scheme.surfaceContainerLow),
           borderRadius: radius,
-          boxShadow: widget.elevated
-              ? [BoxShadow(color: scheme.shadow.withOpacity(.08), blurRadius: 24, offset: const Offset(0, 8))]
-              : null,
+          boxShadow: widget.elevated ? AaraagateElevation.raised(scheme.shadow) : null,
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -144,6 +142,59 @@ class PremiumSectionHeader extends StatelessWidget {
   }
 }
 
+class PremiumQuickAction extends StatelessWidget {
+  const PremiumQuickAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: label,
+      color: scheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AaraagateTokens.space3,
+        vertical: AaraagateTokens.space3,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 76),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+              ),
+              child: Icon(icon, color: scheme.primary, size: 22),
+            ),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AaraagateStatusPill extends StatelessWidget {
   const AaraagateStatusPill({super.key, required this.label, this.tone = AaraagateStatusTone.neutral});
 
@@ -165,7 +216,7 @@ class AaraagateStatusPill extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(minHeight: 28),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: colors.$1, borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(color: colors.$1, borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill)),
         child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w800)),
       ),
     );

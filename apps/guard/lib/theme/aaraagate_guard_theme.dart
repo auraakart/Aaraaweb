@@ -7,10 +7,12 @@ class AaraagateGuardTokens {
   static const double space4 = 16;
   static const double space5 = 20;
   static const double space6 = 24;
+  static const double space8 = 32;
   static const double radiusSmall = 12;
   static const double radiusControl = 16;
   static const double radiusCard = 20;
   static const double radiusSheet = 24;
+  static const double radiusPill = 999;
   static const double minTouchTarget = 56;
   static const double primaryActionHeight = 64;
 }
@@ -19,6 +21,16 @@ class AaraagateGuardMotion {
   static const Duration quick = Duration(milliseconds: 110);
   static const Duration standard = Duration(milliseconds: 200);
   static const Curve emphasized = Curves.easeOutCubic;
+}
+
+class AaraagateGuardElevation {
+  static List<BoxShadow> raised(Color shadow) => [
+        BoxShadow(
+          color: shadow.withValues(alpha: .07),
+          blurRadius: 20,
+          offset: const Offset(0, 6),
+        ),
+      ];
 }
 
 class AaraagateGuardTheme {
@@ -100,7 +112,7 @@ class AaraagateGuardTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
@@ -173,7 +185,7 @@ class AaraagateGuardTheme {
         checkmarkColor: scheme.onPrimaryContainer,
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: AaraagateGuardTokens.space1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusPill)),
         labelStyle: TextStyle(
           color: scheme.onSurface,
           fontWeight: FontWeight.w700,
@@ -191,7 +203,7 @@ class AaraagateGuardTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(AaraagateGuardTokens.radiusSheet)),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSheet)),

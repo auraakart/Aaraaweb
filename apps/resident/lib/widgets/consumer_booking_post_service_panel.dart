@@ -97,18 +97,62 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     }
   }
 
+  Future<String?> _proposalRejectionReason() async {
+    final controller = TextEditingController();
+    String? validationMessage;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Decline suggested time?'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 500,
+            maxLines: 3,
+            decoration: InputDecoration(
+              labelText: 'Why does this time not work?',
+              errorText: validationMessage,
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Keep reviewing')),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.length < 3) {
+                  setModalState(() => validationMessage = 'Add a short reason for the provider.');
+                  return;
+                }
+                Navigator.of(context).pop(value);
+              },
+              child: const Text('Decline time'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return reason;
+  }
+
   Future<void> _respondToProposal(Map<String, dynamic> proposal, String decision) async {
     if (_respondingProposal) return;
+    String? rejectionReason;
+    if (decision == 'REJECT') {
+      rejectionReason = await _proposalRejectionReason();
+      if (rejectionReason == null || !mounted) return;
+    }
     setState(() => _respondingProposal = true);
     try {
       await widget.apiClient.post(
         '/api/v1/consumer/services/bookings/${widget.bookingId}/proposals/${proposal['id']}/respond',
-        {'decision': decision},
+        {'decision': decision, if (rejectionReason != null) 'reason': rejectionReason},
       );
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(decision == 'ACCEPT' ? 'New service time accepted.' : 'Suggested time declined.')),
+          SnackBar(content: Text(decision == 'ACCEPT' ? 'New service time accepted.' : 'Suggested time declined. Reason saved to the timeline.')),
         );
       }
     } catch (e) {

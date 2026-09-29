@@ -252,11 +252,13 @@ model EmergencyContact {
   phone       String
   relation    String?
   priority    Int       @default(1)
+  idempotencyKey String?
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
   society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
+  @@unique([societyId, householdId, idempotencyKey], map: "EmergencyContact_society_household_idempotency_key")
   @@index([householdId, active, priority])
 }
 
@@ -760,12 +762,14 @@ model HelpdeskTicket {
   societyId    String             @db.Uuid
   unitId       String             @db.Uuid
   createdById  String             @db.Uuid
+  idempotencyKey String?
   title        String
   description  String
   category     String?
   priority     String             @default("NORMAL")
   status       String             @default("OPEN")
   assignedToId String?            @db.Uuid
+  assetId      String?            @db.Uuid
   resolvedAt   DateTime?          @db.Timestamptz(6)
   closedAt     DateTime?          @db.Timestamptz(6)
   createdAt    DateTime           @default(now()) @db.Timestamptz(6)
@@ -777,8 +781,10 @@ model HelpdeskTicket {
   activities   HelpdeskActivity[]
 
   @@index([societyId, status, createdAt(sort: Desc)], map: "HelpdeskTicket_society_status_created_idx")
+  @@unique([societyId, createdById, idempotencyKey], map: "HelpdeskTicket_society_creator_idempotency_key")
   @@index([societyId, createdById, createdAt(sort: Desc)], map: "HelpdeskTicket_society_creator_created_idx")
   @@index([societyId, unitId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_unit_created_idx")
+  @@index([societyId, assetId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_asset_created_idx")
 }
 
 model HelpdeskActivity {
@@ -788,6 +794,7 @@ model HelpdeskActivity {
   actorUserId String         @db.Uuid
   type        String
   message     String?
+  idempotencyKey String?
   fromStatus  String?
   toStatus    String?
   occurredAt  DateTime       @default(now()) @db.Timestamptz(6)
@@ -795,6 +802,7 @@ model HelpdeskActivity {
   ticket      HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   actor       User           @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
+  @@unique([societyId, actorUserId, idempotencyKey], map: "HelpdeskActivity_society_actor_idempotency_key")
   @@index([ticketId, occurredAt], map: "HelpdeskActivity_ticket_time_idx")
   @@index([societyId, occurredAt(sort: Desc)], map: "HelpdeskActivity_society_time_idx")
 }
@@ -1001,6 +1009,7 @@ model AmenityBooking {
   status           AmenityBookingStatus @default(PENDING)
   feePaise         Int                  @default(0)
   currency         String               @default("INR")
+  guestCount       Int                  @default(0)
   reviewNote       String?
   reviewedByUserId String?              @db.Uuid
   checkedInAt      DateTime?            @db.Timestamptz(6)
@@ -1026,6 +1035,7 @@ model AmenityWaitlistEntry {
   userId            String   @db.Uuid
   startsAt          DateTime @db.Timestamptz(6)
   endsAt            DateTime @db.Timestamptz(6)
+  guestCount         Int      @default(0)
   status            String   @default("WAITING")
   joinedAt          DateTime @default(now()) @db.Timestamptz(6)
   promotedAt        DateTime? @db.Timestamptz(6)
