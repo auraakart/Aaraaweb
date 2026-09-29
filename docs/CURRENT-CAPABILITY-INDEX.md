@@ -115,6 +115,8 @@ V4.80.3 makes Resident amenity booking retries request-safe by retaining one ide
 
 V4.80.4 hardens develop delivery orchestration after concurrent green V4.80 PRs exposed a stale-base failure mode. Develop auto-merge decisions are serialized; if develop moved after a PR was validated, the controller requests GitHub to update that exact PR head onto current develop and exits without merging, allowing synchronize validation to run again. The controller rechecks develop immediately before the squash merge, retains exact-head/same-repository/mastermind-only restrictions, and has no staging or main target path.
 
+V4.80.5 hardens the Resident amenity waitlist against uncertain network outcomes without adding a second queue identity. If a waitlist join response is lost or a retry receives the existing duplicate-window conflict, Resident reloads the authenticated user's authoritative waitlist and accepts recovery only when a WAITING entry exactly matches amenity, unit, start, end and guest count. The server's existing partial unique index remains the duplicate-prevention authority, and unrelated conflicts still surface normally.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.

@@ -51,6 +51,54 @@ class _FullAmenityApi extends _AmenitiesApi {
   }
 }
 
+class _AmenityWaitlistRecoveredApi extends _FullAmenityApi {
+  _AmenityWaitlistRecoveredApi({this.failureStatus = 503});
+
+  final int failureStatus;
+  int waitlistReads = 0;
+
+  @override
+  Future<dynamic> get(String path) async {
+    if (path == '/api/v1/amenities/waitlist/mine?unitId=unit-1') {
+      waitlistReads++;
+      if (waitlistReads > 1 && waitlistBody != null) {
+        return [
+          {
+            'id': 'wait-recovered',
+            'amenityId': 'clubhouse',
+            'unitId': 'unit-1',
+            'startsAt': waitlistBody!['startsAt'],
+            'endsAt': waitlistBody!['endsAt'],
+            'guestCount': waitlistBody!['guestCount'] ?? 0,
+            'status': 'WAITING',
+            'position': 2,
+            'amenityName': 'Clubhouse',
+          },
+        ];
+      }
+      return <Map<String,dynamic>>[];
+    }
+    return super.get(path);
+  }
+
+  @override
+  Future<dynamic> post(String path,[Map<String,dynamic>? body]) async {
+    if(path.endsWith('/bookings')){
+      bookingPath=path;
+      bookingBody=body;
+      throw ApiException(409,'Amenity slot is no longer available');
+    }
+    if(path.endsWith('/waitlist')){
+      waitlistPath=path;
+      waitlistBody=body;
+      throw ApiException(failureStatus, failureStatus == 409
+          ? 'This unit is already on the waitlist for that amenity window'
+          : 'Response lost after waitlist commit');
+    }
+    return super.post(path,body);
+  }
+}
+
 class _AmenityRetryApi extends _AmenitiesApi {
   int bookingCalls = 0;
   final List<String> bookingKeys = <String>[];
@@ -203,6 +251,50 @@ void main() {
     expect(api.waitlistBody?['endsAt'],api.bookingBody?['endsAt']);
     expect(tester.takeException(),isNull);
   });
+  testWidgets('uncertain waitlist join recovers the exact authoritative waiting entry', (tester) async {
+    final api=_AmenityWaitlistRecoveredApi();
+    await tester.pumpWidget(MaterialApp(home:AmenitiesScreen(repository:ResidentRepository(api),unitId:'unit-1')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Choose date & time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select start time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Join waitlist'));
+    await tester.pumpAndSettle();
+
+    expect(api.waitlistReads,greaterThanOrEqualTo(2));
+    expect(find.text('Waitlist join confirmed after reconnect · position 2.'),findsOneWidget);
+    expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('duplicate waitlist retry is treated as success only after exact authoritative recovery', (tester) async {
+    final api=_AmenityWaitlistRecoveredApi(failureStatus:409);
+    await tester.pumpWidget(MaterialApp(home:AmenitiesScreen(repository:ResidentRepository(api),unitId:'unit-1')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Choose date & time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select start time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Join waitlist'));
+    await tester.pumpAndSettle();
+
+    expect(api.waitlistReads,greaterThanOrEqualTo(2));
+    expect(find.text('Waitlist join confirmed after reconnect · position 2.'),findsOneWidget);
+    expect(tester.takeException(),isNull);
+  });
+
   testWidgets('uncertain amenity booking retry reuses the same request identity', (tester) async {
     final api = _AmenityRetryApi();
     await tester.pumpWidget(
