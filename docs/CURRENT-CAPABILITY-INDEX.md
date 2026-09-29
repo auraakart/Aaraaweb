@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.68.0 Emergency Contact Mutation Recovery Release Closure on top of V4.67.0 Helpdesk Comment Retry Safety and V4.66.0 Helpdesk Submission Recovery, retaining V4.51.1 Post-Release Regression Hardening as the prior regression baseline.  
+**Current-state review baseline:** V4.79 competitive convergence closure on top of the V4.79.0–V4.79.5 product slices and V4.79 delivery-hardening patches.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -102,6 +102,8 @@ V4.79.4 deepens provider-neutral integration readiness with versioned operation-
 V4.79.5 replaces browser-derived onboarding heuristics with a tenant-scoped server readiness plan at `/onboarding/readiness`. The plan aggregates existing property, canonical migration, operational-role, entitlement, integration-selection, amenity, accounting-period and governance evidence; returns per-step blockers and next actions; treats disabled optional modules as non-blocking; and keeps provider/device/policy/hosted acceptance outside repository readiness. The Admin onboarding surface now renders this authoritative plan instead of reconstructing state from multiple APIs. No duplicate configuration store or productionization claim is introduced.
 
 V4.79.5.1 hardens validation orchestration after V4.79.5 exposed two avoidable delay sources. The fast Repository Structure gate now executes the legacy V4.27 onboarding readiness regression so server-authority convergence drift is detected before full Admin validation. Backup Restore scope classification no longer calls the GitHub PR-files API; it derives changed paths from the checked-out PR base/head git diff, eliminating transient 5xx metadata failures. The release-control fast path permits only the Backup Restore scope job to differ while byte-comparing the actual drill/controller jobs, so backup quality and staging controls remain unchanged.
+
+V4.79 competitive convergence closure reconciles the six planned product slices—Society Knowledge AI, Finance Document Intake, Amenity Deposit Lifecycle, Community Events + RSVP, Operation-Level Integration Contracts and Onboarding Readiness Intelligence—plus the CI/release-control hardening discovered during execution. The milestone is repository-complete on `develop` only. Permission-safe AI, financial/accounting truth separation, non-statutory governance boundaries, provider non-authority, tenant/resource isolation and server-derived onboarding evidence remain explicit invariants. No staging/main promotion or production/provider/hardware/field acceptance is implied.
 
 ## External evidence boundary
 
