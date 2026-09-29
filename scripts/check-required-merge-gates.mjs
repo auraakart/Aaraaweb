@@ -173,11 +173,14 @@ if(!eventBranches(codeqlWorkflow,'pull_request').includes('main')||
   console.error('Deferred security/E2E workflows must retain pre-main pull-request coverage.');
   process.exit(1);
 }
-for(const token of ["branches: [develop, main]","services/api/prisma/**","docs/BACKUP-RESTORE-EVIDENCE.md"]){
-  if(!backupWorkflow.includes(token)){
-    console.error('Backup restore PR path gate missing: '+token);
-    process.exit(1);
-  }
+const backupPrBranches=eventBranches(backupWorkflow,'pull_request');
+if(!backupPrBranches.includes('staging')||backupPrBranches.includes('develop')||backupPrBranches.includes('main')){
+  console.error('Backup restore must run for staging pull requests only; develop/main PRs use canonical validation.');
+  process.exit(1);
+}
+if(backupWorkflow.includes('paths:')){
+  console.error('Backup restore staging pull requests must remain unfiltered by paths.');
+  process.exit(1);
 }
 
 const developDeferred=[
