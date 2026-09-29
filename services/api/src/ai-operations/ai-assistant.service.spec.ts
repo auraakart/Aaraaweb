@@ -7,12 +7,14 @@ function setup(){
   const prisma={$queryRaw:vi.fn(),$executeRaw:vi.fn().mockResolvedValue(1)};
   const operations={operationsSummary:vi.fn(),proposeHelpdesk:vi.fn()};
   const workforce={residentStatusMine:vi.fn()};
+  const documents={searchKnowledgeForUser:vi.fn()};
   return {
-    prisma,operations,workforce,
+    prisma,operations,workforce,documents,
     service:new AiAssistantService(
       prisma as unknown as ConstructorParameters<typeof AiAssistantService>[0],
       operations as unknown as ConstructorParameters<typeof AiAssistantService>[1],
       workforce as unknown as ConstructorParameters<typeof AiAssistantService>[2],
+      documents as unknown as ConstructorParameters<typeof AiAssistantService>[3],
     ),
   };
 }
@@ -175,6 +177,25 @@ describe('V4.6 grounded AI assistant',()=>{
     );
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('grounds society policy questions in current published document citations and never invents a missing answer',async()=>{
+    const {prisma,documents,service}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValue([{
+      documentId:'doc-1',title:'Parking policy',category:'POLICY',version:3,
+      excerpt:'Visitor parking is limited to designated bays.',contentHash:'abc',score:7,
+    }]);
+    const result=await service.query('society-1','user-1',[AppRole.OWNER],'What does our parking policy say?');
+    expect(result.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(result.sources).toEqual(['SocietyDocument','SocietyDocumentKnowledge']);
+    expect(result.facts).toEqual(expect.objectContaining({matches:[expect.objectContaining({documentId:'doc-1',version:3})]}));
+    expect(documents.searchKnowledgeForUser).toHaveBeenCalledWith('society-1','user-1','What does our parking policy say?',false);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([]);
+    const missing=await service.query('society-1','user-1',[AppRole.OWNER],'What does our pet policy document say?');
+    expect(missing.status).toBe('UNSUPPORTED');
+    expect((missing.facts as {answerBoundary:string}).answerBoundary).toContain('No matching published society document');
   });
 
   it('allows governance read only to governance-readable roles',async()=>{

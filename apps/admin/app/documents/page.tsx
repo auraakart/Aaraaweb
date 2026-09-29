@@ -7,7 +7,7 @@ import {
 } from '../../components/admin-ui'
 import { api, type Session } from '../../lib/admin-client'
 
-type DocumentRow={id:string;title:string;description?:string|null;category:string;audience:string;status:string;fileName:string;mimeType:string;sizeBytes:number;version?:number;createdAt?:string;publishedAt?:string|null;unitId?:string|null;unitNumber?:string|null;buildingName?:string|null;supersedesDocumentId?:string|null;supersededByDocumentId?:string|null}
+type DocumentRow={id:string;title:string;description?:string|null;category:string;audience:string;status:string;fileName:string;mimeType:string;sizeBytes:number;version?:number;createdAt?:string;publishedAt?:string|null;unitId?:string|null;unitNumber?:string|null;buildingName?:string|null;supersedesDocumentId?:string|null;supersededByDocumentId?:string|null;knowledgeAvailable?:boolean}
 type UnitOption={id:string;number:string;building:{id:string;name:string;code:string}}
 type DocumentEvent={id:string;eventType:string;fromStatus?:string|null;toStatus?:string|null;note?:string|null;actorName?:string|null;createdAt:string}
 type UploadIntent={storageKey:string;uploadUrl:string;method:string;headers?:Record<string,string>;expiresAt?:string}
@@ -37,6 +37,7 @@ export default function DocumentsPage(){
   const[success,setSuccess]=useState('')
   const[title,setTitle]=useState('')
   const[description,setDescription]=useState('')
+  const[knowledgeText,setKnowledgeText]=useState('')
   const[category,setCategory]=useState('POLICY')
   const[audience,setAudience]=useState('MANAGEMENT')
   const[unitId,setUnitId]=useState('')
@@ -44,6 +45,7 @@ export default function DocumentsPage(){
   const[replacementDocumentId,setReplacementDocumentId]=useState('')
   const[replacementFile,setReplacementFile]=useState<File|null>(null)
   const[replacementDescription,setReplacementDescription]=useState('')
+  const[replacementKnowledgeText,setReplacementKnowledgeText]=useState('')
   const historyRequest=useRef(0)
 
   const load=useCallback(async()=>{
@@ -80,11 +82,11 @@ export default function DocumentsPage(){
       const put=await fetch(intent.uploadUrl,{method:intent.method||'PUT',headers:intent.headers??{'Content-Type':file.type},body:file})
       if(!put.ok)throw new Error(`Secure document upload failed (${put.status})`)
       await api('/documents/management',{method:'POST',body:JSON.stringify({
-        category,audience,title:title.trim(),description:description.trim()||undefined,
+        category,audience,title:title.trim(),description:description.trim()||undefined,knowledgeText:knowledgeText.trim()||undefined,
         unitId:audience==='PROPERTY_OWNER_ONLY'?unitId:undefined,storageKey:intent.storageKey,
         fileName:file.name,mimeType:file.type,sizeBytes:file.size,
       })},s)
-      setTitle('');setDescription('');setUnitId('');setFile(null)
+      setTitle('');setDescription('');setKnowledgeText('');setUnitId('');setFile(null)
     },'Document uploaded as a draft after server verification and safety scanning.')
   }
 
@@ -133,8 +135,9 @@ export default function DocumentsPage(){
       await api(`/documents/management/${replacementDocumentId}/replacement`,{method:'POST',body:JSON.stringify({
         storageKey:intent.storageKey,fileName:replacementFile.name,mimeType:replacementFile.type,
         sizeBytes:replacementFile.size,description:replacementDescription.trim()||undefined,
+        knowledgeText:replacementKnowledgeText.trim()||undefined,
       })},s)
-      setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')
+      setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('');setReplacementKnowledgeText('')
     },'Replacement draft created. Publish it to atomically archive the prior version.')
   }
 
@@ -168,6 +171,8 @@ export default function DocumentsPage(){
         <FormField label="File" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]??null)} required/>
       </div>
       <FormField label="Description" multiline value={description} onChange={e=>setDescription(e.target.value)} maxLength={2000}/>
+      <FormField label="Reviewed knowledge text (optional)" multiline value={knowledgeText} onChange={e=>setKnowledgeText(e.target.value)} maxLength={12000}/>
+      <p style={muted}>Paste only reviewed text from this document that may be used by Society Knowledge AI. It is version-bound, searchable only after publication, and never grants wider audience access.</p>
       <ActionBar feedback={success}><PrimaryButton type="submit" loading={busy} disabled={!file}>Upload securely</PrimaryButton></ActionBar>
       <p style={muted}>PDF/JPEG/PNG/WebP, maximum 5 MB. The API validates society scope, object metadata and safety scan before creating the draft.</p>
     </form>}
@@ -188,11 +193,12 @@ export default function DocumentsPage(){
               <span>{human(d.audience)}</span>
               <small>{d.fileName} · {(d.sizeBytes/1024).toFixed(0)} KB{d.version?` · v${d.version}`:''}{d.unitNumber?` · ${d.buildingName??'Property'} ${d.unitNumber}`:''}{d.supersedesDocumentId?' · replacement draft':''}{d.supersededByDocumentId?' · superseded':''}</small>
               {d.description&&<p>{d.description}</p>}
+              {d.knowledgeAvailable&&<small>Society Knowledge AI: reviewed text attached to this version</small>}
             </div>
             <div style={actions}>
               <SecondaryButton disabled={busy} onClick={()=>void openHistory(d.id)}>History</SecondaryButton>
               <SecondaryButton onClick={()=>void download(d.id)}>Download</SecondaryButton>
-              {canManage&&d.status==='PUBLISHED'&&!d.supersededByDocumentId&&!replacementPending&&<SecondaryButton disabled={busy} onClick={()=>{setReplacementDocumentId(d.id);setReplacementDescription(d.description??'')}}>Replace version</SecondaryButton>}
+              {canManage&&d.status==='PUBLISHED'&&!d.supersededByDocumentId&&!replacementPending&&<SecondaryButton disabled={busy} onClick={()=>{setReplacementDocumentId(d.id);setReplacementDescription(d.description??'');setReplacementKnowledgeText('')}}>Replace version</SecondaryButton>
               {canManage&&d.status==='DRAFT'&&<PrimaryButton disabled={busy} onClick={()=>mutate(d.id,'publish')}>Publish</PrimaryButton>}
               {canManage&&d.status!=='ARCHIVED'&&<SecondaryButton disabled={busy} onClick={()=>mutate(d.id,'archive')}>Archive</SecondaryButton>}
             </div>
@@ -205,9 +211,10 @@ export default function DocumentsPage(){
       <div style={sectionHeader}><div>
         <h2>Replace published version</h2>
         <p style={muted}>Creates a new draft. The current published document stays live until the replacement draft is explicitly published.</p>
-      </div><SecondaryButton type="button" onClick={()=>{setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('')}}>Cancel</SecondaryButton></div>
+      </div><SecondaryButton type="button" onClick={()=>{setReplacementDocumentId('');setReplacementFile(null);setReplacementDescription('');setReplacementKnowledgeText('')}}>Cancel</SecondaryButton></div>
       <FormField label="Replacement file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setReplacementFile(e.target.files?.[0]??null)} required/>
       <FormField label="Version note" multiline value={replacementDescription} onChange={e=>setReplacementDescription(e.target.value)} maxLength={2000}/>
+      <FormField label="Reviewed knowledge text (optional)" multiline value={replacementKnowledgeText} onChange={e=>setReplacementKnowledgeText(e.target.value)} maxLength={12000}/>
       <ActionBar feedback={success}><PrimaryButton type="submit" loading={busy} disabled={!replacementFile}>Create replacement draft</PrimaryButton></ActionBar>
       <p style={muted}>Publishing the replacement will atomically archive the prior published version and retain both records with append-only version evidence.</p>
     </form>}
