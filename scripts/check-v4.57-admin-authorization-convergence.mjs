@@ -32,7 +32,7 @@ for(const [label,path] of [
 ]){
   must(label+' Auditor read-only access',read(path),[
     "const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])",
-    "const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])"
+    "manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])"
   ]);
 }
 const workforce=read('apps/admin/app/society-workforce/page.tsx');
