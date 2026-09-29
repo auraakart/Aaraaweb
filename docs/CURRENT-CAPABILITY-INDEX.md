@@ -85,6 +85,8 @@ V4.78.0 hardens the amenity policy architecture without adding a new product aut
 
 V4.78.1 hardens release orchestration after the V4.78 consolidation cycle exposed avoidable waiting between completed staging gates and the final staging merge. Staging smoke and backup/restore smoke now both run against every staging pull request, check out the exact candidate SHA, and share a fail-closed auto-merge controller. The second successful release gate revalidates that the PR is still open and non-draft, the staging base has not moved, the source is an approved develop/exact-tree release candidate, the candidate tree still equals current develop, and the companion workflow succeeded for the same head SHA before merging staging. No automation targets main; production promotion remains independently approval-gated.
 
+V4.78.2 closes staging release-history compatibility discovered by the V4.78.1 end-to-end proof. The staging classifier now accepts the narrow historical versioned staging-release title form already present in repository history while still rejecting arbitrary feature/fix subjects. Future automated staging merges emit the canonical `Release: promote exact develop tree to staging (#PR)` subject, so the next exact-tree candidate can supersede prior staging release commits without classifier drift. This changes release metadata/control only; main remains manual and approval-gated.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
