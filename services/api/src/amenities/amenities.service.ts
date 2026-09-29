@@ -41,6 +41,8 @@ type AmenityBookingRules = {
   noShowRestrictionCount?: number;
   noShowLookbackDays?: number;
   noShowBlockDays?: number;
+  refundableDepositPaise?: number;
+  depositPaymentWindowMinutes?: number;
   maxGuestsPerBooking?: number;
   conflictGroup?: string;
   pricingBands?: AmenityPricingBand[];
@@ -249,14 +251,20 @@ export class AmenitiesService {
 
       const status = amenity.requiresApproval ? 'PENDING' : 'CONFIRMED';
       const bookingFeePaise = this.resolveBookingFee(amenity.feePaise, rules, startsAt);
+      const depositPaise=rules.refundableDepositPaise??0;
+      const depositWindow=rules.depositPaymentWindowMinutes??null;
+      const depositStatus=depositPaise<=0?'NOT_REQUIRED':status==='PENDING'?'APPROVAL_PENDING':'PAYMENT_REQUIRED';
       const rows = await tx.$queryRaw`
         INSERT INTO "AmenityBooking" (
           "societyId", "amenityId", "unitId", "userId", "startsAt", "endsAt",
-          "status", "feePaise", "currency", "guestCount", "idempotencyKey"
+          "status", "feePaise", "currency", "guestCount", "idempotencyKey",
+          "depositPaise","depositStatus","depositDueAt","depositPaymentWindowMinutes"
         ) VALUES (
           ${societyId}::uuid, ${amenityId}::uuid, ${input.unitId}::uuid, ${userId}::uuid,
           ${startsAt}, ${endsAt}, ${status}::"AmenityBookingStatus", ${bookingFeePaise}, ${amenity.currency},
-          ${guestCount}, ${idempotencyKey}
+          ${guestCount}, ${idempotencyKey}, ${depositPaise}, ${depositStatus},
+          CASE WHEN ${depositStatus}='PAYMENT_REQUIRED' THEN LEAST(${startsAt},CURRENT_TIMESTAMP+make_interval(mins=>${depositWindow??0}::int)) ELSE NULL END,
+          ${depositWindow}
         )
         RETURNING *
       `;
@@ -437,7 +445,13 @@ export class AmenitiesService {
 
       const rows = await tx.$queryRaw`
         UPDATE "AmenityBooking"
-        SET "status" = 'CANCELLED', "updatedAt" = CURRENT_TIMESTAMP
+        SET "status" = 'CANCELLED',
+            "depositStatus"=CASE
+              WHEN "depositStatus"='CAPTURED' THEN 'REFUND_REQUIRED'
+              WHEN "depositPaise">0 AND "depositStatus" IN ('APPROVAL_PENDING','PAYMENT_REQUIRED') THEN 'VOIDED'
+              ELSE "depositStatus"
+            END,
+            "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${bookingId}::uuid
           AND "societyId" = ${societyId}::uuid
           AND "userId" = ${userId}::uuid
@@ -458,6 +472,11 @@ export class AmenitiesService {
       const rows = await tx.$queryRaw<Array<{ id: string; amenityId:string; startsAt:Date; endsAt:Date }>>`
         UPDATE "AmenityBooking"
         SET "status"='CANCELLED',
+            "depositStatus"=CASE
+              WHEN "depositStatus"='CAPTURED' THEN 'REFUND_REQUIRED'
+              WHEN "depositPaise">0 AND "depositStatus" IN ('APPROVAL_PENDING','PAYMENT_REQUIRED') THEN 'VOIDED'
+              ELSE "depositStatus"
+            END,
             "reviewedByUserId"=${reviewerUserId}::uuid,
             "reviewNote"=${`Revoked: ${note}`},
             "updatedAt"=CURRENT_TIMESTAMP
@@ -480,8 +499,8 @@ export class AmenitiesService {
 
   async checkIn(societyId: string, actorUserId: string, bookingId: string, note?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ startsAt: Date; endsAt: Date; status: string; bookingRules: unknown }>>`
-        SELECT b."startsAt", b."endsAt", b."status"::text AS "status", a."bookingRules"
+      const rows = await tx.$queryRaw<Array<{ startsAt: Date; endsAt: Date; status: string; bookingRules: unknown; depositPaise:number; depositStatus:string }>>`
+        SELECT b."startsAt", b."endsAt", b."status"::text AS "status", a."bookingRules",b."depositPaise",b."depositStatus"
         FROM "AmenityBooking" b
         JOIN "Amenity" a ON a."id"=b."amenityId" AND a."societyId"=b."societyId"
         WHERE b."id"=${bookingId}::uuid AND b."societyId"=${societyId}::uuid
@@ -490,6 +509,9 @@ export class AmenitiesService {
       const booking = rows[0];
       if (!booking) throw new NotFoundException('Amenity booking not found');
       if (booking.status !== 'CONFIRMED') throw new ConflictException('Only confirmed amenity bookings can check in');
+      if(booking.depositPaise>0&&booking.depositStatus!=='CAPTURED'){
+        throw new ConflictException('Refundable deposit must be captured before amenity check-in');
+      }
       const rules = this.parseBookingRules(booking.bookingRules);
       const opensAt = booking.startsAt.getTime() - (rules.checkInOpenMinutesBefore ?? 15) * 60000;
       const now = Date.now();
@@ -516,6 +538,7 @@ export class AmenitiesService {
     const rows = await this.prisma.$queryRaw`
       UPDATE "AmenityBooking"
       SET "status"='COMPLETED',
+          "depositStatus"=CASE WHEN "depositStatus"='CAPTURED' THEN 'REFUND_REQUIRED' ELSE "depositStatus" END,
           "completedAt"=CURRENT_TIMESTAMP,
           "attendanceByUserId"=${actorUserId}::uuid,
           "attendanceNote"=COALESCE(${note?.trim() || null}, "attendanceNote"),
@@ -556,6 +579,7 @@ export class AmenitiesService {
       const updated = await tx.$queryRaw`
         UPDATE "AmenityBooking"
         SET "status"='NO_SHOW',
+            "depositStatus"=CASE WHEN "depositStatus"='CAPTURED' THEN 'REFUND_REQUIRED' ELSE "depositStatus" END,
             "noShowAt"=CURRENT_TIMESTAMP,
             "attendanceByUserId"=${actorUserId}::uuid,
             "attendanceNote"=${note?.trim() || null},
@@ -566,6 +590,41 @@ export class AmenitiesService {
       const result = Array.isArray(updated) ? updated[0] : updated;
       if (!result) throw new ConflictException('Amenity booking changed; refresh and retry');
       return result;
+    });
+  }
+
+  async expireUnpaidDeposits(limit=50) {
+    return this.prisma.$transaction(async(tx)=>{
+      const candidates=await tx.$queryRaw<Array<{id:string;societyId:string;amenityId:string;startsAt:Date;endsAt:Date}>>`
+        SELECT "id","societyId","amenityId","startsAt","endsAt"
+        FROM "AmenityBooking"
+        WHERE "status"='CONFIRMED'
+          AND "depositStatus"='PAYMENT_REQUIRED'
+          AND "depositPaise">0
+          AND "depositDueAt" IS NOT NULL
+          AND "depositDueAt"<=CURRENT_TIMESTAMP
+        ORDER BY "depositDueAt","id"
+        LIMIT ${Math.max(1,Math.min(200,Math.trunc(limit)))}
+        FOR UPDATE SKIP LOCKED
+      `;
+      let expired=0;
+      for(const candidate of candidates){
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${candidate.societyId}:${candidate.amenityId}`}))`;
+        const closed=await tx.$queryRaw<Array<{id:string}>>`
+          UPDATE "AmenityBooking"
+          SET "status"='CANCELLED',"depositStatus"='VOIDED',"updatedAt"=CURRENT_TIMESTAMP
+          WHERE "id"=${candidate.id}::uuid
+            AND "societyId"=${candidate.societyId}::uuid
+            AND "status"='CONFIRMED'
+            AND "depositStatus"='PAYMENT_REQUIRED'
+            AND "depositDueAt"<=CURRENT_TIMESTAMP
+          RETURNING "id"
+        `;
+        if(!closed[0]) continue;
+        expired++;
+        await this.promoteNextWaitlist(tx,candidate.societyId,candidate.amenityId,candidate.startsAt,candidate.endsAt);
+      }
+      return {expired,mutationPerformed:expired>0,boundary:'Only unpaid refundable-deposit reservations past their server deadline are released. Captured funds are never auto-refunded or forfeited.'};
     });
   }
 
@@ -934,9 +993,31 @@ export class AmenitiesService {
     note?: string,
   ) {
     return this.prisma.$transaction(async(tx)=>{
+      const pending=await tx.$queryRaw<Array<{
+        id:string;amenityId:string;startsAt:Date;endsAt:Date;depositPaise:number;depositPaymentWindowMinutes:number|null;
+      }>>`
+        SELECT "id","amenityId","startsAt","endsAt","depositPaise","depositPaymentWindowMinutes"
+        FROM "AmenityBooking"
+        WHERE "id"=${bookingId}::uuid AND "societyId"=${societyId}::uuid AND "status"='PENDING'
+        FOR UPDATE
+      `;
+      const current=pending[0];
+      if(!current) throw new NotFoundException('Pending amenity booking not found');
+      const depositRequired=current.depositPaise>0;
+      const depositWindow=current.depositPaymentWindowMinutes??0;
       const rows = await tx.$queryRaw<Array<Record<string,unknown>&{amenityId:string;startsAt:Date;endsAt:Date}>>`
         UPDATE "AmenityBooking"
         SET "status" = ${nextStatus}::"AmenityBookingStatus",
+            "depositStatus"=CASE
+              WHEN ${nextStatus}='REJECTED' AND "depositPaise">0 THEN 'VOIDED'
+              WHEN ${nextStatus}='CONFIRMED' AND "depositPaise">0 THEN 'PAYMENT_REQUIRED'
+              ELSE 'NOT_REQUIRED'
+            END,
+            "depositDueAt"=CASE
+              WHEN ${nextStatus}='CONFIRMED' AND ${depositRequired}
+                THEN LEAST("startsAt",CURRENT_TIMESTAMP+make_interval(mins=>${depositWindow}::int))
+              ELSE NULL
+            END,
             "reviewedByUserId" = ${reviewerUserId}::uuid,
             "reviewNote" = ${note?.trim() || null},
             "updatedAt" = CURRENT_TIMESTAMP
@@ -946,8 +1027,8 @@ export class AmenitiesService {
         RETURNING *
       `;
       const booking=rows[0];
-      if(!booking) throw new NotFoundException('Pending amenity booking not found');
-      if(nextStatus==='REJECTED') await this.promoteNextWaitlist(tx,societyId,booking.amenityId,booking.startsAt,booking.endsAt);
+      if(!booking) throw new ConflictException('Amenity booking changed before review');
+      if(nextStatus==='REJECTED') await this.promoteNextWaitlist(tx,societyId,current.amenityId,current.startsAt,current.endsAt);
       return booking;
     });
   }
@@ -1056,12 +1137,19 @@ export class AmenitiesService {
     if(!waiter) return null;
     const status=amenity.requiresApproval?'PENDING':'CONFIRMED';
     const bookingFeePaise=this.resolveBookingFee(amenity.feePaise,rules,waiter.startsAt);
+    const depositPaise=rules.refundableDepositPaise??0;
+    const depositWindow=rules.depositPaymentWindowMinutes??null;
+    const depositStatus=depositPaise<=0?'NOT_REQUIRED':status==='PENDING'?'APPROVAL_PENDING':'PAYMENT_REQUIRED';
     const bookings=await tx.$queryRaw<Array<{id:string}>>`
       INSERT INTO "AmenityBooking" (
-        "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency","guestCount"
+        "societyId","amenityId","unitId","userId","startsAt","endsAt","status","feePaise","currency","guestCount",
+        "depositPaise","depositStatus","depositDueAt","depositPaymentWindowMinutes"
       ) VALUES (
         ${societyId}::uuid,${amenityId}::uuid,${waiter.unitId}::uuid,${waiter.userId}::uuid,
-        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${bookingFeePaise},${amenity.currency},${waiter.guestCount}
+        ${waiter.startsAt},${waiter.endsAt},${status}::"AmenityBookingStatus",${bookingFeePaise},${amenity.currency},${waiter.guestCount},
+        ${depositPaise},${depositStatus},
+        CASE WHEN ${depositStatus}='PAYMENT_REQUIRED' THEN LEAST(${waiter.startsAt},CURRENT_TIMESTAMP+make_interval(mins=>${depositWindow??0}::int)) ELSE NULL END,
+        ${depositWindow}
       )
       RETURNING "id"
     `;
@@ -1086,6 +1174,12 @@ export class AmenitiesService {
     if(noShowParts!==0&&noShowParts!==3){
       throw new BadRequestException('noShowRestrictionCount, noShowLookbackDays and noShowBlockDays must be configured together');
     }
+    const refundableDepositPaise=this.optionalPolicyInteger(source.refundableDepositPaise,'refundableDepositPaise',0,10_000_000);
+    const depositPaymentWindowMinutes=this.optionalPolicyInteger(source.depositPaymentWindowMinutes,'depositPaymentWindowMinutes',5,1440);
+    const depositEnabled=(refundableDepositPaise??0)>0;
+    if(depositEnabled!==Boolean(depositPaymentWindowMinutes)){
+      throw new BadRequestException('refundableDepositPaise and depositPaymentWindowMinutes must be configured together');
+    }
     return {
       minAdvanceMinutes: this.optionalPolicyInteger(source.minAdvanceMinutes, 'minAdvanceMinutes', 0),
       maxAdvanceDays: this.optionalPolicyInteger(source.maxAdvanceDays, 'maxAdvanceDays', 1),
@@ -1098,6 +1192,8 @@ export class AmenitiesService {
       noShowRestrictionCount,
       noShowLookbackDays,
       noShowBlockDays,
+      refundableDepositPaise:depositEnabled?refundableDepositPaise:undefined,
+      depositPaymentWindowMinutes:depositEnabled?depositPaymentWindowMinutes:undefined,
       maxGuestsPerBooking: this.optionalPolicyInteger(source.maxGuestsPerBooking, 'maxGuestsPerBooking', 0, 50),
       conflictGroup: this.optionalConflictGroup(source.conflictGroup),
       pricingBands: this.parsePricingBands(source.pricingBands),

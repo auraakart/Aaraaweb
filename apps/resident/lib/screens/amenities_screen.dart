@@ -168,6 +168,21 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     }
   }
 
+  Future<void> _payDeposit(Map<String,dynamic> booking) async {
+    setState(()=>_submitting=true);
+    try{
+      final order=await widget.repository.createAmenityDepositPayment(bookingId:booking['id'].toString());
+      if(!mounted)return;
+      final reference=order['providerOrderId']?.toString()??order['id']?.toString()??'created order';
+      _showMessage('Secure refundable-deposit payment order ready: $reference. The deposit is not treated as paid until gateway confirmation.');
+      await _load();
+    }catch(error){
+      if(mounted)_showMessage(_friendlyError(error));
+    }finally{
+      if(mounted)setState(()=>_submitting=false);
+    }
+  }
+
   Future<void> _cancel(Map<String, dynamic> booking) async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
@@ -313,6 +328,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
                 _BookingCard(
                   booking: booking,
                   busy: _submitting,
+                  onPayDeposit: booking['status']?.toString()=='CONFIRMED'&&booking['depositStatus']?.toString()=='PAYMENT_REQUIRED'
+                    ? ()=>_payDeposit(booking)
+                    : null,
                   onCancel: _isCancelable(booking) ? () => _cancel(booking) : null,
                 ),
                 const SizedBox(height: AaraagateTokens.space2),
@@ -419,6 +437,7 @@ class _BookingSheetState extends State<_BookingSheet> {
     final rules=widget.amenity['bookingRules'];
     final maxGuests=rules is Map?_asInt(rules['maxGuestsPerBooking'],fallback:0):0;
     final noShowPolicy=_amenityNoShowPolicyLabel(widget.amenity);
+    final depositPolicy=_amenityDepositPolicyLabel(widget.amenity);
     final startsAt = _startsAt;
     final invalidPast = startsAt != null && !startsAt.isAfter(now);
 
@@ -440,6 +459,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                 AaraagateStatusPill(label: approval ? 'Approval required' : 'Server confirmed', tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info),
                 AaraagateStatusPill(label:maxGuests>0?'Up to $maxGuests guests':'No guests',tone:AaraagateStatusTone.neutral),
                 if(noShowPolicy!=null)const AaraagateStatusPill(label:'Fair-use no-show rule',tone:AaraagateStatusTone.warning),
+                if(depositPolicy!=null)AaraagateStatusPill(label:depositPolicy,tone:AaraagateStatusTone.info),
               ],
             ),
             const SizedBox(height: AaraagateTokens.space6),
@@ -716,9 +736,10 @@ class _WaitlistCard extends StatelessWidget {
 }
 
 class _BookingCard extends StatelessWidget {
-  const _BookingCard({required this.booking, required this.busy, this.onCancel});
+  const _BookingCard({required this.booking, required this.busy, this.onPayDeposit, this.onCancel});
   final Map<String, dynamic> booking;
   final bool busy;
+  final VoidCallback? onPayDeposit;
   final VoidCallback? onCancel;
 
   @override
@@ -728,6 +749,8 @@ class _BookingCard extends StatelessWidget {
     final status = booking['status']?.toString() ?? 'PENDING';
     final statusLabel = status.replaceAll('_', ' ').toLowerCase();
     final guests=_asInt(booking['guestCount'],fallback:0);
+    final depositPaise=_asInt(booking['depositPaise'],fallback:0);
+    final depositStatus=booking['depositStatus']?.toString()??'NOT_REQUIRED';
 
     return PremiumSurface(
       padding: const EdgeInsets.fromLTRB(AaraagateTokens.space4, AaraagateTokens.space3, AaraagateTokens.space3, AaraagateTokens.space3),
@@ -753,11 +776,20 @@ class _BookingCard extends StatelessWidget {
                 Text(_formatApiDate(booking['startsAt']), style: theme.textTheme.bodyMedium),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                if(depositPaise>0) ...[
+                  const SizedBox(height:AaraagateTokens.space1),
+                  Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}',style:theme.textTheme.bodySmall?.copyWith(color:depositStatus=='PAYMENT_REQUIRED'?scheme.primary:scheme.onSurfaceVariant)),
+                ],
               ],
             ),
           ),
-          if (onCancel != null)
-            TextButton(onPressed: busy ? null : onCancel, child: const Text('Cancel')),
+          Column(
+            mainAxisSize:MainAxisSize.min,
+            children:[
+              if(onPayDeposit!=null) TextButton(onPressed:busy?null:onPayDeposit,child:const Text('Pay deposit')),
+              if(onCancel!=null) TextButton(onPressed:busy?null:onCancel,child:const Text('Cancel')),
+            ],
+          ),
         ],
       ),
     );
@@ -812,6 +844,15 @@ String? _amenityNoShowPolicyLabel(Map<String,dynamic> amenity){
   final block=_asInt(rules['noShowBlockDays'],fallback:0);
   if(count<=0||lookback<=0||block<=0) return null;
   return '$count no-show${count==1?'':'s'} in ${lookback}d → ${block}d booking pause';
+}
+
+String? _amenityDepositPolicyLabel(Map<String,dynamic> amenity){
+  final rules=amenity['bookingRules'];
+  if(rules is! Map)return null;
+  final deposit=_asInt(rules['refundableDepositPaise'],fallback:0);
+  final window=_asInt(rules['depositPaymentWindowMinutes'],fallback:0);
+  if(deposit<=0||window<=0)return null;
+  return 'Refundable deposit ${_feeLabel(deposit)} · pay within ${window}m after confirmation';
 }
 
 Map<String,dynamic>? _nextAmenityBlackout(Map<String,dynamic> amenity){

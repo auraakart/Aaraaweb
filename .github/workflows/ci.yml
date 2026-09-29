@@ -418,7 +418,7 @@ jobs:
   api-validation:
     name: API validation
     needs: [change-scope, api-validation-full]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -487,7 +487,7 @@ jobs:
   admin-validation:
     name: Admin validation
     needs: [change-scope, admin-validation-full]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -571,7 +571,7 @@ jobs:
   flutter-validation:
     name: Flutter validation
     needs: [change-scope, flutter-validation-full]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -617,7 +617,7 @@ jobs:
   dependency-security:
     name: Dependency security
     needs: [change-scope, dependency-security-full]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -636,7 +636,7 @@ jobs:
   required-merge-gates:
     name: Required merge gates
     needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -28,6 +28,11 @@ class CreatePaymentDto {
   @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
 }
 
+class CreateAmenityDepositPaymentDto {
+  @IsUUID() bookingId!:string;
+  @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!:string;
+}
+
 class AutopayPreferenceDto {
   @IsUUID() unitId!: string;
   @IsBoolean() enabled!: boolean;
@@ -112,6 +117,13 @@ export class BillingController {
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   pay(@Body() dto: CreatePaymentDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     return this.billing.createPayment(societyId, this.requireUser(userId), dto.invoiceId, dto.idempotencyKey);
+  }
+
+  @Post('amenity-deposits')
+  @RequiresFeature(ProductFeature.PAYMENTS)
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  amenityDeposit(@Body() dto:CreateAmenityDepositPaymentDto,@CurrentTenant() societyId:string,@CurrentUser() userId?:string){
+    return this.billing.createAmenityDepositPayment(societyId,this.requireUser(userId),dto.bookingId,dto.idempotencyKey);
   }
 
   @Get('payments/mine')
