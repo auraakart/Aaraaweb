@@ -10,11 +10,10 @@ The job-level `if` expression combined required-gate success with PR eligibility
 
 ## Permanent fix
 
-- Keep the job-level condition limited to:
-  - pull-request event;
-  - `Required merge gates` succeeded.
+- Remove the auto-merge job-level `if` entirely.
+- `needs: [required-merge-gates]` remains the only scheduling dependency, so GitHub starts the controller only after that required job succeeds.
 - Always start the merge controller after successful gates.
-- Evaluate develop-base, draft, repository and `mastermind/*` eligibility inside the shell step.
+- Evaluate event type, develop-base, draft, repository and `mastermind/*` eligibility inside the shell step.
 - Ineligible PRs exit successfully with an explicit reason.
 - Eligible mastermind PRs continue to require:
   - exact tested head SHA;
@@ -29,6 +28,8 @@ The job-level `if` expression combined required-gate success with PR eligibility
 ## Release-control validation fast path
 
 A second repeat-delay source was also confirmed: changing only the CI orchestration controller still woke full API, Admin, Flutter and dependency-audit runners because every `.github/**` change was conservatively treated as cross-cutting product code.
+
+The first reduced job-level condition still reproduced the skipped controller on #996. That proved the stable fix is to remove **all** auto-merge job-level applicability conditions rather than trying to find a smaller safe expression.
 
 The new fast path is deliberately narrow:
 - only `.github/workflows/ci.yml`, this orchestration guard/classifier and documentation are eligible;
