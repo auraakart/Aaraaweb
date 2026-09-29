@@ -27,6 +27,24 @@ if(!requiredGate.includes('if: ${{ !cancelled() }}')){
   console.error('Required merge gate must stop on whole-workflow cancellation while still evaluating failed/skipped upstream results.');
   process.exit(1);
 }
+const releaseControlRequired=[
+  'release_control_only: ${{ steps.detect.outputs.release_control_only }}',
+  'node scripts/classify-release-control-change.mjs "$BASE_SHA" "${{ github.sha }}"',
+  'node scripts/check-secret-patterns.mjs',
+  "needs.change-scope.outputs.release_control_only != 'true'",
+  'RELEASE_CONTROL_ONLY: ${{ needs.change-scope.outputs.release_control_only }}',
+  'Release-control-only PR: dependency graph and product surfaces are unchanged',
+];
+const releaseControlMissing=releaseControlRequired.filter(token=>!workflow.includes(token));
+if(releaseControlMissing.length){
+  console.error('Narrow release-control fast-path contract missing: '+releaseControlMissing.join(', '));
+  process.exit(1);
+}
+if(!fs.existsSync('scripts/classify-release-control-change.mjs')){
+  console.error('Narrow release-control classifier is missing.');
+  process.exit(1);
+}
+
 const autoMerge=workflow.slice(autoMergeStart);
 const autoRequired=[
   'name: Develop auto merge',
