@@ -6,7 +6,7 @@ import { api, type Session } from '../../../lib/admin-client'
 
 type TaxConfiguration={societyId?:string;gstEnabled:boolean;gstin?:string|null;tdsEnabled:boolean;tan?:string|null;defaultTdsSection?:string|null;defaultTdsBasisPoints?:number|null;updatedAt?:string}
 
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
 
