@@ -14,6 +14,14 @@ describe('FinanceOperationsService operational readiness',()=>{
     expect(result.blockers).toEqual(expect.arrayContaining([
       'RECONCILIATION_OPEN','GATEWAY_OPERATIONS_UNSETTLED','PAYABLES_OVERDUE','PROCUREMENT_ACCOUNTING_HANDOFF_PENDING',
     ]));
+    expect(result.resolutionActions).toEqual(expect.arrayContaining([
+      expect.objectContaining({code:'RECONCILIATION_OPEN',href:'/finance/reconciliation'}),
+      expect.objectContaining({code:'GATEWAY_OPERATIONS_UNSETTLED',href:'/finance/reconciliation'}),
+      expect.objectContaining({code:'PAYABLES_OVERDUE',href:'/finance/operations'}),
+      expect.objectContaining({code:'PROCUREMENT_ACCOUNTING_HANDOFF_PENDING',href:'/finance/procurement'}),
+      expect.objectContaining({code:'VENDOR_CONTRACTS_EXPIRING',href:'/society-vendors/contracts'}),
+      expect.objectContaining({code:'DRAFT_BUDGETS',href:'/finance/operations'}),
+    ]));
     expect(result.automaticDebitAvailable).toBe(false);
     expect(result.providerExecution).toBe('ADAPTER_CONTROLLED');
     expect(result.boundary).toContain('does not certify provider settlement');
