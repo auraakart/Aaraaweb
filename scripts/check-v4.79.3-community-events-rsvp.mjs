@@ -24,4 +24,7 @@ if(service.includes('SELECT u."name"')||service.includes('SELECT u."phone"')){
 if(service.includes('GOVERNANCE_MANAGE')||controller.includes('GOVERNANCE_MANAGE')){
   throw new Error('Community event operations must not be coupled to statutory governance permission semantics.');
 }
+if(service.includes('Date.now()')){
+  throw new Error('Community event lifecycle timing must use the database clock.');
+}
 console.log('V4.79.3 community events + RSVP contract OK');
