@@ -157,7 +157,7 @@ export default function GovernancePage(){
       context={`${s.societyName??'Current society'} · ${human(s.role)}`}
       title="Governance workspace"
       description="Manage committee tenure, meetings, agenda, minutes, resolutions and action evidence without hard-coding statutory thresholds."
-      actions={<><a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>{canManage&&<><a href="/governance/polls">Community polls</a><a href="/governance/readiness">Readiness & closure evidence →</a></>}</>}
+      actions={<><a href={s.role==='AUDITOR'?'/audit':'/'}>← Back</a>{canManage&&<><a href="/community-events">Community events</a><a href="/governance/polls">Community polls</a><a href="/governance/readiness">Readiness & closure evidence →</a></>}</>}
     />
     {error&&<ErrorState title="Governance operation failed" description={error}/>}
     <ActionBar feedback={success} label="Governance workspace actions"><SecondaryButton loading={loading} disabled={busy} onClick={()=>void load()}>Refresh workspace</SecondaryButton></ActionBar>
