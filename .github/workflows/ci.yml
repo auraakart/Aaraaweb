@@ -221,6 +221,8 @@ jobs:
         run: node scripts/check-v4.77-amenity-no-show-policy.mjs
       - name: Check V4.77.1 amenity attendance test-contract resilience
         run: node scripts/check-v4.77.1-amenity-test-contract-resilience.mjs
+      - name: Check V4.78 amenity architecture hardening
+        run: node scripts/check-v4.78-amenity-architecture-hardening.mjs
       - name: Check required merge-gate orchestration
         run: node scripts/check-required-merge-gates.mjs
       - name: Check lightweight pilot and evidence contracts

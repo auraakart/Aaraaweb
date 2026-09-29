@@ -1276,8 +1276,11 @@ export class AmenitiesService {
     ){
       return {restricted:false,noShowCount:0,restrictedUntil:null as Date|null};
     }
-    const rows=await tx.$queryRaw<Array<{noShowCount:number;latestNoShowAt:Date|null}>>`
-      SELECT COUNT(*)::int AS "noShowCount",MAX("noShowAt") AS "latestNoShowAt"
+    const rows=await tx.$queryRaw<Array<{noShowCount:number;restrictedUntil:Date|null;evaluatedAt:Date|null}>>`
+      SELECT
+        COUNT(*)::int AS "noShowCount",
+        MAX("noShowAt")+(${rules.noShowBlockDays} * INTERVAL '1 day') AS "restrictedUntil",
+        CURRENT_TIMESTAMP AS "evaluatedAt"
       FROM "AmenityBooking"
       WHERE "societyId"=${societyId}::uuid
         AND "amenityId"=${amenityId}::uuid
@@ -1287,10 +1290,13 @@ export class AmenitiesService {
         AND "noShowAt">=CURRENT_TIMESTAMP-(${rules.noShowLookbackDays} * INTERVAL '1 day')
     `;
     const noShowCount=Number(rows[0]?.noShowCount??0);
-    const latest=rows[0]?.latestNoShowAt??null;
-    const restrictedUntil=latest?new Date(latest.getTime()+rules.noShowBlockDays*24*60*60*1000):null;
+    const restrictedUntil=rows[0]?.restrictedUntil??null;
+    const evaluatedAt=rows[0]?.evaluatedAt??null;
     return {
-      restricted:noShowCount>=rules.noShowRestrictionCount&&restrictedUntil!==null&&restrictedUntil.getTime()>Date.now(),
+      restricted:noShowCount>=rules.noShowRestrictionCount
+        && restrictedUntil!==null
+        && evaluatedAt!==null
+        && restrictedUntil.getTime()>evaluatedAt.getTime(),
       noShowCount,
       restrictedUntil,
     };

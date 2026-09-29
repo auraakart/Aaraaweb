@@ -112,8 +112,9 @@ describe('AccessService', () => {
     });
     const findUniqueOrThrow = vi.fn(async () => stored);
     const { svc, prisma } = setup({ accessRequest: { create, findMany, findFirst: vi.fn().mockResolvedValue(null), findUniqueOrThrow, updateMany } });
-    const validFrom = new Date('2026-09-27T18:00:00.000Z');
-    const validUntil = new Date('2026-09-28T22:00:00.000Z');
+    const now = Date.now();
+    const validFrom = new Date(now - 60_000);
+    const validUntil = new Date(now + 60 * 60_000);
     const first = await svc.inviteVisitor('society-1','user-1','unit-1','Rahul',validFrom,validUntil,'stable-key','9999999999','Dinner');
     const replayed = await svc.inviteVisitor('society-1','user-1','unit-1','Rahul',validFrom,validUntil,'stable-key','9999999999','Dinner');
     expect(replayed.request.id).toBe(first.request.id);

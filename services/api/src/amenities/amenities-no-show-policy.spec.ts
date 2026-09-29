@@ -17,9 +17,8 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('blocks a new booking while the resident-specific pause is active',async()=>{
+  it('blocks a new booking using the database evaluation time',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
-    const latest=new Date();
     const txQueryRaw=vi.fn()
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
@@ -27,7 +26,11 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
         bookingRules:{noShowRestrictionCount:2,noShowLookbackDays:30,noShowBlockDays:7},
         feePaise:0,currency:'INR',requiresApproval:false,slotMinutes:60,maxConcurrentBookings:1,active:true,
       }])
-      .mockResolvedValueOnce([{noShowCount:2,latestNoShowAt:latest}]);
+      .mockResolvedValueOnce([{
+        noShowCount:2,
+        restrictedUntil:new Date('2001-01-08T00:00:00.000Z'),
+        evaluatedAt:new Date('2001-01-02T00:00:00.000Z'),
+      }]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
     const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
     await expect(service.createBooking(society,user,amenity,{
@@ -44,7 +47,11 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
         bookingRules:{noShowRestrictionCount:2,noShowLookbackDays:30,noShowBlockDays:7},
         feePaise:0,currency:'INR',requiresApproval:false,slotMinutes:60,maxConcurrentBookings:1,active:true,
       }])
-      .mockResolvedValueOnce([{noShowCount:2,latestNoShowAt:new Date()}]);
+      .mockResolvedValueOnce([{
+        noShowCount:2,
+        restrictedUntil:new Date('2030-01-08T00:00:00.000Z'),
+        evaluatedAt:new Date('2030-01-02T00:00:00.000Z'),
+      }]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
     const service=new AmenitiesService({$queryRaw:queryRaw,$transaction:transaction} as never);
     await expect(service.joinWaitlist(society,user,amenity,{
@@ -52,9 +59,8 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
     })).rejects.toThrow('paused until');
   });
 
-  it('allows booking after the configured pause has expired',async()=>{
+  it('allows booking after the configured database pause has expired',async()=>{
     const queryRaw=vi.fn().mockResolvedValueOnce([{allowed:true}]);
-    const old=new Date(Date.now()-10*24*60*60*1000);
     const booking={id:'booking-1',status:'CONFIRMED'};
     const txQueryRaw=vi.fn()
       .mockResolvedValueOnce([])
@@ -63,7 +69,11 @@ describe('V4.77 amenity no-show fair-use policy',()=>{
         bookingRules:{noShowRestrictionCount:2,noShowLookbackDays:30,noShowBlockDays:7},
         feePaise:0,currency:'INR',requiresApproval:false,slotMinutes:60,maxConcurrentBookings:2,active:true,
       }])
-      .mockResolvedValueOnce([{noShowCount:2,latestNoShowAt:old}])
+      .mockResolvedValueOnce([{
+        noShowCount:2,
+        restrictedUntil:new Date('2030-01-02T00:00:00.000Z'),
+        evaluatedAt:new Date('2030-01-10T00:00:00.000Z'),
+      }])
       .mockResolvedValueOnce([{count:0}])
       .mockResolvedValueOnce([booking]);
     const transaction=vi.fn(async(cb:(tx:{ $queryRaw:typeof txQueryRaw})=>Promise<unknown>)=>cb({$queryRaw:txQueryRaw}));
