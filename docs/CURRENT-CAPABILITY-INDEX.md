@@ -101,6 +101,8 @@ V4.79.4 deepens provider-neutral integration readiness with versioned operation-
 
 V4.79.5 replaces browser-derived onboarding heuristics with a tenant-scoped server readiness plan at `/onboarding/readiness`. The plan aggregates existing property, canonical migration, operational-role, entitlement, integration-selection, amenity, accounting-period and governance evidence; returns per-step blockers and next actions; treats disabled optional modules as non-blocking; and keeps provider/device/policy/hosted acceptance outside repository readiness. The Admin onboarding surface now renders this authoritative plan instead of reconstructing state from multiple APIs. No duplicate configuration store or productionization claim is introduced.
 
+V4.79.5.1 hardens validation orchestration after V4.79.5 exposed two avoidable delay sources. The fast Repository Structure gate now executes the legacy V4.27 onboarding readiness regression so server-authority convergence drift is detected before full Admin validation. Backup Restore scope classification no longer calls the GitHub PR-files API; it derives changed paths from the checked-out PR base/head git diff, eliminating transient 5xx metadata failures. The release-control fast path permits only the Backup Restore scope job to differ while byte-comparing the actual drill/controller jobs, so backup quality and staging controls remain unchanged.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
