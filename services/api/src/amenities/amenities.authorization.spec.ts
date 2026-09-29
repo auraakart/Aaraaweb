@@ -13,6 +13,12 @@ describe('AmenitiesController reliability authorization', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, AmenitiesController.prototype.revoke)).toEqual([
       AppPermission.AMENITY_MANAGE,
     ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, AmenitiesController.prototype.previewOperatingHours)).toEqual([
+      AppPermission.AMENITY_MANAGE,
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, AmenitiesController.prototype.applyOperatingHours)).toEqual([
+      AppPermission.AMENITY_MANAGE,
+    ]);
     expect(Reflect.getMetadata(REQUIRED_FEATURE_KEY, AmenitiesController)).toBe(ProductFeature.AMENITIES);
   });
 });

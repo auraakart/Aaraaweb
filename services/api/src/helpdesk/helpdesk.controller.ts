@@ -38,6 +38,10 @@ class AddInternalNoteDto {
   @IsString() @MinLength(1) @MaxLength(1000) message!: string;
 }
 
+class LinkHelpdeskAssetDto {
+  @IsOptional() @IsUUID() assetId?: string | null;
+}
+
 class AssignHelpdeskTicketDto {
   @IsOptional() @IsUUID() assignedToId?: string | null;
 }
@@ -112,6 +116,18 @@ export class HelpdeskController {
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   queue(@CurrentTenant() societyId: string) {
     return this.helpdesk.listReview(societyId);
+  }
+
+  @Get('review/assets')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  reviewAssets(@CurrentTenant() societyId:string) {
+    return this.helpdesk.reviewAssets(societyId);
+  }
+
+  @Patch('review/:ticketId/asset')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  linkAsset(@Param('ticketId',ParseUUIDPipe) ticketId:string,@Body() dto:LinkHelpdeskAssetDto,@CurrentTenant() societyId:string,@CurrentUser() userId?:string) {
+    return this.helpdesk.linkAsset(societyId,this.requireUser(userId),ticketId,dto.assetId??null);
   }
 
   @Get('review/:ticketId/triage-intelligence')

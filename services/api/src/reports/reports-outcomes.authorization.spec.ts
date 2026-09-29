@@ -9,6 +9,13 @@ describe('V4.8 outcome analytics authorization',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,ReportsAnalyticsController.prototype.outcomes)).toEqual([AppPermission.REPORTS_READ]);
   });
 
+  it('requires platform consumer-booking and payment visibility for portfolio outcomes',()=>{
+    expect(Reflect.getMetadata(PERMISSIONS_KEY,ReportsPlatformAnalyticsController.prototype.portfolioCommandCentre)).toEqual([
+      AppPermission.PLATFORM_CONSUMER_BOOKING_READ,
+      AppPermission.PLATFORM_CONSUMER_PAYMENT_READ,
+    ]);
+  });
+
   it('requires platform consumer-booking visibility for independent-home outcomes',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,ReportsPlatformAnalyticsController.prototype.outcomes)).toEqual([AppPermission.PLATFORM_CONSUMER_BOOKING_READ]);
   });

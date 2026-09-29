@@ -23,7 +23,7 @@ const periodEnd='2026-09-30T23:59:59.000Z'
 
 const fixtures={
   helpdeskTicket:{
-    id:'ticket-1',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',
+    id:'ticket-1',title:'Lift maintenance follow-up',description:'Resident reported intermittent lift stoppage.',assetId:'asset-1',assetCode:'LIFT-B',assetName:'Tower B Lift',
     category:'MAINTENANCE',priority:'HIGH',status:'IN_PROGRESS',unitNumber:'B-402',buildingName:'Tower B',
     createdByName:'Resident Demo',assignedToId:'reviewer-1',assignedToName:'Facility Reviewer',
     slaState:'ON_TRACK',computedSlaState:'ON_TRACK',firstResponseDueAt:later,resolutionDueAt:later,
@@ -69,6 +69,7 @@ window.fetch=async(input,init={})=>{
 
   if(path==='/helpdesk/sla/queue') return json([fixtures.helpdeskTicket])
   if(path==='/helpdesk/review/context') return json([{id:'reviewer-1',name:'Facility Reviewer',phone:'+91 90000 00010'}])
+  if(path==='/helpdesk/review/assets') return json([fixtures.facilityAsset])
   if(path==='/helpdesk/review/ticket-1/activities') return json([{id:'ha-1',type:'STATUS_UPDATED',message:'Work in progress',actorName:'Facility Reviewer',occurredAt:now}])
   if(path==='/helpdesk/sla/ticket-1/history') return json([{id:'hs-1',eventType:'POLICY_APPLIED',toState:'ON_TRACK',actorName:'System',createdAt:now}])
   if(path==='/helpdesk/sla/ticket-1/readiness') return json({
@@ -78,10 +79,17 @@ window.fetch=async(input,init={})=>{
     policy:{firstResponseMinutes:60,resolutionMinutes:480,escalationAfterMinutes:240,automaticEscalationEnabled:true,escalationTargetUserId:'reviewer-1',escalationTargetName:'Facility Reviewer'},
     boundary:'Readiness is descriptive; server authorization remains authoritative.',
   })
+  if(path==='/facilities/helpdesk-handoffs/ticket-1/preview') return json({
+    ticket:{id:'ticket-1',title:'Lift maintenance follow-up',status:'IN_PROGRESS',priority:'HIGH'},
+    asset:{id:'asset-1',code:'LIFT-B',name:'Tower B Lift'},activeWorkOrder:null,
+    suggested:{workType:'CORRECTIVE',priority:'HIGH',title:'Lift maintenance follow-up'},
+    blockers:[],confirmationRequired:true,mutationPerformed:false,
+    boundary:'Fixture preview only; creation requires explicit Facilities authority.',
+  })
   if(path==='/helpdesk/review/ticket-1/triage-intelligence') return json({
-    ticketId:'ticket-1',property:'Tower B · B-402',currentCategory:'MAINTENANCE',suggestedCategory:'MAINTENANCE',
+    ticketId:'ticket-1',property:'Tower B · B-402',asset:{id:'asset-1',code:'LIFT-B',name:'Tower B Lift'},currentCategory:'MAINTENANCE',suggestedCategory:'MAINTENANCE',
     classificationSignals:['EXISTING_CATEGORY_RETAINED'],
-    recurring:{sameUnitSimilarLast90Days:1,latestSimilarAt:'2026-09-15T02:30:00.000Z',recurring:true},
+    recurring:{scope:'SAME_ASSET',similarLast90Days:1,sameUnitSimilarLast90Days:0,sameAssetSimilarLast90Days:1,latestSimilarAt:'2026-09-15T02:30:00.000Z',recurring:true},
     assignment:{
       currentAssigneeId:'reviewer-1',
       recommendedAssignee:null,

@@ -1,0 +1,20 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const requireTokens=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(`${label} missing: ${missing.join(', ')}`);process.exit(1);}};
+const forbid=(label,source,tokens)=>{const present=tokens.filter(t=>source.includes(t));if(present.length){console.error(`${label} prohibited: ${present.join(', ')}`);process.exit(1);}};
+
+const legacy=read('services/api/prisma/migrations/20260914200000_v2_amenity_blackouts/migration.sql');
+requireTokens('Legacy blackout authority',legacy,['schedule.blackouts','AmenityBooking_blackout_guard','blackout conflicts with an existing future booking']);
+const migration=read('services/api/prisma/migrations/20260928210000_v474_amenity_blackout_waitlist_convergence/migration.sql');
+requireTokens('Waitlist DB convergence',migration,['AmenityWaitlist_blackout_guard','Amenity_blackout_waitlist_policy_guard','existing future waitlist entry']);
+const service=read('services/api/src/amenities/amenities.service.ts');
+requireTokens('Blackout controlled workflow',service,['previewBlackout','applyBlackout','blackoutAssessment','mutationPerformed:false','automaticCancellation:false','assertScheduleWindowOpen','findScheduleBlackout']);
+requireTokens('Promotion safety',service,['if(this.findScheduleBlackout(amenity.schedule,startsAt,endsAt)) return null;']);
+const admin=read('apps/admin/app/amenities/page.tsx');
+requireTokens('Admin blackout workflow',admin,['blackouts/preview','Preview-first control','Nothing was changed.','No existing reservation will be changed automatically.']);
+const resident=read('apps/resident/lib/screens/amenities_screen.dart');
+requireTokens('Resident blackout visibility',resident,['_nextAmenityBlackout','Upcoming ${','construction_outlined']);
+const program=read('docs/AARAAGATE-V4.74-AMENITY-BLACKOUT-CONVERGENCE.md');
+requireTokens('V4.74 program',program,['Existing V2 authority retained','Preview → confirm → apply','Waitlist parity','Productionization remains explicitly excluded']);
+forbid('V4.74 program',program,['V4.74 adds a second blackout source of truth','parallel blackout table is authoritative','automatic cancellation enabled','production readiness increased']);
+console.log('V4.74 amenity blackout convergence contracts are intact.');
