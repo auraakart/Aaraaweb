@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { integrationContractMetadata, IntegrationContractMetadata } from './integration-provider.contract';
+import { integrationContractMetadata, integrationOperationContracts, IntegrationContractMetadata, IntegrationOperationContract } from './integration-provider.contract';
 import { IntegrationConfigurationService } from './integration-configuration.service';
 
 export type IntegrationFamily =
@@ -23,6 +23,7 @@ export type IntegrationCapabilityView = IntegrationContractMetadata & {
   configured: boolean;
   health: IntegrationHealth;
   capabilities: readonly string[];
+  operations: readonly IntegrationOperationContract[];
   boundary: string;
 };
 
@@ -44,16 +45,30 @@ export class IntegrationRegistryService {
       this.objectStorage(),
       this.smartMeter(),
       this.accountingConnector(),
-    ].map((item) => ({ ...item, ...integrationContractMetadata(item.family) }));
+    ].map((item) => ({ ...item, ...integrationContractMetadata(item.family), operations:integrationOperationContracts(item.family) }));
   }
 
   async conformance(societyId:string){
     const selections=await this.configuration?.list(societyId)??[];
     return this.list(societyId).map(item=>{
       const simulatorOrReference=item.provider==='simulator'||item.provider==='reference-adapters'||item.provider==='utility-integration-v2';
-      const checks={versionedContract:Boolean(item.contractVersion),explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),explicitDegradationMode:Boolean(item.degradationMode),domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),simulatorOrConfiguredEvidence:simulatorOrReference||item.configured};
+      const operationIds=item.operations.map(operation=>operation.operationId);
+      const checks={
+        versionedContract:Boolean(item.contractVersion),
+        explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),
+        explicitDegradationMode:Boolean(item.degradationMode),
+        domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),
+        simulatorOrConfiguredEvidence:simulatorOrReference||item.configured,
+        operationContractsPresent:item.operations.length>0,
+        operationContractsUnique:new Set(operationIds).size===operationIds.length,
+        boundedOperationTimeouts:item.operations.every(operation=>operation.timeoutMs>=1000&&operation.timeoutMs<=120000),
+        providerNeverAuthoritative:item.operations.every(operation=>operation.providerAuthority==='NONE'||operation.providerAuthority==='QUARANTINED_INPUT'),
+        mutationIdempotencyExplicit:item.operations
+          .filter(operation=>operation.direction!=='PROVIDER_TO_AARAAGATE'||operation.reconciliationRequired)
+          .every(operation=>operation.idempotency!=='NOT_APPLICABLE'||operation.operationId==='HEALTH_CHECK'||operation.operationId==='CREATE_SIGNED_DOWNLOAD'),
+      };
       const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key);
-      const fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
+      const fieldEvidenceRequired=item.operations.some(operation=>operation.fieldEvidenceRequired);
       const selectionRequired=SOCIETY_SELECTABLE_FAMILIES.includes(item.family);
       const selection=selectionRequired?selections.find(row=>row.family===item.family):undefined;
       const societySelectionReady=!selectionRequired||Boolean(selection?.enabled&&selection.providerKey===item.provider);
