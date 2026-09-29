@@ -662,10 +662,6 @@ jobs:
     needs: [required-merge-gates]
     if: >
       github.event_name == 'pull_request' &&
-      github.event.pull_request.base.ref == 'develop' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'mastermind/') &&
-      github.event.pull_request.draft == false &&
       needs.required-merge-gates.result == 'success'
     permissions:
       contents: write
@@ -694,19 +690,43 @@ jobs:
           current_ref="$(printf '%s' "$current" | jq -r '.head.ref')"
           current_develop_sha="$(printf '%s' "$develop" | jq -r '.commit.sha')"
 
-          test "$current_sha" = "$EXPECTED_HEAD_SHA"
-          test "$current_base" = "develop"
-          test "$current_state" = "open"
-          test "$current_draft" = "false"
-          test "$current_repo" = "$REPOSITORY"
-          test "$current_develop_sha" = "$EXPECTED_BASE_SHA"
+          if [ "$current_state" != "open" ]; then
+            current_merged="$(printf '%s' "$current" | jq -r '.merged // false')"
+            if [ "$current_merged" = "true" ] && [ "$current_sha" = "$EXPECTED_HEAD_SHA" ]; then
+              echo "PR #$PR_NUMBER is already merged at the exact tested head $EXPECTED_HEAD_SHA."
+              exit 0
+            fi
+            echo "Develop auto-merge not applicable: PR state is $current_state."
+            exit 0
+          fi
 
+          if [ "$current_base" != "develop" ]; then
+            echo "Develop auto-merge not applicable: base is $current_base."
+            exit 0
+          fi
+          if [ "$current_draft" != "false" ]; then
+            echo "Develop auto-merge not applicable: PR is draft."
+            exit 0
+          fi
+          if [ "$current_repo" != "$REPOSITORY" ]; then
+            echo "Develop auto-merge not applicable: head repository is $current_repo."
+            exit 0
+          fi
           case "$current_ref" in
             mastermind/*) ;;
-            *) echo "Head branch is outside mastermind/*"; exit 1 ;;
+            *) echo "Develop auto-merge not applicable: head branch $current_ref is outside mastermind/*."; exit 0 ;;
           esac
 
-          gh api             --method PUT             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"             -f merge_method=squash             -f sha="$EXPECTED_HEAD_SHA"
+          test "$current_sha" = "$EXPECTED_HEAD_SHA"
+          test "$current_develop_sha" = "$EXPECTED_BASE_SHA"
+
+          response="$(gh api             --method PUT             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"             -f merge_method=squash             -f sha="$EXPECTED_HEAD_SHA")"
+          merged="$(printf '%s' "$response" | jq -r '.merged // false')"
+          message="$(printf '%s' "$response" | jq -r '.message // ""')"
+          if [ "$merged" != "true" ]; then
+            echo "Exact-head develop merge was not completed: $message" >&2
+            exit 1
+          fi
 
           echo "Merged PR #$PR_NUMBER to develop at exact tested head $EXPECTED_HEAD_SHA."
 
