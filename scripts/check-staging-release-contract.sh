@@ -2,8 +2,13 @@
 set -euo pipefail
 
 WORKFLOW=".github/workflows/staging-smoke.yml"
+BACKUP_WORKFLOW=".github/workflows/backup-restore-smoke.yml"
+AUTOMERGE_SCRIPT="scripts/try-staging-auto-merge.sh"
 
 test -f "$WORKFLOW"
+test -f "$BACKUP_WORKFLOW"
+test -f "$AUTOMERGE_SCRIPT"
+bash -n "$AUTOMERGE_SCRIPT"
 
 required_literals=(
   'CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}'
@@ -52,6 +57,7 @@ fi
 
 test -f scripts/check-staging-release-history.mjs
 node scripts/check-staging-release-history.mjs --self-test
+printf '%s\n' 'Release V4.78 exact develop tree to staging (#969)' | node scripts/check-staging-release-history.mjs
 
 if ! grep -Fq "node scripts/check-staging-release-history.mjs" "$WORKFLOW"; then
   echo "Staging release contract must delegate release-history classification to the version-tolerant validator." >&2
@@ -59,3 +65,80 @@ if ! grep -Fq "node scripts/check-staging-release-history.mjs" "$WORKFLOW"; then
 fi
 
 echo "Staging release contract validated."
+
+for workflow in "$WORKFLOW" "$BACKUP_WORKFLOW"; do
+  for literal in     "actions: read"     "contents: write"     "pull-requests: write"     "Auto-merge exact staging candidate after companion gate"     "bash scripts/try-staging-auto-merge.sh"; do
+    if ! grep -Fq "$literal" "$workflow"; then
+      echo "Staging auto-merge contract is missing from $workflow: $literal" >&2
+      exit 1
+    fi
+  done
+done
+
+for literal in \
+  'if [ "$BASE_REF" = "staging" ]; then' \
+  "needs.change-scope.outputs.run_backup == 'true'" \
+  'ref: ${{ github.event.pull_request.head.sha || github.sha }}' \
+  'echo "commit=${CANDIDATE_SHA}"'; do
+  if ! grep -Fq "$literal" "$BACKUP_WORKFLOW"; then
+    echo "Backup restore staging scope is missing: $literal" >&2
+    exit 1
+  fi
+done
+if grep -Fq "paths:" "$BACKUP_WORKFLOW"; then
+  echo "Backup restore trigger must not path-filter away staging pull requests; non-staging scope belongs in the scope job." >&2
+  exit 1
+fi
+for literal in   'current_base" = "staging"'   'candidate_tree" = "$develop_tree"'   'staging_sha" = "$EXPECTED_BASE_SHA"'   'COMPANION_WORKFLOW'   'head_sha=$EXPECTED_HEAD_SHA&event=pull_request'   'merge_base_commit.sha'   'merge_method=merge'   'sha="$EXPECTED_HEAD_SHA"'   'commit_title="Release: promote exact develop tree to staging (#$PR_NUMBER)"'; do
+  if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
+    echo "Staging auto-merge script is missing: $literal" >&2
+    exit 1
+  fi
+done
+if grep -Fq '/branches/main' "$AUTOMERGE_SCRIPT"; then
+  echo "Staging auto-merge must never mutate or promote main." >&2
+  exit 1
+fi
+
+echo "Staging auto-merge contract validated."
+
+for literal in \
+  'staging-auto-merge:' \
+  'needs: staging-smoke' \
+  'needs.staging-smoke.result == '\''success'\''' \
+  'COMPANION_JOB: PostgreSQL backup restore drill'; do
+  if ! grep -Fq "$literal" "$WORKFLOW"; then
+    echo "Staging protected-check orchestration is missing from $WORKFLOW: $literal" >&2
+    exit 1
+  fi
+done
+
+for literal in \
+  'staging-auto-merge:' \
+  'needs: backup-restore' \
+  'needs.backup-restore.result == '\''success'\''' \
+  'COMPANION_JOB: Staging API smoke'; do
+  if ! grep -Fq "$literal" "$BACKUP_WORKFLOW"; then
+    echo "Staging protected-check orchestration is missing from $BACKUP_WORKFLOW: $literal" >&2
+    exit 1
+  fi
+done
+
+for literal in \
+  'COMPANION_JOB' \
+  '/actions/runs/$companion_run_id/jobs?per_page=100' \
+  'Companion job' \
+  'already merged at the exact tested head by the companion release controller'; do
+  if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
+    echo "Staging race-safe controller is missing: $literal" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'staging' && success()" "$WORKFLOW" \
+  || grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'staging' && success()" "$BACKUP_WORKFLOW"; then
+  echo "Staging auto-merge must run only in downstream jobs after protected checks complete." >&2
+  exit 1
+fi
+
+echo "Staging protected-check orchestration contract validated."

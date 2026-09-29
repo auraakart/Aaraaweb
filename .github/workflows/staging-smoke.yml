@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
+  pull-requests: write
 
 env:
   CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -269,3 +271,29 @@ jobs:
           path: staging-evidence/
           if-no-files-found: error
           retention-days: 7
+
+
+  staging-auto-merge:
+    name: Staging auto merge after API smoke
+    needs: staging-smoke
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.base_ref == 'staging' &&
+      needs.staging-smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate for release controller
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Auto-merge exact staging candidate after companion gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COMPANION_WORKFLOW: Backup restore smoke
+          COMPANION_JOB: PostgreSQL backup restore drill
+        run: bash scripts/try-staging-auto-merge.sh
