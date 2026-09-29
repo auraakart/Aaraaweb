@@ -198,7 +198,7 @@ export default function DocumentsPage(){
             <div style={actions}>
               <SecondaryButton disabled={busy} onClick={()=>void openHistory(d.id)}>History</SecondaryButton>
               <SecondaryButton onClick={()=>void download(d.id)}>Download</SecondaryButton>
-              {canManage&&d.status==='PUBLISHED'&&!d.supersededByDocumentId&&!replacementPending&&<SecondaryButton disabled={busy} onClick={()=>{setReplacementDocumentId(d.id);setReplacementDescription(d.description??'');setReplacementKnowledgeText('')}}>Replace version</SecondaryButton>
+              {canManage&&d.status==='PUBLISHED'&&!d.supersededByDocumentId&&!replacementPending&&<SecondaryButton disabled={busy} onClick={()=>{setReplacementDocumentId(d.id);setReplacementDescription(d.description??'');setReplacementKnowledgeText('')}}>Replace version</SecondaryButton>}
               {canManage&&d.status==='DRAFT'&&<PrimaryButton disabled={busy} onClick={()=>mutate(d.id,'publish')}>Publish</PrimaryButton>}
               {canManage&&d.status!=='ARCHIVED'&&<SecondaryButton disabled={busy} onClick={()=>mutate(d.id,'archive')}>Archive</SecondaryButton>}
             </div>
