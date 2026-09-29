@@ -39,11 +39,22 @@ requireTokens('Database no-show defense',migration,[
 ]);
 
 const admin=read('apps/admin/app/amenities/page.tsx');
-requireTokens('Admin no-show policy',admin,[
+const adminPolicy=read('apps/admin/app/amenities/amenity-policy.ts');
+const adminFields=read('apps/admin/app/amenities/no-show-policy-fields.tsx');
+requireTokens('Admin no-show policy wiring',admin,[
+  'parseNoShowPolicyDraft',
+  'NoShowPolicyFields',
+]);
+requireTokens('Admin no-show policy fields',adminFields,[
   'No-show threshold',
   'No-show lookback (days)',
   'No-show booking pause (days)',
+]);
+requireTokens('Admin no-show policy validation',adminPolicy,[
   'No-show threshold, lookback days and pause days must be configured together',
+  "optionalBoundedInteger(draft.restrictionCount,'No-show threshold',1,10)",
+  "optionalBoundedInteger(draft.lookbackDays,'No-show lookback days',1,365)",
+  "optionalBoundedInteger(draft.blockDays,'No-show pause days',1,365)",
 ]);
 
 const resident=read('apps/resident/lib/screens/amenities_screen.dart');
