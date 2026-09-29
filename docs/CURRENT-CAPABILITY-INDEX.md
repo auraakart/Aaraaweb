@@ -105,6 +105,8 @@ V4.79.5.1 hardens validation orchestration after V4.79.5 exposed two avoidable d
 
 V4.79 competitive convergence closure reconciles the six planned product slices—Society Knowledge AI, Finance Document Intake, Amenity Deposit Lifecycle, Community Events + RSVP, Operation-Level Integration Contracts and Onboarding Readiness Intelligence—plus the CI/release-control hardening discovered during execution. The milestone is repository-complete on `develop` only. Permission-safe AI, financial/accounting truth separation, non-statutory governance boundaries, provider non-authority, tenant/resource isolation and server-derived onboarding evidence remain explicit invariants. No staging/main promotion or production/provider/hardware/field acceptance is implied.
 
+V4.80.2 hardens Society Knowledge retrieval relevance without changing document authority. When a query contains distinctive terms, generic English intent/glue terms no longer dominate retrieval; longer queries require multiple distinctive matches, and final ranking prioritizes matched-term coverage before the existing field weighting and recency. Returned matches expose deterministic relevance evidence while the existing published-version, audience authorization, five-result cap and no-invented-answer boundary remain intact. No external RAG/vector provider, OCR, legal interpretation or permission widening is introduced.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
