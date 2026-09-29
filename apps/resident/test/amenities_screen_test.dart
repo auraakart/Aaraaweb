@@ -51,6 +51,67 @@ class _FullAmenityApi extends _AmenitiesApi {
   }
 }
 
+class _AmenityRetryApi extends _AmenitiesApi {
+  int bookingCalls = 0;
+  final List<String> bookingKeys = <String>[];
+
+  @override
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
+    if (path.endsWith('/bookings')) {
+      bookingCalls++;
+      bookingPath = path;
+      bookingBody = body;
+      bookingKeys.add(body?['idempotencyKey']?.toString() ?? '');
+      if (bookingCalls == 1) {
+        throw ApiException(503, 'Temporary gateway failure');
+      }
+      return {'id': 'booking-retry', 'status': 'CONFIRMED'};
+    }
+    return super.post(path, body);
+  }
+}
+
+class _AmenityRecoveredApi extends _AmenitiesApi {
+  int bookingReads = 0;
+  int bookingCalls = 0;
+
+  @override
+  Future<dynamic> get(String path) async {
+    if (path == '/api/v1/amenities/bookings/mine?unitId=unit-1') {
+      bookingReads++;
+      if (bookingReads > 1 && bookingBody != null) {
+        return [
+          {
+            'id': 'booking-recovered',
+            'amenityId': 'clubhouse',
+            'unitId': 'unit-1',
+            'startsAt': bookingBody!['startsAt'],
+            'endsAt': bookingBody!['endsAt'],
+            'guestCount': bookingBody!['guestCount'] ?? 0,
+            'idempotencyKey': bookingBody!['idempotencyKey'],
+            'status': 'CONFIRMED',
+            'amenityName': 'Clubhouse',
+            'feePaise': 0,
+          },
+        ];
+      }
+      return <Map<String, dynamic>>[];
+    }
+    return super.get(path);
+  }
+
+  @override
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
+    if (path.endsWith('/bookings')) {
+      bookingCalls++;
+      bookingPath = path;
+      bookingBody = body;
+      throw ApiException(503, 'Response lost after commit');
+    }
+    return super.post(path, body);
+  }
+}
+
 class _AmenityCancellationApi extends _AmenitiesApi {
   _AmenityCancellationApi({required this.raceToStatus, this.cutoffConflict = false});
 
@@ -142,6 +203,60 @@ void main() {
     expect(api.waitlistBody?['endsAt'],api.bookingBody?['endsAt']);
     expect(tester.takeException(),isNull);
   });
+  testWidgets('uncertain amenity booking retry reuses the same request identity', (tester) async {
+    final api = _AmenityRetryApi();
+    await tester.pumpWidget(
+      MaterialApp(home: AmenitiesScreen(repository: ResidentRepository(api), unitId: 'unit-1')),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> submitSameSlot() async {
+      await tester.tap(find.text('Choose date & time'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select start time'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Confirm booking'));
+      await tester.tap(find.text('Confirm booking'));
+      await tester.pumpAndSettle();
+    }
+
+    await submitSameSlot();
+    expect(api.bookingCalls, 1);
+    expect(find.text('Booking outcome could not be confirmed. Retry the same slot to continue safely.'), findsOneWidget);
+
+    await submitSameSlot();
+    expect(api.bookingCalls, 2);
+    expect(api.bookingKeys, hasLength(2));
+    expect(api.bookingKeys.first, isNotEmpty);
+    expect(api.bookingKeys.last, api.bookingKeys.first);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uncertain amenity booking accepts success only after authoritative retry-key recovery', (tester) async {
+    final api = _AmenityRecoveredApi();
+    await tester.pumpWidget(
+      MaterialApp(home: AmenitiesScreen(repository: ResidentRepository(api), unitId: 'unit-1')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Choose date & time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select start time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Confirm booking'));
+    await tester.tap(find.text('Confirm booking'));
+    await tester.pumpAndSettle();
+
+    expect(api.bookingCalls, 1);
+    expect(api.bookingReads, greaterThanOrEqualTo(2));
+    expect(find.text('Amenity booking confirmed after reconnect.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('failed amenity cancellation reloads authoritative booking state before messaging', (tester) async {
     final api = _AmenityCancellationApi(raceToStatus: 'CANCELLED');
     await tester.pumpWidget(

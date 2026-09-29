@@ -24,6 +24,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   List<Map<String, dynamic>> _amenities = const [];
   List<Map<String, dynamic>> _bookings = const [];
   List<Map<String, dynamic>> _waitlist = const [];
+  final Map<String, String> _bookingAttemptKeys = <String, String>{};
 
   @override
   void initState() {
@@ -76,6 +77,18 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       return;
     }
 
+    final bookingIntent = [
+      amenity['id'].toString(),
+      widget.unitId,
+      startsAt.toUtc().toIso8601String(),
+      endsAt.toUtc().toIso8601String(),
+      selection.guestCount.toString(),
+    ].join('|');
+    final attemptKey = _bookingAttemptKeys.putIfAbsent(
+      bookingIntent,
+      () => 'resident-amenity-${DateTime.now().microsecondsSinceEpoch}',
+    );
+
     setState(() => _submitting = true);
     try {
       final created = await widget.repository.createAmenityBooking(
@@ -84,7 +97,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         startsAt: startsAt,
         endsAt: endsAt,
         guestCount: selection.guestCount,
+        idempotencyKey: attemptKey,
       );
+      _bookingAttemptKeys.remove(bookingIntent);
       if (!mounted) return;
       _showMessage(created['status']?.toString() == 'PENDING'
           ? 'Booking request sent for approval.'
@@ -93,6 +108,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     } catch (error) {
       if (!mounted) return;
       if (_isCapacityConflict(error)) {
+        _bookingAttemptKeys.remove(bookingIntent);
         final join = await _confirmWaitlist(amenity, startsAt, selection.guestCount);
         if (join == true && mounted) {
           try {
@@ -111,8 +127,40 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             if (mounted) _showMessage(_friendlyError(waitlistError));
           }
         }
-      } else {
+      } else if (error is ApiException && error.statusCode >= 400 && error.statusCode < 500) {
+        _bookingAttemptKeys.remove(bookingIntent);
         _showMessage(_friendlyError(error));
+      } else {
+        List<Map<String,dynamic>>? refreshed;
+        try {
+          refreshed = await widget.repository.amenityBookings(widget.unitId);
+        } catch (_) {
+          refreshed = null;
+        }
+        if (!mounted) return;
+        Map<String,dynamic>? recovered;
+        if (refreshed != null) {
+          for (final booking in refreshed) {
+            if (booking['idempotencyKey']?.toString() == attemptKey &&
+                booking['amenityId']?.toString() == amenity['id']?.toString() &&
+                booking['unitId']?.toString() == widget.unitId &&
+                booking['startsAt']?.toString() == startsAt.toUtc().toIso8601String() &&
+                booking['endsAt']?.toString() == endsAt.toUtc().toIso8601String() &&
+                _asInt(booking['guestCount'], fallback: 0) == selection.guestCount) {
+              recovered = booking;
+              break;
+            }
+          }
+        }
+        if (recovered != null) {
+          _bookingAttemptKeys.remove(bookingIntent);
+          setState(() => _bookings = refreshed!);
+          _showMessage(recovered['status']?.toString() == 'PENDING'
+              ? 'Booking request confirmed after reconnect.'
+              : 'Amenity booking confirmed after reconnect.');
+        } else {
+          _showMessage('Booking outcome could not be confirmed. Retry the same slot to continue safely.');
+        }
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
