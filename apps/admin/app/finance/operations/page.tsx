@@ -15,7 +15,7 @@ type ExpenseIntakeCandidate={id:string;expenseNumber:string;vendorName:string;in
 type ExpenseIntakeAssessment={status:'CLEAR'|'DUPLICATE_EXACT'|'REVIEW_REFERENCE_CONFLICT'|'REVIEW_SIMILAR';candidates:ExpenseIntakeCandidate[];mutationPerformed:false;automaticPosting:false;boundary:string}
 type FinanceDocumentIntakePreview={extracted:{vendorName:string|null;invoiceReference:string|null;expenseDate:string|null;amountPaise:number|null;gstin:string|null};quality:'COMPLETE'|'PARTIAL'|'LIMITED';signals:string[];missingFields:string[];source:{sha256:string;characterCount:number;rawTextPersisted:false};duplicateAssessment:ExpenseIntakeAssessment|null;mutationPerformed:false;automaticPosting:false;humanReviewRequired:true;boundary:string}
 
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 const money=(v:string|number|undefined)=>`₹${(Number(v??0)/100).toLocaleString('en-IN',{maximumFractionDigits:2})}`
 const today=()=>new Date().toISOString().slice(0,10)
