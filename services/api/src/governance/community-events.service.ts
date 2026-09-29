@@ -113,8 +113,8 @@ export class CommunityEventsService{
 
   async setStatus(societyId:string,eventId:string,next:'PUBLISHED'|'CANCELLED'){
     return this.prisma.$transaction(async tx=>{
-      const rows=await tx.$queryRaw<Array<{id:string;status:CommunityEventLifecycle;endsAt:Date}>>(Prisma.sql`
-        SELECT "id","status","endsAt"
+      const rows=await tx.$queryRaw<Array<{id:string;status:CommunityEventLifecycle;publishable:boolean}>>(Prisma.sql`
+        SELECT "id","status",("endsAt">CURRENT_TIMESTAMP) AS "publishable"
         FROM "CommunityEvent"
         WHERE "id"=${eventId}::uuid AND "societyId"=${societyId}::uuid
         FOR UPDATE
@@ -123,7 +123,7 @@ export class CommunityEventsService{
       if(!current)throw new NotFoundException('Community event not found');
       if(current.status===next)return {id:eventId,status:next,idempotent:true};
       if(current.status==='CANCELLED')throw new ConflictException('Cancelled community event cannot be republished');
-      if(next==='PUBLISHED'&&current.endsAt.getTime()<=Date.now())throw new ConflictException('Ended community event cannot be published');
+      if(next==='PUBLISHED'&&!current.publishable)throw new ConflictException('Ended community event cannot be published');
       const updated=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         UPDATE "CommunityEvent"
         SET "status"=${next},"updatedAt"=CURRENT_TIMESTAMP
