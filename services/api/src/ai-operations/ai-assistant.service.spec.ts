@@ -194,7 +194,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
     documents.searchKnowledgeForUser.mockResolvedValueOnce([]);
     const missing=await service.query('society-1','user-1',[AppRole.OWNER],'What does our pet policy document say?');
-    expect(missing.status).toBe('UNSUPPORTED');
+    expect(missing.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(missing.answer).toContain('No matching published society knowledge was found');
     expect((missing.facts as {answerBoundary:string}).answerBoundary).toContain('No matching published society document');
   });
 
