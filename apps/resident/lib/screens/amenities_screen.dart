@@ -124,7 +124,36 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             _showMessage(position > 0 ? 'Added to waitlist · position $position.' : 'Added to waitlist.');
             await _load();
           } catch (waitlistError) {
-            if (mounted) _showMessage(_friendlyError(waitlistError));
+            List<Map<String,dynamic>>? refreshedWaitlist;
+            try {
+              refreshedWaitlist = await widget.repository.amenityWaitlist(widget.unitId);
+            } catch (_) {
+              refreshedWaitlist = null;
+            }
+            if (!mounted) return;
+            Map<String,dynamic>? recoveredWaitlist;
+            if (refreshedWaitlist != null) {
+              for (final item in refreshedWaitlist) {
+                if (item['status']?.toString() == 'WAITING' &&
+                    item['amenityId']?.toString() == amenity['id']?.toString() &&
+                    item['unitId']?.toString() == widget.unitId &&
+                    _sameInstant(item['startsAt'], startsAt) &&
+                    _sameInstant(item['endsAt'], endsAt) &&
+                    _asInt(item['guestCount'], fallback: 0) == selection.guestCount) {
+                  recoveredWaitlist = item;
+                  break;
+                }
+              }
+            }
+            if (recoveredWaitlist != null) {
+              setState(() => _waitlist = refreshedWaitlist!);
+              final position = _asInt(recoveredWaitlist['position'], fallback: 0);
+              _showMessage(position > 0
+                  ? 'Waitlist join confirmed after reconnect · position $position.'
+                  : 'Waitlist join confirmed after reconnect.');
+            } else {
+              _showMessage(_friendlyError(waitlistError));
+            }
           }
         }
       } else if (error is ApiException && error.statusCode >= 400 && error.statusCode < 500) {
@@ -861,6 +890,11 @@ class _Meta extends StatelessWidget {
       ],
     );
   }
+}
+
+bool _sameInstant(dynamic value, DateTime expected) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  return parsed != null && parsed.toUtc().isAtSameMomentAs(expected.toUtc());
 }
 
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
