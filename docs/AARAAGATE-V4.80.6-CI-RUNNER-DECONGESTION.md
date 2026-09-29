@@ -34,16 +34,20 @@ Change Scope now emits separate `run_resident` and `run_guard` decisions.
 
 Amenity screen reliability is added to the Resident risk-weighted behavioural suite.
 
+## Dependency-security scope
+
+Tracked-source secret scanning now runs inside the required Repository Structure gate for every code/config PR. The expensive pnpm install/audit lane runs only when a package manifest, pnpm lockfile or workspace manifest changes. The required `Dependency security` wrapper remains unchanged and fails if the scoped audit is required but does not succeed.
+
 ## Auxiliary workflow decongestion
 
 - Full Cross-role E2E no longer starts on ordinary develop PRs. Its lightweight source contract now runs in the required Repository Structure gate, while the live E2E runs after merge on `develop` and again before `main`.
 - CodeQL no longer starts on ordinary develop PRs. It runs after relevant JavaScript/TypeScript changes land on `develop`, before `main`, and on its schedule.
-- Supply-chain SBOM/audit no longer runs for every source-only develop PR. Canonical Dependency Security still audits npm vulnerabilities and scans tracked source for secrets before merge. Full supply-chain evidence runs for dependency/security-control changes after develop merge, before main, and on schedule.
+- Supply-chain SBOM/audit no longer runs for every source-only develop PR. Canonical validation still scans tracked source for secrets before merge, while npm audit runs when the dependency graph changes. Full supply-chain evidence runs for dependency/security-control changes after develop merge, before main, and on schedule.
 - Backup Restore keeps pre-merge coverage for schema/backup-control changes but no longer allocates a scope runner to unrelated PRs.
 
 ## Regression prevention
 
-`scripts/check-required-merge-gates.mjs` now verifies the app-scoped Flutter contract, cross-role source contract, deferred auxiliary workflow triggers and Backup Restore path gate.
+`scripts/check-required-merge-gates.mjs` now verifies the app-scoped Flutter contract, dependency-audit scope, required secret scan, cross-role source contract, deferred auxiliary workflow triggers and Backup Restore path gate.
 
 ## Delivery rule
 

@@ -126,6 +126,14 @@ const appScopedRequired=[
   'node scripts/v4.34-cross-app-journey-contract.mjs',
   'Upload Resident risk coverage evidence',
   'Upload Guard risk coverage evidence',
+  'run_dependency_audit: ${{ steps.detect.outputs.run_dependency_audit }}',
+  'run_dependency_audit=false',
+  'run_dependency_audit=true',
+  'echo "run_dependency_audit=$run_dependency_audit"',
+  "needs.change-scope.outputs.run_dependency_audit == 'true'",
+  'RUN_DEPENDENCY_AUDIT: ${{ needs.change-scope.outputs.run_dependency_audit }}',
+  'Scan tracked source for high-confidence secret patterns',
+  'Dependency graph unchanged: full package audit skipped',
 ];
 const appScopedMissing=appScopedRequired.filter(token=>!workflow.includes(token));
 if(appScopedMissing.length){
