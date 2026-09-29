@@ -31,7 +31,7 @@ const releaseControlRequired=[
   'release_control_only: ${{ steps.detect.outputs.release_control_only }}',
   'node scripts/classify-release-control-change.mjs "$BASE_SHA" "${{ github.sha }}"',
   'node scripts/check-secret-patterns.mjs',
-  "needs.change-scope.outputs.release_control_only != 'true'",
+  "needs.change-scope.outputs.run_dependency_audit == 'true'",
   'RELEASE_CONTROL_ONLY: ${{ needs.change-scope.outputs.release_control_only }}',
   'Release-control-only PR: dependency graph and product surfaces are unchanged',
 ];
@@ -112,6 +112,102 @@ if(autoMerge.includes('base=main')||autoMerge.includes('base=staging')){
 }
 if(fs.existsSync('.github/workflows/develop-auto-merge.yml')){
   console.error('Standalone workflow_run auto-merge must not return; it depends on default-branch dispatch.');
+  process.exit(1);
+}
+
+const appScopedRequired=[
+  'run_resident: ${{ steps.detect.outputs.run_resident }}',
+  'run_guard: ${{ steps.detect.outputs.run_guard }}',
+  "if grep -Eq '^apps/resident/' /tmp/aaraagate-changed-files.txt",
+  "if grep -Eq '^apps/guard/' /tmp/aaraagate-changed-files.txt",
+  "if: needs.change-scope.outputs.run_resident == 'true'",
+  "if: needs.change-scope.outputs.run_guard == 'true'",
+  'test/amenities_screen_test.dart',
+  'node scripts/v4.34-cross-app-journey-contract.mjs',
+  'Upload Resident risk coverage evidence',
+  'Upload Guard risk coverage evidence',
+  'run_dependency_audit: ${{ steps.detect.outputs.run_dependency_audit }}',
+  'run_dependency_audit=false',
+  'run_dependency_audit=true',
+  'echo "run_dependency_audit=$run_dependency_audit"',
+  "needs.change-scope.outputs.run_dependency_audit == 'true'",
+  'RUN_DEPENDENCY_AUDIT: ${{ needs.change-scope.outputs.run_dependency_audit }}',
+  'Scan tracked source for high-confidence secret patterns',
+  'Dependency graph unchanged: full package audit skipped',
+];
+const appScopedMissing=appScopedRequired.filter(token=>!workflow.includes(token));
+if(appScopedMissing.length){
+  console.error('App-scoped Flutter validation contract missing: '+appScopedMissing.join(', '));
+  process.exit(1);
+}
+
+const dependencyWrapperStart=workflow.indexOf('  dependency-security:\n');
+const requiredMergeStart=workflow.indexOf('  required-merge-gates:\n');
+const dependencyWrapper=dependencyWrapperStart>=0&&requiredMergeStart>dependencyWrapperStart
+  ? workflow.slice(dependencyWrapperStart,requiredMergeStart)
+  : '';
+const dependencyWrapperOrder=[
+  'if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then',
+  'Release-control-only PR: dependency graph and product surfaces are unchanged',
+  'if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then',
+  'Dependency graph unchanged: full package audit skipped',
+  'test "$FULL_RESULT" = "success"',
+];
+let dependencyCursor=-1;
+for(const token of dependencyWrapperOrder){
+  const nextIndex=dependencyWrapper.indexOf(token,dependencyCursor+1);
+  if(nextIndex<0){
+    console.error('Dependency security wrapper control-flow token missing/out of order: '+token);
+    process.exit(1);
+  }
+  dependencyCursor=nextIndex;
+}
+const releaseClose=dependencyWrapper.indexOf('          fi',dependencyWrapper.indexOf('if [ "$RELEASE_CONTROL_ONLY" = "true" ]; then'));
+const auditStart=dependencyWrapper.indexOf('if [ "$RUN_DEPENDENCY_AUDIT" != "true" ]; then');
+if(releaseClose<0||auditStart<0||releaseClose>auditStart){
+  console.error('Dependency security wrapper must close the release-control branch before dependency-audit resolution.');
+  process.exit(1);
+}
+
+const workflowSource=(path)=>fs.readFileSync(path,'utf8');
+const eventBranches=(source,event)=>{
+  const match=source.match(new RegExp('(?:^|\\n)\\s*'+event+':\\s*\\n\\s*branches:\\s*\\[([^\\]]+)\\]'));
+  return match?match[1].split(',').map(value=>value.trim()):[];
+};
+const codeqlWorkflow=workflowSource('.github/workflows/codeql.yml');
+const supplyWorkflow=workflowSource('.github/workflows/supply-chain-security.yml');
+const crossRoleWorkflow=workflowSource('.github/workflows/cross-role-e2e.yml');
+const backupWorkflow=workflowSource('.github/workflows/backup-restore-smoke.yml');
+
+for(const [label,source] of [
+  ['CodeQL',codeqlWorkflow],
+  ['Supply-chain security',supplyWorkflow],
+  ['Cross-role E2E',crossRoleWorkflow],
+]){
+  if(eventBranches(source,'pull_request').includes('develop')){
+    console.error(label+' must not consume develop PR runners outside canonical CI.');
+    process.exit(1);
+  }
+}
+if(!eventBranches(codeqlWorkflow,'push').includes('develop')||
+   !eventBranches(supplyWorkflow,'push').includes('develop')||
+   !eventBranches(crossRoleWorkflow,'push').includes('develop')){
+  console.error('Deferred security/E2E workflows must retain post-merge develop push coverage.');
+  process.exit(1);
+}
+if(!eventBranches(codeqlWorkflow,'pull_request').includes('main')||
+   !eventBranches(supplyWorkflow,'pull_request').includes('main')||
+   !eventBranches(crossRoleWorkflow,'pull_request').includes('main')){
+  console.error('Deferred security/E2E workflows must retain pre-main pull-request coverage.');
+  process.exit(1);
+}
+const backupPrBranches=eventBranches(backupWorkflow,'pull_request');
+if(!backupPrBranches.includes('staging')||backupPrBranches.includes('develop')||backupPrBranches.includes('main')){
+  console.error('Backup restore must run for staging pull requests only; develop/main PRs use canonical validation.');
+  process.exit(1);
+}
+if(backupWorkflow.includes('paths:')){
+  console.error('Backup restore staging pull requests must remain unfiltered by paths.');
   process.exit(1);
 }
 
