@@ -16,8 +16,16 @@ describe('FinanceOperationsService treasurer control centre',()=>{
     expect(result.cash).toEqual({unappliedCount:1,unappliedPaise:'25000'});
     expect(result.status).toBe('ATTENTION');
     expect(result.bank.unmatchedBank).toBe(2);
+    expect(result.resolutionActions).toEqual(expect.arrayContaining([
+      expect.objectContaining({code:'BANK_UNMATCHED',href:'/finance/bank-reconciliation'}),
+      expect.objectContaining({code:'CASH_UNAPPLIED',href:'/finance#payment-allocation'}),
+      expect.objectContaining({code:'BUDGET_OVERRUN',href:'/finance/operations'}),
+      expect.objectContaining({code:'TAX_EVIDENCE_MISSING',href:'/finance/tax'}),
+      expect.objectContaining({code:'EXPENSES_APPROVED_NOT_POSTED',href:'/finance/operations'}),
+    ]));
+    expect(new Set(result.resolutionActions.map(action=>action.code)).size).toBe(result.resolutionActions.length);
     expect(result.automaticPosting).toBe(false);
     expect(result.automaticMatching).toBe(false);
-    expect(result.boundary).toContain('does not post journals');
+    expect(result.boundary).toContain('do not post journals');
   });
 });
