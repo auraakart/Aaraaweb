@@ -10,7 +10,12 @@ describe('FinanceOperationsService treasurer control centre',()=>{
       .mockResolvedValueOnce([{refunds30d:1,refundedPaise30d:'5000'}])};
     const availability={unappliedCashSummary:vi.fn().mockResolvedValue({paymentCount:1,unappliedPaise:'25000'})};
     const service=new FinanceOperationsService(prisma as never,availability as never);
-    vi.spyOn(service,'operationalReadiness').mockResolvedValue({status:'WATCH',blockers:['EXPENSES_APPROVED_NOT_POSTED'],nextActions:['Post approved expenses.']} as never);
+    vi.spyOn(service,'operationalReadiness').mockResolvedValue({
+      status:'WATCH',
+      blockers:['EXPENSES_APPROVED_NOT_POSTED'],
+      nextActions:['Post approved expenses.'],
+      resolutionActions:[{code:'EXPENSES_APPROVED_NOT_POSTED',label:'Post approved expenses',detail:'Complete the existing explicit expense-posting workflow before period close.',href:'/finance/operations'}],
+    } as never);
     const result=await service.treasurerControlCentre('society-1');
     expect(availability.unappliedCashSummary).toHaveBeenCalledWith('society-1');
     expect(result.cash).toEqual({unappliedCount:1,unappliedPaise:'25000'});
