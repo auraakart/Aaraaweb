@@ -43,7 +43,7 @@ Tracked-source secret scanning now runs inside the required Repository Structure
 - Full Cross-role E2E no longer starts on ordinary develop PRs. Its lightweight source contract now runs in the required Repository Structure gate, while the live E2E runs after merge on `develop` and again before `main`.
 - CodeQL no longer starts on ordinary develop PRs. It runs after relevant JavaScript/TypeScript changes land on `develop`, before `main`, and on its schedule.
 - Supply-chain SBOM/audit no longer runs for every source-only develop PR. Canonical validation still scans tracked source for secrets before merge, while npm audit runs when the dependency graph changes. Full supply-chain evidence runs for dependency/security-control changes after develop merge, before main, and on schedule.
-- Backup Restore keeps pre-merge coverage for schema/backup-control changes but no longer allocates a scope runner to unrelated PRs.
+- Backup Restore no longer starts on develop/main PRs. It remains unfiltered on staging pull requests and staging pushes, preserving the exact release-evidence and staging auto-merge companion-gate contract.
 
 ## Regression prevention
 
