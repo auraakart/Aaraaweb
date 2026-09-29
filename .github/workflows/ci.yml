@@ -77,8 +77,15 @@ jobs:
             run_flutter=true
           fi
 
-          # Cross-cutting build/config/contracts conservatively validate all surfaces.
-          if grep -Eq '^(\.github/|scripts/|packages/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig[^/]*\.json$)' /tmp/aaraagate-changed-files.txt; then
+          # Cross-cutting build/config changes conservatively validate all surfaces.
+          # Pure versioned semantic contracts are executed by Repository structure and
+          # must not wake unrelated API/Admin/Flutter runners by themselves.
+          if grep -Eq '^(\.github/|packages/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig[^/]*\.json$)' /tmp/aaraagate-changed-files.txt; then
+            run_api=true
+            run_admin=true
+            run_flutter=true
+          fi
+          if grep '^scripts/' /tmp/aaraagate-changed-files.txt | grep -Ev '^scripts/check-v[0-9][0-9A-Za-z._-]*\.mjs$' | grep -q .; then
             run_api=true
             run_admin=true
             run_flutter=true
@@ -223,8 +230,17 @@ jobs:
         run: node scripts/check-v4.77.1-amenity-test-contract-resilience.mjs
       - name: Check V4.78 amenity architecture hardening
         run: node scripts/check-v4.78-amenity-architecture-hardening.mjs
-      - name: Check V4.79.0 society knowledge AI
-        run: node scripts/check-v4.79.0-society-knowledge-ai.mjs
+      - name: Check V4.79 milestone contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          checks=(scripts/check-v4.79*.mjs)
+          test "${#checks[@]}" -gt 0
+          for check in "${checks[@]}"; do
+            echo "Running $check"
+            node "$check"
+          done
       - name: Check required merge-gate orchestration
         run: node scripts/check-required-merge-gates.mjs
       - name: Check lightweight pilot and evidence contracts
