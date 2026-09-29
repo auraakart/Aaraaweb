@@ -679,9 +679,6 @@ jobs:
   develop-auto-merge:
     name: Develop auto merge
     needs: [required-merge-gates]
-    if: >
-      github.event_name == 'pull_request' &&
-      needs.required-merge-gates.result == 'success'
     permissions:
       contents: write
       pull-requests: write
@@ -691,12 +688,18 @@ jobs:
       - name: Merge exact tested mastermind PR
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Develop auto-merge not applicable: workflow event is $EVENT_NAME."
+            exit 0
+          fi
 
           current="$(gh api             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
           develop="$(gh api             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/branches/develop")"
