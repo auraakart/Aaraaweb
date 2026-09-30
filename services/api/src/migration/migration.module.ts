@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AccountingModule } from '../accounting/accounting.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { MigrationBatchService } from './migration-batch.service';
+import { OnboardingController } from './onboarding.controller';
+import { OnboardingReadinessService } from './onboarding-readiness.service';
 import { MigrationController } from './migration.controller';
 import { MigrationPreviewService } from './migration-preview.service';
 import { MigrationStructuralCommitService } from './migration-structural-commit.service';
@@ -11,8 +14,8 @@ import { MigrationResidentCommitService } from './migration-resident-commit.serv
 import { MigrationOpeningBalanceCommitService } from './migration-opening-balance-commit.service';
 
 @Module({
-  imports: [PrismaModule, AccountingModule],
-  controllers: [MigrationController],
-  providers: [MigrationPreviewService, MigrationBatchService, MigrationStructuralCommitService, MigrationOperationalCommitService, MigrationResidentCommitService, MigrationOpeningBalanceCommitService, MigrationCommitCoordinator],
+  imports: [PrismaModule, AccountingModule, EntitlementsModule],
+  controllers: [MigrationController, OnboardingController],
+  providers: [MigrationPreviewService, MigrationBatchService, OnboardingReadinessService, MigrationStructuralCommitService, MigrationOperationalCommitService, MigrationResidentCommitService, MigrationOpeningBalanceCommitService, MigrationCommitCoordinator],
 })
 export class MigrationModule {}

@@ -59,6 +59,7 @@ class AaraagateTheme {
       surfaceContainerLow: const Color(0xFFF8FCFD),
       surfaceContainer: const Color(0xFFF0F8F9),
       surfaceContainerHigh: const Color(0xFFE8F4F6),
+      surfaceContainerHighest: const Color(0xFFE1EFF2),
       onSurface: ink,
       outline: line,
       outlineVariant: const Color(0xFFE7F1F3),
@@ -84,6 +85,7 @@ class AaraagateTheme {
       surfaceContainerLow: const Color(0xFF18262B),
       surfaceContainer: const Color(0xFF1D2D32),
       surfaceContainerHigh: const Color(0xFF24373D),
+      surfaceContainerHighest: const Color(0xFF2B4148),
       outline: const Color(0xFF385158),
       outlineVariant: const Color(0xFF293E44),
     );
@@ -125,6 +127,9 @@ class AaraagateTheme {
         titleMedium: baseText.titleMedium?.copyWith(
           fontWeight: FontWeight.w700,
         ),
+        bodyLarge: baseText.bodyLarge?.copyWith(height: 1.45),
+        bodyMedium: baseText.bodyMedium?.copyWith(height: 1.4),
+        bodySmall: baseText.bodySmall?.copyWith(height: 1.35),
         labelLarge: baseText.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
         ),

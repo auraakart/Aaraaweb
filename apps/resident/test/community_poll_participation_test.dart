@@ -15,6 +15,7 @@ class _PollRepository extends ResidentRepository {
   @override Future<List<Map<String,dynamic>>> communityDocuments() async => const [];
   @override Future<List<Map<String,dynamic>>> societyDocuments() async => const [];
   @override Future<List<Map<String,dynamic>>> helpdeskTickets() async => const [];
+  @override Future<List<Map<String,dynamic>>> communityEvents() async => const [];
   @override Future<List<Map<String,dynamic>>> communityPolls() async => [{
     'id':'poll-1','title':'Morning yoga timing','description':'Choose one preferred start time.','status':'OPEN',
     'statutoryUseProhibited':true,'myOptionId':recordedOptionId,
@@ -34,6 +35,34 @@ Future<void> _openPoll(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 void main(){
+  testWidgets('community shortcut bar keeps updates polls and events together',(tester) async{
+    await tester.binding.setSurfaceSize(const Size(390,844));
+    addTearDown(()=>tester.binding.setSurfaceSize(null));
+    final repository=_PollRepository();
+    final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);
+
+    await tester.pumpWidget(MaterialApp(home:CommunityScreen(controller:controller)));
+    await tester.pumpAndSettle();
+
+    final bar=find.byKey(const ValueKey('community-shortcuts-bar'));
+    expect(bar,findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Updates')),findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Polls')),findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Events')),findsOneWidget);
+
+    await tester.tap(find.descendant(of:bar,matching:find.text('Polls')));
+    await tester.pumpAndSettle();
+    expect(find.text('Community polls'),findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.descendant(of:bar,matching:find.text('Events')));
+    await tester.pumpAndSettle();
+    expect(find.text('Community events'),findsOneWidget);
+
+    controller.dispose();
+  });
+
   testWidgets('resident reviews and confirms a community poll response from authoritative state',(tester) async{
     final repository=_PollRepository();
     final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);

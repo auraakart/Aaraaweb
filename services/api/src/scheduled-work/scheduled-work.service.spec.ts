@@ -87,6 +87,7 @@ describe('ScheduledWorkService', () => {
       processed: 1,
       escalated: 1,
       sosEscalated: 1,
+      amenityDepositsExpired: 0,
       noticeDispatched: 0,
       noticeDispatchFailed: 0,
     });

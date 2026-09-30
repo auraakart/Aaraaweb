@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentAvailabilityService } from './payment-availability.service';
 
@@ -28,6 +29,51 @@ export class FinanceOperationsService {
       WHERE e."societyId"=${societyId}::uuid
       GROUP BY e."id",p."id" ORDER BY e."expenseDate" DESC,e."createdAt" DESC LIMIT 250
     `);
+  }
+
+  async documentIntakePreview(societyId:string, reviewedText:string) {
+    const text=reviewedText.replace(/\r\n?/g,'\n').replace(/[ \t]+/g,' ').trim();
+    if(text.length<20) throw new BadRequestException('Reviewed invoice text must contain at least 20 characters');
+    if(text.length>12000) throw new BadRequestException('Reviewed invoice text must not exceed 12000 characters');
+
+    const vendorMatch=text.match(/^(?:vendor|supplier|billed by|from)\s*[:\-]\s*(.{2,160})$/im);
+    const referenceMatch=text.match(/^(?:invoice(?:\s*(?:no|number|#))?|bill\s*(?:no|number|#)|reference|ref)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9./_-]{1,119})\s*$/im);
+    const dateMatch=text.match(/^(?:invoice\s*date|bill\s*date|date)\s*[:\-]\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4})\s*$/im);
+    const totalMatch=text.match(/^(?:grand\s*total|invoice\s*total|total\s*amount|amount\s*due|net\s*payable|total)\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
+    const gstinMatch=text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/i);
+
+    const vendorName=vendorMatch?.[1]?.trim()||null;
+    const invoiceReference=referenceMatch?.[1]?.trim()||null;
+    const expenseDate=this.normalizeReviewedInvoiceDate(dateMatch?.[1]??null);
+    const amountValue=totalMatch?.[1]?.replaceAll(',','')??null;
+    const amountNumber=amountValue?Number(amountValue):NaN;
+    const amountPaise=Number.isFinite(amountNumber)&&amountNumber>0?Math.round(amountNumber*100):null;
+    const gstin=gstinMatch?.[0]?.toUpperCase()??null;
+
+    const signals:string[]=[];
+    if(vendorName) signals.push('VENDOR_LABEL_MATCH');
+    if(invoiceReference) signals.push('INVOICE_REFERENCE_MATCH');
+    if(expenseDate) signals.push('DATE_LABEL_MATCH');
+    if(amountPaise) signals.push('TOTAL_LABEL_MATCH');
+    if(gstin) signals.push('GSTIN_PATTERN_MATCH');
+
+    const missingFields:string[]=[];
+    if(!vendorName) missingFields.push('vendorName');
+    if(!expenseDate) missingFields.push('expenseDate');
+    if(!amountPaise) missingFields.push('amountPaise');
+    const quality=missingFields.length===0?'COMPLETE':missingFields.length===1?'PARTIAL':'LIMITED';
+    const duplicateAssessment=vendorName&&expenseDate&&amountPaise
+      ? await this.expenseIntakeAssessment(societyId,{vendorName,invoiceReference:invoiceReference??undefined,expenseDate,amountPaise})
+      : null;
+
+    return {
+      extracted:{vendorName,invoiceReference,expenseDate,amountPaise,gstin},
+      quality,signals,missingFields,
+      source:{sha256:createHash('sha256').update(text).digest('hex'),characterCount:text.length,rawTextPersisted:false},
+      duplicateAssessment,
+      mutationPerformed:false,automaticPosting:false,humanReviewRequired:true,
+      boundary:'Deterministic reviewed-text preparation only. Extracted fields must be checked by a finance operator; expense creation, approval and posting remain separate explicit controls.',
+    };
   }
 
   async expenseIntakeAssessment(
@@ -106,6 +152,24 @@ export class FinanceOperationsService {
       automaticPosting:false,
       boundary:'Deterministic intake evidence only. A reviewer still decides whether to create, reject or correct the expense; no journal or payable is created by this assessment.',
     };
+  }
+
+  private normalizeReviewedInvoiceDate(value:string|null) {
+    if(!value) return null;
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(value)){
+      const [year,month,day]=value.split('-').map(Number);
+      return this.validInvoiceDate(year,month,day);
+    }
+    const match=value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if(!match) return null;
+    return this.validInvoiceDate(Number(match[3]),Number(match[2]),Number(match[1]));
+  }
+
+  private validInvoiceDate(year:number,month:number,day:number) {
+    if(year<2000||year>2100||month<1||month>12||day<1||day>31) return null;
+    const date=new Date(Date.UTC(year,month-1,day));
+    if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day) return null;
+    return `${year.toString().padStart(4,'0')}-${month.toString().padStart(2,'0')}-${day.toString().padStart(2,'0')}`;
   }
 
   async createExpense(societyId:string,userId:string,input:CreateExpenseInput) {
@@ -323,11 +387,20 @@ export class FinanceOperationsService {
     if(metrics.contractsExpiring30d>0)nextActions.push('Review expiring vendor contracts or AMCs before their renewal notice window closes.');
     if(metrics.draftBudgets>0)nextActions.push('Review draft budgets before approval and lock.');
     if(nextActions.length===0)nextActions.push('No execution exception is visible; continue routine finance controls and period-close review.');
+    const resolutionActions=[
+      ...(metrics.unresolvedReconciliation>0?[{code:'RECONCILIATION_OPEN',label:'Open reconciliation queue',detail:'Review provider evidence, disputes, reversals and chargebacks before resolving the case.',href:'/finance/reconciliation'}]:[]),
+      ...(metrics.unsettledGatewayOperations>0?[{code:'GATEWAY_OPERATIONS_UNSETTLED',label:'Review gateway operations',detail:'Inspect pending status/refund requests and their provider evidence.',href:'/finance/reconciliation'}]:[]),
+      ...(metrics.overduePayables>0?[{code:'PAYABLES_OVERDUE',label:'Review overdue payables',detail:'Use the controlled finance-operations workspace and posted journal evidence before settlement.',href:'/finance/operations'}]:[]),
+      ...(metrics.approvedUnpostedExpenses>0?[{code:'EXPENSES_APPROVED_NOT_POSTED',label:'Post approved expenses',detail:'Complete the existing explicit expense-posting workflow before period close.',href:'/finance/operations'}]:[]),
+      ...(metrics.unlinkedPurchaseOrders>0?[{code:'PROCUREMENT_ACCOUNTING_HANDOFF_PENDING',label:'Complete procurement handoff',detail:'Link issued purchase orders to the authoritative accounting expense workflow.',href:'/finance/procurement'}]:[]),
+      ...(metrics.contractsExpiring30d>0?[{code:'VENDOR_CONTRACTS_EXPIRING',label:'Review expiring contracts',detail:'Inspect contract/AMC expiry evidence and renewal notice timing.',href:'/society-vendors/contracts'}]:[]),
+      ...(metrics.draftBudgets>0?[{code:'DRAFT_BUDGETS',label:'Review draft budgets',detail:'Review, approve and lock budgets through the existing finance-operations controls.',href:'/finance/operations'}]:[]),
+    ];
     const critical=metrics.unresolvedReconciliation+metrics.unsettledGatewayOperations+metrics.overduePayables;
     return {
       ...metrics,
       status:critical>0?'AT_RISK':blockers.length>0?'WATCH':'READY',
-      blockers,nextActions,
+      blockers,nextActions,resolutionActions,
       automaticDebitAvailable:false,
       providerExecution:'ADAPTER_CONTROLLED',
       boundary:'Deterministic current-state execution readiness from recorded finance, payment, procurement and contract evidence. This does not certify provider settlement, execute AutoPay mandates, or close accounting periods automatically.',
@@ -351,7 +424,14 @@ export class FinanceOperationsService {
     ]);
     const bank=bankRows[0]??{unmatchedBank:0,unmatchedMovementPaise:'0'},cash={unappliedCount:cashSummary.paymentCount,unappliedPaise:cashSummary.unappliedPaise},budget=budgetRows[0]??{overrunLines:0,overrunPaise:'0'},tax=taxRows[0]??{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds=refundRows[0]??{refunds30d:0,refundedPaise30d:'0'};
     const attention=readiness.blockers.length+bank.unmatchedBank+cash.unappliedCount+budget.overrunLines+tax.documentsMissingTaxEvidence;
-    return {status:attention===0?'CLEAR':readiness.status==='AT_RISK'?'ACTION_REQUIRED':'ATTENTION',financeReadiness:readiness,bank,cash,budget,tax,refunds,nextActions:[...(bank.unmatchedBank?['Review deterministic bank-match suggestions before posting or matching.']:[]),...(cash.unappliedCount?['Allocate captured cash or document the exception before period close.']:[]),...(budget.overrunLines?['Review budget-versus-actual overruns with the Treasurer/Committee.']:[]),...(tax.documentsMissingTaxEvidence?['Complete GST/TDS metadata for approved or posted expenses where configured.']:[]),...readiness.nextActions].slice(0,10),automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation. It does not post journals, match bank transactions, execute refunds, determine tax liability, or close periods automatically.',generatedAt:new Date().toISOString()};
+    const resolutionActions=[
+      ...(bank.unmatchedBank?[{code:'BANK_UNMATCHED',label:'Reconcile bank items',detail:'Review deterministic bank-match suggestions and explicitly confirm any match.',href:'/finance/bank-reconciliation'}]:[]),
+      ...(cash.unappliedCount?[{code:'CASH_UNAPPLIED',label:'Allocate captured cash',detail:'Inspect payment availability, reversals and refunds before allocating the remaining amount.',href:'/finance#payment-allocation'}]:[]),
+      ...(budget.overrunLines?[{code:'BUDGET_OVERRUN',label:'Review budget overruns',detail:'Compare approved budget lines with posted actuals before committee action.',href:'/finance/operations'}]:[]),
+      ...(tax.documentsMissingTaxEvidence?[{code:'TAX_EVIDENCE_MISSING',label:'Complete GST/TDS evidence',detail:'Review configured tax metadata for approved or posted expenses.',href:'/finance/tax'}]:[]),
+      ...(readiness.resolutionActions??[]),
+    ];
+    return {status:attention===0?'CLEAR':readiness.status==='AT_RISK'?'ACTION_REQUIRED':'ATTENTION',financeReadiness:readiness,bank,cash,budget,tax,refunds,nextActions:[...(bank.unmatchedBank?['Review deterministic bank-match suggestions before posting or matching.']:[]),...(cash.unappliedCount?['Allocate captured cash or document the exception before period close.']:[]),...(budget.overrunLines?['Review budget-versus-actual overruns with the Treasurer/Committee.']:[]),...(tax.documentsMissingTaxEvidence?['Complete GST/TDS metadata for approved or posted expenses where configured.']:[]),...readiness.nextActions].slice(0,10),resolutionActions:resolutionActions.filter((action,index,items)=>items.findIndex(candidate=>candidate.code===action.code)===index).slice(0,12),automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation. Resolution links navigate to existing permission-checked workflows; they do not post journals, match bank transactions, execute refunds, determine tax liability, or close periods automatically.',generatedAt:new Date().toISOString()};
   }
 
   async exportSnapshot(societyId:string){const [expenses,payables,budgets,funds]=await Promise.all([this.listExpenses(societyId),this.listPayables(societyId),this.listBudgets(societyId),this.fundUtilization(societyId)]);return {generatedAt:new Date().toISOString(),expenses,payables,budgets,funds};}

@@ -4,6 +4,7 @@ import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
+import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 
 export type AiAssistantIntent =
@@ -18,6 +19,7 @@ export type AiAssistantIntent =
   | 'RESIDENT_NOTICES'
   | 'RESIDENT_GATE'
   | 'GOVERNANCE'
+  | 'SOCIETY_KNOWLEDGE'
   | 'UNSUPPORTED';
 
 export type AiAssistantToolId = Exclude<AiAssistantIntent,'UNSUPPORTED'>;
@@ -42,6 +44,7 @@ const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'RESIDENT_NOTICES',label:'Resident notices',context:'PROPERTY',permissions:[AppPermission.NOTICE_READ],permissionMode:'ALL'},
   {id:'RESIDENT_GATE',label:'Resident gate status',context:'PROPERTY',permissions:[AppPermission.VISITOR_READ_OWN,AppPermission.ACCESS_READ_OWN],permissionMode:'ANY'},
   {id:'GOVERNANCE',label:'Governance',context:'SOCIETY',permissions:[AppPermission.GOVERNANCE_READ],permissionMode:'ALL'},
+  {id:'SOCIETY_KNOWLEDGE',label:'Society knowledge',context:'SOCIETY',permissions:[AppPermission.DOCUMENTS_READ,AppPermission.NOTICE_READ],permissionMode:'ANY'},
 ] as const;
 
 export function residentIntentRoutingText(text:string){
@@ -64,6 +67,7 @@ export class AiAssistantService {
     private readonly prisma: PrismaService,
     private readonly operations: AiOperationsService,
     private readonly workforce: WorkforceService,
+    private readonly documents: DocumentsService,
   ) {}
 
   tools(roles:readonly AppRole[]){
@@ -89,6 +93,25 @@ export class AiAssistantService {
         societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
         'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
         'BLOCKED',
+      );
+    }
+
+    if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge/.test(routed)){
+      this.requireTool(roles,'SOCIETY_KNOWLEDGE');
+      if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.documents.searchKnowledgeForUser(
+        societyId,userId,text,hasPermission(roles,AppPermission.DOCUMENTS_READ),
+      );
+      return this.auditedResponse(
+        societyId,userId,unitId,'SOCIETY_KNOWLEDGE','SOCIETY_KNOWLEDGE',
+        {matches:facts,answerBoundary:facts.length
+          ? 'Use the cited excerpts as the authoritative published source. Open the document for full context before acting.'
+          : 'No matching published society document was found. No policy answer was invented.'},
+        ['SocietyDocument','SocietyDocumentKnowledge'],
+        facts.length
+          ? 'Grounded society knowledge from current published document versions with document citations.'
+          : 'No matching published society knowledge was found; no answer was invented.',
+        facts.length?'SUCCESS':'UNSUPPORTED',
       );
     }
 

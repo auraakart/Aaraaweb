@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/resident_data_controller.dart';
+import 'community_events_screen.dart';
+import 'community_polls_screen.dart';
+import 'notices_screen.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -260,6 +263,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
       Text('Community',style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.w800)),
       const SizedBox(height:AaraagateTokens.space1),Text('Society updates, meetings, documents and polls with your access rules applied.',style:theme.textTheme.bodyLarge?.copyWith(color:scheme.onSurfaceVariant)),
       const SizedBox(height:AaraagateTokens.space4),
+      _CommunityShortcutBar(
+        onOpenUpdates:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>NoticesScreen(controller:widget.controller))),
+        onOpenPolls:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityPollsScreen(repository:widget.controller.repository))),
+        onOpenEvents:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityEventsScreen(repository:widget.controller.repository))),
+      ),
+      const SizedBox(height:AaraagateTokens.space4),
       PremiumSurface(
         color:scheme.primaryContainer.withValues(alpha: .45),
         child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -274,7 +283,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
       if(loading)...[const SizedBox(height:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
       if(error!=null)...[const SizedBox(height:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
-      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest notices',supportingText:'Recent updates published for your society.'),const SizedBox(height:AaraagateTokens.space3),
+      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest updates',supportingText:'Recent updates published for your society.'),const SizedBox(height:AaraagateTokens.space3),
       if(notices.isEmpty)const AppStateCard(icon:Icons.campaign_outlined,message:'No current notices.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<notices.length;i++)...[_Tile(icon:Icons.campaign_outlined,title:notices[i]['title']?.toString()??'Society notice',subtitle:notices[i]['requiresAcknowledgement']==true?(notices[i]['acknowledgedAt']!=null?'Acknowledged':'Acknowledgement requested'):'Published update'),if(i<notices.length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Meetings & decisions',supportingText:'Community-visible governance meetings and closure information.'),const SizedBox(height:AaraagateTokens.space3),
       if(meetings.isEmpty)const AppStateCard(icon:Icons.groups_outlined,message:'No community-visible meetings.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<meetings.take(3).length;i++)...[_Tile(icon:Icons.groups_outlined,title:meetings[i]['title']?.toString()??'Society meeting',subtitle:_meetingSubtitle(meetings[i])),if(i<meetings.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
@@ -282,6 +291,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
       if(societyDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No published society documents available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<societyDocuments.take(5).length;i++)...[_Tile(icon:Icons.description_outlined,title:societyDocuments[i]['title']?.toString()??'Society document',subtitle:_documentSubtitle(societyDocuments[i]),actionLabel:'Open document',onAction:()=>_openSocietyDocument(societyDocuments[i]['id'].toString())),if(i<societyDocuments.take(5).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Governance references',supportingText:'Meeting-related document references published through governance workflows.'),const SizedBox(height:AaraagateTokens.space3),
       if(governanceDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No governance references available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<governanceDocuments.take(3).length;i++)...[_Tile(icon:Icons.description_outlined,title:_label(governanceDocuments[i]['kind']?.toString()??'Document'),subtitle:governanceDocuments[i]['note']?.toString()??'Governance document'),if(i<governanceDocuments.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
+      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community events',supportingText:'Upcoming non-statutory society activities with privacy-preserving RSVP.'),const SizedBox(height:AaraagateTokens.space3),
+      PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.event_available_outlined,title:'Events & RSVP',subtitle:'See upcoming activities, capacity and your response.',actionLabel:'View events',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityEventsScreen(repository:widget.controller.repository))))),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Polls',supportingText:'Current non-statutory community participation.'),const SizedBox(height:AaraagateTokens.space3),
       if(polls.isEmpty)const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No community polls open.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<polls.take(3).length;i++)...[_Tile(icon:Icons.how_to_vote_outlined,title:polls[i]['question']?.toString()??polls[i]['title']?.toString()??'Community poll',subtitle:_pollSubtitle(polls[i]),actionLabel:polls[i]['myOptionId']!=null||(polls[i]['status']?.toString()??'OPEN').toUpperCase()=='CLOSED'?'Review':'Respond',onAction:()=>_openPoll(polls[i])),if(i<polls.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       if(openTickets.isNotEmpty)...[const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Your open helpdesk',supportingText:'Requests from this selected property.'),const SizedBox(height:AaraagateTokens.space3),PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<openTickets.length;i++)...[_Tile(icon:Icons.support_agent_outlined,title:openTickets[i]['title']?.toString()??'Helpdesk request',subtitle:_label(openTickets[i]['status']?.toString()??'Open')),if(i<openTickets.length-1)Divider(height:1,color:scheme.outlineVariant)]]))]
@@ -289,6 +300,58 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
   static String _meetingSubtitle(Map<String,dynamic> m){final status=_label(m['status']?.toString()??'Scheduled');final at=DateTime.tryParse(m['scheduledAt']?.toString()??'')?.toLocal();return at==null?status:'$status · ${at.day.toString().padLeft(2,'0')}/${at.month.toString().padLeft(2,'0')}/${at.year}';}
   static String _label(String value)=>value.toLowerCase().split('_').map((w)=>w.isEmpty?w:'${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+}
+
+class _CommunityShortcutBar extends StatelessWidget {
+  const _CommunityShortcutBar({
+    required this.onOpenUpdates,
+    required this.onOpenPolls,
+    required this.onOpenEvents,
+  });
+
+  final VoidCallback onOpenUpdates;
+  final VoidCallback onOpenPolls;
+  final VoidCallback onOpenEvents;
+
+  @override
+  Widget build(BuildContext context) {
+    const compactPadding=EdgeInsets.symmetric(horizontal:AaraagateTokens.space2);
+    const minimumSize=Size(0,AaraagateTokens.minTouchTarget);
+    return PremiumSurface(
+      key:const ValueKey('community-shortcuts-bar'),
+      padding:const EdgeInsets.all(AaraagateTokens.space1),
+      child:Row(
+        children:[
+          Expanded(
+            child:FilledButton.tonalIcon(
+              style:FilledButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
+              onPressed:onOpenUpdates,
+              icon:const Icon(Icons.campaign_outlined,size:18),
+              label:const Text('Updates'),
+            ),
+          ),
+          const SizedBox(width:AaraagateTokens.space1),
+          Expanded(
+            child:OutlinedButton.icon(
+              style:OutlinedButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
+              onPressed:onOpenPolls,
+              icon:const Icon(Icons.poll_outlined,size:18),
+              label:const Text('Polls'),
+            ),
+          ),
+          const SizedBox(width:AaraagateTokens.space1),
+          Expanded(
+            child:OutlinedButton.icon(
+              style:OutlinedButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
+              onPressed:onOpenEvents,
+              icon:const Icon(Icons.event_available_outlined,size:18),
+              label:const Text('Events'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Tile extends StatelessWidget{

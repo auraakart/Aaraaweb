@@ -39,21 +39,7 @@ class NoticesScreen extends StatelessWidget {
             );
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Notices'),
-            actions: [
-              IconButton(
-                tooltip: 'Community polls',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CommunityPollsScreen(repository: controller.repository),
-                  ),
-                ),
-                icon: const Icon(Icons.poll_outlined),
-              ),
-              const SizedBox(width: AaraagateTokens.space2),
-            ],
-          ),
+          appBar: AppBar(title: const Text('Notices')),
           body: RefreshIndicator(
             onRefresh: controller.refreshNotices,
             child: ListView(
@@ -65,13 +51,23 @@ class NoticesScreen extends StatelessWidget {
                 AaraagateTokens.space8,
               ),
               children: [
-                PremiumSectionHeader(
+                PremiumPageIntro(
+                  icon: Icons.campaign_outlined,
                   title: 'Society updates',
                   supportingText: activeCount == 0
                       ? 'Important announcements from your current community appear here.'
                       : '$activeCount active update${activeCount == 1 ? '' : 's'} from your current community.',
+                  action: FilledButton.tonalIcon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => CommunityPollsScreen(repository: controller.repository),
+                      ),
+                    ),
+                    icon: const Icon(Icons.poll_outlined),
+                    label: const Text('Polls'),
+                  ),
                 ),
-                const SizedBox(height: AaraagateTokens.space4),
+                const SizedBox(height: AaraagateTokens.space5),
                 if (controller.loading && controller.notices.isEmpty)
                   const AppStateCard(
                     icon: Icons.sync_rounded,

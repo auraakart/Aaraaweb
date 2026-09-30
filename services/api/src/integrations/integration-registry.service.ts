@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { integrationContractMetadata, IntegrationContractMetadata } from './integration-provider.contract';
+import { integrationContractMetadata, integrationOperationContracts, IntegrationContractMetadata, IntegrationOperationContract } from './integration-provider.contract';
 import { IntegrationConfigurationService } from './integration-configuration.service';
 
 export type IntegrationFamily =
@@ -23,10 +23,13 @@ export type IntegrationCapabilityView = IntegrationContractMetadata & {
   configured: boolean;
   health: IntegrationHealth;
   capabilities: readonly string[];
+  operations: readonly IntegrationOperationContract[];
   boundary: string;
 };
 
 const SOCIETY_SELECTABLE_FAMILIES: readonly IntegrationFamily[] = ['OTP','WHATSAPP','PUSH','PAYMENT_GATEWAY','ACCESS_CONTROL','OBJECT_STORAGE','SMART_METER','ACCOUNTING_CONNECTOR'];
+
+type IntegrationBaseCapability=Omit<IntegrationCapabilityView,keyof IntegrationContractMetadata|'operations'>;
 
 @Injectable()
 export class IntegrationRegistryService {
@@ -44,16 +47,30 @@ export class IntegrationRegistryService {
       this.objectStorage(),
       this.smartMeter(),
       this.accountingConnector(),
-    ].map((item) => ({ ...item, ...integrationContractMetadata(item.family) }));
+    ].map((item) => ({ ...item, ...integrationContractMetadata(item.family), operations:integrationOperationContracts(item.family) }));
   }
 
   async conformance(societyId:string){
     const selections=await this.configuration?.list(societyId)??[];
     return this.list(societyId).map(item=>{
       const simulatorOrReference=item.provider==='simulator'||item.provider==='reference-adapters'||item.provider==='utility-integration-v2';
-      const checks={versionedContract:Boolean(item.contractVersion),explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),explicitDegradationMode:Boolean(item.degradationMode),domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),simulatorOrConfiguredEvidence:simulatorOrReference||item.configured};
+      const operationIds=item.operations.map(operation=>operation.operationId);
+      const checks={
+        versionedContract:Boolean(item.contractVersion),
+        explicitRetryPolicy:Boolean(item.retryDisposition&&item.retryOwner),
+        explicitDegradationMode:Boolean(item.degradationMode),
+        domainTruthIsolation:['PAYMENT_GATEWAY','ACCOUNTING_CONNECTOR','SMART_METER','ACCESS_CONTROL','OTP'].includes(item.family)?true:Boolean(item.boundary),
+        simulatorOrConfiguredEvidence:simulatorOrReference||item.configured,
+        operationContractsPresent:item.operations.length>0,
+        operationContractsUnique:new Set(operationIds).size===operationIds.length,
+        boundedOperationTimeouts:item.operations.every(operation=>operation.timeoutMs>=1000&&operation.timeoutMs<=120000),
+        providerNeverAuthoritative:item.operations.every(operation=>operation.providerAuthority==='NONE'||operation.providerAuthority==='QUARANTINED_INPUT'),
+        mutationIdempotencyExplicit:item.operations
+          .filter(operation=>operation.direction!=='PROVIDER_TO_AARAAGATE'||operation.reconciliationRequired)
+          .every(operation=>operation.idempotency!=='NOT_APPLICABLE'||operation.operationId==='HEALTH_CHECK'||operation.operationId==='CREATE_SIGNED_DOWNLOAD'),
+      };
       const missing=Object.entries(checks).filter(([,ok])=>!ok).map(([key])=>key);
-      const fieldEvidenceRequired=['TELEPHONY_IVR','PAYMENT_GATEWAY','ACCESS_CONTROL','SMART_METER'].includes(item.family);
+      const fieldEvidenceRequired=item.operations.some(operation=>operation.fieldEvidenceRequired);
       const selectionRequired=SOCIETY_SELECTABLE_FAMILIES.includes(item.family);
       const selection=selectionRequired?selections.find(row=>row.family===item.family):undefined;
       const societySelectionReady=!selectionRequired||Boolean(selection?.enabled&&selection.providerKey===item.provider);
@@ -135,7 +152,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private otp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private otp(): IntegrationBaseCapability {
     const environment = process.env.NODE_ENV ?? 'development';
     const provider = (process.env.OTP_DELIVERY_PROVIDER ?? '').trim().toLowerCase();
     const testFallback = environment === 'test' || (!provider && environment !== 'production');
@@ -155,7 +172,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private whatsApp(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private whatsApp(): IntegrationBaseCapability {
     return {
       family: 'WHATSAPP',
       provider: (process.env.WHATSAPP_DELIVERY_PROVIDER ?? 'unconfigured').trim().toLowerCase() || 'unconfigured',
@@ -167,7 +184,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private push(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private push(): IntegrationBaseCapability {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     let valid = false;
     if (raw) {
@@ -189,7 +206,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private telephonyIvr(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private telephonyIvr(): IntegrationBaseCapability {
     const environment=process.env.NODE_ENV??'development';
     const provider=(process.env.GATE_IVR_PROVIDER??'').trim().toLowerCase();
     const simulator=environment!=='production'&&(!provider||provider==='simulator');
@@ -204,7 +221,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private paymentGateway(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private paymentGateway(): IntegrationBaseCapability {
     const environment = (process.env.PAYMENT_GATEWAY_RECONCILIATION_ENVIRONMENT ?? 'sandbox').trim().toLowerCase();
     const provider = (process.env.PAYMENT_GATEWAY_RECONCILIATION_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const live = environment === 'live';
@@ -232,7 +249,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accessControl(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private accessControl(): IntegrationBaseCapability {
     return {
       family: 'ACCESS_CONTROL',
       provider: 'reference-adapters',
@@ -244,7 +261,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private objectStorage(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private objectStorage(): IntegrationBaseCapability {
     const driver = (process.env.OBJECT_STORAGE_DRIVER ?? '').trim().toLowerCase();
     const configured =
       driver === 's3' &&
@@ -266,7 +283,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private smartMeter(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private smartMeter(): IntegrationBaseCapability {
     return {
       family: 'SMART_METER',
       provider: 'utility-integration-v2',
@@ -278,7 +295,7 @@ export class IntegrationRegistryService {
     };
   }
 
-  private accountingConnector(): Omit<IntegrationCapabilityView, keyof IntegrationContractMetadata> {
+  private accountingConnector(): IntegrationBaseCapability {
     const provider = (process.env.ACCOUNTING_CONNECTOR_PROVIDER ?? 'configured-http').trim() || 'configured-http';
     const configured = this.present('ACCOUNTING_CONNECTOR_BASE_URL');
     return {

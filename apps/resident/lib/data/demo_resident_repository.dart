@@ -6,6 +6,7 @@ class DemoResidentRepository extends ResidentRepository {
       : super(ApiClient(baseUrl: 'http://demo.invalid', accessToken: 'demo'));
 
   final Map<String, String> _communityPollResponses = <String, String>{};
+  final Map<String, String> _communityEventResponses = <String, String>{};
 
   final List<Map<String, dynamic>> _access = [
     {
@@ -591,6 +592,44 @@ class DemoResidentRepository extends ResidentRepository {
   @override
   Future<Map<String, dynamic>> societyDocumentDownloadIntent(String documentId) async =>
       {'id': documentId, 'url': 'https://example.com/aaraagate-demo-document.pdf'};
+
+  @override
+  Future<List<Map<String, dynamic>>> communityEvents() async => [
+        {
+          'id': 'demo-event-1',
+          'title': 'Family sports evening',
+          'description': 'Badminton, throwball and children’s games at the clubhouse.',
+          'audienceScope': 'COMMUNITY',
+          'status': 'PUBLISHED',
+          'startsAt': DateTime.now().add(const Duration(days: 2)).toUtc().toIso8601String(),
+          'endsAt': DateTime.now().add(const Duration(days: 2, hours: 3)).toUtc().toIso8601String(),
+          'location': 'Clubhouse & central lawn',
+          'capacity': 80,
+          'goingCount': 26,
+          'notGoingCount': 4,
+          'myRsvp': _communityEventResponses['demo-event-1'],
+        },
+        {
+          'id': 'demo-event-2',
+          'title': 'Owners’ budgeting orientation',
+          'description': 'A non-statutory orientation session on reading the society budget.',
+          'audienceScope': 'OWNER_ONLY',
+          'status': 'PUBLISHED',
+          'startsAt': DateTime.now().add(const Duration(days: 6)).toUtc().toIso8601String(),
+          'endsAt': DateTime.now().add(const Duration(days: 6, hours: 2)).toUtc().toIso8601String(),
+          'location': 'Multipurpose hall',
+          'capacity': 50,
+          'goingCount': 14,
+          'notGoingCount': 2,
+          'myRsvp': _communityEventResponses['demo-event-2'],
+        },
+      ];
+
+  @override
+  Future<Map<String, dynamic>> respondCommunityEvent({required String eventId, required String status}) async {
+    _communityEventResponses[eventId] = status;
+    return {'eventId': eventId, 'status': status};
+  }
 
   @override
   Future<List<Map<String, dynamic>>> communityPolls() async => [

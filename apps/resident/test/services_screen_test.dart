@@ -35,6 +35,40 @@ void main() {
         home: Scaffold(body: ServicesScreen(controller: controller)),
       );
 
+  testWidgets('home services intro remains usable with large accessibility text', (tester) async {
+    final controller = ResidentDataController(DemoResidentRepository())
+      ..serviceCategories = [
+        {'id': 'cat-ac', 'name': 'AC'},
+      ]
+      ..serviceOfferings = [
+        {
+          'id': 'offer-1',
+          'categoryId': 'cat-ac',
+          'name': 'AC service',
+          'pricePaise': 69900,
+          'provider': {'businessName': 'CoolCare'},
+        },
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: const TextScaler.linear(2.0),
+          ),
+          child: child!,
+        ),
+        home: Scaffold(body: ServicesScreen(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home services'), findsOneWidget);
+    expect(find.text('What do you need help with?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
   testWidgets('marketplace groups same service and lets resident compare providers', (tester) async {
     final controller = ResidentDataController(DemoResidentRepository())
       ..serviceCategories = [

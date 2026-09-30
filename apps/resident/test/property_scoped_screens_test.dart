@@ -139,6 +139,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byType(Switch),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
@@ -158,6 +164,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byType(Switch),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
 
