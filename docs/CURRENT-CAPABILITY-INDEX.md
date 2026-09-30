@@ -125,6 +125,8 @@ V4.80.7 hardens Resident amenity refundable-deposit payment preparation against 
 
 V4.80.8 converges the Resident mobile experience around a shared premium hierarchy without changing the Aaraagate teal brand palette. A reusable responsive page-intro pattern replaces bespoke header layouts, status pills animate state changes, light/dark neutral surfaces and body-reading rhythm are tightened, Gate removes duplicate invite affordances while preserving inline approve/deny, Billing exposes the earliest due checkout directly from its summary, Amenities gains a clearer facility-booking entry hierarchy, and Notices replaces its icon-only polls affordance with a labeled action. Existing 48px minimum controls, 4px-based spacing tokens, semantic states, payment/gate mutation authority and feature behavior remain intact.
 
+V4.80.9 completes the next Resident premium-surface convergence slice. Helpdesk moves its primary New complaint action from a floating button into the responsive page hierarchy, Home Services adopts the shared task-oriented intro while preserving its search/filter/provider flows, and Profile moves selected-property context plus property switching into the page intro instead of a separate heavyweight card. The shared page-intro eyebrow now truncates safely for long property names. No API, schema, authorization, service-booking, helpdesk workflow or property-selection contract changes are introduced.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
