@@ -12,7 +12,13 @@ const changed=execFileSync('git',['diff','--name-only',baseSha,headSha],{encodin
 const allowedPath=(path)=>
   path==='.github/workflows/ci.yml' ||
   path==='.github/workflows/backup-restore-smoke.yml' ||
+  path==='.github/workflows/staging-smoke.yml' ||
   path==='scripts/check-required-merge-gates.mjs' ||
+  path==='scripts/check-staging-release-contract.sh' ||
+  path==='scripts/try-staging-auto-merge.sh' ||
+  path==='scripts/ensure-main-promotion-pr.sh' ||
+  path==='scripts/list-staging-only-release-subjects.sh' ||
+  path==='scripts/check-staging-release-history.mjs' ||
   path==='scripts/classify-release-control-change.mjs' ||
   /^scripts\/check-v4\.79[0-9A-Za-z._-]*\.mjs$/.test(path) ||
   path.startsWith('docs/');
@@ -24,6 +30,7 @@ if(changed.length===0||changed.some(path=>!allowedPath(path))){
 
 const ciChanged=changed.includes('.github/workflows/ci.yml');
 const backupChanged=changed.includes('.github/workflows/backup-restore-smoke.yml');
+const stagingChanged=changed.includes('.github/workflows/staging-smoke.yml');
 
 const show=(sha,path)=>execFileSync('git',['show',sha+':'+path],{encoding:'utf8'}).replace(/\r\n/g,'\n');
 
@@ -44,7 +51,13 @@ function nonControlCi(source){
 }
 
 function nonControlBackup(source){
-  return stripJob(source,'change-scope','Backup restore').replace(/\n{3,}/g,'\n\n').trim();
+  let value=stripJob(source,'change-scope','Backup restore');
+  value=stripJob(value,'staging-auto-merge','Backup restore');
+  return value.replace(/\n{3,}/g,'\n\n').trim();
+}
+
+function nonControlStaging(source){
+  return stripJob(source,'staging-auto-merge','Staging smoke').replace(/\n{3,}/g,'\n\n').trim();
 }
 
 try{
@@ -54,6 +67,9 @@ try{
   }
   if(backupChanged){
     safe=safe&&nonControlBackup(show(baseSha,'.github/workflows/backup-restore-smoke.yml'))===nonControlBackup(show(headSha,'.github/workflows/backup-restore-smoke.yml'));
+  }
+  if(stagingChanged){
+    safe=safe&&nonControlStaging(show(baseSha,'.github/workflows/staging-smoke.yml'))===nonControlStaging(show(headSha,'.github/workflows/staging-smoke.yml'));
   }
   console.log(safe?'true':'false');
 }catch(error){
