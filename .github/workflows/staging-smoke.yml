@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [staging]
   push:
-    branches: [develop, staging]
+    branches: [staging]
   workflow_dispatch:
 
 concurrency:

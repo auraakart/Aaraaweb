@@ -1,8 +1,6 @@
 name: V4.11 Pilot Readiness Contract
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:

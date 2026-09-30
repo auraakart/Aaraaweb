@@ -2,11 +2,14 @@ name: V3 Runtime Reliability
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - 'services/api/src/auth/**'
       - 'services/api/src/scheduled-work/**'
       - 'services/api/scripts/runtime-reliability-smoke.ts'
       - '.github/workflows/v3-runtime-reliability.yml'
+  schedule:
+    - cron: '41 2 * * 5'
   workflow_dispatch:
 
 permissions:

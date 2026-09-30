@@ -134,6 +134,8 @@ const appScopedRequired=[
   'RUN_DEPENDENCY_AUDIT: ${{ needs.change-scope.outputs.run_dependency_audit }}',
   'Scan tracked source for high-confidence secret patterns',
   'Dependency graph unchanged: full package audit skipped',
+  'node scripts/check-v4-release-evidence.mjs',
+  'bash -n scripts/release-migration-gate.sh',
 ];
 const appScopedMissing=appScopedRequired.filter(token=>!workflow.includes(token));
 if(appScopedMissing.length){
@@ -179,26 +181,52 @@ const supplyWorkflow=workflowSource('.github/workflows/supply-chain-security.yml
 const crossRoleWorkflow=workflowSource('.github/workflows/cross-role-e2e.yml');
 const backupWorkflow=workflowSource('.github/workflows/backup-restore-smoke.yml');
 
-for(const [label,source] of [
+const specialistMainPr=[
   ['CodeQL',codeqlWorkflow],
   ['Supply-chain security',supplyWorkflow],
   ['Cross-role E2E',crossRoleWorkflow],
-]){
+  ['Performance regression',workflowSource('.github/workflows/performance-regression.yml')],
+  ['Runtime reliability',workflowSource('.github/workflows/v3-runtime-reliability.yml')],
+  ['V4 release consolidation',workflowSource('.github/workflows/v4-release-consolidation.yml')],
+];
+for(const [label,source] of specialistMainPr){
   if(eventBranches(source,'pull_request').includes('develop')){
     console.error(label+' must not consume develop PR runners outside canonical CI.');
     process.exit(1);
   }
+  if(!eventBranches(source,'pull_request').includes('main')){
+    console.error(label+' must retain pre-main pull-request coverage.');
+    process.exit(1);
+  }
 }
-if(!eventBranches(codeqlWorkflow,'push').includes('develop')||
-   !eventBranches(supplyWorkflow,'push').includes('develop')||
-   !eventBranches(crossRoleWorkflow,'push').includes('develop')){
-  console.error('Deferred security/E2E workflows must retain post-merge develop push coverage.');
-  process.exit(1);
+
+const noDevelopPush=[
+  ['Canonical CI',workflow],
+  ['CodeQL',codeqlWorkflow],
+  ['Supply-chain security',supplyWorkflow],
+  ['Cross-role E2E',crossRoleWorkflow],
+  ['Branch hygiene',workflowSource('.github/workflows/branch-hygiene.yml')],
+  ['Resident demo APK',workflowSource('.github/workflows/resident-demo-apk.yml')],
+  ['Staging smoke',workflowSource('.github/workflows/staging-smoke.yml')],
+  ['V2 role UAT',workflowSource('.github/workflows/v2-role-uat-contract.yml')],
+  ['V2 policy pilot',workflowSource('.github/workflows/v2-policy-pilot-contract.yml')],
+  ['V2 security/privacy',workflowSource('.github/workflows/v2-security-privacy-review.yml')],
+  ['V2 pilot acceptance',workflowSource('.github/workflows/v2-pilot-acceptance-contract.yml')],
+  ['V2 staging pilot execution',workflowSource('.github/workflows/v2-staging-pilot-execution-contract.yml')],
+  ['V4.11 pilot readiness',workflowSource('.github/workflows/v4.11-pilot-readiness.yml')],
+  ['V4.28 deployable evidence',workflowSource('.github/workflows/v4.28-deployable-evidence.yml')],
+  ['V4.29 pilot evidence',workflowSource('.github/workflows/v4.29-pilot-evidence-capture.yml')],
+  ['V4.33 competitive readiness',workflowSource('.github/workflows/v4.33-competitive-readiness.yml')],
+];
+for(const [label,source] of noDevelopPush){
+  if(eventBranches(source,'push').includes('develop')){
+    console.error(label+' must not start a post-merge develop runner.');
+    process.exit(1);
+  }
 }
-if(!eventBranches(codeqlWorkflow,'pull_request').includes('main')||
-   !eventBranches(supplyWorkflow,'pull_request').includes('main')||
-   !eventBranches(crossRoleWorkflow,'pull_request').includes('main')){
-  console.error('Deferred security/E2E workflows must retain pre-main pull-request coverage.');
+if(!eventBranches(workflow,'pull_request').includes('develop')||
+   !eventBranches(workflow,'pull_request').includes('main')){
+  console.error('Canonical CI must remain the protected pre-merge validator for develop and main.');
   process.exit(1);
 }
 const backupPrBranches=eventBranches(backupWorkflow,'pull_request');

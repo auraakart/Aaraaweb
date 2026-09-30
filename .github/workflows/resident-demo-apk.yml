@@ -2,7 +2,7 @@ name: Resident Demo APK
 
 on:
   push:
-    branches: [develop, main]
+    branches: [main]
     paths:
       - 'apps/resident/**'
       - '.github/workflows/resident-demo-apk.yml'
