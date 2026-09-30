@@ -65,11 +65,6 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Helpdesk')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _newTicket,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New complaint'),
-      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -78,16 +73,22 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
             AaraagateTokens.pageGutter,
             AaraagateTokens.space3,
             AaraagateTokens.pageGutter,
-            104,
+            AaraagateTokens.space8,
           ),
           children: [
-            PremiumSectionHeader(
+            PremiumPageIntro(
+              icon: Icons.support_agent_rounded,
               title: 'Your complaints',
               supportingText: _tickets.isEmpty
                   ? 'Report a society issue and track every update from one place.'
                   : '$activeCount active · ${_tickets.length} total for this property.',
+              action: FilledButton.tonalIcon(
+                onPressed: _newTicket,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('New complaint'),
+              ),
             ),
-            const SizedBox(height: AaraagateTokens.space4),
+            const SizedBox(height: AaraagateTokens.space5),
             if (_loading && _tickets.isEmpty)
               const AppStateCard(
                 icon: Icons.sync_rounded,

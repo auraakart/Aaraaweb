@@ -111,6 +111,8 @@ class PremiumPageIntro extends StatelessWidget {
               if (eyebrow != null) ...[
                 Text(
                   eyebrow!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,
