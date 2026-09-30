@@ -187,6 +187,8 @@ jobs:
           test -f docs/CROSS-ROLE-E2E-EVIDENCE.md
           test -f scripts/validate-hosted-health.mjs
           test -f scripts/check-v2-validation-manifest.mjs
+          test -f scripts/open-main-release-pr.sh
+          test -f scripts/check-v4.80.12-main-review-routing.mjs
           test -f docs/v2-validation-manifest.json
           bash -n scripts/production-preflight.sh
           bash -n scripts/check-product-branding.sh
@@ -195,12 +197,15 @@ jobs:
           bash -n scripts/hosted-staging-smoke.sh
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
+          bash -n scripts/open-main-release-pr.sh
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract
         run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Check V4 release evidence contract
         run: node scripts/check-v4-release-evidence.mjs
+      - name: Check V4.80.12 main review routing
+        run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
         run: bash -n scripts/release-migration-gate.sh
       - name: Check V4.36 architecture convergence
