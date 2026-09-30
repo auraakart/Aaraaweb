@@ -58,12 +58,18 @@ must('V4.68 Resident regression',read('apps/resident/test/emergency_contact_reco
 const root=JSON.parse(read('package.json'));
 const api=JSON.parse(read('services/api/package.json'));
 const admin=JSON.parse(read('apps/admin/package.json'));
-if(root.version!=='4.68.0'||api.version!==root.version||admin.version!==root.version){
-  console.error('Root/API/Admin release identity must be V4.68.0.');
+const currentVersion=root.version.split('.').map(Number);
+const atLeastV468=currentVersion.length===3&&currentVersion.every(Number.isInteger)&&(
+  currentVersion[0]>4||
+  (currentVersion[0]===4&&(currentVersion[1]>68||(currentVersion[1]===68&&currentVersion[2]>=0)))
+);
+if(!atLeastV468||api.version!==root.version||admin.version!==root.version){
+  console.error('Root/API/Admin release identity must remain aligned at V4.68.0 or newer.');
   process.exit(1);
 }
+const runtimeVersionToken='version: '+root.version+'+';
 for(const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']){
-  must(pubspec,read(pubspec),['version: 4.68.0+46800']);
+  must(pubspec,read(pubspec),[runtimeVersionToken]);
 }
 must('V4.68 release truth',read('docs/AARAAGATE-V4.68-EMERGENCY-CONTACT-RECOVERY.md'),[
   'release identity is 4.68.0',
