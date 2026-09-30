@@ -265,7 +265,7 @@ jobs:
       - name: Upload exact-SHA staging evidence
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-evidence-${{ github.run_id }}
           path: staging-evidence/

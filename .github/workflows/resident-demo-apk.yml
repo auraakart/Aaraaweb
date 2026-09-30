@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload Resident APK
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aaraagate-resident-demo-showcase-v2-apk
           path: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
