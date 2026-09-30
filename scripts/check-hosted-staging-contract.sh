@@ -4,10 +4,12 @@ set -euo pipefail
 WORKFLOW=".github/workflows/hosted-staging-acceptance.yml"
 SMOKE="scripts/hosted-staging-smoke.sh"
 VALIDATOR="scripts/validate-hosted-health.mjs"
+RELEASE_WORKFLOW=".github/workflows/release-readiness.yml"
 
 test -f "$WORKFLOW"
 test -f "$SMOKE"
 test -f "$VALIDATOR"
+test -f "$RELEASE_WORKFLOW"
 bash -n "$SMOKE"
 
 required_literals=(
@@ -32,6 +34,25 @@ for literal in "${required_literals[@]}"; do
     exit 1
   fi
 done
+
+release_required_literals=(
+  "Record hosted staging acceptance boundary"
+  "REPOSITORY_MAIN_PROMOTION_ONLY_EXTERNAL_PENDING"
+  "Production deployment remains blocked."
+  'bash scripts/hosted-staging-smoke.sh "$API_BASE_URL" "$CANDIDATE_SHA" release-evidence/hosted-staging'
+)
+
+for literal in "${release_required_literals[@]}"; do
+  if ! grep -Fq -- "$literal" "$RELEASE_WORKFLOW"; then
+    echo "Main-promotion hosted-staging boundary is missing: $literal" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq -- "AARAAGATE_STAGING_API_BASE_URL must be configured before main promotion." "$RELEASE_WORKFLOW"; then
+  echo "Repository main promotion must not fail solely because external hosted staging is not configured." >&2
+  exit 1
+fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
