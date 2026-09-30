@@ -54,3 +54,8 @@ Tracked-source secret scanning now runs inside the required Repository Structure
 Use one focused `mastermind/* → develop` PR at a time. Let canonical Required Merge Gates and V4.80.4 auto-merge resolve the exact tested head. Do not poll or wait on auxiliary post-merge evidence to decide develop merge readiness.
 
 No staging or main promotion is included.
+
+
+## V4.80.6.1 follow-up
+
+V4.80.6.1 supersedes the interim choice to run heavy evidence workflows on every develop push. Continuous development exposed that post-merge fan-out could still contend with the next PR. Develop is now quiescent after merge: canonical validation happens before merge, while heavy specialist evidence runs at main, staging, scheduled, or manual boundaries. See `AARAAGATE-V4.80.6.1-DEVELOP-RUNNER-QUIESCENCE.md`.

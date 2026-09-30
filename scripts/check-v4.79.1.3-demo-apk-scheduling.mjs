@@ -7,13 +7,13 @@ if(/\n\s*pull_request:\s*\n/.test(workflow)){
 }
 for(const token of [
   'push:',
-  'branches: [develop, main]',
+  'branches: [main]',
   'workflow_dispatch:',
   'Build Resident demo APK',
   "flutter-version: '3.47.0'",
   'Build debug APK',
-  "github.event_name == 'push' && github.ref == 'refs/heads/develop'",
+  "github.event_name == 'push' && github.ref == 'refs/heads/main'",
 ]){
-  if(!workflow.includes(token)) throw new Error('Resident Demo APK post-merge evidence contract missing: '+token);
+  if(!workflow.includes(token)) throw new Error('Resident Demo APK main-boundary evidence contract missing: '+token);
 }
 console.log('V4.79.1.3 Resident Demo APK scheduling contract OK');

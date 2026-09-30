@@ -2,12 +2,14 @@ name: Performance Regression
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [main]
     paths:
       - 'services/api/**'
       - 'scripts/performance-smoke.mjs'
       - '.github/workflows/performance-regression.yml'
       - 'docs/PERFORMANCE-REGRESSION-EVIDENCE.md'
+  schedule:
+    - cron: '13 2 * * 5'
   workflow_dispatch:
 
 permissions:

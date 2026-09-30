@@ -14,7 +14,7 @@ on:
       - 'tsconfig*.json'
       - '.github/workflows/codeql.yml'
   push:
-    branches: [develop, main]
+    branches: [main]
     paths:
       - 'services/api/**'
       - 'apps/admin/**'

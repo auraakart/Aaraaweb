@@ -1,8 +1,6 @@
 name: V4.29 Pilot Evidence Capture Contract
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:

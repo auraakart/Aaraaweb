@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop, main]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -199,6 +199,10 @@ jobs:
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract
         run: node scripts/v4.34-cross-app-journey-contract.mjs
+      - name: Check V4 release evidence contract
+        run: node scripts/check-v4-release-evidence.mjs
+      - name: Validate release migration control syntax
+        run: bash -n scripts/release-migration-gate.sh
       - name: Check V4.36 architecture convergence
         run: node scripts/check-v4.36-architecture-convergence.mjs
       - name: Check V4.37 repository integrity

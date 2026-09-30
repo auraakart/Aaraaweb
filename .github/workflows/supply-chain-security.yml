@@ -16,7 +16,7 @@ on:
       - 'scripts/check-secret-patterns.mjs'
       - '.github/workflows/supply-chain-security.yml'
   push:
-    branches: [develop, main]
+    branches: [main]
     paths:
       - 'package.json'
       - '**/package.json'
