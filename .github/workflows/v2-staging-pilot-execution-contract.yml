@@ -21,7 +21,7 @@ jobs:
       - name: Fetch staging history
         run: git fetch origin staging:refs/remotes/origin/staging --force
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Validate V2 staging pilot execution record
