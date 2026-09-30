@@ -11,7 +11,7 @@ The workflow may also be manually dispatched after it is available on the defaul
 - the full commit SHA currently at `staging`;
 - the public HTTPS origin of the hosted API, without credentials or a path.
 
-V4.55 also makes hosted staging a direct `staging -> main` release-readiness gate: the main-candidate PR reruns the TLS/readiness check against the exact staging candidate and fails closed when `AARAAGATE_STAGING_API_BASE_URL` is absent or the deployed SHA does not match.
+V4.80.10.3 separates repository promotion from production deployment. A `staging -> main` PR reruns the hosted TLS/readiness check when `AARAAGATE_STAGING_API_BASE_URL` is configured. When the URL is not configured, release readiness records `REPOSITORY_MAIN_PROMOTION_ONLY_EXTERNAL_PENDING` and allows repository synchronization to continue, but this is **not** production approval. Production deployment remains blocked until the dedicated `Hosted staging acceptance` workflow passes for the exact staging candidate.
 
 The workflow fails closed unless the declared SHA is still the current staging head. It verifies `/api/v1/health/live` and `/api/v1/health/ready` over TLS 1.2 or newer and requires:
 
