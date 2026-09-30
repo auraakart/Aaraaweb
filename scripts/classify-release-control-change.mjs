@@ -51,8 +51,8 @@ function nonControlCi(source){
 }
 
 function nonControlBackup(source){
-  let value=source;
-  for(const job of ['change-scope','staging-auto-merge']) value=stripJob(value,job,'Backup restore');
+  let value=stripJob(source,'change-scope','Backup restore');
+  value=stripJob(value,'staging-auto-merge','Backup restore');
   return value.replace(/\n{3,}/g,'\n\n').trim();
 }
 
