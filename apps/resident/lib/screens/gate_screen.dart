@@ -37,10 +37,13 @@ class GateScreen extends StatelessWidget {
               icon: Icons.shield_outlined,
               title: strings.text('gateTitle'),
               supportingText: strings.text('gateSubtitle'),
-              action: FilledButton.tonalIcon(
-                onPressed: () => _invite(context),
-                icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: Text(strings.text('inviteGuest')),
+              action: Tooltip(
+                message: strings.text('inviteGuest'),
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _invite(context),
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(strings.text('inviteGuest')),
+                ),
               ),
             ),
             const SizedBox(height: AaraagateTokens.space5),
@@ -368,27 +371,6 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.count});
-  final String title;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(children: [
-      Expanded(child: Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
-      Container(
-        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(999)),
-        child: Text('$count', style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onErrorContainer, fontWeight: FontWeight.w800)),
-      ),
-    ]);
-  }
-}
-
 class _GateSummary extends StatelessWidget {
   const _GateSummary({required this.waiting, required this.inside, required this.total, required this.strings});
   final int waiting;
@@ -413,13 +395,6 @@ class _GateSummary extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _Divider extends StatelessWidget {
-  const _Divider({required this.color});
-  final Color color;
-  @override
-  Widget build(BuildContext context) => Container(width: 1, height: 34, color: color);
 }
 
 class _Metric extends StatelessWidget {
