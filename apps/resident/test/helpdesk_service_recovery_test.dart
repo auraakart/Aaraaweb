@@ -61,6 +61,23 @@ class _HelpdeskRepository extends ResidentRepository {
 }
 
 void main(){
+  testWidgets('helpdesk exposes its primary complaint action in the page hierarchy',(tester) async{
+    final repository=_HelpdeskRepository();
+    final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);
+    controller.households=[{'id':'house-1','unitId':'unit-1'}];
+
+    await tester.pumpWidget(MaterialApp(home:HelpdeskScreen(controller:controller)));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FloatingActionButton),findsNothing);
+    expect(find.widgetWithText(FilledButton,'New complaint'),findsOneWidget);
+    await tester.tap(find.text('New complaint'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create complaint'),findsOneWidget);
+
+    controller.dispose();
+  });
+
   testWidgets('resident helpdesk shows property, SLA targets, next action and recovery evidence',(tester) async{
     final repository=_HelpdeskRepository();
     final controller=ResidentDataController(repository,activeUnitId:'unit-1',fetchEntitlements:false);
