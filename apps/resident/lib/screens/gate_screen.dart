@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../data/resident_data_controller.dart';
 import '../data/resident_error_message.dart';
 import '../localization/aaraagate_strings.dart';
+import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 import '../widgets/visitor_pass_share_message.dart';
@@ -15,7 +16,6 @@ class GateScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final strings = AaraagateStrings.device();
     final requests = controller.accessRequests;
     final pending = requests.where((e) => e['status'] == 'PENDING').toList(growable: false);
@@ -26,61 +26,38 @@ class GateScreen extends StatelessWidget {
         onRefresh: controller.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          padding: const EdgeInsets.fromLTRB(
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space4,
+            AaraagateTokens.pageGutter,
+            AaraagateTokens.space8,
+          ),
           children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final scale = MediaQuery.textScalerOf(context).scale(1);
-                final stacked = constraints.maxWidth < 420 || scale > 1.3;
-                final copy = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      strings.text('gateTitle'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.3),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      strings.text('gateSubtitle'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                );
-                final action = IconButton.filledTonal(
-                  tooltip: strings.text('inviteGuest'),
-                  onPressed: () => _invite(context),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                );
-                if (stacked) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      copy,
-                      const SizedBox(height: 10),
-                      Align(alignment: Alignment.centerRight, child: action),
-                    ],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: copy),
-                    const SizedBox(width: 12),
-                    action,
-                  ],
-                );
-              },
+            PremiumPageIntro(
+              icon: Icons.shield_outlined,
+              title: strings.text('gateTitle'),
+              supportingText: strings.text('gateSubtitle'),
+              action: FilledButton.tonalIcon(
+                onPressed: () => _invite(context),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: Text(strings.text('inviteGuest')),
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AaraagateTokens.space5),
             _GateSummary(waiting: pending.length, inside: inside, total: requests.length, strings: strings),
             if (pending.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              _SectionTitle(title: strings.text('needsAttention'), count: pending.length),
-              const SizedBox(height: 12),
+              const SizedBox(height: AaraagateTokens.space6),
+              PremiumSectionHeader(
+                title: strings.text('needsAttention'),
+                supportingText: pending.length == 1
+                    ? '1 gate request is waiting for your decision.'
+                    : '${pending.length} gate requests are waiting for your decision.',
+                trailing: AaraagateStatusPill(
+                  label: '${pending.length}',
+                  tone: AaraagateStatusTone.warning,
+                ),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
               for (final request in pending) ...[
                 _AccessCard(
                   request: request,
@@ -92,26 +69,12 @@ class GateScreen extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
             ],
-            const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final scale = MediaQuery.textScalerOf(context).scale(1);
-                final title = Text(strings.text('recentActivity'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800));
-                final invite = TextButton.icon(onPressed: () => _invite(context), icon: const Icon(Icons.add_rounded), label: Text(strings.text('invite')));
-                if (constraints.maxWidth < 420 || scale > 1.3) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      title,
-                      const SizedBox(height: 6),
-                      Align(alignment: Alignment.centerRight, child: invite),
-                    ],
-                  );
-                }
-                return Row(children: [Expanded(child: title), invite]);
-              },
+            const SizedBox(height: AaraagateTokens.space6),
+            PremiumSectionHeader(
+              title: strings.text('recentActivity'),
+              supportingText: 'Recent arrivals, approvals and visitor-pass activity.',
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AaraagateTokens.space2),
             if (controller.loading && requests.isEmpty)
               AppStateCard(icon: Icons.sync_rounded, message: strings.text('loadingActivity'), loading: true)
             else if (controller.accessError != null)
@@ -437,14 +400,15 @@ class _GateSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+    return PremiumSurface(
+      color: scheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AaraagateTokens.space2,
+        vertical: AaraagateTokens.space4,
+      ),
       child: Row(children: [
         Expanded(child: _Metric(label: strings.text('waiting'), value: '$waiting')),
-        _Divider(color: scheme.outlineVariant),
         Expanded(child: _Metric(label: strings.text('inside'), value: '$inside')),
-        _Divider(color: scheme.outlineVariant),
         Expanded(child: _Metric(label: strings.text('today'), value: '$total')),
       ]),
     );
