@@ -108,6 +108,15 @@ jobs:
             flutter build apk --debug "${DEMO_FLAGS[@]}"
           fi
 
+      - name: Read Resident release identity
+        id: release_identity
+        run: |
+          VERSION="$(awk '/^version:/ {print $2; exit}' apps/resident/pubspec.yaml)"
+          SEMVER="${VERSION%%+*}"
+          test -n "$SEMVER"
+          echo "version=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "build_version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Prepare artifact
         run: |
           mkdir -p dist
@@ -121,6 +130,7 @@ jobs:
           APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
           {
             echo "### Resident demo APK build"
+            echo "- Version: `${{ steps.release_identity.outputs.build_version }}`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Size: ${APK_SIZE} bytes"
             echo "- SHA-256: \`${APK_SHA256}\`"
@@ -140,9 +150,11 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: resident-demo-latest
-          name: Aaraagate Resident Demo - Latest
+          name: Aaraagate Resident Demo - Latest (V${{ steps.release_identity.outputs.version }})
           body: |
             Latest installable Resident Demo Showcase APK from the main branch.
+            Version: V${{ steps.release_identity.outputs.version }}
+            Source commit: `${{ github.sha }}`
             Download the .apk asset directly; no ZIP extraction is required.
           artifacts: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
           artifactContentType: application/vnd.android.package-archive
