@@ -381,12 +381,16 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             else if (_amenities.isEmpty)
               const AppStateCard(icon: Icons.weekend_outlined, message: 'No bookable amenities are available right now.')
             else ...[
-              PremiumSectionHeader(
-                title: 'Available facilities',
-                supportingText: 'Choose a facility and time for your currently selected property.',
-                trailing: AaraagateStatusPill(label: '${_amenities.length}', tone: AaraagateStatusTone.neutral),
+              PremiumPageIntro(
+                icon: Icons.calendar_month_outlined,
+                title: 'Book a facility',
+                supportingText: 'Choose a facility, date and time for your currently selected property.',
+                action: AaraagateStatusPill(
+                  label: '${_amenities.length} available',
+                  tone: AaraagateStatusTone.info,
+                ),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              const SizedBox(height: AaraagateTokens.space5),
               for (final amenity in _amenities) ...[
                 _AmenityCard(amenity: amenity, busy: _submitting, onBook: () => _book(amenity)),
                 const SizedBox(height: AaraagateTokens.space3),

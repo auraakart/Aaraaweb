@@ -70,6 +70,105 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
   }
 }
 
+class PremiumPageIntro extends StatelessWidget {
+  const PremiumPageIntro({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.supportingText,
+    this.action,
+    this.eyebrow,
+  });
+
+  final IconData icon;
+  final String title;
+  final String supportingText;
+  final Widget? action;
+  final String? eyebrow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final copy = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: AaraagateTokens.iconContainer,
+          height: AaraagateTokens.iconContainer,
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          ),
+          child: Icon(icon, color: scheme.primary, size: 24),
+        ),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (eyebrow != null) ...[
+                Text(
+                  eyebrow!,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .2,
+                  ),
+                ),
+                const SizedBox(height: AaraagateTokens.space1),
+              ],
+              Text(
+                title,
+                maxLines: scale > 1.3 ? 3 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.headlineSmall,
+              ),
+              const SizedBox(height: AaraagateTokens.space1),
+              Text(
+                supportingText,
+                maxLines: scale > 1.3 ? 5 : 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (action == null) return copy;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 420 || scale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy,
+              const SizedBox(height: AaraagateTokens.space3),
+              Align(alignment: Alignment.centerLeft, child: action!),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy),
+            const SizedBox(width: AaraagateTokens.space3),
+            action!,
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Consistent section heading for scan-friendly resident screens.
 /// Keeps headings quiet enough that the screen title remains dominant.
 class PremiumSectionHeader extends StatelessWidget {
@@ -213,11 +312,28 @@ class AaraagateStatusPill extends StatelessWidget {
     };
     return Semantics(
       label: 'Status: $label',
-      child: Container(
+      child: AnimatedContainer(
+        duration: AaraagateMotion.standard,
+        curve: AaraagateMotion.emphasized,
         constraints: const BoxConstraints(minHeight: 28),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: colors.$1, borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill)),
-        child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w800)),
+        decoration: BoxDecoration(
+          color: colors.$1,
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
+        ),
+        child: AnimatedSwitcher(
+          duration: AaraagateMotion.quick,
+          switchInCurve: AaraagateMotion.emphasized,
+          switchOutCurve: AaraagateMotion.emphasized,
+          child: Text(
+            label,
+            key: ValueKey(label),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colors.$2,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
       ),
     );
   }

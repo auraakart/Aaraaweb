@@ -123,6 +123,8 @@ V4.80.6.1 completes develop-runner quiescence for continuous delivery. Ordinary 
 
 V4.80.7 hardens Resident amenity refundable-deposit payment preparation against uncertain responses. One idempotency identity is retained per booking while deposit payment remains required; transport/5xx uncertainty preserves that identity for a safe retry, while authoritative 4xx rejection clears it. Successful order preparation also clears the retry identity, and deposit state continues to remain unpaid until gateway confirmation. Existing billing/payment authority and provider-confirmation semantics are unchanged.
 
+V4.80.8 converges the Resident mobile experience around a shared premium hierarchy without changing the Aaraagate teal brand palette. A reusable responsive page-intro pattern replaces bespoke header layouts, status pills animate state changes, light/dark neutral surfaces and body-reading rhythm are tightened, Gate removes duplicate invite affordances while preserving inline approve/deny, Billing exposes the earliest due checkout directly from its summary, Amenities gains a clearer facility-booking entry hierarchy, and Notices replaces its icon-only polls affordance with a labeled action. Existing 48px minimum controls, 4px-based spacing tokens, semantic states, payment/gate mutation authority and feature behavior remain intact.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
