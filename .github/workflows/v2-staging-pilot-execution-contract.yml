@@ -2,7 +2,7 @@ name: V2 Staging Pilot Execution Contract
 
 on:
   push:
-    branches: [develop]
+    branches: [staging]
   workflow_dispatch:
 
 permissions:

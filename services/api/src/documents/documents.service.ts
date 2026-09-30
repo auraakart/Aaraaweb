@@ -82,7 +82,14 @@ export class DocumentsService {
 
   async searchKnowledgeForUser(societyId: string, userId: string, query: string, includeManagement = false) {
     const normalized = query.toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0980-\u09ff\u0b80-\u0bff\u0c00-\u0c7f\u0c80-\u0cff\u0d00-\u0d7f ]/gu, ' ');
-    const tokens = [...new Set(normalized.split(/\s+/).map(token => token.trim()).filter(token => token.length >= 3))].slice(0, 8);
+    const rawTokens = [...new Set(normalized.split(/\s+/).map(token => token.trim()).filter(token => token.length >= 3))];
+    const genericTerms = new Set([
+      'society','community','document','documents','policy','policies','rule','rules','bylaw','bylaws','handbook','circular',
+      'please','show','tell','what','where','when','which','about','does','have','with','from','this','that','your','there','need','know',
+      'the','and','for','are','our','can','you','me',
+    ]);
+    const distinctiveTokens = rawTokens.filter(token => !genericTerms.has(token)).slice(0, 8);
+    const tokens = distinctiveTokens.length > 0 ? distinctiveTokens : rawTokens.slice(0, 8);
     if (tokens.length === 0) return [];
     const matchClauses = tokens.map(token => {
       const like = `%${token}%`;
@@ -124,22 +131,28 @@ export class DocumentsService {
       ORDER BY d."publishedAt" DESC NULLS LAST,d."createdAt" DESC
       LIMIT 40
     `);
-    const phrase = normalized.replace(/\s+/g,' ').trim();
+    const phrase = tokens.join(' ');
+    const minimumMatchedTerms = tokens.length >= 4 ? 2 : 1;
     return rows.map(row => {
       const title = row.title.toLowerCase();
       const description = (row.description ?? '').toLowerCase();
       const content = (row.contentText ?? '').toLowerCase();
+      const matchedTerms = tokens.filter(token => title.includes(token) || description.includes(token) || content.includes(token));
+      const coveragePercent = Math.round((matchedTerms.length / tokens.length) * 100);
       const score = (phrase.length >= 5 && (title.includes(phrase) || description.includes(phrase) || content.includes(phrase)) ? 8 : 0)
         + tokens.reduce((sum,token)=>sum+(title.includes(token)?4:0)+(description.includes(token)?2:0)+(content.includes(token)?1:0),0);
       const sourceText = row.contentText?.trim() || row.description?.trim() || row.title;
-      const first = tokens.map(token=>sourceText.toLowerCase().indexOf(token)).filter(index=>index>=0).sort((a,b)=>a-b)[0] ?? 0;
+      const first = matchedTerms.map(token=>sourceText.toLowerCase().indexOf(token)).filter(index=>index>=0).sort((a,b)=>a-b)[0] ?? 0;
       const start = Math.max(0, first - 90);
       const excerpt = sourceText.slice(start, start + 420).trim();
       return {
         documentId:row.id,title:row.title,category:row.category,version:row.version,
         publishedAt:row.publishedAt,excerpt,contentHash:row.contentHash,score,
+        matchedTerms,queryTermCount:tokens.length,coveragePercent,
       };
-    }).sort((a,b)=>b.score-a.score || String(b.publishedAt??'').localeCompare(String(a.publishedAt??''))).slice(0,5);
+    }).filter(item=>item.matchedTerms.length>=minimumMatchedTerms)
+      .sort((a,b)=>b.coveragePercent-a.coveragePercent || b.score-a.score || String(b.publishedAt??'').localeCompare(String(a.publishedAt??'')))
+      .slice(0,5);
   }
 
   async getManagementDocument(societyId: string, documentId: string) {

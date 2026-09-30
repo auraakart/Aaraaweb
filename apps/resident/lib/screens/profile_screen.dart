@@ -63,32 +63,19 @@ class ProfileScreen extends StatelessWidget {
             AaraagateTokens.space8,
           ),
           children: [
-            Text('Home & profile', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: AaraagateTokens.space1),
-            Text('Manage your selected property, household and account preferences.', style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
-            if (_propertyChoiceCount() > 1) ...[
-              const SizedBox(height: AaraagateTokens.space5),
-              PremiumSurface(
-                onTap: () => _showPropertyPicker(context),
-                semanticLabel: 'Switch property. Current property: ${_currentPropertyLabel()}',
-                child: Row(children: [
-                  Container(
-                    width: AaraagateTokens.iconContainer,
-                    height: AaraagateTokens.iconContainer,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-                    child: Icon(Icons.swap_horiz_rounded, color: scheme.onPrimaryContainer),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space3),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('My Properties', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: AaraagateTokens.space1),
-                    Text(_currentPropertyLabel(), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                  ])),
-                  const Icon(Icons.chevron_right_rounded),
-                ]),
-              ),
-            ],
+            PremiumPageIntro(
+              icon: Icons.home_outlined,
+              eyebrow: _propertyChoiceCount() > 1 ? _currentPropertyLabel() : null,
+              title: 'Home & profile',
+              supportingText: 'Manage your selected property, household and account preferences.',
+              action: _propertyChoiceCount() > 1
+                  ? FilledButton.tonalIcon(
+                      onPressed: () => _showPropertyPicker(context),
+                      icon: const Icon(Icons.swap_horiz_rounded),
+                      label: const Text('Switch property'),
+                    )
+                  : null,
+            ),
             const SizedBox(height: AaraagateTokens.space5),
             if (controller.loading && household == null)
               const Center(child: Padding(padding: EdgeInsets.all(AaraagateTokens.space6), child: CircularProgressIndicator()))

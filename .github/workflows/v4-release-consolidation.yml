@@ -2,7 +2,7 @@ name: V4 Release Consolidation
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [main]
     paths:
       - 'docs/AARAAGATE-V4-**'
       - 'docs/v4-release-manifest.json'

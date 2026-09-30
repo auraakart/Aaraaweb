@@ -22,8 +22,9 @@ type Allocation={id:string;receivableId:string;amountPaise:string;reversedPaise:
 type AllocationReversal={id:string;allocationId:string;receivableId:string;amountPaise:string;reason:string;reversedAt:string}
 type PaymentRefund={id:string;paymentId:string;amountPaise:string;reason:string;providerReference?:string|null;refundedAt:string}
 type AdjustmentNote={id:string;type:'DEBIT'|'CREDIT'|'WAIVER';documentType:'DEBIT_NOTE'|'CREDIT_NOTE'|'WAIVER';amountPaise:string;reason:string;noteNumber:string;entryDate:string;journalStatus:string;residentVisible:boolean;createdAt:string}
-type OperationalReadiness={status:'READY'|'WATCH'|'AT_RISK';draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;blockers:string[];nextActions:string[];automaticDebitAvailable:false;providerExecution:'ADAPTER_CONTROLLED';boundary:string;generatedAt:string}
-type TreasurerControl={status:'CLEAR'|'ATTENTION'|'ACTION_REQUIRED';bank:{unmatchedBank:number;unmatchedMovementPaise:string};cash:{unappliedCount:number;unappliedPaise:string};budget:{overrunLines:number;overrunPaise:string};tax:{gstEnabled:boolean;tdsEnabled:boolean;documentsMissingTaxEvidence:number};refunds:{refunds30d:number;refundedPaise30d:string};nextActions:string[];automaticPosting:false;automaticMatching:false;boundary:string;generatedAt:string}
+type ResolutionAction={code:string;label:string;detail:string;href:string}
+type OperationalReadiness={status:'READY'|'WATCH'|'AT_RISK';draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;blockers:string[];nextActions:string[];resolutionActions?:ResolutionAction[];automaticDebitAvailable:false;providerExecution:'ADAPTER_CONTROLLED';boundary:string;generatedAt:string}
+type TreasurerControl={status:'CLEAR'|'ATTENTION'|'ACTION_REQUIRED';bank:{unmatchedBank:number;unmatchedMovementPaise:string};cash:{unappliedCount:number;unappliedPaise:string};budget:{overrunLines:number;overrunPaise:string};tax:{gstEnabled:boolean;tdsEnabled:boolean;documentsMissingTaxEvidence:number};refunds:{refunds30d:number;refundedPaise30d:string};nextActions:string[];resolutionActions?:ResolutionAction[];automaticPosting:false;automaticMatching:false;boundary:string;generatedAt:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
@@ -116,7 +117,7 @@ export default function FinanceWorkspace(){
       {id:'budget-overrun',label:'Budget overrun lines',value:`${treasurer.budget.overrunLines} · ${money(treasurer.budget.overrunPaise)}`},
       {id:'tax-evidence',label:'Missing GST/TDS evidence',value:String(treasurer.tax.documentsMissingTaxEvidence)},
       {id:'refunds',label:'Refunds · 30d',value:`${treasurer.refunds.refunds30d} · ${money(treasurer.refunds.refundedPaise30d)}`},
-    ]}/><div style={{display:'grid',gap:6,marginTop:12}}>{treasurer.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</div><small style={{display:'block',marginTop:10}}>{treasurer.boundary}</small></section>}
+    ]}/><div style={{display:'grid',gap:6,marginTop:12}}>{treasurer.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</div>{(treasurer.resolutionActions??[]).length>0&&<div style={resolutionGrid} aria-label="Treasurer resolution actions">{(treasurer.resolutionActions??[]).map(action=><a key={action.code} href={action.href} style={resolutionLink}><span><b>{action.label}</b><br/><small>{action.detail}</small></span><span aria-hidden="true">→</span></a>)}</div>}<small style={{display:'block',marginTop:10}}>{treasurer.boundary}</small></section>}
 
     {executionReadiness&&<section id="execution-readiness" style={panel}><div style={sectionHeader}><div><h2 style={{margin:'0 0 4px'}}>Execution readiness</h2><small>Current finance, settlement, procurement and contract evidence. Provider actions remain adapter-controlled.</small></div><StatusPill label={executionReadiness.status.replaceAll('_',' ')} tone={executionReadiness.status==='READY'?'success':executionReadiness.status==='AT_RISK'?'danger':'warning'}/></div><EvidenceGrid items={[
       {id:'reconciliation-open',label:'Open reconciliation',value:String(executionReadiness.unresolvedReconciliation)},
@@ -125,7 +126,7 @@ export default function FinanceWorkspace(){
       {id:'po-handoff',label:'PO accounting handoff',value:String(executionReadiness.unlinkedPurchaseOrders)},
       {id:'contracts-expiring',label:'Contracts / AMC ≤30d',value:String(executionReadiness.contractsExpiring30d)},
       {id:'draft-budgets',label:'Draft budgets',value:String(executionReadiness.draftBudgets)},
-    ]}/><div style={{display:'grid',gap:6,marginTop:12}}>{executionReadiness.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</div><small style={{display:'block',marginTop:10}}>{executionReadiness.boundary}</small></section>}
+    ]}/><div style={{display:'grid',gap:6,marginTop:12}}>{executionReadiness.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</div>{(executionReadiness.resolutionActions??[]).length>0&&<div style={resolutionGrid} aria-label="Execution resolution actions">{(executionReadiness.resolutionActions??[]).map(action=><a key={action.code} href={action.href} style={resolutionLink}><span><b>{action.label}</b><br/><small>{action.detail}</small></span><span aria-hidden="true">→</span></a>)}</div>}<small style={{display:'block',marginTop:10}}>{executionReadiness.boundary}</small></section>}
 
     <section style={panel}><h2>Ageing</h2>{ageing?<EvidenceGrid items={[
   {id:'current',label:'Current',value:money(ageing.currentPaise)},{id:'1-30',label:'1–30 days',value:money(ageing.days1To30Paise)},{id:'31-60',label:'31–60 days',value:money(ageing.days31To60Paise)},{id:'61-90',label:'61–90 days',value:money(ageing.days61To90Paise)},{id:'90-plus',label:'90+ days',value:money(ageing.days90PlusPaise)}
@@ -174,6 +175,8 @@ const table:React.CSSProperties={width:'100%',borderCollapse:'collapse',marginTo
 const right:React.CSSProperties={textAlign:'right'}
 const notice:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #f59e0b',borderRadius:10,background:'#fffbeb'}
 const attentionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',padding:'14px 16px',border:'1px solid #dbe7ea',borderRadius:14,textDecoration:'none',color:'inherit',background:'#f8fbfc'}
+const resolutionGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))',gap:10,marginTop:14}
+const resolutionLink:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',padding:'12px 14px',border:'1px solid #bfd8dd',borderRadius:12,textDecoration:'none',color:'inherit',background:'#f4fafb'}
 const twoCol:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:24}
 
 const formGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,180px),1fr))',gap:10,alignItems:'end',marginTop:14}

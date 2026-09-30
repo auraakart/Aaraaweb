@@ -2,9 +2,33 @@ name: Supply-chain security
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
+    paths:
+      - 'package.json'
+      - '**/package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'apps/resident/pubspec.yaml'
+      - 'apps/resident/pubspec.lock'
+      - 'apps/guard/pubspec.yaml'
+      - 'apps/guard/pubspec.lock'
+      - 'scripts/generate-v4.55-sbom.mjs'
+      - 'scripts/check-secret-patterns.mjs'
+      - '.github/workflows/supply-chain-security.yml'
   push:
-    branches: [develop, main]
+    branches: [main]
+    paths:
+      - 'package.json'
+      - '**/package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'apps/resident/pubspec.yaml'
+      - 'apps/resident/pubspec.lock'
+      - 'apps/guard/pubspec.yaml'
+      - 'apps/guard/pubspec.lock'
+      - 'scripts/generate-v4.55-sbom.mjs'
+      - 'scripts/check-secret-patterns.mjs'
+      - '.github/workflows/supply-chain-security.yml'
   schedule:
     - cron: '11 4 * * 3'
 

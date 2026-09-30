@@ -24,6 +24,8 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   List<Map<String, dynamic>> _amenities = const [];
   List<Map<String, dynamic>> _bookings = const [];
   List<Map<String, dynamic>> _waitlist = const [];
+  final Map<String, String> _bookingAttemptKeys = <String, String>{};
+  final Map<String, String> _depositPaymentAttemptKeys = <String, String>{};
 
   @override
   void initState() {
@@ -43,6 +45,14 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       setState(() {
         _amenities = results[0];
         _bookings = results[1];
+        final payableDepositBookingIds = results[1]
+            .where((item) => item['status']?.toString() == 'CONFIRMED' &&
+                item['depositStatus']?.toString() == 'PAYMENT_REQUIRED')
+            .map((item) => item['id']?.toString())
+            .whereType<String>()
+            .toSet();
+        _depositPaymentAttemptKeys.removeWhere(
+            (bookingId, _) => !payableDepositBookingIds.contains(bookingId));
         _waitlist = results[2];
         _loading = false;
       });
@@ -76,6 +86,18 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       return;
     }
 
+    final bookingIntent = [
+      amenity['id'].toString(),
+      widget.unitId,
+      startsAt.toUtc().toIso8601String(),
+      endsAt.toUtc().toIso8601String(),
+      selection.guestCount.toString(),
+    ].join('|');
+    final attemptKey = _bookingAttemptKeys.putIfAbsent(
+      bookingIntent,
+      () => 'resident-amenity-${DateTime.now().microsecondsSinceEpoch}',
+    );
+
     setState(() => _submitting = true);
     try {
       final created = await widget.repository.createAmenityBooking(
@@ -84,7 +106,9 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
         startsAt: startsAt,
         endsAt: endsAt,
         guestCount: selection.guestCount,
+        idempotencyKey: attemptKey,
       );
+      _bookingAttemptKeys.remove(bookingIntent);
       if (!mounted) return;
       _showMessage(created['status']?.toString() == 'PENDING'
           ? 'Booking request sent for approval.'
@@ -93,6 +117,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
     } catch (error) {
       if (!mounted) return;
       if (_isCapacityConflict(error)) {
+        _bookingAttemptKeys.remove(bookingIntent);
         final join = await _confirmWaitlist(amenity, startsAt, selection.guestCount);
         if (join == true && mounted) {
           try {
@@ -108,11 +133,72 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             _showMessage(position > 0 ? 'Added to waitlist · position $position.' : 'Added to waitlist.');
             await _load();
           } catch (waitlistError) {
-            if (mounted) _showMessage(_friendlyError(waitlistError));
+            List<Map<String,dynamic>>? refreshedWaitlist;
+            try {
+              refreshedWaitlist = await widget.repository.amenityWaitlist(widget.unitId);
+            } catch (_) {
+              refreshedWaitlist = null;
+            }
+            if (!mounted) return;
+            Map<String,dynamic>? recoveredWaitlist;
+            if (refreshedWaitlist != null) {
+              for (final item in refreshedWaitlist) {
+                if (item['status']?.toString() == 'WAITING' &&
+                    item['amenityId']?.toString() == amenity['id']?.toString() &&
+                    item['unitId']?.toString() == widget.unitId &&
+                    _sameInstant(item['startsAt'], startsAt) &&
+                    _sameInstant(item['endsAt'], endsAt) &&
+                    _asInt(item['guestCount'], fallback: 0) == selection.guestCount) {
+                  recoveredWaitlist = item;
+                  break;
+                }
+              }
+            }
+            if (recoveredWaitlist != null) {
+              setState(() => _waitlist = refreshedWaitlist!);
+              final position = _asInt(recoveredWaitlist['position'], fallback: 0);
+              _showMessage(position > 0
+                  ? 'Waitlist join confirmed after reconnect · position $position.'
+                  : 'Waitlist join confirmed after reconnect.');
+            } else {
+              _showMessage(_friendlyError(waitlistError));
+            }
           }
         }
-      } else {
+      } else if (error is ApiException && error.statusCode >= 400 && error.statusCode < 500) {
+        _bookingAttemptKeys.remove(bookingIntent);
         _showMessage(_friendlyError(error));
+      } else {
+        List<Map<String,dynamic>>? refreshed;
+        try {
+          refreshed = await widget.repository.amenityBookings(widget.unitId);
+        } catch (_) {
+          refreshed = null;
+        }
+        if (!mounted) return;
+        Map<String,dynamic>? recovered;
+        if (refreshed != null) {
+          for (final booking in refreshed) {
+            if (booking['idempotencyKey']?.toString() == attemptKey &&
+                booking['amenityId']?.toString() == amenity['id']?.toString() &&
+                booking['unitId']?.toString() == widget.unitId &&
+                booking['startsAt']?.toString() == startsAt.toUtc().toIso8601String() &&
+                booking['endsAt']?.toString() == endsAt.toUtc().toIso8601String() &&
+                _asInt(booking['guestCount'], fallback: 0) == selection.guestCount) {
+              recovered = booking;
+              break;
+            }
+          }
+        }
+        if (recovered != null) {
+          _bookingAttemptKeys.remove(bookingIntent);
+          setState(() => _bookings = refreshed!);
+          _showMessage(recovered['status']?.toString() == 'PENDING'
+              ? 'Booking request confirmed after reconnect.'
+              : 'Amenity booking confirmed after reconnect.');
+        } else {
+          _showMessage('Booking outcome could not be confirmed. Retry the same slot to continue safely.');
+        }
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -169,15 +255,30 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   }
 
   Future<void> _payDeposit(Map<String,dynamic> booking) async {
+    final bookingId=booking['id'].toString();
+    final attemptKey=_depositPaymentAttemptKeys.putIfAbsent(
+      bookingId,
+      ()=>'resident-amenity-deposit-${DateTime.now().microsecondsSinceEpoch}',
+    );
     setState(()=>_submitting=true);
     try{
-      final order=await widget.repository.createAmenityDepositPayment(bookingId:booking['id'].toString());
+      final order=await widget.repository.createAmenityDepositPayment(
+        bookingId:bookingId,
+        idempotencyKey:attemptKey,
+      );
+      _depositPaymentAttemptKeys.remove(bookingId);
       if(!mounted)return;
       final reference=order['providerOrderId']?.toString()??order['id']?.toString()??'created order';
       _showMessage('Secure refundable-deposit payment order ready: $reference. The deposit is not treated as paid until gateway confirmation.');
       await _load();
     }catch(error){
-      if(mounted)_showMessage(_friendlyError(error));
+      if(!mounted)return;
+      if(error is ApiException&&error.statusCode>=400&&error.statusCode<500){
+        _depositPaymentAttemptKeys.remove(bookingId);
+        _showMessage(_friendlyError(error));
+      }else{
+        _showMessage('Deposit payment order outcome could not be confirmed. Retry safely; the same request identity will be reused. The deposit remains unpaid until gateway confirmation.');
+      }
     }finally{
       if(mounted)setState(()=>_submitting=false);
     }
@@ -280,12 +381,16 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
             else if (_amenities.isEmpty)
               const AppStateCard(icon: Icons.weekend_outlined, message: 'No bookable amenities are available right now.')
             else ...[
-              PremiumSectionHeader(
-                title: 'Available facilities',
-                supportingText: 'Choose a facility and time for your currently selected property.',
-                trailing: AaraagateStatusPill(label: '${_amenities.length}', tone: AaraagateStatusTone.neutral),
+              PremiumPageIntro(
+                icon: Icons.calendar_month_outlined,
+                title: 'Book a facility',
+                supportingText: 'Choose a facility, date and time for your currently selected property.',
+                action: AaraagateStatusPill(
+                  label: '${_amenities.length} available',
+                  tone: AaraagateStatusTone.info,
+                ),
               ),
-              const SizedBox(height: AaraagateTokens.space3),
+              const SizedBox(height: AaraagateTokens.space5),
               for (final amenity in _amenities) ...[
                 _AmenityCard(amenity: amenity, busy: _submitting, onBook: () => _book(amenity)),
                 const SizedBox(height: AaraagateTokens.space3),
@@ -813,6 +918,11 @@ class _Meta extends StatelessWidget {
       ],
     );
   }
+}
+
+bool _sameInstant(dynamic value, DateTime expected) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  return parsed != null && parsed.toUtc().isAtSameMomentAs(expected.toUtc());
 }
 
 bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
