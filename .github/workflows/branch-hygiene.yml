@@ -4,8 +4,6 @@ on:
   pull_request:
     branches: [develop]
     types: [closed]
-  push:
-    branches: [develop]
   schedule:
     - cron: '17 2 * * 1'
   workflow_dispatch:

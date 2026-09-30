@@ -18,6 +18,8 @@ export type AmenityRules={
   noShowRestrictionCount?:number;
   noShowLookbackDays?:number;
   noShowBlockDays?:number;
+  refundableDepositPaise?:number;
+  depositPaymentWindowMinutes?:number;
   maxGuestsPerBooking?:number;
   conflictGroup?:string;
   pricingBands?:PricingBand[];

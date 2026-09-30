@@ -1,8 +1,6 @@
 name: V4.33 Competitive Readiness Contract
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:

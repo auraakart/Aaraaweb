@@ -2,7 +2,7 @@ name: Cross-role E2E Journeys
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [main]
     paths:
       - 'services/api/**'
       - 'apps/resident/**'
@@ -12,6 +12,8 @@ on:
       - 'scripts/v4.34-cross-app-journey-contract.mjs'
       - '.github/workflows/cross-role-e2e.yml'
       - 'docs/CROSS-ROLE-E2E-EVIDENCE.md'
+  schedule:
+    - cron: '29 3 * * 4'
   workflow_dispatch:
 
 permissions:

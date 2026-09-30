@@ -4,6 +4,7 @@ on:
   push:
     branches: [staging]
   pull_request:
+    branches: [staging]
   workflow_dispatch:
 
 permissions:
@@ -26,14 +27,17 @@ jobs:
     outputs:
       run_backup: ${{ steps.scope.outputs.run_backup }}
     steps:
+      - name: Checkout scope evidence
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Resolve backup/restore scope
         id: scope
         env:
-          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" != "pull_request" ]; then
@@ -44,7 +48,9 @@ jobs:
             echo "run_backup=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          changed="$(gh api --paginate "/repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename')"
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
           if printf '%s\n' "$changed" | grep -Eq '^(services/api/prisma/|\.github/workflows/backup-restore-smoke\.yml$|docs/BACKUP-RESTORE-EVIDENCE\.md$)'; then
             echo "run_backup=true" >> "$GITHUB_OUTPUT"
           else

@@ -81,6 +81,16 @@ class ResidentRepository {
     return Map<String, dynamic>.from(value as Map);
   }
 
+  Future<List<Map<String, dynamic>>> communityEvents() async {
+    final value = await api.get('/api/v1/community-events');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> respondCommunityEvent({required String eventId, required String status}) async {
+    final value = await api.post('/api/v1/community-events/$eventId/rsvp', {'status': status});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> communityPolls() async {
     final value = await api.get('/api/v1/governance/community-polls');
     return _list(value);

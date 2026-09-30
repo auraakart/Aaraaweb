@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [staging]
   push:
-    branches: [develop, staging]
+    branches: [staging]
   workflow_dispatch:
 
 concurrency:
@@ -144,7 +144,7 @@ jobs:
               echo "A stale staging candidate must be superseded through release/*-staging-candidate so ancestry is preserved."
               exit 1
             fi
-            STAGING_ONLY_SUBJECTS="$(git log --format='%s' "${DEVELOP_SHA}..${TARGET_SHA}")"
+            STAGING_ONLY_SUBJECTS="$(bash scripts/list-staging-only-release-subjects.sh "$DEVELOP_SHA" "$TARGET_SHA" "$MAIN_SHA")"
             if [ -z "$STAGING_ONLY_SUBJECTS" ]; then
               echo "Staging differs from main without attributable staging-only release history."
               exit 1

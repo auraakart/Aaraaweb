@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AmenitiesModule } from '../amenities/amenities.module';
 import { HelpdeskModule } from '../helpdesk/helpdesk.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitorsModule } from '../visitors/visitors.module';
 import { WorkforceModule } from '../workforce/workforce.module';
@@ -10,7 +11,7 @@ import { AiAssistantService } from './ai-assistant.service';
 import { AiOperationsService } from './ai-operations.service';
 
 @Module({
-  imports:[HelpdeskModule,AmenitiesModule,VisitorsModule,EntitlementsModule,WorkforceModule],
+  imports:[HelpdeskModule,AmenitiesModule,VisitorsModule,EntitlementsModule,WorkforceModule,DocumentsModule],
   controllers:[AiOperationsController],
   providers:[AiOperationsService,AiAssistantService,PrismaService],
 })

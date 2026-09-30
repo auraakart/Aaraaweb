@@ -45,7 +45,9 @@ export class PaymentAvailabilityService {
         LEFT JOIN allocation_totals a ON a."societyId"=p."societyId" AND a."paymentId"=p."id"
         LEFT JOIN reversal_totals rv ON rv."societyId"=p."societyId" AND rv."paymentId"=p."id"
         LEFT JOIN refund_totals rf ON rf."societyId"=p."societyId" AND rf."paymentId"=p."id"
-        WHERE p."societyId"=${societyId}::uuid AND p."status"='CAPTURED'
+        WHERE p."societyId"=${societyId}::uuid
+          AND p."purposeType"='MAINTENANCE_INVOICE'
+          AND p."status"='CAPTURED'
       )
       SELECT COUNT(*) FILTER (WHERE "availablePaise">0)::int AS "paymentCount",
              COALESCE(SUM("availablePaise") FILTER (WHERE "availablePaise">0),0)::text AS "unappliedPaise"

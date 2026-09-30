@@ -51,7 +51,8 @@ must('CI coverage enforcement', ci, [
   'Risk-weighted Resident coverage gate',
   'Risk-weighted Guard coverage gate',
   'Upload API risk coverage evidence',
-  'Upload Flutter risk coverage evidence',
+  'Upload Resident risk coverage evidence',
+  'Upload Guard risk coverage evidence',
 ]);
 
 const flutterCoverage = read('scripts/check-flutter-risk-coverage.mjs');
