@@ -55,7 +55,7 @@ jobs:
       AARAAGATE_E2E_GUARD_TOKEN: aaraagate-e2e-guard-token
       AARAAGATE_E2E_ADMIN_TOKEN: aaraagate-e2e-admin-token
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with: { version: 10.15.0 }
       - uses: actions/setup-node@v4

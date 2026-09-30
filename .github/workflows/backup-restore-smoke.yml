@@ -28,7 +28,7 @@ jobs:
       run_backup: ${{ steps.scope.outputs.run_backup }}
     steps:
       - name: Checkout scope evidence
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Resolve backup/restore scope
@@ -82,7 +82,7 @@ jobs:
       RESTORE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_backup_restore
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -195,7 +195,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout exact candidate for release controller
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Auto-merge exact staging candidate after companion gate
