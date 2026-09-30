@@ -53,10 +53,11 @@ Normal production path:
 
 The `develop` -> `staging` gate validates the immutable source candidate SHA and retains its non-sensitive readiness evidence. Diverged staging history must be reconciled back into `develop` through a reviewed PR before promotion; do not overwrite or force-update protected branch history.
 
-After deploying the promoted staging commit, require the `Hosted staging acceptance` workflow for the current staging SHA and public HTTPS API origin. V4.55 additionally reruns the exact hosted-staging check inside the `staging -> main` release-readiness job, so a missing staging URL or stale/unhealthy hosted candidate blocks main promotion. This provides exact-deployment liveness and dependency-readiness evidence but does not replace provider backup/PITR, alert-delivery, rollback or real-device UAT proof. See `docs/HOSTED-STAGING-ACCEPTANCE.md`.
+After deploying the promoted staging commit, require the `Hosted staging acceptance` workflow for the current staging SHA and public HTTPS API origin before any production deployment. V4.80.10.3 separates repository `staging -> main` promotion from that external productionization evidence: release readiness runs the hosted check when the staging URL is configured, otherwise it records `REPOSITORY_MAIN_PROMOTION_ONLY_EXTERNAL_PENDING`. That status may permit repository synchronization to `main`, but it is never a production GO signal; production deployment remains blocked until hosted staging acceptance passes for the exact candidate. This provides a stable code-promotion path without weakening production deployment controls. See `docs/HOSTED-STAGING-ACCEPTANCE.md`.
 
 Before production deployment confirm:
 - release commit is on `main`;
+- `Hosted staging acceptance` is green for the exact promoted staging candidate;
 - CI and staging smoke are green for the promoted state;
 - database migration plan has been reviewed;
 - backup status is healthy;
