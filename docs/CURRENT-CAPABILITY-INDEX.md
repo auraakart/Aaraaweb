@@ -129,6 +129,8 @@ V4.80.9 completes the next Resident premium-surface convergence slice. Helpdesk 
 
 V4.80.10 improves Community discoverability without changing governance semantics. The Resident Community hub now keeps Updates, Polls and Events together in a compact 48px-touch-target shortcut bar at the top of the page. Updates opens the full notices feed, Polls opens advisory community polls, and Events opens the privacy-preserving RSVP flow; the existing detailed previews and non-statutory boundaries remain unchanged.
 
+V4.80.11 closes release-identity and demo-artifact traceability drift after V4.80.10.5 release-orchestration convergence. Root, API and Admin now share release identity 4.80.11, Resident and Guard use 4.80.11+48011, the historical V4.68 identity guard is forward-compatible instead of freezing later releases, and Repository Structure enforces the aligned identity before expensive validation. The stable Resident demo tag remains `resident-demo-latest`, while build evidence and the GitHub release metadata expose the application version and exact source commit. No product-domain behavior or authority boundary changes are introduced.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
