@@ -73,7 +73,7 @@ void main(){
     expect(find.widgetWithText(FilledButton,'New complaint'),findsOneWidget);
     await tester.tap(find.text('New complaint'));
     await tester.pumpAndSettle();
-    expect(find.text('Create complaint'),findsOneWidget);
+    expect(find.widgetWithText(TextField,'Issue title'),findsOneWidget);
 
     controller.dispose();
   });
