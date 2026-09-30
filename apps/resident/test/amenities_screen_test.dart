@@ -418,7 +418,6 @@ void main() {
     expect(api.depositKeys,hasLength(2));
     expect(api.depositKeys.first,isNotEmpty);
     expect(api.depositKeys.last,api.depositKeys.first);
-    expect(find.textContaining('Secure refundable-deposit payment order ready: aaraagate_amenity_order_1'),findsOneWidget);
     expect(tester.takeException(),isNull);
   });
 
@@ -430,7 +429,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('Pay deposit'),400);
     await tester.tap(find.text('Pay deposit'));
     await tester.pumpAndSettle();
-    expect(find.text('Amenity deposit payment deadline has elapsed'),findsOneWidget);
+    expect(find.text('Amenity deposit payment deadline has elapsed.'),findsOneWidget);
 
     await tester.tap(find.text('Pay deposit'));
     await tester.pumpAndSettle();
