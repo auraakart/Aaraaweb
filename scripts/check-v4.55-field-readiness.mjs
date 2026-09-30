@@ -65,9 +65,14 @@ for (const workflow of [
 const release = read('.github/workflows/release-readiness.yml');
 requireTokens('Hosted main gate', release, [
   'environment: staging',
-  'Enforce hosted staging acceptance for exact main candidate',
+  'Record hosted staging acceptance boundary',
   'AARAAGATE_STAGING_API_BASE_URL',
+  'REPOSITORY_MAIN_PROMOTION_ONLY_EXTERNAL_PENDING',
   'hosted-staging-smoke.sh',
+  'Production deployment remains blocked.',
+]);
+forbidTokens('Hosted main gate', release, [
+  'AARAAGATE_STAGING_API_BASE_URL must be configured before main promotion.',
 ]);
 
 for (const path of [
