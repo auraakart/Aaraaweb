@@ -140,7 +140,19 @@ void main() {
   testWidgets('pending and failed payment attempts stay visible without receipts', (tester) async {
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: _BillingRepositoryWithRecoveryPayments())));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Payment activity'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Payment activity'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('CREATED'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('CREATED'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('FAILED'), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -153,6 +165,12 @@ void main() {
   testWidgets('owner opens a server-verified receipt from payment history', (tester) async {
     final repository = _BillingRepositoryWithPayment();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Receipt'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Receipt'));
     await tester.pumpAndSettle();
