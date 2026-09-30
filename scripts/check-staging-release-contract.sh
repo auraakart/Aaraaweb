@@ -4,11 +4,14 @@ set -euo pipefail
 WORKFLOW=".github/workflows/staging-smoke.yml"
 BACKUP_WORKFLOW=".github/workflows/backup-restore-smoke.yml"
 AUTOMERGE_SCRIPT="scripts/try-staging-auto-merge.sh"
+HISTORY_SUBJECT_SCRIPT="scripts/list-staging-only-release-subjects.sh"
 
 test -f "$WORKFLOW"
 test -f "$BACKUP_WORKFLOW"
 test -f "$AUTOMERGE_SCRIPT"
+test -f "$HISTORY_SUBJECT_SCRIPT"
 bash -n "$AUTOMERGE_SCRIPT"
+bash -n "$HISTORY_SUBJECT_SCRIPT"
 
 required_literals=(
   'CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}'
@@ -28,7 +31,7 @@ required_literals=(
   'git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"'
   'if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then'
   'git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .'
-  'STAGING_ONLY_SUBJECTS="$(git log --format='\''%s'\'' "${DEVELOP_SHA}..${TARGET_SHA}")"'
+  'STAGING_ONLY_SUBJECTS="$(bash scripts/list-staging-only-release-subjects.sh "$DEVELOP_SHA" "$TARGET_SHA" "$MAIN_SHA")"'
   "node scripts/check-staging-release-history.mjs"
   'superseding stale release-only candidate history'
   'ref: ${{ github.event.pull_request.head.sha || github.sha }}'
@@ -58,6 +61,47 @@ fi
 test -f scripts/check-staging-release-history.mjs
 node scripts/check-staging-release-history.mjs --self-test
 printf '%s\n' 'Release V4.78 exact develop tree to staging (#969)' | node scripts/check-staging-release-history.mjs
+
+# Regression: history inherited from current main must not be classified as
+# staging-only, while a genuinely staging-only product commit must still fail.
+ROOT_DIR="$(pwd)"
+HISTORY_TEST_REPO="$(mktemp -d)"
+trap 'rm -rf "$HISTORY_TEST_REPO"' EXIT
+
+git -C "$HISTORY_TEST_REPO" init -q
+git -C "$HISTORY_TEST_REPO" config user.name "Aaraagate CI"
+git -C "$HISTORY_TEST_REPO" config user.email "ci@aaraagate.invalid"
+git -C "$HISTORY_TEST_REPO" commit --allow-empty -qm "feat: common baseline"
+COMMON_SHA="$(git -C "$HISTORY_TEST_REPO" rev-parse HEAD)"
+
+git -C "$HISTORY_TEST_REPO" checkout -qb develop
+git -C "$HISTORY_TEST_REPO" commit --allow-empty -qm "feat: current develop"
+
+git -C "$HISTORY_TEST_REPO" checkout -qb main "$COMMON_SHA"
+git -C "$HISTORY_TEST_REPO" commit --allow-empty -qm "Merge pull request #869 from auraakart/staging"
+
+git -C "$HISTORY_TEST_REPO" checkout -qb staging
+git -C "$HISTORY_TEST_REPO" commit --allow-empty -qm "Release V4.80.10 exact develop tree to staging"
+
+STAGING_ONLY_SUBJECTS="$(
+  cd "$HISTORY_TEST_REPO"
+  bash "$ROOT_DIR/$HISTORY_SUBJECT_SCRIPT" develop staging main
+)"
+if [ "$STAGING_ONLY_SUBJECTS" != "Release V4.80.10 exact develop tree to staging" ]; then
+  echo "Staging-only history must exclude commits already reachable from current main." >&2
+  printf 'Observed subjects:\n%s\n' "$STAGING_ONLY_SUBJECTS" >&2
+  exit 1
+fi
+printf '%s\n' "$STAGING_ONLY_SUBJECTS" | node "$ROOT_DIR/scripts/check-staging-release-history.mjs"
+
+git -C "$HISTORY_TEST_REPO" commit --allow-empty -qm "feat: staging-only product change"
+if (
+  cd "$HISTORY_TEST_REPO"
+  bash "$ROOT_DIR/$HISTORY_SUBJECT_SCRIPT" develop staging main
+) | node "$ROOT_DIR/scripts/check-staging-release-history.mjs"; then
+  echo "A genuine staging-only product commit must still be rejected." >&2
+  exit 1
+fi
 
 if ! grep -Fq "node scripts/check-staging-release-history.mjs" "$WORKFLOW"; then
   echo "Staging release contract must delegate release-history classification to the version-tolerant validator." >&2
