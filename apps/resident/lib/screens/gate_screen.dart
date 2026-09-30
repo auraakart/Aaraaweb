@@ -52,9 +52,6 @@ class GateScreen extends StatelessWidget {
               const SizedBox(height: AaraagateTokens.space6),
               PremiumSectionHeader(
                 title: strings.text('needsAttention'),
-                supportingText: pending.length == 1
-                    ? '1 gate request is waiting for your decision.'
-                    : '${pending.length} gate requests are waiting for your decision.',
                 trailing: AaraagateStatusPill(
                   label: '${pending.length}',
                   tone: AaraagateStatusTone.warning,
@@ -73,10 +70,7 @@ class GateScreen extends StatelessWidget {
               ],
             ],
             const SizedBox(height: AaraagateTokens.space6),
-            PremiumSectionHeader(
-              title: strings.text('recentActivity'),
-              supportingText: 'Recent arrivals, approvals and visitor-pass activity.',
-            ),
+            PremiumSectionHeader(title: strings.text('recentActivity')),
             const SizedBox(height: AaraagateTokens.space2),
             if (controller.loading && requests.isEmpty)
               AppStateCard(icon: Icons.sync_rounded, message: strings.text('loadingActivity'), loading: true)
