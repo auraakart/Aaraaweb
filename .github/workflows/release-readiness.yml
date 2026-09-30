@@ -85,7 +85,7 @@ jobs:
               echo "- Production deployment: BLOCKED until the dedicated Hosted staging acceptance workflow passes for this exact staging candidate."
             } > release-evidence/hosted-staging/external-pending.md
             echo "- Hosted staging: REPOSITORY_MAIN_PROMOTION_ONLY_EXTERNAL_PENDING" >> release-evidence/release-evidence.md
-            echo "Hosted staging is external productionization evidence. Repository promotion may continue, but production deployment remains blocked."
+            echo "Hosted staging is external productionization evidence. Repository promotion may continue. Production deployment remains blocked."
             exit 0
           fi
           bash scripts/hosted-staging-smoke.sh "$API_BASE_URL" "$CANDIDATE_SHA" release-evidence/hosted-staging
