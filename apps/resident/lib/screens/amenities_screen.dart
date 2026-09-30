@@ -25,6 +25,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   List<Map<String, dynamic>> _bookings = const [];
   List<Map<String, dynamic>> _waitlist = const [];
   final Map<String, String> _bookingAttemptKeys = <String, String>{};
+  final Map<String, String> _depositPaymentAttemptKeys = <String, String>{};
 
   @override
   void initState() {
@@ -44,6 +45,14 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
       setState(() {
         _amenities = results[0];
         _bookings = results[1];
+        final payableDepositBookingIds = results[1]
+            .where((item) => item['status']?.toString() == 'CONFIRMED' &&
+                item['depositStatus']?.toString() == 'PAYMENT_REQUIRED')
+            .map((item) => item['id']?.toString())
+            .whereType<String>()
+            .toSet();
+        _depositPaymentAttemptKeys.removeWhere(
+            (bookingId, _) => !payableDepositBookingIds.contains(bookingId));
         _waitlist = results[2];
         _loading = false;
       });
@@ -246,15 +255,30 @@ class _AmenitiesScreenState extends State<AmenitiesScreen> {
   }
 
   Future<void> _payDeposit(Map<String,dynamic> booking) async {
+    final bookingId=booking['id'].toString();
+    final attemptKey=_depositPaymentAttemptKeys.putIfAbsent(
+      bookingId,
+      ()=>'resident-amenity-deposit-${DateTime.now().microsecondsSinceEpoch}',
+    );
     setState(()=>_submitting=true);
     try{
-      final order=await widget.repository.createAmenityDepositPayment(bookingId:booking['id'].toString());
+      final order=await widget.repository.createAmenityDepositPayment(
+        bookingId:bookingId,
+        idempotencyKey:attemptKey,
+      );
+      _depositPaymentAttemptKeys.remove(bookingId);
       if(!mounted)return;
       final reference=order['providerOrderId']?.toString()??order['id']?.toString()??'created order';
       _showMessage('Secure refundable-deposit payment order ready: $reference. The deposit is not treated as paid until gateway confirmation.');
       await _load();
     }catch(error){
-      if(mounted)_showMessage(_friendlyError(error));
+      if(!mounted)return;
+      if(error is ApiException&&error.statusCode>=400&&error.statusCode<500){
+        _depositPaymentAttemptKeys.remove(bookingId);
+        _showMessage(_friendlyError(error));
+      }else{
+        _showMessage('Deposit payment order outcome could not be confirmed. Retry safely; the same request identity will be reused. The deposit remains unpaid until gateway confirmation.');
+      }
     }finally{
       if(mounted)setState(()=>_submitting=false);
     }

@@ -160,6 +160,56 @@ class _AmenityRecoveredApi extends _AmenitiesApi {
   }
 }
 
+class _AmenityDepositRetryApi extends _AmenitiesApi {
+  _AmenityDepositRetryApi({this.authoritativeFailureFirst = false});
+
+  final bool authoritativeFailureFirst;
+  int depositCalls = 0;
+  final List<String> depositKeys = <String>[];
+
+  Map<String,dynamic> get _depositBooking => {
+    'id':'booking-deposit',
+    'amenityId':'clubhouse',
+    'amenityName':'Clubhouse',
+    'unitId':'unit-1',
+    'startsAt':'2099-01-01T10:00:00Z',
+    'endsAt':'2099-01-01T11:00:00Z',
+    'status':'CONFIRMED',
+    'feePaise':0,
+    'depositPaise':50000,
+    'depositStatus':'PAYMENT_REQUIRED',
+    'depositDueAt':'2099-01-01T09:00:00Z',
+  };
+
+  @override
+  Future<dynamic> get(String path) async {
+    if(path=='/api/v1/amenities/bookings/mine?unitId=unit-1'){
+      return [_depositBooking];
+    }
+    return super.get(path);
+  }
+
+  @override
+  Future<dynamic> post(String path,[Map<String,dynamic>? body]) async {
+    if(path=='/api/v1/billing/amenity-deposits'){
+      depositCalls++;
+      depositKeys.add(body?['idempotencyKey']?.toString()??'');
+      if(depositCalls==1){
+        if(authoritativeFailureFirst){
+          throw ApiException(409,'Amenity deposit payment deadline has elapsed');
+        }
+        throw ApiException(503,'Response lost while preparing deposit payment');
+      }
+      return {
+        'id':'deposit-payment-1',
+        'providerOrderId':'aaraagate_amenity_order_1',
+        'status':'CREATED',
+      };
+    }
+    return super.post(path,body);
+  }
+}
+
 class _AmenityCancellationApi extends _AmenitiesApi {
   _AmenityCancellationApi({required this.raceToStatus, this.cutoffConflict = false});
 
@@ -347,6 +397,48 @@ void main() {
     expect(api.bookingReads, greaterThanOrEqualTo(2));
     expect(find.text('Amenity booking confirmed after reconnect.'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uncertain amenity deposit retry reuses the same payment request identity', (tester) async {
+    final api=_AmenityDepositRetryApi();
+    await tester.pumpWidget(MaterialApp(home:AmenitiesScreen(repository:ResidentRepository(api),unitId:'unit-1')));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Pay deposit'),400);
+    await tester.tap(find.text('Pay deposit'));
+    await tester.pumpAndSettle();
+
+    expect(api.depositCalls,1);
+    expect(find.text('Deposit payment order outcome could not be confirmed. Retry safely; the same request identity will be reused. The deposit remains unpaid until gateway confirmation.'),findsOneWidget);
+
+    await tester.tap(find.text('Pay deposit'));
+    await tester.pumpAndSettle();
+
+    expect(api.depositCalls,2);
+    expect(api.depositKeys,hasLength(2));
+    expect(api.depositKeys.first,isNotEmpty);
+    expect(api.depositKeys.last,api.depositKeys.first);
+    expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('authoritative amenity deposit rejection clears the retry identity', (tester) async {
+    final api=_AmenityDepositRetryApi(authoritativeFailureFirst:true);
+    await tester.pumpWidget(MaterialApp(home:AmenitiesScreen(repository:ResidentRepository(api),unitId:'unit-1')));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Pay deposit'),400);
+    await tester.tap(find.text('Pay deposit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Amenity deposit payment deadline has elapsed.'),findsOneWidget);
+
+    await tester.tap(find.text('Pay deposit'));
+    await tester.pumpAndSettle();
+
+    expect(api.depositCalls,2);
+    expect(api.depositKeys,hasLength(2));
+    expect(api.depositKeys.first,isNotEmpty);
+    expect(api.depositKeys.last,isNot(api.depositKeys.first));
+    expect(tester.takeException(),isNull);
   });
 
   testWidgets('failed amenity cancellation reloads authoritative booking state before messaging', (tester) async {

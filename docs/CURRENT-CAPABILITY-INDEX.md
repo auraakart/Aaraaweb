@@ -121,6 +121,8 @@ V4.80.6 removes avoidable develop-PR runner contention without weakening protect
 
 V4.80.6.1 completes develop-runner quiescence for continuous delivery. Ordinary develop pull requests now start only canonical CI, and merges to develop no longer fan out canonical CI or non-required specialist/evidence runners. Full Performance, Runtime Reliability, Cross-role E2E, CodeQL, supply-chain and release-consolidation checks remain at main, scheduled or manual boundaries; historical V2/V4 evidence contracts remain embedded as lightweight Repository Structure checks or explicit manual/staging controls. Staging smoke/backup and staging-pilot evidence remain on staging boundaries, while demo APK generation is main/manual. Branch hygiene retains merged-PR and scheduled cleanup without a duplicate develop-push run.
 
+V4.80.7 hardens Resident amenity refundable-deposit payment preparation against uncertain responses. One idempotency identity is retained per booking while deposit payment remains required; transport/5xx uncertainty preserves that identity for a safe retry, while authoritative 4xx rejection clears it. Successful order preparation also clears the retry identity, and deposit state continues to remain unpaid until gateway confirmation. Existing billing/payment authority and provider-confirmation semantics are unchanged.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
