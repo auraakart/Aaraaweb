@@ -186,3 +186,18 @@ if grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'stag
 fi
 
 echo "Staging protected-check orchestration contract validated."
+
+
+for workflow in "$WORKFLOW" "$BACKUP_WORKFLOW"; do
+  if grep -Fq "ensure-main-promotion-pr.sh" "$workflow"; then
+    echo "Staging release controllers must stop at staging; main promotion requires an independently reviewed PR." >&2
+    exit 1
+  fi
+done
+
+if [ -f scripts/ensure-main-promotion-pr.sh ]; then
+  echo "Bot-authored main PR helper must not be retained while repository Actions policy forbids PR creation." >&2
+  exit 1
+fi
+
+echo "Staging-to-main review boundary validated."
