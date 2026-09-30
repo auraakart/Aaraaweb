@@ -230,7 +230,16 @@ class _BillingScreenState extends State<BillingScreen> {
             else if (invoices.isEmpty && utilityCharges.isEmpty && (widget.activeUnitId == null || widget.activeUnitId!.isEmpty))
               const AppStateCard(icon: Icons.receipt_long_outlined, message: 'No bills are available for this property.')
             else ...[
-              _SummaryCard(outstanding: outstanding, summary: financeSummary),
+              _SummaryCard(
+                outstanding: outstanding,
+                summary: financeSummary,
+                nextInvoice: outstanding.isEmpty ? null : outstanding.first,
+                busy: outstanding.isNotEmpty &&
+                    payingInvoiceId == outstanding.first['id']?.toString(),
+                onPayNext: outstanding.isEmpty
+                    ? null
+                    : () => _preparePayment(outstanding.first),
+              ),
               if (outstanding.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 PremiumSectionHeader(
@@ -361,9 +370,18 @@ class _AutopayPreferenceCard extends StatelessWidget {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.outstanding, this.summary});
+  const _SummaryCard({
+    required this.outstanding,
+    this.summary,
+    this.nextInvoice,
+    this.onPayNext,
+    this.busy = false,
+  });
   final List<Map<String, dynamic>> outstanding;
   final Map<String, dynamic>? summary;
+  final Map<String, dynamic>? nextInvoice;
+  final VoidCallback? onPayNext;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -439,6 +457,33 @@ class _SummaryCard extends StatelessWidget {
               '$recoveryCount payment follow-up${recoveryCount == 1 ? '' : 's'} need confirmation.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          if (nextInvoice != null && onPayNext != null) ...[
+            const SizedBox(height: AaraagateTokens.space4),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy ? null : onPayNext,
+                icon: Icon(
+                  busy ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded,
+                ),
+                label: Text(
+                  busy
+                      ? 'Preparing payment…'
+                      : overdue
+                          ? 'Pay overdue bill'
+                          : 'Pay next due',
+                ),
+              ),
+            ),
+            const SizedBox(height: AaraagateTokens.space1),
+            Text(
+              'Secure checkout opens for the earliest due bill. A bill is marked paid only after gateway confirmation.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.35,
               ),
             ),
           ],
