@@ -89,6 +89,19 @@ void main() {
     expect(find.textContaining('No payment is marked successful'), findsOneWidget);
   });
 
+  testWidgets('summary offers one-tap checkout for the earliest due bill', (tester) async {
+    final repository = _BillingRepository();
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pay next due'), findsOneWidget);
+    await tester.tap(find.text('Pay next due'));
+    await tester.pumpAndSettle();
+
+    expect(repository.paymentCalls, 1);
+    expect(find.text('Secure payment order ready'), findsOneWidget);
+  });
+
   testWidgets('payment retry reuses the same idempotency key after a lost response', (tester) async {
     final repository = _RetryBillingRepository();
     await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: repository)));
