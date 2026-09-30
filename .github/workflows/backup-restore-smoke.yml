@@ -208,3 +208,9 @@ jobs:
           COMPANION_WORKFLOW: Staging smoke
           COMPANION_JOB: Staging API smoke
         run: bash scripts/try-staging-auto-merge.sh
+      - name: Ensure bot-authored main promotion PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ensure-main-promotion-pr.sh

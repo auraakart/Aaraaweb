@@ -5,13 +5,16 @@ WORKFLOW=".github/workflows/staging-smoke.yml"
 BACKUP_WORKFLOW=".github/workflows/backup-restore-smoke.yml"
 AUTOMERGE_SCRIPT="scripts/try-staging-auto-merge.sh"
 HISTORY_SUBJECT_SCRIPT="scripts/list-staging-only-release-subjects.sh"
+MAIN_PR_SCRIPT="scripts/ensure-main-promotion-pr.sh"
 
 test -f "$WORKFLOW"
 test -f "$BACKUP_WORKFLOW"
 test -f "$AUTOMERGE_SCRIPT"
 test -f "$HISTORY_SUBJECT_SCRIPT"
+test -f "$MAIN_PR_SCRIPT"
 bash -n "$AUTOMERGE_SCRIPT"
 bash -n "$HISTORY_SUBJECT_SCRIPT"
+bash -n "$MAIN_PR_SCRIPT"
 
 required_literals=(
   'CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}'
@@ -186,3 +189,37 @@ if grep -Fq "if: github.event_name == 'pull_request' && github.base_ref == 'stag
 fi
 
 echo "Staging protected-check orchestration contract validated."
+
+
+for workflow in "$WORKFLOW" "$BACKUP_WORKFLOW"; do
+  for literal in \
+    "Ensure bot-authored main promotion PR" \
+    "bash scripts/ensure-main-promotion-pr.sh"; do
+    if ! grep -Fq "$literal" "$workflow"; then
+      echo "Main promotion PR orchestration is missing from $workflow: $literal" >&2
+      exit 1
+    fi
+  done
+done
+
+for literal in \
+  'EXPECTED_CANDIDATE_SHA' \
+  '/branches/staging' \
+  '/branches/main' \
+  '-f head=staging' \
+  '-f base=main' \
+  'github-actions[bot]' \
+  'independent human approval' \
+  'This controller never merges main.'; do
+  if ! grep -Fq -- "$literal" "$MAIN_PR_SCRIPT"; then
+    echo "Main promotion PR controller is missing: $literal" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq '/merge' "$MAIN_PR_SCRIPT" || grep -Fq 'merge_method' "$MAIN_PR_SCRIPT"; then
+  echo "Main promotion PR controller must never merge main." >&2
+  exit 1
+fi
+
+echo "Bot-authored main promotion PR contract validated."
