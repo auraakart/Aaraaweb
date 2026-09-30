@@ -27,6 +27,40 @@ void main() {
     expect(find.byType(AnimatedScale), findsOneWidget);
   });
 
+  testWidgets('page intro keeps a labelled action usable with large text', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(
+      theme: AaraagateTheme.light(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(2.0),
+        ),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(AaraagateTokens.pageGutter),
+          child: PremiumPageIntro(
+            icon: Icons.shield_outlined,
+            title: 'Gate',
+            supportingText: 'Review arrivals without losing context.',
+            action: FilledButton(
+              onPressed: () => taps += 1,
+              child: const Text('Invite guest'),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('Gate'), findsOneWidget);
+    expect(find.text('Invite guest'), findsOneWidget);
+    await tester.tap(find.text('Invite guest'));
+    await tester.pumpAndSettle();
+    expect(taps, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('status pill announces its status without relying on colour', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: AaraagateTheme.dark(),

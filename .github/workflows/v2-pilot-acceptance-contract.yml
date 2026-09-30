@@ -1,8 +1,6 @@
 name: V2 Pilot Acceptance Contract
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:

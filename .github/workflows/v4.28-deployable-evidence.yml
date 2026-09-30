@@ -1,8 +1,6 @@
 name: V4.28 Deployable Evidence Contract
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:

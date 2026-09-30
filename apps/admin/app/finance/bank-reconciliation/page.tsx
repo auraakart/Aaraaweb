@@ -11,7 +11,7 @@ type Summary={transactionCount:number;unmatchedCount:number;matchedCount:number;
 type Review={transactionCount:number;matchedCount:number;unmatchedCount:number;ignoredCount:number;staleUnmatchedCount:number;unmatchedValuePaise:string;matchRatePct:number}
 type Candidate={journalEntryId:string;entryNumber:string;entryDate:string;description:string;externalReference?:string|null;bankMovementPaise:string;dateDistanceDays:number}
 type SuggestionResult={transaction:{id:string;bankCode:string;transactionDate:string;direction:string;amountPaise:string};candidates:Candidate[];autoMatched:false}
-const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT']),manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR']),manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
 function session():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
 const money=(v:string|number|undefined)=>`₹${(Number(v??0)/100).toLocaleString('en-IN',{maximumFractionDigits:2})}`,today=()=>new Date().toISOString().slice(0,10)
 

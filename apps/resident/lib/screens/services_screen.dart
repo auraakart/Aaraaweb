@@ -416,9 +416,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, AaraagateTokens.space8),
           children: [
-            Text('Home services', style: theme.textTheme.headlineMedium),
-            const SizedBox(height: AaraagateTokens.space2),
-            Text('Compare verified professionals and choose who works for you.', style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
+            const PremiumPageIntro(
+              icon: Icons.home_repair_service_outlined,
+              title: 'Home services',
+              supportingText: 'Compare verified professionals and choose who works for you.',
+            ),
             const SizedBox(height: AaraagateTokens.space5),
             TextField(
               controller: _searchController,

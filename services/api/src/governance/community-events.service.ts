@@ -13,7 +13,7 @@ export type CreateCommunityEventInput={
   startsAt:Date;
   endsAt:Date;
   location?:string;
-  capacity?:number;
+  capacity?:number|null;
 };
 
 @Injectable()
@@ -98,7 +98,8 @@ export class CommunityEventsService{
     if(!title)throw new BadRequestException('Community event title is required');
     if(Number.isNaN(input.startsAt.getTime())||Number.isNaN(input.endsAt.getTime()))throw new BadRequestException('Valid event start and end times are required');
     if(input.endsAt<=input.startsAt)throw new BadRequestException('Community event end must be after start');
-    if(input.capacity!==undefined&&(!Number.isInteger(input.capacity)||input.capacity<1||input.capacity>10000))throw new BadRequestException('Community event capacity must be between 1 and 10000');
+    // Optional DTO fields accept null; both null and omission mean unlimited.
+    if(input.capacity!=null&&(!Number.isInteger(input.capacity)||input.capacity<1||input.capacity>10000))throw new BadRequestException('Community event capacity must be between 1 and 10000');
     const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
       INSERT INTO "CommunityEvent" (
         "societyId","title","description","audienceScope","startsAt","endsAt","location","capacity","createdByUserId"

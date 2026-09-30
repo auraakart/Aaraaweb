@@ -15,14 +15,18 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen>{
   List<Map<String,dynamic>> events=const[];
   bool loading=true;
   String? error,busyEventId;
+  int _loadGeneration=0;
 
   @override void initState(){super.initState();_load();}
 
   Future<void> _load() async{
+    if(!mounted)return;
+    final generation=++_loadGeneration;
     setState((){loading=true;error=null;});
-    try{final value=await widget.repository.communityEvents();if(mounted)setState(()=>events=value);}
-    catch(e){if(mounted)setState(()=>error=residentErrorMessage(e,fallback:'Community events could not be loaded. Check your connection and try again.'));}
-    finally{if(mounted)setState(()=>loading=false);}
+    // Only the latest refresh may publish data, errors or loading state.
+    try{final value=await widget.repository.communityEvents();if(mounted&&generation==_loadGeneration)setState(()=>events=value);}
+    catch(e){if(mounted&&generation==_loadGeneration)setState(()=>error=residentErrorMessage(e,fallback:'Community events could not be loaded. Check your connection and try again.'));}
+    finally{if(mounted&&generation==_loadGeneration)setState(()=>loading=false);}
   }
 
   Future<void> _respond(Map<String,dynamic> event,String status) async{
@@ -30,6 +34,8 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen>{
     setState(()=>busyEventId=id);
     try{
       await widget.repository.respondCommunityEvent(eventId:id,status:status);
+      // The resident may have navigated away while the mutation was pending.
+      if(!mounted)return;
       await _load();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(status=='GOING'?'RSVP confirmed.':'Response updated.')));
     }catch(e){
