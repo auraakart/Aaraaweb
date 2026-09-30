@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.68.0",
+  "version": "4.80.11",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -43,7 +43,8 @@
     "check:v4.65": "pnpm check:v4.65:family-member && pnpm check:v4.65:autopay",
     "check:v4.66": "node scripts/check-v4.66-helpdesk-submission-recovery.mjs",
     "check:v4.67": "node scripts/check-v4.67-helpdesk-comment-retry-safety.mjs",
-    "check:v4.68": "node scripts/check-v4.68-emergency-contact-recovery.mjs"
+    "check:v4.68": "node scripts/check-v4.68-emergency-contact-recovery.mjs",
+    "check:v4.80.11": "node scripts/check-v4.80.11-release-identity.mjs"
   },
   "pnpm": {
     "overrides": {

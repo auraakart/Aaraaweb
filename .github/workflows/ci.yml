@@ -298,6 +298,8 @@ jobs:
             echo "Running $check"
             node "$check"
           done
+      - name: Check V4.80.11 release identity and artifact traceability
+        run: node scripts/check-v4.80.11-release-identity.mjs
       - name: Check required merge-gate orchestration
         run: node scripts/check-required-merge-gates.mjs
       - name: Check lightweight pilot and evidence contracts
