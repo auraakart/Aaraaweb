@@ -131,6 +131,8 @@ V4.80.10 improves Community discoverability without changing governance semantic
 
 V4.80.11 closes release-identity and demo-artifact traceability drift after V4.80.10.5 release-orchestration convergence. Root, API and Admin now share release identity 4.80.11, Resident and Guard use 4.80.11+48011, the historical V4.68 identity guard is forward-compatible instead of freezing later releases, and Repository Structure enforces the aligned identity before expensive validation. The stable Resident demo tag remains `resident-demo-latest`, while build evidence and the GitHub release metadata expose the application version and exact source commit. No product-domain behavior or authority boundary changes are introduced.
 
+V4.80.12 hardens the human-review handoff for protected main releases. A release operator helper now opens or reuses the exact `staging -> main` PR and routes the established independent reviewer (`ganeshcatch-ux`) in the same operation, then verifies that the review request is visible before returning success. Repository Structure validates the helper syntax and a machine-checkable routing contract; the helper never approves or merges main, so the existing independent-review and required-check protections remain authoritative. This is release-orchestration hardening only and changes no Resident, Guard, Admin, API, schema, permission or product behavior.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
