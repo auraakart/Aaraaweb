@@ -127,6 +127,8 @@ V4.80.8 converges the Resident mobile experience around a shared premium hierarc
 
 V4.80.9 completes the next Resident premium-surface convergence slice. Helpdesk moves its primary New complaint action from a floating button into the responsive page hierarchy, Home Services adopts the shared task-oriented intro while preserving its search/filter/provider flows, and Profile moves selected-property context plus property switching into the page intro instead of a separate heavyweight card. The shared page-intro eyebrow now truncates safely for long property names. No API, schema, authorization, service-booking, helpdesk workflow or property-selection contract changes are introduced.
 
+V4.80.10 improves Community discoverability without changing governance semantics. The Resident Community hub now keeps Updates, Polls and Events together in a compact 48px-touch-target shortcut bar at the top of the page. Updates opens the full notices feed, Polls opens advisory community polls, and Events opens the privacy-preserving RSVP flow; the existing detailed previews and non-statutory boundaries remain unchanged.
+
 ## External evidence boundary
 
 Productionization, hosted staging acceptance, live payment/KYC/provider integrations, physical hardware certification, signed store release and field-pilot/business acceptance remain external evidence and are not implied by repository completion.
