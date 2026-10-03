@@ -81,6 +81,11 @@ assert.ok(health.includes('SELECT 1'),'Health DB probe must retain the lightweig
 assert.ok(!health.includes('$queryRawUnsafe'),'Health DB probe must not use unsafe raw SQL.');
 assert.ok(health.includes('dependency_ready'),'Readiness must emit provider-neutral dependency telemetry.');
 
+const observabilityModule=read('services/api/src/observability/observability.module.ts');
+for(const token of ['@Global()','providers: [TelemetryService]','exports: [TelemetryService]']){
+  assert.ok(observabilityModule.includes(token),'Observability module missing: '+token);
+}
+
 const telemetry=read('services/api/src/observability/telemetry.service.ts');
 for(const token of [
   'export interface TelemetryExporter',
