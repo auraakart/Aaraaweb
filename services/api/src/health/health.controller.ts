@@ -19,7 +19,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authState: AuthStateStore,
-    private readonly telemetry: TelemetryService = new TelemetryService(),
+    private readonly telemetry: TelemetryService,
   ) {}
 
   @Get()
