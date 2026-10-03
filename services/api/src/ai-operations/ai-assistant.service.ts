@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { canReadPropertyPayables } from '../auth/property-finance-access';
+import { currentResidentPropertySql } from '../auth/property-scope.sql';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -760,10 +761,9 @@ export class AiAssistantService {
   private async assertResidentUnit(societyId:string,userId:string,unitId:string){
     const rows=await this.prisma.$queryRaw<Array<{allowed:boolean}>>(Prisma.sql`
       SELECT TRUE AS "allowed" FROM "Unit" u
-      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid AND (
-        EXISTS(SELECT 1 FROM "UnitOccupancy" o WHERE o."societyId"=${societyId}::uuid AND o."unitId"=u."id" AND o."userId"=${userId}::uuid AND o."active"=TRUE AND o."effectiveFrom"<=CURRENT_TIMESTAMP AND (o."effectiveTo" IS NULL OR o."effectiveTo">CURRENT_TIMESTAMP))
-        OR EXISTS(SELECT 1 FROM "UnitOwnership" ow WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=u."id" AND ow."userId"=${userId}::uuid AND ow."active"=TRUE AND ow."verified"=TRUE AND ow."effectiveFrom"<=CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP))
-      ) LIMIT 1
+      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid
+        AND ${currentResidentPropertySql(societyId,userId,unitId)}
+      LIMIT 1
     `);
     if(!rows[0]?.allowed) throw new ForbiddenException('Unit is outside the current resident property context');
   }
