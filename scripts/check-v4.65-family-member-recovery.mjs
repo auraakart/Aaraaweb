@@ -3,6 +3,7 @@ const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 
 const controller=read('apps/resident/lib/data/resident_data_controller.dart');
+const snapshots=read('apps/resident/lib/data/resident_state_snapshots.dart');
 must('V4.65 controller recovery',controller,[
   'Future<void> addFamilyMember({',
   'Future<void> updateFamilyMember({',
@@ -11,7 +12,13 @@ must('V4.65 controller recovery',controller,[
   'hasMatchingFamilyMember(',
   'familyMemberSettingsMatch(',
   "if (familyMemberById(householdId, occupancyId) == null) return;",
-  "String _normalizeHouseholdPhone(String value)"
+  'ResidentHouseholdSnapshot get _householdSnapshot'
+]);
+must('V4.65 extracted household matching',snapshots,[
+  'class ResidentHouseholdSnapshot',
+  'static String normalizePhone(String value)',
+  'bool hasMatchingFamilyMember({',
+  'bool familyMemberSettingsMatch({'
 ]);
 
 const screen=read('apps/resident/lib/screens/family_members_screen.dart');
