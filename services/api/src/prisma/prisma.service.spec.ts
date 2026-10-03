@@ -7,7 +7,7 @@ describe('PrismaService tenant context readiness', () => {
     const tx = { $queryRaw: queryRaw };
     const service = Object.create(PrismaService.prototype) as PrismaService;
     (service as unknown as { $transaction: (callback: (client: unknown) => Promise<unknown>) => Promise<unknown> }).$transaction =
-      vi.fn(async (callback) => callback(tx));
+      vi.fn(async (callback: (client: unknown) => Promise<unknown>) => callback(tx));
 
     const operation = vi.fn().mockResolvedValue('ok');
     await expect(service.withTenantContext(
