@@ -35,7 +35,9 @@ requireTokens('Bank reconciliation explainability',reconciliation,[
 ]);
 
 const amenities=read('services/api/src/amenities/amenities.service.ts');
-requireTokens('Amenity policy depth',amenities,[
+const amenityPolicy=read('services/api/src/amenities/amenity-policy.engine.ts');
+const amenityDomain=`${amenities}\n${amenityPolicy}`;
+requireTokens('Amenity policy depth',amenityDomain,[
   'conflictGroup',
   'pricingBands',
   'resolveBookingFee',
