@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.80.11",
+  "version": "4.81.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -52,6 +52,7 @@
       "postcss": ">=8.5.18",
       "deepmerge-ts": ">=8.0.1",
       "multer": "2.3.0",
+    "@grpc/grpc-js": "1.14.5",
       "minimatch@3.1.5>brace-expansion": "1.1.20",
       "minimatch@10.2.6>brace-expansion": "5.0.11"
     }
