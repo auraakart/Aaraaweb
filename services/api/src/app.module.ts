@@ -38,11 +38,12 @@ import { ScheduledWorkModule } from './scheduled-work/scheduled-work.module';
 import { UtilitiesModule } from './utilities/utilities.module';
 import { HealthController } from './health/health.controller';
 import { RequestObservabilityMiddleware } from './observability/request-observability.middleware';
-import { TelemetryService } from './observability/telemetry.service';
+import { ObservabilityModule } from './observability/observability.module';
 import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
 
 @Module({
   imports: [
+    ObservabilityModule,
     AuthModule,
     AnalyticsModule,
     EntitlementsModule,
@@ -81,7 +82,7 @@ import { RateLimitMiddleware } from './reliability/rate-limit.middleware';
     ScheduledWorkModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService, TelemetryService, RequestObservabilityMiddleware, RateLimitMiddleware],
+  providers: [PrismaService, RequestObservabilityMiddleware, RateLimitMiddleware],
   exports: [PrismaService],
 })
 export class AppModule implements NestModule {
