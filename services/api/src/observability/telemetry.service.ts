@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
 export type TelemetryLabelKey =
   | 'method'
@@ -94,7 +94,7 @@ export class TelemetryService {
   }>();
   private droppedSeries = 0;
 
-  constructor(private readonly maxSeries = 512) {}
+  constructor(@Optional() private readonly maxSeries = 512) {}
 
   increment(name: string, labels: TelemetryLabels = {}, value = 1) {
     if (!Number.isFinite(value) || value < 0) return;
