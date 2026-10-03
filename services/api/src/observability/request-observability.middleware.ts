@@ -1,5 +1,6 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { normalizeTelemetryRoute, TelemetryService } from './telemetry.service';
 
 type HeaderValue = string | string[] | undefined;
 
@@ -27,12 +28,14 @@ export function resolveRequestId(value: HeaderValue) {
 }
 
 function routePath(request: ObservableRequest) {
-  return (request.originalUrl || request.url || '/').split('?')[0] || '/';
+  return normalizeTelemetryRoute(request.originalUrl || request.url || '/');
 }
 
 @Injectable()
 export class RequestObservabilityMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestObservability');
+
+  constructor(private readonly telemetry: TelemetryService) {}
 
   use(request: ObservableRequest, response: ObservableResponse, next: Next) {
     const requestId = resolveRequestId(request.headers['x-request-id']);
@@ -43,6 +46,11 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
 
     response.once('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      const path = routePath(request);
+      const method = request.method.toUpperCase().slice(0, 16);
+      const statusClass = `${Math.max(0, Math.floor(response.statusCode / 100))}xx`;
+      this.telemetry.increment('http_requests_total', { method, route: path, statusClass });
+      this.telemetry.observe('http_request_duration_ms', durationMs, { method, route: path, statusClass });
       this.logger.log(JSON.stringify({
         event: 'http_request',
         service: 'aaraagate-api',
@@ -50,8 +58,8 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
         version: process.env.APP_VERSION ?? 'dev',
         commit: process.env.GIT_SHA ?? 'unknown',
         requestId,
-        method: request.method,
-        path: routePath(request),
+        method,
+        path,
         statusCode: response.statusCode,
         durationMs: Number(durationMs.toFixed(2)),
       }));
