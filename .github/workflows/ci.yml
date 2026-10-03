@@ -187,6 +187,10 @@ jobs:
           test -f docs/CROSS-ROLE-E2E-EVIDENCE.md
           test -f scripts/validate-hosted-health.mjs
           test -f scripts/check-v2-validation-manifest.mjs
+          test -f scripts/check-stable-domain-invariants.mjs
+          test -f scripts/check-complexity-boundaries.mjs
+          test -f scripts/open-main-release-pr.sh
+          test -f scripts/check-v4.80.12-main-review-routing.mjs
           test -f docs/v2-validation-manifest.json
           bash -n scripts/production-preflight.sh
           bash -n scripts/check-product-branding.sh
@@ -195,98 +199,21 @@ jobs:
           bash -n scripts/hosted-staging-smoke.sh
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
+          bash -n scripts/open-main-release-pr.sh
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract
         run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Check V4 release evidence contract
         run: node scripts/check-v4-release-evidence.mjs
+      - name: Check V4.80.12 main review routing
+        run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
         run: bash -n scripts/release-migration-gate.sh
-      - name: Check V4.36 architecture convergence
-        run: node scripts/check-v4.36-architecture-convergence.mjs
-      - name: Check V4.37 repository integrity
-        run: node scripts/check-v4.37-repository-integrity.mjs
-      - name: Check V4.40 stabilization contracts
-        run: node scripts/check-v4.40-stabilization.mjs
-      - name: Check V4.41 maintainability contracts
-        run: node scripts/check-v4.41-maintainability.mjs
-      - name: Check V4.48 competitive-depth contracts
-        run: node scripts/check-v4.48-competitive-depth.mjs
-      - name: Check V4.49 finance Admin-client convergence
-        run: node scripts/check-v4.49-finance-admin-client.mjs
-      - name: Check V4.50 reliability convergence
-        run: node scripts/check-v4.50-reliability-convergence.mjs
-      - name: Check V4.50.1 regression hotfix
-        run: node scripts/check-v4.50.1-regression-hotfix.mjs
-      - name: Check V4.51 field differentiation and trust
-        run: node scripts/check-v4.51-field-differentiation-trust.mjs
-      - name: Check V4.51.1 post-release regression hardening
-        run: node scripts/check-v4.51.1-regression-hardening.mjs
-      - name: Check V4.52 competitive excellence convergence
-        run: node scripts/check-v4.52-competitive-excellence.mjs
-      - name: Check V4.53 operational intelligence and execution depth
-        run: node scripts/check-v4.53-operational-intelligence.mjs
-      - name: Check V4.54 controlled action and operational control
-        run: node scripts/check-v4.54-controlled-action-operational-control.mjs
-      - name: Check V4.54.1 privacy and finance consistency
-        run: node scripts/check-v4.54.1-privacy-finance-consistency.mjs
-      - name: Check V4.55 field-readiness convergence
-        run: node scripts/check-v4.55-field-readiness.mjs
-      - name: Check V4.55.1 engineering evidence closure
-        run: node scripts/check-v4.55.1-engineering-evidence.mjs
-      - name: Check V4.55.2 release truth closure
-        run: node scripts/check-v4.55.2-release-truth.mjs
-      - name: Check V4.56 guided operations development
-        run: node scripts/check-v4.56-guided-operations.mjs
-      - name: Check V4.57 Admin authorization convergence
-        run: node scripts/check-v4.57-admin-authorization-convergence.mjs
-      - name: Check V4.58 Resident service recovery
-        run: node scripts/check-v4.58-resident-service-recovery.mjs
-      - name: Check V4.59 secure handover convergence
-        run: node scripts/check-v4.59-secure-handover.mjs
-      - name: Check V4.60 gate decision recovery
-        run: node scripts/check-v4.60-gate-decision-recovery.mjs
-      - name: Check V4.61 amenity cancellation recovery
-        run: node scripts/check-v4.61-amenity-cancellation-recovery.mjs
-      - name: Check V4.62 household staff recovery
-        run: node scripts/check-v4.62-household-staff-recovery.mjs
-      - name: Check V4.63 SOS recovery
-        run: node scripts/check-v4.63-sos-recovery.mjs
-      - name: Check V4.64 community poll recovery
-        run: node scripts/check-v4.64-community-poll-recovery.mjs
-      - name: Check V4.64.1 visitor invite recovery
-        run: node scripts/check-v4.64.1-visitor-invite-recovery.mjs
-      - name: Check V4.65 family-member recovery
-        run: node scripts/check-v4.65-family-member-recovery.mjs
-      - name: Check V4.65 AutoPay preference recovery
-        run: node scripts/check-v4.65-autopay-preference-recovery.mjs
-      - name: Check V4.66 Helpdesk submission recovery
-        run: node scripts/check-v4.66-helpdesk-submission-recovery.mjs
-      - name: Check V4.67 Helpdesk comment retry safety
-        run: node scripts/check-v4.67-helpdesk-comment-retry-safety.mjs
-      - name: Check V4.68 emergency-contact recovery
-        run: node scripts/check-v4.68-emergency-contact-recovery.mjs
-      - name: Check V4.70 competitive operations convergence
-        run: node scripts/check-v4.70-competitive-operations.mjs
-      - name: Check V4.71 operational depth and usability
-        run: node scripts/check-v4.71-operational-depth-usability.mjs
-      - name: Check V4.72 cross-domain handoff and discovery
-        run: node scripts/check-v4.72-cross-domain-handoff-discovery.mjs
-      - name: Check V4.73 amenity participation policy
-        run: node scripts/check-v4.73-amenity-participation-policy.mjs
-      - name: Check V4.74 amenity blackout convergence
-        run: node scripts/check-v4.74-amenity-blackout-convergence.mjs
-      - name: Check V4.75 portfolio outcome depth
-        run: node scripts/check-v4.75-portfolio-outcome-depth.mjs
-      - name: Check V4.76 amenity operating-hours convergence
-        run: node scripts/check-v4.76-amenity-operating-hours-convergence.mjs
-      - name: Check V4.77 amenity no-show fair-use policy
-        run: node scripts/check-v4.77-amenity-no-show-policy.mjs
-      - name: Check V4.77.1 amenity attendance test-contract resilience
-        run: node scripts/check-v4.77.1-amenity-test-contract-resilience.mjs
-      - name: Check V4.78 amenity architecture hardening
-        run: node scripts/check-v4.78-amenity-architecture-hardening.mjs
+      - name: Check stable domain invariants
+        run: node scripts/check-stable-domain-invariants.mjs
+      - name: Check architecture complexity boundaries
+        run: node scripts/check-complexity-boundaries.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { AuthStateStore } from '../auth/auth-state.store';
+import { safeOperationalError } from '../observability/safe-operational-error';
 
 type HeaderValue = string | string[] | undefined;
 
@@ -25,6 +26,12 @@ export type RateLimitPolicy = {
   limit: number;
   windowSeconds: number;
 };
+
+const FAIL_SECURE_POLICIES = new Set<RateLimitPolicy['name']>(['otp-request', 'otp-verify', 'auth-refresh']);
+
+export function shouldFailSecureRateLimit(policy: RateLimitPolicy) {
+  return FAIL_SECURE_POLICIES.has(policy.name);
+}
 
 function pathOf(request: RateLimitRequest) {
   return (request.originalUrl || request.url || '/').split('?')[0] || '/';
@@ -106,7 +113,17 @@ export class RateLimitMiddleware implements NestMiddleware {
 
       next();
     } catch (error) {
-      this.logger.warn(`Rate limiter degraded for policy ${policy.name}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      this.logger.warn(`Rate limiter degraded for policy ${policy.name}: ${safeOperationalError(error)}`);
+      if (shouldFailSecureRateLimit(policy)) {
+        response.statusCode = 503;
+        response.setHeader('Retry-After', 30);
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(JSON.stringify({
+          statusCode: 503,
+          message: 'Authentication protection is temporarily unavailable. Retry shortly.',
+        }));
+        return;
+      }
       next();
     }
   }

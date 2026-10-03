@@ -12,8 +12,8 @@ GitHub repository settings reject pull-request creation or approval from the def
 2. The exact validated develop tree is promoted to staging.
 3. Staging API smoke and PostgreSQL backup/restore must pass before staging merge.
 4. Staging automation stops after the staging merge.
-5. A release operator opens the staging -> main PR.
-6. The independent reviewer is requested; the current established reviewer is `ganeshcatch-ux`.
+5. A release operator runs `scripts/open-main-release-pr.sh <version>` to open or reuse the staging -> main PR.
+6. The same helper requests the independent reviewer in that release operation; the current established reviewer is `ganeshcatch-ux`.
 7. Main protected checks run on the exact staging head.
 8. Main merges only after independent approval and required checks pass.
 
@@ -22,6 +22,7 @@ GitHub repository settings reject pull-request creation or approval from the def
 - release-control-only changes use the focused CI path and do not wake unrelated Admin/API/Flutter full suites;
 - staging candidates may carry current main ancestry while preserving the exact develop tree, avoiding redundant history reconciliation;
 - staging controllers cannot create, approve, or merge main;
+- the operator helper couples main-PR creation/reuse with independent reviewer routing and fails if the review request is not visible;
 - repository branch protection remains authoritative and is not weakened;
 - hosted production acceptance remains a separate fail-closed productionization concern.
 

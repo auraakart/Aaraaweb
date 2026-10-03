@@ -4,6 +4,7 @@ import '../models/service_catalog_models.dart';
 import 'emergency_contact_actions.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
+import 'resident_state_snapshots.dart';
 
 class ResidentDataController extends ChangeNotifier {
   ResidentDataController(
@@ -369,25 +370,16 @@ class ResidentDataController extends ChangeNotifier {
     }
   }
 
-  Map<String, dynamic>? _householdById(String householdId) =>
-      households.where((item) => item['id']?.toString() == householdId).firstOrNull;
+  ResidentHouseholdSnapshot get _householdSnapshot => ResidentHouseholdSnapshot(households);
 
-  List<Map<String, dynamic>> familyMembersForHousehold(String householdId) {
-    final household = _householdById(householdId);
-    final unit = household?['unit'];
-    final occupancies = unit is Map ? unit['occupancies'] : null;
-    if (occupancies is! List) return const [];
-    return occupancies
-        .whereType<Map>()
-        .where((item) => item['relation']?.toString() == 'FAMILY_MEMBER')
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
-  }
+  Map<String, dynamic>? _householdById(String householdId) =>
+      _householdSnapshot.householdById(householdId);
+
+  List<Map<String, dynamic>> familyMembersForHousehold(String householdId) =>
+      _householdSnapshot.familyMembersForHousehold(householdId);
 
   Map<String, dynamic>? familyMemberById(String householdId, String occupancyId) =>
-      familyMembersForHousehold(householdId)
-          .where((item) => item['id']?.toString() == occupancyId)
-          .firstOrNull;
+      _householdSnapshot.familyMemberById(householdId, occupancyId);
 
   bool hasMatchingFamilyMember({
     required String householdId,
@@ -395,18 +387,14 @@ class ResidentDataController extends ChangeNotifier {
     required bool gateApprovalEnabled,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
-  }) {
-    final expectedPhone = _normalizeHouseholdPhone(phone);
-    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
-    return familyMembersForHousehold(householdId).any((item) {
-      final user = item['user'];
-      final userMap = user is Map ? user : const <String, dynamic>{};
-      return _normalizeHouseholdPhone(userMap['phone']?.toString() ?? '') == expectedPhone &&
-          item['gateApprovalEnabled'] == gateApprovalEnabled &&
-          item['gateNotificationEnabled'] == expectedNotification &&
-          item['primaryGateContact'] == primaryGateContact;
-    });
-  }
+  }) =>
+      _householdSnapshot.hasMatchingFamilyMember(
+        householdId: householdId,
+        phone: phone,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
 
   bool familyMemberSettingsMatch({
     required String householdId,
@@ -414,14 +402,14 @@ class ResidentDataController extends ChangeNotifier {
     required bool gateApprovalEnabled,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
-  }) {
-    final member = familyMemberById(householdId, occupancyId);
-    if (member == null) return false;
-    final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
-    return member['gateApprovalEnabled'] == gateApprovalEnabled &&
-        member['gateNotificationEnabled'] == expectedNotification &&
-        member['primaryGateContact'] == primaryGateContact;
-  }
+  }) =>
+      _householdSnapshot.familyMemberSettingsMatch(
+        householdId: householdId,
+        occupancyId: occupancyId,
+        gateApprovalEnabled: gateApprovalEnabled,
+        gateNotificationEnabled: gateNotificationEnabled,
+        primaryGateContact: primaryGateContact,
+      );
 
   Future<void> addFamilyMember({
     required String householdId,
@@ -509,20 +497,11 @@ class ResidentDataController extends ChangeNotifier {
     await _reloadHouseholdsForMutationRecovery();
   }
 
-  List<Map<String, dynamic>> emergencyContactsForHousehold(String householdId) {
-    final household = _householdById(householdId);
-    final contacts = household?['emergencyContacts'];
-    if (contacts is! List) return const [];
-    return contacts
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
-  }
+  List<Map<String, dynamic>> emergencyContactsForHousehold(String householdId) =>
+      _householdSnapshot.emergencyContactsForHousehold(householdId);
 
   Map<String, dynamic>? emergencyContactById(String householdId, String contactId) =>
-      emergencyContactsForHousehold(householdId)
-          .where((item) => item['id']?.toString() == contactId)
-          .firstOrNull;
+      _householdSnapshot.emergencyContactById(householdId, contactId);
 
   bool hasMatchingEmergencyContact({
     required String householdId,
@@ -531,19 +510,15 @@ class ResidentDataController extends ChangeNotifier {
     String? relation,
     required int priority,
     Set<String> excludingIds = const <String>{},
-  }) {
-    final expectedName = name.trim().toLowerCase();
-    final expectedPhone = _normalizeHouseholdPhone(phone);
-    final expectedRelation = relation?.trim().toLowerCase() ?? '';
-    return emergencyContactsForHousehold(householdId).any((item) {
-      final id = item['id']?.toString();
-      if (id != null && excludingIds.contains(id)) return false;
-      return (item['name']?.toString().trim().toLowerCase() ?? '') == expectedName &&
-          _normalizeHouseholdPhone(item['phone']?.toString() ?? '') == expectedPhone &&
-          (item['relation']?.toString().trim().toLowerCase() ?? '') == expectedRelation &&
-          (item['priority'] as num?)?.toInt() == priority;
-    });
-  }
+  }) =>
+      _householdSnapshot.hasMatchingEmergencyContact(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        relation: relation,
+        priority: priority,
+        excludingIds: excludingIds,
+      );
 
   Future<void> addEmergencyContact({
     required String householdId,
@@ -562,7 +537,7 @@ class ResidentDataController extends ChangeNotifier {
     final shape = [
       householdId,
       name.trim().toLowerCase(),
-      _normalizeHouseholdPhone(phone),
+      ResidentHouseholdSnapshot.normalizePhone(phone),
       relation?.trim().toLowerCase() ?? '',
       priority.toString(),
     ].join('|');
@@ -637,8 +612,6 @@ class ResidentDataController extends ChangeNotifier {
         : null;
     if (!_disposed) notifyListeners();
   }
-
-  String _normalizeHouseholdPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
 
   Future<void> _loadAccess() async {
     if (!hasActiveProperty || !_canLoadAccess) {
@@ -754,64 +727,47 @@ class ResidentDataController extends ChangeNotifier {
     return rows.where((item) => unitOf(item)?.toString() == selected).toList(growable: false);
   }
 
-  bool isWorkforcePresent(String assignmentId) {
-    for (final request in accessRequests) {
-      if (request['subjectType']?.toString() != 'DOMESTIC_HELP' || request['status']?.toString() != 'CHECKED_IN') continue;
-      final metadata = request['metadata'];
-      if (metadata is Map && metadata['workforceAssignmentId']?.toString() == assignmentId) return true;
-    }
-    return false;
-  }
+  ResidentWorkforceSnapshot get _workforceSnapshot => ResidentWorkforceSnapshot(
+        assignments: workforceAssignments,
+        leaves: workforceLeaves,
+        ratings: workforceRatings,
+        accessRequests: accessRequests,
+      );
 
-  Map<String, dynamic>? ratingFor(String assignmentId) => workforceRatings.where((item) => item['assignmentId']?.toString() == assignmentId).firstOrNull;
-  List<Map<String, dynamic>> leavesFor(String assignmentId) => workforceLeaves.where((item) => item['assignmentId']?.toString() == assignmentId && item['active'] != false).toList(growable: false);
-  bool isWorkforceLeaveActive(String leaveId) => workforceLeaves.any((item) => item['id']?.toString() == leaveId && item['active'] != false);
-  Map<String, dynamic>? workforceAssignmentFor(String assignmentId) => workforceAssignments.where((item) => item['id']?.toString() == assignmentId).firstOrNull;
+  bool isWorkforcePresent(String assignmentId) => _workforceSnapshot.isPresent(assignmentId);
+  Map<String, dynamic>? ratingFor(String assignmentId) => _workforceSnapshot.ratingFor(assignmentId);
+  List<Map<String, dynamic>> leavesFor(String assignmentId) => _workforceSnapshot.leavesFor(assignmentId);
+  bool isWorkforceLeaveActive(String leaveId) => _workforceSnapshot.isLeaveActive(leaveId);
+  Map<String, dynamic>? workforceAssignmentFor(String assignmentId) => _workforceSnapshot.assignmentFor(assignmentId);
 
   bool hasMatchingWorkforceLeave({
     required String assignmentId,
     required DateTime startsOn,
     required DateTime endsOn,
     String? reason,
-  }) {
-    final normalizedReason = reason?.trim() ?? '';
-    return leavesFor(assignmentId).any((item) {
-      final itemReason = item['reason']?.toString().trim() ?? '';
-      return _sameDateOnly(item['startsOn'], startsOn) &&
-          _sameDateOnly(item['endsOn'], endsOn) &&
-          itemReason == normalizedReason;
-    });
-  }
+  }) =>
+      _workforceSnapshot.hasMatchingLeave(
+        assignmentId: assignmentId,
+        startsOn: startsOn,
+        endsOn: endsOn,
+        reason: reason,
+      );
 
-  bool workforceRatingMatches(String assignmentId, {required int score, String? comment}) {
-    final rating = ratingFor(assignmentId);
-    if (rating == null) return false;
-    final currentScore = int.tryParse(rating['score']?.toString() ?? '');
-    final currentComment = rating['comment']?.toString().trim() ?? '';
-    return currentScore == score && currentComment == (comment?.trim() ?? '');
-  }
+  bool workforceRatingMatches(String assignmentId, {required int score, String? comment}) =>
+      _workforceSnapshot.ratingMatches(assignmentId, score: score, comment: comment);
 
   bool hasMatchingWorkforceAssignment({
     required String householdId,
     required String name,
     required String phone,
     required String role,
-  }) {
-    final expectedName = _normalizeWorkforceName(name);
-    final expectedPhone = _normalizeWorkforcePhone(phone);
-    final expectedRole = role.trim().toUpperCase();
-    return workforceAssignments.any((item) {
-      if (item['householdId']?.toString() != householdId) return false;
-      final worker = item['worker'];
-      final workerMap = worker is Map ? worker : item;
-      final actualName = _normalizeWorkforceName(workerMap['name']?.toString() ?? '');
-      final actualPhone = _normalizeWorkforcePhone(workerMap['phone']?.toString() ?? '');
-      final actualRole = workerMap['role']?.toString().trim().toUpperCase() ?? '';
-      return actualName == expectedName &&
-          actualPhone == expectedPhone &&
-          actualRole == expectedRole;
-    });
-  }
+  }) =>
+      _workforceSnapshot.hasMatchingAssignment(
+        householdId: householdId,
+        name: name,
+        phone: phone,
+        role: role,
+      );
 
   Future<void> createWorkforceLeave({required String assignmentId, required DateTime startsOn, required DateTime endsOn, String? reason}) async {
     try {
@@ -886,20 +842,6 @@ class ResidentDataController extends ChangeNotifier {
     if (refreshAccess) await _loadAccess();
     if (!_disposed) notifyListeners();
   }
-
-  bool _sameDateOnly(Object? raw, DateTime expected) {
-    final parsed = DateTime.tryParse(raw?.toString() ?? '');
-    return parsed != null &&
-        parsed.year == expected.year &&
-        parsed.month == expected.month &&
-        parsed.day == expected.day;
-  }
-
-  String _normalizeWorkforceName(String value) =>
-      value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
-
-  String _normalizeWorkforcePhone(String value) =>
-      value.replaceAll(RegExp(r'\D'), '');
 
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
