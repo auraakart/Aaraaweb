@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { Prisma } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
+import { canReadPropertyPayables } from '../auth/property-finance-access';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -34,7 +35,7 @@ type AiAssistantToolDefinition = {
 
 const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
-  {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.PAYMENT_CREATE_OWN,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
   {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
   {id:'HELPDESK_OPERATIONS',label:'Helpdesk operations',context:'SOCIETY',permissions:[AppPermission.HELPDESK_REVIEW],permissionMode:'ALL'},
   {id:'SECURITY_EVENTS',label:'Security events',context:'SOCIETY',permissions:[AppPermission.AUDIT_READ],permissionMode:'ALL'},
@@ -140,7 +141,7 @@ export class AiAssistantService {
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.residentStatus(societyId,userId,unitId,roles);
       const sources=[
-        ...(hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)?['MaintenanceInvoice','Payment']:[]),
+        ...(canReadPropertyPayables(roles)?['MaintenanceInvoice','Payment']:[]),
         ...(hasPermission(roles,AppPermission.HELPDESK_READ_OWN)?['HelpdeskTicket']:[]),
         ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
         ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
@@ -713,13 +714,13 @@ export class AiAssistantService {
   }
 
   private async residentStatus(societyId:string,userId:string,unitId:string,roles:readonly AppRole[]){
-    const invoices=hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)
+    const invoices=canReadPropertyPayables(roles)
       ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
           SELECT "id","invoiceNumber","amountPaise","dueDate","status" FROM "MaintenanceInvoice"
           WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid ORDER BY "issuedAt" DESC LIMIT 20
         `)
       : [];
-    const payments=hasPermission(roles,AppPermission.PROPERTY_FINANCE_READ)
+    const payments=canReadPropertyPayables(roles)
       ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
           SELECT p."id",p."invoiceId",p."amountPaise",p."status",p."createdAt",p."completedAt"
           FROM "Payment" p JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
