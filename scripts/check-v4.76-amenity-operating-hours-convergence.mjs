@@ -7,8 +7,10 @@ requireTokens('V2 weekly authority',legacy,['AmenityBooking_weekly_schedule_guar
 const migration=read('services/api/prisma/migrations/20260928223000_v476_amenity_weekly_waitlist_convergence/migration.sql');
 requireTokens('Waitlist weekly parity',migration,['AmenityWaitlist_weekly_schedule_guard','Amenity_weekly_waitlist_policy_guard','future waiting entries exist',"AT TIME ZONE 'Asia/Kolkata'"]);
 const service=read('services/api/src/amenities/amenities.service.ts');
-requireTokens('Service operating-hours convergence',service,['previewOperatingHours','applyOperatingHours','normalizeWeeklySchedule','isWeeklyOperatingWindowOpen','outside configured operating hours','future booking(s)']);
-requireTokens('Promotion weekly safety',service,['if(!this.isWeeklyOperatingWindowOpen(amenity.schedule,startsAt,endsAt)) return null;']);
+const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
+const amenityDomain=`${service}\n${policyEngine}`;
+requireTokens('Service operating-hours convergence',amenityDomain,['previewOperatingHours','applyOperatingHours','normalizeWeeklySchedule','isWeeklyOperatingWindowOpen','outside configured operating hours','future booking(s)']);
+requireTokens('Promotion weekly safety',service,['if(!this.policy.isWeeklyOperatingWindowOpen(amenity.schedule,startsAt,endsAt)) return null;']);
 const admin=read('apps/admin/app/amenities/page.tsx');
 requireTokens('Admin operating-hours control',admin,['Operating hours','operating-hours/preview','parseWeeklySpec','UNRESTRICTED','Existing blackout windows will be preserved.']);
 const resident=read('apps/resident/lib/screens/amenities_screen.dart');

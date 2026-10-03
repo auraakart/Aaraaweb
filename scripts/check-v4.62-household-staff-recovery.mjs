@@ -3,21 +3,27 @@ const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 
 const controller=read('apps/resident/lib/data/resident_data_controller.dart');
-must('V4.62 workforce mutation recovery',controller,[
+const snapshots=read('apps/resident/lib/data/resident_state_snapshots.dart');
+must('V4.62 workforce mutation orchestration',controller,[
   'bool isWorkforceLeaveActive(String leaveId)',
   'Map<String, dynamic>? workforceAssignmentFor(String assignmentId)',
   'bool hasMatchingWorkforceLeave({',
   'bool workforceRatingMatches(String assignmentId',
   'bool hasMatchingWorkforceAssignment({',
-  "final expectedPhone = _normalizeWorkforcePhone(phone);",
+  'ResidentWorkforceSnapshot get _workforceSnapshot',
   'if (hasMatchingWorkforceAssignment(',
   'await _recoverWorkforceMutationFailure();',
   'await _recoverWorkforceMutationFailure(refreshAccess: true);',
   'if (hasMatchingWorkforceLeave(',
   'if (workforceRatingMatches(assignmentId',
   'Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async',
-  'if (refreshAccess) await _loadAccess();',
-  'bool _sameDateOnly(Object? raw, DateTime expected)'
+  'if (refreshAccess) await _loadAccess();'
+]);
+must('V4.62 extracted workforce state matching',snapshots,[
+  'class ResidentWorkforceSnapshot',
+  'final expectedPhone = normalizePhone(phone);',
+  'static bool sameDateOnly(Object? raw, DateTime expected)',
+  "static String normalizePhone(String value) => value.replaceAll(RegExp(r'\\D'), '');"
 ]);
 
 const screen=read('apps/resident/lib/screens/workforce_screen.dart');

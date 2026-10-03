@@ -88,6 +88,33 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(sqlCalls.some((sql)=>sql.includes('FROM "Payment"'))).toBe(false);
   });
 
+  it('lets a current tenant read payable dues through resident AI without owner accounting authority',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{id:'invoice-1',invoiceNumber:'INV-1',amountPaise:125000,status:'ISSUED'}])
+      .mockResolvedValueOnce([{id:'payment-1',invoiceId:'invoice-1',amountPaise:125000,status:'CREATED'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],
+      'Show my maintenance payment due',
+      '33333333-3333-4333-8333-333333333333',
+    );
+    expect(result.intent).toBe('RESIDENT_STATUS');
+    expect(result.sources).toEqual(expect.arrayContaining(['MaintenanceInvoice','Payment']));
+    expect((result.facts as {invoices:Array<{id:string}>}).invoices).toEqual([expect.objectContaining({id:'invoice-1'})]);
+    const sqlCalls=prisma.$queryRaw.mock.calls.map((call)=>{
+      const sql=call[0] as {strings?:readonly string[]};
+      return (sql.strings??[]).join('?');
+    });
+    expect(sqlCalls.some((sql)=>sql.includes('FROM "MaintenanceInvoice"'))).toBe(true);
+    expect(sqlCalls.some((sql)=>sql.includes('FROM "Payment"'))).toBe(true);
+  });
+
   it('grounds resident notices to the selected authorized property',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw

@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentPayerPropertySql } from '../auth/property-scope.sql';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 
 type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
@@ -140,12 +141,9 @@ export class BillingService {
   private async assertCurrentPayer(societyId:string,userId:string,unitId:string) {
     const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT u."id" FROM "Unit" u
-      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid AND (
-        EXISTS (SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."unitId"=u."id" AND uo."userId"=${userId}::uuid
-          AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
-        OR EXISTS (SELECT 1 FROM "UnitOccupancy" occ WHERE occ."societyId"=${societyId}::uuid AND occ."unitId"=u."id" AND occ."userId"=${userId}::uuid
-          AND occ."relation"='TENANT' AND occ."active"=TRUE AND occ."effectiveFrom"<=CURRENT_TIMESTAMP AND (occ."effectiveTo" IS NULL OR occ."effectiveTo">CURRENT_TIMESTAMP))
-      ) LIMIT 1
+      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid
+        AND ${currentPayerPropertySql(societyId,userId,unitId)}
+      LIMIT 1
     `);
     if(!rows[0]) throw new NotFoundException('Current owner or tenant relationship is required for this property payment preference');
   }
