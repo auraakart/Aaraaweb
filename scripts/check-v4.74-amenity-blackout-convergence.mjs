@@ -8,8 +8,10 @@ requireTokens('Legacy blackout authority',legacy,['schedule.blackouts','AmenityB
 const migration=read('services/api/prisma/migrations/20260928210000_v474_amenity_blackout_waitlist_convergence/migration.sql');
 requireTokens('Waitlist DB convergence',migration,['AmenityWaitlist_blackout_guard','Amenity_blackout_waitlist_policy_guard','existing future waitlist entry']);
 const service=read('services/api/src/amenities/amenities.service.ts');
-requireTokens('Blackout controlled workflow',service,['previewBlackout','applyBlackout','blackoutAssessment','mutationPerformed:false','automaticCancellation:false','assertScheduleWindowOpen','findScheduleBlackout']);
-requireTokens('Promotion safety',service,['if(this.findScheduleBlackout(amenity.schedule,startsAt,endsAt)) return null;']);
+const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
+const amenityDomain=`${service}\n${policyEngine}`;
+requireTokens('Blackout controlled workflow',amenityDomain,['previewBlackout','applyBlackout','blackoutAssessment','mutationPerformed:false','automaticCancellation:false','assertScheduleWindowOpen','findScheduleBlackout']);
+requireTokens('Promotion safety',service,['if(this.policy.findScheduleBlackout(amenity.schedule,startsAt,endsAt)) return null;']);
 const admin=read('apps/admin/app/amenities/page.tsx');
 requireTokens('Admin blackout workflow',admin,['blackouts/preview','Preview-first control','Nothing was changed.','No existing reservation will be changed automatically.']);
 const resident=read('apps/resident/lib/screens/amenities_screen.dart');
