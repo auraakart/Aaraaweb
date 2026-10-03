@@ -8,13 +8,16 @@ function controller(
 ) {
   const prisma = { $queryRaw: query };
   const authState = { ping };
+  const telemetry = { gauge: vi.fn() };
   return {
     controller: new HealthController(
       prisma as unknown as ConstructorParameters<typeof HealthController>[0],
       authState as unknown as ConstructorParameters<typeof HealthController>[1],
+      telemetry as unknown as ConstructorParameters<typeof HealthController>[2],
     ),
     query,
     ping,
+    telemetry,
   };
 }
 
@@ -27,11 +30,13 @@ describe('HealthController', () => {
   });
 
   it('reports readiness only after database and auth-state respond', async () => {
-    const { controller: health, query, ping } = controller();
+    const { controller: health, query, ping, telemetry } = controller();
     await expect(health.ready()).resolves.toEqual(expect.objectContaining({
       status: 'ready',
       dependencies: { database: 'ok', authState: 'redis-ok' },
     }));
+    expect(telemetry.gauge).toHaveBeenCalledWith('dependency_ready', 1, { dependency: 'database' });
+    expect(telemetry.gauge).toHaveBeenCalledWith('dependency_ready', 1, { dependency: 'auth_state' });
     expect(query).toHaveBeenCalledOnce();
     const sql = query.mock.calls[0][0] as { strings?: readonly string[] };
     expect((sql.strings ?? []).join('?')).toContain('SELECT 1');
