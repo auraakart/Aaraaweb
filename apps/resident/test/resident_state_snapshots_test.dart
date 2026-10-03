@@ -27,7 +27,7 @@ void main() {
 
     expect(snapshot.hasMatchingFamilyMember(
       householdId: householdId,
-      phone: '9876543210',
+      phone: '919876543210',
       gateApprovalEnabled: true,
       gateNotificationEnabled: false,
       primaryGateContact: true,
