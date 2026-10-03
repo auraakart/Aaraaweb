@@ -6,7 +6,7 @@ function controller(
   query = vi.fn().mockResolvedValue([{ '?column?': 1 }]),
   ping = vi.fn().mockResolvedValue('redis'),
 ) {
-  const prisma = { $queryRawUnsafe: query };
+  const prisma = { $queryRaw: query };
   const authState = { ping };
   return {
     controller: new HealthController(
@@ -32,7 +32,9 @@ describe('HealthController', () => {
       status: 'ready',
       dependencies: { database: 'ok', authState: 'redis-ok' },
     }));
-    expect(query).toHaveBeenCalledWith('SELECT 1');
+    expect(query).toHaveBeenCalledOnce();
+    const sql = query.mock.calls[0][0] as { strings?: readonly string[] };
+    expect((sql.strings ?? []).join('?')).toContain('SELECT 1');
     expect(ping).toHaveBeenCalled();
   });
 
