@@ -1,6 +1,8 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthStateStore } from '../auth/auth-state.store';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelemetryService } from '../observability/telemetry.service';
 
 function releaseMetadata() {
   return {
@@ -14,7 +16,11 @@ function releaseMetadata() {
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService, private readonly authState: AuthStateStore) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authState: AuthStateStore,
+    private readonly telemetry: TelemetryService,
+  ) {}
 
   @Get()
   health() {
@@ -35,7 +41,7 @@ export class HealthController {
   @Get('ready')
   async ready() {
     const [database, authState] = await Promise.allSettled([
-      this.prisma.$queryRawUnsafe('SELECT 1'),
+      this.prisma.$queryRaw(Prisma.sql`SELECT 1`),
       this.authState.ping(),
     ]);
     const databaseReady = database.status === 'fulfilled';
@@ -44,6 +50,8 @@ export class HealthController {
       database: databaseReady ? 'ok' : 'unavailable',
       authState: authStateReady ? (authState.value === 'redis' ? 'redis-ok' : 'memory-ok') : 'unavailable',
     };
+    this.telemetry.gauge('dependency_ready', databaseReady ? 1 : 0, { dependency: 'database' });
+    this.telemetry.gauge('dependency_ready', authStateReady ? 1 : 0, { dependency: 'auth_state' });
     if (!databaseReady || !authStateReady) {
       throw new ServiceUnavailableException({
         status: 'not-ready',
