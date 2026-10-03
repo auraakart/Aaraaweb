@@ -44,13 +44,13 @@ describe('TelemetryService', () => {
   });
 
   it('caps series growth and reports dropped cardinality instead of growing without bound', () => {
-    const telemetry = new TelemetryService(2);
-    telemetry.increment('requests_total', { route: '/one' });
-    telemetry.increment('requests_total', { route: '/two' });
-    telemetry.increment('requests_total', { route: '/three' });
+    const telemetry = new TelemetryService();
+    for (let index = 0; index < 513; index += 1) {
+      telemetry.increment('requests_total', { route: `/series-${index}` });
+    }
 
     const snapshot = telemetry.snapshot();
-    expect(snapshot.counters).toHaveLength(2);
+    expect(snapshot.counters).toHaveLength(512);
     expect(snapshot.droppedSeries).toBe(1);
   });
 
