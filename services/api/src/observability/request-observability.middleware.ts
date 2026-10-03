@@ -35,7 +35,7 @@ function routePath(request: ObservableRequest) {
 export class RequestObservabilityMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestObservability');
 
-  constructor(private readonly telemetry: TelemetryService = new TelemetryService()) {}
+  constructor(private readonly telemetry: TelemetryService) {}
 
   use(request: ObservableRequest, response: ObservableResponse, next: Next) {
     const requestId = resolveRequestId(request.headers['x-request-id']);
