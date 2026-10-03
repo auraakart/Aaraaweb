@@ -106,7 +106,7 @@ V4.81.1 does not:
 
 RLS rollout still requires policy-by-policy verification for platform, migration, scheduled work, support and society-scoped operations.
 
-**External exporter activation remains productionization** and must be configured together with the selected hosting environment, secrets, retention, alerting and operating runbooks.
+**External exporter activation remains productionization** and must be configured together with the selected hosting environment, secrets, retention, alerting and operating runbooks. In repository terms, external exporter activation remains productionization.
 
 ## Regression and CI coverage
 
