@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RequestObservabilityMiddleware, resolveRequestId } from './request-observability.middleware';
+import { TelemetryService } from './telemetry.service';
 
 describe('request observability', () => {
   it('accepts a safe caller-provided request id', () => {
@@ -12,12 +13,13 @@ describe('request observability', () => {
   });
 
   it('returns the request id and logs only request metadata on finish', () => {
-    const middleware = new RequestObservabilityMiddleware();
+    const telemetry = new TelemetryService();
+    const middleware = new RequestObservabilityMiddleware(telemetry);
     const log = vi.spyOn((middleware as unknown as { logger: { log: (message: string) => void } }).logger, 'log').mockImplementation(() => undefined);
     let finish: (() => void) | undefined;
     const request = {
       method: 'GET',
-      originalUrl: '/api/v1/residents/me?token=secret-value',
+      originalUrl: '/api/v1/residents/11111111-1111-4111-8111-111111111111?token=secret-value',
       headers: { authorization: 'Bearer secret', 'x-request-id': 'client-req-1' },
     };
     const response = {
@@ -40,10 +42,26 @@ describe('request observability', () => {
       event: 'http_request',
       requestId: 'client-req-1',
       method: 'GET',
-      path: '/api/v1/residents/me',
+      path: '/api/v1/residents/:id',
       statusCode: 200,
     });
     expect(JSON.stringify(payload)).not.toContain('secret-value');
     expect(JSON.stringify(payload)).not.toContain('Bearer secret');
+    expect(JSON.stringify(payload)).not.toContain('11111111-1111-4111-8111-111111111111');
+    const metrics = telemetry.snapshot();
+    expect(metrics.counters).toEqual([
+      expect.objectContaining({
+        name: 'http_requests_total',
+        labels: { method: 'GET', route: '/api/v1/residents/:id', statusClass: '2xx' },
+        value: 1,
+      }),
+    ]);
+    expect(metrics.histograms).toEqual([
+      expect.objectContaining({
+        name: 'http_request_duration_ms',
+        labels: { method: 'GET', route: '/api/v1/residents/:id', statusClass: '2xx' },
+        count: 1,
+      }),
+    ]);
   });
 });
