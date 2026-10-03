@@ -613,8 +613,6 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  String _normalizeHouseholdPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
-
   Future<void> _loadAccess() async {
     if (!hasActiveProperty || !_canLoadAccess) {
       accessRequests = const [];
