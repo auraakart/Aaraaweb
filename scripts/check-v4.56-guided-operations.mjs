@@ -51,7 +51,7 @@ must('V4.56 notice acknowledgement controller',controller,[
   "notice['requiresAcknowledgement'] != true",
   "result['acknowledgedAt'] == null",
   'await repository.acknowledgeNotice(noticeId);',
-  'await _loadNotices();',
+  'await this._loadNotices();',
   'Notice acknowledgement could not be confirmed from the refreshed notice state.'
 ]);
 const noticesScreen=read('apps/resident/lib/screens/notices_screen.dart');
