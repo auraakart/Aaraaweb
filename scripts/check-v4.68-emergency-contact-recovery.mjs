@@ -25,8 +25,8 @@ must('V4.68 service recovery',read('services/api/src/households/household.servic
 must('V4.68 risk coverage',read('services/api/vitest.risk-coverage.config.ts'),[
   'src/households/household.service.spec.ts',
   "'src/households/household.service.ts':",
-  'statements: 12',
-  'lines: 12'
+  'statements: 35',
+  'lines: 35'
 ]);
 must('V4.68 API regression',read('services/api/src/households/household.service.spec.ts'),[
   'exact emergency-contact same-key replay without a second insert',
