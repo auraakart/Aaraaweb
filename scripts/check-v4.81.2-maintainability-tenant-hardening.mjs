@@ -83,7 +83,7 @@ assert.ok(ci.includes('pnpm --filter @aaraagate/admin lint'), 'Explicit Admin li
 assert.ok(fs.existsSync('SECURITY.md'), 'SECURITY.md is required.');
 assert.ok(fs.existsSync('.github/CODEOWNERS'), 'CODEOWNERS is required.');
 const evidence = read('docs/AARAAGATE-V4.81.2-MAINTAINABILITY-TENANT-HARDENING.md');
-for (const token of ['RLS remains disabled', 'coordinated NestJS major migration', 'coordinated Prisma 7 migration', 'repository visibility']) {
+for (const token of ['RLS remains disabled', 'NestJS 12 must be upgraded as a coordinated', 'Prisma 7 client and CLI must be upgraded together', 'repository visibility']) {
   assert.ok(evidence.includes(token), 'V4.81.2 evidence missing: ' + token);
 }
 
