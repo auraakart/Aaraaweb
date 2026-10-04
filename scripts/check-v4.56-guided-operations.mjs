@@ -22,7 +22,7 @@ must('V4.56 Resident action clarity',resident,[
 must('V4.56 Resident regression',read('apps/resident/test/home_action_inbox_dedup_test.dart'),[
   'Soon. Water seepage near kitchen. High priority · action in progress. Open helpdesk'
 ]);
-const controller=read('apps/resident/lib/data/resident_data_controller.dart');
+const controller=read('apps/resident/lib/data/resident_data_controller.dart')+read('apps/resident/lib/data/resident_data_loading.dart');
 must('V4.56 payment-recovery scoping',controller,[
   'List<Map<String, dynamic>> maintenancePayments = const [];',
   "if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;",
