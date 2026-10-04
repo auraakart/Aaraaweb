@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.81.0",
+  "version": "4.81.1",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -44,7 +44,8 @@
     "check:v4.66": "node scripts/check-v4.66-helpdesk-submission-recovery.mjs",
     "check:v4.67": "node scripts/check-v4.67-helpdesk-comment-retry-safety.mjs",
     "check:v4.68": "node scripts/check-v4.68-emergency-contact-recovery.mjs",
-    "check:v4.80.11": "node scripts/check-v4.80.11-release-identity.mjs"
+    "check:v4.80.11": "node scripts/check-v4.80.11-release-identity.mjs",
+    "check:v4.81.1": "node scripts/check-v4.81.1-tenant-observability-readiness.mjs"
   },
   "pnpm": {
     "overrides": {
@@ -52,7 +53,7 @@
       "postcss": ">=8.5.18",
       "deepmerge-ts": ">=8.0.1",
       "multer": "2.3.0",
-    "@grpc/grpc-js": "1.14.5",
+      "@grpc/grpc-js": "1.14.5",
       "minimatch@3.1.5>brace-expansion": "1.1.20",
       "minimatch@10.2.6>brace-expansion": "5.0.11"
     }
