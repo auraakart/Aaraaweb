@@ -191,6 +191,10 @@ jobs:
           test -f scripts/check-complexity-boundaries.mjs
           test -f scripts/check-v4.81.1-tenant-observability-readiness.mjs
           test -f docs/AARAAGATE-V4.81.1-TENANT-OBSERVABILITY-READINESS.md
+          test -f scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
+          test -f docs/AARAAGATE-V4.81.2-MAINTAINABILITY-TENANT-HARDENING.md
+          test -f SECURITY.md
+          test -f .github/CODEOWNERS
           test -f scripts/open-main-release-pr.sh
           test -f scripts/check-v4.80.12-main-review-routing.mjs
           test -f docs/v2-validation-manifest.json
@@ -218,6 +222,8 @@ jobs:
         run: node scripts/check-complexity-boundaries.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
         run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
+      - name: Check V4.81.2 maintainability and tenant hardening
+        run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
