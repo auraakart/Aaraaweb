@@ -12,7 +12,7 @@ const policies = {
     'lib/data/resident_data_controller.dart': 40,
     'lib/screens/gate_screen.dart': 80,
     'lib/screens/billing_screen.dart': 50,
-    'lib/screens/privacy_data_screen.dart': 20,
+    'lib/screens/privacy_data_screen.dart': 35,
     'lib/screens/home_screen.dart': 50,
   },
   guard: {

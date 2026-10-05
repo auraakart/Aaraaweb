@@ -218,6 +218,8 @@ jobs:
           test -f docs/AARAAGATE-V4.81.2-MAINTAINABILITY-TENANT-HARDENING.md
           test -f scripts/check-v4.81.3-main-validation-reuse.mjs
           test -f docs/AARAAGATE-V4.81.3-MAIN-VALIDATION-REUSE.md
+          test -f scripts/check-v4.81.4-privacy-dependency-hardening.mjs
+          test -f docs/AARAAGATE-V4.81.4-PRIVACY-DEPENDENCY-HARDENING.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
           test -f scripts/open-main-release-pr.sh
@@ -258,6 +260,8 @@ jobs:
         run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
       - name: Check V4.81.3 main validation reuse
         run: node scripts/check-v4.81.3-main-validation-reuse.mjs
+      - name: Check V4.81.4 privacy and dependency hardening
+        run: node scripts/check-v4.81.4-privacy-dependency-hardening.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
