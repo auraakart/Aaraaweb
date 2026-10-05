@@ -39,6 +39,29 @@ jobs:
           set -euo pipefail
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
+            # Main is promoted only from the already validated staging branch.
+            # When the promoted tree is still byte-for-byte identical to staging,
+            # keep the lightweight repository gate but do not rerun the expensive
+            # API/Admin/Flutter/dependency suites a second time after merge.
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              git fetch origin staging --no-tags
+              MAIN_TREE="$(git rev-parse 'HEAD^{tree}')"
+              STAGING_TREE="$(git rev-parse 'refs/remotes/origin/staging^{tree}')"
+              if [ "$MAIN_TREE" = "$STAGING_TREE" ]; then
+                echo "docs_only=false" >> "$GITHUB_OUTPUT"
+                echo "release_control_only=false" >> "$GITHUB_OUTPUT"
+                echo "run_api=false" >> "$GITHUB_OUTPUT"
+                echo "run_admin=false" >> "$GITHUB_OUTPUT"
+                echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+                echo "run_resident=false" >> "$GITHUB_OUTPUT"
+                echo "run_guard=false" >> "$GITHUB_OUTPUT"
+                echo "run_dependency_audit=false" >> "$GITHUB_OUTPUT"
+                echo "Exact staging tree already passed protected pre-main validation; duplicate full suites skipped."
+                exit 0
+              fi
+              echo "Main tree differs from current staging; falling back to full validation."
+            fi
+
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             echo "release_control_only=false" >> "$GITHUB_OUTPUT"
             echo "run_api=true" >> "$GITHUB_OUTPUT"
@@ -193,6 +216,8 @@ jobs:
           test -f docs/AARAAGATE-V4.81.1-TENANT-OBSERVABILITY-READINESS.md
           test -f scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
           test -f docs/AARAAGATE-V4.81.2-MAINTAINABILITY-TENANT-HARDENING.md
+          test -f scripts/check-v4.81.3-main-validation-reuse.mjs
+          test -f docs/AARAAGATE-V4.81.3-MAIN-VALIDATION-REUSE.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
           test -f scripts/open-main-release-pr.sh
@@ -231,6 +256,8 @@ jobs:
         run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
       - name: Check V4.81.2 maintainability and tenant hardening
         run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
+      - name: Check V4.81.3 main validation reuse
+        run: node scripts/check-v4.81.3-main-validation-reuse.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
