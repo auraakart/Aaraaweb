@@ -20,6 +20,8 @@ assert.ok(
   privacy.includes("api.get('/api/v1/privacy/self/context').catchError((_) => null)"),
   'Optional privacy context metadata must not block request-history loading.',
 );
+assert.ok(privacy.includes('content: SingleChildScrollView('), 'Privacy details dialog must remain usable with keyboard/small-screen constraints.');
+assert.ok(!privacy.includes('final controller = TextEditingController();'), 'Privacy dialog must not dispose a controller during route dismissal.');
 
 const privacyTests = read('apps/resident/test/privacy_data_screen_test.dart');
 for (const token of [
