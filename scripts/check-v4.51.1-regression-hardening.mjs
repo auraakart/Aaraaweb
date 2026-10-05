@@ -18,7 +18,7 @@ requireTokens('Squash-aware post-main release health',postMain,[
   'DEVELOP_ALIGNMENT="different-tree"',
   "releaseSourceEquivalence:'staging-main-ok'",
 ]);
-if(postMain.includes('Develop source differs from promoted main.')){
+if(postMain.includes(['Develop source','differs from promoted main.'].join(' '))){
   console.error('V4.51.1 regression: develop advancement must not invalidate an exact staging/main release.');
   process.exit(1);
 }
