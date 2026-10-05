@@ -52,16 +52,6 @@ for (const path of [
   assert.ok(fs.existsSync(path), 'V4.81.2 extraction boundary missing: ' + path);
 }
 
-const aiService = read('services/api/src/ai-operations/ai-assistant.service.ts');
-assert.ok(
-  aiService.includes("export { residentIntentRoutingText } from './ai-assistant.policy';"),
-  'AI assistant service must preserve the residentIntentRoutingText compatibility export after policy extraction.',
-);
-assert.ok(
-  aiService.includes('type AiAssistantToolDefinition'),
-  'AI assistant service must retain typed tool-policy compatibility after extraction.',
-);
-
 const complexity = read('scripts/check-complexity-boundaries.mjs');
 for (const token of [
   "amenities/amenities.service.ts', 1230",

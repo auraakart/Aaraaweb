@@ -216,6 +216,13 @@ jobs:
         run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
         run: bash -n scripts/release-migration-gate.sh
+      - name: Syntax-check repository invariant scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for check in scripts/check-*.mjs; do
+            node --check "$check"
+          done
       - name: Check stable domain invariants
         run: node scripts/check-stable-domain-invariants.mjs
       - name: Check architecture complexity boundaries
