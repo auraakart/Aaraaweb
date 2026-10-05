@@ -71,7 +71,7 @@ must('Branch hygiene convergence', branchCleanup, [
   'source tree is identical to',
   'treeEquivalent',
   'retentionManifest',
-  'explicit V4.55.1 retention',
+  'retained after fresh canonical reconciliation',
 ]);
 if (!fs.existsSync('.github/branch-retention.json')) {
   console.error('V4.55.1 branch retention register is missing.');

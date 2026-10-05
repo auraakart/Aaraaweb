@@ -1,28 +1,33 @@
 import fs from 'node:fs';
 
 const budgets = new Map([
-  ['services/api/src/amenities/amenities.service.ts', 1300],
-  ['services/api/src/ai-operations/ai-assistant.service.ts', 800],
-  ['services/api/src/billing/billing.service.ts', 675],
-  ['apps/resident/lib/data/resident_data_controller.dart', 1000],
-  ['apps/guard/lib/screens/guard_operations_screen.dart', 650],
+  ['services/api/src/amenities/amenities.service.ts', 1230],
+  ['services/api/src/ai-operations/ai-assistant.service.ts', 740],
+  ['services/api/src/billing/billing.service.ts', 550],
+  ['apps/resident/lib/data/resident_data_controller.dart', 900],
+  ['apps/guard/lib/screens/guard_operations_screen.dart', 380],
 ]);
 
 for (const [path, maxLines] of budgets) {
   const source = fs.readFileSync(path, 'utf8');
   const lines = source.split(/\r?\n/).length;
   if (lines > maxLines) {
-    console.error(`${path} has ${lines} lines; V4.81 complexity budget is ${maxLines}. Extract a bounded domain component instead of growing this hotspot.`);
+    console.error(`${path} has ${lines} lines; V4.81.2 complexity budget is ${maxLines}. Extract a bounded domain component instead of growing this hotspot.`);
     process.exit(1);
   }
 }
 
 const requiredBoundaries = [
   'services/api/src/amenities/amenity-policy.engine.ts',
+  'services/api/src/amenities/amenity-analytics.query.ts',
+  'services/api/src/ai-operations/ai-assistant.policy.ts',
+  'services/api/src/billing/payment-webhook.processor.ts',
   'services/api/src/auth/property-finance-access.ts',
   'services/api/src/auth/property-scope.sql.ts',
   'services/api/src/reliability/http-security.ts',
   'apps/resident/lib/data/resident_state_snapshots.dart',
+  'apps/resident/lib/data/resident_data_loading.dart',
+  'apps/guard/lib/screens/guard_operations_components.dart',
   'scripts/check-stable-domain-invariants.mjs',
 ];
 
