@@ -12,6 +12,20 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      nestjs-major:
+        patterns:
+          - "@nestjs/common"
+          - "@nestjs/core"
+          - "@nestjs/platform-express"
+        update-types:
+          - "major"
+      prisma-major:
+        patterns:
+          - "prisma"
+          - "@prisma/client"
+        update-types:
+          - "major"
   - package-ecosystem: pub
     directory: /apps/resident
     target-branch: develop
