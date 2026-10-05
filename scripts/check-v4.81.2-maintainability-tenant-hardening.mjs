@@ -33,13 +33,16 @@ assert.equal(api.devDependencies['typescript-eslint'], '^8.71.0');
 assert.equal(admin.devDependencies['typescript-eslint'], '^8.71.0');
 
 const aiService = read('services/api/src/ai-operations/ai-assistant.service.ts');
-assert.ok(
-  aiService.includes("export { residentIntentRoutingText } from './ai-assistant.policy';"),
-  'AI routing helper must remain re-exported from the historical service module.',
+const occurrenceCount = (source, token) => source.split(token).length - 1;
+assert.equal(
+  occurrenceCount(aiService, "export { residentIntentRoutingText } from './ai-assistant.policy';"),
+  1,
+  'AI routing compatibility export must appear exactly once.',
 );
-assert.ok(
-  aiService.includes('type AiAssistantToolDefinition'),
-  'AI service must import the extracted tool-definition type used by its permission boundary.',
+assert.equal(
+  occurrenceCount(aiService, 'type AiAssistantToolDefinition,'),
+  1,
+  'AI tool-definition type import must appear exactly once.',
 );
 
 for (const path of [
