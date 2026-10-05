@@ -43,9 +43,12 @@ jobs:
           # Release promotion uses squash commits, so ancestry can diverge even
           # when the promoted source is byte-for-byte identical. Compare the
           # canonical branch tips directly instead of comparing merge-base ancestry.
-          if ! git diff --quiet "$DEVELOP_SHA" "$MAIN_SHA" -- .; then
-            echo "Develop source differs from promoted main."
-            exit 1
+          # Staging is the authoritative release source for main. Develop may
+          # legitimately move to the next cycle after staging is frozen, so
+          # develop drift is evidence only and must not fail post-main health.
+          DEVELOP_ALIGNMENT="different-tree"
+          if git diff --quiet "$DEVELOP_SHA" "$MAIN_SHA" -- .; then
+            DEVELOP_ALIGNMENT="same-tree"
           fi
 
           if ! git diff --quiet "$STAGING_SHA" "$MAIN_SHA" -- .; then
@@ -54,7 +57,7 @@ jobs:
           fi
 
           mkdir -p post-main-health-evidence
-          node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',mainTree:'$MAIN_TREE',developTree:'$DEVELOP_TREE',stagingTree:'$STAGING_TREE',sourceEquivalence:'ok',generatedAt:new Date().toISOString()}, null, 2))"
+          node -e "require('fs').writeFileSync('post-main-health-evidence/summary.json', JSON.stringify({main:'$MAIN_SHA',develop:'$DEVELOP_SHA',staging:'$STAGING_SHA',mainTree:'$MAIN_TREE',developTree:'$DEVELOP_TREE',stagingTree:'$STAGING_TREE',releaseSourceEquivalence:'staging-main-ok',developAlignment:'$DEVELOP_ALIGNMENT',generatedAt:new Date().toISOString()}, null, 2))"
 
       - name: Publish post-main health evidence
         if: always()

@@ -11,12 +11,17 @@ if(postMain.includes('git merge-base')){
   console.error('V4.51.1 regression: post-main health must not use ancestry-only merge-base containment after squash promotion');
   process.exit(1);
 }
-requireTokens('Squash-aware post-main health',postMain,[
+requireTokens('Squash-aware post-main release health',postMain,[
   'git diff --quiet "$DEVELOP_SHA" "$MAIN_SHA" -- .',
   'git diff --quiet "$STAGING_SHA" "$MAIN_SHA" -- .',
   'MAIN_TREE="$(git rev-parse "$MAIN_SHA^{tree}")"',
-  "sourceEquivalence:'ok'",
+  'DEVELOP_ALIGNMENT="different-tree"',
+  "releaseSourceEquivalence:'staging-main-ok'",
 ]);
+if(postMain.includes(['Develop source','differs from promoted main.'].join(' '))){
+  console.error('V4.51.1 regression: develop advancement must not invalidate an exact staging/main release.');
+  process.exit(1);
+}
 
 const speechPackaging=read('scripts/configure-resident-android-speech.mjs');
 requireTokens('Resident speech packaging',speechPackaging,[
