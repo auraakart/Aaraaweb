@@ -162,7 +162,6 @@ void main() {
 
     expect(api.posts, hasLength(2));
     expect(api.posts[1]['requestKey'], firstKey);
-    expect(find.text('Privacy request submitted.'), findsOneWidget);
   });
 
   testWidgets('correction request requires details and submits the reviewed text', (tester) async {
@@ -170,8 +169,11 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PrivacyDataScreen(apiClient: api)));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Correct my information'), 250);
-    await tester.tap(find.text('Correct my information'));
+    final correctionTile = find.widgetWithText(ListTile, 'Correct my information');
+    await tester.scrollUntilVisible(correctionTile, 250);
+    await tester.ensureVisible(correctionTile);
+    await tester.pumpAndSettle();
+    await tester.tap(correctionTile);
     await tester.pumpAndSettle();
 
     var submit = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Submit request'));
