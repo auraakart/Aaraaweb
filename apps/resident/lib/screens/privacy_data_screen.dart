@@ -66,44 +66,43 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
     required String prompt,
     bool required = false,
   }) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    var details = '';
+    return showDialog<String>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(prompt),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLength: 1000,
-                maxLines: 4,
-                onChanged: (_) => setDialogState(() {}),
-                decoration: InputDecoration(
-                  labelText: required ? 'Details (required)' : 'Additional details (optional)',
-                  alignLabelWithHint: true,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(prompt),
+                const SizedBox(height: 12),
+                TextField(
+                  maxLength: 1000,
+                  maxLines: 4,
+                  onChanged: (value) => setDialogState(() => details = value),
+                  decoration: InputDecoration(
+                    labelText: required ? 'Details (required)' : 'Additional details (optional)',
+                    alignLabelWithHint: true,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
             FilledButton(
-              onPressed: required && controller.text.trim().isEmpty
+              onPressed: required && details.trim().isEmpty
                   ? null
-                  : () => Navigator.pop(dialogContext, controller.text.trim()),
+                  : () => Navigator.pop(dialogContext, details.trim()),
               child: const Text('Submit request'),
             ),
           ],
         ),
       ),
     );
-    controller.dispose();
-    return result;
   }
 
   Future<void> _createRequest({
