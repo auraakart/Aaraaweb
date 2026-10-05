@@ -56,6 +56,11 @@ assert.ok(!postMain.includes('Develop source differs from promoted main.'), 'Dev
 assert.ok(postMain.includes('DEVELOP_ALIGNMENT="different-tree"'), 'Develop divergence must remain visible as evidence.');
 assert.ok(postMain.includes("releaseSourceEquivalence:'staging-main-ok'"), 'Post-main evidence must record staging/main release equivalence.');
 
+const v812Contract = read('scripts/check-v4.81.2-maintainability-tenant-hardening.mjs');
+assert.ok(v812Contract.includes('compareVersion(current, [4, 81, 2]) >= 0'), 'V4.81.2 contract must remain forward-compatible with later release identities.');
+assert.ok(!v812Contract.includes("assert.equal(root.version, '4.81.2'"), 'Historical V4.81.2 contract must not freeze future releases.');
+assert.ok(!v812Contract.includes("version: 4.81.2+48102"), 'Historical mobile identity check must derive the current release dynamically.');
+
 const invariantScripts = fs.readdirSync('scripts')
   .filter((name) => /^check-.*\.mjs$/.test(name))
   .filter((name) => name !== 'check-v4.81.3-main-validation-reuse.mjs');
