@@ -4,16 +4,30 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const json = (path) => JSON.parse(read(path));
 const major = (value) => Number(String(value).match(/\d+/)?.[0]);
+const parseVersion = (value) => {
+  const parts = String(value).split('.').map(Number);
+  assert.equal(parts.length, 3, 'Release identity must be major.minor.patch.');
+  assert.ok(parts.every(Number.isInteger), 'Release identity must be numeric.');
+  return parts;
+};
+const compareVersion = (left, right) => {
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return 0;
+};
 
 const root = json('package.json');
 const api = json('services/api/package.json');
 const admin = json('apps/admin/package.json');
 
-assert.equal(root.version, '4.81.2', 'Root release identity must be V4.81.2.');
+const current = parseVersion(root.version);
+assert.ok(compareVersion(current, [4, 81, 2]) >= 0, 'Release identity must not regress below V4.81.2.');
 assert.equal(api.version, root.version, 'API release identity must match root.');
 assert.equal(admin.version, root.version, 'Admin release identity must match root.');
+const buildCode = String(current[0]) + String(current[1]).padStart(2, '0') + String(current[2]).padStart(2, '0');
 for (const pubspec of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
-  assert.ok(read(pubspec).includes('version: 4.81.2+48102'), pubspec + ' must use V4.81.2 build identity.');
+  assert.ok(read(pubspec).includes('version: ' + root.version + '+' + buildCode), pubspec + ' release identity is not aligned.');
 }
 
 const nestMajors = [
