@@ -139,16 +139,6 @@ async function classify(branch) {
   }
 
   const retained = retainedByName.get(name);
-  if (retained) {
-    if (retained.sha === branch.commit.sha) {
-      record.decision = 'keep';
-      record.reason = `explicit V4.55.1 retention at reviewed SHA: ${retained.reason}`;
-      return record;
-    }
-    record.decision = 'review';
-    record.reason = `retained branch moved from reviewed SHA ${retained.sha}; current SHA requires fresh review`;
-    return record;
-  }
 
   if (preservePattern.test(name)) {
     record.decision = 'keep';
@@ -169,7 +159,19 @@ async function classify(branch) {
 
   const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
   const exactSupersededHead = supersededCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
-  if (!containedIn && !treeEquivalentTo && !exactMergedHead && !exactSupersededHead) {
+  const integrated = Boolean(containedIn || treeEquivalentTo || exactMergedHead || exactSupersededHead);
+
+  if (!integrated) {
+    if (retained) {
+      if (retained.sha === branch.commit.sha) {
+        record.decision = 'keep';
+        record.reason = `retained after fresh canonical reconciliation: ${retained.reason}`;
+        return record;
+      }
+      record.decision = 'review';
+      record.reason = `retained branch moved from reviewed SHA ${retained.sha}; current SHA remains unproven and requires fresh review`;
+      return record;
+    }
     record.decision = 'review';
     record.reason = 'branch contains source not proven integrated by ancestry/tree equivalence and current head does not exactly match a merged or explicitly superseded canonical pull request head';
     return record;
@@ -238,7 +240,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   baseBranch,
   developSha,
   dryRun,
-  classificationMode: 'explicit-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
+  classificationMode: 'revalidated-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
   retentionManifest: retentionPath,
   generatedAt: new Date().toISOString(),
   counts,
@@ -264,7 +266,7 @@ const md = [
   `- Already absent at delete time: ${alreadyAbsent.length}`,
   `- Planned deletions: ${planned.length}`,
   `- Kept automatically: ${kept.length}`,
-  `- Explicitly retained legacy branches: ${records.filter((r) => r.reason?.startsWith('explicit V4.55.1 retention')).length}`,
+  `- Explicitly retained legacy branches: ${records.filter((r) => r.reason?.startsWith('retained after fresh canonical reconciliation')).length}`,
   `- Needs review: ${review.length}`,
   '',
   '## Needs review',
@@ -278,4 +280,4 @@ const md = [
 ].join('\n');
 
 await writeFile('branch-hygiene-evidence/branch-cleanup.md', md);
-console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'explicit-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence' }, null, 2));
+console.log(JSON.stringify({ dryRun, total: records.length, counts, deleted: deleted.length, alreadyAbsent: alreadyAbsent.length, classificationMode: 'revalidated-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence' }, null, 2));

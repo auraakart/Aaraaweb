@@ -30,9 +30,9 @@ must('V4.60 stale outcome regression',read('apps/resident/test/gate_screen_test.
   'This gate request changed. Latest status: Approved.'
 ]);
 
-must('V4.60 authoritative access recovery',read('apps/resident/lib/data/resident_data_controller.dart'),[
+must('V4.60 authoritative access recovery',read('apps/resident/lib/data/resident_data_controller.dart')+read('apps/resident/lib/data/resident_data_loading.dart'),[
   'Future<T> _withAccessMutationRecovery<T>',
-  'await _loadAccess();',
+  'await this._loadAccess();',
   'repository.approveAccess',
   'repository.denyAccess',
   'repository.cancelAccess'

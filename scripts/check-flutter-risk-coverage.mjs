@@ -9,15 +9,15 @@ if (!lcovPath || !profile) {
 
 const policies = {
   resident: {
-    'lib/data/resident_data_controller.dart': 30,
-    'lib/screens/gate_screen.dart': 20,
-    'lib/screens/billing_screen.dart': 30,
+    'lib/data/resident_data_controller.dart': 40,
+    'lib/screens/gate_screen.dart': 80,
+    'lib/screens/billing_screen.dart': 50,
     'lib/screens/privacy_data_screen.dart': 20,
-    'lib/screens/home_screen.dart': 10,
+    'lib/screens/home_screen.dart': 50,
   },
   guard: {
-    'lib/guard_controller.dart': 30,
-    'lib/data/models/guard_boundary_models.dart': 20,
+    'lib/guard_controller.dart': 35,
+    'lib/data/models/guard_boundary_models.dart': 45,
   },
 };
 

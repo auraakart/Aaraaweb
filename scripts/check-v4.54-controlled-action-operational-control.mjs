@@ -24,7 +24,7 @@ requireTokens('Treasurer Admin UX',read('apps/admin/app/finance/page.tsx'),[
 requireTokens('Guard continuity',read('services/api/src/guard-operations/guard-shift-handover.service.ts'),[
   'handoverOlder30m','criticalIncidentOlder30m','gatesWithOpenIncidents','SUPERVISOR_ATTENTION',"clientOfflineQueueVisibility:'DEVICE_LOCAL_ONLY'",
 ]);
-requireTokens('Resident workforce AI registration',read('services/api/src/ai-operations/ai-assistant.service.ts'),[
+requireTokens('Resident workforce AI registration',read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-assistant.policy.ts'),[
   'RESIDENT_WORKFORCE','WORKFORCE_READ_OWN','residentStatusMine(societyId,userId,unitId)','household staff domestic help worker workforce',
 ]);
 requireTokens('Resident workforce evidence',read('services/api/src/workforce/workforce.service.ts'),[
