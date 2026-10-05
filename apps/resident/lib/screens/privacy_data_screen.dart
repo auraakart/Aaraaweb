@@ -39,7 +39,7 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
     try {
       final results = await Future.wait([
         api.get('/api/v1/privacy/self/requests'),
-        api.get('/api/v1/privacy/self/context'),
+        api.get('/api/v1/privacy/self/context').catchError((_) => null),
       ]);
       if (!mounted) return;
       final raw = results[0];
