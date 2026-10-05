@@ -6,6 +6,8 @@ import 'push_registration_service.dart';
 import 'resident_repository.dart';
 import 'resident_state_snapshots.dart';
 
+part 'resident_data_loading.dart';
+
 class ResidentDataController extends ChangeNotifier {
   ResidentDataController(
     this.repository, {
@@ -114,41 +116,41 @@ class ResidentDataController extends ChangeNotifier {
 
     final tasks = <Future<void>>[];
     if (hasFeature('NOTICES')) {
-      tasks.add(_loadNotices());
+      tasks.add(this._loadNotices());
     } else {
       notices = const [];
     }
 
     if (hasActiveProperty) {
-      tasks.add(_loadHouseholds());
+      tasks.add(this._loadHouseholds());
       if (_canLoadAccess) {
-        tasks.add(_loadAccess());
+        tasks.add(this._loadAccess());
       } else {
         accessRequests = const [];
         latestAccessEvent = null;
       }
       if (hasFeature('HOUSEHOLD_SERVICES')) {
-        tasks.add(_loadServices());
+        tasks.add(this._loadServices());
       } else {
         serviceCategories = const [];
         serviceOfferings = const [];
         bookings = const [];
       }
       if (hasFeature('DOMESTIC_HELP')) {
-        tasks.add(_loadWorkforce());
+        tasks.add(this._loadWorkforce());
       } else {
         workforceAssignments = const [];
         workforceLeaves = const [];
         workforceRatings = const [];
       }
       if (hasFeature('MAINTENANCE_BILLING')) {
-        tasks.add(_loadMaintenanceInvoices());
+        tasks.add(this._loadMaintenanceInvoices());
       } else {
         maintenanceInvoices = const [];
         maintenancePayments = const [];
       }
       if (hasFeature('HELPDESK')) {
-        tasks.add(_loadHelpdesk());
+        tasks.add(this._loadHelpdesk());
       } else {
         helpdeskTickets = const [];
       }
@@ -213,7 +215,7 @@ class ResidentDataController extends ChangeNotifier {
     if (!hasFeature('NOTICES')) {
       notices = const [];
     } else {
-      await _loadNotices();
+      await this._loadNotices();
     }
     if (!_disposed) notifyListeners();
   }
@@ -239,7 +241,7 @@ class ResidentDataController extends ChangeNotifier {
     if (result['acknowledgedAt'] == null) {
       throw StateError('Notice acknowledgement was not confirmed by the server.');
     }
-    await _loadNotices();
+    await this._loadNotices();
     final confirmed = notices.any(
       (item) => item['id']?.toString() == noticeId && item['acknowledgedAt'] != null,
     );
@@ -258,8 +260,8 @@ class ResidentDataController extends ChangeNotifier {
       if (!_disposed) notifyListeners();
       return;
     }
-    final tasks = <Future<void>>[_loadWorkforce()];
-    if (_canLoadAccess) tasks.add(_loadAccess());
+    final tasks = <Future<void>>[this._loadWorkforce()];
+    if (_canLoadAccess) tasks.add(this._loadAccess());
     await Future.wait(tasks);
     if (!_disposed) notifyListeners();
   }
@@ -275,17 +277,17 @@ class ResidentDataController extends ChangeNotifier {
         realtimeConnected = true;
         final type = event['type']?.toString() ?? '';
         if (type.startsWith('ACCESS_') && hasActiveProperty && _canLoadAccess) {
-          await _loadAccess();
+          await this._loadAccess();
           final requestId = event['requestId']?.toString();
           if (requestId != null && accessRequests.any((request) => request['id']?.toString() == requestId)) {
             latestAccessEvent = event;
           }
         } else if (type == 'GENERAL_NOTICE_PUBLISHED' && hasFeature('NOTICES')) {
           latestNotificationEvent = event;
-          await _loadNotices();
+          await this._loadNotices();
         } else if (type == 'MAINTENANCE_DUE_ISSUED' && hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(event)) {
           latestNotificationEvent = event;
-          await _loadMaintenanceInvoices();
+          await this._loadMaintenanceInvoices();
         }
         if (!_disposed) notifyListeners();
       },
@@ -318,14 +320,14 @@ class ResidentDataController extends ChangeNotifier {
     final type = data['type']?.toString() ?? '';
     if (type == 'GENERAL_NOTICE_PUBLISHED' && hasFeature('NOTICES')) {
       latestNotificationEvent = data;
-      await _loadNotices();
+      await this._loadNotices();
       if (!_disposed) notifyListeners();
       return;
     }
     if (type == 'MAINTENANCE_DUE_ISSUED') {
       if (hasFeature('MAINTENANCE_BILLING') && _matchesActiveUnit(data)) {
         latestNotificationEvent = data;
-        await _loadMaintenanceInvoices();
+        await this._loadMaintenanceInvoices();
       }
       if (!_disposed) notifyListeners();
       return;
@@ -333,7 +335,7 @@ class ResidentDataController extends ChangeNotifier {
     if (!hasActiveProperty || !_canLoadAccess) return;
     final requestId = data['requestId']?.toString();
     if (requestId == null) return;
-    await _loadAccess();
+    await this._loadAccess();
     if (accessRequests.any((request) => request['id']?.toString() == requestId)) {
       latestAccessEvent = data;
     }
@@ -352,23 +354,6 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> _loadHouseholds() async {
-    final selected = activeUnitId;
-    if (selected == null) {
-      households = const [];
-      return;
-    }
-    try {
-      final rows = await repository.households();
-      final scoped = rows.where((item) => item['unitId']?.toString() == selected).toList(growable: false);
-      households = scoped;
-      if (rows.isNotEmpty && scoped.isEmpty) {
-        householdError = 'The selected property is no longer available in this society session.';
-      }
-    } catch (e) {
-      _capture(e, (message) => householdError = message);
-    }
-  }
 
   ResidentHouseholdSnapshot get _householdSnapshot => ResidentHouseholdSnapshot(households);
 
@@ -613,119 +598,12 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> _loadAccess() async {
-    if (!hasActiveProperty || !_canLoadAccess) {
-      accessRequests = const [];
-      latestAccessEvent = null;
-      return;
-    }
-    try {
-      final rows = await repository.accessRequests();
-      accessRequests = _filterByUnit(rows, (item) => item['unitId']);
-      final current = latestAccessEvent?['requestId']?.toString();
-      if (current != null && !accessRequests.any((item) => item['id']?.toString() == current)) latestAccessEvent = null;
-    } catch (e) {
-      _capture(e, (message) => accessError = message);
-    }
-  }
 
-  Future<void> _loadNotices() async {
-    if (!hasFeature('NOTICES')) {
-      notices = const [];
-      return;
-    }
-    try {
-      notices = await repository.notices();
-    } catch (e) {
-      _capture(e, (message) => noticesError = message);
-    }
-  }
 
-  Future<void> _loadServices() async {
-    if (!hasActiveProperty || !hasFeature('HOUSEHOLD_SERVICES')) {
-      serviceCategories = const [];
-      serviceOfferings = const [];
-      bookings = const [];
-      return;
-    }
-    try {
-      final results = await Future.wait([repository.serviceCategories(), repository.serviceOfferings(), repository.bookings()]);
-      serviceCategories = results[0];
-      serviceOfferings = results[1];
-      bookings = _filterByUnit(results[2], (item) => item['unitId']);
-    } catch (e) {
-      _capture(e, (message) => servicesError = message);
-    }
-  }
 
-  Future<void> _loadWorkforce() async {
-    if (!hasActiveProperty || !hasFeature('DOMESTIC_HELP')) {
-      workforceAssignments = const [];
-      workforceLeaves = const [];
-      workforceRatings = const [];
-      return;
-    }
-    try {
-      final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings()]);
-      final assignments = _filterByUnit(results[0], (item) {
-        final household = item['household'];
-        return household is Map ? household['unitId'] : null;
-      });
-      final assignmentIds = assignments.map((item) => item['id']?.toString()).whereType<String>().toSet();
-      workforceAssignments = assignments;
-      workforceLeaves = results[1].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
-      workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
-    } catch (e) {
-      _capture(e, (message) => workforceError = message);
-    }
-  }
 
-  Future<void> _loadHelpdesk() async {
-    if (!hasActiveProperty || !hasFeature('HELPDESK')) {
-      helpdeskTickets = const [];
-      return;
-    }
-    try {
-      final rows = await repository.helpdeskTickets();
-      helpdeskTickets = _filterByUnit(rows, (item) => item['unitId']);
-    } catch (e) {
-      _capture(e, (message) => helpdeskError = message);
-    }
-  }
 
-  Future<void> _loadMaintenanceInvoices() async {
-    if (!hasActiveProperty || !hasFeature('MAINTENANCE_BILLING')) {
-      maintenanceInvoices = const [];
-      maintenancePayments = const [];
-      return;
-    }
-    try {
-      final rows = await repository.maintenanceInvoices();
-      maintenanceInvoices = _filterByUnit(rows, (item) => item['unitId']);
-      maintenancePayments = const [];
-      if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;
 
-      final invoiceIds = maintenanceInvoices.map((item) => item['id']?.toString()).whereType<String>().toSet();
-      try {
-        final payments = await repository.maintenancePayments();
-        maintenancePayments = payments
-            .where((item) => invoiceIds.contains(item['invoiceId']?.toString()))
-            .toList(growable: false);
-      } catch (_) {
-        // Payment recovery is optional Home enrichment. Keep invoice visibility
-        // authoritative even if the separately entitled payment read is unavailable.
-        maintenancePayments = const [];
-      }
-    } catch (e) {
-      _capture(e, (message) => billingError = message);
-    }
-  }
-
-  List<Map<String, dynamic>> _filterByUnit(List<Map<String, dynamic>> rows, Object? Function(Map<String, dynamic>) unitOf) {
-    final selected = activeUnitId;
-    if (selected == null) return const [];
-    return rows.where((item) => unitOf(item)?.toString() == selected).toList(growable: false);
-  }
 
   ResidentWorkforceSnapshot get _workforceSnapshot => ResidentWorkforceSnapshot(
         assignments: workforceAssignments,
@@ -782,7 +660,7 @@ class ResidentDataController extends ChangeNotifier {
       )) return;
       rethrow;
     }
-    await _loadWorkforce();
+    await this._loadWorkforce();
     if (!_disposed) notifyListeners();
   }
 
@@ -793,7 +671,7 @@ class ResidentDataController extends ChangeNotifier {
       await _recoverWorkforceMutationFailure();
       rethrow;
     }
-    await _loadWorkforce();
+    await this._loadWorkforce();
     if (!_disposed) notifyListeners();
   }
   Future<void> rateWorkforce(String assignmentId, {required int score, String? comment}) async {
@@ -804,7 +682,7 @@ class ResidentDataController extends ChangeNotifier {
       if (workforceRatingMatches(assignmentId, score: score, comment: comment)) return;
       rethrow;
     }
-    await _loadWorkforce();
+    await this._loadWorkforce();
     if (!_disposed) notifyListeners();
   }
   Future<void> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
@@ -821,7 +699,7 @@ class ResidentDataController extends ChangeNotifier {
       )) return;
       rethrow;
     }
-    await _loadWorkforce();
+    await this._loadWorkforce();
     if (!_disposed) notifyListeners();
   }
   Future<void> deactivateWorkforce(String assignmentId) async {
@@ -832,14 +710,14 @@ class ResidentDataController extends ChangeNotifier {
       await _recoverWorkforceMutationFailure(refreshAccess: true);
       rethrow;
     }
-    await _loadWorkforce();
-    await _loadAccess();
+    await this._loadWorkforce();
+    await this._loadAccess();
     if (!_disposed) notifyListeners();
   }
 
   Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async {
-    await _loadWorkforce();
-    if (refreshAccess) await _loadAccess();
+    await this._loadWorkforce();
+    if (refreshAccess) await this._loadAccess();
     if (!_disposed) notifyListeners();
   }
 
@@ -856,7 +734,7 @@ class ResidentDataController extends ChangeNotifier {
       // A resident decision can lose a race to Guard/realtime activity. Always
       // reload the authoritative request state before surfacing the failure so
       // the Gate screen does not keep offering an action that is already stale.
-      await _loadAccess();
+      await this._loadAccess();
       if (!_disposed) notifyListeners();
       rethrow;
     }
@@ -874,7 +752,7 @@ class ResidentDataController extends ChangeNotifier {
     final credential = result['credential']?.toString();
     final rawRequest = result['request'];
     if (credential != null && rawRequest is Map && rawRequest['subjectType']?.toString() == 'VISITOR') lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
-    await _loadAccess();
+    await this._loadAccess();
     if (!_disposed) notifyListeners();
     return result;
   }
@@ -882,13 +760,13 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> denyAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
     await _withAccessMutationRecovery(() => repository.denyAccess(requestId));
-    await _loadAccess();
+    await this._loadAccess();
     if (!_disposed) notifyListeners();
   }
   Future<void> cancelAccess(String requestId) async {
     if (!accessRequests.any((item) => item['id']?.toString() == requestId)) throw StateError('Access request is outside the active property context');
     await _withAccessMutationRecovery(() => repository.cancelAccess(requestId));
-    await _loadAccess();
+    await this._loadAccess();
     if (!_disposed) notifyListeners();
   }
 
@@ -943,7 +821,7 @@ class ResidentDataController extends ChangeNotifier {
     if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
     lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
     if (identical(_pendingGuestInviteAttempt, attempt)) _pendingGuestInviteAttempt = null;
-    await _loadAccess();
+    await this._loadAccess();
     if (!_disposed) notifyListeners();
     return lastIssuedVisitorPass!;
   }
