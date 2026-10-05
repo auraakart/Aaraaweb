@@ -12,6 +12,8 @@ The privacy request history is authoritative user-facing workflow state. Privacy
 
 V4.81.4 therefore makes the privacy context fetch non-blocking while retaining fail-closed behavior for the actual privacy request-history request.
 
+The request-details dialog also avoids a controller-disposal race during route dismissal and uses scroll-safe content so correction/erasure detail capture remains stable with the on-screen keyboard and smaller viewports.
+
 Focused behavioural coverage now proves that:
 
 - request history remains visible when optional context metadata fails;
