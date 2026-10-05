@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.81.3",
+  "version": "4.81.4",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -47,7 +47,8 @@
     "check:v4.80.11": "node scripts/check-v4.80.11-release-identity.mjs",
     "check:v4.81.1": "node scripts/check-v4.81.1-tenant-observability-readiness.mjs",
     "check:v4.81.2": "node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs",
-    "check:v4.81.3": "node scripts/check-v4.81.3-main-validation-reuse.mjs"
+    "check:v4.81.3": "node scripts/check-v4.81.3-main-validation-reuse.mjs",
+    "check:v4.81.4": "node scripts/check-v4.81.4-privacy-dependency-hardening.mjs"
   },
   "pnpm": {
     "overrides": {
