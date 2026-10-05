@@ -10,7 +10,6 @@ import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 
 export { residentIntentRoutingText } from './ai-assistant.policy';
-export { residentIntentRoutingText } from './ai-assistant.policy';
 export type { AiAssistantIntent, AiAssistantToolId } from './ai-assistant.policy';
 import {
   AI_ASSISTANT_TOOLS,
@@ -20,7 +19,6 @@ import {
   type AiAssistantIntent,
   type AiAssistantToolDefinition,
   type AiAssistantToolId,
-  type AiAssistantToolDefinition,
 } from './ai-assistant.policy';
 
 @Injectable()
