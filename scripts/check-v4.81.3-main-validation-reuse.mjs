@@ -56,6 +56,20 @@ assert.ok(!postMain.includes('Develop source differs from promoted main.'), 'Dev
 assert.ok(postMain.includes('DEVELOP_ALIGNMENT="different-tree"'), 'Develop divergence must remain visible as evidence.');
 assert.ok(postMain.includes("releaseSourceEquivalence:'staging-main-ok'"), 'Post-main evidence must record staging/main release equivalence.');
 
+const invariantScripts = fs.readdirSync('scripts')
+  .filter((name) => /^check-.*\.mjs$/.test(name))
+  .filter((name) => name !== 'check-v4.81.3-main-validation-reuse.mjs');
+const staleReleaseAssertions = [
+  "sourceEquivalence:'ok'",
+  'Develop source differs from promoted main.',
+];
+for (const name of invariantScripts) {
+  const source = read('scripts/' + name);
+  for (const token of staleReleaseAssertions) {
+    assert.ok(!source.includes(token), `Stale post-main release assertion found in ${name}: ${token}`);
+  }
+}
+
 const evidence = read('docs/AARAAGATE-V4.81.3-MAIN-VALIDATION-REUSE.md');
 for (const token of ['exact staging tree', 'fail-safe full validation', 'Develop may advance', 'does not weaken']) {
   assert.ok(evidence.includes(token), 'V4.81.3 evidence missing: ' + token);
