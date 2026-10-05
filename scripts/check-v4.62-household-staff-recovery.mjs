@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 
-const controller=read('apps/resident/lib/data/resident_data_controller.dart');
+const controller=read('apps/resident/lib/data/resident_data_controller.dart')+read('apps/resident/lib/data/resident_data_loading.dart');
 const snapshots=read('apps/resident/lib/data/resident_state_snapshots.dart');
 must('V4.62 workforce mutation orchestration',controller,[
   'bool isWorkforceLeaveActive(String leaveId)',
@@ -17,7 +17,7 @@ must('V4.62 workforce mutation orchestration',controller,[
   'if (hasMatchingWorkforceLeave(',
   'if (workforceRatingMatches(assignmentId',
   'Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async',
-  'if (refreshAccess) await _loadAccess();'
+  'if (refreshAccess) await this._loadAccess();'
 ]);
 must('V4.62 extracted workforce state matching',snapshots,[
   'class ResidentWorkforceSnapshot',
