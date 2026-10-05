@@ -4,14 +4,29 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const json = (path) => JSON.parse(read(path));
 
+const parseVersion = (value) => {
+  const parts = String(value).split('.').map(Number);
+  assert.equal(parts.length, 3, 'Release identity must be major.minor.patch.');
+  assert.ok(parts.every(Number.isInteger), 'Release identity must be numeric.');
+  return parts;
+};
+const compareVersion = (left, right) => {
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return 0;
+};
+
 const root = json('package.json');
 const api = json('services/api/package.json');
 const admin = json('apps/admin/package.json');
-assert.equal(root.version, '4.81.3');
+const current = parseVersion(root.version);
+assert.ok(compareVersion(current, [4, 81, 3]) >= 0, 'Release identity must not regress below V4.81.3.');
 assert.equal(api.version, root.version);
 assert.equal(admin.version, root.version);
+const buildCode = String(current[0]) + String(current[1]).padStart(2, '0') + String(current[2]).padStart(2, '0');
 for (const pubspec of ['apps/resident/pubspec.yaml', 'apps/guard/pubspec.yaml']) {
-  assert.ok(read(pubspec).includes('version: 4.81.3+48103'));
+  assert.ok(read(pubspec).includes('version: ' + root.version + '+' + buildCode));
 }
 
 const ci = read('.github/workflows/ci.yml');
