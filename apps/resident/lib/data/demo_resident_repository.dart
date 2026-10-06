@@ -341,6 +341,36 @@ class DemoResidentRepository extends ResidentRepository {
       ];
 
   @override
+  Future<Map<String, dynamic>> workforceAttendance(String assignmentId, {DateTime? from, DateTime? to}) async {
+    final now = DateTime.now();
+    final end = to ?? now;
+    final start = from ?? end.subtract(const Duration(days: 29));
+    return {
+      'assignmentId': assignmentId,
+      'worker': {'name': assignmentId == 'demo-workforce-2' ? 'Ramesh K.' : 'Lakshmi R.', 'role': assignmentId == 'demo-workforce-2' ? 'DRIVER' : 'MAID'},
+      'from': start.toIso8601String().split('T').first,
+      'to': end.toIso8601String().split('T').first,
+      'summary': {'presentDays': 22, 'totalVisits': 24, 'totalMinutesInside': 2460, 'leavePeriods': 1},
+      'days': [
+        {'date': end.subtract(const Duration(days: 1)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 1, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 1, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
+        {'date': end.subtract(const Duration(days: 2)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 2, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 2, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
+      ],
+      'leaves': [{'id': 'demo-leave-attendance', 'startsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'endsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'reason': 'Personal work'}],
+      'boundary': 'Attendance is derived only from authoritative gate check-in/check-out records.',
+    };
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> workforcePayments() async => [
+        {'id': 'demo-staff-payment-1', 'assignmentId': 'demo-workforce-1', 'kind': 'SALARY', 'amountPaise': 650000, 'paymentDate': '2026-09-30', 'periodMonth': '2026-09', 'note': 'September salary', 'workerName': 'Lakshmi R.'},
+        {'id': 'demo-staff-payment-2', 'assignmentId': 'demo-workforce-2', 'kind': 'ADVANCE', 'amountPaise': 150000, 'paymentDate': '2026-09-18', 'periodMonth': '2026-09', 'note': 'Festival advance', 'workerName': 'Ramesh K.'},
+      ];
+
+  @override
+  Future<Map<String, dynamic>> recordWorkforcePayment({
+    required String assignmentId, required String kind, required int amountPaise, required DateTime paymentDate, String? periodMonth, String? note, required String idempotencyKey,
+  }) async => {'id': 'demo-staff-payment-new', 'assignmentId': assignmentId, 'kind': kind, 'amountPaise': amountPaise, 'paymentDate': paymentDate.toIso8601String().split('T').first, 'periodMonth': periodMonth, 'note': note};
+  @override
   Future<List<Map<String, dynamic>>> workforceRatings() async => [
         {'assignmentId': 'demo-workforce-1', 'score': 5, 'comment': 'Reliable and punctual'},
         {'assignmentId': 'demo-workforce-2', 'score': 4, 'comment': 'Safe and dependable driver'},
