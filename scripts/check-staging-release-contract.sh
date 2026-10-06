@@ -172,6 +172,10 @@ for literal in \
   'COMPANION_JOB' \
   '/actions/runs/$companion_run_id/jobs?per_page=100' \
   'Companion job' \
+  'already_merged_exactly(){' \
+  'accept_companion_merge_race "$current"' \
+  'accept_companion_merge_race "$latest"' \
+  'accept_companion_merge_race "$latest_after_race"' \
   'already merged at the exact tested head by the companion release controller'; do
   if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
     echo "Staging race-safe controller is missing: $literal" >&2
