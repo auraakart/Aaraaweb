@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=path=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -24,7 +25,7 @@ requireTokens('Treasurer Admin UX',read('apps/admin/app/finance/page.tsx'),[
 requireTokens('Guard continuity',read('services/api/src/guard-operations/guard-shift-handover.service.ts'),[
   'handoverOlder30m','criticalIncidentOlder30m','gatesWithOpenIncidents','SUPERVISOR_ATTENTION',"clientOfflineQueueVisibility:'DEVICE_LOCAL_ONLY'",
 ]);
-requireTokens('Resident workforce AI registration',read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts')+read('services/api/src/ai-operations/ai-assistant.policy.ts'),[
+requireTokens('Resident workforce AI registration',readContractBundle('aiAssistant'),[
   'RESIDENT_WORKFORCE','WORKFORCE_READ_OWN','residentStatusMine(societyId,userId,unitId)','household staff domestic help worker workforce',
 ]);
 requireTokens('Resident workforce evidence',read('services/api/src/workforce/workforce.service.ts'),[
