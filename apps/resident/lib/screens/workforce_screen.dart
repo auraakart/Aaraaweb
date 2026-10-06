@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import 'workforce_history_sheets.dart';
 
 class WorkforceScreen extends StatelessWidget {
   const WorkforceScreen({super.key, required this.controller});
@@ -406,7 +407,7 @@ class _StaffCard extends StatelessWidget {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _WorkforceAttendanceSheet(controller: controller, assignmentId: assignmentId),
+      builder: (_) => WorkforceAttendanceSheet(controller: controller, assignmentId: assignmentId),
     );
   }
 
@@ -414,7 +415,7 @@ class _StaffCard extends StatelessWidget {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _WorkforcePaymentSheet(controller: controller, assignmentId: assignmentId),
+      builder: (_) => WorkforcePaymentSheet(controller: controller, assignmentId: assignmentId),
     );
   }
   Future<void> _openLeaveSheet(BuildContext context, String assignmentId) async {
