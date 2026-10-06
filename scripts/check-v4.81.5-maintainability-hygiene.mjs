@@ -89,6 +89,14 @@ assert.ok(dependencyBudget.includes('if (moderate > 0)'), 'Dependency risk budge
 
 const ci = read('.github/workflows/ci.yml');
 assert.ok(ci.includes('node scripts/check-dependency-risk-budget.mjs'));
+for (const testPath of [
+  'test/family_member_recovery_test.dart',
+  'test/emergency_contact_recovery_test.dart',
+  'test/workforce_modal_lifecycle_test.dart',
+  'test/notices_acknowledgement_test.dart',
+]) {
+  assert.ok(ci.includes(testPath), 'Resident controller risk suite missing: ' + testPath);
+}
 
 const v4814 = read('scripts/check-v4.81.4-privacy-dependency-hardening.mjs');
 assert.ok(v4814.includes('compareVersion(current, [4, 81, 4]) >= 0'));
