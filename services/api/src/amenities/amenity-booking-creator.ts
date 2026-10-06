@@ -242,7 +242,7 @@ export class AmenityBookingCreator {
     };
   }
 
-  private async assertNoShowEligibility(
+  async assertNoShowEligibility(
     tx:Prisma.TransactionClient,
     societyId:string,
     amenityId:string,
