@@ -6,8 +6,11 @@ export default defineConfig({
       'src/occupancy-authority.regression.spec.ts',
       'src/access/visitor-management.e2e.spec.ts',
       'src/accounting/payment-availability.service.spec.ts',
+      'src/auth/session.service.spec.ts',
       'src/ai-operations/ai-operations.controlled-assignment.spec.ts',
+      'src/ai-operations/ai-operations.service.spec.ts',
       'src/privacy/privacy-self-context.spec.ts',
+      'src/privacy/privacy-self.controller.spec.ts',
       'src/households/household.service.spec.ts',
     ],
     coverage: {

@@ -56,6 +56,17 @@ const apiCoverage = read('services/api/vitest.risk-coverage.config.ts');
 for (const token of ['statements: 30','branches: 28','statements: 35','branches: 32']) {
   assert.ok(apiCoverage.includes(token), 'API risk floor missing: ' + token);
 }
+for (const spec of [
+  'src/auth/session.service.spec.ts',
+  'src/ai-operations/ai-operations.service.spec.ts',
+  'src/privacy/privacy-self.controller.spec.ts',
+]) {
+  assert.ok(apiCoverage.includes(spec), 'API focused risk suite missing: ' + spec);
+}
+assert.ok(
+  read('services/api/src/accounting/payment-availability.service.spec.ts').includes('returns an empty summary when no captured cash is available'),
+  'Payment availability fallback branch coverage is required.',
+);
 
 const extractionGuard = read('scripts/check-source-contract-extraction-resilience.mjs');
 assert.ok(extractionGuard.includes('source-contract-bundles.mjs'));
