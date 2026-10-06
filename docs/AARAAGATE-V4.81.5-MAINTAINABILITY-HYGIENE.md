@@ -27,6 +27,12 @@ The guarded hotspot ceilings are tightened to:
 
 These are maximum growth boundaries, not target sizes.
 
+## 1.1 Historical contract extraction resilience
+
+The first protected validation pass exposed the underlying cause of repeated milestone-check delays: historical source-contract scripts were reading large orchestration files directly and therefore treated safe extractions as missing behavior. Fixing those scripts one by one would repeat on every future decomposition.
+
+V4.81.5 therefore introduces `scripts/lib/source-contract-bundles.mjs` as the stable logical source boundary for Amenities, Billing, AI Assistant and Resident controller contracts. Historical checks read the logical bundle rather than assuming a token must remain in one physical file. `check-source-contract-extraction-resilience.mjs` runs first in the stable-domain suite and fails any future historical V4 checker that directly reads one of these decomposable hotspot files. New extractions now require one bundle update instead of a cascade of stale milestone-script repairs.
+
 ## 2. Risk-coverage uplift
 
 Existing green evidence allowed conservative floor increases without manufacturing coverage:
