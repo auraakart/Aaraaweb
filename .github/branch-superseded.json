@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-10-06",
+  "policy": "Delete only when the branch remains at the exact reviewed SHA and the listed successor evidence is already represented by current canonical history. A SHA change invalidates supersession.",
+  "branches": [
+    {
+      "name": "hotfix/v4.70.1-staging-history-guard",
+      "sha": "952d2bd065e98a8232155b099a1fbf03f092278c",
+      "reason": "closed unmerged PR #953 release-history guard is superseded by merged later staging-history hardening, including PR #1024"
+    },
+    {
+      "name": "mastermind/v4.75-amenity-operating-hours-convergence",
+      "sha": "82252d5aca3d0afaa027b253c6a9b978ff95083a",
+      "reason": "closed stale PR #961 was explicitly rebased and superseded by merged V4.76 PR #965"
+    },
+    {
+      "name": "mastermind/v4.80.1-finance-exception-resolution",
+      "sha": "e51bdb7b3e45cba26356bddabf3a39f161c4d39c",
+      "reason": "branch-only auditor access delta was superseded by merged V4.80.1.1 PR #1005"
+    },
+    {
+      "name": "release/dependabot-routing-staging-20261001",
+      "sha": "3857a37837e070f66f6328f9dbb08c40f4c42e67",
+      "reason": "closed staging backport PR #1040 is superseded by canonical Dependabot routing on current develop/staging"
+    },
+    {
+      "name": "release/v4.70-staging-950",
+      "sha": "0752d8b477ce18d5f7829651fe2ec26f1ec842fa",
+      "reason": "obsolete V4.70 staging candidate PR #951 is superseded by later promoted releases"
+    },
+    {
+      "name": "release/v4.78.1-staging-candidate",
+      "sha": "b4fafc6b2014d883e37aed1430a7373f8d22ac2e",
+      "reason": "PR #971 explicitly states V4.78.1 was superseded by a fresh V4.78.2 candidate"
+    },
+    {
+      "name": "release/v4.78.2-staging-candidate",
+      "sha": "fbed536dc35b19db25ce6a26fafae1d7c46971b7",
+      "reason": "PR #973 was a failed release proof superseded by V4.78.3 downstream auto-merge orchestration and later releases"
+    }
+  ]
+}

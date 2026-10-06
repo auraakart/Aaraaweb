@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -34,7 +35,7 @@ requireTokens('Bank reconciliation explainability',reconciliation,[
   'confirmationRequired:true',
 ]);
 
-const amenities=read('services/api/src/amenities/amenities.service.ts');
+const amenities=readContractBundle('amenities');
 const amenityPolicy=read('services/api/src/amenities/amenity-policy.engine.ts');
 const amenityDomain=`${amenities}\n${amenityPolicy}`;
 requireTokens('Amenity policy depth',amenityDomain,[

@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { PaymentAvailabilityService } from './payment-availability.service';
 
 describe('PaymentAvailabilityService',()=>{
+  it('returns an empty summary when no captured cash is available',async()=>{
+    const prisma={$queryRaw:vi.fn().mockResolvedValue([])};
+    const service=new PaymentAvailabilityService(prisma as never);
+    await expect(service.unappliedCashSummary('society-1')).resolves.toEqual({paymentCount:0,unappliedPaise:'0'});
+  });
+
   it('uses one reversal/refund-aware set-based calculation for unapplied captured cash',async()=>{
     const prisma={$queryRaw:vi.fn().mockResolvedValue([{paymentCount:2,unappliedPaise:'75000'}])};
     const service=new PaymentAvailabilityService(prisma as never);

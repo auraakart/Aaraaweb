@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const requireTokens=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(`${label} missing: ${missing.join(', ')}`);process.exit(1);}};
 const forbid=(label,source,tokens)=>{const present=tokens.filter(t=>source.includes(t));if(present.length){console.error(`${label} prohibited: ${present.join(', ')}`);process.exit(1);}};
@@ -6,7 +7,7 @@ const legacy=read('services/api/prisma/migrations/20260914220000_v2_amenity_week
 requireTokens('V2 weekly authority',legacy,['AmenityBooking_weekly_schedule_guard',"AT TIME ZONE 'Asia/Kolkata'",'outside configured operating hours']);
 const migration=read('services/api/prisma/migrations/20260928223000_v476_amenity_weekly_waitlist_convergence/migration.sql');
 requireTokens('Waitlist weekly parity',migration,['AmenityWaitlist_weekly_schedule_guard','Amenity_weekly_waitlist_policy_guard','future waiting entries exist',"AT TIME ZONE 'Asia/Kolkata'"]);
-const service=read('services/api/src/amenities/amenities.service.ts');
+const service=readContractBundle('amenities');
 const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
 const amenityDomain=`${service}\n${policyEngine}`;
 requireTokens('Service operating-hours convergence',amenityDomain,['previewOperatingHours','applyOperatingHours','normalizeWeeklySchedule','isWeeklyOperatingWindowOpen','outside configured operating hours','future booking(s)']);
