@@ -68,6 +68,23 @@ const superseded = json('.github/branch-superseded.json');
 assert.equal(superseded.branches.length, 7);
 assert.ok(superseded.branches.every((entry) => /^[0-9a-f]{40}$/.test(entry.sha)));
 
+const rootPackage = json('package.json');
+for (const [name, expected] of Object.entries({
+  'proxy-addr': '2.0.8',
+  'source-map-js': '1.2.2',
+  'multer': '2.4.0',
+  'minimatch@10.2.6>brace-expansion': '5.0.12',
+  'gaxios@6.7.1>uuid': '11.1.1',
+})) {
+  assert.equal(rootPackage.pnpm?.overrides?.[name], expected, 'Dependency security override mismatch: ' + name);
+}
+const lock = read('pnpm-lock.yaml');
+for (const token of ['proxy-addr@2.0.8:', 'source-map-js@1.2.2:', 'brace-expansion@5.0.12:', 'multer@2.4.0:', 'uuid@11.1.1:']) {
+  assert.ok(lock.includes(token), 'Patched dependency lock evidence missing: ' + token);
+}
+const dependencyBudget = read('scripts/check-dependency-risk-budget.mjs');
+assert.ok(dependencyBudget.includes('if (moderate > 0)'), 'Dependency risk budget must fail on moderate findings.');
+
 const ci = read('.github/workflows/ci.yml');
 assert.ok(ci.includes('node scripts/check-dependency-risk-budget.mjs'));
 
