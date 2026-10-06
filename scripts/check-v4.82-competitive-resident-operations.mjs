@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const json=(path)=>JSON.parse(read(path));
@@ -77,7 +78,7 @@ for(const token of ['listUsageHistory(','consumptionSincePrevious',"INTERVAL '13
 for(const token of ['Recent meter readings','reset/replacement boundaries','_UtilityUsageHistory']) assert.ok(utilityUi.includes(token),'Utility Resident UX missing: '+token);
 
 const aiPolicy=read('services/api/src/ai-operations/ai-assistant.policy.ts');
-const ai=read('services/api/src/ai-operations/ai-assistant.service.ts');
+const ai=readContractBundle('aiAssistant');
 for(const token of ['RESIDENT_UTILITIES','RESIDENT_REQUESTS']) {
   assert.ok(aiPolicy.includes(token),'AI tool policy missing: '+token);
   assert.ok(ai.includes(token),'AI routing missing: '+token);
