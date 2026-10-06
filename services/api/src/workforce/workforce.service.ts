@@ -486,6 +486,7 @@ export class WorkforceService {
     return {
       assignmentId,
       worker: { id: assignment.workerId, name: assignment.worker.name, role: assignment.worker.role },
+      schedule: assignment.schedule,
       from,
       to,
       summary: {
@@ -571,11 +572,14 @@ export class WorkforceService {
       `);
       if (existing[0]) {
         const row = existing[0];
+        const existingPaymentDate = row.paymentDate instanceof Date
+          ? row.paymentDate.toISOString().slice(0, 10)
+          : String(row.paymentDate ?? '').slice(0, 10);
         const sameIntent =
           row.assignmentId === input.assignmentId &&
           row.kind === kind &&
           Number(row.amountPaise) === input.amountPaise &&
-          String(row.paymentDate).slice(0, 10) === paymentDate &&
+          existingPaymentDate === paymentDate &&
           (row.periodMonth ?? null) === periodMonth &&
           (row.note ?? null) === note;
         if (!sameIntent) throw new BadRequestException('Idempotency key was already used for a different staff payment record');
