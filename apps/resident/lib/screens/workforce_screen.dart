@@ -281,6 +281,7 @@ class _StaffCard extends StatelessWidget {
     final present = controller.isWorkforcePresent(assignmentId);
     final rating = controller.ratingFor(assignmentId);
     final leaves = controller.leavesFor(assignmentId);
+    final payments = controller.paymentsForWorkforce(assignmentId);
     final canRate = status == 'APPROVED' || status == 'SUSPENDED';
     final canDeactivate = assignment['active'] != false && status.toUpperCase() != 'SUSPENDED';
 
@@ -340,6 +341,8 @@ class _StaffCard extends StatelessWidget {
                 _StatusChip(label: _gateAccessLabel(status, verification), icon: Icons.meeting_room_outlined),
                 if (rating != null)
                   _StatusChip(label: '${rating['score'] ?? '-'} / 5', icon: Icons.star_rounded),
+                if (payments.isNotEmpty)
+                  _StatusChip(label: '${payments.length} payment record${payments.length == 1 ? '' : 's'}', icon: Icons.payments_outlined),
               ],
             ),
             if (leaves.isNotEmpty) ...[
@@ -350,22 +353,46 @@ class _StaffCard extends StatelessWidget {
                   )),
             ],
             const SizedBox(height: 14),
-            Row(
+            Column(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
-                    icon: const Icon(Icons.event_busy_outlined),
-                    label: const Text('ADD LEAVE'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: assignmentId.isEmpty ? null : () => _openLeaveSheet(context, assignmentId),
+                        icon: const Icon(Icons.event_busy_outlined),
+                        label: const Text('ADD LEAVE'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
+                        icon: const Icon(Icons.star_outline_rounded),
+                        label: Text(rating == null ? 'RATE' : 'UPDATE RATING'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
-                    icon: const Icon(Icons.star_outline_rounded),
-                    label: Text(rating == null ? 'RATE' : 'UPDATE RATING'),
-                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: assignmentId.isEmpty ? null : () => _openAttendanceSheet(context, assignmentId),
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        label: const Text('VIEW ATTENDANCE'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
+                        icon: const Icon(Icons.payments_outlined),
+                        label: const Text('PAYMENTS'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -375,6 +402,21 @@ class _StaffCard extends StatelessWidget {
     );
   }
 
+  Future<void> _openAttendanceSheet(BuildContext context, String assignmentId) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _WorkforceAttendanceSheet(controller: controller, assignmentId: assignmentId),
+    );
+  }
+
+  Future<void> _openPaymentSheet(BuildContext context, String assignmentId) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _WorkforcePaymentSheet(controller: controller, assignmentId: assignmentId),
+    );
+  }
   Future<void> _openLeaveSheet(BuildContext context, String assignmentId) async {
     final submitted = await showModalBottomSheet<bool>(
       context: context,
