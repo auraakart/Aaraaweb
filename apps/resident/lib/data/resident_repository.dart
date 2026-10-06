@@ -86,6 +86,31 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> communityCircles() async {
+    final value = await api.get('/api/v1/community-circles');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> joinCommunityCircle(String circleId) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/join', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> leaveCommunityCircle(String circleId) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/leave', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> communityCirclePosts(String circleId) async {
+    final value = await api.get('/api/v1/community-circles/$circleId/posts');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> createCommunityCirclePost({required String circleId, required String body}) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/posts', {'body': body.trim()});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> respondCommunityEvent({required String eventId, required String status}) async {
     final value = await api.post('/api/v1/community-events/$eventId/rsvp', {'status': status});
     return Map<String, dynamic>.from(value as Map);
