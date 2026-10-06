@@ -58,7 +58,7 @@ The scheduled/merged-PR Branch hygiene workflow remains the mutation authority. 
 
 Dependency CI now emits machine-readable audit details through `scripts/check-dependency-risk-budget.mjs`.
 
-The protected audit initially exposed newly published advisories in the previously green lockfile. V4.81.5 patches those paths to proxy-addr 2.0.8, source-map-js 1.2.2, brace-expansion 5.0.12, multer 2.4.0 and a path-scoped uuid 11.1.1 for gaxios 6.7.1.
+The protected audit initially exposed newly published advisories in the previously green lockfile. V4.81.5 patches those paths to proxy-addr 2.0.8, source-map-js 1.2.2, brace-expansion 5.0.12, multer 2.4.0 and path-scoped uuid 11.1.1 overrides for the legacy gaxios 6.7.1, google-gax 4.6.1 and teeny-request 9.0.0 chains.
 
 The release budget is now:
 - critical: 0
