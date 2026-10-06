@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -55,7 +56,7 @@ requireTokens('Gate fallback migration',migration,[
   'GateNotificationAttempt_scope_request_user_channel_key',
 ]);
 
-const billing=read('services/api/src/billing/billing.service.ts');
+const billing=readContractBundle('billing');
 requireTokens('Resident finance clarity',billing,[
   'async residentSummary',
   "mode:'FULL_INVOICE'",
@@ -98,7 +99,7 @@ requireTokens('Privacy-first Community',community,[
   'active relationship and access rules',
 ]);
 
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts');
+const assistant=readContractBundle('aiAssistant');
 requireTokens('Operational Intelligence 2.0',assistant,[
   'residentIntentRoutingText',
   'likelyCause?:string',
