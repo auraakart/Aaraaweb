@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -29,7 +30,7 @@ requireTokens('Core operations regression gate',read('apps/admin/package.json'),
 requireTokens('AutoPay schema',read('services/api/prisma/schema.prisma'),[
   'model PaymentAutopayPreference','providerMandateStatus','@@unique([societyId, unitId, payerUserId])',
 ]);
-requireTokens('AutoPay truth boundary',read('services/api/src/billing/billing.service.ts'),[
+requireTokens('AutoPay truth boundary',readContractBundle('billing'),[
   'getAutopayPreference','setAutopayPreference',"executionState:mandateRecorded?'MANDATE_RECORDED_NO_EXECUTOR':'PROVIDER_UNBOUND'",
   'automaticDebitAvailable:false','assertCurrentPayer',
 ]);
@@ -68,7 +69,7 @@ forbidTokens('Resident action inbox deduplication',residentHome,[
   '_ActionInboxSummary','ACT NOW $immediate','SOON $soon','INFO $info',
 ]);
 
-requireTokens('AI evidence quality',read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts'),[
+requireTokens('AI evidence quality',readContractBundle('aiAssistant'),[
   'CURRENT_QUERY_SNAPSHOT','causalClaim:false','DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF',
   'Likely-cause text is a signal interpretation, not causal proof',
 ]);
