@@ -1,8 +1,9 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 
-const controller=read('apps/resident/lib/data/resident_data_controller.dart');
+const controller=readContractBundle('residentController');
 const snapshots=read('apps/resident/lib/data/resident_state_snapshots.dart');
 must('V4.65 controller recovery',controller,[
   'Future<void> addFamilyMember({',
