@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
@@ -46,7 +47,7 @@ assert.equal(admin.devDependencies.eslint, '^10.11.0');
 assert.equal(api.devDependencies['typescript-eslint'], '^8.71.0');
 assert.equal(admin.devDependencies['typescript-eslint'], '^8.71.0');
 
-const aiService = read('services/api/src/ai-operations/ai-assistant.service.ts');
+const aiService = readContractBundle('aiAssistant');
 const occurrenceCount = (source, token) => source.split(token).length - 1;
 assert.equal(
   occurrenceCount(aiService, "export { residentIntentRoutingText } from './ai-assistant.policy';"),
