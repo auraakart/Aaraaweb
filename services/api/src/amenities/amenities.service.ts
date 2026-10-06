@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AmenityPolicyEngine, type AmenityBlackoutWindow, type AmenityBookingRules } from './amenity-policy.engine';
+import { AmenityPolicyEngine, type AmenityBlackoutWindow } from './amenity-policy.engine';
 import { AmenityAnalyticsQuery } from './amenity-analytics.query';
 import { AmenityBookingCreator } from './amenity-booking-creator';
 
