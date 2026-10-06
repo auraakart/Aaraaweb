@@ -7,7 +7,6 @@ import { NotificationRealtimeService } from '../notifications/notification-realt
 import { PaymentWebhookProcessor } from './payment-webhook.processor';
 import { PaymentOrderService } from './payment-order.service';
 
-type InvoiceRow = { id: string; societyId: string; unitId: string; amountPaise: number; status: 'ISSUED' | 'PAID' | 'VOID' };
 export type PaymentWebhookRow = {
   id:string;invoiceId:string|null;amenityBookingId:string|null;societyId:string;purposeType:'MAINTENANCE_INVOICE'|'AMENITY_DEPOSIT';
   status:'CREATED'|'AUTHORIZED'|'CAPTURED'|'FAILED'|'REFUNDED';
