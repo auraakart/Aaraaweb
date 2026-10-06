@@ -32,6 +32,12 @@ class WorkforceAttendanceSheet extends StatelessWidget {
               final days = data['days'] is List
                   ? (data['days'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
                   : <Map<String, dynamic>>[];
+              final leaves = data['leaves'] is List
+                  ? (data['leaves'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+                  : <Map<String, dynamic>>[];
+              final schedule = data['schedule'] is Map
+                  ? Map<String, dynamic>.from(data['schedule'] as Map)
+                  : const <String, dynamic>{};
               return ListView(
                 children: [
                   const Text('Attendance register', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
@@ -46,6 +52,14 @@ class WorkforceAttendanceSheet extends StatelessWidget {
                       Chip(avatar: const Icon(Icons.door_front_door_outlined, size: 18), label: Text('${summary['totalVisits'] ?? 0} visits')),
                       Chip(avatar: const Icon(Icons.event_busy_outlined, size: 18), label: Text('${summary['leavePeriods'] ?? 0} leave periods')),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  _AttendanceCalendar(
+                    from: data['from']?.toString(),
+                    to: data['to']?.toString(),
+                    attendanceDays: days,
+                    leaves: leaves,
+                    schedule: schedule,
                   ),
                   const SizedBox(height: 16),
                   if (days.isEmpty)
@@ -87,6 +101,120 @@ class WorkforceAttendanceSheet extends StatelessWidget {
     if (parsed == null) return value.toString();
     final local = parsed.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _AttendanceCalendar extends StatelessWidget {
+  const _AttendanceCalendar({
+    required this.from,
+    required this.to,
+    required this.attendanceDays,
+    required this.leaves,
+    required this.schedule,
+  });
+
+  final String? from;
+  final String? to;
+  final List<Map<String, dynamic>> attendanceDays;
+  final List<Map<String, dynamic>> leaves;
+  final Map<String, dynamic> schedule;
+
+  static const _weekdayNames = <int, String>{
+    DateTime.monday: 'MONDAY',
+    DateTime.tuesday: 'TUESDAY',
+    DateTime.wednesday: 'WEDNESDAY',
+    DateTime.thursday: 'THURSDAY',
+    DateTime.friday: 'FRIDAY',
+    DateTime.saturday: 'SATURDAY',
+    DateTime.sunday: 'SUNDAY',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime.tryParse(from ?? '');
+    final end = DateTime.tryParse(to ?? '');
+    if (start == null || end == null || end.isBefore(start)) return const SizedBox.shrink();
+
+    final present = attendanceDays
+        .map((day) => day['date']?.toString().split('T').first)
+        .whereType<String>()
+        .toSet();
+    final scheduledDays = (schedule['days'] is List)
+        ? (schedule['days'] as List)
+            .whereType<String>()
+            .map((day) => day.toUpperCase())
+            .toSet()
+        : <String>{};
+    final hasExplicitSchedule = scheduledDays.isNotEmpty;
+    final dates = <DateTime>[];
+    for (var cursor = DateTime(start.year, start.month, start.day);
+        !cursor.isAfter(DateTime(end.year, end.month, end.day)) && dates.length < 31;
+        cursor = cursor.add(const Duration(days: 1))) {
+      dates.add(cursor);
+    }
+
+    bool leaveOn(String key) => leaves.any((leave) {
+      final starts = leave['startsOn']?.toString().split('T').first;
+      final ends = leave['endsOn']?.toString().split('T').first;
+      return starts != null && ends != null && key.compareTo(starts) >= 0 && key.compareTo(ends) <= 0;
+    });
+
+    String key(DateTime date) =>
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Monthly attendance view', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text(
+          'P = gate presence · L = recorded leave · E = scheduled day with no gate evidence · — = no attendance inference',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: dates.map((date) {
+            final dateKey = key(date);
+            final onLeave = leaveOn(dateKey);
+            final isPresent = present.contains(dateKey);
+            final scheduled = hasExplicitSchedule && scheduledDays.contains(_weekdayNames[date.weekday]);
+            final state = isPresent ? 'P' : onLeave ? 'L' : scheduled ? 'E' : '—';
+            final detail = isPresent
+                ? 'Gate presence recorded'
+                : onLeave
+                    ? 'Recorded leave'
+                    : scheduled
+                        ? 'Expected schedule day; no gate evidence'
+                        : 'No attendance inference';
+            return Semantics(
+              label: '${date.day}/${date.month}: $detail',
+              child: Container(
+                width: 46,
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(10),
+                  color: isPresent
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : onLeave
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : Theme.of(context).colorScheme.surfaceContainerLow,
+                ),
+                child: Column(
+                  children: [
+                    Text('${date.day}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(state, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
+            );
+          }).toList(growable: false),
+        ),
+      ],
+    );
   }
 }
 
