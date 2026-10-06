@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 
 const service=fs.readFileSync('services/api/src/amenities/amenities.service.ts','utf8');
+const bookingCreator=fs.readFileSync('services/api/src/amenities/amenity-booking-creator.ts','utf8');
+const amenityBookingSource=service+'\n'+bookingCreator;
 const page=fs.readFileSync('apps/admin/app/amenities/page.tsx','utf8');
 const policy=fs.readFileSync('apps/admin/app/amenities/amenity-policy.ts','utf8');
 const fields=fs.readFileSync('apps/admin/app/amenities/no-show-policy-fields.tsx','utf8');
@@ -12,12 +14,12 @@ const requiredService=[
   '"restrictedUntil"',
   'restrictedUntil.getTime()>evaluatedAt.getTime()',
 ];
-const missingService=requiredService.filter(token=>!service.includes(token));
+const missingService=requiredService.filter(token=>!amenityBookingSource.includes(token));
 if(missingService.length){
   console.error(`V4.78 database-clock contract missing: ${missingService.join(', ')}`);
   process.exit(1);
 }
-const noShowSlice=service.slice(service.indexOf('private async noShowEligibility'),service.indexOf('private async assertNoShowEligibility'));
+const noShowSlice=bookingCreator.slice(bookingCreator.indexOf('private async noShowEligibility'),bookingCreator.indexOf('private async assertNoShowEligibility'));
 if(noShowSlice.includes('Date.now()')){
   console.error('V4.78 no-show eligibility must not depend on the application clock.');
   process.exit(1);
