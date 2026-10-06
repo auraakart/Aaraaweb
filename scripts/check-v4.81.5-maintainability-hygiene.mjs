@@ -22,6 +22,8 @@ for (const path of [
   'apps/resident/lib/data/resident_guest_invite_coordinator.dart',
   '.github/branch-superseded.json',
   'scripts/check-dependency-risk-budget.mjs',
+  'scripts/lib/source-contract-bundles.mjs',
+  'scripts/check-source-contract-extraction-resilience.mjs',
   'docs/REPOSITORY-GOVERNANCE.md',
 ]) assert.ok(fs.existsSync(path), 'V4.81.5 artifact missing: ' + path);
 
@@ -52,6 +54,10 @@ const apiCoverage = read('services/api/vitest.risk-coverage.config.ts');
 for (const token of ['statements: 30','branches: 28','statements: 35','branches: 32']) {
   assert.ok(apiCoverage.includes(token), 'API risk floor missing: ' + token);
 }
+
+const extractionGuard = read('scripts/check-source-contract-extraction-resilience.mjs');
+assert.ok(extractionGuard.includes('source-contract-bundles.mjs'));
+assert.ok(read('scripts/check-stable-domain-invariants.mjs').includes('check-source-contract-extraction-resilience.mjs'));
 
 const cleanup = read('scripts/cleanup-merged-branches.mjs');
 assert.ok(cleanup.includes("const preservePattern = /^(backup|recovery|archive|snapshot)"));
