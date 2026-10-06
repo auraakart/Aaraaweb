@@ -7,6 +7,13 @@ class DemoResidentRepository extends ResidentRepository {
 
   final Map<String, String> _communityPollResponses = <String, String>{};
   final Map<String, String> _communityEventResponses = <String, String>{};
+  final Set<String> _joinedCommunityCircles = <String>{'demo-circle-1'};
+  final Map<String, List<Map<String, dynamic>>> _communityCirclePosts = <String, List<Map<String, dynamic>>>{
+    'demo-circle-1': [
+      {'id': 'demo-circle-post-1', 'body': 'Saturday practice is at 7:00 AM near the central lawn.', 'createdAt': '2026-10-04T01:30:00Z', 'mine': false},
+      {'id': 'demo-circle-post-2', 'body': 'I can bring an extra cricket bat.', 'createdAt': '2026-10-04T03:10:00Z', 'mine': true},
+    ],
+  };
 
   final List<Map<String, dynamic>> _access = [
     {
@@ -341,6 +348,36 @@ class DemoResidentRepository extends ResidentRepository {
       ];
 
   @override
+  Future<Map<String, dynamic>> workforceAttendance(String assignmentId, {DateTime? from, DateTime? to}) async {
+    final now = DateTime.now();
+    final end = to ?? now;
+    final start = from ?? end.subtract(const Duration(days: 29));
+    return {
+      'assignmentId': assignmentId,
+      'worker': {'name': assignmentId == 'demo-workforce-2' ? 'Ramesh K.' : 'Lakshmi R.', 'role': assignmentId == 'demo-workforce-2' ? 'DRIVER' : 'MAID'},
+      'from': start.toIso8601String().split('T').first,
+      'to': end.toIso8601String().split('T').first,
+      'summary': {'presentDays': 22, 'totalVisits': 24, 'totalMinutesInside': 2460, 'leavePeriods': 1},
+      'days': [
+        {'date': end.subtract(const Duration(days: 1)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 1, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 1, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
+        {'date': end.subtract(const Duration(days: 2)).toIso8601String(), 'firstEntryAt': end.subtract(const Duration(days: 2, hours: 4)).toIso8601String(), 'lastExitAt': end.subtract(const Duration(days: 2, hours: 2)).toIso8601String(), 'visitCount': 1, 'minutesInside': 120, 'openVisit': false},
+      ],
+      'leaves': [{'id': 'demo-leave-attendance', 'startsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'endsOn': end.subtract(const Duration(days: 5)).toIso8601String(), 'reason': 'Personal work'}],
+      'boundary': 'Attendance is derived only from authoritative gate check-in/check-out records.',
+    };
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> workforcePayments() async => [
+        {'id': 'demo-staff-payment-1', 'assignmentId': 'demo-workforce-1', 'kind': 'SALARY', 'amountPaise': 650000, 'paymentDate': '2026-09-30', 'periodMonth': '2026-09', 'note': 'September salary', 'workerName': 'Lakshmi R.'},
+        {'id': 'demo-staff-payment-2', 'assignmentId': 'demo-workforce-2', 'kind': 'ADVANCE', 'amountPaise': 150000, 'paymentDate': '2026-09-18', 'periodMonth': '2026-09', 'note': 'Festival advance', 'workerName': 'Ramesh K.'},
+      ];
+
+  @override
+  Future<Map<String, dynamic>> recordWorkforcePayment({
+    required String assignmentId, required String kind, required int amountPaise, required DateTime paymentDate, String? periodMonth, String? note, required String idempotencyKey,
+  }) async => {'id': 'demo-staff-payment-new', 'assignmentId': assignmentId, 'kind': kind, 'amountPaise': amountPaise, 'paymentDate': paymentDate.toIso8601String().split('T').first, 'periodMonth': periodMonth, 'note': note};
+  @override
   Future<List<Map<String, dynamic>>> workforceRatings() async => [
         {'assignmentId': 'demo-workforce-1', 'score': 5, 'comment': 'Reliable and punctual'},
         {'assignmentId': 'demo-workforce-2', 'score': 4, 'comment': 'Safe and dependable driver'},
@@ -592,6 +629,57 @@ class DemoResidentRepository extends ResidentRepository {
   @override
   Future<Map<String, dynamic>> societyDocumentDownloadIntent(String documentId) async =>
       {'id': documentId, 'url': 'https://example.com/aaraagate-demo-document.pdf'};
+
+  @override
+  Future<List<Map<String, dynamic>>> communityCircles() async => [
+        {
+          'id': 'demo-circle-1',
+          'name': 'Cricket neighbours',
+          'description': 'Opt-in coordination for residents who play weekend cricket.',
+          'status': 'ACTIVE',
+          'joined': _joinedCommunityCircles.contains('demo-circle-1'),
+          'memberCount': 18,
+          'postCount': _communityCirclePosts['demo-circle-1']?.length ?? 0,
+        },
+        {
+          'id': 'demo-circle-2',
+          'name': 'Chess evenings',
+          'description': 'Casual chess meetups in the common room.',
+          'status': 'ACTIVE',
+          'joined': _joinedCommunityCircles.contains('demo-circle-2'),
+          'memberCount': 9,
+          'postCount': _communityCirclePosts['demo-circle-2']?.length ?? 0,
+        },
+      ];
+
+  @override
+  Future<Map<String, dynamic>> joinCommunityCircle(String circleId) async {
+    _joinedCommunityCircles.add(circleId);
+    return {'circleId': circleId, 'joined': true};
+  }
+
+  @override
+  Future<Map<String, dynamic>> leaveCommunityCircle(String circleId) async {
+    _joinedCommunityCircles.remove(circleId);
+    return {'circleId': circleId, 'joined': false};
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> communityCirclePosts(String circleId) async =>
+      (_communityCirclePosts[circleId] ?? const []).map((item) => Map<String, dynamic>.from(item)).toList();
+
+  @override
+  Future<Map<String, dynamic>> createCommunityCirclePost({required String circleId, required String body}) async {
+    if (!_joinedCommunityCircles.contains(circleId)) throw StateError('Join this circle before posting.');
+    final post = <String, dynamic>{
+      'id': 'demo-circle-post-${DateTime.now().microsecondsSinceEpoch}',
+      'body': body.trim(),
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'mine': true,
+    };
+    _communityCirclePosts.putIfAbsent(circleId, () => <Map<String, dynamic>>[]).insert(0, post);
+    return post;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> communityEvents() async => [
