@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
-const service=fs.readFileSync('services/api/src/amenities/amenities.service.ts','utf8');
+const service=readContractBundle('amenities');
 const bookingCreator=fs.readFileSync('services/api/src/amenities/amenity-booking-creator.ts','utf8');
 const amenityBookingSource=service+'\n'+bookingCreator;
 const page=fs.readFileSync('apps/admin/app/amenities/page.tsx','utf8');
