@@ -825,6 +825,42 @@ model HelpdeskActivity {
   @@index([societyId, occurredAt(sort: Desc)], map: "HelpdeskActivity_society_time_idx")
 }
 
+model CommunityCircle {
+  id              String   @id @default(uuid()) @db.Uuid
+  societyId       String   @db.Uuid
+  name            String
+  description     String?
+  status          String   @default("ACTIVE")
+  createdByUserId String   @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, status, createdAt(sort: Desc)], map: "CommunityCircle_society_status_created_idx")
+}
+
+model CommunityCircleMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  circleId  String   @db.Uuid
+  userId    String   @db.Uuid
+  joinedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([societyId, circleId, userId], map: "CommunityCircleMember_society_circle_user_key")
+  @@index([societyId, userId, joinedAt(sort: Desc)], map: "CommunityCircleMember_society_user_joined_idx")
+}
+
+model CommunityCirclePost {
+  id           String   @id @default(uuid()) @db.Uuid
+  societyId    String   @db.Uuid
+  circleId     String   @db.Uuid
+  authorUserId String   @db.Uuid
+  body         String
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([societyId, circleId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_circle_created_idx")
+  @@index([societyId, authorUserId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_author_created_idx")
+}
+
 model Notice {
   id          String         @id @default(uuid()) @db.Uuid
   societyId   String         @db.Uuid
