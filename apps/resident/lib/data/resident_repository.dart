@@ -229,6 +229,17 @@ class ResidentRepository {
     return _list(value).map((row) => ResidentHelpdeskTicket.fromJson(row).toJson()).toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> issuedUtilityCharges() async {
+    final value = await api.get('/api/v1/utilities/v2/resident/charges');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> utilityUsageHistory({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=${Uri.encodeQueryComponent(unitId)}';
+    final value = await api.get('/api/v1/utilities/v2/resident/usage$suffix');
+    return _list(value);
+  }
+
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
     final value = await api.get('/api/v1/billing/invoices/payable');
     return _list(value).map((row) => ResidentMaintenanceInvoice.fromJson(row).toJson()).toList(growable: false);
