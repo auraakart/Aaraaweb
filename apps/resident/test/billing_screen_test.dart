@@ -31,6 +31,12 @@ class _BillingRepository extends ResidentRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> issuedUtilityCharges() async => const [];
+
+  @override
+  Future<List<Map<String, dynamic>>> utilityUsageHistory({String? unitId}) async => const [];
+
+  @override
   Future<List<Map<String, dynamic>>> maintenancePayments() async {
     if (denied) throw ApiException(403, 'Forbidden');
     return [];
@@ -178,6 +184,24 @@ void main() {
     expect(find.text('Receipt AGR-12345678'), findsOneWidget);
     expect(find.textContaining('Aaraagate Heights'), findsOneWidget);
   });
+  testWidgets('resident sees recent utility meter readings and reset-safe consumption', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: BillingScreen(repository: _BillingRepositoryWithUtility())));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Recent meter readings'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent meter readings'), findsOneWidget);
+    expect(find.text('Main electricity meter'), findsOneWidget);
+    expect(find.text('1450.0 units'), findsOneWidget);
+    expect(find.text('+50.0'), findsOneWidget);
+    expect(find.textContaining('reset/replacement boundaries'), findsOneWidget);
+  });
+
 }
 
 class _BillingRepositoryWithPayment extends _BillingRepository {
@@ -192,5 +216,35 @@ class _BillingRepositoryWithRecoveryPayments extends _BillingRepository {
   Future<List<Map<String, dynamic>>> maintenancePayments() async => [
     {'id':'payment-created','invoiceNumber':'202609-A101','amountPaise':125000,'status':'CREATED','buildingName':'A Block','unitNumber':'101'},
     {'id':'payment-failed','invoiceNumber':'202609-A101','amountPaise':125000,'status':'FAILED','buildingName':'A Block','unitNumber':'101'},
+  ];
+}
+
+class _BillingRepositoryWithUtility extends _BillingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> utilityUsageHistory({String? unitId}) async => [
+    {
+      'meterId': 'meter-1',
+      'meterCode': 'ELEC-A101',
+      'meterLabel': 'Main electricity meter',
+      'meterType': 'ELECTRICITY',
+      'readingId': 'reading-2',
+      'readingAt': '2026-10-01T03:30:00Z',
+      'value': '1450.0',
+      'readingKind': 'NORMAL',
+      'source': 'MANUAL',
+      'consumptionSincePrevious': '50.0',
+    },
+    {
+      'meterId': 'meter-1',
+      'meterCode': 'ELEC-A101',
+      'meterLabel': 'Main electricity meter',
+      'meterType': 'ELECTRICITY',
+      'readingId': 'reading-1',
+      'readingAt': '2026-09-01T03:30:00Z',
+      'value': '1400.0',
+      'readingKind': 'NORMAL',
+      'source': 'MANUAL',
+      'consumptionSincePrevious': null,
+    },
   ];
 }
