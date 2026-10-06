@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=path=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -6,7 +7,7 @@ const requireTokens=(label,source,tokens)=>{
   if(missing.length){console.error(`${label} missing: ${missing.join(', ')}`);process.exit(1);}
 };
 
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts');
+const assistant=readContractBundle('aiAssistant');
 requireTokens('Occupant-scoped workforce AI',assistant,[
   'WorkforceService','residentStatusMine(societyId,userId,unitId)','current occupant of the selected property only',
 ]);
