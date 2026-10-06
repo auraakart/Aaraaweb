@@ -2,7 +2,7 @@ import fs from 'node:fs';
 function read(path){return fs.readFileSync(path,'utf8')}
 function requireTokens(label,content,tokens){const missing=tokens.filter(token=>!content.includes(token));if(missing.length)throw new Error(`${label} missing: ${missing.join(', ')}`)}
 const service=read('services/api/src/documents/documents.service.ts');
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-assistant.policy.ts');
+const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts')+read('services/api/src/ai-operations/ai-assistant.policy.ts');
 const admin=read('apps/admin/app/documents/page.tsx');
 const migration=read('services/api/prisma/migrations/20260929090000_v4790_society_knowledge_ai/migration.sql');
 requireTokens('Document knowledge storage',migration,['"SocietyDocumentKnowledge"','contentHash','text_length_check','scope_guard']);
