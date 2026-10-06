@@ -11,7 +11,8 @@ const forbidTokens=(label,source,tokens)=>{
 };
 
 const service=read('services/api/src/amenities/amenities.service.ts');
-requireTokens('Amenity no-show policy',service,[
+const bookingCreator=read('services/api/src/amenities/amenity-booking-creator.ts');
+requireTokens('Amenity no-show policy',service+'\n'+bookingCreator,[
   'noShowRestrictionCount',
   'noShowLookbackDays',
   'noShowBlockDays',
