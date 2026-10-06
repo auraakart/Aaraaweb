@@ -58,10 +58,12 @@ The scheduled/merged-PR Branch hygiene workflow remains the mutation authority. 
 
 Dependency CI now emits machine-readable audit details through `scripts/check-dependency-risk-budget.mjs`.
 
-The release budget remains:
+The protected audit initially exposed newly published advisories in the previously green lockfile. V4.81.5 patches those paths to proxy-addr 2.0.8, source-map-js 1.2.2, brace-expansion 5.0.12, multer 2.4.0 and a path-scoped uuid 11.1.1 for gaxios 6.7.1.
+
+The release budget is now:
 - critical: 0
 - high: 0
-- moderate: no increase above the currently observed baseline of 5 without explicit remediation/rebaseline
+- moderate: 0
 
 NestJS and Prisma major upgrades remain coordinated cohorts. V4.81.5 does not perform an unsafe partial major migration.
 
