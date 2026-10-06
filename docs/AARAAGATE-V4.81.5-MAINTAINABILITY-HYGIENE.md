@@ -115,3 +115,8 @@ After V4.82 product/staging closure and staging-controller race hardening, repos
   - `release/v4.82-staging-candidate` — merged PR #1067.
 
 Cleanup remains delegated to the repository's `Branch hygiene` workflow so deletion is exact-SHA/ancestry/tree-evidence based. Unknown or moved branches must remain in review rather than being bulk-deleted.
+
+
+### Cleanup execution note
+
+Develop PRs are normally auto-merged by GitHub Actions. GitHub intentionally does not start a second workflow from events emitted by its own `GITHUB_TOKEN`, so an Actions-origin merge does not invoke the `pull_request: closed` Branch Hygiene workflow. For explicit on-demand cleanup, this documentation-only PR is intended to be merged through the authenticated repository connector after required checks pass. The resulting user-authenticated merge event is then allowed to invoke the current Branch Hygiene workflow, which remains the only deletion authority.
