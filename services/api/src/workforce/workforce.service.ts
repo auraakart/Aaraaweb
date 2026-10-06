@@ -66,7 +66,29 @@ export class WorkforceService {
           SELECT 1 FROM "AccessRequest" ar
           WHERE ar."societyId"=wa."societyId" AND ar."subjectType"='DOMESTIC_HELP' AND ar."status"='CHECKED_IN'
             AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text
-        ) AS "checkedInNow"
+        ) AS "checkedInNow",
+        (
+          SELECT COUNT(DISTINCT (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date)::int
+          FROM "AccessRequest" ar
+          WHERE ar."societyId"=wa."societyId"
+            AND ar."subjectType"='DOMESTIC_HELP'
+            AND ar."enteredAt">=CURRENT_TIMESTAMP-INTERVAL '30 days'
+            AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text
+        ) AS "presentDays30d",
+        (
+          SELECT MAX(ar."enteredAt")
+          FROM "AccessRequest" ar
+          WHERE ar."societyId"=wa."societyId"
+            AND ar."subjectType"='DOMESTIC_HELP'
+            AND ar."metadata"->>'workforceAssignmentId'=wa."id"::text
+        ) AS "lastEntryAt",
+        (
+          SELECT COALESCE(SUM(p."amountPaise"),0)::bigint
+          FROM "WorkforcePaymentRecord" p
+          WHERE p."societyId"=wa."societyId"
+            AND p."assignmentId"=wa."id"
+            AND p."paymentDate">=CURRENT_DATE-INTERVAL '30 days'
+        ) AS "recordedPayments30dPaise"
       FROM "WorkforceAssignment" wa
       JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId"
       JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
