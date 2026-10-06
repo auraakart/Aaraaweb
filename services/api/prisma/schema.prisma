@@ -324,6 +324,24 @@ model WorkforceLeave {
   @@index([assignmentId, active, startsOn, endsOn], map: "WorkforceLeave_assignmentId_active_startsOn_endsOn_idx")
 }
 
+model WorkforcePaymentRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  societyId      String   @db.Uuid
+  assignmentId   String   @db.Uuid
+  recordedById   String   @db.Uuid
+  kind           String
+  amountPaise    Int
+  paymentDate    DateTime @db.Date
+  periodMonth    String?
+  note           String?
+  idempotencyKey String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([societyId, recordedById, idempotencyKey], map: "WorkforcePaymentRecord_society_recorder_idempotency_key")
+  @@index([societyId, assignmentId, paymentDate(sort: Desc)], map: "WorkforcePaymentRecord_society_assignment_date_idx")
+  @@index([societyId, recordedById, createdAt(sort: Desc)], map: "WorkforcePaymentRecord_society_recorder_created_idx")
+}
+
 model WorkforceRating {
   id           String              @id @default(uuid()) @db.Uuid
   societyId    String              @db.Uuid
