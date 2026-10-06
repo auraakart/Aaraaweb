@@ -23,7 +23,7 @@ requireTokens('Finance execution readiness Admin UX',read('apps/admin/app/financ
   'Execution readiness','Open reconciliation','Gateway operations pending','PO accounting handoff','Contracts / AMC ≤30d',
 ]);
 
-requireTokens('AI Action Centre 2.0',read('services/api/src/ai-operations/ai-assistant.service.ts'),[
+requireTokens('AI Action Centre 2.0',read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts'),[
   "mode:'READ_ONLY_DRILLDOWN'","confirmationRequired:true","mutationAllowed:false",'workspaceByDomain',
 ]);
 requireTokens('AI Action Centre Admin execution boundary',read('apps/admin/app/ai-assistant/page.tsx'),[
