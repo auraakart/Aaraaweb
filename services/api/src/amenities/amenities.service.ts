@@ -137,7 +137,7 @@ export class AmenitiesService {
       const guestCount=input.guestCount??0;
       this.policy.validateGuestCount(rules,guestCount);
       this.policy.assertScheduleWindowOpen(amenity.schedule,startsAt,endsAt);
-      await this.assertNoShowEligibility(tx,societyId,amenityId,userId,rules);
+      await this.bookingCreator.assertNoShowEligibility(tx,societyId,amenityId,userId,rules);
       const minutesUntilStart=(startsAt.getTime()-now)/60000;
       if(rules.minAdvanceMinutes!==undefined&&minutesUntilStart<rules.minAdvanceMinutes){
         throw new BadRequestException(`Amenity must be joined at least ${rules.minAdvanceMinutes} minutes in advance`);
