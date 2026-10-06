@@ -659,8 +659,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Audit high and critical npm vulnerabilities
-        run: pnpm audit --audit-level high
+      - name: Audit dependency vulnerability budget
+        run: node scripts/check-dependency-risk-budget.mjs
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
 
