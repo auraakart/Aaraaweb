@@ -44,6 +44,8 @@ Existing green evidence allowed conservative floor increases without manufacturi
 
 Existing end-to-end and regression suites remain authoritative for behavior.
 
+Because visitor-invite orchestration moved out of ResidentDataController, its file-local coverage no longer receives incidental lines from that workflow. The risk-weighted Resident CI set therefore explicitly includes family-member recovery, emergency-contact recovery, workforce lifecycle and notice-acknowledgement tests before enforcing the raised controller floor.
+
 ## 3. Branch hygiene closure
 
 The previous cleanup rule preserved any branch whose name contained words such as `recovery`. That was too broad because ordinary completed feature branches frequently contain that word.
