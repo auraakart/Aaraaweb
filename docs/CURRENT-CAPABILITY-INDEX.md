@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.82 Competitive Resident & Operations Depth on top of the V4.81.5 maintainability/governance baseline and the prior V4.79 competitive-convergence product slices.  
+**Current-state review baseline:** V4.82 Competitive Resident & Operations Depth on top of the V4.81.5 maintainability/governance baseline and the prior V4.79 competitive-convergence product slices, retaining **V4.51.1 Post-Release Regression Hardening** as the historical squash-promotion/Resident speech-packaging baseline.  
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
