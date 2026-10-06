@@ -69,10 +69,11 @@ extension ResidentDataLoading on ResidentDataController {
       workforceAssignments = const [];
       workforceLeaves = const [];
       workforceRatings = const [];
+      workforcePayments = const [];
       return;
     }
     try {
-      final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings()]);
+      final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings(), repository.workforcePayments()]);
       final assignments = _filterByUnit(results[0], (item) {
         final household = item['household'];
         return household is Map ? household['unitId'] : null;
@@ -81,6 +82,7 @@ extension ResidentDataLoading on ResidentDataController {
       workforceAssignments = assignments;
       workforceLeaves = results[1].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
       workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
+      workforcePayments = results[3].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
     } catch (e) {
       _capture(e, (message) => workforceError = message);
     }
