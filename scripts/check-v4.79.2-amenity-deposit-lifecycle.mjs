@@ -1,9 +1,10 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 function read(path){return fs.readFileSync(path,'utf8')}
 function requireTokens(label,content,tokens){const missing=tokens.filter(token=>!content.includes(token));if(missing.length)throw new Error(`${label} missing: ${missing.join(', ')}`)}
 const migration=read('services/api/prisma/migrations/20260929100000_v4792_amenity_deposit_lifecycle/migration.sql');
-const amenities=read('services/api/src/amenities/amenities.service.ts');
-const billing=read('services/api/src/billing/billing.service.ts');
+const amenities=readContractBundle('amenities');
+const billing=readContractBundle('billing');
 const webhookReplay=read('services/api/src/billing/billing-webhook-replay.spec.ts');
 const availability=read('services/api/src/accounting/payment-availability.service.ts');
 const resident=read('apps/resident/lib/screens/amenities_screen.dart');

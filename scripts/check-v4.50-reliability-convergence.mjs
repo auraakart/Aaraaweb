@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(name,source,tokens)=>{
@@ -10,7 +11,7 @@ const migration=read('services/api/prisma/migrations/20260923170500_v450_guard_i
 requireTokens('guard incident migration',migration,['"sourceKey" TEXT','ROW_NUMBER() OVER','SecurityIncident_societyId_category_sourceKey_key']);
 const guard=read('services/api/src/guard-operations/guard-operations.service.ts');
 requireTokens('guard overstay escalation',guard,['this.prisma.$transaction(async tx=>','FOR UPDATE OF r','"sourceKey"=${sourceRef}','"mediaRefs","sourceKey"']);
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts');
+const assistant=readContractBundle('aiAssistant');
 requireTokens('AI gate grounding',assistant,['criticalIncidentId','oldestOverstayId','staleCheckpointId','const safetyRank=','safetyRank(a)-safetyRank(b)']);
 const adminClient=read('apps/admin/lib/admin-client.ts');
 requireTokens('Admin session client',adminClient,['const refreshes=new Map<string,Promise<Session>>()','export function refreshAdminSession','result.response.status===401','const latest=storedFor(active)','await refreshAdminSession(active)']);

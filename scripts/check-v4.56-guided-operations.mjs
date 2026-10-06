@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
 const admin=read('apps/admin/app/admin-overview.tsx');
@@ -22,7 +23,7 @@ must('V4.56 Resident action clarity',resident,[
 must('V4.56 Resident regression',read('apps/resident/test/home_action_inbox_dedup_test.dart'),[
   'Soon. Water seepage near kitchen. High priority · action in progress. Open helpdesk'
 ]);
-const controller=read('apps/resident/lib/data/resident_data_controller.dart')+read('apps/resident/lib/data/resident_data_loading.dart');
+const controller=readContractBundle('residentController');
 must('V4.56 payment-recovery scoping',controller,[
   'List<Map<String, dynamic>> maintenancePayments = const [];',
   "if (!hasFeature('PAYMENTS') || maintenanceInvoices.isEmpty) return;",

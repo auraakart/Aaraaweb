@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=path=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -10,8 +11,9 @@ const forbidTokens=(label,source,tokens)=>{
   if(present.length){console.error(`${label} prohibited: ${present.join(', ')}`);process.exit(1);}
 };
 
-const service=read('services/api/src/amenities/amenities.service.ts');
-requireTokens('Amenity no-show policy',service,[
+const service=readContractBundle('amenities');
+const bookingCreator=read('services/api/src/amenities/amenity-booking-creator.ts');
+requireTokens('Amenity no-show policy',service+'\n'+bookingCreator,[
   'noShowRestrictionCount',
   'noShowLookbackDays',
   'noShowBlockDays',

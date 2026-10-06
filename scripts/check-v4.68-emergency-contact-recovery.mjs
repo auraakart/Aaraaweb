@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(label+' missing: '+missing.join(', '));process.exit(1)}};
@@ -38,7 +39,7 @@ must('V4.68 Resident transport',read('apps/resident/lib/data/emergency_contact_a
   'required String idempotencyKey',
   "'idempotencyKey': idempotencyKey"
 ]);
-must('V4.68 Resident recovery',read('apps/resident/lib/data/resident_data_controller.dart'),[
+must('V4.68 Resident recovery',readContractBundle('residentController'),[
   '_emergencyContactAttemptKeys',
   'emergencyContactsForHousehold',
   'excludingIds: existingIds',

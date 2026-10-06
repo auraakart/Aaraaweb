@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=p=>fs.readFileSync(p,'utf8');
 const must=(label,source,tokens)=>{
@@ -30,7 +31,7 @@ must('V4.60 stale outcome regression',read('apps/resident/test/gate_screen_test.
   'This gate request changed. Latest status: Approved.'
 ]);
 
-must('V4.60 authoritative access recovery',read('apps/resident/lib/data/resident_data_controller.dart')+read('apps/resident/lib/data/resident_data_loading.dart'),[
+must('V4.60 authoritative access recovery',readContractBundle('residentController'),[
   'Future<T> _withAccessMutationRecovery<T>',
   'await this._loadAccess();',
   'repository.approveAccess',

@@ -65,13 +65,20 @@ function isTreeEquivalent(branchName, targetBranch) {
 }
 
 const canonical = new Set(['main', 'staging', 'develop']);
-const preservePattern = /(^|\/)(backup|recovery|archive|snapshot)(\/|[-_.]|$)|(^|[-_.])(backup|recovery|archive|snapshot)([-_.]|$)/i;
+const preservePattern = /^(backup|recovery|archive|snapshot)(\/|[-_.]|$)/i;
 const retentionPath = '.github/branch-retention.json';
+const supersededPath = '.github/branch-superseded.json';
 const retentionManifest = fs.existsSync(retentionPath)
   ? JSON.parse(fs.readFileSync(retentionPath, 'utf8'))
   : { branches: [] };
 const retainedByName = new Map(
   (retentionManifest.branches || []).map((entry) => [entry.name, entry]),
+);
+const supersededManifest = fs.existsSync(supersededPath)
+  ? JSON.parse(fs.readFileSync(supersededPath, 'utf8'))
+  : { branches: [] };
+const supersededByName = new Map(
+  (supersededManifest.branches || []).map((entry) => [entry.name, entry]),
 );
 
 const branches = await paginate(`/repos/${owner}/${repo}/branches`);
@@ -159,7 +166,9 @@ async function classify(branch) {
 
   const exactMergedHead = mergedCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
   const exactSupersededHead = supersededCanonicalHeadShas.get(name)?.has(branch.commit.sha) === true;
-  const integrated = Boolean(containedIn || treeEquivalentTo || exactMergedHead || exactSupersededHead);
+  const explicitSupersession = supersededByName.get(name);
+  const exactExplicitSupersession = explicitSupersession?.sha === branch.commit.sha;
+  const integrated = Boolean(containedIn || treeEquivalentTo || exactMergedHead || exactSupersededHead || exactExplicitSupersession);
 
   if (!integrated) {
     if (retained) {
@@ -184,7 +193,9 @@ async function classify(branch) {
       ? `source tree is identical to ${treeEquivalentTo}`
       : exactMergedHead
         ? 'current branch head exactly matches a pull request head already merged into a canonical branch'
-        : 'current branch head exactly matches a closed canonical pull request explicitly marked superseded';
+        : exactSupersededHead
+          ? 'current branch head exactly matches a closed canonical pull request explicitly marked superseded'
+          : `exact-SHA supersession evidence: ${explicitSupersession.reason}`;
   return record;
 }
 
@@ -242,6 +253,7 @@ await writeFile('branch-hygiene-evidence/branch-cleanup.json', JSON.stringify({
   dryRun,
   classificationMode: 'revalidated-retention+local-git-ancestry+tree-equivalence+canonical-pr-head-evidence',
   retentionManifest: retentionPath,
+  supersededManifest: supersededPath,
   generatedAt: new Date().toISOString(),
   counts,
   records
@@ -259,7 +271,7 @@ const md = [
   `- Repository: ${repository}`,
   `- Base branch: ${baseBranch}`,
   `- Base SHA: ${developSha}`,
-  `- Classification: exact-SHA retention + local git ancestry + exact source-tree equivalence + canonical PR head evidence`,
+  `- Classification: exact-SHA retention/supersession + local git ancestry + exact source-tree equivalence + canonical PR head evidence`,
   `- Mode: ${dryRun ? 'dry run' : 'delete'}`,
   `- Total branches inspected: ${records.length}`,
   `- Deleted: ${deleted.length}`,

@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.81.4",
+  "version": "4.81.5",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -48,17 +48,23 @@
     "check:v4.81.1": "node scripts/check-v4.81.1-tenant-observability-readiness.mjs",
     "check:v4.81.2": "node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs",
     "check:v4.81.3": "node scripts/check-v4.81.3-main-validation-reuse.mjs",
-    "check:v4.81.4": "node scripts/check-v4.81.4-privacy-dependency-hardening.mjs"
+    "check:v4.81.4": "node scripts/check-v4.81.4-privacy-dependency-hardening.mjs",
+    "check:v4.81.5": "node scripts/check-v4.81.5-maintainability-hygiene.mjs"
   },
   "pnpm": {
     "overrides": {
       "sharp": ">=0.35.0",
       "postcss": ">=8.5.18",
       "deepmerge-ts": ">=8.0.1",
-      "multer": "2.3.0",
+      "multer": "2.4.0",
       "@grpc/grpc-js": "1.14.5",
       "minimatch@3.1.5>brace-expansion": "1.1.20",
-      "minimatch@10.2.6>brace-expansion": "5.0.11"
+      "minimatch@10.2.6>brace-expansion": "5.0.12",
+      "proxy-addr": "2.0.8",
+      "source-map-js": "1.2.2",
+      "gaxios@6.7.1>uuid": "11.1.1",
+      "google-gax@4.6.1>uuid": "11.1.1",
+      "teeny-request@9.0.0>uuid": "11.1.1"
     }
   },
   "engines": {
