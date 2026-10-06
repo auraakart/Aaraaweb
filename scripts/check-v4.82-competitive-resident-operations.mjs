@@ -35,6 +35,11 @@ for(const path of [
   'docs/AARAAGATE-V4.82-COMPETITIVE-RESIDENT-OPERATIONS-DEPTH.md',
 ]) assert.ok(fs.existsSync(path),'V4.82 artifact missing: '+path);
 
+const prismaSchema=read('services/api/prisma/schema.prisma');
+for(const model of ['WorkforcePaymentRecord','CommunityCircle','CommunityCircleMember','CommunityCirclePost']){
+  assert.ok(prismaSchema.includes('model '+model+' {'),model+' Prisma schema model missing; migrations and schema must remain aligned.');
+}
+
 const staffPaymentMigration=read('services/api/prisma/migrations/20261006131500_v482_household_staff_payments/migration.sql');
 assert.equal((staffPaymentMigration.match(/CREATE TABLE "WorkforcePaymentRecord"/g)??[]).length,1,'Staff payment migration must create its table exactly once.');
 assert.ok(staffPaymentMigration.includes('CONSTRAINT "WorkforcePaymentRecord_kind_check"'),'Staff payment DB kind constraint is required.');
