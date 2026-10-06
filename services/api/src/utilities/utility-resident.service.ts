@@ -84,4 +84,65 @@ export class UtilityResidentService {
       LIMIT 1000
     `);
   }
+
+  listUsageHistory(societyId: string, userId: string, unitId?: string) {
+    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      WITH allowed_meters AS (
+        SELECT m."id",m."unitId",m."code",m."label",m."meterType",
+               u."number" AS "unitNumber",b."name" AS "buildingName"
+        FROM "UtilityMeter" m
+        JOIN "Unit" u ON u."id"=m."unitId" AND u."societyId"=m."societyId"
+        JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=m."societyId"
+        WHERE m."societyId"=${societyId}::uuid
+          AND m."active"=TRUE
+          AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
+          AND (
+            EXISTS (
+              SELECT 1 FROM "UnitOwnership" ow
+              WHERE ow."societyId"=${societyId}::uuid
+                AND ow."unitId"=m."unitId"
+                AND ow."userId"=${userId}::uuid
+                AND ow."verified"=TRUE
+                AND ow."active"=TRUE
+                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+            )
+            OR EXISTS (
+              SELECT 1 FROM "UnitOccupancy" oc
+              WHERE oc."societyId"=${societyId}::uuid
+                AND oc."unitId"=m."unitId"
+                AND oc."userId"=${userId}::uuid
+                AND oc."active"=TRUE
+                AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+            )
+          )
+      ),
+      readings AS (
+        SELECT r."id",r."meterId",r."readingAt",r."value",r."readingKind",r."source",
+          lag(r."value") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousValue",
+          lag(r."readingKind") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousKind"
+        FROM "UtilityReading" r
+        JOIN allowed_meters am ON am."id"=r."meterId"
+        WHERE r."societyId"=${societyId}::uuid
+          AND r."readingAt">=CURRENT_TIMESTAMP-INTERVAL '13 months'
+      )
+      SELECT
+        am."id" AS "meterId",am."unitId",am."code" AS "meterCode",am."label" AS "meterLabel",
+        am."meterType",am."unitNumber",am."buildingName",
+        rr."id" AS "readingId",rr."readingAt",rr."value"::text AS "value",
+        rr."readingKind",rr."source",
+        CASE
+          WHEN rr."previousValue" IS NULL THEN NULL
+          WHEN rr."readingKind"='RESET' OR rr."previousKind"='RESET' THEN NULL
+          WHEN rr."value"<rr."previousValue" THEN NULL
+          ELSE (rr."value"-rr."previousValue")::text
+        END AS "consumptionSincePrevious"
+      FROM allowed_meters am
+      LEFT JOIN readings rr ON rr."meterId"=am."id"
+      ORDER BY am."meterType",am."code",rr."readingAt" DESC NULLS LAST
+      LIMIT 1000
+    `);
+  }
+
 }
