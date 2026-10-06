@@ -148,6 +148,47 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> workforceAttendance(
+    String assignmentId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T').first;
+    if (to != null) params['to'] = to.toIso8601String().split('T').first;
+    final suffix = params.isEmpty
+        ? ''
+        : '?${params.entries.map((entry) => '${entry.key}=${Uri.encodeQueryComponent(entry.value)}').join('&')}';
+    final value = await api.get('/api/v1/workforce/assignments/$assignmentId/attendance$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> workforcePayments() async {
+    final value = await api.get('/api/v1/workforce/payments/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> recordWorkforcePayment({
+    required String assignmentId,
+    required String kind,
+    required int amountPaise,
+    required DateTime paymentDate,
+    String? periodMonth,
+    String? note,
+    required String idempotencyKey,
+  }) async {
+    final value = await api.post('/api/v1/workforce/payments', {
+      'assignmentId': assignmentId,
+      'kind': kind,
+      'amountPaise': amountPaise,
+      'paymentDate': paymentDate.toIso8601String().split('T').first,
+      if (periodMonth != null && periodMonth.isNotEmpty) 'periodMonth': periodMonth,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      'idempotencyKey': idempotencyKey,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     final value = await api.post('/api/v1/workforce', {'householdId': householdId, 'name': name.trim(), 'phone': phone.trim(), 'role': role});
     return Map<String, dynamic>.from(value as Map);
