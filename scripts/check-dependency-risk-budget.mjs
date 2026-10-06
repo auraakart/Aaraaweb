@@ -56,8 +56,8 @@ if (critical > 0 || high > 0) {
   console.error('High/critical dependency vulnerabilities are not allowed.');
   process.exit(1);
 }
-if (moderate > 5) {
-  console.error(`Moderate vulnerability budget exceeded: ${moderate} > 5. Resolve or explicitly rebaseline before merge.`);
+if (moderate > 0) {
+  console.error(`Moderate dependency vulnerabilities are not allowed: ${moderate} found.`);
   process.exit(1);
 }
 console.log(`Dependency risk budget: PASS (moderate=${moderate}, high=${high}, critical=${critical})`);
