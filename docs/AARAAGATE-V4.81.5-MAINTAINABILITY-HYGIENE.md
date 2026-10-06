@@ -91,3 +91,27 @@ The repository is currently public and has no software license file. V4.81.5 doe
 ## Promotion discipline
 
 V4.81.5 must pass protected validation and merge to `develop` through one squash commit. The exact validated develop tree may then be promoted to `staging` through one governed staging release commit. `main` remains unchanged until explicit owner approval and the protected main review flow.
+
+
+## Post-V4.82 repository health revalidation — 2026-10-06
+
+After V4.82 product/staging closure and staging-controller race hardening, repository health was revalidated before branch cleanup.
+
+- Canonical branches `develop`, `staging` and `main` remain protected by active repository rulesets.
+- Open pull requests: 0.
+- Open issue scope remains the intentional production-operationalization tracker (#212).
+- Repository branch count before cleanup: 36.
+- The backup branch remains preserved by the explicit disaster-recovery naming rule.
+- The 24 exact-SHA legacy entries in `.github/branch-retention.json` remain preserved pending explicit source reconciliation.
+- Five older recovery branches remain **review-only** because their current heads contain commits not proven integrated into canonical history:
+  - `feature/v4.68-emergency-contact-recovery-20260928`
+  - `feature/v466-household-request-recovery-20260928`
+  - `feature/v466-vehicle-request-recovery-20260928`
+  - `feature/v4641-visitor-invite-recovery-20260927`
+  - `fix/v4651-family-approval-recovery-20260928`
+- The following V4.82 branches are safe for hygiene deletion because their exact heads are represented by merged canonical pull requests:
+  - `mastermind/v4.82-competitive-resident-operations-depth` — merged PR #1065.
+  - `mastermind/v4.82-staging-controller-race-hardening` — merged PR #1068.
+  - `release/v4.82-staging-candidate` — merged PR #1067.
+
+Cleanup remains delegated to the repository's `Branch hygiene` workflow so deletion is exact-SHA/ancestry/tree-evidence based. Unknown or moved branches must remain in review rather than being bulk-deleted.
