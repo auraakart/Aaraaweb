@@ -568,4 +568,55 @@ void main() {
     expect(repository.workforceReads, 2);
   });
 
+  test('attendance register and staff payment records stay scoped to an active workforce assignment', () async {
+    final controller = ResidentDataController(
+      DemoResidentRepository(),
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    final assignmentId = controller.workforceAssignments.first['id']!.toString();
+    final attendance = await controller.workforceAttendance(assignmentId);
+    expect(attendance['summary'], isA<Map>());
+    expect(Map<String, dynamic>.from(attendance['summary'] as Map)['presentDays'], 22);
+
+    final before = controller.paymentsForWorkforce(assignmentId).length;
+    await controller.recordWorkforcePayment(
+      assignmentId: assignmentId,
+      kind: 'BONUS',
+      amountPaise: 50000,
+      paymentDate: DateTime(2026, 10, 1),
+      periodMonth: '2026-10',
+      note: 'Festival bonus',
+      idempotencyKey: 'test-staff-payment-v482',
+    );
+    expect(controller.paymentsForWorkforce(assignmentId).length, greaterThanOrEqualTo(before));
+  });
+
+  testWidgets('household staff card exposes attendance and payment actions', (tester) async {
+    final controller = ResidentDataController(
+      DemoResidentRepository(),
+      activeUnitId: 'demo-unit-1',
+      initialEnabledFeatures: const {'DOMESTIC_HELP'},
+      fetchEntitlements: false,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(MaterialApp(home: WorkforceScreen(controller: controller)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('VIEW ATTENDANCE'), findsWidgets);
+    expect(find.text('PAYMENTS'), findsWidgets);
+
+    await tester.tap(find.text('VIEW ATTENDANCE').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Attendance register'), findsOneWidget);
+    expect(find.text('Monthly attendance view'), findsOneWidget);
+    expect(find.textContaining('no gate evidence'), findsWidgets);
+  });
+
 }
