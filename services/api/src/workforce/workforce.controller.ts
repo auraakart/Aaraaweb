@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { AccessRequest, DomesticWorkerRole } from '@prisma/client';
-import { IsDateString, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -33,6 +33,16 @@ class GateWorkforceDto {
   @IsUUID() assignmentId!: string;
 }
 
+class CreateWorkforcePaymentRecordDto {
+  @IsUUID() assignmentId!: string;
+  @IsString() @MinLength(3) @MaxLength(30) kind!: string;
+  @IsInt() @Min(1) @Max(100000000) amountPaise!: number;
+  @IsDateString() paymentDate!: string;
+  @IsOptional() @IsString() @MaxLength(7) periodMonth?: string;
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
+}
+
 @Controller('workforce')
 @UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
 @RequiresFeature(ProductFeature.DOMESTIC_HELP)
@@ -55,6 +65,37 @@ export class WorkforceController {
   mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
     if (!userId) throw new BadRequestException('Authenticated resident is required');
     return this.workforce.listMine(societyId, userId);
+  }
+
+  @Get('assignments/:assignmentId/attendance')
+  @RequiresPermissions(AppPermission.WORKFORCE_READ_OWN)
+  attendanceMine(
+    @Param('assignmentId', ParseUUIDPipe) assignmentId: string,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    if (!userId) throw new BadRequestException('Authenticated resident is required');
+    return this.workforce.attendanceMine(societyId, userId, assignmentId, from, to);
+  }
+
+  @Get('payments/mine')
+  @RequiresPermissions(AppPermission.WORKFORCE_READ_OWN)
+  paymentRecordsMine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    if (!userId) throw new BadRequestException('Authenticated resident is required');
+    return this.workforce.paymentRecordsMine(societyId, userId);
+  }
+
+  @Post('payments')
+  @RequiresPermissions(AppPermission.WORKFORCE_MANAGE_OWN)
+  createPaymentRecord(
+    @Body() dto: CreateWorkforcePaymentRecordDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    if (!userId) throw new BadRequestException('Authenticated resident is required');
+    return this.workforce.createPaymentRecordMine(societyId, userId, dto);
   }
 
   @Post()
