@@ -8,6 +8,7 @@ import 'resident_guest_invite_coordinator.dart';
 import 'resident_state_snapshots.dart';
 
 part 'resident_data_loading.dart';
+part 'resident_workforce_history.dart';
 
 class ResidentDataController extends ChangeNotifier {
   ResidentDataController(
@@ -52,6 +53,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
+  List<Map<String, dynamic>> workforcePayments = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
   List<Map<String, dynamic>> maintenancePayments = const [];
   List<Map<String, dynamic>> helpdeskTickets = const [];
@@ -142,6 +144,7 @@ class ResidentDataController extends ChangeNotifier {
         workforceAssignments = const [];
         workforceLeaves = const [];
         workforceRatings = const [];
+        workforcePayments = const [];
       }
       if (hasFeature('MAINTENANCE_BILLING')) {
         tasks.add(this._loadMaintenanceInvoices());
@@ -203,6 +206,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceAssignments = const [];
     workforceLeaves = const [];
     workforceRatings = const [];
+    workforcePayments = const [];
     maintenanceInvoices = const [];
     maintenancePayments = const [];
     helpdeskTickets = const [];
@@ -718,6 +722,10 @@ class ResidentDataController extends ChangeNotifier {
   Future<void> _recoverWorkforceMutationFailure({bool refreshAccess = false}) async {
     await this._loadWorkforce();
     if (refreshAccess) await this._loadAccess();
+    if (!_disposed) notifyListeners();
+  }
+
+  void _notifyIfMounted() {
     if (!_disposed) notifyListeners();
   }
 

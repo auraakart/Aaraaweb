@@ -22,6 +22,7 @@ const bundles = {
   residentController: [
     'apps/resident/lib/data/resident_data_controller.dart',
     'apps/resident/lib/data/resident_data_loading.dart',
+    'apps/resident/lib/data/resident_workforce_history.dart',
     'apps/resident/lib/data/resident_guest_invite_coordinator.dart',
   ],
 };

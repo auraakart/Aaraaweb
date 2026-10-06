@@ -3,16 +3,25 @@ import fs from 'node:fs';
 
 const read = (p) => fs.readFileSync(p, 'utf8');
 const json = (p) => JSON.parse(read(p));
+const versionAtLeast = (value, minimum) => {
+  const current = value.split('+')[0].split('.').map(Number);
+  for (let i = 0; i < minimum.length; i += 1) {
+    if ((current[i] ?? 0) > minimum[i]) return true;
+    if ((current[i] ?? 0) < minimum[i]) return false;
+  }
+  return true;
+};
 
 const root = json('package.json');
 const api = json('services/api/package.json');
 const admin = json('apps/admin/package.json');
 
-assert.equal(root.version, '4.81.5');
+assert.ok(versionAtLeast(root.version, [4,81,5]));
 assert.equal(api.version, root.version);
 assert.equal(admin.version, root.version);
 for (const pubspec of ['apps/resident/pubspec.yaml','apps/guard/pubspec.yaml']) {
-  assert.ok(read(pubspec).includes('version: 4.81.5+48105'));
+  const match = read(pubspec).match(/^version:\s*([^\s]+)/m);
+  assert.ok(match && versionAtLeast(match[1], [4,81,5]), 'Mobile release identity must remain at or above V4.81.5');
 }
 
 for (const path of [

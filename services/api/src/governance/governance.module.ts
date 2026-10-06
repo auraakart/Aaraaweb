@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommunityEventsController } from './community-events.controller';
+import { CommunityCirclesController } from './community-circles.controller';
 import { CommunityEventsService } from './community-events.service';
+import { CommunityCirclesService } from './community-circles.service';
 import { GovernanceArtifactsController } from './governance-artifacts.controller';
 import { GovernanceCommunityController } from './governance-community.controller';
 import { GovernanceController } from './governance.controller';
@@ -17,8 +19,8 @@ import { GovernanceService } from './governance.service';
 
 @Module({
   imports:[EntitlementsModule],
-  controllers:[GovernanceController,GovernanceCommunityController,CommunityEventsController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController,GovernanceElectionHoldController],
-  providers:[GovernanceService,CommunityEventsService,PrismaService],
+  controllers:[GovernanceController,GovernanceCommunityController,CommunityEventsController,CommunityCirclesController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController,GovernanceElectionHoldController],
+  providers:[GovernanceService,CommunityEventsService,CommunityCirclesService,PrismaService],
   exports:[GovernanceService],
 })
 export class GovernanceModule{}
