@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 
 const budgets = new Map([
-  ['services/api/src/amenities/amenities.service.ts', 1230],
-  ['services/api/src/ai-operations/ai-assistant.service.ts', 740],
-  ['services/api/src/billing/billing.service.ts', 550],
-  ['apps/resident/lib/data/resident_data_controller.dart', 900],
-  ['apps/guard/lib/screens/guard_operations_screen.dart', 380],
+  ['services/api/src/amenities/amenities.service.ts', 1050],
+  ['services/api/src/ai-operations/ai-assistant.service.ts', 580],
+  ['services/api/src/billing/billing.service.ts', 425],
+  ['apps/resident/lib/data/resident_data_controller.dart', 850],
+  ['apps/guard/lib/screens/guard_operations_screen.dart', 360],
 ]);
 
 for (const [path, maxLines] of budgets) {
@@ -20,13 +20,17 @@ for (const [path, maxLines] of budgets) {
 const requiredBoundaries = [
   'services/api/src/amenities/amenity-policy.engine.ts',
   'services/api/src/amenities/amenity-analytics.query.ts',
+  'services/api/src/amenities/amenity-booking-creator.ts',
   'services/api/src/ai-operations/ai-assistant.policy.ts',
+  'services/api/src/ai-operations/ai-society-insights.ts',
   'services/api/src/billing/payment-webhook.processor.ts',
+  'services/api/src/billing/payment-order.service.ts',
   'services/api/src/auth/property-finance-access.ts',
   'services/api/src/auth/property-scope.sql.ts',
   'services/api/src/reliability/http-security.ts',
   'apps/resident/lib/data/resident_state_snapshots.dart',
   'apps/resident/lib/data/resident_data_loading.dart',
+  'apps/resident/lib/data/resident_guest_invite_coordinator.dart',
   'apps/guard/lib/screens/guard_operations_components.dart',
   'scripts/check-stable-domain-invariants.mjs',
 ];

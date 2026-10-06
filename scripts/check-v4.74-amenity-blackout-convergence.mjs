@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const requireTokens=(label,source,tokens)=>{const missing=tokens.filter(t=>!source.includes(t));if(missing.length){console.error(`${label} missing: ${missing.join(', ')}`);process.exit(1);}};
 const forbid=(label,source,tokens)=>{const present=tokens.filter(t=>source.includes(t));if(present.length){console.error(`${label} prohibited: ${present.join(', ')}`);process.exit(1);}};
@@ -7,7 +8,7 @@ const legacy=read('services/api/prisma/migrations/20260914200000_v2_amenity_blac
 requireTokens('Legacy blackout authority',legacy,['schedule.blackouts','AmenityBooking_blackout_guard','blackout conflicts with an existing future booking']);
 const migration=read('services/api/prisma/migrations/20260928210000_v474_amenity_blackout_waitlist_convergence/migration.sql');
 requireTokens('Waitlist DB convergence',migration,['AmenityWaitlist_blackout_guard','Amenity_blackout_waitlist_policy_guard','existing future waitlist entry']);
-const service=read('services/api/src/amenities/amenities.service.ts');
+const service=readContractBundle('amenities');
 const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
 const amenityDomain=`${service}\n${policyEngine}`;
 requireTokens('Blackout controlled workflow',amenityDomain,['previewBlackout','applyBlackout','blackoutAssessment','mutationPerformed:false','automaticCancellation:false','assertScheduleWindowOpen','findScheduleBlackout']);
