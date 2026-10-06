@@ -612,6 +612,12 @@ void main() {
     expect(find.text('VIEW ATTENDANCE'), findsWidgets);
     expect(find.text('PAYMENTS'), findsWidgets);
 
+    await tester.scrollUntilVisible(
+      find.text('VIEW ATTENDANCE').first,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('VIEW ATTENDANCE').first);
     await tester.pumpAndSettle();
     expect(find.text('Attendance register'), findsOneWidget);
