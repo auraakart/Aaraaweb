@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const checks=[
   ['services/api/src/accounting/receivables.controller.ts',['@Get(\':receivableId/adjustments\')','noteNumber?: string']],
@@ -10,11 +11,11 @@ const checks=[
   ['services/api/src/guard-operations/guard-operations.service.ts',['escalateOverstay(','patrolStatus(']],
   ['apps/guard/lib/data/guard_operations_client.dart',['escalateOverstay(','patrolStatus(']],
   ['apps/guard/lib/screens/guard_field_operations_screen.dart',["Text('ESCALATE')","Coverage overdue","patrol due"]],
-  ['services/api/src/ai-operations/ai-assistant.service.ts',["id:'gate-attention'","whyNow","recommendedNextStep","recommendedFocus"]],
+  ['@bundle:aiAssistant',["id:'gate-attention'","whyNow","recommendedNextStep","recommendedFocus"]],
 ]
 
 for(const [file,tokens] of checks){
-  const source=fs.readFileSync(file,'utf8')
+  const source=file.startsWith('@bundle:') ? readContractBundle(file.slice('@bundle:'.length)) : fs.readFileSync(file,'utf8')
   for(const token of tokens){
     if(!source.includes(token)){
       console.error(`V4.48 contract failed: ${file} missing ${token}`)
