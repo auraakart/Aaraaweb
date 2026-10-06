@@ -6,7 +6,7 @@ const requireTokens=(label,source,tokens)=>{
   if(missing.length){console.error(`${label} missing: ${missing.join(', ')}`);process.exit(1);}
 };
 
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts');
+const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts');
 requireTokens('Occupant-scoped workforce AI',assistant,[
   'WorkforceService','residentStatusMine(societyId,userId,unitId)','current occupant of the selected property only',
 ]);
