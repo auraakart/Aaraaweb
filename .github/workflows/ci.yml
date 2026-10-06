@@ -573,6 +573,10 @@ jobs:
           test/home_action_inbox_dedup_test.dart
           test/community_poll_participation_test.dart
           test/amenities_screen_test.dart
+          test/family_member_recovery_test.dart
+          test/emergency_contact_recovery_test.dart
+          test/workforce_modal_lifecycle_test.dart
+          test/notices_acknowledgement_test.dart
       - name: Risk-weighted Resident coverage gate
         if: needs.change-scope.outputs.run_resident == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/resident/coverage/lcov.info resident
