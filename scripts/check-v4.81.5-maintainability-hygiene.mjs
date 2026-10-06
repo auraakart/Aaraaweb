@@ -29,6 +29,8 @@ for (const path of [
 
 const amenities = read('services/api/src/amenities/amenities.service.ts');
 assert.ok(amenities.includes('this.bookingCreator.createBooking('));
+assert.ok(amenities.includes('this.bookingCreator.assertNoShowEligibility('));
+assert.ok(read('services/api/src/amenities/amenity-booking-creator.ts').includes('async assertNoShowEligibility('));
 const ai = read('services/api/src/ai-operations/ai-assistant.service.ts');
 assert.ok(ai.includes('this.insights = new AiSocietyInsights(prisma)'));
 assert.ok(ai.includes('this.insights.societyFinance('));
