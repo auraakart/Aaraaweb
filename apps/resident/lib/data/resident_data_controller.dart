@@ -144,6 +144,7 @@ class ResidentDataController extends ChangeNotifier {
         workforceAssignments = const [];
         workforceLeaves = const [];
         workforceRatings = const [];
+        workforcePayments = const [];
       }
       if (hasFeature('MAINTENANCE_BILLING')) {
         tasks.add(this._loadMaintenanceInvoices());
@@ -205,6 +206,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceAssignments = const [];
     workforceLeaves = const [];
     workforceRatings = const [];
+    workforcePayments = const [];
     maintenanceInvoices = const [];
     maintenancePayments = const [];
     helpdeskTickets = const [];
