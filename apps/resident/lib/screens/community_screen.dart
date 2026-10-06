@@ -4,6 +4,7 @@ import '../data/resident_data_controller.dart';
 import 'community_events_screen.dart';
 import 'community_polls_screen.dart';
 import 'notices_screen.dart';
+import 'resident_requests_screen.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -280,6 +281,17 @@ class _CommunityScreenState extends State<CommunityScreen> {
             Text('This space is for society notices, governance and your property-scoped requests. Commercial discovery stays under Services, and content here follows your active relationship and access rules.',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onPrimaryContainer.withValues(alpha: .82))),
           ])),
         ]),
+      ),
+      const SizedBox(height:AaraagateTokens.space4),
+      PremiumSurface(
+        padding:EdgeInsets.zero,
+        child:_Tile(
+          icon:Icons.request_page_outlined,
+          title:'Resident requests & certificates',
+          subtitle:'NOC, no-dues, address proof, move-out and parking permissions through the audited society workflow.',
+          actionLabel:'Open requests',
+          onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentRequestsScreen(controller:widget.controller))),
+        ),
       ),
       if(loading)...[const SizedBox(height:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
       if(error!=null)...[const SizedBox(height:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
