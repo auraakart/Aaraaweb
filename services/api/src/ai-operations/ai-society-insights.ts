@@ -163,6 +163,69 @@ async societyFinance(societyId:string,minimumPaise:number){
     `);
   }
 
+  async residentUtilities(societyId:string,unitId:string){
+    const [meters,charges]=await Promise.all([
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT m."id",m."code",m."label",m."meterType",
+          latest."readingAt" AS "latestReadingAt",latest."value"::text AS "latestReadingValue",
+          previous."value"::text AS "previousReadingValue",
+          CASE
+            WHEN latest."readingKind"='RESET' OR previous."readingKind"='RESET' THEN NULL
+            WHEN previous."value" IS NULL OR latest."value"<previous."value" THEN NULL
+            ELSE (latest."value"-previous."value")::text
+          END AS "latestConsumption"
+        FROM "UtilityMeter" m
+        LEFT JOIN LATERAL (
+          SELECT r."readingAt",r."value",r."readingKind"
+          FROM "UtilityReading" r
+          WHERE r."societyId"=m."societyId" AND r."meterId"=m."id"
+          ORDER BY r."readingAt" DESC LIMIT 1
+        ) latest ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT r."value",r."readingKind"
+          FROM "UtilityReading" r
+          WHERE r."societyId"=m."societyId" AND r."meterId"=m."id"
+          ORDER BY r."readingAt" DESC OFFSET 1 LIMIT 1
+        ) previous ON TRUE
+        WHERE m."societyId"=${societyId}::uuid AND m."unitId"=${unitId}::uuid AND m."active"=TRUE
+        ORDER BY m."meterType",m."code"
+        LIMIT 20
+      `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        SELECT d."id" AS "chargeDraftId",d."meterId",d."periodStart",d."periodEnd",
+          d."consumption"::text AS "consumption",d."totalPaise",d."issuedAt",
+          m."code" AS "meterCode",m."meterType",i."invoiceNumber",i."status" AS "invoiceStatus"
+        FROM "UtilityChargeDraft" d
+        JOIN "UtilityMeter" m ON m."id"=d."meterId" AND m."societyId"=d."societyId"
+        JOIN "MaintenanceInvoice" i ON i."sourceUtilityChargeDraftId"=d."id" AND i."societyId"=d."societyId"
+        WHERE d."societyId"=${societyId}::uuid AND d."unitId"=${unitId}::uuid AND d."status"='ISSUED'
+        ORDER BY d."periodEnd" DESC,d."createdAt" DESC
+        LIMIT 12
+      `),
+    ]);
+    return {
+      meters,
+      recentCharges:charges,
+      boundary:'Utility usage is grounded in recorded meter readings and issued charge evidence. Reset/replacement boundaries are not treated as normal consumption.',
+    };
+  }
+
+  async residentRequests(societyId:string,unitId:string){
+    const requests=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+      SELECT "id","title","category","status","priority","createdAt","updatedAt","resolvedAt","closedAt"
+      FROM "HelpdeskTicket"
+      WHERE "societyId"=${societyId}::uuid
+        AND "unitId"=${unitId}::uuid
+        AND "category" LIKE 'RESIDENT_REQUEST:%'
+      ORDER BY "createdAt" DESC
+      LIMIT 20
+    `);
+    return {
+      requests,
+      boundary:'Aaraagate reports the audited request status only. Certificate, NOC, no-dues or permission validity remains a society decision.',
+    };
+  }
+
   async governanceSummary(societyId:string){
     const [meetings,resolutions,actions]=await Promise.all([
       this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
