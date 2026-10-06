@@ -400,6 +400,187 @@ export class WorkforceService {
     return { request: updated, residentUserIds: await this.residentUserIds(societyId, request.unitId) };
   }
 
+  async attendanceMine(societyId: string, userId: string, assignmentId: string, fromInput?: string, toInput?: string) {
+    const assignment = await this.prisma.workforceAssignment.findFirst({
+      where: { id: assignmentId, societyId },
+      include: { household: true, worker: true },
+    });
+    if (!assignment) throw new NotFoundException('Household staff assignment not found');
+    await this.assertOwnHousehold(societyId, userId, assignment.householdId);
+
+    const today = this.indiaDate(new Date());
+    const to = this.parseDateOnly(toInput ?? today, 'to');
+    const fallbackFromDate = new Date(`${to}T00:00:00.000Z`);
+    fallbackFromDate.setUTCDate(fallbackFromDate.getUTCDate() - 29);
+    const from = this.parseDateOnly(fromInput ?? fallbackFromDate.toISOString().slice(0, 10), 'from');
+    const fromDate = new Date(`${from}T00:00:00.000Z`);
+    const toDate = new Date(`${to}T00:00:00.000Z`);
+    if (fromDate > toDate) throw new BadRequestException('Attendance from date must not be after to date');
+    const spanDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+    if (spanDays > 93) throw new BadRequestException('Attendance history is limited to 93 days per request');
+
+    const [days, leaves] = await Promise.all([
+      this.prisma.$queryRaw<Array<{
+        date: Date;
+        firstEntryAt: Date;
+        lastExitAt: Date | null;
+        visitCount: number;
+        minutesInside: number;
+        openVisit: boolean;
+      }>>(Prisma.sql`
+        SELECT
+          (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date AS "date",
+          MIN(ar."enteredAt") AS "firstEntryAt",
+          MAX(ar."exitedAt") AS "lastExitAt",
+          COUNT(*)::int AS "visitCount",
+          COALESCE(SUM(
+            GREATEST(
+              0,
+              FLOOR(EXTRACT(EPOCH FROM (COALESCE(ar."exitedAt", CURRENT_TIMESTAMP)-ar."enteredAt")) / 60)
+            )
+          ),0)::int AS "minutesInside",
+          BOOL_OR(ar."status"='CHECKED_IN' AND ar."exitedAt" IS NULL) AS "openVisit"
+        FROM "AccessRequest" ar
+        WHERE ar."societyId"=${societyId}::uuid
+          AND ar."subjectType"='DOMESTIC_HELP'
+          AND ar."enteredAt" IS NOT NULL
+          AND ar."metadata"->>'workforceAssignmentId'=${assignmentId}
+          AND (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date BETWEEN ${from}::date AND ${to}::date
+        GROUP BY (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date
+        ORDER BY "date" DESC
+      `),
+      this.prisma.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date; reason: string | null }>>(Prisma.sql`
+        SELECT "id","startsOn","endsOn","reason"
+        FROM "WorkforceLeave"
+        WHERE "societyId"=${societyId}::uuid
+          AND "assignmentId"=${assignmentId}::uuid
+          AND "active"=TRUE
+          AND "startsOn"<=${to}::date
+          AND "endsOn">=${from}::date
+        ORDER BY "startsOn" DESC
+      `),
+    ]);
+
+    return {
+      assignmentId,
+      worker: { id: assignment.workerId, name: assignment.worker.name, role: assignment.worker.role },
+      from,
+      to,
+      summary: {
+        presentDays: days.length,
+        totalVisits: days.reduce((sum, day) => sum + Number(day.visitCount ?? 0), 0),
+        totalMinutesInside: days.reduce((sum, day) => sum + Number(day.minutesInside ?? 0), 0),
+        leavePeriods: leaves.length,
+      },
+      days,
+      leaves,
+      boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. Missing gate evidence is not silently converted into absence.',
+    };
+  }
+
+  async paymentRecordsMine(societyId: string, userId: string) {
+    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT p.*, dw."name" AS "workerName", dw."role" AS "workerRole", h."unitId"
+      FROM "WorkforcePaymentRecord" p
+      JOIN "WorkforceAssignment" wa ON wa."id"=p."assignmentId" AND wa."societyId"=p."societyId"
+      JOIN "DomesticWorker" dw ON dw."id"=wa."workerId" AND dw."societyId"=wa."societyId"
+      JOIN "Household" h ON h."id"=wa."householdId" AND h."societyId"=wa."societyId"
+      WHERE p."societyId"=${societyId}::uuid
+        AND EXISTS (
+          SELECT 1 FROM "UnitOccupancy" uo
+          WHERE uo."societyId"=${societyId}::uuid
+            AND uo."unitId"=h."unitId"
+            AND uo."userId"=${userId}::uuid
+            AND uo."active"=TRUE
+            AND uo."effectiveFrom"<=CURRENT_TIMESTAMP
+            AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+        )
+      ORDER BY p."paymentDate" DESC,p."createdAt" DESC
+      LIMIT 500
+    `);
+  }
+
+  async createPaymentRecordMine(
+    societyId: string,
+    userId: string,
+    input: {
+      assignmentId: string;
+      kind: string;
+      amountPaise: number;
+      paymentDate: string;
+      periodMonth?: string;
+      note?: string;
+      idempotencyKey: string;
+    },
+  ) {
+    const assignment = await this.prisma.workforceAssignment.findFirst({
+      where: { id: input.assignmentId, societyId },
+      include: { household: true },
+    });
+    if (!assignment) throw new NotFoundException('Household staff assignment not found');
+    await this.assertOwnHousehold(societyId, userId, assignment.householdId);
+
+    const kind = input.kind.trim().toUpperCase();
+    if (!['SALARY', 'ADVANCE', 'BONUS', 'REIMBURSEMENT', 'ADJUSTMENT'].includes(kind)) {
+      throw new BadRequestException('Unsupported staff payment record type');
+    }
+    if (!Number.isInteger(input.amountPaise) || input.amountPaise <= 0 || input.amountPaise > 100_000_000) {
+      throw new BadRequestException('Staff payment amount must be a positive paise integer within the supported limit');
+    }
+    const paymentDate = this.parseDateOnly(input.paymentDate, 'paymentDate');
+    const periodMonth = input.periodMonth?.trim() || null;
+    if (periodMonth && !/^\d{4}-(0[1-9]|1[0-2])$/.test(periodMonth)) {
+      throw new BadRequestException('periodMonth must use YYYY-MM');
+    }
+    const note = input.note?.trim() || null;
+    if (note && note.length > 300) throw new BadRequestException('Staff payment note is too long');
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) {
+      throw new BadRequestException('Staff payment idempotency key must be between 8 and 120 characters');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const lockKey = `${societyId}:${userId}:staff-payment:${idempotencyKey}`;
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))`);
+      const existing = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        SELECT * FROM "WorkforcePaymentRecord"
+        WHERE "societyId"=${societyId}::uuid AND "recordedById"=${userId}::uuid AND "idempotencyKey"=${idempotencyKey}
+        LIMIT 1
+      `);
+      if (existing[0]) {
+        const row = existing[0];
+        const sameIntent =
+          row.assignmentId === input.assignmentId &&
+          row.kind === kind &&
+          Number(row.amountPaise) === input.amountPaise &&
+          String(row.paymentDate).slice(0, 10) === paymentDate &&
+          (row.periodMonth ?? null) === periodMonth &&
+          (row.note ?? null) === note;
+        if (!sameIntent) throw new BadRequestException('Idempotency key was already used for a different staff payment record');
+        return row;
+      }
+      const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        INSERT INTO "WorkforcePaymentRecord" (
+          "societyId","assignmentId","recordedById","kind","amountPaise","paymentDate","periodMonth","note","idempotencyKey"
+        ) VALUES (
+          ${societyId}::uuid,${input.assignmentId}::uuid,${userId}::uuid,${kind},${input.amountPaise},
+          ${paymentDate}::date,${periodMonth},${note},${idempotencyKey}
+        )
+        RETURNING *
+      `);
+      return rows[0];
+    });
+  }
+
+  private parseDateOnly(value: string, field: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${field} must use YYYY-MM-DD`);
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException(`${field} is invalid`);
+    }
+    return value;
+  }
+
   private normalizePhone(phone: string) {
     return phone.trim().replace(/[\s()-]+/g, '');
   }
