@@ -35,6 +35,17 @@ for(const path of [
   'docs/AARAAGATE-V4.82-COMPETITIVE-RESIDENT-OPERATIONS-DEPTH.md',
 ]) assert.ok(fs.existsSync(path),'V4.82 artifact missing: '+path);
 
+const staffPaymentMigration=read('services/api/prisma/migrations/20261006131500_v482_household_staff_payments/migration.sql');
+assert.equal((staffPaymentMigration.match(/CREATE TABLE "WorkforcePaymentRecord"/g)??[]).length,1,'Staff payment migration must create its table exactly once.');
+assert.ok(staffPaymentMigration.includes('CONSTRAINT "WorkforcePaymentRecord_kind_check"'),'Staff payment DB kind constraint is required.');
+assert.ok(staffPaymentMigration.includes('CREATE UNIQUE INDEX "WorkforcePaymentRecord_society_recorder_idempotency_key"'),'Staff payment idempotency index is required.');
+assert.ok(!staffPaymentMigration.includes('periodMonth" ~'),'V4.82 staff payment migration must avoid fragile regex SQL; period format is validated in the API.');
+
+const workforceLoading=read('apps/resident/lib/data/resident_data_loading.dart');
+assert.ok(workforceLoading.includes('final results = await Future.wait([repository.workforce(), repository.workforceLeaves(), repository.workforceRatings()]);'),'Core workforce load must not depend on optional payment history.');
+assert.ok(workforceLoading.includes('final payments = await repository.workforcePayments();'),'Optional staff payment enrichment must remain explicit.');
+assert.ok(workforceLoading.includes('Household staff remains authoritative even when optional private payment history is unavailable.'),'Optional staff payment failure must fail soft without blanking workforce state.');
+
 const workforce=read('services/api/src/workforce/workforce.service.ts');
 for(const token of [
   'async attendanceMine(',
