@@ -94,6 +94,28 @@ export class AiAssistantService {
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
+    if(unitId && /utility|meter|consumption|reading|electricity|water usage|water meter/.test(routed)){
+      this.requireTool(roles,'RESIDENT_UTILITIES');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.insights.residentUtilities(societyId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_UTILITIES','RESIDENT_UTILITIES',facts,
+        ['UtilityMeter','UtilityReading','UtilityChargeDraft','MaintenanceInvoice'],
+        'Grounded utility usage and issued-charge evidence for the selected property. Meter resets are kept explicit rather than inferred as consumption.',
+      );
+    }
+
+    if(unitId && /resident request|noc|no[- ]?dues|address proof|certificate|permission letter|parking permission|move[- ]?out letter/.test(routed)){
+      this.requireTool(roles,'RESIDENT_REQUESTS');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.insights.residentRequests(societyId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_REQUESTS','RESIDENT_REQUESTS',facts,
+        ['HelpdeskTicket'],
+        'Grounded status of resident certificate and permission requests for the selected property. Society issuance/legal validity is not inferred.',
+      );
+    }
+
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
       this.requireTool(roles,'RESIDENT_WORKFORCE');
       const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
