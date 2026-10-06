@@ -98,7 +98,7 @@ requireTokens('Privacy-first Community',community,[
   'active relationship and access rules',
 ]);
 
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts');
+const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts');
 requireTokens('Operational Intelligence 2.0',assistant,[
   'residentIntentRoutingText',
   'likelyCause?:string',
