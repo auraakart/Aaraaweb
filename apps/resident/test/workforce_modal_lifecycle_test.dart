@@ -603,7 +603,6 @@ void main() {
       initialEnabledFeatures: const {'DOMESTIC_HELP'},
       fetchEntitlements: false,
     );
-    addTearDown(controller.dispose);
     await controller.load();
 
     await tester.pumpWidget(MaterialApp(home: WorkforceScreen(controller: controller)));
@@ -623,6 +622,10 @@ void main() {
     expect(find.text('Attendance register'), findsOneWidget);
     expect(find.text('Monthly attendance view'), findsOneWidget);
     expect(find.textContaining('no gate evidence'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+    await tester.pump();
   });
 
 }
