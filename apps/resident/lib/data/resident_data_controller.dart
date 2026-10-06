@@ -52,6 +52,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
+  List<Map<String, dynamic>> workforcePayments = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
   List<Map<String, dynamic>> maintenancePayments = const [];
   List<Map<String, dynamic>> helpdeskTickets = const [];
@@ -612,6 +613,41 @@ class ResidentDataController extends ChangeNotifier {
         accessRequests: accessRequests,
       );
 
+  List<Map<String, dynamic>> paymentsForWorkforce(String assignmentId) => workforcePayments
+      .where((item) => item['assignmentId']?.toString() == assignmentId)
+      .toList(growable: false);
+
+  Future<Map<String, dynamic>> workforceAttendance(String assignmentId, {DateTime? from, DateTime? to}) {
+    if (!workforceAssignments.any((item) => item['id']?.toString() == assignmentId)) {
+      throw StateError('Staff assignment is outside the active property context');
+    }
+    return repository.workforceAttendance(assignmentId, from: from, to: to);
+  }
+
+  Future<void> recordWorkforcePayment({
+    required String assignmentId,
+    required String kind,
+    required int amountPaise,
+    required DateTime paymentDate,
+    String? periodMonth,
+    String? note,
+    required String idempotencyKey,
+  }) async {
+    if (!workforceAssignments.any((item) => item['id']?.toString() == assignmentId)) {
+      throw StateError('Staff assignment is outside the active property context');
+    }
+    await repository.recordWorkforcePayment(
+      assignmentId: assignmentId,
+      kind: kind,
+      amountPaise: amountPaise,
+      paymentDate: paymentDate,
+      periodMonth: periodMonth,
+      note: note,
+      idempotencyKey: idempotencyKey,
+    );
+    workforcePayments = await repository.workforcePayments();
+    if (!_disposed) notifyListeners();
+  }
   bool isWorkforcePresent(String assignmentId) => _workforceSnapshot.isPresent(assignmentId);
   Map<String, dynamic>? ratingFor(String assignmentId) => _workforceSnapshot.ratingFor(assignmentId);
   List<Map<String, dynamic>> leavesFor(String assignmentId) => _workforceSnapshot.leavesFor(assignmentId);
