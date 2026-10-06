@@ -75,6 +75,8 @@ for (const [name, expected] of Object.entries({
   'multer': '2.4.0',
   'minimatch@10.2.6>brace-expansion': '5.0.12',
   'gaxios@6.7.1>uuid': '11.1.1',
+  'google-gax@4.6.1>uuid': '11.1.1',
+  'teeny-request@9.0.0>uuid': '11.1.1',
 })) {
   assert.equal(rootPackage.pnpm?.overrides?.[name], expected, 'Dependency security override mismatch: ' + name);
 }
