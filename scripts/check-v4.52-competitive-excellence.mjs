@@ -68,7 +68,7 @@ forbidTokens('Resident action inbox deduplication',residentHome,[
   '_ActionInboxSummary','ACT NOW $immediate','SOON $soon','INFO $info',
 ]);
 
-requireTokens('AI evidence quality',read('services/api/src/ai-operations/ai-assistant.service.ts'),[
+requireTokens('AI evidence quality',read('services/api/src/ai-operations/ai-assistant.service.ts')+read('services/api/src/ai-operations/ai-society-insights.ts'),[
   'CURRENT_QUERY_SNAPSHOT','causalClaim:false','DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF',
   'Likely-cause text is a signal interpretation, not causal proof',
 ]);
