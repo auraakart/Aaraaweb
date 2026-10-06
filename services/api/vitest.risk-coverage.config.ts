@@ -43,10 +43,10 @@ export default defineConfig({
           lines: 45,
         },
         'src/auth/session.service.ts': {
-          statements: 25,
-          branches: 25,
+          statements: 30,
+          branches: 28,
           functions: 30,
-          lines: 25,
+          lines: 30,
         },
         'src/households/household.service.ts': {
           statements: 35,
@@ -55,10 +55,10 @@ export default defineConfig({
           lines: 35,
         },
         'src/ai-operations/ai-operations.service.ts': {
-          statements: 30,
-          branches: 30,
-          functions: 25,
-          lines: 30,
+          statements: 35,
+          branches: 32,
+          functions: 30,
+          lines: 35,
         },
       },
     },
