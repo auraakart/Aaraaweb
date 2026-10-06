@@ -17,8 +17,9 @@ const forbidTokens=(label,source,tokens)=>{
 };
 
 const service=read('services/api/src/amenities/amenities.service.ts');
+const bookingCreator=read('services/api/src/amenities/amenity-booking-creator.ts');
 const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
-const amenityDomain=`${service}\n${policyEngine}`;
+const amenityDomain=`${service}\n${bookingCreator}\n${policyEngine}`;
 requireTokens('Amenity guest policy',amenityDomain,[
   'maxGuestsPerBooking',
   'validateGuestCount',
