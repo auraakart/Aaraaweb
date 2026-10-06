@@ -56,10 +56,13 @@
       "sharp": ">=0.35.0",
       "postcss": ">=8.5.18",
       "deepmerge-ts": ">=8.0.1",
-      "multer": "2.3.0",
+      "multer": "2.4.0",
       "@grpc/grpc-js": "1.14.5",
       "minimatch@3.1.5>brace-expansion": "1.1.20",
-      "minimatch@10.2.6>brace-expansion": "5.0.11"
+      "minimatch@10.2.6>brace-expansion": "5.0.12",
+      "proxy-addr": "2.0.8",
+      "source-map-js": "1.2.2",
+      "gaxios@6.7.1>uuid": "11.1.1"
     }
   },
   "engines": {
