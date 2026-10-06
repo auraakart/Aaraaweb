@@ -71,11 +71,11 @@ for (const path of [
 
 const complexity = read('scripts/check-complexity-boundaries.mjs');
 for (const token of [
-  "amenities/amenities.service.ts', 1230",
-  "ai-operations/ai-assistant.service.ts', 740",
-  "billing/billing.service.ts', 550",
-  "resident_data_controller.dart', 900",
-  "guard_operations_screen.dart', 380",
+  "amenities/amenities.service.ts', 1050",
+  "ai-operations/ai-assistant.service.ts', 580",
+  "billing/billing.service.ts', 425",
+  "resident_data_controller.dart', 850",
+  "guard_operations_screen.dart', 360",
 ]) assert.ok(complexity.includes(token), 'Tightened complexity budget missing: ' + token);
 
 const tenantIntegration = read('services/api/src/prisma/prisma.tenant-context.integration.spec.ts');
@@ -84,16 +84,16 @@ for (const token of ['current_setting', 'insideA', 'insideB', 'afterA', 'afterB'
 }
 
 const apiCoverage = read('services/api/vitest.risk-coverage.config.ts');
-for (const token of ['statements: 45', 'statements: 25', 'statements: 35', 'statements: 30']) {
+for (const token of ['statements: 45', 'statements: 30', 'statements: 35']) {
   assert.ok(apiCoverage.includes(token), 'Raised API risk threshold missing: ' + token);
 }
 const flutterCoverage = read('scripts/check-flutter-risk-coverage.mjs');
 for (const token of [
-  "'lib/data/resident_data_controller.dart': 40",
+  "'lib/data/resident_data_controller.dart': 42",
   "'lib/screens/gate_screen.dart': 80",
   "'lib/screens/billing_screen.dart': 50",
   "'lib/screens/home_screen.dart': 50",
-  "'lib/guard_controller.dart': 35",
+  "'lib/guard_controller.dart': 38",
   "'lib/data/models/guard_boundary_models.dart': 45",
 ]) assert.ok(flutterCoverage.includes(token), 'Raised Flutter risk threshold missing: ' + token);
 
