@@ -93,7 +93,7 @@ assert.ok(v4814.includes('compareVersion(current, [4, 81, 4]) >= 0'));
 assert.ok(!v4814.includes("assert.equal(root.version, '4.81.4'"));
 
 const evidence = read('docs/AARAAGATE-V4.81.5-MAINTAINABILITY-HYGIENE.md');
-for (const token of ['Hotspot decomposition','Branch hygiene closure','moderate: no increase','one governed staging release commit','remains unchanged until explicit owner approval']) {
+for (const token of ['Hotspot decomposition','Branch hygiene closure','moderate: 0','one governed staging release commit','remains unchanged until explicit owner approval']) {
   assert.ok(evidence.includes(token), 'V4.81.5 evidence missing: ' + token);
 }
 
