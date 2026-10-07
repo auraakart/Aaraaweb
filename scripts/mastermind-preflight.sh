@@ -79,7 +79,7 @@ if [ "$RUN_RESIDENT" = "true" ]; then
     cd apps/resident
     flutter pub get
     flutter analyze
-    flutter test       test/multi_property_isolation_test.dart       test/gate_screen_test.dart       test/billing_screen_test.dart       test/privacy_data_screen_test.dart       test/home_action_inbox_dedup_test.dart       test/community_poll_participation_test.dart       test/amenities_screen_test.dart       test/family_member_recovery_test.dart       test/emergency_contact_recovery_test.dart       test/workforce_modal_lifecycle_test.dart       test/notices_acknowledgement_test.dart
+    flutter test       test/multi_property_isolation_test.dart       test/gate_screen_test.dart       test/billing_screen_test.dart       test/privacy_data_screen_test.dart       test/home_action_inbox_dedup_test.dart       test/community_poll_participation_test.dart       test/amenities_screen_test.dart       test/family_member_recovery_test.dart       test/emergency_contact_recovery_test.dart       test/workforce_modal_lifecycle_test.dart       test/notices_acknowledgement_test.dart       test/ai_assistant_screen_test.dart       test/resident_speech_test.dart       test/v48_accessibility_smoke_test.dart
   )
 fi
 

@@ -52,7 +52,7 @@ requireTokens('Resident Action Inbox routing',read('apps/resident/lib/screens/ho
 ]);
 requireTokens('Resident Assistant voice query drafting',read('apps/resident/lib/screens/ai_assistant_screen.dart'),[
   'DeviceResidentSpeech','_listenForAssistant','assistantListening','assistantReview','assistantAction',
-  "DropdownMenuItem(value:'hi'","DropdownMenuItem(value:'ta'","DropdownMenuItem(value:'bn'",
+  'ResidentVoiceCopy.languageLabels.entries',
 ]);
 requireTokens('Resident voice safety copy',read('apps/resident/lib/voice/resident_speech.dart'),[
   'Assistant query','it never submits, pays, or approves an operation','assistantUnavailable',
