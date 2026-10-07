@@ -238,7 +238,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                   message: 'Gate access is not enabled for this society yet.',
                 ),
           showServices
-              ? ServicesScreen(controller: controller)
+              ? ServicesScreen(controller: controller, consumerApiClient: widget.consumerApiClient)
               : const _UnavailableFeatureScreen(
                   icon: Icons.handyman_outlined,
                   title: 'Services',

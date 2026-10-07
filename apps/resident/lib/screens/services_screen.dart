@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/api_client.dart';
 import '../data/resident_data_controller.dart';
 import '../data/service_booking_actions.dart';
 import '../models/service_catalog_models.dart';
@@ -6,10 +7,12 @@ import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 import '../widgets/service_booking_timeline_sheet.dart';
+import 'independent_services_screen.dart';
 
 class ServicesScreen extends StatefulWidget {
-  const ServicesScreen({super.key, required this.controller});
+  const ServicesScreen({super.key, required this.controller, required this.consumerApiClient});
   final ResidentDataController controller;
+  final ApiClient consumerApiClient;
 
   @override
   State<ServicesScreen> createState() => _ServicesScreenState();
@@ -420,6 +423,55 @@ class _ServicesScreenState extends State<ServicesScreen> {
               icon: Icons.home_repair_service_outlined,
               title: 'Home services',
               supportingText: 'Compare verified professionals and choose who works for you.',
+            ),
+            const SizedBox(height: AaraagateTokens.space4),
+            PremiumSurface(
+              elevated: true,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => IndependentServicesScreen(
+                    apiClient: widget.consumerApiClient,
+                    independentMode: false,
+                  ),
+                ),
+              ),
+              semanticLabel: 'Insta Services, find trusted local professionals near your selected property',
+              padding: const EdgeInsets.all(AaraagateTokens.space4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: AaraagateTokens.iconContainer,
+                    height: AaraagateTokens.iconContainer,
+                    decoration: BoxDecoration(
+                      color: scheme.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                    ),
+                    child: Icon(Icons.flash_on_rounded, color: scheme.onTertiaryContainer),
+                  ),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text('Insta Services', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+                            const AaraagateStatusPill(label: 'NEARBY', tone: AaraagateStatusTone.info),
+                          ],
+                        ),
+                        const SizedBox(height: AaraagateTokens.space1),
+                        Text(
+                          'Find trusted local professionals serving your selected property, with provider profiles, offers and booking history.',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AaraagateTokens.space2),
+                  Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                ],
+              ),
             ),
             const SizedBox(height: AaraagateTokens.space5),
             TextField(
