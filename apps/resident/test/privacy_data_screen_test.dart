@@ -117,6 +117,7 @@ void main() {
     expect(find.textContaining('Demo mode: privacy requests are shown as a product capability only'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('Privacy request status'), 250);
+    await tester.scrollUntilVisible(find.text('No demo privacy requests'), 250);
     expect(find.text('No demo privacy requests'), findsOneWidget);
     expect(find.textContaining('does not contact the privacy service'), findsOneWidget);
     expect(find.text('Could not load privacy requests'), findsNothing);

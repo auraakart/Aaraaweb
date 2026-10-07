@@ -259,6 +259,7 @@ jobs:
       - name: Syntax-check repository invariant scripts
         shell: bash
         run: |
+          bash -n scripts/mastermind-preflight.sh
           set -euo pipefail
           for check in scripts/check-*.mjs; do
             node --check "$check"
@@ -344,9 +345,54 @@ jobs:
           NEXT_PUBLIC_AARAGATE_API_BASE_URL: https://api.example.com
         run: bash scripts/production-preflight.sh
 
+  mastermind-preflight:
+    name: Mastermind preflight
+    needs: [change-scope, repository-structure]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        if: ${{ github.event_name == 'pull_request' && (needs.change-scope.outputs.run_api == 'true' || needs.change-scope.outputs.run_admin == 'true') }}
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.15.0
+      - name: Setup Node.js
+        if: ${{ github.event_name == 'pull_request' && (needs.change-scope.outputs.run_api == 'true' || needs.change-scope.outputs.run_admin == 'true') }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Setup Flutter
+        if: ${{ github.event_name == 'pull_request' && needs.change-scope.outputs.run_flutter == 'true' }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Run compatibility preflight
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          RUN_API: ${{ needs.change-scope.outputs.run_api }}
+          RUN_ADMIN: ${{ needs.change-scope.outputs.run_admin }}
+          RUN_RESIDENT: ${{ needs.change-scope.outputs.run_resident }}
+          RUN_GUARD: ${{ needs.change-scope.outputs.run_guard }}
+        run: >-
+          bash scripts/mastermind-preflight.sh
+          "${{ github.event.pull_request.base.sha }}"
+          "${{ github.event.pull_request.head.sha }}"
+      - name: Non-PR preflight no-op
+        if: ${{ github.event_name != 'pull_request' }}
+        run: echo "Mastermind preflight is enforced on pull requests; main push reuse remains governed by existing exact-staging-tree logic."
+
   api-validation-full:
     name: API validation (full)
-    needs: [change-scope, repository-structure]
+    needs: [change-scope, repository-structure, mastermind-preflight]
     if: needs.change-scope.outputs.run_api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -502,7 +548,7 @@ jobs:
 
   admin-validation-full:
     name: Admin validation (full)
-    needs: [change-scope, repository-structure]
+    needs: [change-scope, repository-structure, mastermind-preflight]
     if: needs.change-scope.outputs.run_admin == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -564,7 +610,7 @@ jobs:
 
   flutter-validation-full:
     name: Flutter validation (full)
-    needs: [change-scope, repository-structure]
+    needs: [change-scope, repository-structure, mastermind-preflight]
     if: needs.change-scope.outputs.run_flutter == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -669,7 +715,7 @@ jobs:
 
   dependency-security-full:
     name: Dependency security (full)
-    needs: [change-scope, repository-structure]
+    needs: [change-scope, repository-structure, mastermind-preflight]
     if: needs.change-scope.outputs.run_dependency_audit == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15

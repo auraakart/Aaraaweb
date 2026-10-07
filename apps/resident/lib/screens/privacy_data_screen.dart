@@ -193,6 +193,16 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               title: 'Household services & staff',
               body: 'Bookings, provider assignments, domestic-help activity and ratings are used to operate the services you request for the selected property.',
             ),
+            const _PrivacySection(
+              icon: Icons.campaign_outlined,
+              title: 'Commercial placement & provider trust',
+              body: 'Featured or Sponsored service placement is a commercial label. Provider verification, Society Trusted evidence, society approval and resident ratings remain separate signals; paid placement does not grant a provider access to household-private records.',
+            ),
+            const _PrivacySection(
+              icon: Icons.verified_user_outlined,
+              title: 'Security & assurance boundary',
+              body: 'Access is scoped by your authenticated society/property context and sensitive actions remain server-authorized and auditable. These product controls are not presented as an external security or privacy certification.',
+            ),
             if (_privacyProgram != null) ...[
               const SizedBox(height: 8),
               Card(

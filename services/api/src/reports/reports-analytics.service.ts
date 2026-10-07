@@ -159,7 +159,7 @@ export class ReportsAnalyticsService{
   async outcomes(societyId:string,from?:string,to?:string,includeFinance=false){
     const range=this.dateRange(from,to);
     const [
-      financeRows,ageingRows,reconciliationRows,helpdeskRows,gateRows,guardRows,
+      financeRows,ageingRows,reconciliationRows,helpdeskRows,gateRows,gateFallbackRows,guardRows,
       amenityRows,notificationRows,serviceRows,adoptionRows,usageRows,
     ]=await Promise.all([
       includeFinance?this.prisma.$queryRaw<Array<{billedPaise:bigint|number;collectedPaise:bigint|number}>>(Prisma.sql`
@@ -285,6 +285,15 @@ export class ReportsAnalyticsService{
         ) approved ON TRUE
         WHERE ar."societyId"=${societyId}::uuid AND ar."subjectType"='VISITOR'
       `),
+      this.prisma.$queryRaw<Array<{pushQueued:number;ivrSimulated:number;manualRequired:number;missingPhone:number}>>(Prisma.sql`
+        SELECT
+          COUNT(*) FILTER (WHERE "channel"='PUSH' AND "status"='QUEUED')::int AS "pushQueued",
+          COUNT(*) FILTER (WHERE "channel"='IVR' AND "status"='SIMULATED')::int AS "ivrSimulated",
+          COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "status"='REQUIRED')::int AS "manualRequired",
+          COUNT(*) FILTER (WHERE "channel"='MANUAL' AND "reason"='NO_RESIDENT_PHONE')::int AS "missingPhone"
+        FROM "GateNotificationAttempt"
+        WHERE "societyId"=${societyId}::uuid AND "createdAt" BETWEEN ${range.gte} AND ${range.lte}
+      `),
       this.prisma.$queryRaw<Array<Record<string,bigint|number>>>(Prisma.sql`
         SELECT
           COALESCE(SUM("syncRuns"),0)::bigint AS "syncRuns",
@@ -378,6 +387,11 @@ export class ReportsAnalyticsService{
         slaCompliancePercent:rate(helpdesk.met,helpdesk.met+helpdesk.breached),
       },
       gate:gateRows[0]??{processed:0,avgProcessingSeconds:null,avgApprovalSeconds:null},
+      gateFallback:{
+        ...(gateFallbackRows[0]??{pushQueued:0,ivrSimulated:0,manualRequired:0,missingPhone:0}),
+        fallbackRequiredPercent:rate(gateFallbackRows[0]?.manualRequired??0,(gateFallbackRows[0]?.pushQueued??0)+(gateFallbackRows[0]?.ivrSimulated??0)+(gateFallbackRows[0]?.manualRequired??0)),
+        boundary:'Push, IVR-simulator and manual-fallback counts are delivery evidence only. They do not change resident approval authority or claim a live telephony provider.',
+      },
       guardOfflineSync:{
         syncRuns:number(guard.syncRuns),actionsConsidered:number(guard.actionsConsidered),actionsSynced:number(guard.actionsSynced),
         actionsRetried:number(guard.actionsRetried),actionsUnresolved:number(guard.actionsUnresolved),reviewRequired:number(guard.reviewRequired),
