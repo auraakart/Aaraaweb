@@ -56,7 +56,7 @@ export class AiActionCentre {
             ? 'Unassigned requests are the clearest current routing bottleneck.'
             : 'No material helpdesk bottleneck is visible in current evidence.',
         safeWorkflow:['Review breached requests first','Assign an accountable operator where missing','Use the normal status/escalation workflow; AI does not close or reassign tickets'],
-        ...(helpdesk.unassigned[0]?.id?{proposalOption:{
+        ...(helpdesk.unassigned?.[0]?.id?{proposalOption:{
           action:'ASSIGN_HELPDESK_TICKET' as const,
           subjectId:String(helpdesk.unassigned[0].id),
           label:'Prepare assignment for oldest unassigned ticket',
