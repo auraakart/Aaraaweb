@@ -233,6 +233,32 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     }
   }
 
+  Future<void> _saveRecurringPlan(String cadence) async {
+    final location = _selectedLocation;
+    final offeringId = widget.offering['id']?.toString();
+    if (location == null || offeringId == null) {
+      _showError('Choose a service location before saving a recurring plan.');
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await widget.apiClient.post('/api/v1/consumer/services/recurring-plans', {
+        'offeringId': offeringId,
+        'locationType': location['type'],
+        'locationId': location['id'],
+        'cadence': cadence,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Recurring ${cadence.toLowerCase()} preference saved. Future bookings still require confirmation.')),
+      );
+    } catch (e) {
+      if (mounted) _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -243,6 +269,17 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
     final provider = widget.offering['provider'] as Map<String, dynamic>? ?? const {};
     final providerName = provider['businessName']?.toString() ?? widget.offering['providerName']?.toString() ?? 'Verified provider';
     final pricePaise = (widget.offering['pricePaise'] as num?)?.toInt() ?? 0;
+    final experiencePolicy = widget.offering['experiencePolicy'] is Map
+        ? Map<String, dynamic>.from(widget.offering['experiencePolicy'] as Map)
+        : const <String, dynamic>{};
+    final quickServiceEligible = experiencePolicy['quickServiceEligible'] == true;
+    final targetArrivalMinutes = (experiencePolicy['targetArrivalMinutes'] as num?)?.toInt();
+    final includedWork = experiencePolicy['includedWork']?.toString().trim();
+    final partsPolicy = experiencePolicy['partsPolicy']?.toString().trim();
+    final extraWorkApprovalRequired = experiencePolicy['extraWorkApprovalRequired'] != false;
+    final recurrenceCadences = experiencePolicy['recurrenceCadences'] is List
+        ? List<dynamic>.from(experiencePolicy['recurrenceCadences'] as List).map((item) => item.toString()).toList()
+        : const <String>[];
     return Scaffold(
       appBar: AppBar(title: const Text('Request Service')),
       body: ListView(
@@ -257,6 +294,39 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
               trailing: Text('₹${(pricePaise / 100).toStringAsFixed(pricePaise % 100 == 0 ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
             ),
           ),
+          if (experiencePolicy.isNotEmpty) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Price & service promise', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                    if (quickServiceEligible && targetArrivalMinutes != null) ...[
+                      const SizedBox(height: 8),
+                      Text('Quick-service target: about $targetArrivalMinutes minutes after provider acceptance.'),
+                    ],
+                    if (includedWork != null && includedWork.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('Included: $includedWork'),
+                    ],
+                    if (partsPolicy != null && partsPolicy.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('Parts/materials: $partsPolicy'),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      extraWorkApprovalRequired
+                          ? 'Any extra work or charge requires your approval.'
+                          : 'Review provider terms for additional work or charges.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
           const SizedBox(height: 18),
           Row(
             children: [
@@ -291,6 +361,28 @@ class _ConsumerBookingScreenState extends State<ConsumerBookingScreen> {
                 ],
               ),
             ),
+          if (recurrenceCadences.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('Recurring', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(
+              'Save a preferred cadence for reminders and faster rebooking. This does not auto-book or auto-charge.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final cadence in recurrenceCadences)
+                  OutlinedButton.icon(
+                    onPressed: _submitting || _selectedLocation == null ? null : () => _saveRecurringPlan(cadence),
+                    icon: const Icon(Icons.event_repeat_rounded),
+                    label: Text('Save ${cadence.toLowerCase()}'),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 18),
           Text('Schedule', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
