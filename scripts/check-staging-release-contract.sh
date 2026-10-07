@@ -178,7 +178,10 @@ for literal in \
   'Staging moved from expected base before merge and PR is not already exact-merged.' \
   'accept_companion_merge_race "$latest"' \
   'accept_companion_merge_race "$latest_after_race"' \
-  'already merged at the exact tested head by the companion release controller'; do
+  'already merged at the exact tested head by the companion release controller' \
+  'Merge already in progress' \
+  'Companion release controller already owns the exact staging merge' \
+  'test "$(jq -r '\''.base.sha'\'' <<<"$latest_after_race")" = "$EXPECTED_BASE_SHA"'; do
   if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
     echo "Staging race-safe controller is missing: $literal" >&2
     exit 1
