@@ -94,7 +94,10 @@ describe('V2.1B post-move-out authority regressions', () => {
         active: true,
         gateApprovalEnabled: true,
         effectiveFrom: expect.any(Object),
-        OR: expect.any(Array),
+        AND: expect.arrayContaining([
+          { OR: expect.any(Array) },
+          { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: expect.any(Date) } }] },
+        ]),
       }),
       select: { id: true },
     }));
@@ -191,7 +194,10 @@ describe('V2.1B post-move-out authority regressions', () => {
         active: true,
         gateApprovalEnabled: true,
         effectiveFrom: expect.any(Object),
-        OR: expect.any(Array),
+        AND: expect.arrayContaining([
+          { OR: expect.any(Array) },
+          { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: expect.any(Date) } }] },
+        ]),
       }),
     }));
   });
