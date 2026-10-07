@@ -23,6 +23,7 @@
     "check:v4.51.1": "node scripts/check-v4.51.1-regression-hardening.mjs",
     "check:v4.83": "node scripts/check-v4.83-automation-convenience-adoption.mjs",
     "check:v4.83.1": "node scripts/check-v4.83.1-insta-services-entry.mjs",
+    "check:v4.83.2": "node scripts/check-v4.83.2-grounded-operations-copilot.mjs",
     "check:v4.52": "node scripts/check-v4.52-competitive-excellence.mjs",
     "check:v4.53": "node scripts/check-v4.53-operational-intelligence.mjs",
     "check:v4.54": "node scripts/check-v4.54-controlled-action-operational-control.mjs",
