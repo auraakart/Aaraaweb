@@ -35,7 +35,7 @@ Future<void> _openPoll(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 void main(){
-  testWidgets('community shortcut bar keeps updates polls and events together',(tester) async{
+  testWidgets('community shortcut bar keeps participation and resident tools discoverable',(tester) async{
     await tester.binding.setSurfaceSize(const Size(390,844));
     addTearDown(()=>tester.binding.setSurfaceSize(null));
     final repository=_PollRepository();
@@ -49,6 +49,9 @@ void main(){
     expect(find.descendant(of:bar,matching:find.text('Updates')),findsOneWidget);
     expect(find.descendant(of:bar,matching:find.text('Polls')),findsOneWidget);
     expect(find.descendant(of:bar,matching:find.text('Events')),findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Requests')),findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Circles')),findsOneWidget);
+    expect(find.descendant(of:bar,matching:find.text('Directory')),findsOneWidget);
 
     await tester.tap(find.descendant(of:bar,matching:find.text('Polls')));
     await tester.pumpAndSettle();

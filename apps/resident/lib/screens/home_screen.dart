@@ -58,9 +58,14 @@ class HomeScreen extends StatelessWidget {
       notices: showNotices ? controller.notices : const [],
       tickets: showHelpdesk ? controller.helpdeskTickets : const [],
     );
-    final attentionCount = highlights.length + (pending != null ? 1 : 0);
+    final actionableHighlights = highlights
+        .where((item) => item.urgency != ResidentHomeUrgency.info)
+        .toList(growable: false);
+    final attentionCount = actionableHighlights.length + (pending != null ? 1 : 0);
     final attentionSummary = attentionCount == 0
-        ? 'Nothing needs your attention right now.'
+        ? highlights.isEmpty
+            ? 'Nothing needs your attention right now.'
+            : 'No urgent follow-up. Recent activity is shown below.'
         : attentionCount == 1
             ? '1 item needs your attention.'
             : '$attentionCount items need your attention.';

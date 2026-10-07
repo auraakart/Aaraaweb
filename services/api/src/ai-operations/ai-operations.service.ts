@@ -5,9 +5,10 @@ import { HelpdeskService } from '../helpdesk/helpdesk.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitorService } from '../visitors/visitor.service';
 import { safeOperationalError } from '../observability/safe-operational-error';
+import { FacilitiesHelpdeskHandoffService } from '../facilities/facilities-helpdesk-handoff.service';
 
-type AiAction = 'CREATE_HELPDESK_TICKET'|'BOOK_AMENITY'|'CREATE_VISITOR_PASS'|'ASSIGN_HELPDESK_TICKET';
-const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS','ASSIGN_HELPDESK_TICKET']);
+type AiAction = 'CREATE_HELPDESK_TICKET'|'BOOK_AMENITY'|'CREATE_VISITOR_PASS'|'ASSIGN_HELPDESK_TICKET'|'CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK';
+const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS','ASSIGN_HELPDESK_TICKET','CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK']);
 
 type HelpdeskProposalInput = {
   unitId: string;
@@ -18,6 +19,7 @@ type HelpdeskProposalInput = {
 };
 
 type HelpdeskAssignmentProposalInput = { ticketId:string; assignedToId:string|null; expectedUpdatedAt:string; };
+type FacilitiesHandoffProposalInput={ticketId:string;assignedUserId?:string;dueAt?:string;priority?:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';expectedTicketUpdatedAt:string;};
 
 type AmenityProposalInput = {
   amenityId: string;
@@ -49,6 +51,7 @@ export class AiOperationsService {
     private readonly helpdesk: HelpdeskService,
     private readonly amenities: AmenitiesService,
     private readonly visitors: VisitorService,
+    private readonly facilitiesHandoff: FacilitiesHelpdeskHandoffService,
   ) {}
 
   async summary(societyId:string,userId:string) {
@@ -166,6 +169,14 @@ export class AiOperationsService {
     return this.createProposal(societyId,userId,'ASSIGN_HELPDESK_TICKET',{ticketId:input.ticketId,assignedToId:input.assignedToId,expectedUpdatedAt:preview.expectedUpdatedAt},preview);
   }
 
+  async proposeFacilitiesHandoff(societyId:string,userId:string,input:{ticketId:string;assignedUserId?:string;dueAt?:string;priority?:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'}) {
+    const preview=await this.facilitiesHandoff.preview(societyId,input.ticketId);
+    if(preview.blockers.length) throw new BadRequestException(`Facilities handoff is blocked: ${preview.blockers.join(', ')}`);
+    return this.createProposal(societyId,userId,'CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK',{
+      ...input,expectedTicketUpdatedAt:preview.expectedTicketUpdatedAt,
+    },preview);
+  }
+
   proposeAmenityBooking(societyId:string,userId:string,input:AmenityProposalInput) {
     return this.createProposal(societyId,userId,'BOOK_AMENITY',input);
   }
@@ -196,6 +207,16 @@ export class AiOperationsService {
     });
   }
 
+  confirmFacilitiesHandoff(societyId:string,userId:string,proposalId:string) {
+    return this.confirmAction(societyId,userId,proposalId,'CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK',async payload=>{
+      const input=payload as FacilitiesHandoffProposalInput;
+      const workOrder=await this.facilitiesHandoff.create(societyId,userId,input.ticketId,{
+        assignedUserId:input.assignedUserId,dueAt:input.dueAt,priority:input.priority,expectedTicketUpdatedAt:input.expectedTicketUpdatedAt,
+      });
+      return {workOrderId:String((workOrder as {id?:unknown}).id??''),ticketId:input.ticketId};
+    });
+  }
+
   confirmAmenity(societyId:string,userId:string,proposalId:string) {
     return this.confirmAction(societyId,userId,proposalId,'BOOK_AMENITY',async payload=>{
       const input=payload as AmenityProposalInput;
@@ -217,6 +238,7 @@ export class AiOperationsService {
   }
 
   cancelHelpdeskAssignment(societyId:string,userId:string,proposalId:string) { return this.cancelAction(societyId,userId,proposalId,'ASSIGN_HELPDESK_TICKET'); }
+  cancelFacilitiesHandoff(societyId:string,userId:string,proposalId:string) { return this.cancelAction(societyId,userId,proposalId,'CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK'); }
 
   cancelAmenity(societyId:string,userId:string,proposalId:string) {
     return this.cancelAction(societyId,userId,proposalId,'BOOK_AMENITY');
