@@ -239,6 +239,12 @@ class ResidentRepository {
     final value = await api.get('/api/v1/utilities/v2/resident/usage$suffix');
     return _list(value);
   }
+  Future<Map<String, dynamic>> utilityInsights({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=${Uri.encodeQueryComponent(unitId)}';
+    final value = await api.get('/api/v1/utilities/v2/resident/insights$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
 
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
     final value = await api.get('/api/v1/billing/invoices/payable');
