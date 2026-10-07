@@ -8,6 +8,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
+import { AiSocietyInsights } from './ai-society-insights';
+import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
+import { AiActionCentre } from './ai-action-centre';
 
 export { residentIntentRoutingText } from './ai-assistant.policy';
 export type { AiAssistantIntent, AiAssistantToolId } from './ai-assistant.policy';
@@ -23,12 +26,20 @@ import {
 
 @Injectable()
 export class AiAssistantService {
+  private readonly insights: AiSocietyInsights;
+  private readonly copilot: AiCopilot;
+  private readonly actionCentreBuilder: AiActionCentre;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly operations: AiOperationsService,
     private readonly workforce: WorkforceService,
     private readonly documents: DocumentsService,
-  ) {}
+  ) {
+    this.insights = new AiSocietyInsights(prisma);
+    this.copilot = new AiCopilot(prisma);
+    this.actionCentreBuilder = new AiActionCentre(operations,this.insights,this.copilot);
+  }
 
   tools(roles:readonly AppRole[]){
     return {
@@ -56,6 +67,22 @@ export class AiAssistantService {
       );
     }
 
+    const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
+    if(!unitId&&plan.multiDomain){
+      const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);
+      const sources=[...new Set(Object.values(snapshot.sources).flat())];
+      const facts={
+        planner:{selectedTools:plan.selected,omittedUnauthorizedTools:plan.omitted},
+        domains:snapshot.domains,
+        hypotheses:this.copilot.hypotheses(snapshot.domains),
+        boundary:'The copilot correlates permission-authorized Aaraagate evidence only. Coinciding signals are hypotheses for verification, not causal proof.',
+      };
+      return this.auditedResponse(
+        societyId,userId,unitId,'MULTI_DOMAIN','MULTI_DOMAIN',facts,sources,
+        `Grounded multi-domain review across ${plan.selected.length} authorized operational domains. No causal relationship is asserted without direct evidence.`,
+      );
+    }
+
     if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge/.test(routed)){
       this.requireTool(roles,'SOCIETY_KNOWLEDGE');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
@@ -78,21 +105,43 @@ export class AiAssistantService {
     if(unitId && /notice|announcement|society update|community update/.test(routed)){
       this.requireTool(roles,'RESIDENT_NOTICES');
       await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.residentNotices(societyId,userId,unitId);
+      const facts=await this.insights.residentNotices(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
     }
 
     if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(routed)){
       this.requireTool(roles,'RESIDENT_GATE');
       await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.residentGateStatus(societyId,userId,unitId);
+      const facts=await this.insights.residentGateStatus(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
+    }
+
+    if(unitId && /utility|meter|consumption|reading|electricity|water usage|water meter/.test(routed)){
+      this.requireTool(roles,'RESIDENT_UTILITIES');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.insights.residentUtilities(societyId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_UTILITIES','RESIDENT_UTILITIES',facts,
+        ['UtilityMeter','UtilityReading','UtilityChargeDraft','MaintenanceInvoice'],
+        'Grounded utility usage, recent-delta attention and issued-charge evidence for the selected property. Elevated usage is only a comparison signal—not a leak, fault or billing diagnosis—and prepaid recharge is not claimed without authoritative provider evidence.',
+      );
+    }
+
+    if(unitId && /resident request|noc|no[- ]?dues|address proof|certificate|permission letter|parking permission|move[- ]?out letter/.test(routed)){
+      this.requireTool(roles,'RESIDENT_REQUESTS');
+      await this.assertResidentUnit(societyId,userId,unitId);
+      const facts=await this.insights.residentRequests(societyId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_REQUESTS','RESIDENT_REQUESTS',facts,
+        ['HelpdeskTicket'],
+        'Grounded status of resident certificate and permission requests for the selected property. Society issuance/legal validity is not inferred.',
+      );
     }
 
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
       this.requireTool(roles,'RESIDENT_WORKFORCE');
       const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave'],'Grounded household-staff status for the current occupant of the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave','AccessRequest','WorkforcePaymentRecord'],'Grounded household-staff status, gate-derived attendance and resident-recorded payment evidence for the current occupant of the selected property only. Scheduled evidence gaps are not labelled absence, and payment records are not bank/payroll proof.');
     }
 
     if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
@@ -111,7 +160,7 @@ export class AiAssistantService {
     if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(routed)){
       this.requireTool(roles,'SOCIETY_FINANCE');
       const thresholdPaise=amountThresholdPaise(text);
-      const facts=await this.societyFinance(societyId,thresholdPaise);
+      const facts=await this.insights.societyFinance(societyId,thresholdPaise);
       return this.auditedResponse(
         societyId,userId,unitId,'SOCIETY_FINANCE','SOCIETY_FINANCE',facts,['MaintenanceInvoice','Payment'],
         `Grounded finance summary from current society accounting data${thresholdPaise? ` for overdue amounts of at least ₹${(thresholdPaise/100).toLocaleString('en-IN')}`:''}.`,
@@ -126,32 +175,32 @@ export class AiAssistantService {
 
     if(/security|incident|session|revocation|replay/.test(routed)){
       this.requireTool(roles,'SECURITY_EVENTS');
-      const facts=await this.securitySummary(societyId);
+      const facts=await this.insights.securitySummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'SECURITY_EVENTS','SECURITY_EVENTS',facts,['SecurityEvent'],'Grounded security summary from privacy-minimal society security events.');
     }
 
     if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(routed)){
       this.requireTool(roles,'FACILITIES');
-      const facts=await this.facilitiesSummary(societyId);
-      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
+      const facts=await this.insights.facilitiesSummary(societyId);
+      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facilities summary including overdue work, repeated corrective-work signals and recorded warranty dates. These are operational attention signals, not physical-condition, root-cause or vendor-performance diagnoses.');
     }
 
     if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(routed)){
       this.requireTool(roles,'GOVERNANCE');
-      const facts=await this.governanceSummary(societyId);
+      const facts=await this.insights.governanceSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'GOVERNANCE','GOVERNANCE',facts,['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],'Grounded governance summary from current society meeting, resolution and action evidence. This does not determine statutory validity.');
     }
 
     if(/vendor|procurement|purchase request|supplier/.test(routed)){
       this.requireTool(roles,'VENDORS');
-      const facts=await this.vendorSummary(societyId);
+      const facts=await this.insights.vendorSummary(societyId);
       return this.auditedResponse(societyId,userId,unitId,'VENDORS','VENDORS',facts,['SocietyVendor','ProcurementRequest'],'Grounded vendor/procurement summary from current society records.');
     }
 
     if(/amenity|service|provider|plumber|electrician|cleaning/.test(routed)){
       this.requireTool(roles,'DISCOVERY');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.discovery(societyId);
+      const facts=await this.insights.discovery(societyId);
       return this.auditedResponse(societyId,userId,unitId,'DISCOVERY','DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
     }
 
@@ -164,215 +213,8 @@ export class AiAssistantService {
     );
   }
 
-  async actionCentre(societyId:string,roles:readonly AppRole[]) {
-    const cards:Array<{
-      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
-      evidenceQuality?:{sourceCount:number;basis:'CURRENT_QUERY_SNAPSHOT';causalClaim:false;interpretation:'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY'};
-      actionIntent?:{mode:'READ_ONLY_DRILLDOWN';workspaceHref:string;workspaceLabel:string;confirmationRequired:true;mutationAllowed:false};
-    }>=[];
-
-    if(hasPermission(roles,AppPermission.FINANCE_READ)){
-      const finance=await this.societyFinance(societyId,0);
-      cards.push({
-        id:'finance-overdue',domain:'FINANCE',
-        severity:finance.overdueOver30Days>0?'HIGH':finance.overdueCount>0?'MEDIUM':'LOW',
-        title:'Collections and overdue maintenance',
-        summary:finance.overdueCount>0
-          ? `${finance.overdueCount} overdue invoices · ${finance.overdueOver30Days} older than 30 days`
-          : 'No overdue maintenance invoices in current society data.',
-        prompt:'Show overdue maintenance and collection trend',
-        sources:['MaintenanceInvoice','Payment'],
-        metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collectionChangePercent:finance.collectionChangePercent},
-        likelyCause:finance.overdueOver30Days>0
-          ? 'Long-ageing receivables are the strongest current collection signal.'
-          : finance.collectionChangePercent!==null&&finance.collectionChangePercent<0
-            ? 'Recent collections are below the previous 30-day period.'
-            : 'Current evidence does not indicate a material collection deterioration.',
-        safeWorkflow:['Review ageing buckets and reconciliation exceptions','Confirm reminder/waiver policy before any resident communication','Keep payment and accounting corrections in their existing controlled workflows'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.HELPDESK_REVIEW)){
-      const helpdesk=await this.operations.operationsSummary(societyId);
-      cards.push({
-        id:'helpdesk-sla',domain:'HELPDESK',
-        severity:helpdesk.breachedCount>0?'HIGH':helpdesk.unassignedCount>0?'MEDIUM':'LOW',
-        title:'Helpdesk SLA attention',
-        summary:helpdesk.breachedCount>0
-          ? `${helpdesk.breachedCount} breached · ${helpdesk.unassignedCount} unassigned`
-          : `${helpdesk.openCount} open · ${helpdesk.unassignedCount} unassigned`,
-        prompt:'Show helpdesk SLA breaches and unassigned tickets',
-        sources:['HelpdeskTicket'],
-        metrics:{openCount:helpdesk.openCount,breachedCount:helpdesk.breachedCount,unassignedCount:helpdesk.unassignedCount},
-        likelyCause:helpdesk.breachedCount>0
-          ? 'SLA-breached requests indicate unresolved work has exceeded configured response or resolution expectations.'
-          : helpdesk.unassignedCount>0
-            ? 'Unassigned requests are the clearest current routing bottleneck.'
-            : 'No material helpdesk bottleneck is visible in current evidence.',
-        safeWorkflow:['Review breached requests first','Assign an accountable operator where missing','Use the normal status/escalation workflow; AI does not close or reassign tickets'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS)){
-      const gate=await this.gateAttentionSummary(societyId);
-      const focus=gate.criticalIncidentTitle
-        ? `Critical incident: ${gate.criticalIncidentTitle}`
-        : gate.oldestOverstayName
-          ? `Oldest overstay: ${gate.oldestOverstayName}${gate.oldestOverstayMinutes!==null?` · ${gate.oldestOverstayMinutes} min`:''}`
-          : gate.staleCheckpointName
-            ? `Patrol due: ${gate.staleCheckpointName}`
-            : null;
-      cards.push({
-        id:'gate-attention',domain:'GATE',
-        severity:gate.criticalIncidents>0||gate.overstayCount>0?'HIGH':gate.stalePatrolCount>0?'MEDIUM':'LOW',
-        title:'Gate attention and patrol coverage',
-        summary:gate.overstayCount||gate.openIncidents||gate.stalePatrolCount
-          ? `${gate.overstayCount} overstays · ${gate.openIncidents} open incidents · ${gate.stalePatrolCount} patrol checkpoints due${focus?` · ${focus}`:''}`
-          : 'Gate exceptions and patrol coverage are currently clear.',
-        prompt:'Show gate overstays, incidents and patrol coverage needing attention',
-        sources:['AccessRequest','SecurityIncident','PatrolCheckpoint','PatrolScan'],
-        metrics:{
-          overstayCount:gate.overstayCount,openIncidents:gate.openIncidents,criticalIncidents:gate.criticalIncidents,stalePatrolCount:gate.stalePatrolCount,
-          criticalIncidentId:gate.criticalIncidentId,oldestOverstayId:gate.oldestOverstayId,staleCheckpointId:gate.staleCheckpointId,
-        },
-        whyNow:gate.criticalIncidentTitle
-          ? `Critical incident "${gate.criticalIncidentTitle}" is still open and requires supervisor attention.`
-          : gate.oldestOverstayName
-            ? `${gate.oldestOverstayName} is the oldest checked-in visitor beyond the four-hour operating threshold${gate.oldestOverstayMinutes!==null?` at ${gate.oldestOverstayMinutes} minutes`:''}.`
-            : gate.staleCheckpointName
-              ? `${gate.staleCheckpointName} has no patrol scan in the last eight hours.`
-              : 'No immediate gate exception signal is present.',
-        recommendedNextStep:gate.criticalIncidentId
-          ? 'Open Security Incidents, review the critical record and record the supervisor response.'
-          : gate.oldestOverstayId
-            ? 'Verify the oldest visitor status and escalate it from Guard Field Operations if unresolved.'
-            : gate.staleCheckpointId
-              ? 'Prioritise a patrol scan for the named checkpoint.'
-              : 'Continue routine gate processing and patrol cadence.',
-        likelyCause:gate.criticalIncidentId
-          ? 'An unresolved critical security incident is driving the gate priority.'
-          : gate.oldestOverstayId
-            ? 'A checked-in visitor has exceeded the configured four-hour operating threshold.'
-            : gate.staleCheckpointId
-              ? 'Patrol evidence is stale for at least one active checkpoint.'
-              : 'No active gate exception is driving attention.',
-        safeWorkflow:['Verify the named record against live gate context','Escalate through Guard/Security Supervisor controls when required','Do not bypass resident approval or device/manual-fallback policy'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.AUDIT_READ)){
-      const security=await this.securitySummary(societyId);
-      const total=security.byType.reduce((sum,item)=>sum+Number(item.count),0);
-      cards.push({
-        id:'security-events',domain:'SECURITY',
-        severity:total>20?'HIGH':total>0?'MEDIUM':'LOW',
-        title:'Security events',
-        summary:total>0?`${total} privacy-minimal security events in the last 30 days`:'No security events recorded in the last 30 days.',
-        prompt:'Summarize recent security incidents and session events',
-        sources:['SecurityEvent'],
-        metrics:{eventCount30d:total},
-        likelyCause:total>20?'Security-event volume is elevated for the current 30-day window; inspect the event mix before attributing a cause.':'No elevated security-event volume is currently indicated.',
-        safeWorkflow:['Inspect event types and timestamps','Correlate only with authorized audit evidence','Avoid inferring resident intent or identity beyond recorded evidence'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.FACILITIES_READ)){
-      const facilities=await this.facilitiesSummary(societyId);
-      cards.push({
-        id:'facilities-risk',domain:'FACILITIES',
-        severity:facilities.overdueWorkOrders>0?'HIGH':facilities.maintenanceDue30d>0?'MEDIUM':'LOW',
-        title:'Facility maintenance',
-        summary:`${facilities.openWorkOrders} open work orders · ${facilities.overdueWorkOrders} overdue · ${facilities.maintenanceDue30d} plans due in 30 days`,
-        prompt:'Show facility work orders, overdue maintenance and AMCs',
-        sources:['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],
-        metrics:{openWorkOrders:facilities.openWorkOrders,overdueWorkOrders:facilities.overdueWorkOrders,maintenanceDue30d:facilities.maintenanceDue30d},
-        likelyCause:facilities.overdueWorkOrders>0?'Overdue work orders are the primary current facility-risk signal.':facilities.maintenanceDue30d>0?'Upcoming preventive-maintenance obligations require scheduling attention.':'No current facility backlog signal is elevated.',
-        safeWorkflow:['Review critical and overdue work orders','Confirm assignee/AMC evidence','Use existing facility completion and escalation controls'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.GOVERNANCE_READ)){
-      const governance=await this.governanceSummary(societyId);
-      const openActions=governance.actions.filter(action=>!['COMPLETED','CLOSED','CANCELLED'].includes(String(action.status??'').toUpperCase()));
-      const now=Date.now();
-      const overdueActions=openActions.filter(action=>{
-        const dueAt=action.dueAt;
-        if(!dueAt)return false;
-        const due=Date.parse(String(dueAt));
-        return Number.isFinite(due)&&due<now;
-      });
-      cards.push({
-        id:'governance-actions',domain:'GOVERNANCE',
-        severity:overdueActions.length>0?'HIGH':openActions.length>0?'MEDIUM':'LOW',
-        title:'Governance follow-through',
-        summary:openActions.length>0
-          ? `${openActions.length} open action items · ${overdueActions.length} overdue`
-          : 'No open governance action items in current society data.',
-        prompt:'Show governance action items needing follow-through',
-        sources:['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],
-        metrics:{openActionItems:openActions.length,overdueActionItems:overdueActions.length},
-        likelyCause:overdueActions.length>0?'Governance follow-through is delayed on one or more dated action items.':openActions.length>0?'Open governance actions still require accountable follow-through.':'No governance action backlog is visible.',
-        safeWorkflow:['Review the underlying meeting/resolution evidence','Confirm owner and due date','Record completion only through the governance workflow'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ)){
-      const vendors=await this.vendorSummary(societyId);
-      cards.push({
-        id:'procurement-attention',domain:'PROCUREMENT',
-        severity:vendors.submittedRequests>=5?'HIGH':vendors.submittedRequests>0?'MEDIUM':'LOW',
-        title:'Procurement and vendors',
-        summary:`${vendors.submittedRequests} submitted requests · ${vendors.approvedRequests} approved · ${vendors.activeVendors} active vendors`,
-        prompt:'Show vendor and procurement requests needing attention',
-        sources:['SocietyVendor','ProcurementRequest'],
-        metrics:{activeVendors:vendors.activeVendors,submittedRequests:vendors.submittedRequests,approvedRequests:vendors.approvedRequests},
-        likelyCause:vendors.submittedRequests>0?'Submitted procurement requests are awaiting the next controlled review/approval step.':'No procurement queue signal is currently elevated.',
-        safeWorkflow:['Review submitted requests and supporting quotations','Apply maker-checker/approval policy','Keep vendor and marketplace responsibilities segregated'],
-      });
-    }
-
-    const workspaceByDomain:Record<string,{href:string;label:string}>={
-      FINANCE:{href:'/finance',label:'Finance workspace'},
-      HELPDESK:{href:'/',label:'Helpdesk operations'},
-      GATE:{href:'/',label:'Gate operations'},
-      SECURITY:{href:'/',label:'Security operations'},
-      FACILITIES:{href:'/facilities',label:'Facilities workspace'},
-      GOVERNANCE:{href:'/governance',label:'Governance workspace'},
-      PROCUREMENT:{href:'/vendors',label:'Vendor & procurement workspace'},
-    };
-    const evidenceCards=cards.map(card=>({
-      ...card,
-      actionIntent:{
-        mode:'READ_ONLY_DRILLDOWN' as const,
-        workspaceHref:workspaceByDomain[card.domain]?.href??'/',
-        workspaceLabel:workspaceByDomain[card.domain]?.label??'Operations workspace',
-        confirmationRequired:true as const,
-        mutationAllowed:false as const,
-      },
-      evidenceQuality:{
-        sourceCount:card.sources.length,
-        basis:'CURRENT_QUERY_SNAPSHOT' as const,
-        causalClaim:false as const,
-        interpretation:(card.likelyCause?'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF':'FACT_SUMMARY') as 'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY',
-      },
-    }));
-    const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
-    const safetyRank=(card:(typeof evidenceCards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
-    evidenceCards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
-    const highPriorityCount=evidenceCards.filter(card=>card.severity==='HIGH').length;
-    const mediumPriorityCount=evidenceCards.filter(card=>card.severity==='MEDIUM').length;
-    const focus=evidenceCards[0]??null;
-    return {
-      cards:evidenceCards,
-      brief:{
-        highPriorityCount,
-        mediumPriorityCount,
-        attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality}:null,
-        explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed.',
-      },
-      generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
-    };
+  actionCentre(societyId:string,roles:readonly AppRole[]) {
+    return this.actionCentreBuilder.build(societyId,roles);
   }
 
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
@@ -420,7 +262,11 @@ export class AiAssistantService {
   }
 
   private response(intent:AiAssistantIntent,facts:unknown,sources:string[],answer:string){
-    return {intent,answer,facts,sources,grounded:true,mutationPerformed:false};
+    return {
+      intent,answer,facts,sources,
+      evidence:this.copilot.evidence(sources,facts),
+      grounded:true,mutationPerformed:false,
+    };
   }
 
   private async auditedResponse(
@@ -450,6 +296,53 @@ export class AiAssistantService {
     return this.response(intent,facts,sources,answer);
   }
 
+  async recordRecommendationOutcome(
+    societyId:string,userId:string,roles:readonly AppRole[],
+    recommendationKey:string,domain:string,status:RecommendationOutcomeStatus,note?:string,
+  ){
+    if(!this.canSeeActionDomain(roles,domain)) throw new ForbiddenException('Recommendation outcome is outside the caller operational scope');
+    return this.copilot.recordOutcome(societyId,userId,recommendationKey,domain,status,note);
+  }
+
+  private async multiDomainSnapshot(societyId:string,tools:readonly AiAssistantToolId[],text:string){
+    const domains:Record<string,unknown>={};
+    const sources:Record<string,string[]>={};
+    for(const tool of tools){
+      if(tool==='SOCIETY_FINANCE'){
+        domains[tool]=await this.insights.societyFinance(societyId,amountThresholdPaise(text));
+        sources[tool]=['MaintenanceInvoice','Payment'];
+      }else if(tool==='HELPDESK_OPERATIONS'){
+        domains[tool]=await this.operations.operationsSummary(societyId);
+        sources[tool]=['HelpdeskTicket'];
+      }else if(tool==='FACILITIES'){
+        domains[tool]=await this.insights.facilitiesSummary(societyId);
+        sources[tool]=['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'];
+      }else if(tool==='VENDORS'){
+        domains[tool]=await this.insights.vendorSummary(societyId);
+        sources[tool]=['SocietyVendor','ProcurementRequest'];
+      }else if(tool==='SECURITY_EVENTS'){
+        domains[tool]=await this.insights.securitySummary(societyId);
+        sources[tool]=['SecurityEvent'];
+      }else if(tool==='GOVERNANCE'){
+        domains[tool]=await this.insights.governanceSummary(societyId);
+        sources[tool]=['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'];
+      }
+    }
+    return {domains,sources};
+  }
+
+  private canSeeActionDomain(roles:readonly AppRole[],domain:string){
+    const normalized=domain.trim().toUpperCase();
+    if(normalized==='FINANCE')return hasPermission(roles,AppPermission.FINANCE_READ);
+    if(normalized==='HELPDESK')return hasPermission(roles,AppPermission.HELPDESK_REVIEW);
+    if(normalized==='GATE')return hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS);
+    if(normalized==='SECURITY')return hasPermission(roles,AppPermission.AUDIT_READ);
+    if(normalized==='FACILITIES')return hasPermission(roles,AppPermission.FACILITIES_READ);
+    if(normalized==='GOVERNANCE')return hasPermission(roles,AppPermission.GOVERNANCE_READ);
+    if(normalized==='PROCUREMENT'||normalized==='VENDORS')return hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ);
+    return false;
+  }
+
   private tool(toolId:AiAssistantToolId){
     const tool=AI_ASSISTANT_TOOLS.find(candidate=>candidate.id===toolId);
     if(!tool) throw new BadRequestException('Assistant tool is not registered');
@@ -468,200 +361,6 @@ export class AiAssistantService {
   }
 
 
-
-  private async societyFinance(societyId:string,minimumPaise:number){
-    const overdue=await this.prisma.$queryRaw<Array<{count:number;amountPaise:bigint|number;over30:number}>>(Prisma.sql`
-      SELECT COUNT(*)::int AS "count",COALESCE(SUM("amountPaise"),0)::bigint AS "amountPaise",
-        COUNT(*) FILTER (WHERE "dueDate"<CURRENT_DATE-30)::int AS "over30"
-      FROM "MaintenanceInvoice"
-      WHERE "societyId"=${societyId}::uuid AND "status"='ISSUED' AND "dueDate"<CURRENT_DATE
-        AND "amountPaise">=${minimumPaise}
-    `);
-    const collections=await this.prisma.$queryRaw<Array<{currentPaise:bigint|number;previousPaise:bigint|number}>>(Prisma.sql`
-      SELECT
-        COALESCE(SUM("amountPaise") FILTER (WHERE "status"='CAPTURED' AND "completedAt">=CURRENT_TIMESTAMP-INTERVAL '30 days'),0)::bigint AS "currentPaise",
-        COALESCE(SUM("amountPaise") FILTER (WHERE "status"='CAPTURED' AND "completedAt"<CURRENT_TIMESTAMP-INTERVAL '30 days' AND "completedAt">=CURRENT_TIMESTAMP-INTERVAL '60 days'),0)::bigint AS "previousPaise"
-      FROM "Payment" WHERE "societyId"=${societyId}::uuid
-    `);
-    const current=Number(collections[0]?.currentPaise??0),previous=Number(collections[0]?.previousPaise??0);
-    return {
-      overdueCount:Number(overdue[0]?.count??0),
-      overduePaise:Number(overdue[0]?.amountPaise??0),
-      overdueOver30Days:Number(overdue[0]?.over30??0),
-      collections30dPaise:current,
-      previous30dPaise:previous,
-      collectionChangePercent:previous>0?Math.round(((current-previous)/previous)*10000)/100:null,
-      minimumOverduePaise:minimumPaise,
-    };
-  }
-
-  private async gateAttentionSummary(societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{
-      overstayCount:number;openIncidents:number;criticalIncidents:number;stalePatrolCount:number;
-      criticalIncidentId:string|null;criticalIncidentTitle:string|null;
-      oldestOverstayId:string|null;oldestOverstayName:string|null;oldestOverstayMinutes:number|null;
-      staleCheckpointId:string|null;staleCheckpointName:string|null;
-    }>>(Prisma.sql`
-      WITH overstays AS (
-        SELECT r."id",r."subjectName",r."enteredAt" FROM "AccessRequest" r
-        WHERE r."societyId"=${societyId}::uuid AND r."status"='CHECKED_IN'
-          AND r."enteredAt" IS NOT NULL AND r."exitedAt" IS NULL
-          AND r."enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours'
-      ),
-      open_incidents AS (
-        SELECT i."id",i."title",i."severity",i."occurredAt" FROM "SecurityIncident" i
-        WHERE i."societyId"=${societyId}::uuid AND i."status"='OPEN'
-      ),
-      stale_checkpoints AS (
-        SELECT c."id",c."name",MAX(s."scannedAt") AS "lastScannedAt"
-        FROM "PatrolCheckpoint" c
-        LEFT JOIN "PatrolScan" s ON s."societyId"=c."societyId" AND s."checkpointId"=c."id"
-        WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE
-        GROUP BY c."id",c."name"
-        HAVING MAX(s."scannedAt") IS NULL OR MAX(s."scannedAt")<CURRENT_TIMESTAMP-INTERVAL '8 hours'
-      )
-      SELECT
-        (SELECT COUNT(*)::int FROM overstays) AS "overstayCount",
-        (SELECT COUNT(*)::int FROM open_incidents) AS "openIncidents",
-        (SELECT COUNT(*)::int FROM open_incidents WHERE "severity"='CRITICAL') AS "criticalIncidents",
-        (SELECT COUNT(*)::int FROM stale_checkpoints) AS "stalePatrolCount",
-        (SELECT "id" FROM open_incidents WHERE "severity"='CRITICAL' ORDER BY "occurredAt" ASC,"id" ASC LIMIT 1) AS "criticalIncidentId",
-        (SELECT "title" FROM open_incidents WHERE "severity"='CRITICAL' ORDER BY "occurredAt" ASC,"id" ASC LIMIT 1) AS "criticalIncidentTitle",
-        (SELECT "id" FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayId",
-        (SELECT "subjectName" FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayName",
-        (SELECT FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-"enteredAt"))/60)::int FROM overstays ORDER BY "enteredAt" ASC,"id" ASC LIMIT 1) AS "oldestOverstayMinutes",
-        (SELECT "id" FROM stale_checkpoints ORDER BY "lastScannedAt" ASC NULLS FIRST,"id" ASC LIMIT 1) AS "staleCheckpointId",
-        (SELECT "name" FROM stale_checkpoints ORDER BY "lastScannedAt" ASC NULLS FIRST,"id" ASC LIMIT 1) AS "staleCheckpointName"
-    `);
-    const row=rows[0];
-    return {
-      overstayCount:Number(row?.overstayCount??0),openIncidents:Number(row?.openIncidents??0),
-      criticalIncidents:Number(row?.criticalIncidents??0),stalePatrolCount:Number(row?.stalePatrolCount??0),
-      criticalIncidentId:row?.criticalIncidentId??null,criticalIncidentTitle:row?.criticalIncidentTitle??null,
-      oldestOverstayId:row?.oldestOverstayId??null,oldestOverstayName:row?.oldestOverstayName??null,
-      oldestOverstayMinutes:row?.oldestOverstayMinutes===null||row?.oldestOverstayMinutes===undefined?null:Number(row.oldestOverstayMinutes),
-      staleCheckpointId:row?.staleCheckpointId??null,staleCheckpointName:row?.staleCheckpointName??null,
-    };
-  }
-
-  private async securitySummary(societyId:string){
-    const counts=await this.prisma.$queryRaw<Array<{eventType:string;count:number}>>(Prisma.sql`
-      SELECT "eventType",COUNT(*)::int AS "count" FROM "SecurityEvent"
-      WHERE "societyId"=${societyId}::uuid AND "occurredAt">=CURRENT_TIMESTAMP-INTERVAL '30 days'
-      GROUP BY "eventType" ORDER BY COUNT(*) DESC,"eventType" ASC
-    `);
-    const recent=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT "id","eventType","reason","occurredAt" FROM "SecurityEvent"
-      WHERE "societyId"=${societyId}::uuid
-      ORDER BY "occurredAt" DESC,"id" DESC LIMIT 20
-    `);
-    return {windowDays:30,byType:counts,recent};
-  }
-
-  private async facilitiesSummary(societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{activeAssets:number;openWorkOrders:number;overdueWorkOrders:number;maintenanceDue30d:number}>>(Prisma.sql`
-      SELECT
-        (SELECT COUNT(*)::int FROM "FacilityAsset" WHERE "societyId"=${societyId}::uuid AND "status"='ACTIVE') AS "activeAssets",
-        (SELECT COUNT(*)::int FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','CANCELLED')) AS "openWorkOrders",
-        (SELECT COUNT(*)::int FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','CANCELLED') AND "dueAt"<CURRENT_TIMESTAMP) AS "overdueWorkOrders",
-        (SELECT COUNT(*)::int FROM "FacilityMaintenancePlan" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "nextDueAt"<=CURRENT_TIMESTAMP+INTERVAL '30 days') AS "maintenanceDue30d"
-    `);
-    return rows[0]??{activeAssets:0,openWorkOrders:0,overdueWorkOrders:0,maintenanceDue30d:0};
-  }
-
-  private async vendorSummary(societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{activeVendors:number;submittedRequests:number;approvedRequests:number}>>(Prisma.sql`
-      SELECT
-        (SELECT COUNT(*)::int FROM "SocietyVendor" WHERE "societyId"=${societyId}::uuid AND "status"='ACTIVE') AS "activeVendors",
-        (SELECT COUNT(*)::int FROM "ProcurementRequest" WHERE "societyId"=${societyId}::uuid AND "status"='SUBMITTED') AS "submittedRequests",
-        (SELECT COUNT(*)::int FROM "ProcurementRequest" WHERE "societyId"=${societyId}::uuid AND "status"='APPROVED') AS "approvedRequests"
-    `);
-    return rows[0]??{activeVendors:0,submittedRequests:0,approvedRequests:0};
-  }
-
-  private async residentNotices(societyId:string,userId:string,unitId:string){
-    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT n."id",n."title",n."category",n."importance",n."requiresAcknowledgement",
-             n."publishedAt",n."expiresAt",nr."readAt",nr."acknowledgedAt"
-      FROM "Notice" n
-      LEFT JOIN "NoticeRecipient" nr
-        ON nr."noticeId"=n."id" AND nr."societyId"=n."societyId" AND nr."userId"=${userId}::uuid
-      WHERE n."societyId"=${societyId}::uuid
-        AND n."status"='PUBLISHED'
-        AND n."publishedAt"<=CURRENT_TIMESTAMP
-        AND (n."expiresAt" IS NULL OR n."expiresAt">CURRENT_TIMESTAMP)
-        AND (
-          n."targetUnitId"=${unitId}::uuid
-          OR (n."targetUnitId" IS NULL AND n."targetBuildingId" IS NULL)
-          OR nr."userId" IS NOT NULL
-        )
-        AND (
-          EXISTS(
-            SELECT 1 FROM "UnitOwnership" ow
-            WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid AND ow."userId"=${userId}::uuid
-              AND ow."active"=TRUE AND ow."verified"=TRUE AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
-              AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
-          )
-          OR (
-            n."audience"='OWNER_AND_OCCUPANTS' AND EXISTS(
-              SELECT 1 FROM "UnitOccupancy" oc
-              WHERE oc."societyId"=${societyId}::uuid AND oc."unitId"=${unitId}::uuid AND oc."userId"=${userId}::uuid
-                AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
-                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
-            )
-          )
-        )
-      ORDER BY CASE n."importance" WHEN 'CRITICAL' THEN 0 WHEN 'IMPORTANT' THEN 1 ELSE 2 END,n."publishedAt" DESC
-      LIMIT 20
-    `);
-  }
-
-  private async residentGateStatus(societyId:string,userId:string,unitId:string){
-    return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT v."id",v."name",v."purpose",v."status",v."createdAt",
-             vp."id" AS "passId",vp."status" AS "passStatus",vp."validFrom",vp."validUntil",vp."checkedInAt",vp."checkedOutAt"
-      FROM "Visitor" v
-      LEFT JOIN "VisitorPass" vp ON vp."visitorId"=v."id" AND vp."societyId"=v."societyId"
-      WHERE v."societyId"=${societyId}::uuid AND v."unitId"=${unitId}::uuid AND v."hostUserId"=${userId}::uuid
-      ORDER BY v."createdAt" DESC,vp."createdAt" DESC
-      LIMIT 20
-    `);
-  }
-
-  private async governanceSummary(societyId:string){
-    const [meetings,resolutions,actions]=await Promise.all([
-      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-        SELECT "id","meetingType","status","title","scheduledAt","heldAt","location","quorumRequired","quorumPresent"
-        FROM "GovernanceMeeting" WHERE "societyId"=${societyId}::uuid ORDER BY "scheduledAt" DESC LIMIT 20
-      `),
-      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-        SELECT "id","meetingId","title","status","approvalRequired","approvalRecorded","recordedAt"
-        FROM "GovernanceResolution" WHERE "societyId"=${societyId}::uuid ORDER BY "recordedAt" DESC LIMIT 20
-      `),
-      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-        SELECT "id","meetingId","title","status","ownerUserId","dueAt","completedAt"
-        FROM "GovernanceActionItem" WHERE "societyId"=${societyId}::uuid
-        ORDER BY COALESCE("dueAt","createdAt") DESC LIMIT 20
-      `),
-    ]);
-    return {meetings,resolutions,actions};
-  }
-
-  private async discovery(societyId:string){
-    const amenities=await this.prisma.$queryRaw<Array<{id:string;name:string;location:string|null;requiresApproval:boolean}>>(Prisma.sql`
-      SELECT "id","name","location","requiresApproval" FROM "Amenity"
-      WHERE "societyId"=${societyId}::uuid AND "active"=TRUE ORDER BY "name" ASC LIMIT 20
-    `);
-    const services=await this.prisma.$queryRaw<Array<{id:string;name:string;pricePaise:number;providerName:string;categoryName:string}>>(Prisma.sql`
-      SELECT so."id",so."name",so."pricePaise",sp."businessName" AS "providerName",sc."name" AS "categoryName"
-      FROM "ServiceOffering" so
-      JOIN "ServiceProvider" sp ON sp."id"=so."providerId" AND sp."active"=TRUE AND sp."verification"='VERIFIED'
-      JOIN "ServiceCategory" sc ON sc."id"=so."categoryId" AND sc."active"=TRUE
-      JOIN "ServiceProviderSociety" sps ON sps."providerId"=sp."id" AND sps."societyId"=${societyId}::uuid AND sps."status"='APPROVED'
-      WHERE so."active"=TRUE ORDER BY so."name" ASC LIMIT 20
-    `);
-    return {amenities,services};
-  }
 
   private async residentStatus(societyId:string,userId:string,unitId:string,roles:readonly AppRole[]){
     const invoices=canReadPropertyPayables(roles)

@@ -69,6 +69,7 @@ extension ResidentDataLoading on ResidentDataController {
       workforceAssignments = const [];
       workforceLeaves = const [];
       workforceRatings = const [];
+      workforcePayments = const [];
       return;
     }
     try {
@@ -81,6 +82,13 @@ extension ResidentDataLoading on ResidentDataController {
       workforceAssignments = assignments;
       workforceLeaves = results[1].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
       workforceRatings = results[2].where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
+      try {
+        final payments = await repository.workforcePayments();
+        workforcePayments = payments.where((item) => assignmentIds.contains(item['assignmentId']?.toString())).toList(growable: false);
+      } catch (_) {
+        // Household staff remains authoritative even when optional private payment history is unavailable.
+        workforcePayments = const [];
+      }
     } catch (e) {
       _capture(e, (message) => workforceError = message);
     }

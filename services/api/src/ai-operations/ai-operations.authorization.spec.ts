@@ -21,6 +21,10 @@ describe('V4.6 AI operations authorization',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype.assistantTools)).toBeUndefined();
   });
 
+  it('keeps recommendation outcome tracking dynamically domain-scoped without granting a broad static permission',()=>{
+    expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype.recommendationOutcome)).toBeUndefined();
+  });
+
   it('requires helpdesk mutation permission for natural-language complaint proposals',()=>{
     expect(Reflect.getMetadata(PERMISSIONS_KEY,AiOperationsController.prototype.helpdeskFromText)).toEqual([AppPermission.HELPDESK_MANAGE_OWN]);
   });

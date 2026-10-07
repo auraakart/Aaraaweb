@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/resident_data_controller.dart';
 import 'community_events_screen.dart';
+import 'community_circles_screen.dart';
 import 'community_polls_screen.dart';
 import 'notices_screen.dart';
+import 'resident_requests_screen.dart';
+import 'resident_directory_screen.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
@@ -281,6 +284,17 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ])),
         ]),
       ),
+      const SizedBox(height:AaraagateTokens.space4),
+      PremiumSurface(
+        padding:EdgeInsets.zero,
+        child:_Tile(
+          icon:Icons.request_page_outlined,
+          title:'Resident requests & certificates',
+          subtitle:'NOC, no-dues, address proof, move-out and parking permissions through the audited society workflow.',
+          actionLabel:'Open requests',
+          onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentRequestsScreen(controller:widget.controller))),
+        ),
+      ),
       if(loading)...[const SizedBox(height:AaraagateTokens.space4),const AppStateCard(icon:Icons.sync_rounded,message:'Loading community hub…',loading:true)],
       if(error!=null)...[const SizedBox(height:AaraagateTokens.space4),AppStateCard(icon:Icons.error_outline_rounded,message:error!,actionLabel:'Retry',onAction:_load)],
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Latest updates',supportingText:'Recent updates published for your society.'),const SizedBox(height:AaraagateTokens.space3),
@@ -293,6 +307,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
       if(governanceDocuments.isEmpty)const AppStateCard(icon:Icons.folder_open_outlined,message:'No governance references available.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<governanceDocuments.take(3).length;i++)...[_Tile(icon:Icons.description_outlined,title:_label(governanceDocuments[i]['kind']?.toString()??'Document'),subtitle:governanceDocuments[i]['note']?.toString()??'Governance document'),if(i<governanceDocuments.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community events',supportingText:'Upcoming non-statutory society activities with privacy-preserving RSVP.'),const SizedBox(height:AaraagateTokens.space3),
       PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.event_available_outlined,title:'Events & RSVP',subtitle:'See upcoming activities, capacity and your response.',actionLabel:'View events',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityEventsScreen(repository:widget.controller.repository))))),
+      const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Community circles',supportingText:'Opt-in circles for resident interests and coordination without exposing a member roster.'),const SizedBox(height:AaraagateTokens.space3),
+      PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.groups_2_outlined,title:'Opt-in circles',subtitle:'Join society-managed groups, read member-anonymous posts and leave at any time.',actionLabel:'View circles',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityCirclesScreen(repository:widget.controller.repository))))),
+      const SizedBox(height:AaraagateTokens.space4),
+      PremiumSurface(padding:EdgeInsets.zero,child:_Tile(icon:Icons.people_alt_outlined,title:'Resident directory',subtitle:'Optional resident profiles and controlled contact requests without exposing phone, email or unit details.',actionLabel:'Open directory',onAction:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentDirectoryScreen(repository:widget.controller.repository))))),
       const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Polls',supportingText:'Current non-statutory community participation.'),const SizedBox(height:AaraagateTokens.space3),
       if(polls.isEmpty)const AppStateCard(icon:Icons.how_to_vote_outlined,message:'No community polls open.') else PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<polls.take(3).length;i++)...[_Tile(icon:Icons.how_to_vote_outlined,title:polls[i]['question']?.toString()??polls[i]['title']?.toString()??'Community poll',subtitle:_pollSubtitle(polls[i]),actionLabel:polls[i]['myOptionId']!=null||(polls[i]['status']?.toString()??'OPEN').toUpperCase()=='CLOSED'?'Review':'Respond',onAction:()=>_openPoll(polls[i])),if(i<polls.take(3).length-1)Divider(height:1,color:scheme.outlineVariant)]])),
       if(openTickets.isNotEmpty)...[const SizedBox(height:AaraagateTokens.space6),const PremiumSectionHeader(title:'Your open helpdesk',supportingText:'Requests from this selected property.'),const SizedBox(height:AaraagateTokens.space3),PremiumSurface(padding:EdgeInsets.zero,child:Column(children:[for(var i=0;i<openTickets.length;i++)...[_Tile(icon:Icons.support_agent_outlined,title:openTickets[i]['title']?.toString()??'Helpdesk request',subtitle:_label(openTickets[i]['status']?.toString()??'Open')),if(i<openTickets.length-1)Divider(height:1,color:scheme.outlineVariant)]]))]

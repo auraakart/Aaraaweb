@@ -188,6 +188,25 @@ describe('AccessService', () => {
     }));
   });
 
+  it('requires an unexpired gate delegation for a gate-originated approval even when the delegate was the selected host', async () => {
+    const { svc, prisma } = setup();
+    await svc.approve('society-1', 'user-1', 'access-1', new Date(Date.now() - 1000), new Date(Date.now() + 60_000));
+    const call = prisma.unitOccupancy.findFirst.mock.calls.find((entry) => {
+      const where = entry[0]?.where as Record<string, unknown> | undefined;
+      return where?.gateApprovalEnabled === true;
+    });
+    expect(call).toBeTruthy();
+    expect(call?.[0]?.where).toEqual(expect.objectContaining({
+      societyId: 'society-1',
+      unitId: 'unit-1',
+      userId: 'user-1',
+      gateApprovalEnabled: true,
+      AND: expect.arrayContaining([
+        { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: expect.any(Date) } }] },
+      ]),
+    }));
+  });
+
   it('denies a non-resident owner gate approval when no active occupancy exists', async () => {
     const { svc } = setup({ unitOccupancy: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(

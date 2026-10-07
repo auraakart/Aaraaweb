@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, ExecutionContext, Get, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Controller, ExecutionContext, Get, Query, UseGuards, createParamDecorator } from '@nestjs/common';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -15,6 +15,28 @@ const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext)
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 export class UtilityResidentController {
   constructor(private readonly residentUtilities: UtilityResidentService) {}
+
+  @Get('usage')
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  usage(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+    @Query('unitId') unitId?: string,
+  ) {
+    if (!userId) throw new BadRequestException('Authenticated user is required');
+    return this.residentUtilities.listUsageHistory(societyId, userId, unitId?.trim() || undefined);
+  }
+
+  @Get('insights')
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  insights(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+    @Query('unitId') unitId?: string,
+  ) {
+    if (!userId) throw new BadRequestException('Authenticated user is required');
+    return this.residentUtilities.residentInsights(societyId, userId, unitId?.trim() || undefined);
+  }
 
   @Get('charges')
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)

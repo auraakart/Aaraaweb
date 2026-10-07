@@ -17,14 +17,14 @@ function getSession():Session|null{
   }catch{return null}
 }
 const migrationStages=[
-  {entity:'BUILDING',label:'1. Buildings',description:'Import the society structure first.'},
-  {entity:'UNIT',label:'2. Units',description:'Units depend on committed buildings.'},
-  {entity:'RESIDENT',label:'3. Residents',description:'Residents depend on committed units.'},
-  {entity:'VEHICLE',label:'4. Vehicles',description:'Vehicle ownership depends on residents and units.'},
-  {entity:'PARKING',label:'5. Parking',description:'Parking assignments depend on units and vehicles.'},
-  {entity:'WORKFORCE',label:'6. Workforce',description:'Import staff and domestic-help identities.'},
-  {entity:'VENDOR',label:'7. Vendors',description:'Import operational vendors before launch.'},
-  {entity:'OPENING_BALANCE',label:'8. Opening balances',description:'Reconcile finance only after society structure is stable.'},
+  {entity:'BUILDING',group:'Structure',label:'1. Buildings',description:'Import the society structure first.',headers:['code','name']},
+  {entity:'UNIT',group:'Structure',label:'2. Units',description:'Units depend on committed buildings.',headers:['buildingCode','unitNumber']},
+  {entity:'RESIDENT',group:'People',label:'3. Residents',description:'Residents depend on committed units.',headers:['buildingCode','unitNumber','name','phone','relation']},
+  {entity:'VEHICLE',group:'Access',label:'4. Vehicles',description:'Vehicle ownership depends on residents and units.',headers:['buildingCode','unitNumber','plateNumber','vehicleType']},
+  {entity:'PARKING',group:'Access',label:'5. Parking',description:'Parking assignments depend on units and vehicles.',headers:['buildingCode','unitNumber','plateNumber','parkingSlot']},
+  {entity:'WORKFORCE',group:'Operations',label:'6. Workforce',description:'Import staff and domestic-help identities.',headers:['buildingCode','unitNumber','name','phone','role']},
+  {entity:'VENDOR',group:'Operations',label:'7. Vendors',description:'Import operational vendors before launch.',headers:['name','category','phone','email']},
+  {entity:'OPENING_BALANCE',group:'Finance',label:'8. Opening balances',description:'Reconcile finance only after society structure is stable.',headers:['buildingCode','unitNumber','amount','type','asOfDate']},
 ] as const
 
 export default function MigrationPage(){
@@ -77,6 +77,17 @@ export default function MigrationPage(){
     }finally{
       setBusy(false)
     }
+  }
+
+  const downloadTemplate=(stage:typeof migrationStages[number])=>{
+    const csv=stage.headers.join(',')+'\n'
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a')
+    a.href=url
+    a.download='aaraagate-'+stage.entity.toLowerCase().replaceAll('_','-')+'-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const download=async()=>{
@@ -175,12 +186,30 @@ export default function MigrationPage(){
                 <b>{item.label}</b>
                 <span>{item.status}</span>
               </div>
-              <small>{item.description}</small>
+              <small>{item.group} · {item.description}</small>
               {item.blocked&&<small>Blocked until the previous stage is committed.</small>}
               {!item.blocked&&item.ready&&!item.committed&&<small>Evidence is ready for operator review and explicit commit.</small>}
+              {!item.committed&&<button type="button" style={templateButton} onClick={()=>downloadTemplate(item)}>Download CSV template</button>}
             </article>
           ))}
         </div>
+      </section>
+
+      <section style={panel}>
+        <h2>Guided onboarding path</h2>
+        <p>Use the templates to prepare source data before creating a dry-run batch. Every stage still goes through validation, evidence review and explicit commit.</p>
+        <div style={grid}>
+          {['Structure','People','Access','Operations','Finance'].map(group=>{
+            const stages=progress.filter(item=>item.group===group)
+            const complete=stages.every(item=>item.committed)
+            return <article key={group} style={card}>
+              <b>{group}</b>
+              <span>{complete?'Complete':stages.some(item=>item.ready)?'Review ready':'In progress'}</span>
+              <small>{stages.map(item=>item.entity.replaceAll('_',' ')).join(' → ')}</small>
+            </article>
+          })}
+        </div>
+        <small>Templates describe Aaraagate’s accepted onboarding shape only. They do not claim compatibility with any competitor export or guarantee external-source completeness.</small>
       </section>
 
       <section style={panel}>
@@ -299,3 +328,5 @@ const primary:React.CSSProperties={...button,background:'#05879A',color:'white',
 const readinessBox:React.CSSProperties={marginTop:16,padding:14,border:'1px solid #dbe7ea',borderRadius:12,display:'grid',gap:8}
 const confirmationBox:React.CSSProperties={...readinessBox,gap:10}
 const errorBox:React.CSSProperties={marginTop:18,padding:12,border:'1px solid #ef4444',borderRadius:10}
+
+const templateButton:React.CSSProperties={marginTop:8,padding:'7px 10px',border:'1px solid #cbd5e1',borderRadius:8,background:'#f8fafc',fontWeight:700,textAlign:'left'}

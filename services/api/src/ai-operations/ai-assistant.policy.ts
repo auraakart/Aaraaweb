@@ -5,6 +5,8 @@ export type AiAssistantIntent =
   | 'SOCIETY_FINANCE'
   | 'RESIDENT_STATUS'
   | 'RESIDENT_WORKFORCE'
+  | 'RESIDENT_UTILITIES'
+  | 'RESIDENT_REQUESTS'
   | 'HELPDESK_OPERATIONS'
   | 'SECURITY_EVENTS'
   | 'FACILITIES'
@@ -14,6 +16,7 @@ export type AiAssistantIntent =
   | 'RESIDENT_GATE'
   | 'GOVERNANCE'
   | 'SOCIETY_KNOWLEDGE'
+  | 'MULTI_DOMAIN'
   | 'UNSUPPORTED';
 
 export type AiAssistantToolId = Exclude<AiAssistantIntent, 'UNSUPPORTED'>;
@@ -30,6 +33,8 @@ export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
   {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.PAYMENT_CREATE_OWN,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
   {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_UTILITIES',label:'Property utility usage',context:'PROPERTY',permissions:[AppPermission.PAYMENT_CREATE_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_REQUESTS',label:'Resident requests and certificates',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN],permissionMode:'ALL'},
   {id:'HELPDESK_OPERATIONS',label:'Helpdesk operations',context:'SOCIETY',permissions:[AppPermission.HELPDESK_REVIEW],permissionMode:'ALL'},
   {id:'SECURITY_EVENTS',label:'Security events',context:'SOCIETY',permissions:[AppPermission.AUDIT_READ],permissionMode:'ALL'},
   {id:'FACILITIES',label:'Facilities',context:'SOCIETY',permissions:[AppPermission.FACILITIES_READ],permissionMode:'ALL'},
@@ -50,6 +55,8 @@ export function residentIntentRoutingText(text: string) {
     [/सूचना|அறிவிப்பு|ప్రకటన|ಪ್ರಕಟಣೆ|അറിയിപ്പ്|নোটিশ/u,' notice announcement community update '],
     [/सुविधा|सेवा|வசதி|சேவை|సౌకర్యం|సేవ|ಸೌಲಭ್ಯ|ಸೇವೆ|സൗകര്യം|സേവനം|সুবিধা|সেবা/u,' amenity service provider booking '],
     [/कामवाली|घरेलू कर्मचारी|स्टाफ|வேலைக்காரர்|வீட்டு பணியாளர்|సిబ్బంది|ఇంటి పనివారు|ಸಿಬ್ಬಂದಿ|ಮನೆ ಕೆಲಸಗಾರ|സ്റ്റാഫ്|വീട്ടുജോലിക്കാർ|घरकाम|कर्मचारी|গৃহকর্মী|স্টাফ/u,' household staff domestic help worker workforce '],
+    [/मीटर|बिजली|पानी|மீட்டர்|மின்சாரம்|தண்ணீர்|మీటర్|విద్యుత్|నీరు|ಮೀಟರ್|ವಿದ್ಯುತ್|ನೀರು|മീറ്റർ|വൈദ്യുതി|വെള്ളം|মিটার|বিদ্যুৎ|পানি/u,' utility meter consumption reading electricity water '],
+    [/एनओसी|नो ड्यूज|प्रमाणपत्र|சான்றிதழ்|என்ஓசி|సర్టిఫికేట్|ಎನ್‌ಒಸಿ|ಪ್ರಮಾಣಪತ್ರ|എൻഒസി|സർട്ടിഫിക്കറ്റ്|এনওসি|সার্টিফিকেট/u,' resident request noc no dues certificate address proof permission letter '],
   ];
   for (const [pattern, hint] of groups) if (pattern.test(text)) hints.push(hint);
   return `${text} ${hints.join(' ')}`.trim();

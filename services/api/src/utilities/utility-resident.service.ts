@@ -84,4 +84,162 @@ export class UtilityResidentService {
       LIMIT 1000
     `);
   }
+
+  async residentInsights(societyId: string, userId: string, unitId?: string) {
+    const usage=await this.listUsageHistory(societyId,userId,unitId);
+    const providerRows=await this.prisma.$queryRaw<Array<{meterId:string;providerLinked:boolean}>>(Prisma.sql`
+      SELECT m."id" AS "meterId",
+        EXISTS (
+          SELECT 1
+          FROM "UtilityIntegrationMeterMap" map
+          JOIN "UtilityIntegration" integration
+            ON integration."id"=map."integrationId"
+           AND integration."societyId"=map."societyId"
+           AND integration."status"='ACTIVE'
+          WHERE map."societyId"=m."societyId"
+            AND map."meterId"=m."id"
+            AND map."active"=TRUE
+        ) AS "providerLinked"
+      FROM "UtilityMeter" m
+      WHERE m."societyId"=${societyId}::uuid
+        AND m."active"=TRUE
+        AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
+        AND (
+          EXISTS (
+            SELECT 1 FROM "UnitOwnership" ow
+            WHERE ow."societyId"=${societyId}::uuid
+              AND ow."unitId"=m."unitId"
+              AND ow."userId"=${userId}::uuid
+              AND ow."verified"=TRUE AND ow."active"=TRUE
+              AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+          )
+          OR EXISTS (
+            SELECT 1 FROM "UnitOccupancy" oc
+            WHERE oc."societyId"=${societyId}::uuid
+              AND oc."unitId"=m."unitId"
+              AND oc."userId"=${userId}::uuid
+              AND oc."active"=TRUE
+              AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+              AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+          )
+        )
+    `);
+    const providerByMeter=new Map(providerRows.map((row)=>[row.meterId,row.providerLinked]));
+    const grouped=new Map<string,Array<Record<string,unknown>>>();
+    for(const row of usage){
+      const meterId=String(row.meterId??'');
+      if(!meterId) continue;
+      const current=grouped.get(meterId)??[];
+      current.push(row);
+      grouped.set(meterId,current);
+    }
+    const meters=[...grouped.entries()].map(([meterId,rows])=>{
+      const samples=rows
+        .map((row)=>({row,value:Number(row.consumptionSincePrevious)}))
+        .filter((item)=>Number.isFinite(item.value)&&item.value>=0)
+        .slice(0,6);
+      const latest=samples[0]?.value??null;
+      const baselineValues=samples.slice(1).map((item)=>item.value);
+      const baselineAverage=baselineValues.length
+        ? baselineValues.reduce((sum,value)=>sum+value,0)/baselineValues.length
+        : null;
+      const changePercent=latest!==null&&baselineAverage!==null&&baselineAverage>0
+        ? Math.round(((latest-baselineAverage)/baselineAverage)*1000)/10
+        : null;
+      const attention=
+        latest===null||baselineAverage===null?'INSUFFICIENT_EVIDENCE':
+        baselineAverage>0&&latest>baselineAverage*1.5?'HIGHER_THAN_RECENT':
+        baselineAverage>0&&latest<baselineAverage*0.5?'LOWER_THAN_RECENT':
+        'NORMAL_RANGE';
+      const head=rows[0]??{};
+      return {
+        meterId,
+        unitId:head.unitId??null,
+        meterCode:head.meterCode??null,
+        meterLabel:head.meterLabel??null,
+        meterType:head.meterType??null,
+        latestReadingAt:head.readingAt??null,
+        latestConsumption:latest,
+        recentBaselineAverage:baselineAverage===null?null:Math.round(baselineAverage*1000)/1000,
+        changePercent,
+        attention,
+        providerLinked:providerByMeter.get(meterId)===true,
+        prepaidBalanceAvailable:false,
+        rechargeExecutionAvailable:false,
+      };
+    });
+    return {
+      meters,
+      attentionCount:meters.filter((meter)=>meter.attention==='HIGHER_THAN_RECENT').length,
+      providerLinkedCount:meters.filter((meter)=>meter.providerLinked).length,
+      prepaid:{
+        balanceEvidenceAvailable:false,
+        rechargeExecutionAvailable:false,
+        boundary:'Aaraagate can ingest meter readings through provider-neutral integrations. Prepaid balance and recharge execution remain unavailable until an explicit provider adapter supplies authoritative balance and credit-confirmation evidence.',
+      },
+      boundary:'Consumption attention compares recent recorded deltas only. It is a deterministic usage signal, not a leak, fault or billing diagnosis.',
+    };
+  }
+
+  listUsageHistory(societyId: string, userId: string, unitId?: string) {
+    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      WITH allowed_meters AS (
+        SELECT m."id",m."unitId",m."code",m."label",m."meterType",
+               u."number" AS "unitNumber",b."name" AS "buildingName"
+        FROM "UtilityMeter" m
+        JOIN "Unit" u ON u."id"=m."unitId" AND u."societyId"=m."societyId"
+        JOIN "Building" b ON b."id"=u."buildingId" AND b."societyId"=m."societyId"
+        WHERE m."societyId"=${societyId}::uuid
+          AND m."active"=TRUE
+          AND (${unitId ?? null}::uuid IS NULL OR m."unitId"=${unitId ?? null}::uuid)
+          AND (
+            EXISTS (
+              SELECT 1 FROM "UnitOwnership" ow
+              WHERE ow."societyId"=${societyId}::uuid
+                AND ow."unitId"=m."unitId"
+                AND ow."userId"=${userId}::uuid
+                AND ow."verified"=TRUE
+                AND ow."active"=TRUE
+                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
+            )
+            OR EXISTS (
+              SELECT 1 FROM "UnitOccupancy" oc
+              WHERE oc."societyId"=${societyId}::uuid
+                AND oc."unitId"=m."unitId"
+                AND oc."userId"=${userId}::uuid
+                AND oc."active"=TRUE
+                AND oc."effectiveFrom"<=CURRENT_TIMESTAMP
+                AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP)
+            )
+          )
+      ),
+      readings AS (
+        SELECT r."id",r."meterId",r."readingAt",r."value",r."readingKind",r."source",
+          lag(r."value") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousValue",
+          lag(r."readingKind") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousKind"
+        FROM "UtilityReading" r
+        JOIN allowed_meters am ON am."id"=r."meterId"
+        WHERE r."societyId"=${societyId}::uuid
+          AND r."readingAt">=CURRENT_TIMESTAMP-INTERVAL '13 months'
+      )
+      SELECT
+        am."id" AS "meterId",am."unitId",am."code" AS "meterCode",am."label" AS "meterLabel",
+        am."meterType",am."unitNumber",am."buildingName",
+        rr."id" AS "readingId",rr."readingAt",rr."value"::text AS "value",
+        rr."readingKind",rr."source",
+        CASE
+          WHEN rr."previousValue" IS NULL THEN NULL
+          WHEN rr."readingKind"='RESET' OR rr."previousKind"='RESET' THEN NULL
+          WHEN rr."value"<rr."previousValue" THEN NULL
+          ELSE (rr."value"-rr."previousValue")::text
+        END AS "consumptionSincePrevious"
+      FROM allowed_meters am
+      LEFT JOIN readings rr ON rr."meterId"=am."id"
+      ORDER BY am."meterType",am."code",rr."readingAt" DESC NULLS LAST
+      LIMIT 1000
+    `);
+  }
+
 }

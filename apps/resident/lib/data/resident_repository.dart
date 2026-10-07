@@ -15,6 +15,7 @@ class ResidentRepository {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -22,6 +23,7 @@ class ResidentRepository {
       'name': name.trim(),
       'phone': phone.trim(),
       'gateApprovalEnabled': gateApprovalEnabled,
+      'gateApprovalExpiresAt': gateApprovalEnabled ? gateApprovalExpiresAt?.toUtc().toIso8601String() : null,
       'gateNotificationEnabled': gateNotificationEnabled,
       'primaryGateContact': primaryGateContact,
     });
@@ -32,11 +34,15 @@ class ResidentRepository {
     required String householdId,
     required String occupancyId,
     bool? gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
+    bool clearGateApprovalExpiry = false,
     bool? gateNotificationEnabled,
     bool? primaryGateContact,
   }) async {
     final value = await api.patch('/api/v1/households/$householdId/family-members/$occupancyId', {
       if (gateApprovalEnabled != null) 'gateApprovalEnabled': gateApprovalEnabled,
+      if (gateApprovalExpiresAt != null) 'gateApprovalExpiresAt': gateApprovalExpiresAt.toUtc().toIso8601String(),
+      if (clearGateApprovalExpiry) 'gateApprovalExpiresAt': null,
       if (gateNotificationEnabled != null) 'gateNotificationEnabled': gateNotificationEnabled,
       if (primaryGateContact != null) 'primaryGateContact': primaryGateContact,
     });
@@ -84,6 +90,84 @@ class ResidentRepository {
   Future<List<Map<String, dynamic>>> communityEvents() async {
     final value = await api.get('/api/v1/community-events');
     return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> residentDirectory() async {
+    final value = await api.get('/api/v1/resident-directory');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> residentDirectoryProfile() async {
+    final value = await api.get('/api/v1/resident-directory/mine');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> updateResidentDirectoryProfile({
+    required bool visible,
+    required String displayName,
+    String? bio,
+    List<String> interests = const [],
+  }) async {
+    final value = await api.put('/api/v1/resident-directory/mine', {
+      'visible': visible,
+      'displayName': displayName.trim(),
+      if (bio != null && bio.trim().isNotEmpty) 'bio': bio.trim(),
+      'interests': interests.map((value) => value.trim()).where((value) => value.isNotEmpty).toList(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> residentDirectoryContactRequests() async {
+    final value = await api.get('/api/v1/resident-directory/contact-requests/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> requestResidentDirectoryContact(String userId, {String? message}) async {
+    final value = await api.post('/api/v1/resident-directory/$userId/contact-requests', {
+      if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> respondResidentDirectoryContact(String requestId, {
+    required String status,
+    String? responseNote,
+  }) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/respond', {
+      'status': status,
+      if (responseNote != null && responseNote.trim().isNotEmpty) 'responseNote': responseNote.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> withdrawResidentDirectoryContact(String requestId) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/withdraw', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> communityCircles() async {
+    final value = await api.get('/api/v1/community-circles');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> joinCommunityCircle(String circleId) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/join', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> leaveCommunityCircle(String circleId) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/leave', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> communityCirclePosts(String circleId) async {
+    final value = await api.get('/api/v1/community-circles/$circleId/posts');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> createCommunityCirclePost({required String circleId, required String body}) async {
+    final value = await api.post('/api/v1/community-circles/$circleId/posts', {'body': body.trim()});
+    return Map<String, dynamic>.from(value as Map);
   }
 
   Future<Map<String, dynamic>> respondCommunityEvent({required String eventId, required String status}) async {
@@ -148,6 +232,47 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<Map<String, dynamic>> workforceAttendance(
+    String assignmentId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T').first;
+    if (to != null) params['to'] = to.toIso8601String().split('T').first;
+    final suffix = params.isEmpty
+        ? ''
+        : '?${params.entries.map((entry) => '${entry.key}=${Uri.encodeQueryComponent(entry.value)}').join('&')}';
+    final value = await api.get('/api/v1/workforce/assignments/$assignmentId/attendance$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> workforcePayments() async {
+    final value = await api.get('/api/v1/workforce/payments/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> recordWorkforcePayment({
+    required String assignmentId,
+    required String kind,
+    required int amountPaise,
+    required DateTime paymentDate,
+    String? periodMonth,
+    String? note,
+    required String idempotencyKey,
+  }) async {
+    final value = await api.post('/api/v1/workforce/payments', {
+      'assignmentId': assignmentId,
+      'kind': kind,
+      'amountPaise': amountPaise,
+      'paymentDate': paymentDate.toIso8601String().split('T').first,
+      if (periodMonth != null && periodMonth.isNotEmpty) 'periodMonth': periodMonth,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      'idempotencyKey': idempotencyKey,
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<Map<String, dynamic>> addWorkforce({required String householdId, required String name, required String phone, required String role}) async {
     final value = await api.post('/api/v1/workforce', {'householdId': householdId, 'name': name.trim(), 'phone': phone.trim(), 'role': role});
     return Map<String, dynamic>.from(value as Map);
@@ -162,6 +287,23 @@ class ResidentRepository {
     final value = await api.get('/api/v1/helpdesk/mine');
     return _list(value).map((row) => ResidentHelpdeskTicket.fromJson(row).toJson()).toList(growable: false);
   }
+
+  Future<List<Map<String, dynamic>>> issuedUtilityCharges() async {
+    final value = await api.get('/api/v1/utilities/v2/resident/charges');
+    return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> utilityUsageHistory({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=${Uri.encodeQueryComponent(unitId)}';
+    final value = await api.get('/api/v1/utilities/v2/resident/usage$suffix');
+    return _list(value);
+  }
+  Future<Map<String, dynamic>> utilityInsights({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=${Uri.encodeQueryComponent(unitId)}';
+    final value = await api.get('/api/v1/utilities/v2/resident/insights$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
 
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
     final value = await api.get('/api/v1/billing/invoices/payable');

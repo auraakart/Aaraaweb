@@ -43,7 +43,7 @@ for(const required of [
 ]) if(!preflight.includes(required)) fail(`production preflight missing ${required}`);
 
 const ci=await read('.github/workflows/ci.yml');
-if(!ci.includes('pnpm audit --audit-level high')) fail('dependency security audit is not enforced in CI');
+if(!ci.includes('node scripts/check-dependency-risk-budget.mjs') && !ci.includes('pnpm audit --audit-level high')) fail('dependency security audit is not enforced in CI');
 
 const reportsController=await read('services/api/src/reports/reports.controller.ts');
 for(const required of [

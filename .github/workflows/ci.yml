@@ -218,6 +218,19 @@ jobs:
           test -f docs/AARAAGATE-V4.81.2-MAINTAINABILITY-TENANT-HARDENING.md
           test -f scripts/check-v4.81.3-main-validation-reuse.mjs
           test -f docs/AARAAGATE-V4.81.3-MAIN-VALIDATION-REUSE.md
+          test -f scripts/check-v4.81.4-privacy-dependency-hardening.mjs
+          test -f docs/AARAAGATE-V4.81.4-PRIVACY-DEPENDENCY-HARDENING.md
+          test -f scripts/check-v4.81.5-maintainability-hygiene.mjs
+          test -f docs/AARAAGATE-V4.81.5-MAINTAINABILITY-HYGIENE.md
+          test -f scripts/check-v4.82-competitive-resident-operations.mjs
+          test -f docs/AARAAGATE-V4.82-COMPETITIVE-RESIDENT-OPERATIONS-DEPTH.md
+          test -f scripts/check-v4.83-automation-convenience-adoption.mjs
+          test -f docs/AARAAGATE-V4.83-AUTOMATION-CONVENIENCE-ADOPTION.md
+          test -f scripts/check-v4.83.1-insta-services-entry.mjs
+          test -f docs/AARAAGATE-V4.83.1-INSTA-SERVICES-ENTRY.md
+          test -f scripts/check-v4.83.2-grounded-operations-copilot.mjs
+          test -f docs/AARAAGATE-V4.83.2-GROUNDED-OPERATIONS-COPILOT.md
+          test -f docs/REPOSITORY-GOVERNANCE.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
           test -f scripts/open-main-release-pr.sh
@@ -258,6 +271,18 @@ jobs:
         run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
       - name: Check V4.81.3 main validation reuse
         run: node scripts/check-v4.81.3-main-validation-reuse.mjs
+      - name: Check V4.81.4 privacy and dependency hardening
+        run: node scripts/check-v4.81.4-privacy-dependency-hardening.mjs
+      - name: Check V4.81.5 maintainability and hygiene
+        run: node scripts/check-v4.81.5-maintainability-hygiene.mjs
+      - name: Check V4.82 competitive Resident and Operations Depth
+        run: node scripts/check-v4.82-competitive-resident-operations.mjs
+      - name: Check V4.83 automation convenience and adoption depth
+        run: node scripts/check-v4.83-automation-convenience-adoption.mjs
+      - name: Check V4.83.1 Insta Services entry
+        run: node scripts/check-v4.83.1-insta-services-entry.mjs
+      - name: Check V4.83.2 Grounded Operations Copilot 2.0
+        run: node scripts/check-v4.83.2-grounded-operations-copilot.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
@@ -372,7 +397,7 @@ jobs:
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
       - name: Install exact API coverage provider
-        run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@3.2.7
+        run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@5.0.2
       - name: Regenerate Prisma client after transient coverage install
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Risk-weighted API coverage gate
@@ -564,6 +589,10 @@ jobs:
           test/home_action_inbox_dedup_test.dart
           test/community_poll_participation_test.dart
           test/amenities_screen_test.dart
+          test/family_member_recovery_test.dart
+          test/emergency_contact_recovery_test.dart
+          test/workforce_modal_lifecycle_test.dart
+          test/notices_acknowledgement_test.dart
       - name: Risk-weighted Resident coverage gate
         if: needs.change-scope.outputs.run_resident == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/resident/coverage/lcov.info resident
@@ -655,8 +684,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Audit high and critical npm vulnerabilities
-        run: pnpm audit --audit-level high
+      - name: Audit dependency vulnerability budget
+        run: node scripts/check-dependency-risk-budget.mjs
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
 

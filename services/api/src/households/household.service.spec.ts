@@ -219,6 +219,134 @@ describe('HouseholdService', () => {
     expect(prisma.householdVehicle.update).not.toHaveBeenCalled();
   });
 
+  it('clears a family gate-approval expiry when approval authority is disabled', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'member-1', gateApprovalEnabled: false, gateApprovalExpiresAt: null });
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-link-1' }) },
+      unitOccupancy: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'member-1',
+          unitId: 'unit-1',
+          userId: 'family-1',
+          societyId: 'society-1',
+          active: true,
+          relation: 'FAMILY_MEMBER',
+          gateApprovalEnabled: true,
+          gateApprovalExpiresAt: new Date(Date.now() + 86_400_000),
+        }),
+        updateMany: vi.fn(),
+        update,
+      },
+    });
+
+    await svc.updateFamilyMember('society-1', 'owner-1', 'household-1', 'member-1', {
+      gateApprovalEnabled: false,
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'member-1' },
+      data: expect.objectContaining({
+        gateApprovalEnabled: false,
+        gateApprovalExpiresAt: null,
+      }),
+    });
+  });
+
+  it('accepts a future family gate-approval expiry within the two-year authority window', async () => {
+    const expiry = new Date(Date.now() + 30 * 86_400_000);
+    const update = vi.fn().mockResolvedValue({ id: 'member-1', gateApprovalEnabled: true, gateApprovalExpiresAt: expiry });
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-link-1' }) },
+      unitOccupancy: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'member-1',
+          unitId: 'unit-1',
+          userId: 'family-1',
+          societyId: 'society-1',
+          active: true,
+          relation: 'FAMILY_MEMBER',
+          gateApprovalEnabled: true,
+          gateApprovalExpiresAt: null,
+        }),
+        updateMany: vi.fn(),
+        update,
+      },
+    });
+
+    await svc.updateFamilyMember('society-1', 'owner-1', 'household-1', 'member-1', {
+      gateApprovalEnabled: true,
+      gateApprovalExpiresAt: expiry.toISOString(),
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'member-1' },
+      data: expect.objectContaining({
+        gateApprovalEnabled: true,
+        gateApprovalExpiresAt: expect.any(Date),
+      }),
+    });
+  });
+
+  it('rejects an expired family gate-approval authority date', async () => {
+    const update = vi.fn();
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-link-1' }) },
+      unitOccupancy: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'member-1',
+          unitId: 'unit-1',
+          userId: 'family-1',
+          societyId: 'society-1',
+          active: true,
+          relation: 'FAMILY_MEMBER',
+          gateApprovalEnabled: true,
+          gateApprovalExpiresAt: null,
+        }),
+        updateMany: vi.fn(),
+        update,
+      },
+    });
+
+    await expect(svc.updateFamilyMember('society-1', 'owner-1', 'household-1', 'member-1', {
+      gateApprovalEnabled: true,
+      gateApprovalExpiresAt: new Date(Date.now() - 60_000).toISOString(),
+    })).rejects.toThrow('Gate approval expiry must be in the future');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a family gate-approval expiry more than two years ahead', async () => {
+    const update = vi.fn();
+    const expiry = new Date();
+    expiry.setUTCFullYear(expiry.getUTCFullYear() + 3);
+    const { svc } = service({
+      unitOwnership: { findFirst: vi.fn().mockResolvedValue({ id: 'owner-link-1' }) },
+      unitOccupancy: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'member-1',
+          unitId: 'unit-1',
+          userId: 'family-1',
+          societyId: 'society-1',
+          active: true,
+          relation: 'FAMILY_MEMBER',
+          gateApprovalEnabled: true,
+          gateApprovalExpiresAt: null,
+        }),
+        updateMany: vi.fn(),
+        update,
+      },
+    });
+
+    await expect(svc.updateFamilyMember('society-1', 'owner-1', 'household-1', 'member-1', {
+      gateApprovalEnabled: true,
+      gateApprovalExpiresAt: expiry.toISOString(),
+    })).rejects.toThrow('Gate approval expiry cannot be more than two years in the future');
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('rejects family-member management by a resident without verified current ownership', async () => {
     const { svc } = service({
       unitOwnership: { findFirst: vi.fn().mockResolvedValue(null) },

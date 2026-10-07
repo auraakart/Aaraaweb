@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{
@@ -16,9 +17,10 @@ const forbidTokens=(label,source,tokens)=>{
   }
 };
 
-const service=read('services/api/src/amenities/amenities.service.ts');
+const service=readContractBundle('amenities');
+const bookingCreator=read('services/api/src/amenities/amenity-booking-creator.ts');
 const policyEngine=read('services/api/src/amenities/amenity-policy.engine.ts');
-const amenityDomain=`${service}\n${policyEngine}`;
+const amenityDomain=`${service}\n${bookingCreator}\n${policyEngine}`;
 requireTokens('Amenity guest policy',amenityDomain,[
   'maxGuestsPerBooking',
   'validateGuestCount',

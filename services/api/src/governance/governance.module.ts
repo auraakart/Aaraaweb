@@ -2,7 +2,11 @@ import { Module } from '@nestjs/common';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommunityEventsController } from './community-events.controller';
+import { CommunityCirclesController } from './community-circles.controller';
 import { CommunityEventsService } from './community-events.service';
+import { CommunityCirclesService } from './community-circles.service';
+import { ResidentDirectoryController } from './resident-directory.controller';
+import { ResidentDirectoryService } from './resident-directory.service';
 import { GovernanceArtifactsController } from './governance-artifacts.controller';
 import { GovernanceCommunityController } from './governance-community.controller';
 import { GovernanceController } from './governance.controller';
@@ -17,8 +21,8 @@ import { GovernanceService } from './governance.service';
 
 @Module({
   imports:[EntitlementsModule],
-  controllers:[GovernanceController,GovernanceCommunityController,CommunityEventsController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController,GovernanceElectionHoldController],
-  providers:[GovernanceService,CommunityEventsService,PrismaService],
+  controllers:[GovernanceController,GovernanceCommunityController,CommunityEventsController,CommunityCirclesController,ResidentDirectoryController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController,GovernanceElectionHoldController],
+  providers:[GovernanceService,CommunityEventsService,CommunityCirclesService,ResidentDirectoryService,PrismaService],
   exports:[GovernanceService],
 })
 export class GovernanceModule{}

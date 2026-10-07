@@ -8,6 +8,7 @@ type CurrentEntitlements={enabledFeatures?:string[]}
 type Card={href:string;title:string;description:string}
 type AttentionCard={
   id:string
+  recommendationKey?:string
   domain:string
   severity:'LOW'|'MEDIUM'|'HIGH'
   title:string
@@ -15,8 +16,12 @@ type AttentionCard={
   prompt:string
   sources:string[]
   metrics:Record<string,number|string|null>
+  evidenceQuality?:{confidence:string;sourceCount:number;recordCount:number;causalClaim:false}
+  baseline?:{metric:string;current?:number;typical:number|null;changePercent?:number|null;confidence:string}|null
+  lastOutcome?:{status:string;createdAt:string}|null
 }
-type ActionCentre={cards:AttentionCard[];generatedAt?:string;grounded:boolean;mutationPerformed:boolean}
+type Hypothesis={id:string;statement:string;confidence:'MEDIUM'|'LOW';supportingEvidence:string[];contradictingEvidence:string[];nextVerification:string}
+type ActionCentre={cards:AttentionCard[];hypotheses?:Hypothesis[];brief?:{topPriorities?:Array<{recommendationKey:string;title:string;severity:string;recommendedNextStep:string}>};generatedAt?:string;grounded:boolean;mutationPerformed:boolean}
 const emergencyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','SECURITY_SUPERVISOR'])
 const privacyRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
 const domainHref:Record<string,string>={
@@ -52,12 +57,13 @@ export default function OperationsControlPage(){
     state={loading?'loading':'ready'}
     status={{label:attention.length===0?'CLEAR':`${attention.length} ITEMS`,tone:attention.some(item=>item.severity==='HIGH')?'danger':attention.length?'warning':'success'}}
     blockers={blockers}
-    nextActions={attention.slice(0,4).map(item=>item.summary)}
+    nextActions={centre?.brief?.topPriorities?.slice(0,4).map(item=>`${item.title}: ${item.recommendedNextStep}`)??attention.slice(0,4).map(item=>item.summary)}
     boundary="Attention is descriptive and permission-scoped. Domain services, authorization, maker-checker controls and audit trails remain authoritative."
   />
   <section aria-labelledby="attention-heading" style={panel}>
     <div style={sectionHeader}><div><h2 id="attention-heading" style={{margin:'0 0 4px'}}>Needs attention now</h2><small>{centre?.generatedAt?`Updated ${new Date(centre.generatedAt).toLocaleString('en-IN')}`:'Read-only authoritative signals'}</small></div><StatusPill label={centre?.grounded===false?'UNVERIFIED':'GROUNDED'} tone={centre?.grounded===false?'warning':'success'}/></div>
-    {loading?<p>Loading operational attention…</p>:attention.length===0?<EmptyState title="No role-visible operational exceptions need attention" description="Use the domain workspaces below for routine operations."/>:<div style={attentionGrid}>{attention.map(item=><a key={item.id} href={domainHref[item.domain]??'/ai-assistant'} style={attentionCard}><div style={attentionTop}><StatusPill label={item.severity} tone={severityTone(item.severity)}/><small>{item.domain}</small></div><strong>{item.title}</strong><span>{item.summary}</span><small>Sources: {item.sources.join(', ')||'authoritative domain records'}</small><span style={deepLink}>Open owning workflow →</span></a>)}</div>}
+    {loading?<p>Loading operational attention…</p>:attention.length===0?<EmptyState title="No role-visible operational exceptions need attention" description="Use the domain workspaces below for routine operations."/>:<div style={attentionGrid}>{attention.map(item=><a key={item.recommendationKey??item.id} href={domainHref[item.domain]??'/ai-assistant'} style={attentionCard}><div style={attentionTop}><StatusPill label={item.severity} tone={severityTone(item.severity)}/><small>{item.domain}</small></div><strong>{item.title}</strong><span>{item.summary}</span>{item.evidenceQuality&&<small>Evidence confidence: {item.evidenceQuality.confidence} · {item.evidenceQuality.sourceCount} source sets · causal claim: no</small>}{item.baseline&&<small>Society baseline: {item.baseline.metric} · current {item.baseline.current??'—'} · typical {item.baseline.typical??'—'}{item.baseline.changePercent!=null?` · ${item.baseline.changePercent}%`:''}</small>}{item.lastOutcome&&<small>Last outcome: {item.lastOutcome.status} · {new Date(item.lastOutcome.createdAt).toLocaleString('en-IN')}</small>}<small>Sources: {item.sources.join(', ')||'authoritative domain records'}</small><span style={deepLink}>Open owning workflow →</span></a>)}</div>}
+    {centre?.hypotheses&&centre.hypotheses.length>0&&<div style={hypothesisBox}><strong>Cross-domain hypotheses to verify</strong>{centre.hypotheses.map(item=><div key={item.id}><span>{item.confidence} confidence · {item.statement}</span><small>Supports: {item.supportingEvidence.join(' · ')}</small><small>Limits: {item.contradictingEvidence.join(' · ')}</small><small>Verify next: {item.nextVerification}</small></div>)}</div>}
   </section>
   <section aria-labelledby="control-heading" style={panel}>
     <h2 id="control-heading" style={{marginTop:0}}>Control workspaces</h2>
@@ -72,3 +78,5 @@ const attentionGrid:React.CSSProperties={display:'grid',gridTemplateColumns:'rep
 const attentionCard:React.CSSProperties={display:'grid',gap:8,padding:16,border:'1px solid #d5e8eb',borderRadius:14,textDecoration:'none',color:'inherit',background:'#fbfefe'}
 const attentionTop:React.CSSProperties={display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}
 const deepLink:React.CSSProperties={fontWeight:700,color:'#05879a'}
+
+const hypothesisBox:React.CSSProperties={display:'grid',gap:10,padding:14,border:'1px solid #d5e8eb',borderRadius:14,background:'#f8fbfc'}

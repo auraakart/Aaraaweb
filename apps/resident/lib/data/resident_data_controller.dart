@@ -4,9 +4,11 @@ import '../models/service_catalog_models.dart';
 import 'emergency_contact_actions.dart';
 import 'push_registration_service.dart';
 import 'resident_repository.dart';
+import 'resident_guest_invite_coordinator.dart';
 import 'resident_state_snapshots.dart';
 
 part 'resident_data_loading.dart';
+part 'resident_workforce_history.dart';
 
 class ResidentDataController extends ChangeNotifier {
   ResidentDataController(
@@ -15,7 +17,8 @@ class ResidentDataController extends ChangeNotifier {
     Set<String>? initialEnabledFeatures,
     this.fetchEntitlements = true,
   })  : enabledFeatures = {...?initialEnabledFeatures},
-        push = PushRegistrationService(repository);
+        push = PushRegistrationService(repository),
+        _guestInvites = ResidentGuestInviteCoordinator();
 
   final ResidentRepository repository;
   final PushRegistrationService push;
@@ -50,6 +53,7 @@ class ResidentDataController extends ChangeNotifier {
   List<Map<String, dynamic>> workforceAssignments = const [];
   List<Map<String, dynamic>> workforceLeaves = const [];
   List<Map<String, dynamic>> workforceRatings = const [];
+  List<Map<String, dynamic>> workforcePayments = const [];
   List<Map<String, dynamic>> maintenanceInvoices = const [];
   List<Map<String, dynamic>> maintenancePayments = const [];
   List<Map<String, dynamic>> helpdeskTickets = const [];
@@ -59,9 +63,7 @@ class ResidentDataController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _accessEvents;
   Timer? _reconnectTimer;
   Future<void>? _loadInFlight;
-  _GuestInviteAttempt? _pendingGuestInviteAttempt;
-  Future<Map<String, dynamic>>? _guestInviteInFlight;
-  String? _guestInviteInFlightSignature;
+  final ResidentGuestInviteCoordinator _guestInvites;
   final Map<String, String> _emergencyContactAttemptKeys = <String, String>{};
   bool _disposed = false;
 
@@ -142,6 +144,7 @@ class ResidentDataController extends ChangeNotifier {
         workforceAssignments = const [];
         workforceLeaves = const [];
         workforceRatings = const [];
+        workforcePayments = const [];
       }
       if (hasFeature('MAINTENANCE_BILLING')) {
         tasks.add(this._loadMaintenanceInvoices());
@@ -203,6 +206,7 @@ class ResidentDataController extends ChangeNotifier {
     workforceAssignments = const [];
     workforceLeaves = const [];
     workforceRatings = const [];
+    workforcePayments = const [];
     maintenanceInvoices = const [];
     maintenancePayments = const [];
     helpdeskTickets = const [];
@@ -370,6 +374,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String phone,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) =>
@@ -377,6 +382,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -385,6 +391,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String occupancyId,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) =>
@@ -392,6 +399,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -401,6 +409,7 @@ class ResidentDataController extends ChangeNotifier {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -413,6 +422,7 @@ class ResidentDataController extends ChangeNotifier {
         name: name,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -422,6 +432,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       )) return;
@@ -434,6 +445,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String occupancyId,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) async {
@@ -445,6 +457,8 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
+        clearGateApprovalExpiry: gateApprovalExpiresAt == null,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -454,6 +468,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       )) return;
@@ -721,6 +736,10 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void _notifyIfMounted() {
+    if (!_disposed) notifyListeners();
+  }
+
   void _capture(Object error, void Function(String message) assign) {
     if (_disposed) return;
     final text = error.toString();
@@ -770,60 +789,35 @@ class ResidentDataController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<Map<String, dynamic>> createGuest({required String name, String? phone, String? purpose, Duration duration = const Duration(hours: 4)}) {
-    final unitId = primaryUnitId;
-    if (unitId == null) return Future.error(StateError('Select a property before creating a visitor pass'));
-    final signature = [unitId, name.trim(), phone?.trim() ?? '', purpose?.trim() ?? '', duration.inSeconds.toString()].join('|');
-    final inFlight = _guestInviteInFlight;
-    if (inFlight != null) {
-      if (_guestInviteInFlightSignature == signature) return inFlight;
-      return Future.error(StateError('Another visitor pass is already being created'));
-    }
-    final previous = _pendingGuestInviteAttempt;
-    final attempt = previous != null && previous.signature == signature
-        ? previous
-        : _GuestInviteAttempt(
-            signature: signature,
-            idempotencyKey: 'resident-visitor-${DateTime.now().microsecondsSinceEpoch}',
-            validFrom: DateTime.now(),
-            duration: duration,
-          );
-    _pendingGuestInviteAttempt = attempt;
-    final operation = _createGuestAttempt(unitId: unitId, name: name, phone: phone, purpose: purpose, attempt: attempt);
-    _guestInviteInFlight = operation;
-    _guestInviteInFlightSignature = signature;
-    return operation.whenComplete(() {
-      if (identical(_guestInviteInFlight, operation)) {
-        _guestInviteInFlight = null;
-        _guestInviteInFlightSignature = null;
-      }
-    });
-  }
-
-  Future<Map<String, dynamic>> _createGuestAttempt({
-    required String unitId,
+  Future<Map<String, dynamic>> createGuest({
     required String name,
-    required _GuestInviteAttempt attempt,
     String? phone,
     String? purpose,
-  }) async {
-    final result = await repository.inviteVisitor(
+    Duration duration = const Duration(hours: 4),
+  }) {
+    final unitId = primaryUnitId;
+    if (unitId == null) return Future.error(StateError('Select a property before creating a visitor pass'));
+    return _guestInvites.run(
       unitId: unitId,
       name: name,
       phone: phone,
       purpose: purpose,
-      validFrom: attempt.validFrom,
-      validUntil: attempt.validUntil,
-      idempotencyKey: attempt.idempotencyKey,
+      duration: duration,
+      execute: (attempt) async {
+        final pass = await executeResidentGuestInvite(
+          repository: repository,
+          unitId: unitId,
+          name: name,
+          phone: phone,
+          purpose: purpose,
+          attempt: attempt,
+        );
+        lastIssuedVisitorPass = pass;
+        await this._loadAccess();
+        if (!_disposed) notifyListeners();
+        return pass;
+      },
     );
-    final rawRequest = result['request'];
-    final credential = result['credential']?.toString();
-    if (rawRequest is! Map || credential == null || credential.isEmpty) throw StateError('Visitor pass was not returned');
-    lastIssuedVisitorPass = {'credential': credential, 'request': Map<String, dynamic>.from(rawRequest)};
-    if (identical(_pendingGuestInviteAttempt, attempt)) _pendingGuestInviteAttempt = null;
-    await this._loadAccess();
-    if (!_disposed) notifyListeners();
-    return lastIssuedVisitorPass!;
   }
 
   void clearIssuedVisitorPass() { if (_disposed) return; lastIssuedVisitorPass = null; notifyListeners(); }
@@ -838,16 +832,6 @@ class ResidentDataController extends ChangeNotifier {
     push.dispose();
     super.dispose();
   }
-}
-
-class _GuestInviteAttempt {
-  _GuestInviteAttempt({required this.signature, required this.idempotencyKey, required this.validFrom, required Duration duration})
-      : validUntil = validFrom.add(duration);
-
-  final String signature;
-  final String idempotencyKey;
-  final DateTime validFrom;
-  final DateTime validUntil;
 }
 
 extension _FirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }
