@@ -67,7 +67,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Home services'), findsOneWidget);
-    expect(find.text('What do you need help with?'), findsOneWidget);
+    final searchHint = find.text('What do you need help with?');
+    await tester.scrollUntilVisible(searchHint, 240, scrollable: find.byType(Scrollable).first);
+    expect(searchHint, findsOneWidget);
     expect(tester.takeException(), isNull);
     controller.dispose();
   });
@@ -224,8 +226,11 @@ void main() {
       ];
 
     await tester.pumpWidget(host(controller));
-    await tester.scrollUntilVisible(find.text('Rate service'), 300, scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Rate service'));
+    final rateService = find.text('Rate service');
+    await tester.scrollUntilVisible(rateService, 500, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(rateService);
+    await tester.pumpAndSettle();
+    await tester.tap(rateService);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('3 stars'));
     await tester.enterText(find.widgetWithText(TextField, 'Feedback (optional)'), 'Professional and punctual');
