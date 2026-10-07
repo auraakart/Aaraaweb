@@ -282,7 +282,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     final recentProviderOfferings = _recentProviderOfferings;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('External Services'),
+        title: Text(widget.independentMode ? 'External Services' : 'Insta Services'),
         actions: [
           IconButton(tooltip: 'Service history', onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded)),
           IconButton(tooltip: 'My bookings', onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded)),
@@ -310,12 +310,12 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(widget.independentMode ? 'Services for your home' : 'External services near you', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                          Text(widget.independentMode ? 'Services for your home' : 'Insta Services near you', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
                           Text(
                             widget.independentMode
                                 ? 'Tell us what you need, then choose from trusted providers serving your address.'
-                                : 'Tell us what you need and compare trusted providers serving your selected property.',
+                                : 'Tell us what you need and compare trusted local providers serving your selected property.',
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),
