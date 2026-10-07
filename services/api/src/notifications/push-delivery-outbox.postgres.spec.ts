@@ -62,7 +62,7 @@ withDatabase('Push delivery lease ownership on migrated PostgreSQL', () => {
       if (outcome === 'failure') throw new Error('stale provider failure');
     });
     try {
-      await firstStarted.promise;
+      await Promise.race([firstStarted.promise, first.then(() => { throw new Error('First claim finished before transport started'); })]);
       await prisma.$executeRaw(Prisma.sql`
         UPDATE "PushDeliveryOutbox" SET "lastAttemptAt"=CURRENT_TIMESTAMP-INTERVAL '11 minutes'
         WHERE "id"=${queued.id}::uuid AND "societyId"=${societyId}::uuid
@@ -72,7 +72,7 @@ withDatabase('Push delivery lease ownership on migrated PostgreSQL', () => {
         expect(work.attemptCount).toBe(2);
         await finishSecond.promise;
       });
-      await secondStarted.promise;
+      await Promise.race([secondStarted.promise, second.then(() => { throw new Error('Second claim finished before transport started'); })]);
       finishFirst.release();
       await expect(first).resolves.toEqual({ dispatched: 0, deferred: 0, failed: 0, skipped: 1 });
       expect(await row(queued.id)).toMatchObject({ status: 'IN_FLIGHT', attemptCount: 2, lastError: null, nextAttemptAt: null });

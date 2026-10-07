@@ -34,7 +34,7 @@ function expireExhaustedPushSql(id?: string) {
         "lastError"='Final push delivery lease expired; transport outcome unknown',
         "updatedAt"=CURRENT_TIMESTAMP
     WHERE "status"='IN_FLIGHT' AND "attemptCount" >= ${PUSH_MAX_ATTEMPTS}
-      AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES})
+      AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int)
       ${id ? Prisma.sql`AND "id"=${id}::uuid` : Prisma.empty}
     RETURNING "id"
   `;
@@ -108,7 +108,7 @@ export class PushDeliveryOutboxService {
         AND (
           ("status"='PENDING' AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP))
           OR
-          ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}))
+          ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int))
         )
       RETURNING "id","targetScope","societyId","userId","eventType","dedupeKey","payload","status","attemptCount"
     `);
@@ -124,7 +124,7 @@ export class PushDeliveryOutboxService {
           AND (
             ("status"='PENDING' AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP))
             OR
-            ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}))
+            ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int))
           )
         ORDER BY COALESCE("nextAttemptAt","createdAt"),"createdAt"
         LIMIT ${PUSH_BATCH_SIZE}
