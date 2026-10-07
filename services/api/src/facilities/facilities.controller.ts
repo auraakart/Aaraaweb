@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
@@ -8,6 +8,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentTenant } from '../auth/tenant.decorator';
 import { TenantGuard } from '../auth/tenant.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { FacilitiesHelpdeskHandoffService } from './facilities-helpdesk-handoff.service';
 
 const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
 class CreateAssetDto{@IsString() @MinLength(1) @MaxLength(80) code!:string;@IsString() @MinLength(1) @MaxLength(240) name!:string;@IsString() @MinLength(1) @MaxLength(120) category!:string;@IsOptional() @IsString() @MaxLength(240) location?:string;@IsOptional() @IsString() @MaxLength(160) manufacturer?:string;@IsOptional() @IsString() @MaxLength(160) model?:string;@IsOptional() @IsString() @MaxLength(160) serialNumber?:string;@IsOptional() @IsISO8601() installedAt?:string;@IsOptional() @IsISO8601() warrantyEndsAt?:string;@IsOptional() @IsString() @MaxLength(5000) notes?:string;}
@@ -18,7 +19,7 @@ class CreateHelpdeskWorkOrderDto{@IsOptional() @IsIn(['LOW','MEDIUM','HIGH','CRI
 @Controller('facilities')
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
 export class FacilitiesController{
-  constructor(private readonly prisma:PrismaService){}
+  constructor(private readonly prisma:PrismaService,private readonly handoff:FacilitiesHelpdeskHandoffService){}
   @Get('operator-context') @RequiresPermissions(AppPermission.FACILITIES_READ)
   operatorContext(@CurrentTenant() societyId:string){
     return this.prisma.$queryRaw(Prisma.sql`
@@ -136,64 +137,13 @@ export class FacilitiesController{
   listWorkOrders(@CurrentTenant() societyId:string){return this.prisma.$queryRaw(Prisma.sql`SELECT w.*,a."code" AS "assetCode",a."name" AS "assetName",assignee."name" AS "assignedUserName",source."title" AS "sourceHelpdeskTitle" FROM "FacilityWorkOrder" w LEFT JOIN "FacilityAsset" a ON a."id"=w."assetId" LEFT JOIN "User" assignee ON assignee."id"=w."assignedUserId" LEFT JOIN "HelpdeskTicket" source ON source."id"=w."sourceHelpdeskTicketId" AND source."societyId"=w."societyId" WHERE w."societyId"=${societyId}::uuid ORDER BY w."createdAt" DESC`);}
 
   @Get('helpdesk-handoffs/:ticketId/preview') @RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_READ)
-  async previewHelpdeskHandoff(@CurrentTenant() societyId:string,@Param('ticketId',new ParseUUIDPipe()) ticketId:string){
-    const [ticket]=await this.prisma.$queryRaw<Array<{id:string;title:string;description:string;priority:string;status:string;assetId:string|null;assetCode:string|null;assetName:string|null}>>(Prisma.sql`
-      SELECT ht."id",ht."title",ht."description",ht."priority",ht."status",ht."assetId",a."code" AS "assetCode",a."name" AS "assetName"
-      FROM "HelpdeskTicket" ht
-      LEFT JOIN "FacilityAsset" a ON a."id"=ht."assetId" AND a."societyId"=ht."societyId"
-      WHERE ht."id"=${ticketId}::uuid AND ht."societyId"=${societyId}::uuid LIMIT 1
-    `);
-    if(!ticket)throw new BadRequestException('Helpdesk ticket not found');
-    const [active]=await this.prisma.$queryRaw<Array<{id:string;title:string;status:string;priority:string}>>(Prisma.sql`
-      SELECT "id","title","status","priority" FROM "FacilityWorkOrder"
-      WHERE "societyId"=${societyId}::uuid AND "sourceHelpdeskTicketId"=${ticketId}::uuid AND "status" IN ('OPEN','IN_PROGRESS')
-      ORDER BY "createdAt" DESC LIMIT 1
-    `);
-    const blockers:string[]=[];
-    if(['RESOLVED','CLOSED'].includes(ticket.status))blockers.push('HELPDESK_TICKET_NOT_ACTIVE');
-    if(active)blockers.push('ACTIVE_WORK_ORDER_EXISTS');
-    return {
-      ticket:{id:ticket.id,title:ticket.title,status:ticket.status,priority:ticket.priority},
-      asset:ticket.assetId?{id:ticket.assetId,code:ticket.assetCode,name:ticket.assetName}:null,
-      activeWorkOrder:active??null,
-      suggested:{workType:'CORRECTIVE',priority:this.helpdeskPriority(ticket.priority),title:ticket.title},
-      blockers,
-      confirmationRequired:true,
-      mutationPerformed:false,
-      boundary:'Preview only. Creating the Facilities work order requires explicit operator confirmation and FACILITIES_MANAGE permission.',
-    };
+  previewHelpdeskHandoff(@CurrentTenant() societyId:string,@Param('ticketId',new ParseUUIDPipe()) ticketId:string){
+    return this.handoff.preview(societyId,ticketId);
   }
 
   @Post('helpdesk-handoffs/:ticketId') @RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_MANAGE)
-  async createHelpdeskWorkOrder(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('ticketId',new ParseUUIDPipe()) ticketId:string,@Body() dto:CreateHelpdeskWorkOrderDto){
-    const actor=this.user(userId);
-    if(dto.assignedUserId)await this.assertActiveSocietyMember(societyId,dto.assignedUserId);
-    const due=dto.dueAt?new Date(dto.dueAt):null;
-    return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`helpdesk-facility:${societyId}:${ticketId}`},0))`);
-      const [ticket]=await tx.$queryRaw<Array<{id:string;title:string;description:string;priority:string;status:string;assetId:string|null}>>(Prisma.sql`
-        SELECT "id","title","description","priority","status","assetId" FROM "HelpdeskTicket"
-        WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
-      `);
-      if(!ticket)throw new BadRequestException('Helpdesk ticket not found');
-      if(['RESOLVED','CLOSED'].includes(ticket.status))throw new BadRequestException('Resolved or closed Helpdesk tickets cannot create a new Facilities work order');
-      const [existing]=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
-        SELECT "id" FROM "FacilityWorkOrder"
-        WHERE "societyId"=${societyId}::uuid AND "sourceHelpdeskTicketId"=${ticketId}::uuid AND "status" IN ('OPEN','IN_PROGRESS')
-        LIMIT 1
-      `);
-      if(existing)throw new ConflictException('An active Facilities work order already exists for this Helpdesk ticket');
-      const priority=dto.priority??this.helpdeskPriority(ticket.priority);
-      const title=ticket.title.trim().slice(0,240);
-      const [created]=await tx.$queryRaw<Array<Record<string,unknown>&{id:string}>>(Prisma.sql`
-        INSERT INTO "FacilityWorkOrder" ("societyId","assetId","sourceHelpdeskTicketId","workType","priority","title","description","dueAt","assignedUserId","createdByUserId")
-        VALUES (${societyId}::uuid,${ticket.assetId??null}::uuid,${ticketId}::uuid,'CORRECTIVE',${priority},${title},${ticket.description?.trim()||null},${due},${dto.assignedUserId??null}::uuid,${actor}::uuid)
-        RETURNING *
-      `);
-      await tx.$executeRaw(Prisma.sql`INSERT INTO "FacilityWorkOrderEvent" ("societyId","workOrderId","eventType","toStatus","note","actorUserId") VALUES (${societyId}::uuid,${created.id}::uuid,'CREATED','OPEN',${`Created from Helpdesk ticket ${ticketId}`},${actor}::uuid)`);
-      await tx.$executeRaw(Prisma.sql`INSERT INTO "HelpdeskActivity" ("societyId","ticketId","actorUserId","type","message") VALUES (${societyId}::uuid,${ticketId}::uuid,${actor}::uuid,'FACILITY_WORK_ORDER_CREATED',${`Facilities work order ${created.id} created`})`);
-      return created;
-    });
+  createHelpdeskWorkOrder(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('ticketId',new ParseUUIDPipe()) ticketId:string,@Body() dto:CreateHelpdeskWorkOrderDto){
+    return this.handoff.create(societyId,this.user(userId),ticketId,dto);
   }
   @Get('work-orders/:id/events') @RequiresPermissions(AppPermission.FACILITIES_READ)
   async listWorkOrderEvents(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string){const work=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityWorkOrder" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!work.length)throw new BadRequestException('Facility work order not found');return this.prisma.$queryRaw(Prisma.sql`SELECT e.*,actor."name" AS "actorName" FROM "FacilityWorkOrderEvent" e LEFT JOIN "User" actor ON actor."id"=e."actorUserId" WHERE e."societyId"=${societyId}::uuid AND e."workOrderId"=${id}::uuid ORDER BY e."occurredAt" ASC`);}
@@ -201,7 +151,6 @@ export class FacilitiesController{
   async createWorkOrder(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateWorkOrderDto){const actor=this.user(userId);if(dto.assetId){const a=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "FacilityAsset" WHERE "id"=${dto.assetId}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!a.length)throw new BadRequestException('Facility asset not found');}if(dto.assignedUserId)await this.assertActiveSocietyMember(societyId,dto.assignedUserId);const scheduled=dto.scheduledAt?new Date(dto.scheduledAt):null,due=dto.dueAt?new Date(dto.dueAt):null;if(scheduled&&due&&due<scheduled)throw new BadRequestException('Due time cannot precede scheduled time');return this.prisma.$transaction(async tx=>{const rows=await tx.$queryRaw<Array<Record<string,unknown>&{id:string}>>(Prisma.sql`INSERT INTO "FacilityWorkOrder" ("societyId","assetId","workType","priority","title","description","scheduledAt","dueAt","assignedUserId","createdByUserId") VALUES (${societyId}::uuid,${dto.assetId??null}::uuid,${dto.workType},${dto.priority},${dto.title.trim()},${dto.description?.trim()||null},${scheduled},${due},${dto.assignedUserId??null}::uuid,${actor}::uuid) RETURNING *`);const created=rows[0];await tx.$executeRaw(Prisma.sql`INSERT INTO "FacilityWorkOrderEvent" ("societyId","workOrderId","eventType","toStatus","actorUserId") VALUES (${societyId}::uuid,${created.id}::uuid,'CREATED','OPEN',${actor}::uuid)`);return created;});}
   @Post('work-orders/:id/status') @RequiresPermissions(AppPermission.FACILITIES_MANAGE)
   async setWorkOrderStatus(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:WorkOrderStatusDto){const actor=this.user(userId);return this.prisma.$transaction(async tx=>{const rows=await tx.$queryRaw<Array<{status:string}>>(Prisma.sql`SELECT "status" FROM "FacilityWorkOrder" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`);if(!rows.length)throw new BadRequestException('Facility work order not found');const current=rows[0].status;const allowed=(current==='OPEN'&&(dto.status==='IN_PROGRESS'||dto.status==='CANCELLED'||dto.status==='COMPLETED'))||(current==='IN_PROGRESS'&&(dto.status==='COMPLETED'||dto.status==='CANCELLED'));if(!allowed)throw new BadRequestException(`Work order cannot transition from ${current} to ${dto.status}`);const updated=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`UPDATE "FacilityWorkOrder" SET "status"=${dto.status},"completionNote"=COALESCE(${dto.completionNote?.trim()||null},"completionNote"),"completedAt"=CASE WHEN ${dto.status}='COMPLETED' THEN CURRENT_TIMESTAMP ELSE "completedAt" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING *`);await tx.$executeRaw(Prisma.sql`INSERT INTO "FacilityWorkOrderEvent" ("societyId","workOrderId","eventType","fromStatus","toStatus","note","actorUserId") VALUES (${societyId}::uuid,${id}::uuid,'STATUS_CHANGED',${current},${dto.status},${dto.completionNote?.trim()||null},${actor}::uuid)`);return updated[0];});}
-  private helpdeskPriority(value:string):'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'{return value==='URGENT'?'CRITICAL':value==='HIGH'?'HIGH':value==='LOW'?'LOW':'MEDIUM';}
   private async assertActiveSocietyMember(societyId:string,userId:string){const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "SocietyMembership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=TRUE LIMIT 1`);if(!rows.length)throw new BadRequestException('Assigned user must have an active membership in this society');}
   private user(userId?:string){if(!userId)throw new BadRequestException('Authenticated user is required');return userId;}
 }
