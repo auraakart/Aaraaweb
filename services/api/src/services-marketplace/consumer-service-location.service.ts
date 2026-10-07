@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServiceProviderSocietyTrustService } from './service-provider-society-trust.service';
 
 export type ConsumerServiceLocationType = 'HOME' | 'SOCIETY_UNIT';
 
@@ -60,7 +61,10 @@ type OfferingServiceAreaRow = {
 
 @Injectable()
 export class ConsumerServiceLocationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly societyTrust: ServiceProviderSocietyTrustService,
+  ) {}
 
   listLocations(userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
@@ -188,10 +192,11 @@ export class ConsumerServiceLocationService {
 
   async listServiceableOfferings(userId: string, type: ConsumerServiceLocationType, id: string, categoryId?: string) {
     const location = await this.resolveLocation(userId, type, id);
-    return this.prisma.$queryRaw(Prisma.sql`
+    const offerings = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT
         o."id",
         o."name",
+        o."description",
         o."pricePaise",
         o."durationMinutes",
         c."id" AS "categoryId",
@@ -204,7 +209,15 @@ export class ConsumerServiceLocationService {
           'id', p."id",
           'businessName', p."businessName",
           'description', p."description"
-        ) AS "provider"
+        ) AS "provider",
+        CASE WHEN xp."offeringId" IS NULL THEN NULL ELSE jsonb_build_object(
+          'quickServiceEligible', xp."quickServiceEligible",
+          'targetArrivalMinutes', xp."targetArrivalMinutes",
+          'includedWork', xp."includedWork",
+          'partsPolicy', xp."partsPolicy",
+          'extraWorkApprovalRequired', xp."extraWorkApprovalRequired",
+          'recurrenceCadences', xp."recurrenceCadences"
+        ) END AS "experiencePolicy"
       FROM "ServiceOffering" o
       JOIN "ServiceCategory" c ON c."id" = o."categoryId" AND c."active" = true
       JOIN "ServiceProvider" p
@@ -212,6 +225,7 @@ export class ConsumerServiceLocationService {
        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
       JOIN "ConsumerProviderServiceArea" pa
         ON pa."providerId" = p."id" AND pa."postalCode" = ${location.postalCode} AND pa."active" = true
+      LEFT JOIN "ServiceOfferingExperiencePolicy" xp ON xp."offeringId" = o."id"
       WHERE o."active" = true
         AND (${categoryId ?? null}::uuid IS NULL OR o."categoryId" = ${categoryId ?? null}::uuid)
         AND (
@@ -228,6 +242,30 @@ export class ConsumerServiceLocationService {
         )
       ORDER BY c."sortOrder" ASC, o."name" ASC, p."businessName" ASC
     `);
+
+    if (!location.societyId) return offerings;
+    const providerIds = [...new Set(offerings.map((row) => row.providerId?.toString()).filter((id): id is string => Boolean(id)))];
+    const trustByProvider = await this.societyTrust.getSignals(location.societyId, providerIds);
+    return offerings.map((offering) => {
+      const providerId = offering.providerId?.toString();
+      const trust = providerId ? trustByProvider.get(providerId) : undefined;
+      const provider = offering.provider && typeof offering.provider === 'object'
+        ? offering.provider as Record<string, unknown>
+        : {};
+      return {
+        ...offering,
+        provider: {
+          ...provider,
+          societyTrusted: trust?.societyTrusted ?? false,
+          societyCompletedJobs: trust?.societyCompletedJobs ?? 0,
+          societyRatingAverage: trust?.societyRatingAverage ?? null,
+          societyRatingCount: trust?.societyRatingCount ?? 0,
+          societyCancellationRate: trust?.societyCancellationRate ?? null,
+          societyOnTimeRate: trust?.societyOnTimeRate ?? null,
+          societyArrivalSamples: trust?.societyArrivalSamples ?? 0,
+        },
+      };
+    });
   }
 
   async upsertSocietyServiceAddress(societyId: string, input: SocietyServiceAddressInput) {
