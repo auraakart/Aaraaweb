@@ -4,6 +4,9 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { currentPayerPropertySql } from '../auth/property-scope.sql';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
+import type { ResidentMessageEvent } from '../notifications/notification-realtime.service';
+import { PushDeliveryOutboxService } from '../notifications/push-delivery-outbox.service';
+import { residentPushDedupeKey } from '../notifications/push-notification.service';
 import { PaymentWebhookProcessor } from './payment-webhook.processor';
 import { PaymentOrderService } from './payment-order.service';
 
@@ -25,7 +28,11 @@ export class BillingService {
   private readonly webhookProcessor: PaymentWebhookProcessor;
   private readonly paymentOrders: PaymentOrderService;
 
-  constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime?: NotificationRealtimeService,
+    private readonly outbox?: PushDeliveryOutboxService,
+  ) {
     this.webhookProcessor = new PaymentWebhookProcessor(prisma);
     this.paymentOrders = new PaymentOrderService(prisma);
   }
@@ -250,7 +257,7 @@ export class BillingService {
   async issue(societyId: string, actorUserId: string, input: { unitId: string; billingPeriod: string; amountPaise: number; dueDate: string; description?: string }) {
     if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise < 100) throw new BadRequestException('Invoice amount must be at least one rupee');
     const invoiceNumber = `${input.billingPeriod.replace('-', '')}-${input.unitId.slice(0, 8).toUpperCase()}`;
-    const { invoice, recipients } = await this.prisma.$transaction(async (tx) => {
+    const { invoice, events } = await this.prisma.$transaction(async (tx) => {
       const units = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT "id" FROM "Unit"
         WHERE "id"=${input.unitId}::uuid AND "societyId"=${societyId}::uuid
@@ -264,7 +271,7 @@ export class BillingService {
         RETURNING *
       `);
       const invoice = rows[0];
-      const recipients = invoice && this.realtime
+      const recipients = invoice && (this.realtime || this.outbox)
         ? await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
             SELECT "userId" FROM "UnitOwnership"
             WHERE "societyId"=${societyId}::uuid AND "unitId"=${input.unitId}::uuid
@@ -277,16 +284,26 @@ export class BillingService {
               AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
           `)
         : [];
-      return { invoice, recipients };
+      const events: ResidentMessageEvent[] = invoice ? recipients.map(({ userId }) => ({
+        type: 'MAINTENANCE_DUE_ISSUED', societyId, userId, unitId: input.unitId, invoiceId: invoice.id,
+        title: 'Maintenance payment due',
+        body: `Invoice ${invoice.invoiceNumber} for ₹${(invoice.amountPaise / 100).toFixed(2)} is due on ${input.dueDate}.`,
+        createdAt: new Date().toISOString(),
+      })) : [];
+      // Persist delivery intent with the invoice. Post-commit realtime dispatch
+      // reuses the same dedupe keys; a crash cannot lose the durable push work.
+      for (const event of events) {
+        if (this.outbox) await this.outbox.enqueue({
+          targetScope: 'RESIDENT', societyId, userId: event.userId!,
+          eventType: event.type, dedupeKey: residentPushDedupeKey(event),
+          payload: event as unknown as Record<string, unknown>,
+        }, tx);
+      }
+      return { invoice, events };
     });
 
     if (invoice && this.realtime) {
-      const title = 'Maintenance payment due';
-      const body = `Invoice ${invoice.invoiceNumber} for ₹${(invoice.amountPaise / 100).toFixed(2)} is due on ${input.dueDate}.`;
-      recipients.forEach(({ userId }) => this.realtime?.publishResident({
-        type: 'MAINTENANCE_DUE_ISSUED', societyId, userId, invoiceId: invoice.id,
-        title, body, createdAt: new Date().toISOString(),
-      }));
+      events.forEach((event) => this.realtime?.publishResident(event));
     }
     return invoice;
   }
@@ -371,7 +388,7 @@ export class BillingService {
     if (!secret) throw new UnauthorizedException('Payment webhook is not configured');
     const canonical = this.webhookCanonical(event);
     const expected = createHmac('sha256', secret).update(canonical).digest('hex');
-    if (!signature || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    if (!signature || !/^[0-9a-f]{64}$/.test(signature) || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
       throw new UnauthorizedException('Invalid payment signature');
     }
     return createHash('sha256').update(canonical).digest('hex');

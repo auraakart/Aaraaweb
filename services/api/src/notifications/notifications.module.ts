@@ -26,6 +26,7 @@ import { WHATSAPP_PROVIDER } from './whatsapp.provider';
     WhatsAppNotificationService,
   ],
   exports: [
+    PushDeliveryOutboxService,
     PushNotificationService,
     GateRecipientService,
     GateNotificationFallbackService,

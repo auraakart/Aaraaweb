@@ -36,8 +36,8 @@ export class PushDeliveryOutboxService {
     eventType: string;
     dedupeKey: string;
     payload: Record<string, unknown>;
-  }) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: PushDeliveryStatus }>>(Prisma.sql`
+  }, client: Pick<Prisma.TransactionClient, '$queryRaw'> = this.prisma) {
+    const rows = await client.$queryRaw<Array<{ id: string; status: PushDeliveryStatus }>>(Prisma.sql`
       INSERT INTO "PushDeliveryOutbox" (
         "targetScope","societyId","userId","eventType","dedupeKey","payload"
       ) VALUES (
