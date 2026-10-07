@@ -24,6 +24,7 @@ class ProposeHelpdeskDto {
 }
 
 class ProposeHelpdeskAssignmentDto { @IsUUID() ticketId!:string; @IsOptional() @IsUUID() assignedToId?:string|null; }
+class ProposeFacilitiesHandoffDto { @IsUUID() ticketId!:string; @IsOptional() @IsUUID() assignedUserId?:string; @IsOptional() @IsDateString() dueAt?:string; @IsOptional() @IsIn(['LOW','MEDIUM','HIGH','CRITICAL']) priority?:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'; }
 
 class ProposeAmenityBookingDto {
   @IsUUID() amenityId!: string;
@@ -148,6 +149,24 @@ export class AiOperationsController {
   @Post('proposals/helpdesk-assignment')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
   proposeHelpdeskAssignment(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeHelpdeskAssignmentDto){return this.ai.proposeHelpdeskAssignment(societyId,this.user(userId),{ticketId:dto.ticketId,assignedToId:dto.assignedToId??null});}
+
+  @Post('proposals/facilities-handoff')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_MANAGE)
+  proposeFacilitiesHandoff(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:ProposeFacilitiesHandoffDto){
+    return this.ai.proposeFacilitiesHandoff(societyId,this.user(userId),dto);
+  }
+
+  @Post('proposals/:id/confirm-facilities-handoff')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_MANAGE)
+  confirmFacilitiesHandoff(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){
+    return this.ai.confirmFacilitiesHandoff(societyId,this.user(userId),id);
+  }
+
+  @Post('proposals/:id/cancel-facilities-handoff')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_MANAGE)
+  cancelFacilitiesHandoff(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){
+    return this.ai.cancelFacilitiesHandoff(societyId,this.user(userId),id);
+  }
 
   @Post('proposals/:id/confirm-helpdesk-assignment')
   @RequiresPermissions(AppPermission.HELPDESK_REVIEW)

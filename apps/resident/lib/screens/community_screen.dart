@@ -270,6 +270,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
         onOpenUpdates:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>NoticesScreen(controller:widget.controller))),
         onOpenPolls:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityPollsScreen(repository:widget.controller.repository))),
         onOpenEvents:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityEventsScreen(repository:widget.controller.repository))),
+        onOpenRequests:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentRequestsScreen(controller:widget.controller))),
+        onOpenCircles:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CommunityCirclesScreen(repository:widget.controller.repository))),
+        onOpenDirectory:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ResidentDirectoryScreen(repository:widget.controller.repository))),
       ),
       const SizedBox(height:AaraagateTokens.space4),
       PremiumSurface(
@@ -325,49 +328,55 @@ class _CommunityShortcutBar extends StatelessWidget {
     required this.onOpenUpdates,
     required this.onOpenPolls,
     required this.onOpenEvents,
+    required this.onOpenRequests,
+    required this.onOpenCircles,
+    required this.onOpenDirectory,
   });
 
   final VoidCallback onOpenUpdates;
   final VoidCallback onOpenPolls;
   final VoidCallback onOpenEvents;
+  final VoidCallback onOpenRequests;
+  final VoidCallback onOpenCircles;
+  final VoidCallback onOpenDirectory;
 
   @override
   Widget build(BuildContext context) {
-    const compactPadding=EdgeInsets.symmetric(horizontal:AaraagateTokens.space2);
-    const minimumSize=Size(0,AaraagateTokens.minTouchTarget);
+    final actions=<({IconData icon,String label,VoidCallback onTap})>[
+      (icon:Icons.campaign_outlined,label:'Updates',onTap:onOpenUpdates),
+      (icon:Icons.poll_outlined,label:'Polls',onTap:onOpenPolls),
+      (icon:Icons.event_available_outlined,label:'Events',onTap:onOpenEvents),
+      (icon:Icons.request_page_outlined,label:'Requests',onTap:onOpenRequests),
+      (icon:Icons.groups_2_outlined,label:'Circles',onTap:onOpenCircles),
+      (icon:Icons.people_alt_outlined,label:'Directory',onTap:onOpenDirectory),
+    ];
     return PremiumSurface(
       key:const ValueKey('community-shortcuts-bar'),
-      padding:const EdgeInsets.all(AaraagateTokens.space1),
-      child:Row(
-        children:[
-          Expanded(
-            child:FilledButton.tonalIcon(
-              style:FilledButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
-              onPressed:onOpenUpdates,
-              icon:const Icon(Icons.campaign_outlined,size:18),
-              label:const Text('Updates'),
-            ),
-          ),
-          const SizedBox(width:AaraagateTokens.space1),
-          Expanded(
-            child:OutlinedButton.icon(
-              style:OutlinedButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
-              onPressed:onOpenPolls,
-              icon:const Icon(Icons.poll_outlined,size:18),
-              label:const Text('Polls'),
-            ),
-          ),
-          const SizedBox(width:AaraagateTokens.space1),
-          Expanded(
-            child:OutlinedButton.icon(
-              style:OutlinedButton.styleFrom(padding:compactPadding,minimumSize:minimumSize),
-              onPressed:onOpenEvents,
-              icon:const Icon(Icons.event_available_outlined,size:18),
-              label:const Text('Events'),
-            ),
-          ),
-        ],
-      ),
+      padding:const EdgeInsets.all(AaraagateTokens.space2),
+      child:LayoutBuilder(builder:(context,constraints){
+        const gap=AaraagateTokens.space1;
+        final columns=constraints.maxWidth>=560?3:2;
+        final width=(constraints.maxWidth-gap*(columns-1))/columns;
+        return Wrap(
+          spacing:gap,
+          runSpacing:gap,
+          children:[
+            for(final action in actions)
+              SizedBox(
+                width:width,
+                child:OutlinedButton.icon(
+                  style:OutlinedButton.styleFrom(
+                    padding:const EdgeInsets.symmetric(horizontal:AaraagateTokens.space2),
+                    minimumSize:const Size(0,AaraagateTokens.minTouchTarget),
+                  ),
+                  onPressed:action.onTap,
+                  icon:Icon(action.icon,size:18),
+                  label:Text(action.label),
+                ),
+              ),
+          ],
+        );
+      }),
     );
   }
 }
