@@ -16,6 +16,8 @@ const bundles = {
   ],
   aiAssistant: [
     'services/api/src/ai-operations/ai-assistant.service.ts',
+    'services/api/src/ai-operations/ai-action-centre.ts',
+    'services/api/src/ai-operations/ai-copilot.ts',
     'services/api/src/ai-operations/ai-society-insights.ts',
     'services/api/src/ai-operations/ai-assistant.policy.ts',
   ],
