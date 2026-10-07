@@ -70,7 +70,7 @@ const migration=read('services/api/prisma/migrations/20261007070000_v4832_ai_rec
 assert.ok(migration.includes('AiAssistantRecommendationOutcome'),'Recommendation outcome table missing');
 assert.ok(migration.includes("CHECK (\"status\" IN ('REVIEWED','ACTED','RESOLVED','DISMISSED'))"),'Recommendation outcome DB status boundary missing');
 
-const admin=read('apps/admin/app/ai-assistant/page.tsx');
+const adminUi=read('apps/admin/app/ai-assistant/page.tsx');
 for(const token of [
   'Today’s top priorities',
   'Cross-domain hypotheses to verify',
@@ -78,7 +78,7 @@ for(const token of [
   'Society baseline:',
   'recordOutcome(card,status)',
   'prepareControlledAction(card)',
-]) assert.ok(admin.includes(token),'Admin Copilot UX missing: '+token);
+]) assert.ok(adminUi.includes(token),'Admin Copilot UX missing: '+token);
 
 const command=read('apps/admin/app/operations-control/page.tsx');
 assert.ok(command.includes('Evidence confidence:'),'Operations Command Centre evidence grade missing');
