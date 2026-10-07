@@ -3,11 +3,11 @@ import fs from 'node:fs';
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{for(const token of tokens){if(!source.includes(token))throw new Error(`${label} missing: ${token}`)}};
 
-requireTokens('Root release',read('package.json'),['"version": "4.86.0"','check:v4.86']);
-requireTokens('API release',read('services/api/package.json'),['"version": "4.86.0"']);
-requireTokens('Admin release',read('apps/admin/package.json'),['"version": "4.86.0"']);
-requireTokens('Resident release',read('apps/resident/pubspec.yaml'),['version: 4.86.0+48600']);
-requireTokens('Guard release',read('apps/guard/pubspec.yaml'),['version: 4.86.0+48600']);
+requireTokens('Root release',read('package.json'),['"version": "4.86.1"','check:v4.86']);
+requireTokens('API release',read('services/api/package.json'),['"version": "4.86.1"']);
+requireTokens('Admin release',read('apps/admin/package.json'),['"version": "4.86.1"']);
+requireTokens('Resident release',read('apps/resident/pubspec.yaml'),['version: 4.86.1+48601']);
+requireTokens('Guard release',read('apps/guard/pubspec.yaml'),['version: 4.86.1+48601']);
 
 requireTokens('Easy mode preferences',read('apps/resident/lib/preferences/resident_experience_preferences.dart'),[
   'resident.preference.easy_mode','Device-local accessibility preference','never changes permissions',
@@ -39,6 +39,35 @@ requireTokens('Trust transparency',read('apps/resident/lib/screens/privacy_data_
   'Commercial placement & provider trust','paid placement does not grant a provider access to household-private records',
   'not presented as an external security or privacy certification',
 ]);
+const assistant=read('apps/resident/lib/screens/ai_assistant_screen.dart');
+requireTokens('V4.86.1 Assistant premium UX',assistant,[
+  "title: 'How can I help?'",
+  "title: 'Quick actions'",
+  "label: const Text('Create complaint')",
+  "'Based on ' + sources.join(' · ')",
+  'ResidentVoiceCopy.languageLabels.entries',
+]);
+for(const stale of ['Ask by voice','Prepare complaint','_factsView(']){
+  if(assistant.includes(stale)) throw new Error(`V4.86.1 Assistant regression: stale UI token remains: ${stale}`);
+}
+
+const speech=read('apps/resident/lib/voice/resident_speech.dart');
+requireTokens('V4.86.1 speech reliability',speech,[
+  'bool _initialized = false',
+  'Future<bool> _ensureInitialized()',
+  'bestLocaleId',
+  'partialResults: true',
+  'cancelOnError: false',
+  "assistantAction': 'Speak'",
+  "'hi': 'हिंदी'",
+]);
+
+requireTokens('V4.86.1 milestone evidence',read('docs/AARAAGATE-V4.86.1-ASSISTANT-UX-VOICE-HARDENING.md'),[
+  'Premium Assistant UX',
+  'Speech reliability',
+  'No autonomous mutation',
+]);
+
 requireTokens('V4.86 boundary',read('docs/AARAAGATE-V4.86-ADOPTION-COMPETITIVE-READINESS.md'),[
   'Hosting/provider deployment work is explicitly **on hold**','change owner/current-occupant gate or payment authority',
 ]);

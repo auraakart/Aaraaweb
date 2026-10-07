@@ -92,11 +92,15 @@ export class CommunityCirclesService {
   async listPosts(societyId:string,userId:string,circleId:string){
     await this.assertMembership(societyId,userId,circleId);
     return this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
-      SELECT p."id",p."body",p."createdAt",(p."authorUserId"=${userId}::uuid) AS "mine"
-      FROM "CommunityCirclePost" p
-      WHERE p."societyId"=${societyId}::uuid AND p."circleId"=${circleId}::uuid
-      ORDER BY p."createdAt" DESC
-      LIMIT 100
+      SELECT recent."id",recent."body",recent."createdAt",recent."mine"
+      FROM (
+        SELECT p."id",p."body",p."createdAt",(p."authorUserId"=${userId}::uuid) AS "mine"
+        FROM "CommunityCirclePost" p
+        WHERE p."societyId"=${societyId}::uuid AND p."circleId"=${circleId}::uuid
+        ORDER BY p."createdAt" DESC,p."id" DESC
+        LIMIT 100
+      ) recent
+      ORDER BY recent."createdAt" ASC,recent."id" ASC
     `);
   }
 

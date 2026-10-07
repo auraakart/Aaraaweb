@@ -677,7 +677,7 @@ class DemoResidentRepository extends ResidentRepository {
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'mine': true,
     };
-    _communityCirclePosts.putIfAbsent(circleId, () => <Map<String, dynamic>>[]).insert(0, post);
+    _communityCirclePosts.putIfAbsent(circleId, () => <Map<String, dynamic>>[]).add(post);
     return post;
   }
 
