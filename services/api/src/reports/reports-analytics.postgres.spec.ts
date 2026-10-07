@@ -96,20 +96,19 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
     for (const [index, query] of queries.entries()) {
       // Remove only the appended window predicate from trusted repository SQL
       // to reproduce the previous query. Retain all FILTERs and tenant clauses.
-      const cutoff = query.text.indexOf('\n          AND (');
+      const cutoff = query.strings.findIndex(part => part.includes('\n          AND ('));
       expect(cutoff).toBeGreaterThan(0);
-      const original = query.text.slice(0, cutoff);
-      const parameterCount = Math.max(...Array.from(original.matchAll(/\$(\d+)/g), match => Number(match[1])));
-      const parameters = query.values.slice(0, parameterCount);
-      await expect(prisma.$queryRawUnsafe(original, ...parameters)).resolves.toEqual(results[index]);
-      const inputRows = async (sql: string, values: unknown[]) => {
-        const explain = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': Array<{ Plan: { Plans: Array<Record<string, unknown>> } }> }>>(
-          `EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`, ...values,
+      const strings = [...query.strings.slice(0, cutoff), query.strings[cutoff].split('\n          AND (')[0]];
+      const original = Prisma.sql(strings, ...query.values.slice(0, cutoff));
+      await expect(prisma.$queryRaw(original)).resolves.toEqual(results[index]);
+      const inputRows = async (statement: Prisma.Sql) => {
+        const explain = await prisma.$queryRaw<Array<{ 'QUERY PLAN': Array<{ Plan: { Plans: Array<Record<string, unknown>> } }> }>>(
+          Prisma.sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`,
         );
         return Number(explain[0]['QUERY PLAN'][0].Plan.Plans[0]['Actual Rows']);
       };
-      const before = await inputRows(original, parameters);
-      const after = await inputRows(query.text, query.values);
+      const before = await inputRows(original);
+      const after = await inputRows(query);
       expect(before).toBe(102);
       expect(after).toBe(2);
       console.info(`Journey aggregate ${index}: input rows ${before}->${after} (fixture; not production latency or index-I/O evidence)`);
