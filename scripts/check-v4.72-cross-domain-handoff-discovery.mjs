@@ -16,7 +16,9 @@ const forbidTokens=(label,source,tokens)=>{
   }
 };
 
-const facilities=read('services/api/src/facilities/facilities.controller.ts');
+const facilitiesController=read('services/api/src/facilities/facilities.controller.ts');
+const facilitiesHandoff=read('services/api/src/facilities/facilities-helpdesk-handoff.service.ts');
+const facilities=`${facilitiesController}\n${facilitiesHandoff}`;
 requireTokens('Helpdesk to Facilities preview',facilities,[
   'previewHelpdeskHandoff',
   '@RequiresPermissions(AppPermission.HELPDESK_REVIEW,AppPermission.FACILITIES_READ)',

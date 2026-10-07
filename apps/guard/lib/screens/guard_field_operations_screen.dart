@@ -40,8 +40,13 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
     final incidentCount=(command['openIncidents'] as num?)?.toInt()??(summary['openIncidentCount'] as num?)?.toInt()??0;
     final criticalIncidentCount=(command['criticalIncidents'] as num?)?.toInt()??0;
     final handoverCount=(command['openHandovers'] as num?)?.toInt()??handovers.where((x)=>x['status']=='OPEN').length;
+    final handoverOlder30m=(command['handoverOlder30m'] as num?)?.toInt()??0;
+    final oldestOpenHandoverMinutes=(command['oldestOpenHandoverMinutes'] as num?)?.toInt()??0;
+    final pendingApprovalsOlder10m=(command['pendingApprovalsOlder10m'] as num?)?.toInt()??0;
+    final activeEntries=(command['activeEntries'] as num?)?.toInt()??0;
+    final oldestActiveEntryMinutes=(command['oldestActiveEntryMinutes'] as num?)?.toInt()??0;
     final stalePatrolCount=(command['stalePatrol'] as num?)?.toInt()??patrolStatus.where((x)=>x['stale']==true).length;
-    final urgent=overstayCount+watchCount+incidentCount+handoverCount+stalePatrolCount;
+    final urgent=overstayCount+watchCount+incidentCount+handoverCount+pendingApprovalsOlder10m+stalePatrolCount;
     final operatingMode=command['operatingMode']?.toString()??(criticalIncidentCount>0?'EMERGENCY_ATTENTION':urgent>0?'ELEVATED':'NORMAL');
     final continuityStatus=command['continuityStatus']?.toString()??'CLEAR';
     final gatesWithOpenIncidents=(command['gatesWithOpenIncidents'] as num?)?.toInt()??0;
@@ -54,15 +59,17 @@ class _GuardFieldOperationsScreenState extends State<GuardFieldOperationsScreen>
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[Icon(urgent==0?Icons.verified_outlined:Icons.notification_important_outlined,color:urgent==0?scheme.primary:scheme.error),const SizedBox(width:10),Expanded(child:Text(urgent==0?'Attention queue clear':'Attention now',style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))),GuardStatusPill(label:urgent==0?'CLEAR':'$urgent OPEN',tone:urgent==0?GuardStatusTone.ready:GuardStatusTone.waiting)]),
         const SizedBox(height:8),
-        Text(urgent==0?'No overstays, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
+        Text(urgent==0?'No overstays, ageing resident approvals, active deny-watchlist records, open incidents, stale patrol coverage or unacknowledged handovers need action.':'Prioritise safety and continuity before routine gate processing.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurfaceVariant)),
         const SizedBox(height:6),Text('Operating mode: ${operatingMode.replaceAll('_',' ')} · advisory only',style:theme.textTheme.labelMedium?.copyWith(fontWeight:FontWeight.w800)),
         const SizedBox(height:4),Text('Shift continuity: ${continuityStatus.replaceAll('_',' ')} · ${gatesWithOpenIncidents} gate${gatesWithOpenIncidents==1?'':'s'} with open incidents${multiGateAttention?' · multi-gate attention':''}',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
+        const SizedBox(height:4),Text('Live gate: $activeEntries inside now${oldestActiveEntryMinutes>0?' · oldest active ${oldestActiveEntryMinutes}m':''}${handoverOlder30m>0?' · oldest handover ${oldestOpenHandoverMinutes}m':''}',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
         if(nextActions.isNotEmpty)...[const SizedBox(height:6),Text(nextActions.first,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant))],
         if(urgent>0)...[const SizedBox(height:10),Wrap(spacing:8,runSpacing:8,children:[
           if(overstayCount>0)_attentionChip(Icons.timer_outlined,'$overstayCount overstay${overstayCount==1?'':'s'}'),
           if(watchCount>0)_attentionChip(Icons.policy_outlined,'$watchCount watchlist'),
           if(incidentCount>0)_attentionChip(Icons.report_problem_outlined,'$incidentCount incident${incidentCount==1?'':'s'}'),
-          if(handoverCount>0)_attentionChip(Icons.handshake_outlined,'$handoverCount handover${handoverCount==1?'':'s'}'),
+          if(handoverCount>0)_attentionChip(Icons.handshake_outlined,handoverOlder30m>0?'$handoverCount handover${handoverCount==1?'':'s'} · >30m':'$handoverCount handover${handoverCount==1?'':'s'}'),
+          if(pendingApprovalsOlder10m>0)_attentionChip(Icons.hourglass_top_rounded,'$pendingApprovalsOlder10m approval follow-up${pendingApprovalsOlder10m==1?'':'s'}'),
           if(stalePatrolCount>0)_attentionChip(Icons.qr_code_scanner_rounded,'$stalePatrolCount patrol due'),
         ])],
       ])

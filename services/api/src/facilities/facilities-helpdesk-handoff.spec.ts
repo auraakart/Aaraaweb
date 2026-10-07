@@ -5,11 +5,11 @@ import { FacilitiesController } from './facilities.controller';
 describe('V4.72 Helpdesk to Facilities handoff',()=>{
   it('previews an active Helpdesk ticket without mutation',async()=>{
     const prisma={$queryRaw:vi.fn()
-      .mockResolvedValueOnce([{id:'t1',title:'Lift vibration',description:'Noise',priority:'HIGH',status:'IN_PROGRESS',assetId:'a1',assetCode:'LIFT-A',assetName:'Tower A Lift'}])
+      .mockResolvedValueOnce([{id:'t1',title:'Lift vibration',description:'Noise',priority:'HIGH',status:'IN_PROGRESS',assetId:'a1',assetCode:'LIFT-A',assetName:'Tower A Lift',updatedAt:new Date('2026-10-07T08:00:00.000Z')}])
       .mockResolvedValueOnce([])};
     const controller=new FacilitiesController(prisma as never);
     const result=await controller.previewHelpdeskHandoff('s1','t1');
-    expect(result).toMatchObject({suggested:{workType:'CORRECTIVE',priority:'HIGH'},blockers:[],confirmationRequired:true,mutationPerformed:false});
+    expect(result).toMatchObject({suggested:{workType:'CORRECTIVE',priority:'HIGH'},blockers:[],expectedTicketUpdatedAt:'2026-10-07T08:00:00.000Z',confirmationRequired:true,mutationPerformed:false});
     expect(result.asset).toMatchObject({id:'a1',code:'LIFT-A'});
   });
 
