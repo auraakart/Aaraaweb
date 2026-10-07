@@ -19,6 +19,25 @@ type ExperiencePolicyRow = {
   recurrenceCadences: unknown;
 };
 
+type OfferingTrustEnrichment = {
+  ratingAverage: number | null;
+  ratingCount: number;
+  completedJobs: number;
+  societyTrusted: boolean;
+  societyCompletedJobs: number;
+  societyRatingAverage: number | null;
+  societyRatingCount: number;
+  societyCancellationRate: number | null;
+  societyOnTimeRate: number | null;
+  societyArrivalSamples: number;
+};
+
+type EnrichedOffering<T extends OfferingWithProvider> =
+  Omit<T, 'provider'> & {
+    experiencePolicy: ExperiencePolicyRow | null;
+    provider: T['provider'] & OfferingTrustEnrichment;
+  };
+
 @Injectable()
 export class ServicesMarketplaceOperationsService {
   constructor(
@@ -26,10 +45,13 @@ export class ServicesMarketplaceOperationsService {
     private readonly societyTrust: ServiceProviderSocietyTrustService,
   ) {}
 
-  async enrichOfferings<T extends OfferingWithProvider>(societyId: string, offerings: T[]) {
+  async enrichOfferings<T extends OfferingWithProvider>(
+    societyId: string,
+    offerings: T[],
+  ): Promise<EnrichedOffering<T>[]> {
+    if (!offerings.length) return [];
     const providerIds = [...new Set(offerings.map((offering) => offering.providerId))];
     const offeringIds = [...new Set(offerings.map((offering) => offering.id))];
-    if (!providerIds.length || !offeringIds.length) return offerings;
 
     const [trustByProvider, experiencePolicies] = await Promise.all([
       this.societyTrust.getSignals(societyId, providerIds),
