@@ -230,6 +230,8 @@ jobs:
           test -f docs/AARAAGATE-V4.83.1-INSTA-SERVICES-ENTRY.md
           test -f scripts/check-v4.83.2-grounded-operations-copilot.mjs
           test -f docs/AARAAGATE-V4.83.2-GROUNDED-OPERATIONS-COPILOT.md
+          test -f scripts/check-v4.84-field-operations-pilot-readiness.mjs
+          test -f docs/AARAAGATE-V4.84-FIELD-OPERATIONS-PILOT-READINESS.md
           test -f docs/REPOSITORY-GOVERNANCE.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
@@ -283,6 +285,8 @@ jobs:
         run: node scripts/check-v4.83.1-insta-services-entry.mjs
       - name: Check V4.83.2 Grounded Operations Copilot 2.0
         run: node scripts/check-v4.83.2-grounded-operations-copilot.mjs
+      - name: Check V4.84 Field Operations and Pilot Readiness
+        run: node scripts/check-v4.84-field-operations-pilot-readiness.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
