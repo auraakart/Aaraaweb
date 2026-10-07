@@ -229,7 +229,7 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
       ...invoices.map(invoice => payment(invoice.id, ownerId)),
       payment(invoices[0].id, tenantId),
     ] });
-    const allInvoices = await billing.listPayable(societyId, ownerId) as unknown[];
+    const allInvoices = await billing.listPayable(societyId, ownerId) as Array<{ status: string }>;
     const allPayments = await billing.listPaymentsMine(societyId, ownerId) as unknown[];
     const query = vi.spyOn(prisma, '$queryRaw');
     const owner = await billing.residentSummary(societyId, ownerId, target);
@@ -247,7 +247,7 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     const tenant = await billing.residentSummary(societyId, tenantId, target);
     expect(tenant).toEqual({ ...owner, paymentRecoveryCount: 1 });
     const aggregate = await billing.residentSummary(societyId, ownerId);
-    expect(aggregate.openInvoiceCount).toBe(allInvoices.length);
+    expect(aggregate.openInvoiceCount).toBe(allInvoices.filter(invoice => invoice.status === 'ISSUED').length);
     console.info(`Summary query rows: invoices ${allInvoices.length}->${invoiceRows.length}; payments ${allPayments.length}->${paymentRows.length} (32-property fixture, not production latency)`);
   });
 
