@@ -101,7 +101,7 @@ export class AiAssistantService {
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_UTILITIES','RESIDENT_UTILITIES',facts,
         ['UtilityMeter','UtilityReading','UtilityChargeDraft','MaintenanceInvoice'],
-        'Grounded utility usage and issued-charge evidence for the selected property. Meter resets are kept explicit rather than inferred as consumption.',
+        'Grounded utility usage, recent-delta attention and issued-charge evidence for the selected property. Elevated usage is only a comparison signal—not a leak, fault or billing diagnosis—and prepaid recharge is not claimed without authoritative provider evidence.',
       );
     }
 
@@ -119,7 +119,7 @@ export class AiAssistantService {
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
       this.requireTool(roles,'RESIDENT_WORKFORCE');
       const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave'],'Grounded household-staff status for the current occupant of the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave','AccessRequest','WorkforcePaymentRecord'],'Grounded household-staff status, gate-derived attendance and resident-recorded payment evidence for the current occupant only. Scheduled evidence gaps are not labelled absence, and payment records are not bank/payroll proof.');
     }
 
     if(unitId && /due|maintenance|invoice|receipt|payment|booking|status|complaint|ticket/.test(routed)){
@@ -160,7 +160,7 @@ export class AiAssistantService {
     if(/facility|facilities|asset|work order|amc|preventive maintenance/.test(routed)){
       this.requireTool(roles,'FACILITIES');
       const facts=await this.insights.facilitiesSummary(societyId);
-      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facility summary from current society operations data.');
+      return this.auditedResponse(societyId,userId,unitId,'FACILITIES','FACILITIES',facts,['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],'Grounded facilities summary including overdue work, repeated corrective-work signals and recorded warranty dates. These are operational attention signals, not physical-condition, root-cause or vendor-performance diagnoses.');
     }
 
     if(/governance|committee|meeting|resolution|minutes|action item|agm|sgm/.test(routed)){
@@ -307,14 +307,28 @@ export class AiAssistantService {
       const facilities=await this.insights.facilitiesSummary(societyId);
       cards.push({
         id:'facilities-risk',domain:'FACILITIES',
-        severity:facilities.overdueWorkOrders>0?'HIGH':facilities.maintenanceDue30d>0?'MEDIUM':'LOW',
+        severity:facilities.overdueWorkOrders>0||facilities.repeatedCorrectiveAssets90d>0?'HIGH':facilities.maintenanceDue30d>0||facilities.warrantiesExpiring60d>0?'MEDIUM':'LOW',
         title:'Facility maintenance',
-        summary:`${facilities.openWorkOrders} open work orders · ${facilities.overdueWorkOrders} overdue · ${facilities.maintenanceDue30d} plans due in 30 days`,
-        prompt:'Show facility work orders, overdue maintenance and AMCs',
+        summary:`${facilities.openWorkOrders} open · ${facilities.overdueWorkOrders} overdue · ${facilities.repeatedCorrectiveAssets90d} assets with repeated corrective work · ${facilities.warrantiesExpiring60d} warranties ≤60 days`,
+        prompt:'Show facility work orders, recurring corrective work, warranty attention and AMCs',
         sources:['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],
-        metrics:{openWorkOrders:facilities.openWorkOrders,overdueWorkOrders:facilities.overdueWorkOrders,maintenanceDue30d:facilities.maintenanceDue30d},
-        likelyCause:facilities.overdueWorkOrders>0?'Overdue work orders are the primary current facility-risk signal.':facilities.maintenanceDue30d>0?'Upcoming preventive-maintenance obligations require scheduling attention.':'No current facility backlog signal is elevated.',
-        safeWorkflow:['Review critical and overdue work orders','Confirm assignee/AMC evidence','Use existing facility completion and escalation controls'],
+        metrics:{
+          openWorkOrders:facilities.openWorkOrders,
+          overdueWorkOrders:facilities.overdueWorkOrders,
+          maintenanceDue30d:facilities.maintenanceDue30d,
+          repeatedCorrectiveAssets90d:facilities.repeatedCorrectiveAssets90d,
+          warrantiesExpiring60d:facilities.warrantiesExpiring60d,
+        },
+        likelyCause:facilities.overdueWorkOrders>0
+          ? 'Overdue work orders are the primary current facilities-attention signal.'
+          : facilities.repeatedCorrectiveAssets90d>0
+            ? 'Repeated corrective work indicates recurring recorded maintenance activity; the underlying physical cause is not inferred.'
+            : facilities.warrantiesExpiring60d>0
+              ? 'Recorded warranty dates are approaching and should be reviewed before expiry.'
+              : facilities.maintenanceDue30d>0
+                ? 'Upcoming preventive-maintenance obligations require scheduling attention.'
+                : 'No current facility backlog or recurring-work signal is elevated.',
+        safeWorkflow:['Review critical, overdue and recurring work-order evidence','Confirm assignee, warranty and AMC evidence','Use existing inspection, facility completion and escalation controls; do not infer a physical root cause from history alone'],
       });
     }
 
