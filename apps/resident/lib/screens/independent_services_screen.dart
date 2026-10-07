@@ -26,7 +26,9 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   List<Map<String, dynamic>> _offerings = const [];
   List<Map<String, dynamic>> _locations = const [];
   List<Map<String, dynamic>> _recentProviders = const [];
+  List<Map<String, dynamic>> _communityDeals = const [];
   Set<String> _favoriteProviderIds = const {};
+  bool _communityDealBusy = false;
   String? _selectedCategoryId;
   String? _selectedLocationKey;
   PushRegistrationService? _push;
@@ -152,6 +154,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       }
 
       List<Map<String, dynamic>> offerings = const [];
+      List<Map<String, dynamic>> communityDeals = const [];
       if (selectedKey != null) {
         final location = locations.firstWhere((item) => _locationKey(item) == selectedKey);
         final params = <String, String>{
@@ -164,13 +167,29 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
           final provider = Map<String, dynamic>.from(offering['provider'] as Map? ?? const {});
           final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
           final trust = providerId == null ? null : trustByProvider[providerId];
-          if (trust != null) {
+          if (provider['societyRatingAverage'] is num) {
+            provider['ratingAverage'] = provider['societyRatingAverage'];
+            provider['ratingCount'] = provider['societyRatingCount'];
+            provider['completedJobs'] = provider['societyCompletedJobs'];
+          } else if (trust != null) {
             provider['ratingAverage'] = trust['averageStars'];
             provider['ratingCount'] = trust['ratingCount'];
             provider['completedJobs'] = trust['completedJobs'];
           }
           return <String, dynamic>{...offering, 'provider': provider};
         }).toList();
+        if (location['type']?.toString() == 'SOCIETY_UNIT') {
+          try {
+            final dealQuery = Uri(queryParameters: {
+              'locationType': location['type'].toString(),
+              'locationId': location['id'].toString(),
+            }).query;
+            final dealsRaw = await widget.apiClient.get('/api/v1/consumer/services/community-deals?$dealQuery');
+            communityDeals = (dealsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+          } catch (_) {
+            // Community deals are additive and must never block core service discovery.
+          }
+        }
       }
       if (!mounted) return;
       setState(() {
@@ -179,6 +198,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
         _selectedLocationKey = selectedKey;
         _offerings = offerings;
         _recentProviders = recentProviders;
+        _communityDeals = communityDeals;
         _favoriteProviderIds = favoriteIds;
       });
     } catch (e) {
@@ -193,6 +213,29 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     if (key == null) return;
     setState(() => _selectedLocationKey = key);
     await _load(_selectedCategoryId);
+  }
+
+  Future<void> _setCommunityDeal(Map<String, dynamic> deal, bool join) async {
+    final location = _selectedLocation;
+    final campaignId = deal['id']?.toString();
+    if (location == null || location['type']?.toString() != 'SOCIETY_UNIT' || campaignId == null) return;
+    setState(() => _communityDealBusy = true);
+    try {
+      final action = join ? 'join' : 'withdraw';
+      await widget.apiClient.post('/api/v1/consumer/services/community-deals/$campaignId/$action', {
+        'locationType': location['type'],
+        'locationId': location['id'],
+      });
+      await _load(_selectedCategoryId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(join ? 'Joined this community service deal.' : 'Community service deal participation withdrawn.')),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _communityDealBusy = false);
+    }
   }
 
   Future<void> _openBooking(Map<String, dynamic> offering) async {
@@ -380,6 +423,30 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                   ],
                 ),
               ),
+            if (_communityDeals.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: Text('Community deals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+                  const Icon(Icons.groups_2_outlined),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Join neighbours for a society service day and unlock the published resident price when the household threshold is met.',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 10),
+              for (final deal in _communityDeals) ...[
+                _CommunityDealCard(
+                  deal: deal,
+                  busy: _communityDealBusy,
+                  onJoin: () => _setCommunityDeal(deal, true),
+                  onWithdraw: () => _setCommunityDeal(deal, false),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
             const SizedBox(height: 16),
             Text('Service categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
@@ -463,6 +530,89 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   }
 }
 
+class _CommunityDealCard extends StatelessWidget {
+  const _CommunityDealCard({
+    required this.deal,
+    required this.busy,
+    required this.onJoin,
+    required this.onWithdraw,
+  });
+
+  final Map<String, dynamic> deal;
+  final bool busy;
+  final VoidCallback onJoin;
+  final VoidCallback onWithdraw;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final joined = deal['joinedByThisHome'] == true;
+    final open = deal['status']?.toString() == 'OPEN';
+    final joinedHomes = (deal['joinedHomes'] as num?)?.toInt() ?? 0;
+    final threshold = (deal['thresholdHomes'] as num?)?.toInt() ?? 0;
+    final thresholdMet = deal['thresholdMet'] == true;
+    final residentPricePaise = (deal['residentPricePaise'] as num?)?.toInt() ?? 0;
+    final normalPricePaise = (deal['normalPricePaise'] as num?)?.toInt() ?? residentPricePaise;
+    final serviceDate = DateTime.tryParse(deal['serviceDate']?.toString() ?? '')?.toLocal();
+    String money(int paise) => '₹${(paise / 100).toStringAsFixed(paise % 100 == 0 ? 0 : 2)}';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(child: Icon(Icons.groups_2_outlined)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(deal['title']?.toString() ?? 'Society Service Day', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text('${deal['offeringName'] ?? 'Service'} · ${deal['providerName'] ?? 'Provider'}', style: theme.textTheme.bodySmall),
+                  ]),
+                ),
+                Text(money(residentPricePaise), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              ],
+            ),
+            if (deal['description']?.toString().trim().isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(deal['description'].toString()),
+            ],
+            const SizedBox(height: 10),
+            Wrap(spacing: 10, runSpacing: 8, children: [
+              _TrustSignal(icon: Icons.home_work_outlined, text: '$joinedHomes / $threshold homes'),
+              if (thresholdMet) const _TrustSignal(icon: Icons.check_circle_outline_rounded, text: 'Threshold met'),
+              if (serviceDate != null)
+                _TrustSignal(icon: Icons.calendar_month_outlined, text: MaterialLocalizations.of(context).formatMediumDate(serviceDate)),
+              if (normalPricePaise > residentPricePaise)
+                _TrustSignal(icon: Icons.savings_outlined, text: 'Normal ${money(normalPricePaise)}'),
+            ]),
+            const SizedBox(height: 10),
+            Text(
+              'Joining records household interest only. A service booking and gate access are created separately.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            if (joined && open)
+              OutlinedButton.icon(onPressed: busy ? null : onWithdraw, icon: const Icon(Icons.undo_rounded), label: const Text('Withdraw'))
+            else if (joined)
+              const Text('Joined · campaign locked', style: TextStyle(fontWeight: FontWeight.w700))
+            else
+              FilledButton.icon(
+                onPressed: busy || !open ? null : onJoin,
+                icon: const Icon(Icons.group_add_outlined),
+                label: Text(open ? 'Join deal' : 'Deal locked'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _OfferingCard extends StatelessWidget {
   const _OfferingCard({required this.offering, required this.onTap, required this.onProviderTap, required this.isFavorite});
   final Map<String, dynamic> offering;
@@ -479,6 +629,13 @@ class _OfferingCard extends StatelessWidget {
     final ratingAverage = (provider['ratingAverage'] as num?)?.toDouble();
     final ratingCount = (provider['ratingCount'] as num?)?.toInt() ?? 0;
     final completedJobs = (provider['completedJobs'] as num?)?.toInt() ?? 0;
+    final societyTrusted = provider['societyTrusted'] == true;
+    final experiencePolicy = offering['experiencePolicy'] is Map
+        ? Map<String, dynamic>.from(offering['experiencePolicy'] as Map)
+        : const <String, dynamic>{};
+    final targetArrivalMinutes = (experiencePolicy['targetArrivalMinutes'] as num?)?.toInt();
+    final recurringAvailable = experiencePolicy['recurrenceCadences'] is List
+        && (experiencePolicy['recurrenceCadences'] as List).isNotEmpty;
     final providerName = provider['businessName'] ?? offering['providerName'] ?? 'Verified provider';
     return Card(
       child: InkWell(
@@ -509,6 +666,10 @@ class _OfferingCard extends StatelessWidget {
                     if (ratingAverage != null && ratingCount > 0) _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
                     if (completedJobs > 0) _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
                     const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+                    if (societyTrusted) const _TrustSignal(icon: Icons.shield_rounded, text: 'Society Trusted'),
+                    if (experiencePolicy['quickServiceEligible'] == true && targetArrivalMinutes != null)
+                      _TrustSignal(icon: Icons.bolt_rounded, text: 'Quick ~$targetArrivalMinutes min'),
+                    if (recurringAvailable) const _TrustSignal(icon: Icons.event_repeat_rounded, text: 'Recurring'),
                   ]),
                 ]),
               ),

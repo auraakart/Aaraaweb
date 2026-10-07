@@ -5,6 +5,13 @@ class ServiceProviderSummary {
     this.ratingAverage,
     this.ratingCount = 0,
     this.completedJobs = 0,
+    this.societyTrusted = false,
+    this.societyCompletedJobs = 0,
+    this.societyRatingAverage,
+    this.societyRatingCount = 0,
+    this.societyCancellationRate,
+    this.societyOnTimeRate,
+    this.societyArrivalSamples = 0,
   });
 
   final String businessName;
@@ -12,6 +19,13 @@ class ServiceProviderSummary {
   final double? ratingAverage;
   final int ratingCount;
   final int completedJobs;
+  final bool societyTrusted;
+  final int societyCompletedJobs;
+  final double? societyRatingAverage;
+  final int societyRatingCount;
+  final double? societyCancellationRate;
+  final double? societyOnTimeRate;
+  final int societyArrivalSamples;
 
   factory ServiceProviderSummary.fromJson(Map<String, dynamic> json) => ServiceProviderSummary(
         businessName: json['businessName']?.toString() ?? 'Verified provider',
@@ -19,6 +33,13 @@ class ServiceProviderSummary {
         ratingAverage: (json['ratingAverage'] as num?)?.toDouble(),
         ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
         completedJobs: (json['completedJobs'] as num?)?.toInt() ?? 0,
+        societyTrusted: json['societyTrusted'] == true,
+        societyCompletedJobs: (json['societyCompletedJobs'] as num?)?.toInt() ?? 0,
+        societyRatingAverage: (json['societyRatingAverage'] as num?)?.toDouble(),
+        societyRatingCount: (json['societyRatingCount'] as num?)?.toInt() ?? 0,
+        societyCancellationRate: (json['societyCancellationRate'] as num?)?.toDouble(),
+        societyOnTimeRate: (json['societyOnTimeRate'] as num?)?.toDouble(),
+        societyArrivalSamples: (json['societyArrivalSamples'] as num?)?.toInt() ?? 0,
       );
 }
 

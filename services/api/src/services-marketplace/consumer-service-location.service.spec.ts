@@ -7,10 +7,13 @@ function setup() {
     society: { findUnique: vi.fn() },
     serviceOffering: { findUnique: vi.fn() },
   };
+  const societyTrust = { getSignals: vi.fn().mockResolvedValue(new Map()) };
   return {
     prisma,
+    societyTrust,
     service: new ConsumerServiceLocationService(
       prisma as unknown as ConstructorParameters<typeof ConsumerServiceLocationService>[0],
+      societyTrust as unknown as ConstructorParameters<typeof ConsumerServiceLocationService>[1],
     ),
   };
 }
@@ -59,7 +62,7 @@ describe('ConsumerServiceLocationService', () => {
   });
 
   it('uses the resolved postal code when filtering serviceable offerings', async () => {
-    const { prisma, service } = setup();
+    const { prisma, societyTrust, service } = setup();
     prisma.$queryRaw
       .mockResolvedValueOnce([{
         type: 'SOCIETY_UNIT', id: unitId, homeId: null, societyUnitId: unitId,
@@ -74,6 +77,7 @@ describe('ConsumerServiceLocationService', () => {
     const values = sqlValues(prisma.$queryRaw.mock.calls[1][0]);
     expect(values).toContain('560038');
     expect(values).toContain(offeringId);
+    expect(societyTrust.getSignals).toHaveBeenCalledWith('44444444-4444-4444-4444-444444444444', []);
   });
 
   it('normalizes offering service-area PIN codes before persistence', async () => {
