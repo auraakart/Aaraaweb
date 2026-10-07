@@ -483,6 +483,27 @@ export class WorkforceService {
       `),
     ]);
 
+    const scheduleDays=this.scheduleDayNames(assignment.schedule);
+    const presentDates=new Set(days.map((day)=>day.date instanceof Date?day.date.toISOString().slice(0,10):String(day.date).slice(0,10)));
+    let expectedScheduleDays=0;
+    let scheduledEvidenceGapDays=0;
+    let scheduledLeaveDays=0;
+    if(scheduleDays.size>0){
+      for(let cursor=new Date(fromDate);cursor<=toDate;cursor=new Date(cursor.getTime()+86_400_000)){
+        const dayName=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][cursor.getUTCDay()];
+        if(!scheduleDays.has(dayName)) continue;
+        expectedScheduleDays+=1;
+        const dateKey=cursor.toISOString().slice(0,10);
+        const onLeave=leaves.some((leave)=>{
+          const starts=leave.startsOn instanceof Date?leave.startsOn.toISOString().slice(0,10):String(leave.startsOn).slice(0,10);
+          const ends=leave.endsOn instanceof Date?leave.endsOn.toISOString().slice(0,10):String(leave.endsOn).slice(0,10);
+          return dateKey>=starts&&dateKey<=ends;
+        });
+        if(onLeave) scheduledLeaveDays+=1;
+        else if(!presentDates.has(dateKey)) scheduledEvidenceGapDays+=1;
+      }
+    }
+
     return {
       assignmentId,
       worker: { id: assignment.workerId, name: assignment.worker.name, role: assignment.worker.role },
@@ -494,10 +515,13 @@ export class WorkforceService {
         totalVisits: days.reduce((sum, day) => sum + Number(day.visitCount ?? 0), 0),
         totalMinutesInside: days.reduce((sum, day) => sum + Number(day.minutesInside ?? 0), 0),
         leavePeriods: leaves.length,
+        expectedScheduleDays,
+        scheduledLeaveDays,
+        scheduledEvidenceGapDays,
       },
       days,
       leaves,
-      boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. Missing gate evidence is not silently converted into absence.',
+      boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. A scheduled evidence gap means no gate record was found for an expected workday; it is not labelled absence.',
     };
   }
 
@@ -636,6 +660,13 @@ export class WorkforceService {
   private async assertGate(societyId: string, gateId: string) {
     const gate = await this.prisma.gate.findFirst({ where: { id: gateId, societyId, active: true }, select: { id: true } });
     if (!gate) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
+  }
+
+  private scheduleDayNames(schedule: Prisma.JsonValue) {
+    if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return new Set<string>();
+    const value=schedule as Record<string,unknown>;
+    if(!Array.isArray(value.days)) return new Set<string>();
+    return new Set(value.days.filter((day):day is string=>typeof day==='string').map((day)=>day.trim().toUpperCase()));
   }
 
   private isScheduleAllowed(schedule: Prisma.JsonValue, now: Date) {
