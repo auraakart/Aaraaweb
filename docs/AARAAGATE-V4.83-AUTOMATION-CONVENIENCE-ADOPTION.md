@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 Baseline: V4.82 on develop
-Target release identity: root/API/Admin 4.83.0; Resident/Guard 4.83.0+48300
+Release identity: root/API/Admin 4.83.0; Resident/Guard 4.83.0+48300
 
 ## Objective
 
@@ -55,3 +55,9 @@ Production hosting, live payment/meter/hardware provider certification, biometri
 ## Promotion discipline
 
 Feature work remains on one mastermind branch and is squash-merged once to develop after protected CI. The exact validated tree may then be promoted once to staging. Main remains untouched without fresh explicit owner approval.
+
+## Implemented closure
+
+The repository candidate implements all eight slices against the existing authoritative domain models. New server state is limited to expiring family gate-delegation evidence and the opt-in privacy-safe directory/contact-request records. Finance, staff attendance, utility consumption, facilities maintenance, migration and AI extend existing sources of truth rather than creating replacement ledgers or engines.
+
+V4.83 remains a repository product candidate until protected CI and the governed develop/staging promotion sequence are complete.
