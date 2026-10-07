@@ -5,6 +5,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FileSafetyModule } from '../storage/file-safety.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
+import {
+  ConsumerCommunityServicesController,
+  ProviderServiceExperienceController,
+  ServicesCommunityDealAdminController,
+} from './community-services-3.controller';
+import { CommunityServices3Service } from './community-services-3.service';
 import { ConsumerBookingsController } from './consumer-bookings.controller';
 import { ConsumerBookingsService } from './consumer-bookings.service';
 import { ConsumerCommercialDiscoveryController } from './consumer-commercial-discovery.controller';
@@ -54,6 +60,7 @@ import {
 } from './provider-marketplace-completion.controller';
 import { ProviderMarketplaceCompletionService } from './provider-marketplace-completion.service';
 import { ServiceBookingAccessService } from './service-booking-access.service';
+import { ServiceProviderSocietyTrustService } from './service-provider-society-trust.service';
 import { ServiceBookingHistoryController } from './service-booking-history.controller';
 import { ServiceBookingHistoryService } from './service-booking-history.service';
 import { ServiceBookingRatingService } from './service-booking-rating.service';
@@ -69,6 +76,9 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   imports: [AccessModule, EntitlementsModule, ObjectStorageModule, FileSafetyModule],
   controllers: [
     ServicesMarketplaceController,
+    ServicesCommunityDealAdminController,
+    ConsumerCommunityServicesController,
+    ProviderServiceExperienceController,
     ServiceBookingHistoryController,
     ServicesPlatformController,
     ServicesMarketplaceOperationsSummaryController,
@@ -101,6 +111,8 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   ],
   providers: [
     PrismaService,
+    CommunityServices3Service,
+    ServiceProviderSocietyTrustService,
     ServiceBookingAccessService,
     ServiceBookingHistoryService,
     ServiceBookingRatingService,
