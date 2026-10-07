@@ -202,4 +202,61 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
       } });
     }
   });
+
+  it('bounds property summary reads and preserves owner/tenant payment visibility', async () => {
+    const billing = new BillingService(prisma);
+    const units = Array.from({ length: 32 }, (_, index) => ({
+      id: randomUUID(), societyId, buildingId, number: `summary-${index}`,
+    }));
+    await prisma.unit.createMany({ data: units });
+    await prisma.unitOwnership.createMany({ data: units.map(unit => ({
+      societyId, unitId: unit.id, userId: ownerId, verified: true,
+    })) });
+    const target = units[0].id;
+    await prisma.unitOccupancy.create({ data: { societyId, unitId: target, userId: tenantId, relation: 'TENANT' } });
+    const invoices = units.map(unit => ({
+      id: randomUUID(), societyId, unitId: unit.id, createdById: ownerId,
+      invoiceNumber: `summary-${randomUUID()}`, billingPeriod: '2026-10',
+      amountPaise: 2500, dueDate: new Date('2000-01-01T00:00:00Z'),
+    }));
+    await prisma.maintenanceInvoice.createMany({ data: invoices });
+    const payment = (invoiceId: string, payerUserId: string) => ({
+      societyId, invoiceId, payerUserId, idempotencyKey: randomUUID(),
+      provider: 'TEST', providerOrderId: `summary-${randomUUID()}`, amountPaise: 2500,
+      status: 'FAILED' as const,
+    });
+    await prisma.payment.createMany({ data: [
+      ...invoices.map(invoice => payment(invoice.id, ownerId)),
+      payment(invoices[0].id, tenantId),
+    ] });
+    const allInvoices = await billing.listPayable(societyId, ownerId) as unknown[];
+    const allPayments = await billing.listPaymentsMine(societyId, ownerId) as unknown[];
+    const query = vi.spyOn(prisma, '$queryRaw');
+    const owner = await billing.residentSummary(societyId, ownerId, target);
+    const invoiceRows = await query.mock.results[0].value as unknown[];
+    const paymentRows = await query.mock.results[1].value as unknown[];
+    expect(invoiceRows).toHaveLength(1);
+    expect(paymentRows).toHaveLength(2);
+    expect(allInvoices.length).toBeGreaterThanOrEqual(32);
+    expect(allPayments.length).toBeGreaterThanOrEqual(33);
+    expect(owner).toMatchObject({
+      unitId: target, outstandingPaise: 2500, overduePaise: 2500,
+      openInvoiceCount: 1, overdueInvoiceCount: 1, paymentRecoveryCount: 2,
+      capturedPaymentCount: 0, nextDueDate: '2000-01-01',
+    });
+    const tenant = await billing.residentSummary(societyId, tenantId, target);
+    expect(tenant).toEqual({ ...owner, paymentRecoveryCount: 1 });
+    const aggregate = await billing.residentSummary(societyId, ownerId);
+    expect(aggregate.openInvoiceCount).toBe(allInvoices.length);
+    console.info(`Summary query rows: invoices ${allInvoices.length}->${invoiceRows.length}; payments ${allPayments.length}->${paymentRows.length} (32-property fixture, not production latency)`);
+  });
+
+  it('does not widen summary scope to another society or an unauthorized property', async () => {
+    const billing = new BillingService(prisma);
+    const empty = { outstandingPaise: 0, openInvoiceCount: 0, paymentRecoveryCount: 0, capturedPaymentCount: 0 };
+    await expect(billing.residentSummary(societyId, ownerId, otherUnitId)).resolves.toMatchObject(empty);
+    await expect(billing.residentSummary(societyId, tenantId, secondUnitId)).resolves.toMatchObject(empty);
+    await expect(billing.residentSummary(societyId, ownerId, randomUUID())).resolves.toMatchObject(empty);
+  });
+
 });
