@@ -9,6 +9,7 @@ import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
+import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
 
 export { residentIntentRoutingText } from './ai-assistant.policy';
 export type { AiAssistantIntent, AiAssistantToolId } from './ai-assistant.policy';
@@ -25,6 +26,7 @@ import {
 @Injectable()
 export class AiAssistantService {
   private readonly insights: AiSocietyInsights;
+  private readonly copilot: AiCopilot;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -33,6 +35,7 @@ export class AiAssistantService {
     private readonly documents: DocumentsService,
   ) {
     this.insights = new AiSocietyInsights(prisma);
+    this.copilot = new AiCopilot(prisma);
   }
 
   tools(roles:readonly AppRole[]){
@@ -58,6 +61,22 @@ export class AiAssistantService {
         societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
         'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
         'BLOCKED',
+      );
+    }
+
+    const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
+    if(!unitId&&plan.multiDomain){
+      const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);
+      const sources=[...new Set(Object.values(snapshot.sources).flat())];
+      const facts={
+        planner:{selectedTools:plan.selected,omittedUnauthorizedTools:plan.omitted},
+        domains:snapshot.domains,
+        hypotheses:this.copilot.hypotheses(snapshot.domains),
+        boundary:'The copilot correlates permission-authorized Aaraagate evidence only. Coinciding signals are hypotheses for verification, not causal proof.',
+      };
+      return this.auditedResponse(
+        societyId,userId,unitId,'MULTI_DOMAIN','MULTI_DOMAIN',facts,sources,
+        `Grounded multi-domain review across ${plan.selected.length} authorized operational domains. No causal relationship is asserted without direct evidence.`,
       );
     }
 
@@ -461,7 +480,11 @@ export class AiAssistantService {
   }
 
   private response(intent:AiAssistantIntent,facts:unknown,sources:string[],answer:string){
-    return {intent,answer,facts,sources,grounded:true,mutationPerformed:false};
+    return {
+      intent,answer,facts,sources,
+      evidence:this.copilot.evidence(sources,facts),
+      grounded:true,mutationPerformed:false,
+    };
   }
 
   private async auditedResponse(
@@ -489,6 +512,53 @@ export class AiAssistantService {
       )
     `);
     return this.response(intent,facts,sources,answer);
+  }
+
+  async recordRecommendationOutcome(
+    societyId:string,userId:string,roles:readonly AppRole[],
+    recommendationKey:string,domain:string,status:RecommendationOutcomeStatus,note?:string,
+  ){
+    if(!this.canSeeActionDomain(roles,domain)) throw new ForbiddenException('Recommendation outcome is outside the caller operational scope');
+    return this.copilot.recordOutcome(societyId,userId,recommendationKey,domain,status,note);
+  }
+
+  private async multiDomainSnapshot(societyId:string,tools:readonly AiAssistantToolId[],text:string){
+    const domains:Record<string,unknown>={};
+    const sources:Record<string,string[]>={};
+    for(const tool of tools){
+      if(tool==='SOCIETY_FINANCE'){
+        domains[tool]=await this.insights.societyFinance(societyId,amountThresholdPaise(text));
+        sources[tool]=['MaintenanceInvoice','Payment'];
+      }else if(tool==='HELPDESK_OPERATIONS'){
+        domains[tool]=await this.operations.operationsSummary(societyId);
+        sources[tool]=['HelpdeskTicket'];
+      }else if(tool==='FACILITIES'){
+        domains[tool]=await this.insights.facilitiesSummary(societyId);
+        sources[tool]=['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'];
+      }else if(tool==='VENDORS'){
+        domains[tool]=await this.insights.vendorSummary(societyId);
+        sources[tool]=['SocietyVendor','ProcurementRequest'];
+      }else if(tool==='SECURITY_EVENTS'){
+        domains[tool]=await this.insights.securitySummary(societyId);
+        sources[tool]=['SecurityEvent'];
+      }else if(tool==='GOVERNANCE'){
+        domains[tool]=await this.insights.governanceSummary(societyId);
+        sources[tool]=['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'];
+      }
+    }
+    return {domains,sources};
+  }
+
+  private canSeeActionDomain(roles:readonly AppRole[],domain:string){
+    const normalized=domain.trim().toUpperCase();
+    if(normalized==='FINANCE')return hasPermission(roles,AppPermission.FINANCE_READ);
+    if(normalized==='HELPDESK')return hasPermission(roles,AppPermission.HELPDESK_REVIEW);
+    if(normalized==='GATE')return hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS);
+    if(normalized==='SECURITY')return hasPermission(roles,AppPermission.AUDIT_READ);
+    if(normalized==='FACILITIES')return hasPermission(roles,AppPermission.FACILITIES_READ);
+    if(normalized==='GOVERNANCE')return hasPermission(roles,AppPermission.GOVERNANCE_READ);
+    if(normalized==='PROCUREMENT'||normalized==='VENDORS')return hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ);
+    return false;
   }
 
   private tool(toolId:AiAssistantToolId){
