@@ -59,6 +59,13 @@ type OfferingServiceAreaRow = {
   updatedAt: Date;
 };
 
+type ServiceableOfferingRow = {
+  id: string;
+  providerId: string;
+  provider: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
 @Injectable()
 export class ConsumerServiceLocationService {
   constructor(
@@ -192,7 +199,7 @@ export class ConsumerServiceLocationService {
 
   async listServiceableOfferings(userId: string, type: ConsumerServiceLocationType, id: string, categoryId?: string) {
     const location = await this.resolveLocation(userId, type, id);
-    const offerings = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    const offerings = await this.prisma.$queryRaw<ServiceableOfferingRow[]>(Prisma.sql`
       SELECT
         o."id",
         o."name",
@@ -244,11 +251,11 @@ export class ConsumerServiceLocationService {
     `);
 
     if (!location.societyId) return offerings;
-    const providerIds = [...new Set(offerings.map((row) => row.providerId?.toString()).filter((id): id is string => Boolean(id)))];
+    const providerIds = [...new Set(offerings.map((row) => row.providerId).filter(Boolean))];
     const trustByProvider = await this.societyTrust.getSignals(location.societyId, providerIds);
     return offerings.map((offering) => {
-      const providerId = offering.providerId?.toString();
-      const trust = providerId ? trustByProvider.get(providerId) : undefined;
+      const providerId = offering.providerId;
+      const trust = trustByProvider.get(providerId);
       const provider = offering.provider && typeof offering.provider === 'object'
         ? offering.provider as Record<string, unknown>
         : {};
