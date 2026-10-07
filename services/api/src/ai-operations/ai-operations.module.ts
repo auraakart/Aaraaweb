@@ -3,6 +3,7 @@ import { AmenitiesModule } from '../amenities/amenities.module';
 import { HelpdeskModule } from '../helpdesk/helpdesk.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { FacilitiesModule } from '../facilities/facilities.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitorsModule } from '../visitors/visitors.module';
 import { WorkforceModule } from '../workforce/workforce.module';
@@ -11,7 +12,7 @@ import { AiAssistantService } from './ai-assistant.service';
 import { AiOperationsService } from './ai-operations.service';
 
 @Module({
-  imports:[HelpdeskModule,AmenitiesModule,VisitorsModule,EntitlementsModule,WorkforceModule,DocumentsModule],
+  imports:[HelpdeskModule,AmenitiesModule,VisitorsModule,EntitlementsModule,WorkforceModule,DocumentsModule,FacilitiesModule],
   controllers:[AiOperationsController],
   providers:[AiOperationsService,AiAssistantService,PrismaService],
 })
