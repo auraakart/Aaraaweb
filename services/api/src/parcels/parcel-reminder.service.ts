@@ -24,12 +24,12 @@ export class ParcelReminderService {
 
       const [eligibility] = await tx.$queryRaw<Array<{ overdue: boolean; cooldownActive: boolean }>>(Prisma.sql`
         SELECT
-          (${parcel.receivedAt}::timestamptz <= CURRENT_TIMESTAMP - make_interval(hours => ${OVERDUE_AFTER_HOURS})) AS overdue,
+          (${parcel.receivedAt}::timestamptz <= CURRENT_TIMESTAMP - make_interval(hours => ${OVERDUE_AFTER_HOURS}::int)) AS overdue,
           EXISTS (
             SELECT 1 FROM "ParcelEvent" pe
             WHERE pe."societyId"=${societyId}::uuid AND pe."parcelId"=${parcelId}::uuid
               AND pe."action"='REMINDER_SENT'
-              AND pe."occurredAt" > CURRENT_TIMESTAMP - make_interval(hours => ${REMINDER_COOLDOWN_HOURS})
+              AND pe."occurredAt" > CURRENT_TIMESTAMP - make_interval(hours => ${REMINDER_COOLDOWN_HOURS}::int)
           ) AS "cooldownActive"
       `);
       if (!eligibility?.overdue) throw new BadRequestException('Parcel reminder is available only after 24 hours uncollected');

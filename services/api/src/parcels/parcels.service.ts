@@ -18,31 +18,37 @@ type IntakeInput = {
 
 const pickupDigest = (salt: string, code: string) => createHash('sha256').update(`${salt}:${code}`).digest('hex');
 
+// Keep the list contract and pickup state metadata, but never disclose the
+// server verifier: a six-digit code can be guessed offline from its hash/salt.
+function redactPickupSecrets(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return rows.map(row => ({ ...row, pickupCodeHash: null, pickupCodeSalt: null }));
+}
+
 @Injectable()
 export class ParcelsService {
   constructor(private readonly prisma: PrismaService, private readonly realtime?: NotificationRealtimeService) {}
 
   listOwn(societyId: string, userId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.*,
-        (p."status"='RECEIVED' AND p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS})) AS "overdue"
+        (p."status"='RECEIVED' AND p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS}::int)) AS "overdue"
       FROM "Parcel" p
       WHERE p."societyId"=${societyId}::uuid AND p."recipientUserId"=${userId}::uuid
       ORDER BY CASE p."status" WHEN 'RECEIVED' THEN 0 ELSE 1 END, p."receivedAt" DESC
-    `);
+    `).then(redactPickupSecrets);
   }
 
   listDesk(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.*, u."number" AS "unitNumber",
         recipient."name" AS "recipientName",
-        (p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS})) AS "overdue"
+        (p."receivedAt" < CURRENT_TIMESTAMP - make_interval(hours => ${UNCOLLECTED_OVERDUE_HOURS}::int)) AS "overdue"
       FROM "Parcel" p
       JOIN "Unit" u ON u."id"=p."unitId" AND u."societyId"=p."societyId"
       JOIN "User" recipient ON recipient."id"=p."recipientUserId"
       WHERE p."societyId"=${societyId}::uuid AND p."status"='RECEIVED'
       ORDER BY "overdue" DESC, p."receivedAt" ASC
-    `);
+    `).then(redactPickupSecrets);
   }
 
   async intake(societyId: string, actorUserId: string, input: IntakeInput) {
@@ -109,7 +115,7 @@ export class ParcelsService {
         UPDATE "Parcel"
         SET "pickupCodeSalt"=${salt}, "pickupCodeHash"=${digest},
             "pickupCodeIssuedAt"=CURRENT_TIMESTAMP,
-            "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + make_interval(mins => ${PICKUP_CODE_TTL_MINUTES}),
+            "pickupCodeExpiresAt"=CURRENT_TIMESTAMP + make_interval(mins => ${PICKUP_CODE_TTL_MINUTES}::int),
             "pickupCodeAttempts"=0, "pickupCodeLockedAt"=NULL, "updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${parcelId}::uuid AND "societyId"=${societyId}::uuid
           AND "recipientUserId"=${userId}::uuid AND "status"='RECEIVED'

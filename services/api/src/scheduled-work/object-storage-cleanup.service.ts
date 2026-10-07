@@ -99,7 +99,7 @@ export class ObjectStorageCleanupService implements OnModuleInit, OnModuleDestro
           const delay = storageCleanupRetryDelayMinutes(item.attemptCount);
           await this.prisma.$executeRaw(Prisma.sql`
             UPDATE "ServiceProviderMedia"
-            SET "storageDeleteNextAttemptAt" = CURRENT_TIMESTAMP + make_interval(mins => ${delay}),
+            SET "storageDeleteNextAttemptAt" = CURRENT_TIMESTAMP + make_interval(mins => ${delay}::int),
                 "storageDeleteLastError" = ${message},
                 "updatedAt" = CURRENT_TIMESTAMP
             WHERE "id" = ${item.id}::uuid AND "storageDeletedAt" IS NULL
