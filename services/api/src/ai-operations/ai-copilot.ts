@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -176,8 +177,8 @@ export class AiCopilot {
     const cleanKey=recommendationKey.trim();
     const cleanDomain=domain.trim().toUpperCase();
     const cleanNote=note?.trim()||null;
-    if(!cleanKey||cleanKey.length>160)throw new Error('Recommendation key is invalid');
-    if(!cleanDomain||cleanDomain.length>40)throw new Error('Recommendation domain is invalid');
+    if(!cleanKey||cleanKey.length>160)throw new BadRequestException('Recommendation key is invalid');
+    if(!cleanDomain||cleanDomain.length>40)throw new BadRequestException('Recommendation domain is invalid');
     const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
       INSERT INTO "AiAssistantRecommendationOutcome"
         ("societyId","actorUserId","recommendationKey","domain","status","note")
