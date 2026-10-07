@@ -17,7 +17,7 @@ describe('V4.85 community services migration', () => {
   it('keeps recurring plans user-owned and non-payment-bearing', () => {
     expect(migration).toContain('CREATE TABLE "ConsumerServiceRecurringPlan"');
     expect(migration).toContain('"userId" UUID NOT NULL');
-    expect(migration).toContain('CHECK ("status" IN (\\'ACTIVE\\',\\'PAUSED\\',\\'CANCELLED\\'))');
+    expect(migration).toContain("CHECK (\"status\" IN ('ACTIVE','PAUSED','CANCELLED'))");
     expect(migration).not.toContain('paymentMethod');
     expect(migration).not.toContain('autoCharge');
   });
