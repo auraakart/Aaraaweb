@@ -5,6 +5,9 @@ import { PrismaService } from '../prisma/prisma.service';
 export type UnappliedCashSummary = {
   paymentCount: number;
   unappliedPaise: string;
+  partiallyAllocatedCount: number;
+  unallocatedPaymentCount: number;
+  oldestUnappliedDays: number;
 };
 
 @Injectable()
@@ -33,7 +36,8 @@ export class PaymentAvailabilityService {
         GROUP BY r."societyId",r."paymentId"
       ),
       available AS (
-        SELECT p."id",
+        SELECT p."id",p."createdAt",
+          GREATEST(COALESCE(a."allocatedPaise",0)-COALESCE(rv."reversedPaise",0),0::bigint) AS "netAllocatedPaise",
           GREATEST(
             p."amountPaise"::bigint
               - COALESCE(a."allocatedPaise",0)
@@ -50,9 +54,12 @@ export class PaymentAvailabilityService {
           AND p."status"='CAPTURED'
       )
       SELECT COUNT(*) FILTER (WHERE "availablePaise">0)::int AS "paymentCount",
-             COALESCE(SUM("availablePaise") FILTER (WHERE "availablePaise">0),0)::text AS "unappliedPaise"
+             COALESCE(SUM("availablePaise") FILTER (WHERE "availablePaise">0),0)::text AS "unappliedPaise",
+             COUNT(*) FILTER (WHERE "availablePaise">0 AND "netAllocatedPaise">0)::int AS "partiallyAllocatedCount",
+             COUNT(*) FILTER (WHERE "availablePaise">0 AND "netAllocatedPaise"=0)::int AS "unallocatedPaymentCount",
+             COALESCE(MAX(GREATEST(FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-"createdAt"))/86400),0)) FILTER (WHERE "availablePaise">0),0)::int AS "oldestUnappliedDays"
       FROM available
     `);
-    return rows[0] ?? { paymentCount: 0, unappliedPaise: '0' };
+    return rows[0] ?? { paymentCount: 0, unappliedPaise: '0', partiallyAllocatedCount: 0, unallocatedPaymentCount: 0, oldestUnappliedDays: 0 };
   }
 }
