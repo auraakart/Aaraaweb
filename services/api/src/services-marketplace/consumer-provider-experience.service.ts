@@ -2,12 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerServiceLocationService, ConsumerServiceLocationType } from './consumer-service-location.service';
+import { ServiceProviderSocietyTrustService } from './service-provider-society-trust.service';
 
 @Injectable()
 export class ConsumerProviderExperienceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly locations: ConsumerServiceLocationService,
+    private readonly societyTrust: ServiceProviderSocietyTrustService,
   ) {}
 
   async getForLocation(
@@ -115,6 +117,31 @@ export class ConsumerProviderExperienceService {
       ORDER BY o."name" ASC
     `);
 
+    const experiencePolicies = await this.prisma.$queryRaw<Array<{
+      offeringId: string;
+      quickServiceEligible: boolean;
+      targetArrivalMinutes: number | null;
+      includedWork: string | null;
+      partsPolicy: string | null;
+      extraWorkApprovalRequired: boolean;
+      recurrenceCadences: unknown;
+    }>>(Prisma.sql`
+      SELECT
+        xp."offeringId",
+        xp."quickServiceEligible",
+        xp."targetArrivalMinutes",
+        xp."includedWork",
+        xp."partsPolicy",
+        xp."extraWorkApprovalRequired",
+        xp."recurrenceCadences"
+      FROM "ServiceOfferingExperiencePolicy" xp
+      JOIN "ServiceOffering" o
+        ON o."id" = xp."offeringId"
+       AND o."providerId" = ${providerId}::uuid
+       AND o."active" = true
+      ORDER BY o."name" ASC
+    `);
+
     const trustRows = await this.prisma.$queryRaw<Array<{ qualityTier: 'STANDARD' | 'TRUSTED' | 'PREMIUM' }>>(Prisma.sql`
       SELECT "qualityTier"::text AS "qualityTier"
       FROM "ServiceProviderTrustProfile"
@@ -134,11 +161,16 @@ export class ConsumerProviderExperienceService {
       LIMIT 1
     `);
 
+    const societyTrust = location.societyId
+      ? (await this.societyTrust.getSignals(location.societyId, [providerId])).get(providerId) ?? null
+      : null;
+
     return {
-      provider: { ...provider, qualityTier },
+      provider: { ...provider, qualityTier, ...(societyTrust ?? {}) },
       media,
       offers,
       continuityPolicies,
+      experiencePolicies,
       promotion: promotions[0] ?? null,
     };
   }
