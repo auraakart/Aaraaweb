@@ -13,6 +13,7 @@ describe('ServiceProviderSocietyTrustService', () => {
           ratingCount: 9,
           arrivalSamples: 8,
           onTimeArrivals: 7,
+          societyApproved: true,
         },
       ]),
     };
@@ -27,6 +28,26 @@ describe('ServiceProviderSocietyTrustService', () => {
     expect(signal?.societyOnTimeRate).toBeGreaterThan(0.8);
   });
 
+  it('removes Society Trusted when current society approval is no longer active', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        {
+          providerId: 'provider-3',
+          completedJobs: 20,
+          cancelledJobs: 0,
+          ratingAverage: 4.9,
+          ratingCount: 18,
+          arrivalSamples: 10,
+          onTimeArrivals: 10,
+          societyApproved: false,
+        },
+      ]),
+    };
+    const service = new ServiceProviderSocietyTrustService(prisma as never);
+    const signal = (await service.getSignals('society-1', ['provider-3'])).get('provider-3');
+    expect(signal?.societyTrusted).toBe(false);
+  });
+
   it('fails closed for thin local evidence', async () => {
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([
@@ -38,6 +59,7 @@ describe('ServiceProviderSocietyTrustService', () => {
           ratingCount: 2,
           arrivalSamples: 2,
           onTimeArrivals: 2,
+          societyApproved: true,
         },
       ]),
     };
