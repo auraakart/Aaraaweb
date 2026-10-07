@@ -1,46 +1,95 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
+import { Prisma, ProviderSocietyStatus, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServiceProviderSocietyTrustService } from './service-provider-society-trust.service';
 
 type OfferingWithProvider = {
+  id: string;
   providerId: string;
   provider: Record<string, unknown> & { id: string };
 };
 
+type ExperiencePolicyRow = {
+  offeringId: string;
+  quickServiceEligible: boolean;
+  targetArrivalMinutes: number | null;
+  includedWork: string | null;
+  partsPolicy: string | null;
+  extraWorkApprovalRequired: boolean;
+  recurrenceCadences: unknown;
+};
+
+type OfferingTrustEnrichment = {
+  ratingAverage: number | null;
+  ratingCount: number;
+  completedJobs: number;
+  societyTrusted: boolean;
+  societyCompletedJobs: number;
+  societyRatingAverage: number | null;
+  societyRatingCount: number;
+  societyCancellationRate: number | null;
+  societyOnTimeRate: number | null;
+  societyArrivalSamples: number;
+};
+
+type EnrichedOffering<T extends OfferingWithProvider> =
+  Omit<T, 'provider'> & {
+    experiencePolicy: ExperiencePolicyRow | null;
+    provider: T['provider'] & OfferingTrustEnrichment;
+  };
+
 @Injectable()
 export class ServicesMarketplaceOperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly societyTrust: ServiceProviderSocietyTrustService,
+  ) {}
 
-  async enrichOfferings<T extends OfferingWithProvider>(societyId: string, offerings: T[]) {
+  async enrichOfferings<T extends OfferingWithProvider>(
+    societyId: string,
+    offerings: T[],
+  ): Promise<EnrichedOffering<T>[]> {
+    if (!offerings.length) return [];
     const providerIds = [...new Set(offerings.map((offering) => offering.providerId))];
-    if (!providerIds.length) return offerings;
-    const [ratings, completed] = await Promise.all([
-      this.prisma.serviceRating.groupBy({
-        by: ['providerId'],
-        where: { societyId, providerId: { in: providerIds } },
-        _avg: { score: true },
-        _count: { _all: true },
-      }),
-      this.prisma.serviceBooking.groupBy({
-        by: ['providerId'],
-        where: { societyId, providerId: { in: providerIds }, status: ServiceBookingStatus.COMPLETED },
-        _count: { _all: true },
-      }),
+    const offeringIds = [...new Set(offerings.map((offering) => offering.id))];
+
+    const [trustByProvider, experiencePolicies] = await Promise.all([
+      this.societyTrust.getSignals(societyId, providerIds),
+      this.prisma.$queryRaw<ExperiencePolicyRow[]>(Prisma.sql`
+        SELECT
+          "offeringId",
+          "quickServiceEligible",
+          "targetArrivalMinutes",
+          "includedWork",
+          "partsPolicy",
+          "extraWorkApprovalRequired",
+          "recurrenceCadences"
+        FROM "ServiceOfferingExperiencePolicy"
+        WHERE "offeringId" IN (${Prisma.join(offeringIds.map((id) => Prisma.sql`${id}::uuid`))})
+      `),
     ]);
-    const ratingByProvider = new Map(ratings.map((row) => [row.providerId, {
-      ratingAverage: row._avg.score === null ? null : Number(row._avg.score.toFixed(1)),
-      ratingCount: row._count._all,
-    }]));
-    const completedByProvider = new Map(completed.map((row) => [row.providerId, row._count._all]));
-    return offerings.map((offering) => ({
-      ...offering,
-      provider: {
-        ...offering.provider,
-        ratingAverage: ratingByProvider.get(offering.providerId)?.ratingAverage ?? null,
-        ratingCount: ratingByProvider.get(offering.providerId)?.ratingCount ?? 0,
-        completedJobs: completedByProvider.get(offering.providerId) ?? 0,
-      },
-    }));
+    const policyByOffering = new Map(experiencePolicies.map((row) => [row.offeringId, row]));
+
+    return offerings.map((offering) => {
+      const trust = trustByProvider.get(offering.providerId);
+      return {
+        ...offering,
+        experiencePolicy: policyByOffering.get(offering.id) ?? null,
+        provider: {
+          ...offering.provider,
+          ratingAverage: trust?.societyRatingAverage ?? null,
+          ratingCount: trust?.societyRatingCount ?? 0,
+          completedJobs: trust?.societyCompletedJobs ?? 0,
+          societyTrusted: trust?.societyTrusted ?? false,
+          societyCompletedJobs: trust?.societyCompletedJobs ?? 0,
+          societyRatingAverage: trust?.societyRatingAverage ?? null,
+          societyRatingCount: trust?.societyRatingCount ?? 0,
+          societyCancellationRate: trust?.societyCancellationRate ?? null,
+          societyOnTimeRate: trust?.societyOnTimeRate ?? null,
+          societyArrivalSamples: trust?.societyArrivalSamples ?? 0,
+        },
+      };
+    });
   }
 
   async assertProviderAvailable(societyId: string, offeringId: string, scheduledFrom: Date, scheduledUntil: Date) {

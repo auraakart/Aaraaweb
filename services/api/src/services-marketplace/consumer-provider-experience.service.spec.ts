@@ -10,12 +10,14 @@ describe('ConsumerProviderExperienceService', () => {
     const locationsMock = {
       resolveLocation: vi.fn().mockResolvedValue({ postalCode: '600115' }),
     };
+    const societyTrustMock = { getSignals: vi.fn().mockResolvedValue(new Map()) };
     const prisma = prismaMock as unknown as PrismaService;
     const locations = locationsMock as unknown as ConsumerServiceLocationService;
     return {
       prisma: prismaMock,
       locations: locationsMock,
-      service: new ConsumerProviderExperienceService(prisma, locations),
+      societyTrust: societyTrustMock,
+      service: new ConsumerProviderExperienceService(prisma, locations, societyTrustMock as never),
     };
   };
 
@@ -46,6 +48,15 @@ describe('ConsumerProviderExperienceService', () => {
           revisitPolicy: 'One revisit for the same issue within the warranty period.',
         },
       ])
+      .mockResolvedValueOnce([{
+        offeringId: 'offering-1',
+        quickServiceEligible: true,
+        targetArrivalMinutes: 60,
+        includedWork: 'Inspection and labour',
+        partsPolicy: 'Parts quoted separately',
+        extraWorkApprovalRequired: true,
+        recurrenceCadences: ['MONTHLY'],
+      }])
       .mockResolvedValueOnce([{ qualityTier: 'PREMIUM' }])
       .mockResolvedValueOnce([{ label: 'Sponsored' }]);
 
@@ -63,8 +74,19 @@ describe('ConsumerProviderExperienceService', () => {
         revisitPolicy: 'One revisit for the same issue within the warranty period.',
       },
     ]);
+    expect(result.experiencePolicies).toEqual([
+      {
+        offeringId: 'offering-1',
+        quickServiceEligible: true,
+        targetArrivalMinutes: 60,
+        includedWork: 'Inspection and labour',
+        partsPolicy: 'Parts quoted separately',
+        extraWorkApprovalRequired: true,
+        recurrenceCadences: ['MONTHLY'],
+      },
+    ]);
     expect(result.promotion).toEqual({ label: 'Sponsored' });
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(6);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(7);
   });
 
   it('defaults quality to standard and keeps optional experience signals absent when none are approved', async () => {
@@ -75,12 +97,14 @@ describe('ConsumerProviderExperienceService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
     const result = await service.getForLocation('user-1', 'provider-1', 'HOME', 'home-1');
 
     expect(result.provider.qualityTier).toBe('STANDARD');
     expect(result.continuityPolicies).toEqual([]);
+    expect(result.experiencePolicies).toEqual([]);
     expect(result.promotion).toBeNull();
   });
 
