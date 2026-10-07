@@ -11,6 +11,9 @@ class _ServiceApi extends ApiClient {
   final posts = <Map<String, dynamic>>[];
 
   @override
+  Future<dynamic> get(String path) async => <dynamic>[];
+
+  @override
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
     posts.add({'path': path, 'body': body});
     return <String, dynamic>{};
@@ -31,8 +34,8 @@ class _NoReloadController extends ResidentDataController {
 }
 
 void main() {
-  Widget host(ResidentDataController controller) => MaterialApp(
-        home: Scaffold(body: ServicesScreen(controller: controller)),
+  Widget host(ResidentDataController controller, {_ServiceApi? api}) => MaterialApp(
+        home: Scaffold(body: ServicesScreen(controller: controller, consumerApiClient: api ?? _ServiceApi())),
       );
 
   testWidgets('home services intro remains usable with large accessibility text', (tester) async {
@@ -58,7 +61,7 @@ void main() {
           ),
           child: child!,
         ),
-        home: Scaffold(body: ServicesScreen(controller: controller)),
+        home: Scaffold(body: ServicesScreen(controller: controller, consumerApiClient: _ServiceApi())),
       ),
     );
     await tester.pumpAndSettle();
@@ -66,6 +69,24 @@ void main() {
     expect(find.text('Home services'), findsOneWidget);
     expect(find.text('What do you need help with?'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
+  testWidgets('services tab exposes Insta Services and opens the existing local marketplace', (tester) async {
+    final controller = ResidentDataController(DemoResidentRepository());
+
+    await tester.pumpWidget(host(controller));
+    expect(find.text('Insta Services'), findsOneWidget);
+
+    await tester.tap(find.text('Insta Services'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Insta Services'), findsOneWidget);
+    expect(find.text('Insta Services near you'), findsOneWidget);
+    expect(find.text('Service location'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
     controller.dispose();
   });
 
