@@ -24,7 +24,7 @@ type PaymentRefund={id:string;paymentId:string;amountPaise:string;reason:string;
 type AdjustmentNote={id:string;type:'DEBIT'|'CREDIT'|'WAIVER';documentType:'DEBIT_NOTE'|'CREDIT_NOTE'|'WAIVER';amountPaise:string;reason:string;noteNumber:string;entryDate:string;journalStatus:string;residentVisible:boolean;createdAt:string}
 type ResolutionAction={code:string;label:string;detail:string;href:string}
 type OperationalReadiness={status:'READY'|'WATCH'|'AT_RISK';draftExpenses:number;approvedUnpostedExpenses:number;overduePayables:number;draftBudgets:number;unresolvedReconciliation:number;unsettledGatewayOperations:number;unlinkedPurchaseOrders:number;contractsExpiring30d:number;blockers:string[];nextActions:string[];resolutionActions?:ResolutionAction[];automaticDebitAvailable:false;providerExecution:'ADAPTER_CONTROLLED';boundary:string;generatedAt:string}
-type TreasurerControl={status:'CLEAR'|'ATTENTION'|'ACTION_REQUIRED';bank:{unmatchedBank:number;unmatchedMovementPaise:string};cash:{unappliedCount:number;unappliedPaise:string};budget:{overrunLines:number;overrunPaise:string};tax:{gstEnabled:boolean;tdsEnabled:boolean;documentsMissingTaxEvidence:number};refunds:{refunds30d:number;refundedPaise30d:string};nextActions:string[];resolutionActions?:ResolutionAction[];automaticPosting:false;automaticMatching:false;boundary:string;generatedAt:string}
+type TreasurerControl={status:'CLEAR'|'ATTENTION'|'ACTION_REQUIRED';bank:{unmatchedBank:number;unmatchedMovementPaise:string};cash:{unappliedCount:number;unappliedPaise:string;partiallyAllocatedCount:number;unallocatedPaymentCount:number;oldestUnappliedDays:number};budget:{overrunLines:number;overrunPaise:string};tax:{gstEnabled:boolean;tdsEnabled:boolean;documentsMissingTaxEvidence:number};refunds:{refunds30d:number;refundedPaise30d:string};nextActions:string[];resolutionActions?:ResolutionAction[];automaticPosting:false;automaticMatching:false;boundary:string;generatedAt:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
@@ -125,6 +125,9 @@ export default function FinanceWorkspace(){
     {treasurer&&<section id="treasurer-control-centre" style={panel}><div style={sectionHeader}><div><h2 style={{margin:'0 0 4px'}}>Treasurer control centre</h2><small>One deterministic view across bank, cash, budget, tax and refund evidence.</small></div><StatusPill label={treasurer.status.replaceAll('_',' ')} tone={treasurer.status==='CLEAR'?'success':treasurer.status==='ACTION_REQUIRED'?'danger':'warning'}/></div><EvidenceGrid items={[
       {id:'bank-unmatched',label:'Unmatched bank items',value:String(treasurer.bank.unmatchedBank)},
       {id:'cash-unapplied',label:'Unapplied captured cash',value:`${treasurer.cash.unappliedCount} · ${money(treasurer.cash.unappliedPaise)}`},
+      {id:'cash-partial',label:'Partially allocated payments',value:String(treasurer.cash.partiallyAllocatedCount)},
+      {id:'cash-unallocated',label:'Fully unallocated payments',value:String(treasurer.cash.unallocatedPaymentCount)},
+      {id:'cash-oldest',label:'Oldest unapplied cash',value:`${treasurer.cash.oldestUnappliedDays} day${treasurer.cash.oldestUnappliedDays===1?'':'s'}`},
       {id:'budget-overrun',label:'Budget overrun lines',value:`${treasurer.budget.overrunLines} · ${money(treasurer.budget.overrunPaise)}`},
       {id:'tax-evidence',label:'Missing GST/TDS evidence',value:String(treasurer.tax.documentsMissingTaxEvidence)},
       {id:'refunds',label:'Refunds · 30d',value:`${treasurer.refunds.refunds30d} · ${money(treasurer.refunds.refundedPaise30d)}`},
