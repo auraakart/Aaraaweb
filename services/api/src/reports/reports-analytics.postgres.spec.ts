@@ -39,11 +39,18 @@ withDatabase('Journey query windows on migrated PostgreSQL', () => {
         { ...access, createdAt: from, status: 'APPROVED' },
       ] });
       const ticket = { societyId, unitId: unit.id, createdById: userId, title: 'Fixture', description: 'Fixture' };
+      const closedTicketId = randomUUID();
       await prisma.helpdeskTicket.createMany({ data: [
         ...Array.from({ length: 100 }, () => ({ ...ticket, createdAt: historical })),
-        { ...ticket, createdAt: historical, resolvedAt: from, closedAt: to, status: 'CLOSED' },
+        { ...ticket, id: closedTicketId, createdAt: historical, resolvedAt: from, closedAt: to },
         { ...ticket, createdAt: from },
       ] });
+      // Closure codes are migration-managed domain evidence outside this
+      // Prisma model; satisfy the real workflow constraint, never disable it.
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE "HelpdeskTicket" SET "status"='CLOSED',"closureCode"='RESOLVED_CONFIRMED'
+        WHERE "id"=${closedTicketId}::uuid AND "societyId"=${societyId}::uuid
+      `);
       const booking = { societyId, unitId: unit.id, residentUserId: userId, providerId, offeringId,
         scheduledFrom: from, scheduledUntil: to, servicePricePaise: 1000, commissionBps: 1000, commissionPaise: 100 };
       await prisma.serviceBooking.createMany({ data: [
