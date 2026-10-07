@@ -16,6 +16,7 @@ export type AiAssistantIntent =
   | 'RESIDENT_GATE'
   | 'GOVERNANCE'
   | 'SOCIETY_KNOWLEDGE'
+  | 'MULTI_DOMAIN'
   | 'UNSUPPORTED';
 
 export type AiAssistantToolId = Exclude<AiAssistantIntent, 'UNSUPPORTED'>;

@@ -9,6 +9,8 @@ import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
+import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
+import { AiActionCentre } from './ai-action-centre';
 
 export { residentIntentRoutingText } from './ai-assistant.policy';
 export type { AiAssistantIntent, AiAssistantToolId } from './ai-assistant.policy';
@@ -25,6 +27,8 @@ import {
 @Injectable()
 export class AiAssistantService {
   private readonly insights: AiSocietyInsights;
+  private readonly copilot: AiCopilot;
+  private readonly actionCentreBuilder: AiActionCentre;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -33,6 +37,8 @@ export class AiAssistantService {
     private readonly documents: DocumentsService,
   ) {
     this.insights = new AiSocietyInsights(prisma);
+    this.copilot = new AiCopilot(prisma);
+    this.actionCentreBuilder = new AiActionCentre(operations,this.insights,this.copilot);
   }
 
   tools(roles:readonly AppRole[]){
@@ -58,6 +64,22 @@ export class AiAssistantService {
         societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
         'Request instructions cannot override Aaraagate permissions, tenant scope, tool policy or confirmation requirements. No tool was invoked.',
         'BLOCKED',
+      );
+    }
+
+    const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
+    if(!unitId&&plan.multiDomain){
+      const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);
+      const sources=[...new Set(Object.values(snapshot.sources).flat())];
+      const facts={
+        planner:{selectedTools:plan.selected,omittedUnauthorizedTools:plan.omitted},
+        domains:snapshot.domains,
+        hypotheses:this.copilot.hypotheses(snapshot.domains),
+        boundary:'The copilot correlates permission-authorized Aaraagate evidence only. Coinciding signals are hypotheses for verification, not causal proof.',
+      };
+      return this.auditedResponse(
+        societyId,userId,unitId,'MULTI_DOMAIN','MULTI_DOMAIN',facts,sources,
+        `Grounded multi-domain review across ${plan.selected.length} authorized operational domains. No causal relationship is asserted without direct evidence.`,
       );
     }
 
@@ -191,229 +213,8 @@ export class AiAssistantService {
     );
   }
 
-  async actionCentre(societyId:string,roles:readonly AppRole[]) {
-    const cards:Array<{
-      id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
-      evidenceQuality?:{sourceCount:number;basis:'CURRENT_QUERY_SNAPSHOT';causalClaim:false;interpretation:'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY'};
-      actionIntent?:{mode:'READ_ONLY_DRILLDOWN';workspaceHref:string;workspaceLabel:string;confirmationRequired:true;mutationAllowed:false};
-    }>=[];
-
-    if(hasPermission(roles,AppPermission.FINANCE_READ)){
-      const finance=await this.insights.societyFinance(societyId,0);
-      cards.push({
-        id:'finance-overdue',domain:'FINANCE',
-        severity:finance.overdueOver30Days>0?'HIGH':finance.overdueCount>0?'MEDIUM':'LOW',
-        title:'Collections and overdue maintenance',
-        summary:finance.overdueCount>0
-          ? `${finance.overdueCount} overdue invoices · ${finance.overdueOver30Days} older than 30 days`
-          : 'No overdue maintenance invoices in current society data.',
-        prompt:'Show overdue maintenance and collection trend',
-        sources:['MaintenanceInvoice','Payment'],
-        metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collectionChangePercent:finance.collectionChangePercent},
-        likelyCause:finance.overdueOver30Days>0
-          ? 'Long-ageing receivables are the strongest current collection signal.'
-          : finance.collectionChangePercent!==null&&finance.collectionChangePercent<0
-            ? 'Recent collections are below the previous 30-day period.'
-            : 'Current evidence does not indicate a material collection deterioration.',
-        safeWorkflow:['Review ageing buckets and reconciliation exceptions','Confirm reminder/waiver policy before any resident communication','Keep payment and accounting corrections in their existing controlled workflows'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.HELPDESK_REVIEW)){
-      const helpdesk=await this.operations.operationsSummary(societyId);
-      cards.push({
-        id:'helpdesk-sla',domain:'HELPDESK',
-        severity:helpdesk.breachedCount>0?'HIGH':helpdesk.unassignedCount>0?'MEDIUM':'LOW',
-        title:'Helpdesk SLA attention',
-        summary:helpdesk.breachedCount>0
-          ? `${helpdesk.breachedCount} breached · ${helpdesk.unassignedCount} unassigned`
-          : `${helpdesk.openCount} open · ${helpdesk.unassignedCount} unassigned`,
-        prompt:'Show helpdesk SLA breaches and unassigned tickets',
-        sources:['HelpdeskTicket'],
-        metrics:{openCount:helpdesk.openCount,breachedCount:helpdesk.breachedCount,unassignedCount:helpdesk.unassignedCount},
-        likelyCause:helpdesk.breachedCount>0
-          ? 'SLA-breached requests indicate unresolved work has exceeded configured response or resolution expectations.'
-          : helpdesk.unassignedCount>0
-            ? 'Unassigned requests are the clearest current routing bottleneck.'
-            : 'No material helpdesk bottleneck is visible in current evidence.',
-        safeWorkflow:['Review breached requests first','Assign an accountable operator where missing','Use the normal status/escalation workflow; AI does not close or reassign tickets'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS)){
-      const gate=await this.insights.gateAttentionSummary(societyId);
-      const focus=gate.criticalIncidentTitle
-        ? `Critical incident: ${gate.criticalIncidentTitle}`
-        : gate.oldestOverstayName
-          ? `Oldest overstay: ${gate.oldestOverstayName}${gate.oldestOverstayMinutes!==null?` · ${gate.oldestOverstayMinutes} min`:''}`
-          : gate.staleCheckpointName
-            ? `Patrol due: ${gate.staleCheckpointName}`
-            : null;
-      cards.push({
-        id:'gate-attention',domain:'GATE',
-        severity:gate.criticalIncidents>0||gate.overstayCount>0?'HIGH':gate.stalePatrolCount>0?'MEDIUM':'LOW',
-        title:'Gate attention and patrol coverage',
-        summary:gate.overstayCount||gate.openIncidents||gate.stalePatrolCount
-          ? `${gate.overstayCount} overstays · ${gate.openIncidents} open incidents · ${gate.stalePatrolCount} patrol checkpoints due${focus?` · ${focus}`:''}`
-          : 'Gate exceptions and patrol coverage are currently clear.',
-        prompt:'Show gate overstays, incidents and patrol coverage needing attention',
-        sources:['AccessRequest','SecurityIncident','PatrolCheckpoint','PatrolScan'],
-        metrics:{
-          overstayCount:gate.overstayCount,openIncidents:gate.openIncidents,criticalIncidents:gate.criticalIncidents,stalePatrolCount:gate.stalePatrolCount,
-          criticalIncidentId:gate.criticalIncidentId,oldestOverstayId:gate.oldestOverstayId,staleCheckpointId:gate.staleCheckpointId,
-        },
-        whyNow:gate.criticalIncidentTitle
-          ? `Critical incident "${gate.criticalIncidentTitle}" is still open and requires supervisor attention.`
-          : gate.oldestOverstayName
-            ? `${gate.oldestOverstayName} is the oldest checked-in visitor beyond the four-hour operating threshold${gate.oldestOverstayMinutes!==null?` at ${gate.oldestOverstayMinutes} minutes`:''}.`
-            : gate.staleCheckpointName
-              ? `${gate.staleCheckpointName} has no patrol scan in the last eight hours.`
-              : 'No immediate gate exception signal is present.',
-        recommendedNextStep:gate.criticalIncidentId
-          ? 'Open Security Incidents, review the critical record and record the supervisor response.'
-          : gate.oldestOverstayId
-            ? 'Verify the oldest visitor status and escalate it from Guard Field Operations if unresolved.'
-            : gate.staleCheckpointId
-              ? 'Prioritise a patrol scan for the named checkpoint.'
-              : 'Continue routine gate processing and patrol cadence.',
-        likelyCause:gate.criticalIncidentId
-          ? 'An unresolved critical security incident is driving the gate priority.'
-          : gate.oldestOverstayId
-            ? 'A checked-in visitor has exceeded the configured four-hour operating threshold.'
-            : gate.staleCheckpointId
-              ? 'Patrol evidence is stale for at least one active checkpoint.'
-              : 'No active gate exception is driving attention.',
-        safeWorkflow:['Verify the named record against live gate context','Escalate through Guard/Security Supervisor controls when required','Do not bypass resident approval or device/manual-fallback policy'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.AUDIT_READ)){
-      const security=await this.insights.securitySummary(societyId);
-      const total=security.byType.reduce((sum,item)=>sum+Number(item.count),0);
-      cards.push({
-        id:'security-events',domain:'SECURITY',
-        severity:total>20?'HIGH':total>0?'MEDIUM':'LOW',
-        title:'Security events',
-        summary:total>0?`${total} privacy-minimal security events in the last 30 days`:'No security events recorded in the last 30 days.',
-        prompt:'Summarize recent security incidents and session events',
-        sources:['SecurityEvent'],
-        metrics:{eventCount30d:total},
-        likelyCause:total>20?'Security-event volume is elevated for the current 30-day window; inspect the event mix before attributing a cause.':'No elevated security-event volume is currently indicated.',
-        safeWorkflow:['Inspect event types and timestamps','Correlate only with authorized audit evidence','Avoid inferring resident intent or identity beyond recorded evidence'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.FACILITIES_READ)){
-      const facilities=await this.insights.facilitiesSummary(societyId);
-      cards.push({
-        id:'facilities-risk',domain:'FACILITIES',
-        severity:facilities.overdueWorkOrders>0||facilities.repeatedCorrectiveAssets90d>0?'HIGH':facilities.maintenanceDue30d>0||facilities.warrantiesExpiring60d>0?'MEDIUM':'LOW',
-        title:'Facility maintenance',
-        summary:`${facilities.openWorkOrders} open · ${facilities.overdueWorkOrders} overdue · ${facilities.repeatedCorrectiveAssets90d} assets with repeated corrective work · ${facilities.warrantiesExpiring60d} warranties ≤60 days`,
-        prompt:'Show facility work orders, recurring corrective work, warranty attention and AMCs',
-        sources:['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'],
-        metrics:{
-          openWorkOrders:facilities.openWorkOrders,
-          overdueWorkOrders:facilities.overdueWorkOrders,
-          maintenanceDue30d:facilities.maintenanceDue30d,
-          repeatedCorrectiveAssets90d:facilities.repeatedCorrectiveAssets90d,
-          warrantiesExpiring60d:facilities.warrantiesExpiring60d,
-        },
-        likelyCause:facilities.overdueWorkOrders>0
-          ? 'Overdue work orders are the primary current facilities-attention signal.'
-          : facilities.repeatedCorrectiveAssets90d>0
-            ? 'Repeated corrective work indicates recurring recorded maintenance activity; the underlying physical cause is not inferred.'
-            : facilities.warrantiesExpiring60d>0
-              ? 'Recorded warranty dates are approaching and should be reviewed before expiry.'
-              : facilities.maintenanceDue30d>0
-                ? 'Upcoming preventive-maintenance obligations require scheduling attention.'
-                : 'No current facility backlog or recurring-work signal is elevated.',
-        safeWorkflow:['Review critical, overdue and recurring work-order evidence','Confirm assignee, warranty and AMC evidence','Use existing inspection, facility completion and escalation controls; do not infer a physical root cause from history alone'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.GOVERNANCE_READ)){
-      const governance=await this.insights.governanceSummary(societyId);
-      const openActions=governance.actions.filter(action=>!['COMPLETED','CLOSED','CANCELLED'].includes(String(action.status??'').toUpperCase()));
-      const now=Date.now();
-      const overdueActions=openActions.filter(action=>{
-        const dueAt=action.dueAt;
-        if(!dueAt)return false;
-        const due=Date.parse(String(dueAt));
-        return Number.isFinite(due)&&due<now;
-      });
-      cards.push({
-        id:'governance-actions',domain:'GOVERNANCE',
-        severity:overdueActions.length>0?'HIGH':openActions.length>0?'MEDIUM':'LOW',
-        title:'Governance follow-through',
-        summary:openActions.length>0
-          ? `${openActions.length} open action items · ${overdueActions.length} overdue`
-          : 'No open governance action items in current society data.',
-        prompt:'Show governance action items needing follow-through',
-        sources:['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'],
-        metrics:{openActionItems:openActions.length,overdueActionItems:overdueActions.length},
-        likelyCause:overdueActions.length>0?'Governance follow-through is delayed on one or more dated action items.':openActions.length>0?'Open governance actions still require accountable follow-through.':'No governance action backlog is visible.',
-        safeWorkflow:['Review the underlying meeting/resolution evidence','Confirm owner and due date','Record completion only through the governance workflow'],
-      });
-    }
-
-    if(hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ)){
-      const vendors=await this.insights.vendorSummary(societyId);
-      cards.push({
-        id:'procurement-attention',domain:'PROCUREMENT',
-        severity:vendors.submittedRequests>=5?'HIGH':vendors.submittedRequests>0?'MEDIUM':'LOW',
-        title:'Procurement and vendors',
-        summary:`${vendors.submittedRequests} submitted requests · ${vendors.approvedRequests} approved · ${vendors.activeVendors} active vendors`,
-        prompt:'Show vendor and procurement requests needing attention',
-        sources:['SocietyVendor','ProcurementRequest'],
-        metrics:{activeVendors:vendors.activeVendors,submittedRequests:vendors.submittedRequests,approvedRequests:vendors.approvedRequests},
-        likelyCause:vendors.submittedRequests>0?'Submitted procurement requests are awaiting the next controlled review/approval step.':'No procurement queue signal is currently elevated.',
-        safeWorkflow:['Review submitted requests and supporting quotations','Apply maker-checker/approval policy','Keep vendor and marketplace responsibilities segregated'],
-      });
-    }
-
-    const workspaceByDomain:Record<string,{href:string;label:string}>={
-      FINANCE:{href:'/finance',label:'Finance workspace'},
-      HELPDESK:{href:'/',label:'Helpdesk operations'},
-      GATE:{href:'/',label:'Gate operations'},
-      SECURITY:{href:'/',label:'Security operations'},
-      FACILITIES:{href:'/facilities',label:'Facilities workspace'},
-      GOVERNANCE:{href:'/governance',label:'Governance workspace'},
-      PROCUREMENT:{href:'/vendors',label:'Vendor & procurement workspace'},
-    };
-    const evidenceCards=cards.map(card=>({
-      ...card,
-      actionIntent:{
-        mode:'READ_ONLY_DRILLDOWN' as const,
-        workspaceHref:workspaceByDomain[card.domain]?.href??'/',
-        workspaceLabel:workspaceByDomain[card.domain]?.label??'Operations workspace',
-        confirmationRequired:true as const,
-        mutationAllowed:false as const,
-      },
-      evidenceQuality:{
-        sourceCount:card.sources.length,
-        basis:'CURRENT_QUERY_SNAPSHOT' as const,
-        causalClaim:false as const,
-        interpretation:(card.likelyCause?'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF':'FACT_SUMMARY') as 'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY',
-      },
-    }));
-    const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
-    const safetyRank=(card:(typeof evidenceCards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
-    evidenceCards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
-    const highPriorityCount=evidenceCards.filter(card=>card.severity==='HIGH').length;
-    const mediumPriorityCount=evidenceCards.filter(card=>card.severity==='MEDIUM').length;
-    const focus=evidenceCards[0]??null;
-    return {
-      cards:evidenceCards,
-      brief:{
-        highPriorityCount,
-        mediumPriorityCount,
-        attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality}:null,
-        explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed.',
-      },
-      generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
-    };
+  actionCentre(societyId:string,roles:readonly AppRole[]) {
+    return this.actionCentreBuilder.build(societyId,roles);
   }
 
   async proposeHelpdeskFromText(societyId:string,userId:string,unitId:string,sourceText:string){
@@ -461,7 +262,11 @@ export class AiAssistantService {
   }
 
   private response(intent:AiAssistantIntent,facts:unknown,sources:string[],answer:string){
-    return {intent,answer,facts,sources,grounded:true,mutationPerformed:false};
+    return {
+      intent,answer,facts,sources,
+      evidence:this.copilot.evidence(sources,facts),
+      grounded:true,mutationPerformed:false,
+    };
   }
 
   private async auditedResponse(
@@ -489,6 +294,53 @@ export class AiAssistantService {
       )
     `);
     return this.response(intent,facts,sources,answer);
+  }
+
+  async recordRecommendationOutcome(
+    societyId:string,userId:string,roles:readonly AppRole[],
+    recommendationKey:string,domain:string,status:RecommendationOutcomeStatus,note?:string,
+  ){
+    if(!this.canSeeActionDomain(roles,domain)) throw new ForbiddenException('Recommendation outcome is outside the caller operational scope');
+    return this.copilot.recordOutcome(societyId,userId,recommendationKey,domain,status,note);
+  }
+
+  private async multiDomainSnapshot(societyId:string,tools:readonly AiAssistantToolId[],text:string){
+    const domains:Record<string,unknown>={};
+    const sources:Record<string,string[]>={};
+    for(const tool of tools){
+      if(tool==='SOCIETY_FINANCE'){
+        domains[tool]=await this.insights.societyFinance(societyId,amountThresholdPaise(text));
+        sources[tool]=['MaintenanceInvoice','Payment'];
+      }else if(tool==='HELPDESK_OPERATIONS'){
+        domains[tool]=await this.operations.operationsSummary(societyId);
+        sources[tool]=['HelpdeskTicket'];
+      }else if(tool==='FACILITIES'){
+        domains[tool]=await this.insights.facilitiesSummary(societyId);
+        sources[tool]=['FacilityAsset','FacilityWorkOrder','FacilityMaintenancePlan'];
+      }else if(tool==='VENDORS'){
+        domains[tool]=await this.insights.vendorSummary(societyId);
+        sources[tool]=['SocietyVendor','ProcurementRequest'];
+      }else if(tool==='SECURITY_EVENTS'){
+        domains[tool]=await this.insights.securitySummary(societyId);
+        sources[tool]=['SecurityEvent'];
+      }else if(tool==='GOVERNANCE'){
+        domains[tool]=await this.insights.governanceSummary(societyId);
+        sources[tool]=['GovernanceMeeting','GovernanceResolution','GovernanceActionItem'];
+      }
+    }
+    return {domains,sources};
+  }
+
+  private canSeeActionDomain(roles:readonly AppRole[],domain:string){
+    const normalized=domain.trim().toUpperCase();
+    if(normalized==='FINANCE')return hasPermission(roles,AppPermission.FINANCE_READ);
+    if(normalized==='HELPDESK')return hasPermission(roles,AppPermission.HELPDESK_REVIEW);
+    if(normalized==='GATE')return hasPermission(roles,AppPermission.GATE_ACCESS_PROCESS);
+    if(normalized==='SECURITY')return hasPermission(roles,AppPermission.AUDIT_READ);
+    if(normalized==='FACILITIES')return hasPermission(roles,AppPermission.FACILITIES_READ);
+    if(normalized==='GOVERNANCE')return hasPermission(roles,AppPermission.GOVERNANCE_READ);
+    if(normalized==='PROCUREMENT'||normalized==='VENDORS')return hasPermission(roles,AppPermission.SOCIETY_VENDORS_READ);
+    return false;
   }
 
   private tool(toolId:AiAssistantToolId){
