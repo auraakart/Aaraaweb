@@ -329,3 +329,12 @@ Remaining external acceptance:
 - promotion to `main`.
 
 V4.79 repository completion does **not** increase Production/field readiness without those external proofs.
+
+
+## V4.86 Adoption & Competitive Readiness
+1. **Accessible adoption:** Resident Easy mode is a persisted device-only presentation preference; it increases text/control size and never changes permissions, entitlements or property context.
+2. **Finance interoperability:** Tally-friendly journal CSV extends the existing immutable accounting export/audit pipeline and is explicitly an import-mapping aid, not automatic external posting.
+3. **Onboarding activation:** repository onboarding derives an eligible current-owner/current-occupant cohort and requires at least one normal OTP/session activation before the resident-activation step is ready.
+4. **Gate fallback evidence:** aggregate push, IVR-simulator and manual-fallback evidence is reportable without changing gate authority or claiming a live telephony provider.
+5. **Trust transparency:** resident privacy copy keeps commercial service placement separate from verification, Society Trusted evidence, society approval and ratings and avoids unsupported certification claims.
+6. **Production boundary:** hosting/provider deployment remains outside V4.86 and is not modified by this release.

@@ -99,13 +99,15 @@ export class ConsumerServiceCompletionService {
   }
 
   async getForConsumer(userId: string, bookingId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ bookingId: string; bookingStatus: ServiceBookingStatus; assignmentId: string | null; assignmentStatus: string | null; agentDisplayName: string | null; requestedAt: Date | null; confirmedAt: Date | null }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<Array<{ bookingId: string; bookingStatus: ServiceBookingStatus; assignmentId: string | null; assignmentStatus: string | null; agentDisplayName: string | null; requestedAt: Date | null; confirmedAt: Date | null; warrantyDays: number | null; revisitPolicy: string | null; warrantyStartedAt: Date | null; warrantyUntil: Date | null }>>(Prisma.sql`
       SELECT b."id" AS "bookingId", b."status" AS "bookingStatus", a."id" AS "assignmentId", a."status" AS "assignmentStatus", ag."displayName" AS "agentDisplayName",
         (SELECT e."occurredAt" FROM "ConsumerServiceAssignmentEvent" e WHERE e."assignmentId" = a."id" AND e."type" = 'COMPLETION_REQUESTED' ORDER BY e."occurredAt" DESC LIMIT 1) AS "requestedAt",
-        (SELECT e."occurredAt" FROM "ConsumerServiceAssignmentEvent" e WHERE e."assignmentId" = a."id" AND e."type" = 'CUSTOMER_CONFIRMED_COMPLETION' ORDER BY e."occurredAt" DESC LIMIT 1) AS "confirmedAt"
+        (SELECT e."occurredAt" FROM "ConsumerServiceAssignmentEvent" e WHERE e."assignmentId" = a."id" AND e."type" = 'CUSTOMER_CONFIRMED_COMPLETION' ORDER BY e."occurredAt" DESC LIMIT 1) AS "confirmedAt",
+        ws."warrantyDays", ws."revisitPolicy", ws."warrantyStartedAt", ws."warrantyUntil"
       FROM "ConsumerServiceBooking" b
       LEFT JOIN LATERAL (SELECT a.* FROM "ConsumerServiceAssignment" a WHERE a."bookingId" = b."id" ORDER BY a."createdAt" DESC LIMIT 1) a ON true
       LEFT JOIN "ConsumerProviderAgent" ag ON ag."id" = a."agentId"
+      LEFT JOIN "ConsumerServiceWarrantySnapshot" ws ON ws."bookingId" = b."id"
       WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid LIMIT 1
     `);
     const row = rows[0];

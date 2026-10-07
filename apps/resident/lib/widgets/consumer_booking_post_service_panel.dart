@@ -162,19 +162,24 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     }
   }
 
-  Future<void> _openDispute() async {
+  Future<void> _openDispute({
+    String reasonCode = 'SERVICE_NOT_COMPLETE',
+    String title = 'Report a service issue',
+    String detailHint = 'What went wrong?',
+    String successMessage = 'Service issue submitted for review.',
+  }) async {
     if (_openingDispute) return;
-    final reason = TextEditingController(text: 'SERVICE_NOT_COMPLETE');
+    final reason = TextEditingController(text: reasonCode);
     final detail = TextEditingController();
     final submitted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Report a service issue'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: reason, maxLength: 80, decoration: const InputDecoration(labelText: 'Reason code')),
-            TextField(controller: detail, maxLength: 2000, maxLines: 4, decoration: const InputDecoration(labelText: 'What went wrong?')),
+            TextField(controller: detail, maxLength: 2000, maxLines: 4, decoration: InputDecoration(labelText: detailHint)),
           ],
         ),
         actions: [
@@ -194,7 +199,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes',
         {'reasonCode': reason.text.trim(), 'detail': detail.text.trim()},
       );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service issue submitted for review.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
@@ -255,6 +260,11 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     final confirmedAt = _completion?['confirmedAt'];
     final completionPending = bookingStatus == 'IN_PROGRESS' && requestedAt != null && confirmedAt == null;
     final completed = bookingStatus == 'COMPLETED' || confirmedAt != null;
+    final warrantyDays = (_completion?['warrantyDays'] as num?)?.toInt();
+    final revisitPolicy = _completion?['revisitPolicy']?.toString().trim();
+    final warrantyUntil = DateTime.tryParse(_completion?['warrantyUntil']?.toString() ?? '')?.toLocal();
+    final warrantyActive = warrantyUntil != null && DateTime.now().isBefore(warrantyUntil);
+    final revisitEligible = completed && (warrantyActive || (revisitPolicy != null && revisitPolicy.isNotEmpty));
     Map<String, dynamic>? pendingProposal;
     for (final proposal in _proposals) {
       if (proposal['status']?.toString() == 'PENDING') { pendingProposal = proposal; break; }
@@ -353,6 +363,54 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                       label: const Text('Report an issue instead'),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+        if (completed && (warrantyDays != null || (revisitPolicy != null && revisitPolicy.isNotEmpty)))
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(warrantyActive ? Icons.verified_user_rounded : Icons.verified_user_outlined),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        warrantyActive ? 'Service guarantee active' : 'Service guarantee',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ]),
+                  if (warrantyDays != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      warrantyUntil == null
+                          ? '$warrantyDays-day warranty'
+                          : '$warrantyDays-day warranty · ${warrantyActive ? 'valid until' : 'ended'} ${MaterialLocalizations.of(context).formatMediumDate(warrantyUntil)}',
+                    ),
+                  ],
+                  if (revisitPolicy != null && revisitPolicy.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(revisitPolicy),
+                  ],
+                  if (revisitEligible) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _openingDispute
+                          ? null
+                          : () => _openDispute(
+                                reasonCode: 'WARRANTY_REVISIT',
+                                title: 'Request warranty revisit',
+                                detailHint: 'What needs to be checked or corrected?',
+                                successMessage: 'Warranty revisit request submitted for review.',
+                              ),
+                      icon: const Icon(Icons.replay_rounded),
+                      label: const Text('Request warranty revisit'),
+                    ),
+                  ],
                 ],
               ),
             ),

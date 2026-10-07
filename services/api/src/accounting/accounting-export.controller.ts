@@ -16,7 +16,7 @@ const CurrentUser=createParamDecorator((_d:unknown,ctx:ExecutionContext)=>ctx.sw
 class CreateAccountingExportDto {
   @IsString() @MinLength(1) @MaxLength(120) idempotencyKey!:string;
   @IsIn([ACCOUNTING_EXPORT_CONTRACT_V1]) contractVersion!:string;
-  @IsIn(['CSV','JSONL']) format!:'CSV'|'JSONL';
+  @IsIn(['CSV','JSONL','TALLY_CSV']) format!:'CSV'|'JSONL'|'TALLY_CSV';
   @Matches(/^\d{4}-\d{2}-\d{2}$/) fromDate!:string;
   @Matches(/^\d{4}-\d{2}-\d{2}$/) toDate!:string;
 }
