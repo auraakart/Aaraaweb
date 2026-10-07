@@ -22,6 +22,7 @@ type SocietyTrustRow = {
   ratingCount: number;
   arrivalSamples: number;
   onTimeArrivals: number;
+  societyApproved: boolean;
 };
 
 @Injectable()
@@ -43,10 +44,13 @@ export class ServiceProviderSocietyTrustService {
         COUNT(*) FILTER (
           WHERE ar."enteredAt" IS NOT NULL
             AND ar."enteredAt" <= b."scheduledFrom" + INTERVAL '30 minutes'
-        )::int AS "onTimeArrivals"
+        )::int AS "onTimeArrivals",
+        COALESCE(BOOL_OR(ps."status" = 'APPROVED'::"ProviderSocietyStatus"), false) AS "societyApproved"
       FROM "ServiceBooking" b
       LEFT JOIN "ServiceRating" r ON r."bookingId" = b."id"
       LEFT JOIN "AccessRequest" ar ON ar."id" = b."accessRequestId"
+      LEFT JOIN "ServiceProviderSociety" ps
+        ON ps."providerId" = b."providerId" AND ps."societyId" = b."societyId"
       WHERE b."societyId" = ${societyId}::uuid
         AND b."providerId" IN (${Prisma.join(uniqueProviderIds.map((id) => Prisma.sql`${id}::uuid`))})
       GROUP BY b."providerId"
@@ -68,7 +72,8 @@ export class ServiceProviderSocietyTrustService {
       // Small samples deliberately fail closed; arrival punctuality is considered
       // once at least three gate-entry observations exist.
       const societyTrusted =
-        completedJobs >= 5
+        row.societyApproved === true
+        && completedJobs >= 5
         && ratingCount >= 3
         && ratingAverage !== null
         && ratingAverage >= 4.2
