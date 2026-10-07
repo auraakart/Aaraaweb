@@ -226,6 +226,8 @@ jobs:
           test -f docs/AARAAGATE-V4.82-COMPETITIVE-RESIDENT-OPERATIONS-DEPTH.md
           test -f scripts/check-v4.83-automation-convenience-adoption.mjs
           test -f docs/AARAAGATE-V4.83-AUTOMATION-CONVENIENCE-ADOPTION.md
+          test -f scripts/check-v4.83.1-insta-services-entry.mjs
+          test -f docs/AARAAGATE-V4.83.1-INSTA-SERVICES-ENTRY.md
           test -f docs/REPOSITORY-GOVERNANCE.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
@@ -275,6 +277,8 @@ jobs:
         run: node scripts/check-v4.82-competitive-resident-operations.mjs
       - name: Check V4.83 automation convenience and adoption depth
         run: node scripts/check-v4.83-automation-convenience-adoption.mjs
+      - name: Check V4.83.1 Insta Services entry
+        run: node scripts/check-v4.83.1-insta-services-entry.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
