@@ -13,13 +13,15 @@ function setup(){
   };
   const amenities={createBooking:vi.fn()};
   const visitors={createPass:vi.fn()};
+  const facilitiesHandoff={preview:vi.fn(),create:vi.fn()};
   return {
-    prisma,helpdesk,amenities,visitors,
+    prisma,helpdesk,amenities,visitors,facilitiesHandoff,
     service:new AiOperationsService(
       prisma as unknown as ConstructorParameters<typeof AiOperationsService>[0],
       helpdesk as unknown as ConstructorParameters<typeof AiOperationsService>[1],
       amenities as unknown as ConstructorParameters<typeof AiOperationsService>[2],
       visitors as unknown as ConstructorParameters<typeof AiOperationsService>[3],
+      facilitiesHandoff as unknown as ConstructorParameters<typeof AiOperationsService>[4],
     ),
   };
 }
@@ -117,6 +119,21 @@ describe('AiOperationsService',()=>{
     expect(visitors.createPass).toHaveBeenCalledWith(
       'society-1','user-1','unit-1','Guest','9999999999',expect.any(Date),expect.any(Date),
     );
+  });
+
+  it('confirms a Facilities handoff through the domain-owned handoff service',async()=>{
+    const {prisma,facilitiesHandoff,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id:'proposal-4',action:'CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK',status:'EXECUTING',
+      payload:{ticketId:'ticket-1',assignedUserId:'operator-1',expectedTicketUpdatedAt:'2026-10-07T08:00:00.000Z'},result:null,
+    }]);
+    facilitiesHandoff.create.mockResolvedValue({id:'work-1'});
+    await expect(service.confirmFacilitiesHandoff('society-1','user-1','proposal-4')).resolves.toEqual({
+      proposalId:'proposal-4',status:'EXECUTED',result:{workOrderId:'work-1',ticketId:'ticket-1'},
+    });
+    expect(facilitiesHandoff.create).toHaveBeenCalledWith('society-1','user-1','ticket-1',expect.objectContaining({
+      assignedUserId:'operator-1',expectedTicketUpdatedAt:'2026-10-07T08:00:00.000Z',
+    }));
   });
 
   it('returns an already executed proposal idempotently without executing the domain action twice',async()=>{

@@ -230,6 +230,8 @@ jobs:
           test -f docs/AARAAGATE-V4.83.1-INSTA-SERVICES-ENTRY.md
           test -f scripts/check-v4.83.2-grounded-operations-copilot.mjs
           test -f docs/AARAAGATE-V4.83.2-GROUNDED-OPERATIONS-COPILOT.md
+          test -f scripts/check-v4.84-field-operations-pilot-readiness.mjs
+          test -f docs/AARAAGATE-V4.84-FIELD-OPERATIONS-PILOT-READINESS.md
           test -f docs/REPOSITORY-GOVERNANCE.md
           test -f SECURITY.md
           test -f .github/CODEOWNERS
@@ -283,6 +285,8 @@ jobs:
         run: node scripts/check-v4.83.1-insta-services-entry.mjs
       - name: Check V4.83.2 Grounded Operations Copilot 2.0
         run: node scripts/check-v4.83.2-grounded-operations-copilot.mjs
+      - name: Check V4.84 Field Operations and Pilot Readiness
+        run: node scripts/check-v4.84-field-operations-pilot-readiness.mjs
       - name: Check V4.79 milestone contracts
         shell: bash
         run: |
@@ -396,6 +400,10 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
+      - name: Test API before coverage instrumentation
+        run: pnpm --filter @aaraagate/api test
+      - name: Build API before coverage instrumentation
+        run: pnpm --filter @aaraagate/api build
       - name: Install exact API coverage provider
         run: pnpm --dir services/api add --save-dev --lockfile=false @vitest/coverage-v8@5.0.2
       - name: Regenerate Prisma client after transient coverage install
@@ -414,10 +422,6 @@ jobs:
           path: services/api/coverage-risk/
           if-no-files-found: error
           retention-days: 30
-      - name: Test API
-        run: pnpm --filter @aaraagate/api test
-      - name: Build API
-        run: pnpm --filter @aaraagate/api build
       - name: Start production-mode API
         env:
           NODE_ENV: production

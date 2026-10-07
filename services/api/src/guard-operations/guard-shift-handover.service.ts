@@ -24,28 +24,34 @@ export class GuardShiftHandoverService {
 
   async commandSummary(societyId:string){
     const rows=await this.prisma.$queryRaw<Array<{
-      openHandovers:number;handoverOlder30m:number;openIncidents:number;criticalIncidents:number;criticalIncidentOlder30m:number;gatesWithOpenIncidents:number;overstays:number;stalePatrol:number;activeDenyWatchlist:number;
+      openHandovers:number;handoverOlder30m:number;oldestOpenHandoverMinutes:number;openIncidents:number;criticalIncidents:number;criticalIncidentOlder30m:number;oldestCriticalIncidentMinutes:number;gatesWithOpenIncidents:number;overstays:number;activeEntries:number;oldestActiveEntryMinutes:number;pendingApprovalsOlder10m:number;stalePatrol:number;activeDenyWatchlist:number;
     }>>(Prisma.sql`
       SELECT
         (SELECT COUNT(*)::int FROM "GuardShiftHandover" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN') AS "openHandovers",
         (SELECT COUNT(*)::int FROM "GuardShiftHandover" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "createdAt"<CURRENT_TIMESTAMP-INTERVAL '30 minutes') AS "handoverOlder30m",
+        (SELECT COALESCE(FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-MIN("createdAt")))/60),0)::int FROM "GuardShiftHandover" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN') AS "oldestOpenHandoverMinutes",
         (SELECT COUNT(*)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN') AS "openIncidents",
         (SELECT COUNT(*)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "severity"='CRITICAL') AS "criticalIncidents",
         (SELECT COUNT(*)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "severity"='CRITICAL' AND "createdAt"<CURRENT_TIMESTAMP-INTERVAL '30 minutes') AS "criticalIncidentOlder30m",
+        (SELECT COALESCE(FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-MIN("createdAt")))/60),0)::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "severity"='CRITICAL') AS "oldestCriticalIncidentMinutes",
         (SELECT COUNT(DISTINCT "gateId")::int FROM "SecurityIncident" WHERE "societyId"=${societyId}::uuid AND "status"='OPEN' AND "gateId" IS NOT NULL) AS "gatesWithOpenIncidents",
         (SELECT COUNT(*)::int FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "status"='CHECKED_IN' AND "enteredAt"<CURRENT_TIMESTAMP-INTERVAL '4 hours' AND "exitedAt" IS NULL) AS "overstays",
+        (SELECT COUNT(*)::int FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "status"='CHECKED_IN' AND "exitedAt" IS NULL) AS "activeEntries",
+        (SELECT COALESCE(FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-MIN("enteredAt")))/60),0)::int FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "status"='CHECKED_IN' AND "exitedAt" IS NULL AND "enteredAt" IS NOT NULL) AS "oldestActiveEntryMinutes",
+        (SELECT COUNT(*)::int FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "status"='PENDING' AND "createdAt"<CURRENT_TIMESTAMP-INTERVAL '10 minutes') AS "pendingApprovalsOlder10m",
         (SELECT COUNT(*)::int FROM "PatrolCheckpoint" c WHERE c."societyId"=${societyId}::uuid AND c."active"=TRUE AND
           NOT EXISTS (SELECT 1 FROM "PatrolScan" s WHERE s."societyId"=c."societyId" AND s."checkpointId"=c."id" AND s."scannedAt">=CURRENT_TIMESTAMP-INTERVAL '8 hours')) AS "stalePatrol",
         (SELECT COUNT(*)::int FROM "GuardWatchlistEntry" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "kind"='DENY'
           AND ("validFrom" IS NULL OR "validFrom"<=CURRENT_TIMESTAMP) AND ("validUntil" IS NULL OR "validUntil">CURRENT_TIMESTAMP)) AS "activeDenyWatchlist"
     `);
-    const metrics=rows[0]??{openHandovers:0,handoverOlder30m:0,openIncidents:0,criticalIncidents:0,criticalIncidentOlder30m:0,gatesWithOpenIncidents:0,overstays:0,stalePatrol:0,activeDenyWatchlist:0};
-    const priority=metrics.criticalIncidents>0?'CRITICAL':metrics.overstays>0||metrics.openIncidents>0?'HIGH':metrics.openHandovers>0||metrics.stalePatrol>0||metrics.activeDenyWatchlist>0?'ELEVATED':'CLEAR';
-    const continuityStatus=metrics.criticalIncidentOlder30m>0?'SUPERVISOR_ATTENTION':metrics.handoverOlder30m>0?'HANDOVER_DUE':'CLEAR';
+    const metrics=rows[0]??{openHandovers:0,handoverOlder30m:0,oldestOpenHandoverMinutes:0,openIncidents:0,criticalIncidents:0,criticalIncidentOlder30m:0,oldestCriticalIncidentMinutes:0,gatesWithOpenIncidents:0,overstays:0,activeEntries:0,oldestActiveEntryMinutes:0,pendingApprovalsOlder10m:0,stalePatrol:0,activeDenyWatchlist:0};
+    const priority=metrics.criticalIncidents>0?'CRITICAL':metrics.overstays>0||metrics.openIncidents>0?'HIGH':metrics.openHandovers>0||metrics.pendingApprovalsOlder10m>0||metrics.stalePatrol>0||metrics.activeDenyWatchlist>0?'ELEVATED':'CLEAR';
+    const continuityStatus=metrics.criticalIncidentOlder30m>0?'SUPERVISOR_ATTENTION':metrics.handoverOlder30m>0?'HANDOVER_DUE':metrics.pendingApprovalsOlder10m>0?'APPROVAL_FOLLOW_UP':'CLEAR';
     const nextActions:string[]=[];
     if(metrics.criticalIncidentOlder30m>0)nextActions.push('Supervisor must acknowledge critical incidents that remain open beyond 30 minutes.');
     else if(metrics.criticalIncidents>0)nextActions.push('Review critical incidents first and record the supervisor response.');
     if(metrics.overstays>0)nextActions.push('Verify unresolved overstays and escalate through the existing incident workflow.');
+    if(metrics.pendingApprovalsOlder10m>0)nextActions.push('Follow up waiting resident approvals older than 10 minutes; do not grant access automatically.');
     if(metrics.openHandovers>0)nextActions.push('Incoming guard must review and acknowledge open shift handovers.');
     if(metrics.stalePatrol>0)nextActions.push('Restore patrol evidence for stale checkpoints.');
     if(metrics.activeDenyWatchlist>0)nextActions.push('Continue exact-match watchlist screening before resident approval creation.');
@@ -59,7 +65,7 @@ export class GuardShiftHandoverService {
       automaticModeChange:false,
       nextActions,
       fallbackPolicy:{residentResponse:'PUSH_THEN_IVR_SIMULATOR_OR_MANUAL',accessDevice:'FAIL_CLOSED_OR_MANUAL',automaticAccessGrant:false},
-      boundary:'Current-state command guidance only. It does not infer identity, automatically change access state, or bypass resident/supervisor authorization.',
+      boundary:'Current-state command guidance only. Ageing approval and entry timers are operational attention signals, not access decisions. It does not infer identity, automatically change access state, or bypass resident/supervisor authorization.',
       generatedAt:new Date().toISOString(),
     };
   }

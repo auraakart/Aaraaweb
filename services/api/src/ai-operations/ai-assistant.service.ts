@@ -49,7 +49,11 @@ export class AiAssistantService {
         context:tool.context,
         readOnly:true,
       })),
-      mutationAllowList:['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS',...(hasPermission(roles,AppPermission.HELPDESK_REVIEW)?['ASSIGN_HELPDESK_TICKET' as const]:[])],
+      mutationAllowList:[
+        'CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS',
+        ...(hasPermission(roles,AppPermission.HELPDESK_REVIEW)?['ASSIGN_HELPDESK_TICKET' as const]:[]),
+        ...(hasPermission(roles,AppPermission.HELPDESK_REVIEW)&&hasPermission(roles,AppPermission.FACILITIES_MANAGE)?['CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK' as const]:[]),
+      ],
     };
   }
 

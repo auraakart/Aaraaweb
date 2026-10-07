@@ -11,6 +11,7 @@ import { FacilitiesAlertsService } from './facilities-alerts.service';
 import { FacilitiesPreventiveService } from './facilities-preventive.service';
 import { FacilitiesInventoryService } from './facilities-inventory.service';
 import { FacilitiesOperationsService } from './facilities-operations.service';
+import { FacilitiesHelpdeskHandoffService } from './facilities-helpdesk-handoff.service';
 
 @Module({
   controllers:[
@@ -28,6 +29,8 @@ import { FacilitiesOperationsService } from './facilities-operations.service';
     FacilitiesPreventiveService,
     FacilitiesInventoryService,
     FacilitiesOperationsService,
+    FacilitiesHelpdeskHandoffService,
   ],
+  exports:[FacilitiesHelpdeskHandoffService],
 })
 export class FacilitiesModule{}
