@@ -289,21 +289,33 @@ export class CommunityServices3Service {
   async withdrawCommunityDeal(userId: string, campaignId: string, locationType: ConsumerServiceLocationType, locationId: string) {
     const location = await this.locations.resolveLocation(userId, locationType, locationId);
     if (!location.societyId || !location.societyUnitId) throw new BadRequestException('Community deals require a society unit');
-    const campaigns = await this.prisma.$queryRaw<Array<{ status: CommunityCampaignStatus; societyId: string }>>(Prisma.sql`
-      SELECT "status","societyId" FROM "CommunityServiceCampaign"
-      WHERE "id" = ${campaignId}::uuid LIMIT 1
-    `);
-    if (!campaigns[0] || campaigns[0].societyId !== location.societyId) throw new NotFoundException('Community service deal not found');
-    if (campaigns[0].status !== 'OPEN') throw new BadRequestException('Locked community service deals cannot be withdrawn');
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-      UPDATE "CommunityServiceCampaignInterest"
-      SET "status" = 'WITHDRAWN', "userId" = ${userId}::uuid, "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "campaignId" = ${campaignId}::uuid AND "societyId" = ${location.societyId}::uuid
-        AND "unitId" = ${location.societyUnitId}::uuid AND "status" = 'JOINED'
-      RETURNING *
-    `);
-    if (!rows[0]) throw new NotFoundException('Joined community service deal not found for this home');
-    return rows[0];
+
+    return this.prisma.$transaction(async (tx) => {
+      const campaigns = await tx.$queryRaw<Array<{ status: CommunityCampaignStatus; societyId: string }>>(Prisma.sql`
+        SELECT "status","societyId"
+        FROM "CommunityServiceCampaign"
+        WHERE "id" = ${campaignId}::uuid
+        FOR UPDATE
+      `);
+      if (!campaigns[0] || campaigns[0].societyId !== location.societyId) {
+        throw new NotFoundException('Community service deal not found');
+      }
+      if (campaigns[0].status !== 'OPEN') {
+        throw new BadRequestException('Locked community service deals cannot be withdrawn');
+      }
+
+      const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        UPDATE "CommunityServiceCampaignInterest"
+        SET "status" = 'WITHDRAWN', "userId" = ${userId}::uuid, "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "campaignId" = ${campaignId}::uuid
+          AND "societyId" = ${location.societyId}::uuid
+          AND "unitId" = ${location.societyUnitId}::uuid
+          AND "status" = 'JOINED'
+        RETURNING *
+      `);
+      if (!rows[0]) throw new NotFoundException('Joined community service deal not found for this home');
+      return rows[0];
+    });
   }
 
   async createCommunityDeal(societyId: string, userId: string, input: CommunityCampaignInput) {
@@ -362,15 +374,37 @@ export class CommunityServices3Service {
   }
 
   async setCommunityDealStatus(societyId: string, campaignId: string, status: CommunityCampaignStatus) {
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-      UPDATE "CommunityServiceCampaign"
-      SET "status" = ${status}, "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${campaignId}::uuid AND "societyId" = ${societyId}::uuid
-        AND "status" NOT IN ('CANCELLED','COMPLETED')
-      RETURNING *
-    `);
-    if (!rows[0]) throw new NotFoundException('Active community service deal not found');
-    return rows[0];
+    if (status === 'OPEN') throw new BadRequestException('Community service deals cannot be reopened');
+
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.$queryRaw<Array<{ status: CommunityCampaignStatus }>>(Prisma.sql`
+        SELECT "status"
+        FROM "CommunityServiceCampaign"
+        WHERE "id" = ${campaignId}::uuid AND "societyId" = ${societyId}::uuid
+        FOR UPDATE
+      `);
+      if (!current[0]) throw new NotFoundException('Community service deal not found');
+
+      const allowed: Record<CommunityCampaignStatus, readonly CommunityCampaignStatus[]> = {
+        OPEN: ['LOCKED', 'CANCELLED'],
+        LOCKED: ['COMPLETED', 'CANCELLED'],
+        CANCELLED: [],
+        COMPLETED: [],
+      };
+      if (!allowed[current[0].status].includes(status)) {
+        throw new BadRequestException(`Invalid community deal transition from ${current[0].status} to ${status}`);
+      }
+
+      const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        UPDATE "CommunityServiceCampaign"
+        SET "status" = ${status}, "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${campaignId}::uuid AND "societyId" = ${societyId}::uuid
+          AND "status" = ${current[0].status}
+        RETURNING *
+      `);
+      if (!rows[0]) throw new BadRequestException('Community service deal changed concurrently; retry');
+      return rows[0];
+    });
   }
 
   private optionalText(value: string | null | undefined, maxLength: number) {
