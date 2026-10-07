@@ -213,8 +213,7 @@ export class AiAssistantService {
   async actionCentre(societyId:string,roles:readonly AppRole[]) {
     const cards:Array<{
       id:string;domain:string;severity:'LOW'|'MEDIUM'|'HIGH';title:string;summary:string;prompt:string;sources:string[];metrics:Record<string,number|string|null>;whyNow?:string;recommendedNextStep?:string;likelyCause?:string;safeWorkflow?:string[];
-      evidenceQuality?:{sourceCount:number;basis:'CURRENT_QUERY_SNAPSHOT';causalClaim:false;interpretation:'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY'};
-      actionIntent?:{mode:'READ_ONLY_DRILLDOWN';workspaceHref:string;workspaceLabel:string;confirmationRequired:true;mutationAllowed:false};
+      proposalOption?:{action:'ASSIGN_HELPDESK_TICKET';subjectId:string;label:string;requiresHumanInput:true;requiresConfirmation:true;autonomousExecution:false};
     }>=[];
 
     if(hasPermission(roles,AppPermission.FINANCE_READ)){
@@ -228,7 +227,7 @@ export class AiAssistantService {
           : 'No overdue maintenance invoices in current society data.',
         prompt:'Show overdue maintenance and collection trend',
         sources:['MaintenanceInvoice','Payment'],
-        metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collectionChangePercent:finance.collectionChangePercent},
+        metrics:{overdueCount:finance.overdueCount,overduePaise:finance.overduePaise,over30Days:finance.overdueOver30Days,collections30dPaise:finance.collections30dPaise,previous30dPaise:finance.previous30dPaise,collectionChangePercent:finance.collectionChangePercent},
         likelyCause:finance.overdueOver30Days>0
           ? 'Long-ageing receivables are the strongest current collection signal.'
           : finance.collectionChangePercent!==null&&finance.collectionChangePercent<0
@@ -256,6 +255,14 @@ export class AiAssistantService {
             ? 'Unassigned requests are the clearest current routing bottleneck.'
             : 'No material helpdesk bottleneck is visible in current evidence.',
         safeWorkflow:['Review breached requests first','Assign an accountable operator where missing','Use the normal status/escalation workflow; AI does not close or reassign tickets'],
+        ...(helpdesk.unassigned[0]?.id?{proposalOption:{
+          action:'ASSIGN_HELPDESK_TICKET' as const,
+          subjectId:String(helpdesk.unassigned[0].id),
+          label:'Prepare assignment for oldest unassigned ticket',
+          requiresHumanInput:true as const,
+          requiresConfirmation:true as const,
+          autonomousExecution:false as const,
+        }}:{}),
       });
     }
 
@@ -393,43 +400,92 @@ export class AiAssistantService {
 
     const workspaceByDomain:Record<string,{href:string;label:string}>={
       FINANCE:{href:'/finance',label:'Finance workspace'},
-      HELPDESK:{href:'/',label:'Helpdesk operations'},
-      GATE:{href:'/',label:'Gate operations'},
-      SECURITY:{href:'/',label:'Security operations'},
-      FACILITIES:{href:'/facilities',label:'Facilities workspace'},
+      HELPDESK:{href:'/helpdesk',label:'Helpdesk operations'},
+      GATE:{href:'/emergency-operations',label:'Gate operations'},
+      SECURITY:{href:'/emergency-operations',label:'Security operations'},
+      FACILITIES:{href:'/facilities/health',label:'Facilities workspace'},
       GOVERNANCE:{href:'/governance',label:'Governance workspace'},
-      PROCUREMENT:{href:'/vendors',label:'Vendor & procurement workspace'},
+      PROCUREMENT:{href:'/society-vendors',label:'Vendor & procurement workspace'},
     };
-    const evidenceCards=cards.map(card=>({
-      ...card,
-      actionIntent:{
-        mode:'READ_ONLY_DRILLDOWN' as const,
-        workspaceHref:workspaceByDomain[card.domain]?.href??'/',
-        workspaceLabel:workspaceByDomain[card.domain]?.label??'Operations workspace',
-        confirmationRequired:true as const,
-        mutationAllowed:false as const,
-      },
-      evidenceQuality:{
-        sourceCount:card.sources.length,
-        basis:'CURRENT_QUERY_SNAPSHOT' as const,
-        causalClaim:false as const,
-        interpretation:(card.likelyCause?'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF':'FACT_SUMMARY') as 'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY',
-      },
-    }));
+    const baselines=cards.length>0?await this.copilot.societyBaselines(societyId):null;
+    const baselineFor=(card:(typeof cards)[number])=>{
+      if(!baselines)return null;
+      if(card.domain==='HELPDESK')return baselines.helpdesk;
+      if(card.domain==='FACILITIES')return baselines.facilities;
+      if(card.domain==='SECURITY')return baselines.security;
+      if(card.domain==='GATE')return baselines.gate;
+      if(card.domain==='FINANCE')return {
+        metric:'collections / 30d',
+        current:Number(card.metrics.collections30dPaise??0),
+        typical:Number(card.metrics.previous30dPaise??0),
+        changePercent:card.metrics.collectionChangePercent,
+        confidence:Number(card.metrics.collections30dPaise??0)+Number(card.metrics.previous30dPaise??0)>0?'HIGH':'LOW',
+        basis:'SOCIETY_HISTORY',
+        window:'current 30 days vs immediately preceding 30 days',
+      };
+      return null;
+    };
+    const stagedCards=cards.map(card=>{
+      const recommendationKey=this.copilot.fingerprint(card);
+      const graded=this.copilot.evidence(card.sources,card.metrics);
+      return {
+        ...card,
+        recommendationKey,
+        baseline:baselineFor(card),
+        actionIntent:{
+          mode:'READ_ONLY_DRILLDOWN' as const,
+          workspaceHref:workspaceByDomain[card.domain]?.href??'/',
+          workspaceLabel:workspaceByDomain[card.domain]?.label??'Operations workspace',
+          confirmationRequired:true as const,
+          mutationAllowed:false as const,
+        },
+        evidenceQuality:{
+          confidence:graded.confidence,
+          sourceCount:graded.sourceCount,
+          recordCount:graded.recordCount,
+          asOf:graded.asOf,
+          basis:'CURRENT_QUERY_SNAPSHOT' as const,
+          causalClaim:false as const,
+          interpretation:(card.likelyCause?'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF':'FACT_SUMMARY') as 'DETERMINISTIC_SIGNAL_NOT_CAUSAL_PROOF'|'FACT_SUMMARY',
+        },
+      };
+    });
+    const outcomes=await this.copilot.latestOutcomes(societyId,stagedCards.map(card=>card.recommendationKey));
+    const evidenceCards=stagedCards.map(card=>({...card,lastOutcome:outcomes.get(card.recommendationKey)??null}));
     const rank={HIGH:0,MEDIUM:1,LOW:2} as const;
     const safetyRank=(card:(typeof evidenceCards)[number])=>card.id==='gate-attention'&&Number(card.metrics.criticalIncidents??0)>0?0:1;
     evidenceCards.sort((a,b)=>rank[a.severity]-rank[b.severity]||safetyRank(a)-safetyRank(b)||a.domain.localeCompare(b.domain));
     const highPriorityCount=evidenceCards.filter(card=>card.severity==='HIGH').length;
     const mediumPriorityCount=evidenceCards.filter(card=>card.severity==='MEDIUM').length;
     const focus=evidenceCards[0]??null;
+    const hypotheses=this.copilot.hypotheses({
+      HELPDESK_OPERATIONS:evidenceCards.find(card=>card.domain==='HELPDESK')?.metrics,
+      FACILITIES:evidenceCards.find(card=>card.domain==='FACILITIES')?.metrics,
+      VENDORS:evidenceCards.find(card=>card.domain==='PROCUREMENT')?.metrics,
+    });
     return {
       cards:evidenceCards,
+      hypotheses,
       brief:{
         highPriorityCount,
         mediumPriorityCount,
         attentionCount:highPriorityCount+mediumPriorityCount,
-        recommendedFocus:focus?{domain:focus.domain,title:focus.title,prompt:focus.prompt,whyNow:focus.whyNow??focus.summary,recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',likelyCause:focus.likelyCause??'No deterministic cause signal is available.',safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality}:null,
-        explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed.',
+        topPriorities:evidenceCards.slice(0,3).map(card=>({
+          recommendationKey:card.recommendationKey,
+          domain:card.domain,title:card.title,severity:card.severity,
+          whyNow:card.whyNow??card.summary,
+          recommendedNextStep:card.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',
+          evidenceQuality:card.evidenceQuality,baseline:card.baseline,lastOutcome:card.lastOutcome,
+        })),
+        recommendedFocus:focus?{
+          recommendationKey:focus.recommendationKey,domain:focus.domain,title:focus.title,prompt:focus.prompt,
+          whyNow:focus.whyNow??focus.summary,
+          recommendedNextStep:focus.recommendedNextStep??'Open the relevant operational workspace and review the grounded evidence.',
+          likelyCause:focus.likelyCause??'No deterministic cause signal is available.',
+          safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],
+          actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality,baseline:focus.baseline,lastOutcome:focus.lastOutcome,
+        }:null,
+        explanation:'Priority is deterministic from current permission-scoped evidence. Society-history baselines add context without weakening safety defaults. Hypotheses show supporting and contradicting evidence and are never causal proof.',
       },
       generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
     };
