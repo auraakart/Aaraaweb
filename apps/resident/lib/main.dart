@@ -20,6 +20,7 @@ import 'screens/profile_screen.dart';
 import 'screens/services_screen.dart';
 import 'screens/updates_screen.dart';
 import 'screens/workforce_screen.dart';
+import 'preferences/resident_experience_preferences.dart';
 import 'theme/aaraagate_theme.dart';
 
 const _demoFeatures = <String>{
@@ -36,35 +37,52 @@ const _demoFeatures = <String>{
   'AI_ASSISTANT',
 };
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const apiBaseUrl = String.fromEnvironment('AARAGATE_API_BASE_URL', defaultValue: 'http://10.0.2.2:3000');
   const demoMode = bool.fromEnvironment('AARAGATE_DEMO_MODE', defaultValue: false);
   final authController = ResidentAuthController(repository: AuthRepository(baseUrl: apiBaseUrl), sessionStore: SessionStore(), demoEnabled: demoMode);
-  runApp(AaraagateResidentApp(apiBaseUrl: apiBaseUrl, authController: authController));
+  final experiencePreferences = ResidentExperiencePreferences();
+  await experiencePreferences.load();
+  runApp(AaraagateResidentApp(apiBaseUrl: apiBaseUrl, authController: authController, experiencePreferences: experiencePreferences));
   authController.bootstrap();
 }
 
 class AaraagateResidentApp extends StatelessWidget {
-  const AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController});
+  const AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController, required this.experiencePreferences});
   final String apiBaseUrl;
   final ResidentAuthController authController;
+  final ResidentExperiencePreferences experiencePreferences;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Aaraagate',
-        debugShowCheckedModeBanner: false,
-        theme: AaraagateTheme.light(),
-        darkTheme: AaraagateTheme.dark(),
-        themeMode: ThemeMode.system,
-        home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController),
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: experiencePreferences,
+        builder: (context, _) {
+          final easyMode = experiencePreferences.easyMode;
+          return MaterialApp(
+            title: 'Aaraagate',
+            debugShowCheckedModeBanner: false,
+            theme: AaraagateTheme.light(),
+            darkTheme: AaraagateTheme.dark(),
+            themeMode: ThemeMode.system,
+            builder: (context, child) {
+              final media = MediaQuery.of(context);
+              return MediaQuery(
+                data: media.copyWith(textScaler: TextScaler.linear(easyMode ? 1.12 : 1.0)),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController, experiencePreferences: experiencePreferences),
+          );
+        },
       );
 }
 
 class _ResidentSessionGate extends StatefulWidget {
-  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController});
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences});
   final String apiBaseUrl;
   final ResidentAuthController authController;
+  final ResidentExperiencePreferences experiencePreferences;
   @override
   State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
 }
@@ -136,6 +154,8 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           currentSocietyId: session.societyId,
           currentUnitId: session.activeUnitId,
           onSwitchProperty: _switchProperty,
+          easyMode: widget.experiencePreferences.easyMode,
+          onEasyModeChanged: widget.experiencePreferences.setEasyMode,
         );
       },
     );
@@ -143,7 +163,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.onSwitchProperty});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged});
   final ResidentDataController controller;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
@@ -152,6 +172,8 @@ class ResidentHomeShell extends StatefulWidget {
   final String? currentSocietyId;
   final String? currentUnitId;
   final Future<void> Function(SocietyMembershipOption membership, PropertySummary? property) onSwitchProperty;
+  final bool easyMode;
+  final Future<void> Function(bool enabled) onEasyModeChanged;
   @override
   State<ResidentHomeShell> createState() => _ResidentHomeShellState();
 }
@@ -185,6 +207,8 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         currentSocietyId: widget.currentSocietyId,
         currentUnitId: widget.currentUnitId,
         onSwitchProperty: widget.onSwitchProperty,
+        easyMode: widget.easyMode,
+        onEasyModeChanged: widget.onEasyModeChanged,
       );
 
   @override
@@ -325,7 +349,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
                 Row(children: [Expanded(child: OutlinedButton(onPressed: () => controller.denyAccess(pending['id'].toString()), child: const Text('Deny'))), const SizedBox(width: 10), Expanded(child: FilledButton(onPressed: () => controller.approveAccess(pending['id'].toString()), child: const Text('Allow')))]),
               ]))))),
           ]),
-          bottomNavigationBar: NavigationBar(selectedIndex: selectedIndex, onDestinationSelected: _open, destinations: destinations),
+          bottomNavigationBar: NavigationBar(height: widget.easyMode ? 76 : null, selectedIndex: selectedIndex, onDestinationSelected: _open, destinations: destinations),
         );
       },
     );

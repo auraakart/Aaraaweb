@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfiguredHttpAccountingConnectorAdapter } from './configured-http-accounting-connector.adapter';
 
 type DeliveryJob={id:string;societyId:string;exportJobId:string;provider:string;idempotencyKey:string;attemptCount:number};
-type DeliveryArtifact={contractVersion:string;format:'CSV'|'JSONL';filename:string;contentType:string;sha256:string;content:string};
+type DeliveryArtifact={contractVersion:string;format:'CSV'|'JSONL'|'TALLY_CSV';filename:string;contentType:string;sha256:string;content:string};
 
 @Injectable()
 export class AccountingConnectorDeliveryRunner implements OnModuleInit,OnModuleDestroy{

@@ -20,6 +20,7 @@ type OnboardingPlan={
   readySteps:number
   totalSteps:number
   blockingStepIds:string[]
+  activation:{eligibleResidents:number;activatedResidents:number;activationPercent:number|null}
   steps:OnboardingStep[]
   evaluatedAt:string
   productionizationClaim:false
@@ -82,6 +83,7 @@ export default function SocietyOnboardingPage(){
         <div style={{display:'grid',gap:4,textAlign:'right'}}>
           <strong>{plan?.readySteps??0}/{plan?.totalSteps??0} steps repository-ready</strong>
           <small>{plan?.status.replaceAll('_',' ')??'READINESS UNAVAILABLE'}</small>
+          {plan&&<small>{plan.activation.activatedResidents}/{plan.activation.eligibleResidents} resident activation{plan.activation.activationPercent===null?'':` · ${plan.activation.activationPercent}%`}</small>}
         </div>
       </div>
       <div style={{height:8,background:'#e5e7eb',borderRadius:999,marginTop:14,overflow:'hidden'}}>

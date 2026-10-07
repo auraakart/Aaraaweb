@@ -21,6 +21,8 @@ class ProfileScreen extends StatelessWidget {
     required this.currentSocietyId,
     required this.currentUnitId,
     required this.onSwitchProperty,
+    required this.easyMode,
+    required this.onEasyModeChanged,
   });
   final ResidentDataController controller;
   final Future<void> Function() onSignOut;
@@ -29,6 +31,8 @@ class ProfileScreen extends StatelessWidget {
   final String? currentSocietyId;
   final String? currentUnitId;
   final Future<void> Function(SocietyMembershipOption membership, PropertySummary? property) onSwitchProperty;
+  final bool easyMode;
+  final Future<void> Function(bool enabled) onEasyModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +171,16 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 Divider(height: 1, color: scheme.outlineVariant),
-                const _ProfileTile(icon: Icons.language_rounded, title: 'Language', subtitle: 'English'),
+                const _ProfileTile(icon: Icons.language_rounded, title: 'Language', subtitle: 'English · voice actions support 8 Indian languages'),
+                Divider(height: 1, color: scheme.outlineVariant),
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
+                  secondary: const Icon(Icons.accessibility_new_rounded),
+                  title: const Text('Easy mode', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Larger text and navigation controls on this device. All features remain available.'),
+                  value: easyMode,
+                  onChanged: (value) => onEasyModeChanged(value),
+                ),
                 Divider(height: 1, color: scheme.outlineVariant),
                 _ProfileTile(
                   icon: Icons.privacy_tip_outlined,
