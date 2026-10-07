@@ -92,6 +92,59 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> residentDirectory() async {
+    final value = await api.get('/api/v1/resident-directory');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> residentDirectoryProfile() async {
+    final value = await api.get('/api/v1/resident-directory/mine');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> updateResidentDirectoryProfile({
+    required bool visible,
+    required String displayName,
+    String? bio,
+    List<String> interests = const [],
+  }) async {
+    final value = await api.put('/api/v1/resident-directory/mine', {
+      'visible': visible,
+      'displayName': displayName.trim(),
+      if (bio != null && bio.trim().isNotEmpty) 'bio': bio.trim(),
+      'interests': interests.map((value) => value.trim()).where((value) => value.isNotEmpty).toList(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> residentDirectoryContactRequests() async {
+    final value = await api.get('/api/v1/resident-directory/contact-requests/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> requestResidentDirectoryContact(String userId, {String? message}) async {
+    final value = await api.post('/api/v1/resident-directory/$userId/contact-requests', {
+      if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> respondResidentDirectoryContact(String requestId, {
+    required String status,
+    String? responseNote,
+  }) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/respond', {
+      'status': status,
+      if (responseNote != null && responseNote.trim().isNotEmpty) 'responseNote': responseNote.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> withdrawResidentDirectoryContact(String requestId) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/withdraw', const {});
+    return Map<String, dynamic>.from(value as Map);
+  }
+
   Future<List<Map<String, dynamic>>> communityCircles() async {
     final value = await api.get('/api/v1/community-circles');
     return _list(value);
