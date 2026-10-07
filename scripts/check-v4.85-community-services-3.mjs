@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const read = path => readFileSync(path, 'utf8');
-const atLeast = (value, floor) => {
-  const nums = String(value).match(/\d+/g)?.map(Number) ?? [];
-  return floor.every((n, i) => (nums[i] ?? 0) > n || ((nums[i] ?? 0) === n && floor.slice(i + 1).every((m, j) => (nums[i + 1 + j] ?? 0) >= m)));
+const atLeast=(value,minimum)=>{
+  const current=String(value).split('+')[0].split('.').map(Number);
+  for(let i=0;i<minimum.length;i+=1){
+    if((current[i]??0)>minimum[i])return true;
+    if((current[i]??0)<minimum[i])return false;
+  }
+  return true;
 };
 
 const migration=read('services/api/prisma/migrations/20261007170000_v485_community_services_3/migration.sql');
@@ -16,6 +20,8 @@ const operations=read('services/api/src/services-marketplace/services-marketplac
 const consumerLocation=read('services/api/src/services-marketplace/consumer-service-location.service.ts');
 const resident=read('apps/resident/lib/screens/independent_services_screen.dart');
 const booking=read('apps/resident/lib/screens/consumer_booking_screen.dart');
+const postService=read('apps/resident/lib/widgets/consumer_booking_post_service_panel.dart');
+const completion=read('services/api/src/services-marketplace/consumer-service-completion.service.ts');
 const storefront=read('apps/resident/lib/screens/provider_storefront_sheet.dart');
 const providerPortal=read('apps/admin/app/provider/page.tsx');
 const adminMarketplace=read('apps/admin/app/admin-commerce-panels.tsx');
@@ -44,8 +50,11 @@ assert.ok(operations.includes('societyTrusted')&&operations.includes('experience
 assert.ok(consumerLocation.includes('ServiceOfferingExperiencePolicy')&&consumerLocation.includes('societyTrusted'),'Consumer discovery enrichment missing');
 assert.ok(resident.includes('Community deals')&&resident.includes('Society Trusted')&&resident.includes('Recurring'),'Resident V4.85 discovery controls missing');
 assert.ok(booking.includes('does not auto-book or auto-charge'),'Recurring safety copy missing');
+assert.ok(completion.includes('ConsumerServiceWarrantySnapshot')&&completion.includes('warrantyUntil'),'Immutable warranty snapshot must be exposed to resident completion reads');
+assert.ok(postService.includes('Request warranty revisit')&&postService.includes('WARRANTY_REVISIT'),'Actionable service guarantee UX missing');
 assert.ok(storefront.includes('Price & service promise')&&storefront.includes('Society Trusted'),'Provider storefront transparency missing');
 assert.ok(providerPortal.includes('Save service promise')&&providerPortal.includes('Warranty days'),'Provider service-promise controls missing');
+assert.ok(providerPortal.includes('Service issues & warranty revisit requests'),'Provider warranty issue queue missing');
 assert.ok(adminMarketplace.includes('Society Service Day')&&adminMarketplace.includes('Publish community deal'),'Society campaign controls missing');
 
 assert.ok(atLeast(root.version,[4,85,0]),'Root release identity must be V4.85.0+');
