@@ -174,6 +174,8 @@ for literal in \
   'Companion job' \
   'already_merged_exactly(){' \
   'accept_companion_merge_race "$current"' \
+  'accept_companion_merge_race "$latest_after_staging_move"' \
+  'Staging moved from expected base before merge and PR is not already exact-merged.' \
   'accept_companion_merge_race "$latest"' \
   'accept_companion_merge_race "$latest_after_race"' \
   'already merged at the exact tested head by the companion release controller'; do
