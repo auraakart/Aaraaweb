@@ -49,7 +49,8 @@ Future<void> main() async {
 }
 
 class AaraagateResidentApp extends StatelessWidget {
-  const AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController, required this.experiencePreferences});
+  AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController, ResidentExperiencePreferences? experiencePreferences})
+      : experiencePreferences = experiencePreferences ?? ResidentExperiencePreferences();
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
