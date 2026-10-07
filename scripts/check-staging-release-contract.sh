@@ -133,7 +133,7 @@ if grep -Fq "paths:" "$BACKUP_WORKFLOW"; then
   echo "Backup restore trigger must not path-filter away staging pull requests; non-staging scope belongs in the scope job." >&2
   exit 1
 fi
-for literal in   'current_base" = "staging"'   'candidate_tree" = "$develop_tree"'   'staging_sha" = "$EXPECTED_BASE_SHA"'   'COMPANION_WORKFLOW'   'head_sha=$EXPECTED_HEAD_SHA&event=pull_request'   'merge_base_commit.sha'   'merge_method=merge'   'sha="$EXPECTED_HEAD_SHA"'   'commit_title="Release: promote exact develop tree to staging (#$PR_NUMBER)"'; do
+for literal in   'current_base" = "staging"'   'candidate_tree" = "$develop_tree"'   'if [ "$staging_sha" != "$EXPECTED_BASE_SHA" ]; then'   'COMPANION_WORKFLOW'   'head_sha=$EXPECTED_HEAD_SHA&event=pull_request'   'merge_base_commit.sha'   'merge_method=merge'   'sha="$EXPECTED_HEAD_SHA"'   'commit_title="Release: promote exact develop tree to staging (#$PR_NUMBER)"'; do
   if ! grep -Fq "$literal" "$AUTOMERGE_SCRIPT"; then
     echo "Staging auto-merge script is missing: $literal" >&2
     exit 1
