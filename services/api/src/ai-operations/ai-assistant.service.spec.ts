@@ -32,6 +32,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(accountant.tools.map(tool=>tool.id)).toContain('SOCIETY_FINANCE');
     expect(accountant.tools.map(tool=>tool.id)).not.toContain('SECURITY_EVENTS');
     expect(accountant.mutationAllowList).toEqual(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS']);
+    const superAdmin=service.tools([AppRole.SUPER_ADMIN]);
+    expect(superAdmin.mutationAllowList).toEqual(expect.arrayContaining(['ASSIGN_HELPDESK_TICKET','CREATE_FACILITY_WORK_ORDER_FROM_HELPDESK']));
   });
 
   it('blocks prompt-injection instructions before any domain retrieval and audits no prompt text',async()=>{
