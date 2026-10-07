@@ -34,21 +34,21 @@ class OfferingExperiencePolicyDto {
   @IsOptional() @IsString() @MaxLength(1500) includedWork?: string | null;
   @IsOptional() @IsString() @MaxLength(1500) partsPolicy?: string | null;
   @IsBoolean() extraWorkApprovalRequired!: boolean;
-  @IsOptional() @IsArray() @ArrayMaxSize(4) @IsIn(SERVICE_RECURRENCE_CADENCES, { each: true })
+  @IsOptional() @IsArray() @ArrayMaxSize(4) @IsIn([...SERVICE_RECURRENCE_CADENCES], { each: true })
   recurrenceCadences?: ServiceRecurrenceCadence[];
 }
 
 class RecurringPlanDto {
   @IsUUID() offeringId!: string;
-  @IsIn(locationTypes) locationType!: ConsumerServiceLocationType;
+  @IsIn([...locationTypes]) locationType!: ConsumerServiceLocationType;
   @IsUUID() locationId!: string;
-  @IsIn(SERVICE_RECURRENCE_CADENCES) cadence!: ServiceRecurrenceCadence;
+  @IsIn([...SERVICE_RECURRENCE_CADENCES]) cadence!: ServiceRecurrenceCadence;
   @IsOptional() @IsInt() @Min(1) @Max(7) preferredWeekday?: number | null;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) preferredTime?: string | null;
 }
 class RecurringPlanStatusDto { @IsIn(recurringStatuses) status!: RecurringPlanStatus; }
 class LocationDto {
-  @IsIn(locationTypes) locationType!: ConsumerServiceLocationType;
+  @IsIn([...locationTypes]) locationType!: ConsumerServiceLocationType;
   @IsUUID() locationId!: string;
 }
 class CommunityDealCreateDto {
