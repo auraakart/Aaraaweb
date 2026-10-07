@@ -123,6 +123,16 @@ set -e
 if [ "$merge_status" -ne 0 ]; then
   latest_after_race="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
   accept_companion_merge_race "$latest_after_race"
+
+  if grep -Fq "Merge already in progress" /tmp/aaraagate-staging-merge.err; then
+    test "$(jq -r '.state' <<<"$latest_after_race")" = "open"
+    test "$(jq -r '.head.sha' <<<"$latest_after_race")" = "$EXPECTED_HEAD_SHA"
+    test "$(jq -r '.base.ref' <<<"$latest_after_race")" = "staging"
+    test "$(jq -r '.base.sha' <<<"$latest_after_race")" = "$EXPECTED_BASE_SHA"
+    echo "Companion release controller already owns the exact staging merge; treating GitHub 405 merge-in-progress as an idempotent handoff."
+    exit 0
+  fi
+
   cat /tmp/aaraagate-staging-merge.err >&2
   exit "$merge_status"
 fi

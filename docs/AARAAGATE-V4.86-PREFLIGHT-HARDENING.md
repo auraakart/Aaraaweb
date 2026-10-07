@@ -39,3 +39,8 @@ Future mastermind cycles must:
 ## Boundaries
 
 This patch changes CI orchestration only. It does not alter V4.86 product behavior, release identity, hosting, external integrations, gate authority, payment authority, or productionization.
+
+
+## Staging controller race closure
+
+V4.86 staging promotion exposed one additional controller-race case after both protected staging gates were green: GitHub can return `HTTP 405: Merge already in progress` to the losing companion controller while the winning controller is completing the same exact merge. The staging auto-merge script now treats that response as an idempotent handoff only after re-reading the PR and verifying the PR remains open at the exact expected head, `staging` base and expected base SHA; if the companion already completed the merge, the existing exact-merged check handles it. Any other merge failure remains fatal.
