@@ -51,7 +51,7 @@ export class AiCopilot {
   }
 
   async societyBaselines(societyId:string){
-    const rows=await this.prisma.$queryRaw<BaselineRow[]>(Prisma.sql`
+    const rows=(await this.prisma.$queryRaw<BaselineRow[]>(Prisma.sql`
       SELECT
         (SELECT COUNT(*)::int FROM "HelpdeskTicket"
           WHERE "societyId"=${societyId}::uuid
@@ -85,7 +85,7 @@ export class AiCopilot {
           WHERE "societyId"=${societyId}::uuid
             AND "enteredAt">=CURRENT_TIMESTAMP-INTERVAL '30 days'
             AND "enteredAt" IS NOT NULL AND "exitedAt" IS NOT NULL AND "exitedAt">="enteredAt") AS "visitorDwellP90Minutes"
-    `);
+    `))??[];
     const row=rows[0]??{
       helpdeskCurrent30:0,helpdeskPrevious30:0,
       facilitiesCorrectiveCurrent90:0,facilitiesCorrectivePrevious90:0,
@@ -158,14 +158,14 @@ export class AiCopilot {
 
   async latestOutcomes(societyId:string,keys:string[]){
     if(keys.length===0)return new Map<string,Record<string,unknown>>();
-    const rows=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+    const rows=(await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
       SELECT DISTINCT ON ("recommendationKey")
         "recommendationKey","domain","status","note","actorUserId","createdAt"
       FROM "AiAssistantRecommendationOutcome"
       WHERE "societyId"=${societyId}::uuid
         AND "recommendationKey" IN (${Prisma.join(keys)})
       ORDER BY "recommendationKey","createdAt" DESC,"id" DESC
-    `);
+    `))??[];
     return new Map(rows.map(row=>[String(row.recommendationKey),row]));
   }
 
