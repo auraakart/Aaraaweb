@@ -58,13 +58,15 @@ export class BillingService {
     `);
   }
 
-  listPayable(societyId: string, userId: string) {
+  listPayable(societyId: string, userId: string, unitId?: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT i.*, u."number" AS "unitNumber", b."name" AS "buildingName"
       FROM "MaintenanceInvoice" i
       JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = i."societyId"
       JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = i."societyId"
-      WHERE i."societyId" = ${societyId}::uuid AND (
+      WHERE i."societyId" = ${societyId}::uuid
+        ${unitId ? Prisma.sql`AND i."unitId" = ${unitId}::uuid` : Prisma.empty}
+        AND (
         EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
           WHERE uo."unitId" = i."unitId" AND uo."societyId" = ${societyId}::uuid
@@ -84,10 +86,10 @@ export class BillingService {
   }
 
   async residentSummary(societyId:string,userId:string,unitId?:string) {
-    const invoices=(await this.listPayable(societyId,userId)) as Array<{
+    const invoices=(await this.listPayable(societyId,userId,unitId)) as Array<{
       id:string;unitId:string;amountPaise:number;status:string;dueDate:Date|string;
     }>;
-    const payments=(await this.listPaymentsMine(societyId,userId)) as Array<{
+    const payments=(await this.listPaymentsMine(societyId,userId,unitId)) as Array<{
       invoiceId:string;amountPaise:number;status:string;createdAt:Date|string;completedAt:Date|string|null;
     }>;
     const scopedInvoices=unitId?invoices.filter(invoice=>invoice.unitId===unitId):invoices;
@@ -171,7 +173,7 @@ export class BillingService {
     `);
   }
 
-  listPaymentsMine(societyId: string, userId: string) {
+  listPaymentsMine(societyId: string, userId: string, unitId?: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT p."id", p."invoiceId", p."amountPaise", p."status",
         p."createdAt", p."completedAt", i."invoiceNumber", i."billingPeriod",
@@ -181,6 +183,7 @@ export class BillingService {
       JOIN "Unit" u ON u."id" = i."unitId" AND u."societyId" = p."societyId"
       JOIN "Building" b ON b."id" = u."buildingId" AND b."societyId" = p."societyId"
       WHERE p."societyId" = ${societyId}::uuid
+        ${unitId ? Prisma.sql`AND i."unitId" = ${unitId}::uuid` : Prisma.empty}
         AND p."purposeType"='MAINTENANCE_INVOICE'
         AND (p."payerUserId" = ${userId}::uuid OR EXISTS (
           SELECT 1 FROM "UnitOwnership" uo
