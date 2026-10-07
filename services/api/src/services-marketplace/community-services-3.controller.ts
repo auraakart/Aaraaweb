@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString,
-  IsUUID, Matches, Max, MaxLength, Min,
+  IsUUID, IsNotEmpty, Matches, Max, MaxLength, Min,
 } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
@@ -53,7 +53,7 @@ class LocationDto {
 }
 class CommunityDealCreateDto {
   @IsUUID() offeringId!: string;
-  @IsString() @MaxLength(140) title!: string;
+  @IsString() @IsNotEmpty() @MaxLength(140) title!: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
   @IsDateString() serviceDate!: string;
   @IsDateString() joinEndsAt!: string;
@@ -68,8 +68,8 @@ class CommunityDealStatusDto { @IsIn(campaignStatuses) status!: CommunityCampaig
 export class ProviderServiceExperienceController {
   constructor(private readonly services: CommunityServices3Service) {}
   @Get(':offeringId/experience-policy')
-  getPolicy(@Param('offeringId', ParseUUIDPipe) offeringId: string) {
-    return this.services.getOfferingExperiencePolicy(offeringId);
+  getPolicy(@CurrentServiceUser() userId: string, @Param('offeringId', ParseUUIDPipe) offeringId: string) {
+    return this.services.getMyOfferingExperiencePolicy(this.requireUser(userId), offeringId);
   }
   @Patch(':offeringId/experience-policy')
   setPolicy(@CurrentServiceUser() userId: string, @Param('offeringId', ParseUUIDPipe) offeringId: string, @Body() dto: OfferingExperiencePolicyDto) {
