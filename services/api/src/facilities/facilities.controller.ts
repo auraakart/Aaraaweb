@@ -31,11 +31,12 @@ export class FacilitiesController{
   }
     @Get('readiness') @RequiresPermissions(AppPermission.FACILITIES_READ)
   async readiness(@CurrentTenant() societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{
-      id:string;title:string;priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';status:'OPEN'|'IN_PROGRESS';
-      dueAt:Date|null;assetId:string|null;assetCode:string|null;assetName:string|null;assetStatus:string|null;
-      assignedUserId:string|null;assignedUserName:string|null;evidenceCount:number;verifiedEvidenceCount:number;
-    }>>(Prisma.sql`
+    const [rows,repeatedCorrective,warranties]=await Promise.all([
+      this.prisma.$queryRaw<Array<{
+        id:string;title:string;priority:'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';status:'OPEN'|'IN_PROGRESS';
+        dueAt:Date|null;assetId:string|null;assetCode:string|null;assetName:string|null;assetStatus:string|null;
+        assignedUserId:string|null;assignedUserName:string|null;evidenceCount:number;verifiedEvidenceCount:number;
+      }>>(Prisma.sql`
       SELECT w."id",w."title",w."priority",w."status",w."dueAt",w."assetId",
              a."code" AS "assetCode",a."name" AS "assetName",a."status" AS "assetStatus",
              w."assignedUserId",assignee."name" AS "assignedUserName",
@@ -52,7 +53,34 @@ export class FacilitiesController{
         CASE WHEN w."dueAt" IS NOT NULL AND w."dueAt"<CURRENT_TIMESTAMP THEN 0 ELSE 1 END,
         w."dueAt" ASC NULLS LAST,w."createdAt" ASC
       LIMIT 250
-    `);
+      `),
+      this.prisma.$queryRaw<Array<{assetId:string;assetCode:string;assetName:string;corrective90d:number;completed90d:number;lastCorrectiveAt:Date|null}>>(Prisma.sql`
+        SELECT a."id" AS "assetId",a."code" AS "assetCode",a."name" AS "assetName",
+          COUNT(w."id") FILTER (WHERE w."workType"='CORRECTIVE')::int AS "corrective90d",
+          COUNT(w."id") FILTER (WHERE w."workType"='CORRECTIVE' AND w."status"='COMPLETED')::int AS "completed90d",
+          MAX(w."createdAt") FILTER (WHERE w."workType"='CORRECTIVE') AS "lastCorrectiveAt"
+        FROM "FacilityAsset" a
+        JOIN "FacilityWorkOrder" w
+          ON w."assetId"=a."id" AND w."societyId"=a."societyId"
+         AND w."createdAt">=CURRENT_TIMESTAMP-INTERVAL '90 days'
+        WHERE a."societyId"=${societyId}::uuid AND a."status"<>'RETIRED'
+        GROUP BY a."id",a."code",a."name"
+        HAVING COUNT(w."id") FILTER (WHERE w."workType"='CORRECTIVE')>=3
+        ORDER BY "corrective90d" DESC,"lastCorrectiveAt" DESC
+        LIMIT 50
+      `),
+      this.prisma.$queryRaw<Array<{assetId:string;assetCode:string;assetName:string;warrantyEndsAt:Date}>>(Prisma.sql`
+        SELECT "id" AS "assetId","code" AS "assetCode","name" AS "assetName","warrantyEndsAt"
+        FROM "FacilityAsset"
+        WHERE "societyId"=${societyId}::uuid
+          AND "status"<>'RETIRED'
+          AND "warrantyEndsAt" IS NOT NULL
+          AND "warrantyEndsAt">=CURRENT_TIMESTAMP
+          AND "warrantyEndsAt"<CURRENT_TIMESTAMP+INTERVAL '60 days'
+        ORDER BY "warrantyEndsAt" ASC
+        LIMIT 50
+      `),
+    ]);
     const now=Date.now();
     const items=rows.map(row=>{
       const overdue=!!row.dueAt&&row.dueAt.getTime()<now;
@@ -80,7 +108,23 @@ export class FacilitiesController{
         outOfServiceAssetWork:items.filter(item=>item.assetStatus==='OUT_OF_SERVICE'||item.assetStatus==='RETIRED').length,
       },
       items,
-      boundary:'Operational readiness evidence only; this view does not certify maintenance quality, contract validity or physical asset condition.',
+      intelligence:{
+        repeatedCorrectiveAssets:repeatedCorrective.map(asset=>({
+          ...asset,
+          signal:'REPEATED_CORRECTIVE_90D',
+          nextAction:'Review recurring corrective work and compare repair history before deciding whether deeper inspection or replacement evaluation is warranted.',
+        })),
+        warrantiesExpiring60d:warranties.map(asset=>({
+          ...asset,
+          signal:'WARRANTY_EXPIRING_60D',
+          nextAction:'Review warranty evidence and any open work before the recorded warranty date.',
+        })),
+        summary:{
+          repeatedCorrectiveAssets:repeatedCorrective.length,
+          warrantiesExpiring60d:warranties.length,
+        },
+      },
+      boundary:'Operational readiness and maintenance-history signals only. Repeated work and expiry dates do not certify physical asset condition, root cause, vendor performance or contract validity.',
     };
   }
 

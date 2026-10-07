@@ -25,6 +25,7 @@ class ResidentHouseholdSnapshot {
     required String householdId,
     required String phone,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) {
@@ -35,6 +36,7 @@ class ResidentHouseholdSnapshot {
       final userMap = user is Map ? user : const <String, dynamic>{};
       return normalizePhone(userMap['phone']?.toString() ?? '') == expectedPhone &&
           item['gateApprovalEnabled'] == gateApprovalEnabled &&
+          _sameExpiry(item['gateApprovalExpiresAt'], gateApprovalExpiresAt, gateApprovalEnabled) &&
           item['gateNotificationEnabled'] == expectedNotification &&
           item['primaryGateContact'] == primaryGateContact;
     });
@@ -44,6 +46,7 @@ class ResidentHouseholdSnapshot {
     required String householdId,
     required String occupancyId,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) {
@@ -51,8 +54,16 @@ class ResidentHouseholdSnapshot {
     if (member == null) return false;
     final expectedNotification = primaryGateContact ? true : gateNotificationEnabled;
     return member['gateApprovalEnabled'] == gateApprovalEnabled &&
+        _sameExpiry(member['gateApprovalExpiresAt'], gateApprovalExpiresAt, gateApprovalEnabled) &&
         member['gateNotificationEnabled'] == expectedNotification &&
         member['primaryGateContact'] == primaryGateContact;
+  }
+
+  bool _sameExpiry(Object? raw, DateTime? expected, bool enabled) {
+    if (!enabled) return raw == null;
+    if (expected == null) return raw == null;
+    final actual=DateTime.tryParse(raw?.toString() ?? '');
+    return actual != null && actual.toUtc().difference(expected.toUtc()).abs() < const Duration(seconds: 2);
   }
 
   List<Map<String, dynamic>> emergencyContactsForHousehold(String householdId) {

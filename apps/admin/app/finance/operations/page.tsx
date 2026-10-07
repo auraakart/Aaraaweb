@@ -13,7 +13,7 @@ type Account={id:string;code:string;name:string;type:string;active:boolean}
 type Journal={id:string;entryNumber:string;status:string;debitPaise:string;creditPaise:string}
 type ExpenseIntakeCandidate={id:string;expenseNumber:string;vendorName:string;invoiceReference?:string|null;expenseDate:string;amountPaise:string;status:string;dateDistanceDays:number;signals:string[];classification:'DUPLICATE_EXACT'|'REVIEW_REFERENCE_CONFLICT'|'REVIEW_SIMILAR'|'RELATED'}
 type ExpenseIntakeAssessment={status:'CLEAR'|'DUPLICATE_EXACT'|'REVIEW_REFERENCE_CONFLICT'|'REVIEW_SIMILAR';candidates:ExpenseIntakeCandidate[];mutationPerformed:false;automaticPosting:false;boundary:string}
-type FinanceDocumentIntakePreview={extracted:{vendorName:string|null;invoiceReference:string|null;expenseDate:string|null;amountPaise:number|null;gstin:string|null};quality:'COMPLETE'|'PARTIAL'|'LIMITED';signals:string[];missingFields:string[];source:{sha256:string;characterCount:number;rawTextPersisted:false};duplicateAssessment:ExpenseIntakeAssessment|null;mutationPerformed:false;automaticPosting:false;humanReviewRequired:true;boundary:string}
+type FinanceDocumentIntakePreview={extracted:{vendorName:string|null;invoiceReference:string|null;expenseDate:string|null;dueDate:string|null;amountPaise:number|null;gstin:string|null;taxes:{cgstPaise:number|null;sgstPaise:number|null;igstPaise:number|null}};quality:'COMPLETE'|'PARTIAL'|'LIMITED';confidence:'HIGH'|'MEDIUM'|'LOW';confidenceScore:number;signals:string[];missingFields:string[];reviewWarnings:string[];source:{sha256:string;characterCount:number;rawTextPersisted:false};duplicateAssessment:ExpenseIntakeAssessment|null;mutationPerformed:false;automaticPosting:false;humanReviewRequired:true;boundary:string}
 
 const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','ACCOUNTANT','AUDITOR'])
 const manageRoles=new Set(['SUPER_ADMIN','ACCOUNTANT'])
@@ -43,6 +43,7 @@ export default function FinanceOperationsPage(){
       if(preview.extracted.vendorName)setVendor(preview.extracted.vendorName);
       if(preview.extracted.invoiceReference)setInvoiceReference(preview.extracted.invoiceReference);
       if(preview.extracted.expenseDate)setExpenseDate(preview.extracted.expenseDate);
+      if(preview.extracted.dueDate)setDueDate(preview.extracted.dueDate);
       if(preview.extracted.amountPaise)setAmount((preview.extracted.amountPaise/100).toString());
       if(preview.extracted.invoiceReference)setDescription(current=>current||`Invoice ${preview.extracted.invoiceReference}`);
       setIntake(preview.duplicateAssessment);setIntakeConfirmed(false);
@@ -96,9 +97,11 @@ export default function FinanceOperationsPage(){
         <FormField label="Reviewed invoice text" multiline value={invoiceText} onChange={e=>{setInvoiceText(e.target.value);setDocumentPreview(null)}} maxLength={12000}/>
         <ActionBar label="Invoice text preparation"><SecondaryButton type="button" loading={busy} disabled={invoiceText.trim().length<20} onClick={()=>void prepareInvoiceText()}>Prepare draft fields</SecondaryButton></ActionBar>
         {documentPreview&&<div style={{marginTop:10}}>
-          <b>Extraction: {documentPreview.quality}</b> · <small>{documentPreview.source.characterCount} characters · source hash {documentPreview.source.sha256.slice(0,12)}…</small>
+          <b>Extraction: {documentPreview.quality} · {documentPreview.confidence} confidence ({documentPreview.confidenceScore}%)</b> · <small>{documentPreview.source.characterCount} characters · source hash {documentPreview.source.sha256.slice(0,12)}…</small>
           <p style={{margin:'6px 0'}}>Found: {documentPreview.signals.length?documentPreview.signals.map(v=>v.replaceAll('_',' ')).join(' · '):'No labelled finance fields found'}.</p>
+          {(documentPreview.extracted.gstin||Object.values(documentPreview.extracted.taxes).some(value=>value!==null))&&<p style={{margin:'6px 0'}}>GST hints: {documentPreview.extracted.gstin??'GSTIN not detected'} · CGST {money(documentPreview.extracted.taxes.cgstPaise??0)} · SGST {money(documentPreview.extracted.taxes.sgstPaise??0)} · IGST {money(documentPreview.extracted.taxes.igstPaise??0)}.</p>}
           {documentPreview.missingFields.length>0&&<p style={{margin:'6px 0'}}>Review required for: {documentPreview.missingFields.join(', ')}.</p>}
+          {documentPreview.reviewWarnings.length>0&&<p style={{margin:'6px 0'}}>Warnings: {documentPreview.reviewWarnings.map(v=>v.replaceAll('_',' ')).join(' · ')}.</p>}
           <small>{documentPreview.boundary}</small>
         </div>}
       </div>

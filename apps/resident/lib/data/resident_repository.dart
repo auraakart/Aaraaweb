@@ -15,6 +15,7 @@ class ResidentRepository {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -22,6 +23,7 @@ class ResidentRepository {
       'name': name.trim(),
       'phone': phone.trim(),
       'gateApprovalEnabled': gateApprovalEnabled,
+      'gateApprovalExpiresAt': gateApprovalEnabled ? gateApprovalExpiresAt?.toUtc().toIso8601String() : null,
       'gateNotificationEnabled': gateNotificationEnabled,
       'primaryGateContact': primaryGateContact,
     });
@@ -32,11 +34,15 @@ class ResidentRepository {
     required String householdId,
     required String occupancyId,
     bool? gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
+    bool clearGateApprovalExpiry = false,
     bool? gateNotificationEnabled,
     bool? primaryGateContact,
   }) async {
     final value = await api.patch('/api/v1/households/$householdId/family-members/$occupancyId', {
       if (gateApprovalEnabled != null) 'gateApprovalEnabled': gateApprovalEnabled,
+      if (gateApprovalExpiresAt != null) 'gateApprovalExpiresAt': gateApprovalExpiresAt.toUtc().toIso8601String(),
+      if (clearGateApprovalExpiry) 'gateApprovalExpiresAt': null,
       if (gateNotificationEnabled != null) 'gateNotificationEnabled': gateNotificationEnabled,
       if (primaryGateContact != null) 'primaryGateContact': primaryGateContact,
     });
@@ -84,6 +90,59 @@ class ResidentRepository {
   Future<List<Map<String, dynamic>>> communityEvents() async {
     final value = await api.get('/api/v1/community-events');
     return _list(value);
+  }
+
+  Future<List<Map<String, dynamic>>> residentDirectory() async {
+    final value = await api.get('/api/v1/resident-directory');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> residentDirectoryProfile() async {
+    final value = await api.get('/api/v1/resident-directory/mine');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> updateResidentDirectoryProfile({
+    required bool visible,
+    required String displayName,
+    String? bio,
+    List<String> interests = const [],
+  }) async {
+    final value = await api.put('/api/v1/resident-directory/mine', {
+      'visible': visible,
+      'displayName': displayName.trim(),
+      if (bio != null && bio.trim().isNotEmpty) 'bio': bio.trim(),
+      'interests': interests.map((value) => value.trim()).where((value) => value.isNotEmpty).toList(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> residentDirectoryContactRequests() async {
+    final value = await api.get('/api/v1/resident-directory/contact-requests/mine');
+    return _list(value);
+  }
+
+  Future<Map<String, dynamic>> requestResidentDirectoryContact(String userId, {String? message}) async {
+    final value = await api.post('/api/v1/resident-directory/$userId/contact-requests', {
+      if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> respondResidentDirectoryContact(String requestId, {
+    required String status,
+    String? responseNote,
+  }) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/respond', {
+      'status': status,
+      if (responseNote != null && responseNote.trim().isNotEmpty) 'responseNote': responseNote.trim(),
+    });
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<Map<String, dynamic>> withdrawResidentDirectoryContact(String requestId) async {
+    final value = await api.post('/api/v1/resident-directory/contact-requests/$requestId/withdraw', const {});
+    return Map<String, dynamic>.from(value as Map);
   }
 
   Future<List<Map<String, dynamic>>> communityCircles() async {
@@ -239,6 +298,12 @@ class ResidentRepository {
     final value = await api.get('/api/v1/utilities/v2/resident/usage$suffix');
     return _list(value);
   }
+  Future<Map<String, dynamic>> utilityInsights({String? unitId}) async {
+    final suffix = unitId == null || unitId.isEmpty ? '' : '?unitId=${Uri.encodeQueryComponent(unitId)}';
+    final value = await api.get('/api/v1/utilities/v2/resident/insights$suffix');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
 
   Future<List<Map<String, dynamic>>> maintenanceInvoices() async {
     final value = await api.get('/api/v1/billing/invoices/payable');

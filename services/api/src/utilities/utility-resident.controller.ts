@@ -27,6 +27,17 @@ export class UtilityResidentController {
     return this.residentUtilities.listUsageHistory(societyId, userId, unitId?.trim() || undefined);
   }
 
+  @Get('insights')
+  @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
+  insights(
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+    @Query('unitId') unitId?: string,
+  ) {
+    if (!userId) throw new BadRequestException('Authenticated user is required');
+    return this.residentUtilities.residentInsights(societyId, userId, unitId?.trim() || undefined);
+  }
+
   @Get('charges')
   @RequiresPermissions(AppPermission.PAYMENT_CREATE_OWN)
   listCharges(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
