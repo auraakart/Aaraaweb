@@ -40,6 +40,7 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -48,6 +49,7 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
         'id': 'member-new',
         'relation': 'FAMILY_MEMBER',
         'gateApprovalEnabled': gateApprovalEnabled,
+        'gateApprovalExpiresAt': gateApprovalEnabled ? gateApprovalExpiresAt?.toUtc().toIso8601String() : null,
         'gateNotificationEnabled': primaryGateContact ? true : gateNotificationEnabled,
         'primaryGateContact': primaryGateContact,
         'user': {'id': 'user-new', 'name': name, 'phone': phone, 'status': 'ACTIVE'},
@@ -61,11 +63,15 @@ class _FamilyRecoveryRepository extends DemoResidentRepository {
     required String householdId,
     required String occupancyId,
     bool? gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
+    bool clearGateApprovalExpiry = false,
     bool? gateNotificationEnabled,
     bool? primaryGateContact,
   }) async {
     final member = members.firstWhere((item) => item['id'] == occupancyId);
     if (gateApprovalEnabled != null) member['gateApprovalEnabled'] = gateApprovalEnabled;
+    if (gateApprovalExpiresAt != null) member['gateApprovalExpiresAt'] = gateApprovalExpiresAt.toUtc().toIso8601String();
+    if (clearGateApprovalExpiry) member['gateApprovalExpiresAt'] = null;
     if (primaryGateContact == true) {
       member['gateNotificationEnabled'] = true;
     } else if (gateNotificationEnabled != null) {
