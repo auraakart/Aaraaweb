@@ -47,6 +47,16 @@ export class CommunityServices3Service {
     private readonly locations: ConsumerServiceLocationService,
   ) {}
 
+  async getMyOfferingExperiencePolicy(userId: string, offeringId: string) {
+    const provider = await this.operators.resolveProvider(userId);
+    const offering = await this.prisma.serviceOffering.findFirst({
+      where: { id: offeringId, providerId: provider.providerId },
+      select: { id: true },
+    });
+    if (!offering) throw new NotFoundException('Provider offering not found');
+    return this.getOfferingExperiencePolicy(offeringId);
+  }
+
   async getOfferingExperiencePolicy(offeringId: string) {
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT "offeringId","quickServiceEligible","targetArrivalMinutes","includedWork","partsPolicy",
@@ -279,6 +289,12 @@ export class CommunityServices3Service {
   async withdrawCommunityDeal(userId: string, campaignId: string, locationType: ConsumerServiceLocationType, locationId: string) {
     const location = await this.locations.resolveLocation(userId, locationType, locationId);
     if (!location.societyId || !location.societyUnitId) throw new BadRequestException('Community deals require a society unit');
+    const campaigns = await this.prisma.$queryRaw<Array<{ status: CommunityCampaignStatus; societyId: string }>>(Prisma.sql`
+      SELECT "status","societyId" FROM "CommunityServiceCampaign"
+      WHERE "id" = ${campaignId}::uuid LIMIT 1
+    `);
+    if (!campaigns[0] || campaigns[0].societyId !== location.societyId) throw new NotFoundException('Community service deal not found');
+    if (campaigns[0].status !== 'OPEN') throw new BadRequestException('Locked community service deals cannot be withdrawn');
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       UPDATE "CommunityServiceCampaignInterest"
       SET "status" = 'WITHDRAWN', "userId" = ${userId}::uuid, "updatedAt" = CURRENT_TIMESTAMP
