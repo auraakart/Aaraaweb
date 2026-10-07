@@ -172,6 +172,7 @@ model UnitOccupancy {
   active                  Boolean      @default(true)
   primaryGateContact      Boolean      @default(false)
   gateApprovalEnabled     Boolean      @default(true)
+  gateApprovalExpiresAt   DateTime?    @db.Timestamptz(6)
   gateNotificationEnabled Boolean      @default(true)
   escalationOrder         Int          @default(100)
   createdAt               DateTime     @default(now()) @db.Timestamptz(6)

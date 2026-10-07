@@ -49,6 +49,8 @@ class WorkforceAttendanceSheet extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       Chip(avatar: const Icon(Icons.event_available_outlined, size: 18), label: Text('${summary['presentDays'] ?? 0} present days')),
+                      Chip(avatar: const Icon(Icons.event_repeat_outlined, size: 18), label: Text('${summary['expectedScheduleDays'] ?? 0} scheduled days')),
+                      Chip(avatar: const Icon(Icons.help_outline_rounded, size: 18), label: Text('${summary['scheduledEvidenceGapDays'] ?? 0} evidence gaps')),
                       Chip(avatar: const Icon(Icons.door_front_door_outlined, size: 18), label: Text('${summary['totalVisits'] ?? 0} visits')),
                       Chip(avatar: const Icon(Icons.event_busy_outlined, size: 18), label: Text('${summary['leavePeriods'] ?? 0} leave periods')),
                     ],
@@ -295,6 +297,16 @@ class _WorkforcePaymentSheetState extends State<WorkforcePaymentSheet> {
   @override
   Widget build(BuildContext context) {
     final records = widget.controller.paymentsForWorkforce(widget.assignmentId);
+    final currentPeriod = _period.text.trim();
+    final periodRecords = records.where((record) => record['periodMonth']?.toString() == currentPeriod).toList(growable: false);
+    int totalFor(String kind) => periodRecords
+        .where((record) => record['kind']?.toString() == kind)
+        .fold(0, (sum, record) => sum + (int.tryParse('${record['amountPaise'] ?? 0}') ?? 0));
+    final salaryPaise = totalFor('SALARY');
+    final advancePaise = totalFor('ADVANCE');
+    final otherPaise = periodRecords
+        .where((record) => !['SALARY', 'ADVANCE'].contains(record['kind']?.toString()))
+        .fold(0, (sum, record) => sum + (int.tryParse('${record['amountPaise'] ?? 0}') ?? 0));
     return SafeArea(
       child: FractionallySizedBox(
         heightFactor: .9,
@@ -325,6 +337,7 @@ class _WorkforcePaymentSheetState extends State<WorkforcePaymentSheet> {
               controller: _period,
               enabled: !_busy,
               decoration: const InputDecoration(labelText: 'Period (YYYY-MM)', border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -343,6 +356,23 @@ class _WorkforcePaymentSheetState extends State<WorkforcePaymentSheet> {
               onPressed: _busy ? null : _save,
               icon: const Icon(Icons.add_card_rounded),
               label: Text(_busy ? 'SAVING…' : 'SAVE PAYMENT RECORD'),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Period summary · $currentPeriod', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    Chip(label: Text('Salary ₹${(salaryPaise / 100).toStringAsFixed(2)}')),
+                    Chip(label: Text('Advance ₹${(advancePaise / 100).toStringAsFixed(2)}')),
+                    Chip(label: Text('Other ₹${(otherPaise / 100).toStringAsFixed(2)}')),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text('These are resident-entered records only. They are not payroll liabilities or proof of bank/cash settlement.', style: Theme.of(context).textTheme.bodySmall),
+                ]),
+              ),
             ),
             const SizedBox(height: 22),
             Text('Recent records', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),

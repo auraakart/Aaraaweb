@@ -39,7 +39,7 @@ export class HouseholdChangeRequestService {
   constructor(private readonly prisma: PrismaService, private readonly households: HouseholdService) {}
 
   async requestFamilyAdd(societyId: string, userId: string, householdId: string, input: {
-    name: string; phone: string; gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean;
+    name: string; phone: string; gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean;
     primaryGateContact?: boolean; escalationOrder?: number;
   }) {
     await this.assertVerifiedOwnerHousehold(societyId, userId, householdId);
@@ -51,6 +51,7 @@ export class HouseholdChangeRequestService {
       payload: {
         name, phone,
         gateApprovalEnabled: input.gateApprovalEnabled ?? false,
+        gateApprovalExpiresAt: input.gateApprovalEnabled === false ? null : (input.gateApprovalExpiresAt ?? null),
         gateNotificationEnabled: input.gateNotificationEnabled ?? true,
         primaryGateContact: input.primaryGateContact ?? false,
         escalationOrder: input.escalationOrder ?? 100,
@@ -173,6 +174,7 @@ export class HouseholdChangeRequestService {
         return this.households.addFamilyMember(societyId, r.requestedByUserId, householdId, {
           name: String(r.payload.name ?? ''), phone: String(r.payload.phone ?? ''),
           gateApprovalEnabled: r.payload.gateApprovalEnabled === true,
+          gateApprovalExpiresAt: r.payload.gateApprovalExpiresAt == null ? null : String(r.payload.gateApprovalExpiresAt),
           gateNotificationEnabled: r.payload.gateNotificationEnabled !== false,
           primaryGateContact: r.payload.primaryGateContact === true,
           escalationOrder: Number(r.payload.escalationOrder ?? 100),

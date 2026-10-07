@@ -13,6 +13,19 @@ api(){
   gh api -H "Accept: application/vnd.github+json" "$@"
 }
 
+already_merged_exactly(){
+  local payload="$1"
+  [ "$(jq -r '.state' <<<"$payload")" = "closed" ]     && [ "$(jq -r '.merged_at // ""' <<<"$payload")" != "" ]     && [ "$(jq -r '.head.sha' <<<"$payload")" = "$EXPECTED_HEAD_SHA" ]     && [ "$(jq -r '.base.ref' <<<"$payload")" = "staging" ]
+}
+
+accept_companion_merge_race(){
+  local payload="$1"
+  if already_merged_exactly "$payload"; then
+    echo "Staging PR #$PR_NUMBER was already merged at the exact tested head by the companion release controller."
+    exit 0
+  fi
+}
+
 current="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
 current_head="$(jq -r '.head.sha' <<<"$current")"
 current_base="$(jq -r '.base.ref' <<<"$current")"
@@ -27,6 +40,7 @@ if [ "$current_repo" != "$REPOSITORY" ]; then
   exit 0
 fi
 
+accept_companion_merge_race "$current"
 test "$current_head" = "$EXPECTED_HEAD_SHA"
 test "$current_base" = "staging"
 test "$current_base_sha" = "$EXPECTED_BASE_SHA"
@@ -86,6 +100,7 @@ if [ "$companion_status" != "completed" ] || [ "$companion_conclusion" != "succe
 fi
 
 latest="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
+accept_companion_merge_race "$latest"
 test "$(jq -r '.state' <<<"$latest")" = "open"
 test "$(jq -r '.head.sha' <<<"$latest")" = "$EXPECTED_HEAD_SHA"
 test "$(jq -r '.base.sha' <<<"$latest")" = "$EXPECTED_BASE_SHA"
@@ -102,12 +117,7 @@ set -e
 
 if [ "$merge_status" -ne 0 ]; then
   latest_after_race="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
-  if [ "$(jq -r '.state' <<<"$latest_after_race")" = "closed" ] \
-    && [ "$(jq -r '.merged_at // ""' <<<"$latest_after_race")" != "" ] \
-    && [ "$(jq -r '.head.sha' <<<"$latest_after_race")" = "$EXPECTED_HEAD_SHA" ]; then
-    echo "Staging PR #$PR_NUMBER was already merged at the exact tested head by the companion release controller."
-    exit 0
-  fi
+  accept_companion_merge_race "$latest_after_race"
   cat /tmp/aaraagate-staging-merge.err >&2
   exit "$merge_status"
 fi

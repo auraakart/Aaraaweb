@@ -1,6 +1,6 @@
 import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
 import { VehicleType } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { BearerGuard, AuthenticatedRequest } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -40,12 +40,14 @@ class AddFamilyMemberDto {
   @IsString() @IsNotEmpty() name!: string;
   @IsString() @IsNotEmpty() phone!: string;
   @IsOptional() @IsBoolean() gateApprovalEnabled?: boolean;
+  @IsOptional() @IsDateString() gateApprovalExpiresAt?: string | null;
   @IsOptional() @IsBoolean() gateNotificationEnabled?: boolean;
   @IsOptional() @IsBoolean() primaryGateContact?: boolean;
   @IsOptional() @IsInt() @Min(0) escalationOrder?: number;
 }
 class UpdateFamilyMemberDto {
   @IsOptional() @IsBoolean() gateApprovalEnabled?: boolean;
+  @IsOptional() @IsDateString() gateApprovalExpiresAt?: string | null;
   @IsOptional() @IsBoolean() gateNotificationEnabled?: boolean;
   @IsOptional() @IsBoolean() primaryGateContact?: boolean;
   @IsOptional() @IsInt() @Min(0) escalationOrder?: number;

@@ -374,6 +374,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String phone,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) =>
@@ -381,6 +382,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -389,6 +391,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String occupancyId,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) =>
@@ -396,6 +399,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -405,6 +409,7 @@ class ResidentDataController extends ChangeNotifier {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -417,6 +422,7 @@ class ResidentDataController extends ChangeNotifier {
         name: name,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -426,6 +432,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         phone: phone,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       )) return;
@@ -438,6 +445,7 @@ class ResidentDataController extends ChangeNotifier {
     required String householdId,
     required String occupancyId,
     required bool gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
     required bool gateNotificationEnabled,
     required bool primaryGateContact,
   }) async {
@@ -449,6 +457,8 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
+        clearGateApprovalExpiry: gateApprovalExpiresAt == null,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       );
@@ -458,6 +468,7 @@ class ResidentDataController extends ChangeNotifier {
         householdId: householdId,
         occupancyId: occupancyId,
         gateApprovalEnabled: gateApprovalEnabled,
+        gateApprovalExpiresAt: gateApprovalExpiresAt,
         gateNotificationEnabled: gateNotificationEnabled,
         primaryGateContact: primaryGateContact,
       )) return;

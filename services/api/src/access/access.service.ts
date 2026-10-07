@@ -45,7 +45,10 @@ export class AccessService {
         active: true,
         gateApprovalEnabled: true,
         effectiveFrom: { lte: now },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        AND: [
+          { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+          { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: now } }] },
+        ],
       },
       select: { id: true },
     });
@@ -124,9 +127,12 @@ export class AccessService {
   }
 
   private async assertCanDecideRequest(request: { societyId: string; unitId: string; requestedById: string; metadata: Prisma.JsonValue }, userId: string) {
+    if (this.isGateOriginated(request.metadata)) {
+      await this.assertGateApprover(request.societyId, userId, request.unitId);
+      return;
+    }
     if (request.requestedById === userId) return;
-    if (!this.isGateOriginated(request.metadata)) throw new NotFoundException('Access request not found');
-    await this.assertGateApprover(request.societyId, userId, request.unitId);
+    throw new NotFoundException('Access request not found');
   }
 
   async create(societyId: string, userId: string, unitId: string, subjectType: AccessSubjectType, subjectName: string, subjectPhone?: string, purpose?: string, metadata: Record<string, unknown> = {}) {
@@ -228,7 +234,15 @@ export class AccessService {
       select: {
         id: true,
         occupancies: {
-          where: { active: true, gateApprovalEnabled: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+          where: {
+            active: true,
+            gateApprovalEnabled: true,
+            effectiveFrom: { lte: now },
+            AND: [
+              { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+              { OR: [{ gateApprovalExpiresAt: null }, { gateApprovalExpiresAt: { gt: now } }] },
+            ],
+          },
           orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
           take: 1,
           select: { userId: true },
