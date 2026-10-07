@@ -2879,7 +2879,9 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@jitl/quickjs-ffi-types@0.32.0': {}
+  '@jridgewell/resolve-uri@3.1.2': {}
+
+  '@jridgewell/sourcemap-codec@1.6.0': {}
 
   '@jridgewell/trace-mapping@0.3.31':
     dependencies:
@@ -4624,18 +4626,6 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.5
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
-
-  siginfo@2.0.0: {}
-
-  source-map-js@1.2.2: {}
-
-  source-map@0.7.6: {}
-
-  split2@4.2.0: {}
-
-  srvx@0.11.22: {}
-
-  stackback@0.0.2: {}
 
   shebang-command@2.0.0:
     dependencies:
