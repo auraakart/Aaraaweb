@@ -40,6 +40,24 @@ describe('ReportsAnalyticsService',()=>{
     }));
   });
 
+  it('includes aggregate gate fallback and resident activation pilot evidence',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{resolved:8,met:7,breached:1}])
+      .mockResolvedValueOnce([{processed:20,avgProcessingSeconds:42,avgApprovalSeconds:18}])
+      .mockResolvedValueOnce([{pushQueued:10,ivrSimulated:2,manualRequired:1,missingPhone:1}])
+      .mockResolvedValueOnce([{syncRuns:2,actionsConsidered:10,actionsSynced:9,actionsRetried:1,actionsUnresolved:1,reviewRequired:1}])
+      .mockResolvedValueOnce([{activeAmenities:2,confirmedBookings:4,distinctUsers:3,bookingHours:6}])
+      .mockResolvedValueOnce([{attempted:10,dispatched:9,retried:1}])
+      .mockResolvedValueOnce([{bookings:5,completed:4,cancelled:1,distinctBookers:3}])
+      .mockResolvedValueOnce([{eligibleResidents:10,activeResidents:6}])
+      .mockResolvedValueOnce([{serviceDiscoverers:5,serviceBookers:3,propertySwitchers:2}]);
+    const result=await service.outcomes('society-1','2026-09-01','2026-09-17',false);
+    expect(result.gateFallback).toMatchObject({pushQueued:10,ivrSimulated:2,manualRequired:1,missingPhone:1,fallbackRequiredPercent:7.69});
+    expect(result.adoption).toMatchObject({eligibleResidents:10,activeResidents:6,activationPercent:60,propertySwitchers:2});
+    expect(result.gateFallback.boundary).toContain('delivery evidence only');
+  });
+
   it('rejects invalid or excessive report ranges',async()=>{
     const {service}=setup();
     await expect(service.journeyFunnel('society-1','not-a-date','2026-09-17')).rejects.toBeInstanceOf(BadRequestException);

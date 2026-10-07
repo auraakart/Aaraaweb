@@ -11,7 +11,7 @@ function setup(input?:{
   features?:ProductFeature[];
   snapshot?:Partial<{
     auditorAssignments:number;accessConfigured:boolean;paymentConfigured:boolean;activeAmenities:number;
-    openAccountingPeriods:number;activeCommitteeTenures:number;governanceMeetings:number;evaluatedAt:Date;
+    openAccountingPeriods:number;activeCommitteeTenures:number;governanceMeetings:number;eligibleResidents:number;activatedResidents:number;evaluatedAt:Date;
   }>;
 }){
   const evaluatedAt=new Date('2026-09-29T12:00:00.000Z');
@@ -23,6 +23,8 @@ function setup(input?:{
     openAccountingPeriods:0,
     activeCommitteeTenures:0,
     governanceMeetings:0,
+    eligibleResidents:10,
+    activatedResidents:6,
     evaluatedAt,
     ...input?.snapshot,
   };
@@ -62,6 +64,8 @@ describe('V4.79.5 onboarding readiness intelligence',()=>{
     expect(result.steps.find(step=>step.id==='amenities')).toMatchObject({state:'READY',blockers:[]});
     expect(result.steps.find(step=>step.id==='billing')).toMatchObject({state:'READY',blockers:[]});
     expect(result.productionizationClaim).toBe(false);
+    expect(result.activation).toEqual({eligibleResidents:10,activatedResidents:6,activationPercent:60});
+    expect(result.steps.find(step=>step.id==='activation')).toMatchObject({state:'READY',blockers:[]});
     expect(result.boundary).toContain('Hosted infrastructure');
     expect(result.evaluatedAt).toEqual(evaluatedAt);
   });
@@ -81,6 +85,14 @@ describe('V4.79.5 onboarding readiness intelligence',()=>{
     expect(result.blockingStepIds).toEqual(expect.arrayContaining(['property','migration','roles','amenities','billing']));
     expect(result.steps.find(step=>step.id==='migration')?.blockers.join(' ')).toContain('Previous migration stage');
     expect(result.steps.find(step=>step.id==='billing')?.nextActions.join(' ')).toContain('payment-gateway');
+  });
+
+  it('blocks pilot onboarding when an eligible resident cohort has not activated yet',async()=>{
+    const {service}=setup({snapshot:{eligibleResidents:12,activatedResidents:0}});
+    const result=await service.readiness('society-1');
+    expect(result.repositoryReady).toBe(false);
+    expect(result.blockingStepIds).toContain('activation');
+    expect(result.steps.find(step=>step.id==='activation')).toMatchObject({state:'IN_PROGRESS',blockers:['RESIDENT_ACTIVATION_NOT_STARTED']});
   });
 
   it('keeps access and governance acceptance review-only rather than fabricating production readiness',async()=>{

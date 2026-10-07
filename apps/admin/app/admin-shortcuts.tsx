@@ -101,6 +101,7 @@ export function AdminShortcuts(){
       add(finance,{href:'/finance',label:'Finance',description:'Society financial overview'})
       add(finance,{href:'/finance/operations',label:'Finance ops',description:'Accounting operations and workflows'})
       add(finance,{href:'/finance/reconciliation',label:'Reconciliation',description:'Payment and ledger reconciliation'})
+      add(finance,{href:'/finance/exports',label:'Accounting exports',description:'Canonical and Tally-friendly accountant exports'})
     }
 
     if(role==='SUPER_ADMIN'){

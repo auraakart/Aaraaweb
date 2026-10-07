@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.85.0",
+  "version": "4.86.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -55,7 +55,8 @@
     "check:v4.81.4": "node scripts/check-v4.81.4-privacy-dependency-hardening.mjs",
     "check:v4.81.5": "node scripts/check-v4.81.5-maintainability-hygiene.mjs",
     "check:v4.82": "node scripts/check-v4.82-competitive-resident-operations.mjs",
-    "check:v4.85": "node scripts/check-v4.85-community-services-3.mjs"
+    "check:v4.85": "node scripts/check-v4.85-community-services-3.mjs",
+    "check:v4.86": "node scripts/check-v4.86-adoption-competitive-readiness.mjs"
   },
   "pnpm": {
     "overrides": {

@@ -25,6 +25,8 @@ type Snapshot={
   openAccountingPeriods:number;
   activeCommitteeTenures:number;
   governanceMeetings:number;
+  eligibleResidents:number;
+  activatedResidents:number;
   evaluatedAt:Date;
 };
 
@@ -68,19 +70,42 @@ export class OnboardingReadinessService{
               AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)) AS "activeCommitteeTenures",
           (SELECT COUNT(*)::int FROM "GovernanceMeeting"
             WHERE "societyId"=${societyId}::uuid) AS "governanceMeetings",
+          (SELECT COUNT(*)::int FROM (
+            SELECT DISTINCT "userId" FROM "UnitOccupancy"
+              WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+                AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+            UNION
+            SELECT DISTINCT "userId" FROM "UnitOwnership"
+              WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "verified"=TRUE
+                AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+          ) eligible) AS "eligibleResidents",
+          (SELECT COUNT(*)::int FROM (
+            SELECT DISTINCT "userId" FROM "UnitOccupancy"
+              WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
+                AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+            UNION
+            SELECT DISTINCT "userId" FROM "UnitOwnership"
+              WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "verified"=TRUE
+                AND "effectiveFrom"<=CURRENT_TIMESTAMP AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP)
+          ) eligible
+          WHERE EXISTS (
+            SELECT 1 FROM "Session" session
+            WHERE session."societyId"=${societyId}::uuid AND session."userId"=eligible."userId"
+          )) AS "activatedResidents",
           CURRENT_TIMESTAMP AS "evaluatedAt"
       `),
     ]);
 
     const snapshot=snapshotRows[0]??{
       auditorAssignments:0,accessConfigured:false,paymentConfigured:false,activeAmenities:0,
-      openAccountingPeriods:0,activeCommitteeTenures:0,governanceMeetings:0,evaluatedAt:new Date(0),
+      openAccountingPeriods:0,activeCommitteeTenures:0,governanceMeetings:0,eligibleResidents:0,activatedResidents:0,evaluatedAt:new Date(0),
     };
     const features=new Set(entitlements?.enabledFeatures??[]);
     const amenitiesEnabled=features.has(ProductFeature.AMENITIES);
     const accountingEnabled=features.has(ProductFeature.SOCIETY_ACCOUNTING);
     const paymentsEnabled=features.has(ProductFeature.PAYMENTS);
     const rolesCount=operationalRoleCount+snapshot.auditorAssignments;
+    const activationPercent=snapshot.eligibleResidents>0?Math.round((snapshot.activatedResidents/snapshot.eligibleResidents)*1000)/10:null;
 
     const migrationBlockers=migration.stages.flatMap(stage=>stage.blockers.map(blocker=>`${stage.entityType}: ${blocker}`));
     const migrationState:StepState=migration.complete?'READY':migration.blockedStages>0?'IN_PROGRESS':migration.readyStages>0?'REVIEW':'IN_PROGRESS';
@@ -113,7 +138,19 @@ export class OnboardingReadinessService{
         nextActions:rolesCount>0?[]:['Assign at least one current operational responsibility for society operations.'],
       },
       {
-        id:'gate',title:'4. Gate & access readiness',
+        id:'activation',title:'4. Resident activation',
+        description:'Verify imported owner/current-occupant records can activate through normal mobile OTP/session flows; no shared or default credentials are created.',
+        href:'/reports',state:snapshot.eligibleResidents===0||snapshot.activatedResidents===0?'IN_PROGRESS':'READY',
+        evidence:snapshot.eligibleResidents===0?'No eligible owner/current-occupant activation cohort is available':`${snapshot.activatedResidents}/${snapshot.eligibleResidents} eligible resident(s) have activated${activationPercent===null?'':` · ${activationPercent}%`}`,
+        blockers:snapshot.eligibleResidents===0?['RESIDENT_ACTIVATION_COHORT_MISSING']:snapshot.activatedResidents===0?['RESIDENT_ACTIVATION_NOT_STARTED']:[],
+        nextActions:snapshot.eligibleResidents===0
+          ?['Complete owner/current-occupant migration or property assignment before resident activation testing.']
+          :snapshot.activatedResidents===0
+            ?['Run a controlled resident activation using normal OTP and verify the selected property context.']
+            :['Use Reports → Resident activation during the first-week pilot; activation evidence is aggregate and does not expose resident activity history.'],
+      },
+      {
+        id:'gate',title:'5. Gate & access readiness',
         description:'Review provider-neutral access-control selection and keep physical-device acceptance outside repository readiness.',
         href:'/integrations',state:snapshot.accessConfigured?'READY':'REVIEW',
         evidence:snapshot.accessConfigured?'Access-control provider selection is enabled; field/device evidence remains external':'No enabled access-control provider selection; manual gate workflows remain authoritative',
@@ -121,7 +158,7 @@ export class OnboardingReadinessService{
         nextActions:snapshot.accessConfigured?[]:['Review access-control selection if the society plans device integration. This is not required for manual gate operation.'],
       },
       {
-        id:'amenities',title:'5. Amenities',
+        id:'amenities',title:'6. Amenities',
         description:'Configure amenity inventory only when the AMENITIES entitlement is enabled for this society.',
         href:'/amenities',state:!amenitiesEnabled?'READY':snapshot.activeAmenities>0?'READY':'IN_PROGRESS',
         evidence:!amenitiesEnabled?'Amenities are not enabled; no repository setup is required':snapshot.activeAmenities>0?`${snapshot.activeAmenities} active amenity record(s)`:'Amenities are enabled but no active amenity is configured',
@@ -129,7 +166,7 @@ export class OnboardingReadinessService{
         nextActions:amenitiesEnabled&&snapshot.activeAmenities===0?['Create at least one active amenity and review its booking policy.']:[],
       },
       {
-        id:'billing',title:'6. Billing & finance',
+        id:'billing',title:'7. Billing & finance',
         description:'Use accounting periods as repository finance readiness; payment-provider selection remains a separate integration review.',
         href:'/finance',state:!accountingEnabled?'READY':snapshot.openAccountingPeriods>0?'READY':'IN_PROGRESS',
         evidence:!accountingEnabled?'Society accounting is not enabled; no accounting setup is required':snapshot.openAccountingPeriods>0?`${snapshot.openAccountingPeriods} open accounting period(s)${paymentsEnabled?(snapshot.paymentConfigured?' · payment provider selected':' · payment provider selection needs review'):''}`:'Accounting is enabled but no open accounting period exists',
@@ -140,7 +177,7 @@ export class OnboardingReadinessService{
         ],
       },
       {
-        id:'policy',title:'7. Governance & society policy',
+        id:'policy',title:'8. Governance & society policy',
         description:'Review committee tenure, meeting records, quorum/approval references and society-specific policy in the governance workspace.',
         href:'/governance',state:'REVIEW',
         evidence:`${snapshot.activeCommitteeTenures} active committee tenure(s) · ${snapshot.governanceMeetings} governance meeting record(s)`,
@@ -154,7 +191,7 @@ export class OnboardingReadinessService{
     const blockingSteps=steps.filter(step=>step.blockers.length>0);
     const repositoryReady=blockingSteps.length===0;
     const final:OnboardingStep={
-      id:'final',title:'8. Readiness review',
+      id:'final',title:'9. Readiness review',
       description:'Review repository evidence before pilot acceptance without treating hosted/provider/device/human acceptance as complete.',
       href:'/onboarding',state:repositoryReady?'REVIEW':'IN_PROGRESS',
       evidence:repositoryReady?'Repository setup has no blocking evidence gaps; external acceptance is still pending':`${blockingSteps.length} repository setup step(s) require action`,
@@ -171,6 +208,7 @@ export class OnboardingReadinessService{
       readySteps:allSteps.filter(step=>step.state==='READY').length,
       totalSteps:allSteps.length,
       blockingStepIds:blockingSteps.map(step=>step.id),
+      activation:{eligibleResidents:snapshot.eligibleResidents,activatedResidents:snapshot.activatedResidents,activationPercent},
       steps:allSteps,
       evaluatedAt:snapshot.evaluatedAt,
       productionizationClaim:false,
