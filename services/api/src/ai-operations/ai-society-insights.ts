@@ -94,14 +94,40 @@ async societyFinance(societyId:string,minimumPaise:number){
   }
 
   async facilitiesSummary(societyId:string){
-    const rows=await this.prisma.$queryRaw<Array<{activeAssets:number;openWorkOrders:number;overdueWorkOrders:number;maintenanceDue30d:number}>>(Prisma.sql`
+    const rows=await this.prisma.$queryRaw<Array<{
+      activeAssets:number;openWorkOrders:number;overdueWorkOrders:number;maintenanceDue30d:number;
+      repeatedCorrectiveAssets90d:number;warrantiesExpiring60d:number;
+    }>>(Prisma.sql`
       SELECT
         (SELECT COUNT(*)::int FROM "FacilityAsset" WHERE "societyId"=${societyId}::uuid AND "status"='ACTIVE') AS "activeAssets",
         (SELECT COUNT(*)::int FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','CANCELLED')) AS "openWorkOrders",
         (SELECT COUNT(*)::int FROM "FacilityWorkOrder" WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','CANCELLED') AND "dueAt"<CURRENT_TIMESTAMP) AS "overdueWorkOrders",
-        (SELECT COUNT(*)::int FROM "FacilityMaintenancePlan" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "nextDueAt"<=CURRENT_TIMESTAMP+INTERVAL '30 days') AS "maintenanceDue30d"
+        (SELECT COUNT(*)::int FROM "FacilityMaintenancePlan" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE AND "nextDueAt"<=CURRENT_TIMESTAMP+INTERVAL '30 days') AS "maintenanceDue30d",
+        (
+          SELECT COUNT(*)::int FROM (
+            SELECT w."assetId"
+            FROM "FacilityWorkOrder" w
+            JOIN "FacilityAsset" a ON a."id"=w."assetId" AND a."societyId"=w."societyId"
+            WHERE w."societyId"=${societyId}::uuid
+              AND w."workType"='CORRECTIVE'
+              AND w."createdAt">=CURRENT_TIMESTAMP-INTERVAL '90 days'
+              AND a."status"<>'RETIRED'
+            GROUP BY w."assetId"
+            HAVING COUNT(*)>=3
+          ) recurring
+        ) AS "repeatedCorrectiveAssets90d",
+        (
+          SELECT COUNT(*)::int FROM "FacilityAsset"
+          WHERE "societyId"=${societyId}::uuid AND "status"<>'RETIRED'
+            AND "warrantyEndsAt" IS NOT NULL
+            AND "warrantyEndsAt">=CURRENT_TIMESTAMP
+            AND "warrantyEndsAt"<CURRENT_TIMESTAMP+INTERVAL '60 days'
+        ) AS "warrantiesExpiring60d"
     `);
-    return rows[0]??{activeAssets:0,openWorkOrders:0,overdueWorkOrders:0,maintenanceDue30d:0};
+    return rows[0]??{
+      activeAssets:0,openWorkOrders:0,overdueWorkOrders:0,maintenanceDue30d:0,
+      repeatedCorrectiveAssets90d:0,warrantiesExpiring60d:0,
+    };
   }
 
   async vendorSummary(societyId:string){
@@ -164,7 +190,7 @@ async societyFinance(societyId:string,minimumPaise:number){
   }
 
   async residentUtilities(societyId:string,unitId:string){
-    const [meters,charges]=await Promise.all([
+    const [meters,charges,attention]=await Promise.all([
       this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
         SELECT m."id",m."code",m."label",m."meterType",
           latest."readingAt" AS "latestReadingAt",latest."value"::text AS "latestReadingValue",
@@ -173,7 +199,15 @@ async societyFinance(societyId:string,minimumPaise:number){
             WHEN latest."readingKind"='RESET' OR previous."readingKind"='RESET' THEN NULL
             WHEN previous."value" IS NULL OR latest."value"<previous."value" THEN NULL
             ELSE (latest."value"-previous."value")::text
-          END AS "latestConsumption"
+          END AS "latestConsumption",
+          EXISTS(
+            SELECT 1
+            FROM "UtilityIntegrationMeterMap" map
+            JOIN "UtilityIntegration" integration
+              ON integration."id"=map."integrationId" AND integration."societyId"=map."societyId"
+            WHERE map."societyId"=m."societyId" AND map."meterId"=m."id"
+              AND map."active"=TRUE AND integration."status"='ACTIVE'
+          ) AS "providerLinked"
         FROM "UtilityMeter" m
         LEFT JOIN LATERAL (
           SELECT r."readingAt",r."value",r."readingKind"
@@ -202,11 +236,54 @@ async societyFinance(societyId:string,minimumPaise:number){
         ORDER BY d."periodEnd" DESC,d."createdAt" DESC
         LIMIT 12
       `),
+      this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
+        WITH ordered AS (
+          SELECT r."meterId",m."code",m."label",m."meterType",r."readingAt",r."value",r."readingKind",
+            LAG(r."value") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousValue",
+            LAG(r."readingKind") OVER (PARTITION BY r."meterId" ORDER BY r."readingAt") AS "previousKind"
+          FROM "UtilityReading" r
+          JOIN "UtilityMeter" m ON m."id"=r."meterId" AND m."societyId"=r."societyId"
+          WHERE r."societyId"=${societyId}::uuid AND m."unitId"=${unitId}::uuid AND m."active"=TRUE
+        ),
+        deltas AS (
+          SELECT *,
+            CASE
+              WHEN "readingKind"='RESET' OR "previousKind"='RESET' OR "previousValue" IS NULL OR "value"<"previousValue" THEN NULL
+              ELSE ("value"-"previousValue")::numeric
+            END AS delta,
+            ROW_NUMBER() OVER (PARTITION BY "meterId" ORDER BY "readingAt" DESC) AS rn
+          FROM ordered
+        ),
+        rollup AS (
+          SELECT "meterId","code","label","meterType",
+            MAX(delta) FILTER (WHERE rn=1) AS latest,
+            AVG(delta) FILTER (WHERE rn BETWEEN 2 AND 6 AND delta IS NOT NULL) AS baseline
+          FROM deltas
+          GROUP BY "meterId","code","label","meterType"
+        )
+        SELECT "meterId","code","label","meterType",
+          latest::text AS "latestConsumption",
+          baseline::text AS "recentBaselineAverage",
+          CASE WHEN latest IS NOT NULL AND baseline>0 THEN ROUND(((latest-baseline)/baseline*100)::numeric,1)::text ELSE NULL END AS "changePercent",
+          CASE
+            WHEN latest IS NULL OR baseline IS NULL THEN 'INSUFFICIENT_EVIDENCE'
+            WHEN latest>baseline*1.5 THEN 'HIGHER_THAN_RECENT'
+            WHEN latest<baseline*0.5 THEN 'LOWER_THAN_RECENT'
+            ELSE 'NORMAL_RANGE'
+          END AS "attention"
+        FROM rollup
+        ORDER BY CASE WHEN latest>baseline*1.5 THEN 0 ELSE 1 END,"code"
+        LIMIT 20
+      `),
     ]);
     return {
       meters,
       recentCharges:charges,
-      boundary:'Utility usage is grounded in recorded meter readings and issued charge evidence. Reset/replacement boundaries are not treated as normal consumption.',
+      consumptionAttention:attention,
+      providerLinkedCount:meters.filter((meter)=>meter.providerLinked===true).length,
+      prepaidBalanceAvailable:false,
+      rechargeExecutionAvailable:false,
+      boundary:'Utility usage and attention are grounded in recorded meter evidence. A higher recent delta is a deterministic comparison signal, not a leak, fault or billing diagnosis. Prepaid balance and recharge execution require an authoritative provider adapter and are not inferred.',
     };
   }
 

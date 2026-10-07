@@ -23,7 +23,7 @@ export class HouseholdService {
               where: { active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
               select: {
                 id: true, relation: true, primaryGateContact: true, gateApprovalEnabled: true,
-                gateNotificationEnabled: true, escalationOrder: true,
+                gateApprovalExpiresAt: true, gateNotificationEnabled: true, escalationOrder: true,
                 user: { select: { id: true, name: true, phone: true, status: true } },
               },
               orderBy: [{ primaryGateContact: 'desc' }, { escalationOrder: 'asc' }, { createdAt: 'asc' }],
@@ -45,7 +45,7 @@ export class HouseholdService {
   }
 
   async addFamilyMember(societyId: string, ownerUserId: string, householdId: string, input: {
-    name: string; phone: string; gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean;
+    name: string; phone: string; gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean;
     primaryGateContact?: boolean; escalationOrder?: number;
   }) {
     const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
@@ -75,6 +75,8 @@ export class HouseholdService {
           data: { primaryGateContact: false },
         });
       }
+      const gateApprovalEnabled = input.gateApprovalEnabled ?? existing?.gateApprovalEnabled ?? false;
+      const gateApprovalExpiresAt = this.gateApprovalExpiry(input.gateApprovalExpiresAt, gateApprovalEnabled, existing?.gateApprovalExpiresAt ?? null);
       const data = {
         societyId,
         relation: UnitRelation.FAMILY_MEMBER,
@@ -82,7 +84,8 @@ export class HouseholdService {
         effectiveFrom: existing?.effectiveFrom ?? now,
         effectiveTo: null,
         primaryGateContact,
-        gateApprovalEnabled: input.gateApprovalEnabled ?? existing?.gateApprovalEnabled ?? false,
+        gateApprovalEnabled,
+        gateApprovalExpiresAt,
         gateNotificationEnabled: primaryGateContact ? true : (input.gateNotificationEnabled ?? existing?.gateNotificationEnabled ?? true),
         escalationOrder: input.escalationOrder ?? existing?.escalationOrder ?? 100,
       };
@@ -99,7 +102,7 @@ export class HouseholdService {
   }
 
   async updateFamilyMember(societyId: string, ownerUserId: string, householdId: string, occupancyId: string, input: {
-    gateApprovalEnabled?: boolean; gateNotificationEnabled?: boolean; primaryGateContact?: boolean; escalationOrder?: number;
+    gateApprovalEnabled?: boolean; gateApprovalExpiresAt?: string | null; gateNotificationEnabled?: boolean; primaryGateContact?: boolean; escalationOrder?: number;
   }) {
     const household = await this.assertVerifiedOwnerHousehold(societyId, ownerUserId, householdId);
     const occupancy = await this.prisma.unitOccupancy.findFirst({
@@ -113,8 +116,13 @@ export class HouseholdService {
           data: { primaryGateContact: false },
         });
       }
+      const nextGateApprovalEnabled = input.gateApprovalEnabled ?? occupancy.gateApprovalEnabled;
+      const gateApprovalExpiresAt = input.gateApprovalExpiresAt !== undefined || input.gateApprovalEnabled !== undefined
+        ? this.gateApprovalExpiry(input.gateApprovalExpiresAt, nextGateApprovalEnabled, occupancy.gateApprovalExpiresAt)
+        : undefined;
       const data: Prisma.UnitOccupancyUpdateInput = {
         ...(input.gateApprovalEnabled !== undefined ? { gateApprovalEnabled: input.gateApprovalEnabled } : {}),
+        ...(gateApprovalExpiresAt !== undefined ? { gateApprovalExpiresAt } : {}),
         ...((input.gateNotificationEnabled !== undefined || input.primaryGateContact === true)
           ? { gateNotificationEnabled: input.primaryGateContact === true ? true : input.gateNotificationEnabled }
           : {}),
@@ -135,7 +143,7 @@ export class HouseholdService {
     return this.prisma.$transaction(async (tx) => {
       const ended = await tx.unitOccupancy.update({
         where: { id: occupancy.id },
-        data: { active: false, effectiveTo: now, primaryGateContact: false, gateApprovalEnabled: false, gateNotificationEnabled: false },
+        data: { active: false, effectiveTo: now, primaryGateContact: false, gateApprovalEnabled: false, gateApprovalExpiresAt: null, gateNotificationEnabled: false },
       });
       if (occupancy.primaryGateContact) {
         const fallback = await tx.unitOccupancy.findFirst({
@@ -286,6 +294,19 @@ export class HouseholdService {
     if (!contact) throw new NotFoundException('Emergency contact not found');
     if (!contact.active) return contact;
     return this.prisma.emergencyContact.update({ where: { id: contact.id }, data: { active: false } });
+  }
+
+  private gateApprovalExpiry(value: string | null | undefined, enabled: boolean, current: Date | null) {
+    if (!enabled) return null;
+    if (value === undefined) return current;
+    if (value === null || value.trim() === '') return null;
+    const expiry = new Date(value);
+    if (!Number.isFinite(expiry.getTime())) throw new BadRequestException('Gate approval expiry is invalid');
+    if (expiry <= new Date()) throw new BadRequestException('Gate approval expiry must be in the future');
+    const max = new Date();
+    max.setUTCFullYear(max.getUTCFullYear() + 2);
+    if (expiry > max) throw new BadRequestException('Gate approval expiry cannot be more than two years in the future');
+    return expiry;
   }
 
   private async setVehicleParkingSlot(household: { id: string; accessPreferences: Prisma.JsonValue | null }, vehicleId: string, parkingSlot?: string) {

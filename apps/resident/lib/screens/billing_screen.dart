@@ -20,6 +20,7 @@ class _BillingScreenState extends State<BillingScreen> {
   List<Map<String, dynamic>> payments = const [];
   List<Map<String, dynamic>> utilityCharges = const [];
   List<Map<String, dynamic>> utilityUsage = const [];
+  Map<String, dynamic>? utilityInsights;
   Map<String, dynamic>? financeSummary;
   Map<String, dynamic>? autopayPreference;
   bool autopayBusy = false;
@@ -63,13 +64,19 @@ class _BillingScreenState extends State<BillingScreen> {
       } catch (_) {
         utilityUsageResult = const [];
       }
+      Map<String, dynamic>? utilityInsightResult;
+      try {
+        utilityInsightResult = await widget.repository.utilityInsights(unitId: selected);
+      } catch (_) {
+        utilityInsightResult = null;
+      }
       final scopedInvoices = selected == null ? result[0] : result[0].where((invoice) => invoice['unitId']?.toString() == selected).toList(growable: false);
       final invoiceIds = scopedInvoices.map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       final scopedPayments = selected == null ? result[1] : result[1].where((payment) => invoiceIds.contains(payment['invoiceId']?.toString())).toList(growable: false);
       final scopedUtilityCharges = selected == null ? utilityResult : utilityResult.where((charge) => charge['unitId']?.toString() == selected).toList(growable: false);
       final payableInvoiceIds = scopedInvoices.where((invoice) => invoice['status'] == 'ISSUED').map((invoice) => invoice['id']?.toString()).whereType<String>().toSet();
       _paymentAttemptKeys.removeWhere((invoiceId, _) => !payableInvoiceIds.contains(invoiceId));
-      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; utilityUsage = utilityUsageResult; financeSummary = summaryResult; autopayPreference = autopayResult; });
+      if (mounted) setState(() { invoices = scopedInvoices; payments = scopedPayments; utilityCharges = scopedUtilityCharges; utilityUsage = utilityUsageResult; utilityInsights = utilityInsightResult; financeSummary = summaryResult; autopayPreference = autopayResult; });
     } on ApiException catch (exception) {
       if (mounted) setState(() => error = exception.statusCode == 403 ? 'Maintenance billing is available only to verified owners and current tenants.' : 'Your billing details could not be loaded.');
     } catch (_) {
@@ -308,6 +315,10 @@ class _BillingScreenState extends State<BillingScreen> {
                   const SizedBox(height: AaraagateTokens.space2),
                 ],
               ],
+              if (utilityInsights != null) ...[
+                const SizedBox(height: AaraagateTokens.space5),
+                _UtilityAttentionCard(insights: utilityInsights!),
+              ],
               if (utilityUsage.isNotEmpty) ...[
                 const SizedBox(height: AaraagateTokens.space5),
                 const PremiumSectionHeader(
@@ -321,6 +332,55 @@ class _BillingScreenState extends State<BillingScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _UtilityAttentionCard extends StatelessWidget {
+  const _UtilityAttentionCard({required this.insights});
+  final Map<String, dynamic> insights;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final meters = insights['meters'] is List
+        ? (insights['meters'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final attention = (insights['attentionCount'] as num?)?.toInt() ?? 0;
+    final linked = (insights['providerLinkedCount'] as num?)?.toInt() ?? 0;
+    final prepaid = insights['prepaid'] is Map ? Map<String, dynamic>.from(insights['prepaid'] as Map) : const <String, dynamic>{};
+    return PremiumSurface(
+      padding: const EdgeInsets.all(AaraagateTokens.space4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.monitor_heart_outlined, color: theme.colorScheme.primary),
+          const SizedBox(width: AaraagateTokens.space3),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Utility attention', style: theme.textTheme.titleMedium),
+            Text('Recent meter deltas compared with each meter’s own recent evidence.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ])),
+        ]),
+        const SizedBox(height: AaraagateTokens.space3),
+        Wrap(spacing: AaraagateTokens.space2, runSpacing: AaraagateTokens.space2, children: [
+          AaraagateStatusPill(label: attention > 0 ? '$attention NEED REVIEW' : 'NO HIGH-USAGE SIGNAL', tone: attention > 0 ? AaraagateStatusTone.warning : AaraagateStatusTone.success),
+          AaraagateStatusPill(label: '$linked PROVIDER-LINKED', tone: AaraagateStatusTone.neutral),
+        ]),
+        if (meters.any((meter) => meter['attention'] == 'HIGHER_THAN_RECENT')) ...[
+          const SizedBox(height: AaraagateTokens.space3),
+          for (final meter in meters.where((meter) => meter['attention'] == 'HIGHER_THAN_RECENT').take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: AaraagateTokens.space2),
+              child: Text(
+                '${meter['meterLabel'] ?? meter['meterCode'] ?? 'Meter'} · latest use is ${meter['changePercent'] ?? '?'}% above its recent baseline.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+        ],
+        const SizedBox(height: AaraagateTokens.space2),
+        Text(insights['boundary']?.toString() ?? 'Usage attention is informational only.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4)),
+        const SizedBox(height: AaraagateTokens.space2),
+        Text(prepaid['boundary']?.toString() ?? 'Prepaid balance and recharge require an authoritative provider adapter.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4)),
+      ]),
     );
   }
 }

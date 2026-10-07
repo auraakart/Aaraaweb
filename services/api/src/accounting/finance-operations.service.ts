@@ -39,40 +39,61 @@ export class FinanceOperationsService {
     const vendorMatch=text.match(/^(?:vendor|supplier|billed by|from)\s*[:\-]\s*(.{2,160})$/im);
     const referenceMatch=text.match(/^(?:invoice(?:\s*(?:no|number|#))?|bill\s*(?:no|number|#)|reference|ref)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9./_-]{1,119})\s*$/im);
     const dateMatch=text.match(/^(?:invoice\s*date|bill\s*date|date)\s*[:\-]\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4})\s*$/im);
+    const dueDateMatch=text.match(/^(?:due\s*date|payment\s*due|pay\s*by)\s*[:\-]\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4})\s*$/im);
     const totalMatch=text.match(/^(?:grand\s*total|invoice\s*total|total\s*amount|amount\s*due|net\s*payable|total)\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
     const gstinMatch=text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/i);
+    const cgstMatch=text.match(/^CGST(?:\s*@?\s*\d+(?:\.\d+)?%)?\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
+    const sgstMatch=text.match(/^SGST(?:\s*@?\s*\d+(?:\.\d+)?%)?\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
+    const igstMatch=text.match(/^IGST(?:\s*@?\s*\d+(?:\.\d+)?%)?\s*[:\-]?\s*(?:₹|INR|Rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)\s*$/im);
 
     const vendorName=vendorMatch?.[1]?.trim()||null;
     const invoiceReference=referenceMatch?.[1]?.trim()||null;
     const expenseDate=this.normalizeReviewedInvoiceDate(dateMatch?.[1]??null);
+    const dueDate=this.normalizeReviewedInvoiceDate(dueDateMatch?.[1]??null);
     const amountValue=totalMatch?.[1]?.replaceAll(',','')??null;
     const amountNumber=amountValue?Number(amountValue):NaN;
     const amountPaise=Number.isFinite(amountNumber)&&amountNumber>0?Math.round(amountNumber*100):null;
     const gstin=gstinMatch?.[0]?.toUpperCase()??null;
+    const taxAmountPaise=(match:RegExpMatchArray|null)=>{
+      const numeric=match?.[1]?.replaceAll(',','');
+      const value=numeric?Number(numeric):NaN;
+      return Number.isFinite(value)&&value>=0?Math.round(value*100):null;
+    };
+    const taxes={cgstPaise:taxAmountPaise(cgstMatch),sgstPaise:taxAmountPaise(sgstMatch),igstPaise:taxAmountPaise(igstMatch)};
 
     const signals:string[]=[];
     if(vendorName) signals.push('VENDOR_LABEL_MATCH');
     if(invoiceReference) signals.push('INVOICE_REFERENCE_MATCH');
     if(expenseDate) signals.push('DATE_LABEL_MATCH');
+    if(dueDate) signals.push('DUE_DATE_LABEL_MATCH');
     if(amountPaise) signals.push('TOTAL_LABEL_MATCH');
     if(gstin) signals.push('GSTIN_PATTERN_MATCH');
+    if(taxes.cgstPaise!==null) signals.push('CGST_LABEL_MATCH');
+    if(taxes.sgstPaise!==null) signals.push('SGST_LABEL_MATCH');
+    if(taxes.igstPaise!==null) signals.push('IGST_LABEL_MATCH');
 
     const missingFields:string[]=[];
     if(!vendorName) missingFields.push('vendorName');
     if(!expenseDate) missingFields.push('expenseDate');
     if(!amountPaise) missingFields.push('amountPaise');
     const quality=missingFields.length===0?'COMPLETE':missingFields.length===1?'PARTIAL':'LIMITED';
+    const reviewWarnings:string[]=[];
+    if(expenseDate&&dueDate&&dueDate<expenseDate) reviewWarnings.push('DUE_DATE_BEFORE_INVOICE_DATE');
+    if(taxes.igstPaise!==null&&(taxes.cgstPaise!==null||taxes.sgstPaise!==null)) reviewWarnings.push('MIXED_GST_COMPONENTS_REVIEW');
+    const baseConfidence=(vendorName?25:0)+(invoiceReference?15:0)+(expenseDate?20:0)+(amountPaise?25:0)+(gstin?10:0)+(dueDate?5:0);
+    const confidenceScore=Math.max(0,Math.min(100,baseConfidence-reviewWarnings.length*10));
+    const confidence=confidenceScore>=80?'HIGH':confidenceScore>=55?'MEDIUM':'LOW';
     const duplicateAssessment=vendorName&&expenseDate&&amountPaise
       ? await this.expenseIntakeAssessment(societyId,{vendorName,invoiceReference:invoiceReference??undefined,expenseDate,amountPaise})
       : null;
 
     return {
-      extracted:{vendorName,invoiceReference,expenseDate,amountPaise,gstin},
-      quality,signals,missingFields,
+      extracted:{vendorName,invoiceReference,expenseDate,dueDate,amountPaise,gstin,taxes},
+      quality,confidence,confidenceScore,signals,missingFields,reviewWarnings,
       source:{sha256:createHash('sha256').update(text).digest('hex'),characterCount:text.length,rawTextPersisted:false},
       duplicateAssessment,
       mutationPerformed:false,automaticPosting:false,humanReviewRequired:true,
-      boundary:'Deterministic reviewed-text preparation only. Extracted fields must be checked by a finance operator; expense creation, approval and posting remain separate explicit controls.',
+      boundary:'Deterministic reviewed-text preparation only. Confidence is extraction completeness, not accounting or tax correctness. Extracted fields and GST hints must be checked by a finance operator; expense creation, approval and posting remain separate explicit controls.',
     };
   }
 

@@ -63,6 +63,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
           'phone': result['phone'],
           'primaryGateContact': result['primaryGateContact'],
           'gateApprovalEnabled': result['gateApprovalEnabled'],
+          'gateApprovalExpiresAt': result['gateApprovalExpiresAt'],
           'gateNotificationEnabled': result['gateNotificationEnabled'],
         });
         return;
@@ -72,6 +73,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         name: result['name'].toString(),
         phone: result['phone'].toString(),
         gateApprovalEnabled: result['gateApprovalEnabled'] == true,
+        gateApprovalExpiresAt: result['gateApprovalExpiresAt'] is DateTime ? result['gateApprovalExpiresAt'] as DateTime : null,
         gateNotificationEnabled: result['gateNotificationEnabled'] == true,
         primaryGateContact: result['primaryGateContact'] == true,
       );
@@ -85,19 +87,52 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
     bool notifications = member['gateNotificationEnabled'] == true;
     bool approvals = member['gateApprovalEnabled'] == true;
     bool primary = member['primaryGateContact'] == true;
-    final result = await showDialog<Map<String, bool>>(
+    DateTime? approvalExpiry = DateTime.tryParse(member['gateApprovalExpiresAt']?.toString() ?? '')?.toLocal();
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(member['user'] is Map ? ((member['user'] as Map)['name']?.toString() ?? 'Family member') : 'Family member'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: notifications, onChanged: (v) => setDialogState(() => notifications = v)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: approvals, onChanged: (v) => setDialogState(() => approvals = v)),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Can approve visitors'),
+              subtitle: const Text('Use an expiry for caregiver or temporary household access.'),
+              value: approvals,
+              onChanged: (v) => setDialogState(() { approvals = v; if (!v) approvalExpiry = null; }),
+            ),
+            if (approvals)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_available_outlined),
+                title: Text(approvalExpiry == null ? 'No approval expiry' : 'Approval until ${approvalExpiry!.toLocal().toString().split(' ').first}'),
+                subtitle: const Text('Expiry is enforced by the server for new gate-arrival approvals.'),
+                trailing: Wrap(spacing: 4, children: [
+                  if (approvalExpiry != null) IconButton(onPressed: () => setDialogState(() => approvalExpiry = null), icon: const Icon(Icons.clear_rounded), tooltip: 'No expiry'),
+                  IconButton(
+                    onPressed: () async {
+                      final today = DateTime.now();
+                      final chosen = await showDatePicker(
+                        context: context,
+                        initialDate: approvalExpiry ?? today.add(const Duration(days: 30)),
+                        firstDate: today,
+                        lastDate: DateTime(today.year + 2, today.month, today.day),
+                      );
+                      if (chosen != null) {
+                        setDialogState(() => approvalExpiry = DateTime(chosen.year, chosen.month, chosen.day, 23, 59, 59));
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    tooltip: 'Set expiry',
+                  ),
+                ]),
+              ),
             SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Primary gate contact'), value: primary, onChanged: (v) => setDialogState(() { primary = v; if (v) notifications = true; })),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, {'notifications': notifications, 'approvals': approvals, 'primary': primary}), child: const Text('Save')),
+            FilledButton(onPressed: () => Navigator.pop(context, {'notifications': notifications, 'approvals': approvals, 'primary': primary, 'approvalExpiry': approvalExpiry}), child: const Text('Save')),
           ],
         ),
       ),
@@ -112,6 +147,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         }
         member['gateNotificationEnabled'] = result['notifications'];
         member['gateApprovalEnabled'] = result['approvals'];
+        member['gateApprovalExpiresAt'] = result['approvalExpiry'] is DateTime ? (result['approvalExpiry'] as DateTime).toUtc().toIso8601String() : null;
         member['primaryGateContact'] = result['primary'];
         return;
       }
@@ -120,6 +156,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
         occupancyId: member['id'].toString(),
         gateNotificationEnabled: result['notifications'] == true,
         gateApprovalEnabled: result['approvals'] == true,
+        gateApprovalExpiresAt: result['approvalExpiry'] is DateTime ? result['approvalExpiry'] as DateTime : null,
         primaryGateContact: result['primary'] == true,
       );
     });
@@ -254,6 +291,7 @@ class _AddFamilyMemberDialogState extends State<_AddFamilyMemberDialog> {
   late final TextEditingController _phoneController;
   bool _notifications = true;
   bool _approvals = false;
+  DateTime? _approvalExpiry;
   bool _primary = false;
   String? _validationError;
 
@@ -283,6 +321,7 @@ class _AddFamilyMemberDialogState extends State<_AddFamilyMemberDialog> {
       'phone': phone,
       'gateNotificationEnabled': _notifications,
       'gateApprovalEnabled': _approvals,
+      'gateApprovalExpiresAt': _approvalExpiry,
       'primaryGateContact': _primary,
     });
   }
@@ -298,7 +337,36 @@ class _AddFamilyMemberDialogState extends State<_AddFamilyMemberDialog> {
           TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number')),
           const SizedBox(height: 14),
           SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Gate notifications'), value: _notifications, onChanged: (v) => setState(() => _notifications = v)),
-          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Can approve visitors'), value: _approvals, onChanged: (v) => setState(() => _approvals = v)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Can approve visitors'),
+            subtitle: const Text('Optional expiry is useful for temporary caregivers or guests.'),
+            value: _approvals,
+            onChanged: (v) => setState(() { _approvals = v; if (!v) _approvalExpiry = null; }),
+          ),
+          if (_approvals)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available_outlined),
+              title: Text(_approvalExpiry == null ? 'No approval expiry' : 'Approval until ${_approvalExpiry!.toString().split(' ').first}'),
+              trailing: Wrap(spacing: 4, children: [
+                if (_approvalExpiry != null) IconButton(onPressed: () => setState(() => _approvalExpiry = null), icon: const Icon(Icons.clear_rounded), tooltip: 'No expiry'),
+                IconButton(
+                  onPressed: () async {
+                    final today = DateTime.now();
+                    final chosen = await showDatePicker(
+                      context: context,
+                      initialDate: _approvalExpiry ?? today.add(const Duration(days: 30)),
+                      firstDate: today,
+                      lastDate: DateTime(today.year + 2, today.month, today.day),
+                    );
+                    if (chosen != null && mounted) setState(() => _approvalExpiry = DateTime(chosen.year, chosen.month, chosen.day, 23, 59, 59));
+                  },
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  tooltip: 'Set expiry',
+                ),
+              ]),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Primary gate contact'),
@@ -338,7 +406,10 @@ class _MemberCard extends StatelessWidget {
     final chips = <Widget>[
       if (member['primaryGateContact'] == true) const Chip(label: Text('Primary gate contact')),
       if (member['gateNotificationEnabled'] == true) const Chip(label: Text('Gate alerts')),
-      if (member['gateApprovalEnabled'] == true) const Chip(label: Text('Can approve')),
+      if (member['gateApprovalEnabled'] == true)
+        Chip(label: Text(member['gateApprovalExpiresAt'] == null
+            ? 'Can approve'
+            : 'Can approve until ${member['gateApprovalExpiresAt'].toString().split('T').first}')),
       if (member['gateNotificationEnabled'] != true && member['gateApprovalEnabled'] != true) const Chip(label: Text('No gate access')),
     ];
     return Card(
