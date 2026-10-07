@@ -56,6 +56,13 @@ class NoticeDraftDto {
   @IsOptional() @IsString() @MaxLength(120) audience?: string;
 }
 
+class RecommendationOutcomeDto {
+  @IsString() @MinLength(1) @MaxLength(160) recommendationKey!: string;
+  @IsString() @MinLength(1) @MaxLength(40) domain!: string;
+  @IsIn(['REVIEWED','ACTED','RESOLVED','DISMISSED']) status!: 'REVIEWED'|'ACTED'|'RESOLVED'|'DISMISSED';
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
 @Controller('ai-operations')
 @UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)
 @RequiresFeature(ProductFeature.AI_ASSISTANT)
@@ -75,6 +82,19 @@ export class AiOperationsController {
   @Post('assistant/query')
   assistantQuery(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Req() request:AuthenticatedRequest,@Body() dto:AssistantQueryDto){
     return this.assistant.query(societyId,this.user(userId),(request.auth?.roles??[]) as AppRole[],dto.message,dto.unitId);
+  }
+
+  @Post('assistant/recommendation-outcomes')
+  recommendationOutcome(
+    @CurrentTenant() societyId:string,
+    @CurrentUser() userId:string|undefined,
+    @Req() request:AuthenticatedRequest,
+    @Body() dto:RecommendationOutcomeDto,
+  ){
+    return this.assistant.recordRecommendationOutcome(
+      societyId,this.user(userId),(request.auth?.roles??[]) as AppRole[],
+      dto.recommendationKey,dto.domain,dto.status,dto.note,
+    );
   }
 
   @Post('assistant/helpdesk-from-text')

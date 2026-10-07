@@ -59,6 +59,7 @@ describe('V4.6 grounded AI assistant',()=>{
     const result=await service.query('society-1','user-1',[AppRole.ACCOUNTANT],'Show overdue maintenance above ₹5,000');
     expect(result).toEqual(expect.objectContaining({
       intent:'SOCIETY_FINANCE',grounded:true,mutationPerformed:false,
+      evidence:expect.objectContaining({confidence:'HIGH',sourceCount:2,causalClaim:false}),
       facts:expect.objectContaining({minimumOverduePaise:500000,overdueCount:2,collectionChangePercent:50}),
     }));
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
@@ -277,6 +278,49 @@ describe('V4.6 grounded AI assistant',()=>{
     }));
   });
 
+  it('plans a permission-scoped multi-domain review and returns hypotheses without causal claims',async()=>{
+    const {prisma,operations,service}=setup();
+    operations.operationsSummary.mockResolvedValue({openCount:4,breachedCount:2,unassignedCount:1});
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      activeAssets:4,openWorkOrders:3,overdueWorkOrders:1,maintenanceDue30d:0,
+      repeatedCorrectiveAssets90d:1,warrantiesExpiring60d:0,
+    }]);
+    const result=await service.query(
+      'society-1','user-1',[AppRole.COMMITTEE_MEMBER],
+      'Why are helpdesk complaints and lift facility work orders both increasing? Compare the pattern.',
+    );
+    expect(result.intent).toBe('MULTI_DOMAIN');
+    expect(result.sources).toEqual(expect.arrayContaining(['HelpdeskTicket','FacilityAsset','FacilityWorkOrder']));
+    expect(result.facts).toEqual(expect.objectContaining({
+      planner:expect.objectContaining({selectedTools:expect.arrayContaining(['HELPDESK_OPERATIONS','FACILITIES'])}),
+      hypotheses:[expect.objectContaining({
+        id:'helpdesk-facilities-coincidence',
+        confidence:'MEDIUM',
+        causalClaim:false,
+        contradictingEvidence:expect.any(Array),
+      })],
+    }));
+    expect(result.evidence).toEqual(expect.objectContaining({confidence:'HIGH',causalClaim:false}));
+    expect(operations.operationsSummary).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('records recommendation outcomes only inside the caller operational domain',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id:'outcome-1',recommendationKey:'finance-overdue:abc',domain:'FINANCE',status:'REVIEWED',createdAt:new Date(),
+    }]);
+    await expect(service.recordRecommendationOutcome(
+      'society-1','user-1',[AppRole.ACCOUNTANT],
+      'finance-overdue:abc','FINANCE','REVIEWED',
+    )).resolves.toEqual(expect.objectContaining({status:'REVIEWED'}));
+    await expect(service.recordRecommendationOutcome(
+      'society-1','user-1',[AppRole.OWNER],
+      'finance-overdue:abc','FINANCE','REVIEWED',
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
   it('builds only permission-authorized action cards and performs no mutations',async()=>{
     const {prisma,operations,service}=setup();
     prisma.$queryRaw
@@ -287,7 +331,7 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.cards).toHaveLength(1);
     expect(result.cards[0]).toMatchObject({id:'finance-overdue',domain:'FINANCE',severity:'HIGH',likelyCause:expect.any(String),safeWorkflow:expect.any(Array)});
     expect(operations.operationsSummary).not.toHaveBeenCalled();
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(4);
   });
 
   it('builds a permission-aware daily briefing with governance and procurement attention',async()=>{
@@ -309,7 +353,8 @@ describe('V4.6 grounded AI assistant',()=>{
       expect.objectContaining({id:'governance-actions',domain:'GOVERNANCE',severity:'HIGH',metrics:expect.objectContaining({openActionItems:1,overdueActionItems:1})}),
       expect.objectContaining({id:'procurement-attention',domain:'PROCUREMENT',severity:'MEDIUM',metrics:expect.objectContaining({submittedRequests:2})}),
     ]));
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(9);
+    expect(result.brief.topPriorities).toHaveLength(3);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(11);
   });
 
   it('grounds gate attention in one aggregate query for a gate-only role',async()=>{
@@ -326,7 +371,12 @@ describe('V4.6 grounded AI assistant',()=>{
       metrics:expect.objectContaining({criticalIncidentId:'incident-1',oldestOverstayId:'request-1',staleCheckpointId:'checkpoint-1'}),
     })]);
     expect(result.brief.recommendedFocus).toEqual(expect.objectContaining({domain:'GATE'}));
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(result.cards[0]).toEqual(expect.objectContaining({
+      recommendationKey:expect.stringContaining('gate-attention:'),
+      baseline:expect.objectContaining({fallbackSafetyThresholdMinutes:240}),
+      evidenceQuality:expect.objectContaining({confidence:expect.any(String),causalClaim:false}),
+    }));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
     const sql=(prisma.$queryRaw.mock.calls[0][0] as {strings?:readonly string[]}).strings?.join('?')??'';
     expect(sql).toContain('WITH overstays AS');
     expect(sql).toContain('open_incidents AS');
