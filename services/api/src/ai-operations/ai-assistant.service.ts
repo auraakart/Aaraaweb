@@ -485,7 +485,7 @@ export class AiAssistantService {
           safeWorkflow:focus.safeWorkflow??['Review the grounded evidence in the relevant workspace'],
           actionIntent:focus.actionIntent,evidenceQuality:focus.evidenceQuality,baseline:focus.baseline,lastOutcome:focus.lastOutcome,
         }:null,
-        explanation:'Priority is deterministic from current permission-scoped evidence. Society-history baselines add context without weakening safety defaults. Hypotheses show supporting and contradicting evidence and are never causal proof.',
+        explanation:'Priority is deterministic from the current permission-scoped evidence snapshot. Likely-cause text is a signal interpretation, not causal proof, and no autonomous mutation is performed. Society-history baselines add context without weakening safety defaults. Hypotheses show supporting and contradicting evidence and are never causal proof.',
       },
       generatedAt:new Date().toISOString(),grounded:true,mutationPerformed:false
     };
