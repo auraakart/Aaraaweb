@@ -15,6 +15,7 @@ class ResidentRepository {
     required String name,
     required String phone,
     bool gateApprovalEnabled = false,
+    DateTime? gateApprovalExpiresAt,
     bool gateNotificationEnabled = true,
     bool primaryGateContact = false,
   }) async {
@@ -22,6 +23,7 @@ class ResidentRepository {
       'name': name.trim(),
       'phone': phone.trim(),
       'gateApprovalEnabled': gateApprovalEnabled,
+      'gateApprovalExpiresAt': gateApprovalEnabled ? gateApprovalExpiresAt?.toUtc().toIso8601String() : null,
       'gateNotificationEnabled': gateNotificationEnabled,
       'primaryGateContact': primaryGateContact,
     });
@@ -32,11 +34,15 @@ class ResidentRepository {
     required String householdId,
     required String occupancyId,
     bool? gateApprovalEnabled,
+    DateTime? gateApprovalExpiresAt,
+    bool clearGateApprovalExpiry = false,
     bool? gateNotificationEnabled,
     bool? primaryGateContact,
   }) async {
     final value = await api.patch('/api/v1/households/$householdId/family-members/$occupancyId', {
       if (gateApprovalEnabled != null) 'gateApprovalEnabled': gateApprovalEnabled,
+      if (gateApprovalExpiresAt != null) 'gateApprovalExpiresAt': gateApprovalExpiresAt.toUtc().toIso8601String(),
+      if (clearGateApprovalExpiry) 'gateApprovalExpiresAt': null,
       if (gateNotificationEnabled != null) 'gateNotificationEnabled': gateNotificationEnabled,
       if (primaryGateContact != null) 'primaryGateContact': primaryGateContact,
     });
