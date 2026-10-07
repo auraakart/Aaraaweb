@@ -15,8 +15,9 @@ void main(){
     await tester.pump();
 
     expect(find.text('Aaraagate Assistant'),findsOneWidget);
-    expect(find.text('Grounded operations assistant'),findsOneWidget);
-    expect(find.textContaining('cannot change society data directly'),findsOneWidget);
+    expect(find.text('How can I help?'),findsOneWidget);
+    expect(find.text('Quick actions'),findsOneWidget);
+    expect(find.text('Speak'),findsOneWidget);
     expect(find.text('Ask'),findsOneWidget);
     expect(tester.takeException(),isNull);
   });

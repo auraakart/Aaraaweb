@@ -12,6 +12,11 @@ class DeviceResidentSpeech implements ResidentSpeech {
 
   final SpeechToText _speech;
 
+  bool _initialized = false;
+  Future<bool>? _initializing;
+  Completer<String?>? _activeCompleter;
+  String _latestWords = '';
+
   static const localeByLanguage = <String, String>{
     'en': 'en_IN',
     'hi': 'hi_IN',
@@ -23,44 +28,141 @@ class DeviceResidentSpeech implements ResidentSpeech {
     'bn': 'bn_IN',
   };
 
+  static String bestLocaleId({
+    required String languageCode,
+    required Iterable<String> availableLocaleIds,
+    String? systemLocaleId,
+  }) {
+    final preferred = localeByLanguage[languageCode] ?? localeByLanguage['en']!;
+    final available = availableLocaleIds.where((value) => value.trim().isNotEmpty).toList(growable: false);
+    String normalize(String value) => value.replaceAll('-', '_').toLowerCase();
+
+    final preferredNormalized = normalize(preferred);
+    for (final locale in available) {
+      if (normalize(locale) == preferredNormalized) return locale;
+    }
+
+    final languageNormalized = languageCode.toLowerCase();
+    for (final locale in available) {
+      final normalized = normalize(locale);
+      if (normalized == languageNormalized || normalized.startsWith('${languageNormalized}_')) return locale;
+    }
+
+    if (systemLocaleId != null && systemLocaleId.trim().isNotEmpty) {
+      final normalizedSystem = normalize(systemLocaleId);
+      for (final locale in available) {
+        if (normalize(locale) == normalizedSystem) return locale;
+      }
+      return systemLocaleId;
+    }
+
+    if (available.isNotEmpty) return available.first;
+    return preferred;
+  }
+
+  Future<bool> _ensureInitialized() async {
+    if (_initialized) return true;
+    final pending = _initializing;
+    if (pending != null) return pending;
+
+    final future = _speech.initialize(
+      onError: (_) => _completeActive(),
+      onStatus: (status) {
+        final normalized = status.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+        if (normalized == 'done' || normalized == 'notlistening') {
+          _completeActive();
+        }
+      },
+    );
+    _initializing = future;
+    try {
+      _initialized = await future;
+      return _initialized;
+    } catch (_) {
+      _initialized = false;
+      return false;
+    } finally {
+      _initializing = null;
+    }
+  }
+
+  Future<String> _resolveLocaleId(String languageCode) async {
+    try {
+      final locales = await _speech.locales();
+      final systemLocale = await _speech.systemLocale();
+      return bestLocaleId(
+        languageCode: languageCode,
+        availableLocaleIds: locales.map((locale) => locale.localeId),
+        systemLocaleId: systemLocale?.localeId,
+      );
+    } catch (_) {
+      return localeByLanguage[languageCode] ?? localeByLanguage['en']!;
+    }
+  }
+
+  String? _capturedOrNull() {
+    final words = _latestWords.trim();
+    return words.isEmpty ? null : words;
+  }
+
+  void _completeActive([String? words]) {
+    final completer = _activeCompleter;
+    if (completer == null || completer.isCompleted) return;
+    final clean = words?.trim();
+    completer.complete(clean?.isNotEmpty == true ? clean : _capturedOrNull());
+  }
+
   @override
   Future<String?> listenOnce({required String languageCode}) async {
+    if (_activeCompleter?.isCompleted == false) {
+      await stop();
+    }
+
+    final available = await _ensureInitialized();
+    if (!available) return null;
+
     final completer = Completer<String?>();
+    _activeCompleter = completer;
+    _latestWords = '';
+
     try {
-      final available = await _speech.initialize(
-        onError: (_) {
-          if (!completer.isCompleted) completer.complete(null);
-        },
-      );
-      if (!available) return null;
+      final localeId = await _resolveLocaleId(languageCode);
       await _speech.listen(
         listenOptions: SpeechListenOptions(
-          localeId: localeByLanguage[languageCode] ?? 'en_IN',
-          listenFor: const Duration(seconds: 15),
-          pauseFor: const Duration(seconds: 2),
-          partialResults: false,
-          cancelOnError: true,
+          localeId: localeId,
+          listenFor: const Duration(seconds: 20),
+          pauseFor: const Duration(seconds: 3),
+          partialResults: true,
+          cancelOnError: false,
         ),
         onResult: (result) {
-          if (!result.finalResult || completer.isCompleted) return;
           final words = result.recognizedWords.trim();
-          completer.complete(words.isEmpty ? null : words);
+          if (words.isNotEmpty) _latestWords = words;
+          if (result.finalResult) _completeActive(words);
         },
       );
-      return await completer.future.timeout(const Duration(seconds: 17), onTimeout: () => null);
+
+      return await completer.future.timeout(
+        const Duration(seconds: 22),
+        onTimeout: _capturedOrNull,
+      );
     } catch (_) {
-      return null;
+      return _capturedOrNull();
     } finally {
+      if (identical(_activeCompleter, completer)) {
+        _activeCompleter = null;
+      }
       try {
         await _speech.stop();
       } catch (_) {
-        // Device/plugin shutdown failures are non-fatal for the assistant draft flow.
+        // Device/plugin shutdown failures are non-fatal for voice drafting.
       }
     }
   }
 
   @override
   Future<void> stop() async {
+    _completeActive();
     try {
       await _speech.stop();
     } catch (_) {
@@ -80,89 +182,103 @@ class SilentResidentSpeech implements ResidentSpeech {
 /// Small, safety-critical voice-draft vocabulary. Speech only fills a draft
 /// for a complaint or Assistant query; it never submits, pays, or approves an operation.
 class ResidentVoiceCopy {
+  static const languageLabels = <String, String>{
+    'en': 'English',
+    'hi': 'हिंदी',
+    'ta': 'தமிழ்',
+    'te': 'తెలుగు',
+    'kn': 'ಕನ್ನಡ',
+    'ml': 'മലയാളം',
+    'mr': 'मराठी',
+    'bn': 'বাংলা',
+  };
+
+  static String languageLabel(String languageCode) =>
+      languageLabels[languageCode] ?? languageLabels['en']!;
+
   static String text(String languageCode, String key) =>
       (_copy[languageCode] ?? _copy['en']!)[key] ?? _copy['en']![key] ?? key;
 
   static const _copy = <String, Map<String, String>>{
     'en': {
-      'action': 'Describe by voice',
-      'listening': 'Listening… describe the issue in your own words.',
-      'review': 'Voice captured. Review the draft before submitting.',
-      'unavailable': 'Voice input was not available. Continue by typing.',
-      'assistantAction': 'Ask by voice',
-      'assistantListening': 'Listening… ask about dues, gate, staff, services or society updates.',
-      'assistantReview': 'Voice captured. Review the question before asking.',
-      'assistantUnavailable': 'Voice input was not available. Continue by typing.',
+      'action': 'Speak',
+      'listening': 'Listening… describe the issue.',
+      'review': 'Got it. Review the text before submitting.',
+      'unavailable': 'I could not hear you. Check microphone access and try again, or type instead.',
+      'assistantAction': 'Speak',
+      'assistantListening': 'Listening…',
+      'assistantReview': 'Got it. Review your question, then tap Ask.',
+      'assistantUnavailable': 'I could not hear you. Check microphone access and try again, or type your question.',
     },
     'hi': {
-      'action': 'आवाज़ से बताएं',
-      'listening': 'सुन रहा है… समस्या अपने शब्दों में बताएं।',
-      'review': 'आवाज़ दर्ज हुई। भेजने से पहले मसौदा जांचें।',
-      'unavailable': 'आवाज़ इनपुट उपलब्ध नहीं है। टाइप करके जारी रखें।',
-      'assistantAction': 'आवाज़ से पूछें',
-      'assistantListening': 'सुन रहा है… बकाया, गेट, स्टाफ, सेवाओं या सोसायटी अपडेट के बारे में पूछें।',
-      'assistantReview': 'आवाज़ दर्ज हुई। पूछने से पहले प्रश्न जांचें।',
-      'assistantUnavailable': 'आवाज़ इनपुट उपलब्ध नहीं है। टाइप करके जारी रखें।',
+      'action': 'बोलें',
+      'listening': 'सुन रहा हूँ… समस्या बताइए।',
+      'review': 'समझ गया। भेजने से पहले लिखे हुए विवरण को जाँच लें।',
+      'unavailable': 'आवाज़ सुनाई नहीं दी। माइक्रोफ़ोन अनुमति जाँचें और फिर कोशिश करें, या टाइप करें।',
+      'assistantAction': 'बोलें',
+      'assistantListening': 'सुन रहा हूँ…',
+      'assistantReview': 'समझ गया। प्रश्न जाँचें, फिर पूछें पर टैप करें।',
+      'assistantUnavailable': 'आवाज़ सुनाई नहीं दी। माइक्रोफ़ोन अनुमति जाँचें और फिर कोशिश करें, या प्रश्न टाइप करें।',
     },
     'ta': {
-      'action': 'குரலில் சொல்லுங்கள்',
-      'listening': 'கேட்கிறது… பிரச்சினையை உங்கள் சொற்களில் சொல்லுங்கள்.',
-      'review': 'குரல் பதிவு செய்யப்பட்டது. அனுப்பும் முன் வரைவை சரிபார்க்கவும்.',
-      'unavailable': 'குரல் உள்ளீடு கிடைக்கவில்லை. தட்டச்சு செய்து தொடரவும்.',
-      'assistantAction': 'குரலில் கேளுங்கள்',
-      'assistantListening': 'கேட்கிறது… நிலுவை, கேட், பணியாளர், சேவை அல்லது சங்க தகவலைக் கேளுங்கள்.',
-      'assistantReview': 'குரல் பதிவு செய்யப்பட்டது. கேட்பதற்கு முன் கேள்வியை சரிபார்க்கவும்.',
-      'assistantUnavailable': 'குரல் உள்ளீடு கிடைக்கவில்லை. தட்டச்சு செய்து தொடரவும்.',
+      'action': 'பேசுங்கள்',
+      'listening': 'கேட்கிறேன்… பிரச்சினையைச் சொல்லுங்கள்.',
+      'review': 'புரிந்தது. அனுப்பும் முன் உரையை சரிபார்க்கவும்.',
+      'unavailable': 'உங்கள் குரல் கேட்கவில்லை. மைக்ரோஃபோன் அனுமதியை சரிபார்த்து மீண்டும் முயற்சிக்கவும் அல்லது தட்டச்சு செய்யவும்.',
+      'assistantAction': 'பேசுங்கள்',
+      'assistantListening': 'கேட்கிறேன்…',
+      'assistantReview': 'புரிந்தது. கேள்வியை சரிபார்த்து, பிறகு கேள் என்பதைத் தட்டவும்.',
+      'assistantUnavailable': 'உங்கள் குரல் கேட்கவில்லை. மைக்ரோஃபோன் அனுமதியை சரிபார்த்து மீண்டும் முயற்சிக்கவும் அல்லது கேள்வியை தட்டச்சு செய்யவும்.',
     },
     'te': {
-      'action': 'వాయిస్‌తో వివరించండి',
-      'listening': 'వింటోంది… సమస్యను మీ మాటల్లో చెప్పండి.',
-      'review': 'వాయిస్ నమోదు అయింది. పంపే ముందు డ్రాఫ్ట్‌ను చూడండి.',
-      'unavailable': 'వాయిస్ ఇన్‌పుట్ అందుబాటులో లేదు. టైప్ చేసి కొనసాగండి.',
-      'assistantAction': 'వాయిస్‌తో అడగండి',
-      'assistantListening': 'వింటోంది… బకాయిలు, గేట్, సిబ్బంది, సేవలు లేదా సంఘ అప్‌డేట్ల గురించి అడగండి.',
-      'assistantReview': 'వాయిస్ నమోదు అయింది. అడిగే ముందు ప్రశ్నను చూడండి.',
-      'assistantUnavailable': 'వాయిస్ ఇన్‌పుట్ అందుబాటులో లేదు. టైప్ చేసి కొనసాగండి.',
+      'action': 'మాట్లాడండి',
+      'listening': 'వింటున్నాను… సమస్యను చెప్పండి.',
+      'review': 'అర్థమైంది. పంపే ముందు వచనాన్ని పరిశీలించండి.',
+      'unavailable': 'మీ మాట వినిపించలేదు. మైక్రోఫోన్ అనుమతిని చూసి మళ్లీ ప్రయత్నించండి లేదా టైప్ చేయండి.',
+      'assistantAction': 'మాట్లాడండి',
+      'assistantListening': 'వింటున్నాను…',
+      'assistantReview': 'అర్థమైంది. ప్రశ్నను పరిశీలించి, తరువాత అడుగు నొక్కండి.',
+      'assistantUnavailable': 'మీ మాట వినిపించలేదు. మైక్రోఫోన్ అనుమతిని చూసి మళ్లీ ప్రయత్నించండి లేదా ప్రశ్నను టైప్ చేయండి.',
     },
     'kn': {
-      'action': 'ಧ್ವನಿಯಲ್ಲಿ ವಿವರಿಸಿ',
-      'listening': 'ಕೇಳುತ್ತಿದೆ… ಸಮಸ್ಯೆಯನ್ನು ನಿಮ್ಮ ಮಾತಿನಲ್ಲಿ ಹೇಳಿ.',
-      'review': 'ಧ್ವನಿ ದಾಖಲಾಗಿದೆ. ಕಳುಹಿಸುವ ಮೊದಲು ಕರಡನ್ನು ಪರಿಶೀಲಿಸಿ.',
-      'unavailable': 'ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಲಭ್ಯವಿಲ್ಲ. ಟೈಪ್ ಮಾಡಿ ಮುಂದುವರಿಯಿರಿ.',
-      'assistantAction': 'ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ',
-      'assistantListening': 'ಕೇಳುತ್ತಿದೆ… ಬಾಕಿ, ಗೇಟ್, ಸಿಬ್ಬಂದಿ, ಸೇವೆಗಳು ಅಥವಾ ಸಂಘದ ಮಾಹಿತಿಯನ್ನು ಕೇಳಿ.',
-      'assistantReview': 'ಧ್ವನಿ ದಾಖಲಾಗಿದೆ. ಕೇಳುವ ಮೊದಲು ಪ್ರಶ್ನೆಯನ್ನು ಪರಿಶೀಲಿಸಿ.',
-      'assistantUnavailable': 'ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಲಭ್ಯವಿಲ್ಲ. ಟೈಪ್ ಮಾಡಿ ಮುಂದುವರಿಯಿರಿ.',
+      'action': 'ಮಾತನಾಡಿ',
+      'listening': 'ಕೇಳುತ್ತಿದ್ದೇನೆ… ಸಮಸ್ಯೆಯನ್ನು ಹೇಳಿ.',
+      'review': 'ಅರ್ಥವಾಯಿತು. ಕಳುಹಿಸುವ ಮೊದಲು ಪಠ್ಯವನ್ನು ಪರಿಶೀಲಿಸಿ.',
+      'unavailable': 'ನಿಮ್ಮ ಧ್ವನಿ ಕೇಳಿಸಲಿಲ್ಲ. ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿಯನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ.',
+      'assistantAction': 'ಮಾತನಾಡಿ',
+      'assistantListening': 'ಕೇಳುತ್ತಿದ್ದೇನೆ…',
+      'assistantReview': 'ಅರ್ಥವಾಯಿತು. ಪ್ರಶ್ನೆಯನ್ನು ಪರಿಶೀಲಿಸಿ, ನಂತರ ಕೇಳಿ ಒತ್ತಿರಿ.',
+      'assistantUnavailable': 'ನಿಮ್ಮ ಧ್ವನಿ ಕೇಳಿಸಲಿಲ್ಲ. ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿಯನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ ಅಥವಾ ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ.',
     },
     'ml': {
-      'action': 'ശബ്ദത്തിൽ വിവരിക്കുക',
-      'listening': 'കേൾക്കുന്നു… പ്രശ്നം നിങ്ങളുടെ വാക്കുകളിൽ പറയുക.',
-      'review': 'ശബ്ദം രേഖപ്പെടുത്തി. അയയ്ക്കുന്നതിന് മുമ്പ് ഡ്രാഫ്റ്റ് പരിശോധിക്കുക.',
-      'unavailable': 'ശബ്ദ ഇൻപുട്ട് ലഭ്യമല്ല. ടൈപ്പ് ചെയ്ത് തുടരുക.',
-      'assistantAction': 'ശബ്ദത്തിൽ ചോദിക്കുക',
-      'assistantListening': 'കേൾക്കുന്നു… കുടിശ്ശിക, ഗേറ്റ്, സ്റ്റാഫ്, സേവനങ്ങൾ അല്ലെങ്കിൽ സൊസൈറ്റി അപ്‌ഡേറ്റുകൾ ചോദിക്കുക.',
-      'assistantReview': 'ശബ്ദം രേഖപ്പെടുത്തി. ചോദിക്കുന്നതിന് മുമ്പ് ചോദ്യം പരിശോധിക്കുക.',
-      'assistantUnavailable': 'ശബ്ദ ഇൻപുട്ട് ലഭ്യമല്ല. ടൈപ്പ് ചെയ്ത് തുടരുക.',
+      'action': 'പറയൂ',
+      'listening': 'കേൾക്കുന്നു… പ്രശ്നം പറയൂ.',
+      'review': 'മനസ്സിലായി. അയയ്ക്കുന്നതിന് മുമ്പ് വാചകം പരിശോധിക്കുക.',
+      'unavailable': 'നിങ്ങളുടെ ശബ്ദം കേൾക്കാനായില്ല. മൈക്രോഫോൺ അനുമതി പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ, അല്ലെങ്കിൽ ടൈപ്പ് ചെയ്യൂ.',
+      'assistantAction': 'പറയൂ',
+      'assistantListening': 'കേൾക്കുന്നു…',
+      'assistantReview': 'മനസ്സിലായി. ചോദ്യം പരിശോധിച്ച് ശേഷം ചോദിക്കുക അമർത്തൂ.',
+      'assistantUnavailable': 'നിങ്ങളുടെ ശബ്ദം കേൾക്കാനായില്ല. മൈക്രോഫോൺ അനുമതി പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ, അല്ലെങ്കിൽ ചോദ്യം ടൈപ്പ് ചെയ്യൂ.',
     },
     'mr': {
-      'action': 'आवाजात सांगा',
-      'listening': 'ऐकत आहे… समस्या तुमच्या शब्दांत सांगा.',
-      'review': 'आवाज नोंदवला. पाठवण्यापूर्वी मसुदा तपासा.',
-      'unavailable': 'आवाज इनपुट उपलब्ध नाही. टाइप करून पुढे जा.',
-      'assistantAction': 'आवाजात विचारा',
-      'assistantListening': 'ऐकत आहे… थकबाकी, गेट, कर्मचारी, सेवा किंवा सोसायटी अपडेटबद्दल विचारा.',
-      'assistantReview': 'आवाज नोंदवला. विचारण्यापूर्वी प्रश्न तपासा.',
-      'assistantUnavailable': 'आवाज इनपुट उपलब्ध नाही. टाइप करून पुढे जा.',
+      'action': 'बोला',
+      'listening': 'ऐकत आहे… समस्या सांगा.',
+      'review': 'समजले. पाठवण्यापूर्वी मजकूर तपासा.',
+      'unavailable': 'तुमचा आवाज ऐकू आला नाही. मायक्रोफोन परवानगी तपासा आणि पुन्हा प्रयत्न करा किंवा टाइप करा.',
+      'assistantAction': 'बोला',
+      'assistantListening': 'ऐकत आहे…',
+      'assistantReview': 'समजले. प्रश्न तपासा आणि नंतर विचारा वर टॅप करा.',
+      'assistantUnavailable': 'तुमचा आवाज ऐकू आला नाही. मायक्रोफोन परवानगी तपासा आणि पुन्हा प्रयत्न करा किंवा प्रश्न टाइप करा.',
     },
     'bn': {
-      'action': 'কণ্ঠে বলুন',
-      'listening': 'শুনছি… সমস্যাটি নিজের ভাষায় বলুন।',
-      'review': 'কণ্ঠ ধরা হয়েছে। পাঠানোর আগে খসড়া দেখুন।',
-      'unavailable': 'ভয়েস ইনপুট পাওয়া যায়নি। টাইপ করে চালিয়ে যান।',
-      'assistantAction': 'কণ্ঠে জিজ্ঞাসা করুন',
-      'assistantListening': 'শুনছি… বকেয়া, গেট, কর্মী, পরিষেবা বা সোসাইটি আপডেট সম্পর্কে জিজ্ঞাসা করুন।',
-      'assistantReview': 'কণ্ঠ ধরা হয়েছে। জিজ্ঞাসার আগে প্রশ্নটি দেখুন।',
-      'assistantUnavailable': 'ভয়েস ইনপুট পাওয়া যায়নি। টাইপ করে চালিয়ে যান।',
+      'action': 'বলুন',
+      'listening': 'শুনছি… সমস্যাটি বলুন।',
+      'review': 'বুঝেছি। পাঠানোর আগে লেখাটি দেখে নিন।',
+      'unavailable': 'আপনার কথা শোনা যায়নি। মাইক্রোফোন অনুমতি দেখে আবার চেষ্টা করুন, অথবা টাইপ করুন।',
+      'assistantAction': 'বলুন',
+      'assistantListening': 'শুনছি…',
+      'assistantReview': 'বুঝেছি। প্রশ্নটি দেখে তারপর জিজ্ঞাসা করুন চাপুন।',
+      'assistantUnavailable': 'আপনার কথা শোনা যায়নি। মাইক্রোফোন অনুমতি দেখে আবার চেষ্টা করুন, অথবা প্রশ্নটি টাইপ করুন।',
     },
   };
 }
