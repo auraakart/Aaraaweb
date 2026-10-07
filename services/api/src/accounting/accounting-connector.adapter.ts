@@ -2,7 +2,7 @@ export type AccountingConnectorDeliveryRequest={
   societyId:string;
   exportJobId:string;
   contractVersion:string;
-  format:'CSV'|'JSONL';
+  format:'CSV'|'JSONL'|'TALLY_CSV';
   filename:string;
   contentType:string;
   sha256:string;

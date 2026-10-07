@@ -25,7 +25,7 @@ export type DeliveryActionView={id:string;deliveryId:string;actorUserId:string;a
 type DeliveryEvidenceRow={
   deliveryId:string;exportJobId:string;provider:string;deliveryStatus:AccountingConnectorDeliveryView['status'];attemptCount:number;idempotencyKey:string;
   lastAttemptAt:Date|null;nextAttemptAt:Date|null;providerReceiptId:string|null;failureCode:string|null;failureMessage:string|null;deliveryCreatedAt:Date;deliveryUpdatedAt:Date;deliveryCompletedAt:Date|null;
-  contractVersion:string;format:'CSV'|'JSONL';fromDate:Date;toDate:Date;exportStatus:string;recordCount:number|null;exportCreatedAt:Date;exportCompletedAt:Date|null;
+  contractVersion:string;format:'CSV'|'JSONL'|'TALLY_CSV';fromDate:Date;toDate:Date;exportStatus:string;recordCount:number|null;exportCreatedAt:Date;exportCompletedAt:Date|null;
   artifactKey:string;filename:string;contentType:string;sha256:string;byteLength:number;artifactCreatedAt:Date;
 };
 

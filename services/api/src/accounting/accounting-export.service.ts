@@ -6,8 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 export const ACCOUNTING_EXPORT_CONTRACT_V1 = 'aaraagate.accounting.journal.v1';
 export const ACCOUNTING_EXPORT_MAX_ROWS = 50_000;
 export const ACCOUNTING_EXPORT_MAX_BYTES = 8 * 1024 * 1024;
-type ExportInput = { idempotencyKey: string; contractVersion: string; format: 'CSV' | 'JSONL'; fromDate: string; toDate: string };
-export type ExportJob = { id: string; societyId?: string; requestedByUserId?: string; requestHash: string; contractVersion: string; format: 'CSV' | 'JSONL'; fromDate: Date; toDate: Date; status: string; recordCount: number | null; artifactKey: string | null; errorCode: string | null; createdAt: Date; completedAt: Date | null };
+export type AccountingExportFormat = 'CSV' | 'JSONL' | 'TALLY_CSV';
+type ExportInput = { idempotencyKey: string; contractVersion: string; format: AccountingExportFormat; fromDate: string; toDate: string };
+export type ExportJob = { id: string; societyId?: string; requestedByUserId?: string; requestHash: string; contractVersion: string; format: AccountingExportFormat; fromDate: Date; toDate: Date; status: string; recordCount: number | null; artifactKey: string | null; errorCode: string | null; createdAt: Date; completedAt: Date | null };
 type ExportRow = { entryId:string; entryNumber:string; entryDate:Date|string; journalStatus:string; journalDescription:string; sourceType:string|null; sourceId:string|null; externalReference:string|null; lineId:string; accountCode:string; accountName:string; accountType:string; fundCode:string|null; unitId:string|null; lineDescription:string|null; debitPaise:string; creditPaise:string; currency:string };
 export type ExportArtifact={filename:string;contentType:string;sha256:string;byteLength:number;content:string};
 
@@ -17,21 +18,30 @@ export function accountingExportRequestHash(input: ExportInput) {
 
 function csvCell(value:unknown){const text=value===null||value===undefined?'':String(value);const protectedText=/^[\u0000-\u0020]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20]/u.test(text)?`'${text}`:text;return `"${protectedText.replaceAll('"','""')}"`;}
 function dateOnly(value:Date|string){return value instanceof Date?value.toISOString().slice(0,10):String(value).slice(0,10);}
+function paiseToRupees(value:string){const amount=BigInt(value);const sign=amount<0n?'-':'';const absolute=amount<0n?-amount:amount;return `${sign}${absolute/100n}.${(absolute%100n).toString().padStart(2,'0')}`;}
 function normalizedRow(row:ExportRow){return {contractVersion:ACCOUNTING_EXPORT_CONTRACT_V1,entryId:row.entryId,entryNumber:row.entryNumber,entryDate:dateOnly(row.entryDate),journalStatus:row.journalStatus,journalDescription:row.journalDescription,sourceType:row.sourceType,sourceId:row.sourceId,externalReference:row.externalReference,lineId:row.lineId,accountCode:row.accountCode,accountName:row.accountName,accountType:row.accountType,fundCode:row.fundCode,unitId:row.unitId,lineDescription:row.lineDescription,debitPaise:row.debitPaise,creditPaise:row.creditPaise,currency:row.currency};}
 
 export function renderAccountingExport(job:Pick<ExportJob,'id'|'format'|'fromDate'|'toDate'>,rows:ExportRow[]):ExportArtifact{
   const normalized=rows.map(normalizedRow);
   const datePart=`${dateOnly(job.fromDate)}_to_${dateOnly(job.toDate)}`;
-  let content:string,contentType:string,extension:string;
+  let content:string,contentType:string,extension:string,filenamePrefix='aaraagate-accounting';
   if(job.format==='JSONL'){
     content=normalized.map(row=>JSON.stringify(row)).join('\n')+(normalized.length?'\n':'');contentType='application/x-ndjson; charset=utf-8';extension='jsonl';
+  }else if(job.format==='TALLY_CSV'){
+    const headers=['Voucher Date','Voucher Type Name','Voucher Number','Ledger Name','Debit Amount','Credit Amount','Narration','External Reference','Fund','Unit','Currency'];
+    const tallyRows=rows.map(row=>[
+      dateOnly(row.entryDate),'Journal',row.entryNumber,row.accountName,paiseToRupees(row.debitPaise),paiseToRupees(row.creditPaise),
+      row.lineDescription??row.journalDescription,row.externalReference??'',row.fundCode??'',row.unitId??'',row.currency,
+    ]);
+    content=[headers.map(csvCell).join(','),...tallyRows.map(row=>row.map(csvCell).join(','))].join('\r\n')+'\r\n';
+    contentType='text/csv; charset=utf-8';extension='csv';filenamePrefix='aaraagate-tally-journal';
   }else{
     const headers=['contractVersion','entryId','entryNumber','entryDate','journalStatus','journalDescription','sourceType','sourceId','externalReference','lineId','accountCode','accountName','accountType','fundCode','unitId','lineDescription','debitPaise','creditPaise','currency'] as const;
     content=[headers.join(','),...normalized.map(row=>headers.map(key=>csvCell(row[key])).join(','))].join('\r\n')+'\r\n';contentType='text/csv; charset=utf-8';extension='csv';
   }
   const byteLength=Buffer.byteLength(content,'utf8');
   if(byteLength>ACCOUNTING_EXPORT_MAX_BYTES)throw new Error('EXPORT_ARTIFACT_TOO_LARGE');
-  return {filename:`aaraagate-accounting-${datePart}-${job.id.slice(0,8)}.${extension}`,contentType,sha256:createHash('sha256').update(content).digest('hex'),byteLength,content};
+  return {filename:`${filenamePrefix}-${datePart}-${job.id.slice(0,8)}.${extension}`,contentType,sha256:createHash('sha256').update(content).digest('hex'),byteLength,content};
 }
 
 @Injectable()

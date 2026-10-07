@@ -12,6 +12,7 @@ describe('V4.8 outcome analytics',()=>{
     prisma.$queryRaw
       .mockResolvedValueOnce([{resolved:10,met:8,breached:2}])
       .mockResolvedValueOnce([{processed:12,avgProcessingSeconds:18.5,avgApprovalSeconds:42.0}])
+      .mockResolvedValueOnce([{pushQueued:0,ivrSimulated:0,manualRequired:0,missingPhone:0}])
       .mockResolvedValueOnce([{syncRuns:4,actionsConsidered:10,actionsSynced:8,actionsRetried:3,actionsUnresolved:2,reviewRequired:1}])
       .mockResolvedValueOnce([{activeAmenities:3,confirmedBookings:9,distinctUsers:6,bookingHours:12.5}])
       .mockResolvedValueOnce([{attempted:20,dispatched:18,retried:2}])
@@ -37,6 +38,7 @@ describe('V4.8 outcome analytics',()=>{
       .mockResolvedValueOnce([{open:2}])
       .mockResolvedValueOnce([{resolved:0,met:0,breached:0}])
       .mockResolvedValueOnce([{processed:0,avgProcessingSeconds:null,avgApprovalSeconds:null}])
+      .mockResolvedValueOnce([{pushQueued:0,ivrSimulated:0,manualRequired:0,missingPhone:0}])
       .mockResolvedValueOnce([{syncRuns:0,actionsConsidered:0,actionsSynced:0,actionsRetried:0,actionsUnresolved:0,reviewRequired:0}])
       .mockResolvedValueOnce([{activeAmenities:0,confirmedBookings:0,distinctUsers:0,bookingHours:0}])
       .mockResolvedValueOnce([{attempted:0,dispatched:0,retried:0}])

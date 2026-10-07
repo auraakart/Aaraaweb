@@ -35,6 +35,14 @@ describe('AccountingExportService',()=>{
     expect(artifact.byteLength).toBe(Buffer.byteLength(artifact.content,'utf8'));
   });
 
+  it('renders a Tally-friendly journal CSV without claiming automatic posting',()=>{
+    const artifact=renderAccountingExport({id:'12345678-0000-0000-0000-000000000000',format:'TALLY_CSV',fromDate:new Date('2026-04-01T00:00:00Z'),toDate:new Date('2026-04-30T00:00:00Z')},[exportRow]);
+    expect(artifact.filename).toBe('aaraagate-tally-journal-2026-04-01_to_2026-04-30-12345678.csv');
+    expect(artifact.content).toContain('"Voucher Date","Voucher Type Name","Voucher Number","Ledger Name"');
+    expect(artifact.content).toContain('"1.00","0.00"');
+    expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it('renders one JSON object per line without bigint serialization risk',()=>{
     const artifact=renderAccountingExport({id:'12345678-0000-0000-0000-000000000000',format:'JSONL',fromDate:new Date('2026-04-01T00:00:00Z'),toDate:new Date('2026-04-30T00:00:00Z')},[exportRow]);
     expect(artifact.content.trim().split('\n')).toHaveLength(1);
