@@ -83,4 +83,56 @@ void main() {
       findsOneWidget,
     );
   });
+  testWidgets('informational activity does not inflate needs-attention count', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(700, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller = ResidentDataController(
+      DemoResidentRepository(),
+      activeUnitId: 'unit-a',
+      fetchEntitlements: false,
+    )
+      ..notices = [
+        {
+          'id': 'notice-1',
+          'title': 'Garden maintenance completed',
+          'requiresAcknowledgement': false,
+          'publishedAt': '2026-10-07T08:00:00.000Z',
+        },
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AaraagateTheme.light(),
+        home: Scaffold(
+          body: HomeScreen(
+            controller: controller,
+            showGate: false,
+            showStaff: false,
+            showServices: false,
+            showHelpdesk: false,
+            showNotices: true,
+            showBilling: false,
+            showAmenities: false,
+            showSos: false,
+            showAi: false,
+            onOpenStaff: () {},
+            onOpenServices: () {},
+            onOpenHelpdesk: () {},
+            onOpenNotices: () {},
+            onOpenBilling: () {},
+            onOpenAmenities: () {},
+            onOpenAi: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Action inbox'), findsOneWidget);
+    expect(find.text('No urgent follow-up. Recent activity is shown below.'), findsOneWidget);
+    expect(find.text('Garden maintenance completed'), findsWidgets);
+    expect(find.text('1 item needs your attention.'), findsNothing);
+  });
+
 }
