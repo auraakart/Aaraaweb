@@ -4,25 +4,54 @@ import { ServicesMarketplaceOperationsService } from './services-marketplace-ope
 
 function setup() {
   const prisma = {
-    serviceRating: { groupBy: vi.fn().mockResolvedValue([]) },
-    serviceBooking: { groupBy: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    serviceBooking: { findFirst: vi.fn() },
     serviceOffering: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     serviceProvider: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     serviceProviderSociety: { findUnique: vi.fn(), update: vi.fn() },
   };
-  return { prisma, service: new ServicesMarketplaceOperationsService(prisma as never) };
+  const societyTrust = { getSignals: vi.fn().mockResolvedValue(new Map()) };
+  return { prisma, societyTrust, service: new ServicesMarketplaceOperationsService(prisma as never, societyTrust as never) };
 }
 
 describe('ServicesMarketplaceOperationsService', () => {
-  it('adds society-scoped reputation metrics to provider payloads', async () => {
-    const { prisma, service } = setup();
-    prisma.serviceRating.groupBy.mockResolvedValue([{ providerId: 'p1', _avg: { score: 4.76 }, _count: { _all: 12 } }]);
-    prisma.serviceBooking.groupBy.mockResolvedValue([{ providerId: 'p1', _count: { _all: 41 } }]);
+  it('adds society-scoped trust evidence and offering experience policy to provider payloads', async () => {
+    const { prisma, societyTrust, service } = setup();
+    societyTrust.getSignals.mockResolvedValue(new Map([['p1', {
+      providerId: 'p1',
+      societyCompletedJobs: 41,
+      societyCancelledJobs: 2,
+      societyRatingAverage: 4.8,
+      societyRatingCount: 12,
+      societyCancellationRate: 0.047,
+      societyArrivalSamples: 10,
+      societyOnTimeRate: 0.9,
+      societyTrusted: true,
+    }]]));
+    prisma.$queryRaw.mockResolvedValue([{
+      offeringId: 'o1',
+      quickServiceEligible: true,
+      targetArrivalMinutes: 60,
+      includedWork: 'Inspection and labour',
+      partsPolicy: 'Parts quoted separately',
+      extraWorkApprovalRequired: true,
+      recurrenceCadences: ['MONTHLY'],
+    }]);
 
-    const result = await service.enrichOfferings('s1', [{ providerId: 'p1', provider: { id: 'p1', businessName: 'CoolCare' } }]);
+    const result = await service.enrichOfferings('s1', [{
+      id: 'o1',
+      providerId: 'p1',
+      provider: { id: 'p1', businessName: 'CoolCare' },
+    }]);
 
-    expect(result[0].provider).toMatchObject({ ratingAverage: 4.8, ratingCount: 12, completedJobs: 41 });
-    expect(prisma.serviceRating.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ societyId: 's1' }) }));
+    expect(result[0].provider).toMatchObject({
+      ratingAverage: 4.8,
+      ratingCount: 12,
+      completedJobs: 41,
+      societyTrusted: true,
+    });
+    expect(result[0].experiencePolicy).toMatchObject({ quickServiceEligible: true, targetArrivalMinutes: 60 });
+    expect(societyTrust.getSignals).toHaveBeenCalledWith('s1', ['p1']);
   });
 
   it('rejects overlapping provider bookings in the same society', async () => {

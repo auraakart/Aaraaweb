@@ -57,14 +57,25 @@ class ProviderStorefrontSheet extends StatelessWidget {
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
+    final experiencePolicies = (experience?['experiencePolicies'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
     final promotion = Map<String, dynamic>.from(experience?['promotion'] as Map? ?? const {});
 
     Map<String, dynamic>? continuityPolicy;
+    Map<String, dynamic>? experiencePolicy;
     final offeringId = offering['id']?.toString();
     if (offeringId != null) {
       for (final policy in continuityPolicies) {
         if (policy['offeringId']?.toString() == offeringId) {
           continuityPolicy = policy;
+          break;
+        }
+      }
+      for (final policy in experiencePolicies) {
+        if (policy['offeringId']?.toString() == offeringId) {
+          experiencePolicy = policy;
           break;
         }
       }
@@ -76,11 +87,22 @@ class ProviderStorefrontSheet extends StatelessWidget {
     final ratingAverage = (provider['ratingAverage'] as num?)?.toDouble();
     final ratingCount = (provider['ratingCount'] as num?)?.toInt() ?? 0;
     final completedJobs = (provider['completedJobs'] as num?)?.toInt() ?? 0;
+    final societyTrusted = provider['societyTrusted'] == true;
+    final societyCompletedJobs = (provider['societyCompletedJobs'] as num?)?.toInt() ?? 0;
+    final societyRatingAverage = (provider['societyRatingAverage'] as num?)?.toDouble();
     final pricePaise = (offering['pricePaise'] as num?)?.toInt() ?? 0;
     final price = pricePaise / 100;
     final durationMinutes = (offering['durationMinutes'] as num?)?.toInt();
     final warrantyDays = (continuityPolicy?['warrantyDays'] as num?)?.toInt();
     final revisitPolicy = continuityPolicy?['revisitPolicy']?.toString().trim();
+    final quickServiceEligible = experiencePolicy?['quickServiceEligible'] == true;
+    final targetArrivalMinutes = (experiencePolicy?['targetArrivalMinutes'] as num?)?.toInt();
+    final includedWork = experiencePolicy?['includedWork']?.toString().trim();
+    final partsPolicy = experiencePolicy?['partsPolicy']?.toString().trim();
+    final extraWorkApprovalRequired = experiencePolicy?['extraWorkApprovalRequired'] != false;
+    final recurrenceCadences = experiencePolicy?['recurrenceCadences'] is List
+        ? List<dynamic>.from(experiencePolicy!['recurrenceCadences'] as List).map((item) => item.toString()).toList()
+        : const <String>[];
     final logo = media.cast<Map<String, dynamic>?>().firstWhere(
           (item) => item?['kind'] == 'LOGO' && item?['publicUrl']?.toString().isNotEmpty == true,
           orElse: () => null,
@@ -137,11 +159,19 @@ class ProviderStorefrontSheet extends StatelessWidget {
                           runSpacing: 6,
                           children: [
                             const _Badge(icon: Icons.verified_rounded, label: 'Verified'),
-                            if (qualityTier == 'TRUSTED') const _Badge(icon: Icons.shield_rounded, label: 'Trusted'),
+                            if (societyTrusted) const _Badge(icon: Icons.shield_rounded, label: 'Society Trusted'),
+                            if (qualityTier == 'TRUSTED') const _Badge(icon: Icons.shield_outlined, label: 'Platform Trusted'),
                             if (qualityTier == 'PREMIUM') const _Badge(icon: Icons.workspace_premium_rounded, label: 'Premium'),
                             if (ratingAverage != null && ratingCount > 0)
                               _Badge(icon: Icons.star_rounded, label: '${ratingAverage.toStringAsFixed(1)} ($ratingCount)'),
                             if (completedJobs > 0) _Badge(icon: Icons.task_alt_rounded, label: '$completedJobs completed'),
+                            if (societyTrusted && societyCompletedJobs > 0)
+                              _Badge(
+                                icon: Icons.apartment_rounded,
+                                label: societyRatingAverage == null
+                                    ? '$societyCompletedJobs in this society'
+                                    : '${societyRatingAverage.toStringAsFixed(1)} ★ · $societyCompletedJobs in society',
+                              ),
                           ],
                         ),
                       ],
@@ -246,6 +276,39 @@ class ProviderStorefrontSheet extends StatelessWidget {
                   ),
                 ),
               ),
+              if (experiencePolicy != null) ...[
+                const SizedBox(height: 16),
+                Text('Price & service promise', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (quickServiceEligible && targetArrivalMinutes != null)
+                          _PromiseRow(icon: Icons.bolt_rounded, text: 'Quick-service target: about $targetArrivalMinutes minutes after acceptance'),
+                        if (includedWork != null && includedWork.isNotEmpty)
+                          _PromiseRow(icon: Icons.checklist_rounded, text: 'Included: $includedWork'),
+                        if (partsPolicy != null && partsPolicy.isNotEmpty)
+                          _PromiseRow(icon: Icons.build_circle_outlined, text: 'Parts/materials: $partsPolicy'),
+                        _PromiseRow(
+                          icon: extraWorkApprovalRequired ? Icons.fact_check_outlined : Icons.info_outline_rounded,
+                          text: extraWorkApprovalRequired
+                              ? 'Any extra work or charge requires your approval.'
+                              : 'Review the provider terms for additional work or charges.',
+                        ),
+                        if (recurrenceCadences.isNotEmpty)
+                          _PromiseRow(
+                            icon: Icons.event_repeat_rounded,
+                            text: 'Recurring options: ${recurrenceCadences.map((item) => item.toLowerCase()).join(', ')}',
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (warrantyDays != null || (revisitPolicy != null && revisitPolicy.isNotEmpty)) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -275,6 +338,28 @@ class ProviderStorefrontSheet extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PromiseRow extends StatelessWidget {
+  const _PromiseRow({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+        ],
       ),
     );
   }
