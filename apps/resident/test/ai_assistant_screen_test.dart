@@ -93,6 +93,8 @@ void main() {
     expect(find.text('Available for you'), findsNothing);
 
     await tester.enterText(find.byType(TextField), 'Show my open complaints');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
 
@@ -141,6 +143,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Water is leaking near the kitchen sink');
     await tester.ensureVisible(find.text('Create complaint'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create complaint'));
     await tester.pumpAndSettle();
 
@@ -149,6 +152,7 @@ void main() {
     expect(api.posts.where((path) => path.endsWith('/confirm')), isEmpty);
 
     await tester.ensureVisible(find.text('Confirm complaint'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Confirm complaint'));
     await tester.pumpAndSettle();
 
@@ -168,6 +172,8 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField), 'Water is leaking near the kitchen sink');
+    await tester.ensureVisible(find.text('Create complaint'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create complaint'));
     await tester.pumpAndSettle();
     expect(find.text('Confirm complaint'), findsOneWidget);
@@ -194,6 +200,8 @@ void main() {
 
     expect(find.textContaining('demo society data'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
 
