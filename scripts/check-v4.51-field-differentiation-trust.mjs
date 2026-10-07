@@ -17,7 +17,11 @@ requireTokens('Resident vernacular voice draft',residentSpeech,[
   "'ml': 'ml_IN'",
   "'mr': 'mr_IN'",
   "'bn': 'bn_IN'",
-  'Voice captured. Review the draft before submitting.',
+  'class ResidentVoiceCopy',
+  "'review':",
+  "'unavailable':",
+  "'assistantReview':",
+  "'assistantUnavailable':",
 ]);
 const helpdesk=read('apps/resident/lib/screens/helpdesk_screen.dart');
 requireTokens('Helpdesk voice review boundary',helpdesk,[
