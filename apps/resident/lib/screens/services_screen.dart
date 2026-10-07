@@ -206,7 +206,15 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       final ratingAverage = offering.provider.ratingAverage;
                       final ratingCount = offering.provider.ratingCount;
                       final completedJobs = offering.provider.completedJobs;
+                      final societyTrusted = offering.provider.societyTrusted;
                       final duration = offering.durationMinutes;
+                      final experiencePolicy = offering.raw['experiencePolicy'] is Map
+                          ? Map<String, dynamic>.from(offering.raw['experiencePolicy'] as Map)
+                          : const <String, dynamic>{};
+                      final targetArrivalMinutes = (experiencePolicy['targetArrivalMinutes'] as num?)?.toInt();
+                      final recurrenceCadences = experiencePolicy['recurrenceCadences'] is List
+                          ? List<dynamic>.from(experiencePolicy['recurrenceCadences'] as List)
+                          : const <dynamic>[];
                       return PremiumSurface(
                         elevated: true,
                         padding: const EdgeInsets.all(AaraagateTokens.space4),
@@ -263,6 +271,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                   AaraagateStatusPill(label: '$completedJobs completed job${completedJobs == 1 ? '' : 's'}', tone: AaraagateStatusTone.neutral),
                                 if (duration != null) AaraagateStatusPill(label: 'Approx. $duration min', tone: AaraagateStatusTone.neutral),
                                 const AaraagateStatusPill(label: 'Society approved', tone: AaraagateStatusTone.success),
+                                if (societyTrusted) const AaraagateStatusPill(label: 'Society Trusted', tone: AaraagateStatusTone.success),
+                                if (experiencePolicy['quickServiceEligible'] == true && targetArrivalMinutes != null)
+                                  AaraagateStatusPill(label: 'Quick target ~$targetArrivalMinutes min', tone: AaraagateStatusTone.info),
+                                if (recurrenceCadences.isNotEmpty)
+                                  const AaraagateStatusPill(label: 'Recurring available', tone: AaraagateStatusTone.neutral),
+                                if (experiencePolicy['extraWorkApprovalRequired'] == true)
+                                  const AaraagateStatusPill(label: 'Extra work needs approval', tone: AaraagateStatusTone.neutral),
                               ],
                             ),
                             const SizedBox(height: AaraagateTokens.space4),
