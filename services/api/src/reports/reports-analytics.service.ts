@@ -6,6 +6,17 @@ const DAY_MS=24*60*60*1000;
 const DEFAULT_WINDOW_DAYS=30;
 const MAX_WINDOW_DAYS=366;
 
+// PostgreSQL folds unquoted aliases to lowercase. Keep those existing keys for
+// compatibility while exposing the camel-case metrics used by API contracts.
+function metricAliases(row: Record<string, number> | undefined, names: string[]) {
+  const metrics = { ...row };
+  for (const name of names) {
+    const legacy = name.toLowerCase();
+    if (metrics[name] === undefined && metrics[legacy] !== undefined) metrics[name] = metrics[legacy];
+  }
+  return metrics;
+}
+
 @Injectable()
 export class ReportsAnalyticsService{
   constructor(private readonly prisma:PrismaService){}
@@ -21,6 +32,9 @@ export class ReportsAnalyticsService{
           COUNT(*) FILTER (WHERE "exitedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS exited
         FROM "AccessRequest"
         WHERE "societyId"=${societyId}::uuid AND "subjectType"='VISITOR'
+          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+            OR "enteredAt" BETWEEN ${range.gte} AND ${range.lte}
+            OR "exitedAt" BETWEEN ${range.gte} AND ${range.lte})
       `),
       this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
         SELECT
@@ -28,6 +42,9 @@ export class ReportsAnalyticsService{
           COUNT(*) FILTER (WHERE "resolvedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS resolved,
           COUNT(*) FILTER (WHERE "closedAt" BETWEEN ${range.gte} AND ${range.lte})::int AS closed
         FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid
+          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+            OR "resolvedAt" BETWEEN ${range.gte} AND ${range.lte}
+            OR "closedAt" BETWEEN ${range.gte} AND ${range.lte})
       `),
       this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
         SELECT
@@ -36,6 +53,7 @@ export class ReportsAnalyticsService{
           COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status" IN ('IN_PROGRESS','COMPLETED'))::int AS inProgress,
           COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='COMPLETED')::int AS completed
         FROM "ServiceBooking" WHERE "societyId"=${societyId}::uuid
+          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte})
       `),
       this.prisma.$queryRaw<Array<Record<string,number>>>(Prisma.sql`
         SELECT
@@ -43,13 +61,15 @@ export class ReportsAnalyticsService{
           COUNT(*) FILTER (WHERE "completedAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='CAPTURED')::int AS captured,
           COUNT(*) FILTER (WHERE "createdAt" BETWEEN ${range.gte} AND ${range.lte} AND "status"='FAILED')::int AS failed
         FROM "Payment" WHERE "societyId"=${societyId}::uuid
+          AND ("createdAt" BETWEEN ${range.gte} AND ${range.lte}
+            OR "completedAt" BETWEEN ${range.gte} AND ${range.lte})
       `),
     ]);
     return {
       range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
       visitor:visitorRows[0]??{},
       helpdesk:helpdeskRows[0]??{},
-      services:serviceRows[0]??{},
+      services:metricAliases(serviceRows[0],['inProgress']),
       payments:paymentRows[0]??{},
       source:'authoritative-domain-records',
     };
@@ -149,9 +169,9 @@ export class ReportsAnalyticsService{
     ]);
     return {
       range:{from:range.gte.toISOString(),to:range.lte.toISOString()},
-      helpdesk:helpdeskRows[0]??{},
-      facilities:facilityRows[0]??{},
-      incidents:incidentRows[0]??{},
+      helpdesk:metricAliases(helpdeskRows[0],['responseBreached','resolutionBreached','resolvedInRange']),
+      facilities:metricAliases(facilityRows[0],['inProgress','completedInRange','criticalOpen']),
+      incidents:metricAliases(incidentRows[0],['criticalOpen','resolvedInRange','createdInRange']),
       source:'authoritative-domain-records',
     };
   }
