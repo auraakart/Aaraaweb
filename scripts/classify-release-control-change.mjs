@@ -20,6 +20,7 @@ const allowedPath=(path)=>
   path==='scripts/list-staging-only-release-subjects.sh' ||
   path==='scripts/check-staging-release-history.mjs' ||
   path==='scripts/classify-release-control-change.mjs' ||
+  path==='scripts/mastermind-preflight.sh' ||
   /^scripts\/check-v4\.79[0-9A-Za-z._-]*\.mjs$/.test(path) ||
   path.startsWith('docs/');
 
@@ -46,7 +47,7 @@ function stripJob(source,job,label='workflow'){
 
 function nonControlCi(source){
   let value=source;
-  for(const job of ['change-scope','dependency-security-full','dependency-security','develop-auto-merge']) value=stripJob(value,job,'CI');
+  for(const job of ['change-scope','mastermind-preflight','dependency-security-full','dependency-security','develop-auto-merge']) value=stripJob(value,job,'CI');
   return value.replace(/\n{3,}/g,'\n\n').trim();
 }
 

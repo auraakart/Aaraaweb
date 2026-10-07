@@ -4,6 +4,21 @@ import '../theme/aaraagate_theme.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 
+List<Map<String, dynamic>> orderCommunityCirclePostsForDisplay(Iterable<Map<String, dynamic>> source) {
+  final ordered = source.map((post) => Map<String, dynamic>.from(post)).toList(growable: false);
+  ordered.sort((a, b) {
+    final aAt = DateTime.tryParse(a['createdAt']?.toString() ?? '');
+    final bAt = DateTime.tryParse(b['createdAt']?.toString() ?? '');
+    if (aAt == null && bAt == null) return 0;
+    if (aAt == null) return -1;
+    if (bAt == null) return 1;
+    final byTime = aAt.compareTo(bAt);
+    if (byTime != 0) return byTime;
+    return (a['id']?.toString() ?? '').compareTo(b['id']?.toString() ?? '');
+  });
+  return ordered;
+}
+
 class CommunityCirclesScreen extends StatefulWidget {
   const CommunityCirclesScreen({super.key, required this.repository});
   final ResidentRepository repository;
@@ -167,6 +182,7 @@ class _CirclePostsSheet extends StatefulWidget {
 
 class _CirclePostsSheetState extends State<_CirclePostsSheet> {
   final _body = TextEditingController();
+  final _messagesScrollController = ScrollController();
   List<Map<String, dynamic>> posts = const [];
   bool loading = true;
   bool busy = false;
@@ -181,18 +197,29 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
   @override
   void dispose() {
     _body.dispose();
+    _messagesScrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToNewest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+      _messagesScrollController.jumpTo(_messagesScrollController.position.maxScrollExtent);
+    });
   }
 
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
       final value = await widget.repository.communityCirclePosts(widget.circleId);
-      if (mounted) setState(() => posts = value);
+      if (mounted) setState(() => posts = orderCommunityCirclePostsForDisplay(value));
     } catch (_) {
       if (mounted) setState(() => error = 'Circle messages could not be loaded.');
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+        if (error == null) _scrollToNewest();
+      }
     }
   }
 
@@ -234,6 +261,7 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
                         : posts.isEmpty
                             ? const Center(child: Text('No messages yet.'))
                             : ListView.builder(
+                                controller: _messagesScrollController,
                                 itemCount: posts.length,
                                 itemBuilder: (context, index) {
                                   final post = posts[index];
