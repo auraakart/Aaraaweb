@@ -120,6 +120,22 @@ for(const token of [
 ]) assert.ok(ai.includes(token),'V4.83 AI grounding missing: '+token);
 assert.ok(!/mutationAllowList:[^\n]*(RESIDENT_UTILITIES|RESIDENT_WORKFORCE|FACILITIES)/.test(ai),'V4.83 AI evidence tools must remain read-only');
 
+const rootPackage=read('package.json');
+const lock=read('pnpm-lock.yaml');
+assert.ok(/"sharp"\s*:\s*">=0\.35\.5"/.test(rootPackage),'Sharp security override must require 0.35.5+');
+assert.ok(!lock.includes('sharp@0.35.4'),'Patched lockfile must not retain sharp 0.35.4');
+assert.ok(lock.includes('sharp@0.35.5(@types/node@20.19.43)'),'Patched sharp snapshot must be present in the lockfile');
+assert.ok(lock.includes('sharp: 0.35.5(@types/node@20.19.43)'),'Next.js sharp snapshot reference must match the patched sharp snapshot');
+assert.ok(lock.includes('@img/sharp-libvips-linux-x64@1.3.4'),'Patched libvips snapshot must be present');
+
+const householdSpec=read('services/api/src/households/household.service.spec.ts');
+for(const token of [
+  'clears a family gate-approval expiry when approval authority is disabled',
+  'accepts a future family gate-approval expiry within the two-year authority window',
+  'rejects an expired family gate-approval authority date',
+  'rejects a family gate-approval expiry more than two years ahead',
+]) assert.ok(householdSpec.includes(token),'Delegation expiry regression coverage missing: '+token);
+
 const previous=read('scripts/check-v4.82-competitive-resident-operations.mjs');
 assert.ok(previous.includes('atLeast(root.version,[4,82,0])'),'V4.82 invariant must remain forward-compatible');
 
