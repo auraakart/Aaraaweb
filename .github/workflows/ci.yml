@@ -268,6 +268,8 @@ jobs:
         run: node scripts/check-stable-domain-invariants.mjs
       - name: Check architecture complexity boundaries
         run: node scripts/check-complexity-boundaries.mjs
+      - name: Test dependency audit failure handling
+        run: node --test scripts/check-dependency-risk-budget.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
         run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
       - name: Check V4.81.2 maintainability and tenant hardening
