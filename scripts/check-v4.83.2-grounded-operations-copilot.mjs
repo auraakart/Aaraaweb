@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
 const read=(path)=>fs.readFileSync(path,'utf8');
 const json=(path)=>JSON.parse(read(path));
@@ -46,7 +47,7 @@ for(const token of [
   'recordOutcome(',
 ]) assert.ok(copilot.includes(token),'Copilot grounding contract missing: '+token);
 
-const assistant=read('services/api/src/ai-operations/ai-assistant.service.ts');
+const assistant=readContractBundle('aiAssistant');
 for(const token of [
   'plan.multiDomain',
   "'MULTI_DOMAIN','MULTI_DOMAIN'",
