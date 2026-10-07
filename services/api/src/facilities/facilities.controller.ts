@@ -19,7 +19,7 @@ class CreateHelpdeskWorkOrderDto{@IsOptional() @IsIn(['LOW','MEDIUM','HIGH','CRI
 @Controller('facilities')
 @UseGuards(BearerGuard,TenantGuard,PermissionsGuard)
 export class FacilitiesController{
-  constructor(private readonly prisma:PrismaService,private readonly handoff:FacilitiesHelpdeskHandoffService){}
+  constructor(private readonly prisma:PrismaService,private readonly handoff:FacilitiesHelpdeskHandoffService=new FacilitiesHelpdeskHandoffService(prisma)){}
   @Get('operator-context') @RequiresPermissions(AppPermission.FACILITIES_READ)
   operatorContext(@CurrentTenant() societyId:string){
     return this.prisma.$queryRaw(Prisma.sql`
