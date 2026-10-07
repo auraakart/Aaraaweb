@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 
 const checks = [
   'scripts/check-source-contract-extraction-resilience.mjs',
+  'scripts/check-resident-demo-packaging.mjs',
   'scripts/check-v4.36-architecture-convergence.mjs',
   'scripts/check-v4.37-repository-integrity.mjs',
   'scripts/check-v4.40-stabilization.mjs',
