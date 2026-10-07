@@ -61,7 +61,10 @@ for(const token of [
 assert.ok(assistant.includes('mutationAllowed:false'),'Action Centre must remain read-only outside explicit proposal flows');
 
 const operations=read('services/api/src/ai-operations/ai-operations.service.ts');
-assert.ok(operations.includes("const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set(['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS','ASSIGN_HELPDESK_TICKET'])"),'AI mutation allow-list must remain explicit and narrow');
+for(const action of ['CREATE_HELPDESK_TICKET','BOOK_AMENITY','CREATE_VISITOR_PASS','ASSIGN_HELPDESK_TICKET']){
+  assert.ok(operations.includes(`'${action}'`),'V4.83.2 AI action must remain allow-listed: '+action);
+}
+assert.ok(operations.includes('const ALLOWED_AI_ACTIONS: ReadonlySet<AiAction> = new Set('),'AI mutation allow-list must remain explicit');
 
 const controller=read('services/api/src/ai-operations/ai-operations.controller.ts');
 assert.ok(controller.includes("@Post('assistant/recommendation-outcomes')"),'Recommendation outcome endpoint missing');
