@@ -64,7 +64,12 @@ develop_tree="$(jq -r '.commit.commit.tree.sha' <<<"$develop")"
 staging_sha="$(jq -r '.commit.sha' <<<"$staging")"
 candidate_tree="$(jq -r '.tree.sha' <<<"$candidate")"
 
-test "$staging_sha" = "$EXPECTED_BASE_SHA"
+if [ "$staging_sha" != "$EXPECTED_BASE_SHA" ]; then
+  latest_after_staging_move="$(api "/repos/$REPOSITORY/pulls/$PR_NUMBER")"
+  accept_companion_merge_race "$latest_after_staging_move"
+  echo "Staging moved from expected base before merge and PR is not already exact-merged." >&2
+  exit 1
+fi
 test "$candidate_tree" = "$develop_tree"
 
 if [ "$current_ref" = "develop" ]; then
