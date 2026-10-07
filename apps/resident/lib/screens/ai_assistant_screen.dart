@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
+import '../widgets/premium_ui.dart';
 
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({
@@ -10,12 +12,14 @@ class AiAssistantScreen extends StatefulWidget {
     required this.unitId,
     this.demoMode = false,
     this.initialPrompt,
+    this.speech,
   });
 
   final ApiClient apiClient;
   final String? unitId;
   final bool demoMode;
   final String? initialPrompt;
+  final ResidentSpeech? speech;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -27,51 +31,30 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   String? _error;
   Map<String, dynamic>? _result;
   Map<String, dynamic>? _proposal;
-  List<Map<String, dynamic>> _tools = const [];
-  bool _toolsBusy = false;
-  final ResidentSpeech _speech = DeviceResidentSpeech();
+  late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
   String? _voiceStatus;
 
-  static const _demoPrompts = <String>[
-    'What do I need to take care of today?',
-    'What is my maintenance due?',
-    'Show my open complaints',
-    'Any visitor or staff activity today?',
-    'What amenities can I book?',
-    'Summarize society updates',
+  static const _quickActions = <({String label, String prompt, IconData icon})>[
+    (label: 'Maintenance dues', prompt: 'What is my maintenance due?', icon: Icons.receipt_long_rounded),
+    (label: 'Open complaints', prompt: 'Show my open complaints', icon: Icons.support_agent_rounded),
+    (label: "Today's visitors & staff", prompt: 'Any visitor or staff activity today?', icon: Icons.groups_2_outlined),
+    (label: 'Book amenities', prompt: 'What amenities can I book?', icon: Icons.event_available_rounded),
+    (label: 'Society updates', prompt: 'Summarize society updates', icon: Icons.campaign_outlined),
   ];
 
   @override
   void initState() {
     super.initState();
+    _speech = widget.speech ?? DeviceResidentSpeech();
     if (widget.initialPrompt?.trim().isNotEmpty == true) {
       _controller.text = widget.initialPrompt!.trim();
     }
-    if (!widget.demoMode) _loadTools();
   }
 
   void _clearPendingProposal() {
     if (_proposal?['status']?.toString() == 'PROPOSED') _proposal = null;
-  }
-
-  Future<void> _loadTools() async {
-    setState(() => _toolsBusy = true);
-    try {
-      final raw = await widget.apiClient.get('/api/v1/ai-operations/assistant/tools');
-      if (!mounted) return;
-      final body = Map<String, dynamic>.from(raw as Map);
-      final tools = (body['tools'] as List? ?? const [])
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList(growable: false);
-      setState(() => _tools = tools);
-    } catch (_) {
-      // Capability discovery is additive; assistant queries remain available.
-    } finally {
-      if (mounted) setState(() => _toolsBusy = false);
-    }
   }
 
   @override
@@ -249,217 +232,221 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Widget _overviewCard(ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Grounded operations assistant',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.demoMode
-                  ? 'Explore a safe AI showcase using the demo society data on this device.'
-                  : 'Answers use authorized Aaraagate records only. The assistant cannot change society data directly; actions require an explicit confirmation.',
-            ),
-            if (widget.demoMode) ...[
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final prompt in _demoPrompts)
-                    ActionChip(
-                      label: Text(prompt),
-                      onPressed: _busy ? null : () { setState(_clearPendingProposal); _controller.text = prompt; _ask(); },
-                    ),
-                ],
-              ),
-            ],
-            if (!widget.demoMode && (_toolsBusy || _tools.isNotEmpty)) ...[
-              const SizedBox(height: 14),
-              Text('Available for you', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              if (_toolsBusy)
-                const LinearProgressIndicator(minHeight: 2)
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final tool in _tools)
-                      Chip(
-                        avatar: Icon(tool['context'] == 'PROPERTY' ? Icons.home_outlined : Icons.apartment_outlined, size: 18),
-                        label: Text(tool['label']?.toString() ?? tool['id']?.toString() ?? 'Assistant capability'),
-                      ),
-                  ],
-                ),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                DropdownButton<String>(
-                  value: _voiceLanguage,
-                  onChanged: _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
-                  items: const [
-                    DropdownMenuItem(value:'en',child:Text('English')),
-                    DropdownMenuItem(value:'hi',child:Text('हिन्दी')),
-                    DropdownMenuItem(value:'ta',child:Text('தமிழ்')),
-                    DropdownMenuItem(value:'te',child:Text('తెలుగు')),
-                    DropdownMenuItem(value:'kn',child:Text('ಕನ್ನಡ')),
-                    DropdownMenuItem(value:'ml',child:Text('മലയാളം')),
-                    DropdownMenuItem(value:'mr',child:Text('मराठी')),
-                    DropdownMenuItem(value:'bn',child:Text('বাংলা')),
-                  ],
-                ),
-                OutlinedButton.icon(
-                  onPressed: _busy || _listening ? null : _listenForAssistant,
-                  icon: Icon(_listening ? Icons.mic_rounded : Icons.mic_none_rounded),
-                  label: Text(ResidentVoiceCopy.text(_voiceLanguage, 'assistantAction')),
-                ),
-              ],
-            ),
-            if (_voiceStatus != null) ...[
-              const SizedBox(height: 6),
-              Text(_voiceStatus!, style: theme.textTheme.bodySmall),
-            ],
-            const SizedBox(height: 10),
-            TextField(
-              controller: _controller,
-              onChanged: (_) {
-                if (_proposal?['status']?.toString() == 'PROPOSED') {
-                  setState(_clearPendingProposal);
-                }
-              },
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText:
-                    'Ask about dues, gate, household staff, complaints, amenities or services',
-                hintText: 'Example: What is the status of my maintenance dues?',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final scale = MediaQuery.textScalerOf(context).scale(1.0);
-                final stacked = constraints.maxWidth < 420 || scale > 1.3;
-                final width = stacked ? constraints.maxWidth : (constraints.maxWidth - 10) / 2;
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    SizedBox(
-                      width: width,
-                      child: FilledButton.icon(
-                        onPressed: _busy ? null : _ask,
-                        icon: const Icon(Icons.send_rounded),
-                        label: Text(_busy ? 'Checking…' : 'Ask'),
-                      ),
-                    ),
-                    if (widget.unitId != null)
-                      SizedBox(
-                        width: width,
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : _draftComplaint,
-                          icon: const Icon(Icons.edit_note_rounded),
-                          label: const Text('Prepare complaint'),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
+    final scheme = theme.colorScheme;
+    final languagePicker = InputDecorator(
+      decoration: const InputDecoration(labelText: 'Language'),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _voiceLanguage,
+          isExpanded: true,
+          onChanged: _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
+          items: [
+            for (final entry in ResidentVoiceCopy.languageLabels.entries)
+              DropdownMenuItem(value: entry.key, child: Text(entry.value)),
           ],
         ),
       ),
     );
+    final speakButton = OutlinedButton.icon(
+      onPressed: _busy || _listening ? null : _listenForAssistant,
+      icon: Icon(_listening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded),
+      label: Text(_listening
+          ? ResidentVoiceCopy.text(_voiceLanguage, 'assistantListening')
+          : ResidentVoiceCopy.text(_voiceLanguage, 'assistantAction')),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PremiumPageIntro(
+          icon: Icons.auto_awesome_rounded,
+          title: 'How can I help?',
+          supportingText: widget.demoMode
+              ? 'Try a question using the demo society data.'
+              : 'Get a quick answer from your selected property and permissions.',
+        ),
+        const SizedBox(height: AaraagateTokens.space5),
+        const PremiumSectionHeader(
+          title: 'Quick actions',
+          supportingText: 'Choose one or type your own question.',
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
+        Wrap(
+          spacing: AaraagateTokens.space2,
+          runSpacing: AaraagateTokens.space2,
+          children: [
+            for (final action in _quickActions)
+              ActionChip(
+                avatar: Icon(action.icon, size: 18, color: scheme.primary),
+                label: Text(action.label),
+                onPressed: _busy
+                    ? null
+                    : () {
+                        setState(() {
+                          _clearPendingProposal();
+                          _controller.text = action.prompt;
+                          _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+                          _voiceStatus = null;
+                        });
+                        _ask();
+                      },
+              ),
+          ],
+        ),
+        const SizedBox(height: AaraagateTokens.space5),
+        PremiumSurface(
+          elevated: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = MediaQuery.textScalerOf(context).scale(1.0);
+                  final stacked = constraints.maxWidth < 430 || scale > 1.25;
+                  if (stacked) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        languagePicker,
+                        const SizedBox(height: AaraagateTokens.space2),
+                        speakButton,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: languagePicker),
+                      const SizedBox(width: AaraagateTokens.space3),
+                      speakButton,
+                    ],
+                  );
+                },
+              ),
+              if (_voiceStatus != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _listening ? Icons.hearing_rounded : Icons.check_circle_outline_rounded,
+                      size: 18,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: AaraagateTokens.space2),
+                    Expanded(
+                      child: Text(
+                        _voiceStatus!,
+                        style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: AaraagateTokens.space3),
+              TextField(
+                controller: _controller,
+                onChanged: (_) {
+                  if (_proposal?['status']?.toString() == 'PROPOSED') {
+                    setState(_clearPendingProposal);
+                  }
+                },
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Ask Aaraagate',
+                  hintText: 'Dues, visitors, complaints, amenities or society updates',
+                ),
+              ),
+              const SizedBox(height: AaraagateTokens.space3),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : _ask,
+                  icon: const Icon(Icons.send_rounded),
+                  label: Text(_busy ? 'Checking…' : 'Ask'),
+                ),
+              ),
+              if (widget.unitId != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _draftComplaint,
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text('Create complaint'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _errorCard(ThemeData theme) {
-    return Card(
+    return PremiumSurface(
       color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Text(
-          _error!,
-          style: TextStyle(color: theme.colorScheme.onErrorContainer),
-        ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, color: theme.colorScheme.onErrorContainer),
+          const SizedBox(width: AaraagateTokens.space2),
+          Expanded(
+            child: Text(
+              _error!,
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onErrorContainer),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _resultCard(ThemeData theme) {
-    final sources = (_result!['sources'] as List?) ?? const [];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _result!['answer']?.toString() ?? 'Grounded result',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 10),
-            _factsView(theme, _result!['facts']),
-            const SizedBox(height: 10),
-            Text(
-              'Sources: ${sources.join(', ')}',
-              style: theme.textTheme.labelMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    final sources = ((_result!['sources'] as List?) ?? const [])
+        .map((source) => source.toString().trim())
+        .where((source) => source.isNotEmpty)
+        .take(3)
+        .toList(growable: false);
+    final answer = _result!['answer']?.toString().trim();
 
-  Widget _factsView(ThemeData theme, dynamic facts) {
-    if (facts is Map) {
-      final entries = facts.entries.toList(growable: false);
-      if (entries.isEmpty) return Text('No additional records returned.', style: theme.textTheme.bodySmall);
-      return Column(
+    return PremiumSurface(
+      elevated: true,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final entry in entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text('${entry.key}: ${_displayValue(entry.value)}', style: theme.textTheme.bodySmall),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                ),
+                child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary, size: 21),
+              ),
+              const SizedBox(width: AaraagateTokens.space3),
+              Text('Answer', style: theme.textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: AaraagateTokens.space3),
+          Text(
+            answer?.isNotEmpty == true ? answer! : 'No matching information was found.',
+            style: theme.textTheme.bodyLarge,
+          ),
+          if (sources.isNotEmpty) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            Text(
+              'Based on ' + sources.join(' · '),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
+          ],
         ],
-      );
-    }
-    if (facts is List) {
-      if (facts.isEmpty) return Text('No matching records found.', style: theme.textTheme.bodySmall);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [for (final item in facts.take(8)) Text('• ${_displayValue(item)}', style: theme.textTheme.bodySmall)],
-      );
-    }
-    return Text(_displayValue(facts), style: theme.textTheme.bodySmall);
-  }
-
-  String _displayValue(dynamic value) {
-    if (value == null) return '—';
-    if (value is List) return value.map(_displayValue).join(' · ');
-    if (value is Map) return value.entries.map((e) => '${e.key}: ${_displayValue(e.value)}').join(' · ');
-    return value.toString();
+      ),
+    );
   }
 
   Widget _proposalCard() {
@@ -526,24 +513,30 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final theme = Theme.of(context);
     final content = <Widget>[_overviewCard(theme)];
     if (_error != null) {
-      content.add(const SizedBox(height: 12));
+      content.add(const SizedBox(height: AaraagateTokens.space3));
       content.add(_errorCard(theme));
     }
     if (_result != null) {
-      content.add(const SizedBox(height: 12));
+      content.add(const SizedBox(height: AaraagateTokens.space3));
       content.add(_resultCard(theme));
     }
     if (_proposal != null) {
-      content.add(const SizedBox(height: 12));
+      content.add(const SizedBox(height: AaraagateTokens.space3));
       content.add(_proposalCard());
     }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Aaraagate Assistant')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
+        padding: const EdgeInsets.fromLTRB(
+          AaraagateTokens.pageGutter,
+          AaraagateTokens.space3,
+          AaraagateTokens.pageGutter,
+          AaraagateTokens.space8,
+        ),
         children: content,
       ),
     );
   }
+
 }
