@@ -173,6 +173,7 @@ class PremiumPageIntro extends StatelessWidget {
 
 /// Consistent section heading for scan-friendly resident screens.
 /// Keeps headings quiet enough that the screen title remains dominant.
+/// Use in a scrolling page: essential copy grows with the user's text setting.
 class PremiumSectionHeader extends StatelessWidget {
   const PremiumSectionHeader({
     super.key,
