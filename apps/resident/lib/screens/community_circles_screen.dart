@@ -304,14 +304,16 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
               if (!widget.closed)
                 ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: constraints.maxHeight * .45),
-                  child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    const Divider(),
-                    TextField(
-                      controller: _body, enabled: !busy, minLines: 1, maxLines: 4, maxLength: 1000,
-                      decoration: const InputDecoration(labelText: 'Post to circle'),
-                    ),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Flexible(child: SingleChildScrollView(child: Column(children: [
+                      const Divider(),
+                      TextField(
+                        controller: _body, enabled: !busy, minLines: 1, maxLines: 4, maxLength: 1000,
+                        decoration: const InputDecoration(labelText: 'Post to circle'),
+                      ),
+                    ]))),
                     FilledButton.icon(onPressed: busy ? null : _post, icon: const Icon(Icons.send_outlined), label: Text(busy ? 'POSTING…' : 'POST')),
-                  ])),
+                  ]),
                 ),
             ],
           )),

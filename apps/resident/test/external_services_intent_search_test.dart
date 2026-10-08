@@ -55,6 +55,13 @@ class IntentSearchApiClient extends ApiClient {
   }
 }
 
+Future<void> reveal(WidgetTester tester, Finder target, double delta) async {
+  await tester.scrollUntilVisible(target, delta, scrollable: find.descendant(
+    of: find.byType(RefreshIndicator), matching: find.byType(Scrollable),
+  ).first);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('intent search filters only the authorized external service catalog', (tester) async {
     await tester.pumpWidget(
@@ -64,17 +71,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await reveal(tester, find.text('Deep cleaning'), 200);
     expect(find.text('Deep cleaning'), findsOneWidget);
 
+    await reveal(tester, find.byType(TextField), -200);
     await tester.enterText(find.byType(TextField), 'plumber');
     await tester.pump();
 
     expect(find.text('Deep cleaning'), findsNothing);
+    await reveal(tester, find.textContaining('No services match'), 200);
     expect(find.textContaining('No services match'), findsOneWidget);
 
+    await reveal(tester, find.byType(TextField), -200);
     await tester.enterText(find.byType(TextField), 'care');
     await tester.pump();
 
+    await reveal(tester, find.text('Deep cleaning'), 200);
     expect(find.text('Deep cleaning'), findsOneWidget);
     expect(find.text('1 matching service'), findsOneWidget);
   });

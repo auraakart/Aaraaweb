@@ -56,11 +56,19 @@ Future<void> showServices(WidgetTester tester, RecoveryServicesApi api) async {
   await tester.pump();
 }
 
+Future<void> reveal(WidgetTester tester, Finder target, {double delta = 200}) async {
+  await tester.scrollUntilVisible(target, delta, scrollable: find.descendant(
+    of: find.byType(RefreshIndicator), matching: find.byType(Scrollable),
+  ).first);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('slow optional trust does not delay core provider discovery', (tester) async {
     final api = RecoveryServicesApi()..trustPending = Completer<dynamic>();
     await showServices(tester, api);
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Home cleaning'));
     expect(find.text('Home cleaning'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     api.trustPending!.complete(<Map<String, dynamic>>[]);
@@ -71,13 +79,17 @@ void main() {
     final api = RecoveryServicesApi();
     await showServices(tester, api);
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Slow category'));
     await tester.tap(find.text('Slow category'));
     await tester.pump();
+    await reveal(tester, find.text('Fast category'), delta: -200);
     await tester.tap(find.text('Fast category'));
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Latest category provider'));
     expect(find.text('Latest category provider'), findsOneWidget);
     api.slowOfferings.complete(api.offering('Stale category provider'));
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Latest category provider'));
     expect(find.text('Latest category provider'), findsOneWidget);
     expect(find.text('Stale category provider'), findsNothing);
   });
@@ -88,12 +100,14 @@ void main() {
     await showServices(tester, api);
     await tester.pump(const Duration(seconds: 21));
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Retry'));
     expect(find.text('Retry'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     api.locationsPending = null;
     await tester.ensureVisible(find.text('Retry'));
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Home cleaning'));
     expect(find.text('Home cleaning'), findsOneWidget);
     pending.complete(<Map<String, dynamic>>[]);
     await tester.pumpAndSettle();
@@ -103,6 +117,7 @@ void main() {
     final api = RecoveryServicesApi()..configured = false;
     await showServices(tester, api);
     await tester.pumpAndSettle();
+    await reveal(tester, find.textContaining('Choose or add a service location'));
     expect(find.textContaining('Choose or add a service location'), findsOneWidget);
     expect(find.text('Home cleaning'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -111,11 +126,15 @@ void main() {
     final api = FavoriteMemoryServicesApi();
     await showServices(tester, api);
     await tester.pumpAndSettle();
+    await reveal(tester, find.byIcon(Icons.favorite_rounded));
     expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
     api.failFavorites = true;
+    await reveal(tester, find.text('Fast category'), delta: -200);
     await tester.tap(find.text('Fast category'));
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Latest category provider'));
     expect(find.text('Latest category provider'), findsOneWidget);
+    await reveal(tester, find.byIcon(Icons.favorite_rounded));
     expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
   });
 

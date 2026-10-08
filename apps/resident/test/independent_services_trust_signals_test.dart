@@ -67,6 +67,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(find.text('Deep cleaning'), 200, scrollable: find.descendant(
+      of: find.byType(RefreshIndicator), matching: find.byType(Scrollable),
+    ).first);
+    await tester.pumpAndSettle();
     expect(find.text('Deep cleaning'), findsOneWidget);
     expect(find.text('4.8 · 12 ratings'), findsOneWidget);
     expect(find.text('47 completed'), findsOneWidget);
@@ -81,6 +85,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(find.text('Deep cleaning'), 200, scrollable: find.descendant(
+      of: find.byType(RefreshIndicator), matching: find.byType(Scrollable),
+    ).first);
+    await tester.pumpAndSettle();
     expect(find.text('Deep cleaning'), findsOneWidget);
     expect(find.text('Verified'), findsOneWidget);
     expect(find.textContaining('Trust service unavailable'), findsNothing);
