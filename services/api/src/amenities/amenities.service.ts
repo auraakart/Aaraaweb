@@ -120,7 +120,7 @@ export class AmenitiesService {
     if (startsAt.getTime() <= now) throw new BadRequestException('Amenity waitlist entries must start in the future');
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const amenities = await tx.$queryRaw<AmenityRow[]>`
         SELECT "id","societyId","code","name","description","location","schedule","bookingRules",
                "feePaise","currency","requiresApproval","slotMinutes","maxConcurrentBookings","active"
@@ -367,7 +367,7 @@ export class AmenitiesService {
         LIMIT 1
       `;
       if(!identity[0]) throw new NotFoundException('Amenity booking not found');
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${identity[0].amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${identity[0].amenityId}`}))::text`;
       const rows = await tx.$queryRaw<Array<{ startsAt: Date; status: string; bookingRules: unknown }>>`
         SELECT b."startsAt", b."status"::text AS "status", a."bookingRules"
         FROM "AmenityBooking" b
@@ -415,7 +415,7 @@ export class AmenitiesService {
       `;
       let expired=0;
       for(const candidate of candidates){
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${candidate.societyId}:${candidate.amenityId}`}))`;
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${candidate.societyId}:${candidate.amenityId}`}))::text`;
         const closed=await tx.$queryRaw<Array<{id:string}>>`
           UPDATE "AmenityBooking"
           SET "status"='CANCELLED',"depositStatus"='VOIDED',"updatedAt"=CURRENT_TIMESTAMP
@@ -444,7 +444,7 @@ export class AmenitiesService {
     input:{startsAt:string;endsAt:string;kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';reason:string},
   ){
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       return this.blackoutAssessment(tx,societyId,amenityId,input);
     });
   }
@@ -455,7 +455,7 @@ export class AmenitiesService {
     input:{startsAt:string;endsAt:string;kind?:'MAINTENANCE'|'CLOSURE'|'PRIVATE_EVENT';reason:string},
   ){
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const assessment=await this.blackoutAssessment(tx,societyId,amenityId,input);
       if(assessment.impactedBookings.length||assessment.impactedWaitlist.length){
         throw new ConflictException(`Resolve ${assessment.impactedBookings.length} active booking(s) and ${assessment.impactedWaitlist.length} waitlist entry/entries before applying this blackout`);
@@ -499,7 +499,7 @@ export class AmenitiesService {
       throw new BadRequestException('A valid blackout window is required');
     }
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
         SELECT "schedule" FROM "Amenity"
         WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
@@ -523,7 +523,7 @@ export class AmenitiesService {
   async previewOperatingHours(societyId:string,amenityId:string,weekly:Record<string,unknown>|null){
     const normalized=this.policy.normalizeWeeklySchedule(weekly);
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const [amenity]=await tx.$queryRaw<Array<{id:string}>>`
         SELECT "id" FROM "Amenity"
         WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
@@ -548,7 +548,7 @@ export class AmenitiesService {
   async applyOperatingHours(societyId:string,amenityId:string,weekly:Record<string,unknown>|null){
     const normalized=this.policy.normalizeWeeklySchedule(weekly);
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const [amenity]=await tx.$queryRaw<Array<{schedule:unknown}>>`
         SELECT "schedule" FROM "Amenity"
         WHERE "id"=${amenityId}::uuid AND "societyId"=${societyId}::uuid
@@ -626,7 +626,7 @@ export class AmenitiesService {
 
   async updateAmenity(societyId: string, amenityId: string, input: AmenityUpdateInput) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
       const existingRows = await tx.$queryRaw<AmenityRow[]>`
         SELECT "id", "societyId", "code", "name", "description", "location", "schedule",
                "bookingRules", "feePaise", "currency", "requiresApproval", "slotMinutes",
@@ -774,7 +774,7 @@ export class AmenitiesService {
     endsAt:Date,
   ) {
     if(startsAt.getTime()<=Date.now()) return null;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
     const amenities=await tx.$queryRaw<AmenityRow[]>`
       SELECT "id","societyId","code","name","description","location","schedule","bookingRules",
              "feePaise","currency","requiresApproval","slotMinutes","maxConcurrentBookings","active"

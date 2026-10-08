@@ -114,7 +114,7 @@ export class ResidentDirectoryService {
     const message=messageInput?.trim()||null;
     const pair=[userId,recipientUserId].sort().join(':');
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`resident-directory:${societyId}:${pair}`},0))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`resident-directory:${societyId}:${pair}`},0))::text`);
       const recipient=await tx.$queryRaw<Array<{allowed:boolean;visible:boolean}>>(Prisma.sql`
         SELECT
           EXISTS(

@@ -268,6 +268,10 @@ jobs:
         run: node scripts/check-stable-domain-invariants.mjs
       - name: Check architecture complexity boundaries
         run: node scripts/check-complexity-boundaries.mjs
+      - name: Check PostgreSQL parameter contracts
+        run: |
+          node --test scripts/check-postgres-parameter-contracts.test.mjs
+          node scripts/check-postgres-parameter-contracts.mjs
       - name: Test dependency audit failure handling
         run: node --test scripts/check-dependency-risk-budget.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
@@ -448,6 +452,8 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
+      - name: Test PostgreSQL workflows before broad regression
+        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts
       - name: Test API before coverage instrumentation
         run: pnpm --filter @aaraagate/api test
       - name: Build API before coverage instrumentation

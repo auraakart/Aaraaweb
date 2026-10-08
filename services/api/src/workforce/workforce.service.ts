@@ -588,7 +588,7 @@ export class WorkforceService {
 
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `${societyId}:${userId}:staff-payment:${idempotencyKey}`;
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))::text`);
       const existing = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         SELECT * FROM "WorkforcePaymentRecord"
         WHERE "societyId"=${societyId}::uuid AND "recordedById"=${userId}::uuid AND "idempotencyKey"=${idempotencyKey}
