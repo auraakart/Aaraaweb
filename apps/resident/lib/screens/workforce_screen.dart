@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
+import '../theme/aaraagate_theme.dart';
+import '../widgets/premium_ui.dart';
 import 'workforce_history_sheets.dart';
 
 class WorkforceScreen extends StatelessWidget {
@@ -13,14 +15,14 @@ class WorkforceScreen extends StatelessWidget {
       child: RefreshIndicator(
         onRefresh: controller.refreshWorkforce,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
             _WorkforceHeader(
               canAdd: controller.households.isNotEmpty,
               onAdd: () => _openAddSheet(context),
               onRefresh: controller.refreshWorkforce,
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: AaraagateTokens.space5),
             if (controller.workforceError != null)
               _MessageCard(
                 icon: Icons.error_outline_rounded,
@@ -74,72 +76,22 @@ class _WorkforceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final systemScale = MediaQuery.textScalerOf(context).scale(1);
-    final titleScale = systemScale.clamp(1.0, 1.45).toDouble();
-    final supportingScale = systemScale.clamp(1.0, 1.6).toDouble();
-
-    Widget copy() => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Household staff',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textScaler: TextScaler.linear(titleScale),
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Attendance, leave and ratings in one place.',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textScaler: TextScaler.linear(supportingScale),
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
-        );
-
-    Widget actions() => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton.filledTonal(
-              onPressed: canAdd ? onAdd : null,
-              tooltip: 'Add household staff',
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              onPressed: onRefresh,
-              tooltip: 'Refresh staff',
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 420 || systemScale > 1.3;
-        if (stacked) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              copy(),
-              const SizedBox(height: 10),
-              Align(alignment: Alignment.centerRight, child: actions()),
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: copy()),
-            const SizedBox(width: 12),
-            actions(),
-          ],
-        );
-      },
+    return PremiumPageIntro(
+      icon: Icons.badge_outlined,
+      title: 'Household staff',
+      supportingText: 'Attendance, leave and ratings in one place.',
+      action: Wrap(spacing: AaraagateTokens.space2, runSpacing: AaraagateTokens.space2, children: [
+        IconButton.filledTonal(
+          onPressed: canAdd ? onAdd : null,
+          tooltip: 'Add household staff',
+          icon: const Icon(Icons.person_add_alt_1_rounded),
+        ),
+        IconButton.filledTonal(
+          onPressed: onRefresh,
+          tooltip: 'Refresh staff',
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ]),
     );
   }
 }
@@ -219,21 +171,21 @@ class _AddWorkforceSheetState extends State<_AddWorkforceSheet> {
             }).where((item) => item.value?.isNotEmpty == true).toList(),
             onChanged: _busy ? null : (value) => setState(() => _householdId = value ?? ''),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _name,
             enabled: !_busy,
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _phone,
             enabled: !_busy,
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(labelText: 'Mobile number', border: OutlineInputBorder()),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _role,
             decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
@@ -286,8 +238,8 @@ class _StaffCard extends StatelessWidget {
     final canRate = status == 'APPROVED' || status == 'SUSPENDED';
     final canDeactivate = assignment['active'] != false && status.toUpperCase() != 'SUSPENDED';
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return PremiumSurface(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -307,22 +259,23 @@ class _StaffCard extends StatelessWidget {
                     children: [
                       Text(
                         workerName?.isNotEmpty == true ? workerName! : 'Staff name unavailable',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: AaraagateTokens.space1),
                       Text(workerRole?.isNotEmpty == true ? _friendly(workerRole!) : 'Role not specified'),
                       if (workerPhone?.isNotEmpty == true) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(workerPhone!, style: Theme.of(context).textTheme.bodySmall),
                       ],
                       if (building['name'] != null || unit['number'] != null) ...[
-                        const SizedBox(height: 3),
+                        const SizedBox(height: AaraagateTokens.space1),
                         Text('${building['name'] ?? 'Building'} · ${unit['number'] ?? 'Unit'}', style: Theme.of(context).textTheme.bodySmall),
                       ],
+                      const SizedBox(height: AaraagateTokens.space2),
+                      _PresencePill(present: present),
                     ],
                   ),
                 ),
-                _PresencePill(present: present),
               ],
             ),
             const SizedBox(height: 8),
@@ -332,7 +285,7 @@ class _StaffCard extends StatelessWidget {
                 icon: const Icon(Icons.person_remove_outlined),
                 label: const Text('END ASSIGNMENT'),
               ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -347,13 +300,13 @@ class _StaffCard extends StatelessWidget {
               ],
             ),
             if (leaves.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               ...leaves.take(2).map((leave) => _LeaveRow(
                     leave: leave,
                     onCancel: () => _confirmCancelLeave(context, leave['id']?.toString() ?? ''),
                   )),
             ],
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Column(
               children: [
                 Row(
@@ -365,7 +318,7 @@ class _StaffCard extends StatelessWidget {
                         label: const Text('ADD LEAVE'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton.tonalIcon(
                         onPressed: !canRate || assignmentId.isEmpty ? null : () => _openRatingSheet(context, assignmentId, rating),
@@ -375,7 +328,7 @@ class _StaffCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -385,7 +338,7 @@ class _StaffCard extends StatelessWidget {
                         label: const Text('VIEW ATTENDANCE'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: assignmentId.isEmpty ? null : () => _openPaymentSheet(context, assignmentId),
@@ -587,7 +540,7 @@ class _WorkforceLeaveSheetState extends State<_WorkforceLeaveSheet> {
                     }
                   },
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _DateButton(
             label: 'Ends',
             value: _endsOn,
@@ -674,7 +627,7 @@ class _WorkforceRatingSheetState extends State<_WorkforceRatingSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('Rate household staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (index) {
@@ -713,13 +666,9 @@ class _PresencePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: present ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(present ? 'INSIDE' : 'OUTSIDE', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+    return AaraagateStatusPill(
+      label: present ? 'INSIDE' : 'OUTSIDE',
+      tone: present ? AaraagateStatusTone.info : AaraagateStatusTone.neutral,
     );
   }
 }
@@ -795,7 +744,7 @@ class _MessageCard extends StatelessWidget {
             children: [
               Icon(icon, size: 36),
               const SizedBox(height: 12),
-              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(message, textAlign: TextAlign.center),
             ],

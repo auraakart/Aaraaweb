@@ -175,7 +175,7 @@ class _NoticeCard extends StatelessWidget {
                   Text(
                     metadata,
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: urgent ? scheme.error : scheme.primary,
+                      color: urgent ? scheme.error : scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -305,7 +305,7 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
                       child: Text(
                         metadata,
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: urgent ? scheme.error : scheme.primary,
+                          color: urgent ? scheme.error : scheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -331,7 +331,7 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
                   FilledButton.icon(
                     onPressed: _acknowledging ? null : _acknowledge,
                     icon: _acknowledging
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
                         : const Icon(Icons.task_alt_rounded),
                     label: Text(_acknowledging ? 'Acknowledging…' : 'Acknowledge notice'),
                   ),

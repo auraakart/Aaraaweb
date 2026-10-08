@@ -734,14 +734,20 @@ class _RecoveryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 320 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+        ]);
+      }
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
         const SizedBox(width: AaraagateTokens.space3),
         Flexible(child: Text(value, textAlign: TextAlign.right, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
-      ],
-    );
+      ]);
+    });
   }
 }
 

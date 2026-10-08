@@ -23,7 +23,7 @@ class GuardOperationSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final surface = AnimatedContainer(
-      duration: AaraagateGuardMotion.standard,
+      duration: AaraagateGuardMotion.duration(context, AaraagateGuardMotion.standard),
       curve: AaraagateGuardMotion.emphasized,
       padding: padding,
       decoration: BoxDecoration(
@@ -56,7 +56,7 @@ class GuardQuickAction extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final background = tonal ? scheme.surfaceContainer : scheme.primaryContainer;
-    final foreground = tonal ? scheme.primary : scheme.onPrimaryContainer;
+    final foreground = tonal ? scheme.onSurface : scheme.onPrimaryContainer;
     final radius = BorderRadius.circular(AaraagateGuardTokens.radiusControl);
 
     return Semantics(
@@ -84,12 +84,10 @@ class GuardQuickAction extends StatelessWidget {
                   const SizedBox(height: AaraagateGuardTokens.space2),
                   Text(
                     label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: foreground,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -120,11 +118,12 @@ class GuardStatusPill extends StatelessWidget {
     };
     return Semantics(
       label: 'Status: $label',
+      excludeSemantics: true,
       child: Container(
         constraints: const BoxConstraints(minHeight: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(color: colors.$1, borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusPill)),
-        child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w900)),
+        child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w700)),
       ),
     );
   }

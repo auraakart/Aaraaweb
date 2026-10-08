@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
@@ -68,7 +69,37 @@ class FakeResidentSpeech implements ResidentSpeech {
   }
 }
 
+class PendingResidentSpeech extends FakeResidentSpeech {
+  PendingResidentSpeech() : super(null);
+  final result = Completer<String?>();
+  @override
+  Future<String?> listenOnce({required String languageCode}) => result.future;
+}
+
 void main() {
+  testWidgets('recording locks query and complaint actions until transcript review', (tester) async {
+    final api = FakeApiClient();
+    final speech = PendingResidentSpeech();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'unit-1', speech: speech,
+    )));
+    await tester.enterText(find.byType(TextField), 'Existing typed question');
+    await tester.ensureVisible(find.text('Speak'));
+    await tester.tap(find.text('Speak'));
+    await tester.pump();
+    final ask = tester.widget<FilledButton>(find.ancestor(of: find.text('Ask'), matching: find.byWidgetPredicate((w) => w is FilledButton)).first);
+    final complaint = tester.widget<OutlinedButton>(find.ancestor(of: find.text('Create complaint'), matching: find.byWidgetPredicate((w) => w is OutlinedButton)).first);
+    expect(ask.onPressed, isNull);
+    expect(complaint.onPressed, isNull);
+    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+    expect(api.posts, isEmpty);
+    speech.result.complete('பராமரிப்பு கட்டணம் என்ன');
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'பராமரிப்பு கட்டணம் என்ன');
+    expect(tester.widget<FilledButton>(find.ancestor(of: find.text('Ask'), matching: find.byWidgetPredicate((w) => w is FilledButton)).first).onPressed, isNotNull);
+    expect(api.posts, isEmpty);
+  });
+
   testWidgets('assistant uses premium concise controls and hides raw fact keys', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(
