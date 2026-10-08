@@ -238,6 +238,7 @@ class AaraagateTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
+        floatingLabelStyle: TextStyle(color: scheme.onSurface),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),

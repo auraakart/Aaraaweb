@@ -512,7 +512,7 @@ class _AccessCardState extends State<_AccessCard> {
                     : FilledButton(
                         onPressed: _busy ? null : () => _run(widget.onApprove!),
                         child: _busy
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
                             : Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
                       );
                 final cancel = widget.onCancel == null

@@ -1,6 +1,7 @@
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:aaraagate_resident/data/resident_repository.dart';
 import 'package:aaraagate_resident/screens/amenities_screen.dart';
+import 'package:aaraagate_resident/theme/aaraagate_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -250,6 +251,33 @@ class _AmenityCancellationApi extends _AmenitiesApi {
 }
 
 void main() {
+  testWidgets('booking sheet date choices fit a compact phone with 200% text', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      theme: AaraagateTheme.light(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+        child: child!,
+      ),
+      home: AmenitiesScreen(
+        repository: ResidentRepository(_AmenitiesApi()),
+        unitId: 'unit-1',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Choose date & time'));
+    await tester.tap(find.text('Choose date & time'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose date'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final choice = find.byType(ChoiceChip).first;
+    expect(tester.getSize(choice).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(choice).height, greaterThanOrEqualTo(48));
+  });
+
   testWidgets('amenity sheet selects a slot and submits the selected property window', (tester) async {
     final api = _AmenitiesApi();
     await tester.pumpWidget(
