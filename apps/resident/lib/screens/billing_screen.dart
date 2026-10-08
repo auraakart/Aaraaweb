@@ -489,14 +489,15 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: AaraagateTokens.space3,
+            runSpacing: AaraagateTokens.space2,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Text(
-                  overdue ? 'Payment overdue' : 'Amount due',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: overdue ? scheme.error : scheme.onSurfaceVariant,
-                  ),
+              Text(
+                overdue ? 'Payment overdue' : 'Amount due',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: overdue ? scheme.error : scheme.onSurfaceVariant,
                 ),
               ),
               Tooltip(
@@ -555,7 +556,7 @@ class _SummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: AaraagateTokens.space1),
             Text(
-              'Secure checkout opens for the earliest due bill. A bill is marked paid only after gateway confirmation.',
+              'Pay the earliest due bill securely. Payment is confirmed by the gateway.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
                 height: 1.35,
@@ -698,7 +699,7 @@ class _ChargeLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-    const SizedBox(height: 2),
+    const SizedBox(height: 4),
     Text(_money(paise), style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800)),
   ]);
 }
@@ -797,7 +798,7 @@ class _PaymentCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: AaraagateTokens.space4, vertical: AaraagateTokens.space1),
-        leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)), child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer)),
+        leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)), child: Icon(Icons.check_rounded, color: scheme.onPrimaryContainer)),
         title: Text(_money((payment['amountPaise'] as num?)?.toInt() ?? 0), style: theme.textTheme.titleSmall),
         subtitle: Text('${payment['buildingName']} · ${payment['unitNumber']}\nInvoice ${payment['invoiceNumber']}'),
         isThreeLine: true,

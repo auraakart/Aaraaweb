@@ -14,13 +14,15 @@ void main() {
         home: MediaQuery(
           data: const MediaQueryData(textScaler: TextScaler.linear(3.0)),
           child: const Scaffold(
-            body: Padding(
+            body: SingleChildScrollView(
+              child: Padding(
               padding: EdgeInsets.all(16),
               child: PremiumSectionHeader(
                 title: 'A deliberately long resident section title',
                 supportingText: 'Supporting copy should remain readable without being squeezed by the trailing status.',
                 trailing: AaraagateStatusPill(label: '12 waiting'),
               ),
+            ),
             ),
           ),
         ),
@@ -30,6 +32,12 @@ void main() {
 
     expect(find.text('A deliberately long resident section title'), findsOneWidget);
     expect(find.text('12 waiting'), findsOneWidget);
+    final title = tester.widget<Text>(find.text('A deliberately long resident section title'));
+    expect(title.maxLines, isNull);
+    expect(title.textScaler, isNull);
+    await tester.ensureVisible(find.text('12 waiting'));
+    await tester.pumpAndSettle();
+    expect(find.text('12 waiting').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
