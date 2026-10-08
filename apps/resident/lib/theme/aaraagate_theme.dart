@@ -12,7 +12,7 @@ class AaraagateTokens {
 
   static const double radiusSmall = 12;
   static const double radiusControl = 16;
-  static const double radiusCard = 20;
+  static const double radiusCard = 16;
   static const double radiusSheet = 24;
   static const double radiusPill = 999;
 
@@ -25,6 +25,10 @@ class AaraagateTokens {
 class AaraagateMotion {
   static const Duration quick = Duration(milliseconds: 120);
   static const Duration standard = Duration(milliseconds: 220);
+  /// Respect the platform's reduced-motion preference for optional feedback.
+  static Duration duration(BuildContext context, Duration normal) =>
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : normal;
+
   static const Curve emphasized = Curves.easeOutCubic;
 }
 
@@ -33,7 +37,7 @@ class AaraagateElevation {
         BoxShadow(
           color: shadow.withValues(alpha: .06),
           blurRadius: 20,
-          offset: const Offset(0, 6),
+          offset: const Offset(0, 4),
         ),
       ];
 }
@@ -53,6 +57,8 @@ class AaraagateTheme {
       surface: Colors.white,
     ).copyWith(
       primary: brandDeep,
+      // White on brandDeep is below 4.5:1 for small button labels.
+      onPrimary: const Color(0xFF001014),
       secondary: brand,
       surface: Colors.white,
       surfaceContainerLowest: Colors.white,
@@ -61,7 +67,7 @@ class AaraagateTheme {
       surfaceContainerHigh: const Color(0xFFE8F4F6),
       surfaceContainerHighest: const Color(0xFFE1EFF2),
       onSurface: ink,
-      outline: line,
+      outline: const Color(0xFF6C858B),
       outlineVariant: const Color(0xFFE7F1F3),
     );
 
@@ -86,7 +92,7 @@ class AaraagateTheme {
       surfaceContainer: const Color(0xFF1D2D32),
       surfaceContainerHigh: const Color(0xFF24373D),
       surfaceContainerHighest: const Color(0xFF2B4148),
-      outline: const Color(0xFF385158),
+      outline: const Color(0xFF80999F),
       outlineVariant: const Color(0xFF293E44),
     );
 
@@ -113,15 +119,15 @@ class AaraagateTheme {
       dividerColor: divider,
       textTheme: baseText.copyWith(
         headlineMedium: baseText.headlineMedium?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.6,
         ),
         headlineSmall: baseText.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.4,
         ),
         titleLarge: baseText.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
         titleMedium: baseText.titleMedium?.copyWith(
@@ -194,7 +200,7 @@ class AaraagateTheme {
             AaraagateTokens.minTouchTarget,
             AaraagateTokens.primaryActionHeight,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
           ),
@@ -203,12 +209,12 @@ class AaraagateTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: scheme.primary,
+          foregroundColor: scheme.onSurface,
           minimumSize: const Size(
             AaraagateTokens.minTouchTarget,
             AaraagateTokens.primaryActionHeight,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           side: BorderSide(color: scheme.outline),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
@@ -218,6 +224,7 @@ class AaraagateTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          foregroundColor: scheme.onSurface,
           minimumSize: const Size(
             AaraagateTokens.minTouchTarget,
             AaraagateTokens.minTouchTarget,
@@ -231,14 +238,15 @@ class AaraagateTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
+        floatingLabelStyle: TextStyle(color: scheme.onSurface),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderSide: BorderSide(color: scheme.outline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderSide: BorderSide(color: scheme.outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),

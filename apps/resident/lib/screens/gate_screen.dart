@@ -85,7 +85,7 @@ class GateScreen extends StatelessWidget {
                   strings: strings,
                   onCancel: request['status'] == 'APPROVED' && request['subjectType'] == 'VISITOR' ? () => _cancel(context, request) : null,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AaraagateTokens.space3),
               ],
           ],
         ),
@@ -228,13 +228,13 @@ class GateScreen extends StatelessWidget {
               Text(strings.text('visitorPassReady'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 4),
               Text(visitor, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
                 child: Semantics(label: strings.text('visitorQr'), child: QrImageView(data: credential, version: QrVersions.auto, size: 210)),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               SelectableText(credential, textAlign: TextAlign.center, style: theme.textTheme.titleSmall?.copyWith(fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.2)),
               if (validUntil != null) ...[
                 const SizedBox(height: 8),
@@ -323,7 +323,7 @@ class _GuestInviteSheetState extends State<_GuestInviteSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(strings.text('inviteTitle'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(strings.text('inviteSubtitle'), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             const SizedBox(height: 20),
             TextFormField(
@@ -403,7 +403,7 @@ class _Metric extends StatelessWidget {
       label: '$label $value',
       child: Column(children: [
         Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 2),
+        const SizedBox(height: AaraagateTokens.space1),
         Text(label, style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
       ]),
     );
@@ -476,59 +476,21 @@ class _AccessCardState extends State<_AccessCard> {
         elevated: widget.prominent,
         color: widget.prominent ? scheme.surface : scheme.surfaceContainerLow,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final scale = MediaQuery.textScalerOf(context).scale(1);
-              final stacked = constraints.maxWidth < 420 || scale > 1.3;
-              final identity = Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(16)),
-                    child: Icon(icon, color: scheme.onPrimaryContainer),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(detail.isEmpty ? type : '$type · $detail', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                    ]),
-                  ),
-                ],
-              );
-              final statusPill = AaraagateStatusPill(
-                label: status,
-                tone: _accessStatusTone(request['status']?.toString()),
-              );
-              if (stacked) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    identity,
-                    const SizedBox(height: 8),
-                    Align(alignment: Alignment.centerLeft, child: statusPill),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: identity),
-                  const SizedBox(width: 8),
-                  statusPill,
-                ],
-              );
-            },
+          PremiumIdentityHeader(
+            icon: icon,
+            title: title,
+            supportingText: detail.isEmpty ? type : '$type · $detail',
+            status: AaraagateStatusPill(
+              label: status,
+              tone: _accessStatusTone(request['status']?.toString()),
+            ),
           ),
           if (approvalHint != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AaraagateTokens.space3),
             Text(approvalHint, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ],
           if (validUntil != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AaraagateTokens.space3),
             Text(
               strings.format('validUntil', {'time': _formatDateTime(validUntil.toLocal())}),
               style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
@@ -550,7 +512,7 @@ class _AccessCardState extends State<_AccessCard> {
                     : FilledButton(
                         onPressed: _busy ? null : () => _run(widget.onApprove!),
                         child: _busy
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
                             : Text(rawType == 'CAB' || rawType == 'DELIVERY' ? strings.text('allowEntry') : strings.text('allow')),
                       );
                 final cancel = widget.onCancel == null
@@ -562,13 +524,13 @@ class _AccessCardState extends State<_AccessCard> {
                             : const Icon(Icons.close_rounded),
                         label: Text(strings.text('cancelPass')),
                       );
-                if (constraints.maxWidth < 420 || scale > 1.3) {
+                if (constraints.maxWidth < 300 || scale > 1.1) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (deny != null) deny,
-                      if (deny != null && approve != null) const SizedBox(height: 8),
                       if (approve != null) approve,
+                      if (deny != null && approve != null) const SizedBox(height: 8),
+                      if (deny != null) deny,
                       if ((deny != null || approve != null) && cancel != null) const SizedBox(height: 8),
                       if (cancel != null) cancel,
                     ],

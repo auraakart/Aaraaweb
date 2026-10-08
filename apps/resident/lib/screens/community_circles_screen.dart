@@ -97,7 +97,7 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, AaraagateTokens.space8),
           children: [
-            Text('Opt-in resident circles', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text('Opt-in resident circles', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: AaraagateTokens.space1),
             Text('Join the society-managed groups you want. Sender names and flat numbers are visible only to joined circle members.', style: theme.textTheme.bodyMedium),
             const SizedBox(height: AaraagateTokens.space4),
@@ -127,47 +127,38 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Container(
-                            width: AaraagateTokens.iconContainer,
-                            height: AaraagateTokens.iconContainer,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall)),
-                            child: Icon(Icons.groups_2_outlined, color: theme.colorScheme.onPrimaryContainer),
-                          ),
-                          const SizedBox(width: AaraagateTokens.space3),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(circle['name']?.toString() ?? 'Community circle', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                            Text('${circle['memberCount'] ?? 0} joined · ${circle['postCount'] ?? 0} posts${closed ? ' · Closed' : ''}', style: theme.textTheme.bodySmall),
-                          ])),
-                        ]),
-                        if (circle['expiresAt'] != null) Text('Deletes automatically: ${circleDeletionLabel(circle['expiresAt'].toString())}', style: theme.textTheme.bodySmall),
+                        PremiumIdentityHeader(
+                          icon: Icons.groups_2_outlined,
+                          title: circle['name']?.toString() ?? 'Community circle',
+                          supportingText: '${circle['memberCount'] ?? 0} joined · ${circle['postCount'] ?? 0} posts',
+                          status: closed ? const AaraagateStatusPill(label: 'Closed') : null,
+                        ),
+                        if (circle['expiresAt'] != null) ...[
+                          const SizedBox(height: AaraagateTokens.space2),
+                          Text('Deletes automatically: ${circleDeletionLabel(circle['expiresAt'].toString())}', style: theme.textTheme.bodySmall),
+                        ],
                         if ((circle['description']?.toString() ?? '').isNotEmpty) ...[
                           const SizedBox(height: AaraagateTokens.space3),
                           Text(circle['description'].toString()),
                         ],
                         const SizedBox(height: AaraagateTokens.space3),
-                        Row(children: [
-                          if (joined)
-                            Expanded(child: FilledButton.tonalIcon(
-                              onPressed: () => _open(circle),
-                              icon: const Icon(Icons.forum_outlined),
-                              label: const Text('OPEN CIRCLE'),
-                            ))
-                          else
-                            Expanded(child: FilledButton.icon(
-                              onPressed: closed || busyCircleId == id ? null : () => _membership(circle, true),
-                              icon: const Icon(Icons.group_add_outlined),
-                              label: Text(busyCircleId == id ? 'JOINING…' : 'JOIN'),
-                            )),
-                          if (joined) ...[
-                            const SizedBox(width: AaraagateTokens.space2),
-                            OutlinedButton(
-                              onPressed: busyCircleId == id ? null : () => _membership(circle, false),
-                              child: Text(busyCircleId == id ? 'LEAVING…' : 'LEAVE'),
-                            ),
-                          ],
-                        ]),
+                        PremiumActionGroup(
+                          primary: joined
+                            ? FilledButton.tonalIcon(
+                                onPressed: () => _open(circle),
+                                icon: const Icon(Icons.forum_outlined),
+                                label: const Text('OPEN CIRCLE'),
+                              )
+                            : FilledButton.icon(
+                                onPressed: closed || busyCircleId == id ? null : () => _membership(circle, true),
+                                icon: const Icon(Icons.group_add_outlined),
+                                label: Text(busyCircleId == id ? 'JOINING…' : 'JOIN'),
+                              ),
+                          secondary: joined ? OutlinedButton(
+                            onPressed: busyCircleId == id ? null : () => _membership(circle, false),
+                            child: Text(busyCircleId == id ? 'LEAVING…' : 'LEAVE'),
+                          ) : null,
+                        ),
                       ],
                     ),
                   ),
@@ -258,57 +249,74 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final introduction = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(widget.closed ? 'This circle is closed and read-only.' : 'Sender names and flat numbers are visible to joined circle members. Report inappropriate messages for manager review.', style: theme.textTheme.bodySmall),
+      if (widget.expiresAt != null) Text('This circle and its messages delete on ${circleDeletionLabel(widget.expiresAt!)}.'),
+      const SizedBox(height: AaraagateTokens.space3),
+    ]);
     return SafeArea(
       child: FractionallySizedBox(
         heightFactor: .9,
         child: Padding(
           padding: EdgeInsets.fromLTRB(AaraagateTokens.pageGutter, AaraagateTokens.space4, AaraagateTokens.pageGutter, MediaQuery.viewInsetsOf(context).bottom + AaraagateTokens.space4),
-          child: Column(
+          child: LayoutBuilder(builder: (context, constraints) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(widget.name, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: AaraagateTokens.space1),
-              Text(widget.closed ? 'This circle is closed and read-only.' : 'Sender names and flat numbers are visible to joined circle members. Report inappropriate messages for manager review.', style: theme.textTheme.bodySmall),
-              if (widget.expiresAt != null) Text('This circle and its messages delete on ${circleDeletionLabel(widget.expiresAt!)}.'),
-              const SizedBox(height: AaraagateTokens.space3),
-              Expanded(
-                child: loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : error != null
-                        ? Center(child: Text(error!))
-                        : posts.isEmpty
-                            ? const Center(child: Text('No messages yet.'))
-                            : ListView.builder(
-                                controller: _messagesScrollController,
-                                itemCount: posts.length,
-                                itemBuilder: (context, index) {
-                                  final post = posts[index];
-                                  final mine = post['mine'] == true;
-                                  final at = DateTime.tryParse(post['createdAt']?.toString() ?? '')?.toLocal();
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(mine ? Icons.person_outline : Icons.groups_outlined),
-                                    title: Text(post['body']?.toString() ?? ''),
-                                    subtitle: Text('${circleSenderLabel(post)}${at == null ? '' : ' · ${at.day}/${at.month} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}'}'),
-                                    trailing: IconButton(tooltip: 'Report message', icon: const Icon(Icons.flag_outlined), onPressed: () => showDialog<bool>(context: context, builder: (_) => _CircleActionDialog(repository: widget.repository, circleId: widget.circleId, postId: post['id'].toString()))),
-                                  );
-                                },
-                              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: constraints.maxHeight * .2),
+                child: SingleChildScrollView(child: Text(widget.name, style: theme.textTheme.titleLarge)),
               ),
-              if (!widget.closed) ...[
-                const Divider(),
-                TextField(
-                  controller: _body,
-                  enabled: !busy,
-                  minLines: 1,
-                  maxLines: 4,
-                  maxLength: 1000,
-                  decoration: const InputDecoration(labelText: 'Post to circle', border: OutlineInputBorder()),
+              const SizedBox(height: AaraagateTokens.space2),
+              Expanded(
+                child: ListView.builder(
+                  controller: _messagesScrollController,
+                  itemCount: 1 + (loading || error != null || posts.isEmpty ? 1 : posts.length),
+                  itemBuilder: (context, index) {
+                    if (index == 0) return introduction;
+                    if (loading) return const AppStateCard(icon: Icons.sync_rounded, message: 'Loading circle messages…', loading: true);
+                    if (error != null) return AppStateCard(icon: Icons.cloud_off_outlined, message: error!, actionLabel: 'Retry', onAction: _load);
+                    if (posts.isEmpty) return const AppStateCard(icon: Icons.forum_outlined, message: 'No messages yet.');
+                    final post = posts[index - 1];
+                    final mine = post['mine'] == true;
+                    final at = DateTime.tryParse(post['createdAt']?.toString() ?? '')?.toLocal();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AaraagateTokens.space3),
+                      child: PremiumSurface(
+                        color: mine ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerLow,
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(post['body']?.toString() ?? '', style: theme.textTheme.bodyLarge?.copyWith(
+                            color: mine ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.onSurface,
+                          )),
+                          const SizedBox(height: AaraagateTokens.space2),
+                          Text('${circleSenderLabel(post)}${at == null ? '' : ' · ${at.day}/${at.month} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}'}', style: theme.textTheme.bodySmall?.copyWith(
+                            color: mine ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.onSurfaceVariant,
+                          )),
+                          Align(alignment: Alignment.centerRight, child: IconButton(
+                            tooltip: 'Report message', icon: const Icon(Icons.flag_outlined),
+                            onPressed: () => showDialog<bool>(context: context, builder: (_) => _CircleActionDialog(repository: widget.repository, circleId: widget.circleId, postId: post['id'].toString())),
+                          )),
+                        ]),
+                      ),
+                    );
+                  },
                 ),
-                FilledButton.icon(onPressed: busy ? null : _post, icon: const Icon(Icons.send_outlined), label: Text(busy ? 'POSTING…' : 'POST')),
-              ],
+              ),
+              if (!widget.closed)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: constraints.maxHeight * .45),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Flexible(child: SingleChildScrollView(child: Column(children: [
+                      const Divider(),
+                      TextField(
+                        controller: _body, enabled: !busy, minLines: 1, maxLines: 4, maxLength: 1000,
+                        decoration: const InputDecoration(labelText: 'Post to circle'),
+                      ),
+                    ]))),
+                    FilledButton.icon(onPressed: busy ? null : _post, icon: const Icon(Icons.send_outlined), label: Text(busy ? 'POSTING…' : 'POST')),
+                  ]),
+                ),
             ],
-          ),
+          )),
         ),
       ),
     );

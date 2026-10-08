@@ -39,11 +39,11 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
     final scheme = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(AaraagateTokens.radiusCard);
     final surface = AnimatedScale(
-      scale: widget.onTap != null && _pressed ? .985 : 1,
-      duration: AaraagateMotion.quick,
+      scale: widget.onTap != null && _pressed && !MediaQuery.disableAnimationsOf(context) ? .985 : 1,
+      duration: AaraagateMotion.duration(context, AaraagateMotion.quick),
       curve: AaraagateMotion.emphasized,
       child: AnimatedContainer(
-        duration: AaraagateMotion.standard,
+        duration: AaraagateMotion.duration(context, AaraagateMotion.standard),
         curve: AaraagateMotion.emphasized,
         decoration: BoxDecoration(
           color: widget.color ?? (widget.elevated ? scheme.surface : scheme.surfaceContainerLow),
@@ -60,7 +60,13 @@ class _PremiumSurfaceState extends State<PremiumSurface> {
             onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
             onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
             borderRadius: radius,
-            child: Padding(padding: widget.padding, child: widget.child),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: widget.onTap == null ? 0 : AaraagateTokens.minTouchTarget,
+                minWidth: widget.onTap == null ? 0 : AaraagateTokens.minTouchTarget,
+              ),
+              child: Padding(padding: widget.padding, child: widget.child),
+            ),
           ),
         ),
       ),
@@ -111,11 +117,9 @@ class PremiumPageIntro extends StatelessWidget {
               if (eyebrow != null) ...[
                 Text(
                   eyebrow!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: .2,
                   ),
                 ),
@@ -123,15 +127,11 @@ class PremiumPageIntro extends StatelessWidget {
               ],
               Text(
                 title,
-                maxLines: scale > 1.3 ? 3 : 2,
-                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: AaraagateTokens.space1),
               Text(
                 supportingText,
-                maxLines: scale > 1.3 ? 5 : 3,
-                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                   height: 1.45,
@@ -173,6 +173,7 @@ class PremiumPageIntro extends StatelessWidget {
 
 /// Consistent section heading for scan-friendly resident screens.
 /// Keeps headings quiet enough that the screen title remains dominant.
+/// Use in a scrolling page: essential copy grows with the user's text setting.
 class PremiumSectionHeader extends StatelessWidget {
   const PremiumSectionHeader({
     super.key,
@@ -193,18 +194,12 @@ class PremiumSectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
           style: theme.textTheme.titleMedium,
         ),
         if (supportingText != null) ...[
           const SizedBox(height: AaraagateTokens.space1),
           Text(
             supportingText!,
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            textScaler: TextScaler.linear(MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8).toDouble()),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               height: 1.35,
@@ -272,20 +267,18 @@ class PremiumQuickAction extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: scheme.primary.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
               ),
-              child: Icon(icon, color: scheme.primary, size: 22),
+              child: Icon(icon, color: scheme.primary, size: 24),
             ),
             const SizedBox(width: AaraagateTokens.space3),
             Expanded(
               child: Text(
                 label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelLarge,
               ),
             ),
@@ -314,17 +307,18 @@ class AaraagateStatusPill extends StatelessWidget {
     };
     return Semantics(
       label: 'Status: $label',
+      excludeSemantics: true,
       child: AnimatedContainer(
-        duration: AaraagateMotion.standard,
+        duration: AaraagateMotion.duration(context, AaraagateMotion.standard),
         curve: AaraagateMotion.emphasized,
         constraints: const BoxConstraints(minHeight: 28),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: colors.$1,
           borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
         ),
         child: AnimatedSwitcher(
-          duration: AaraagateMotion.quick,
+          duration: AaraagateMotion.duration(context, AaraagateMotion.quick),
           switchInCurve: AaraagateMotion.emphasized,
           switchOutCurve: AaraagateMotion.emphasized,
           child: Text(
@@ -332,11 +326,93 @@ class AaraagateStatusPill extends StatelessWidget {
             key: ValueKey(label),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: colors.$2,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Identity stays readable while secondary status wraps below the copy.
+/// Used for arrivals and facilities instead of competing trailing columns.
+class PremiumIdentityHeader extends StatelessWidget {
+  const PremiumIdentityHeader({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.supportingText,
+    this.status,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? supportingText;
+  final Widget? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: AaraagateTokens.iconContainer,
+          height: AaraagateTokens.iconContainer,
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+          ),
+          child: Icon(icon, color: scheme.onPrimaryContainer),
+        ),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              if (supportingText != null && supportingText!.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(supportingText!, style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                )),
+              ],
+              if (status != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                status!,
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Keeps primary and secondary actions usable at narrow widths or large type.
+class PremiumActionGroup extends StatelessWidget {
+  const PremiumActionGroup({super.key, required this.primary, this.secondary});
+  final Widget primary;
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (secondary == null) return SizedBox(width: double.infinity, child: primary);
+      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          primary,
+          const SizedBox(height: AaraagateTokens.space2),
+          secondary!,
+        ]);
+      }
+      return Row(children: [
+        Expanded(child: secondary!),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(flex: 2, child: primary),
+      ]);
+    },
+  );
 }
