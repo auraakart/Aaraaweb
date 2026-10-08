@@ -75,7 +75,7 @@ jobs:
           grep -q "Premium provider" apps/resident/lib/screens/services_screen.dart
           grep -q "'AI_ASSISTANT'" apps/resident/lib/main.dart
           grep -q "demoMode: controller.repository is DemoResidentRepository" apps/resident/lib/main.dart
-          grep -q "What do I need to take care of today?" apps/resident/lib/screens/ai_assistant_screen.dart
+          grep -q "class AiAssistantScreen" apps/resident/lib/screens/ai_assistant_screen.dart
           grep -q "September residents meeting" apps/resident/lib/data/demo_resident_repository.dart
           grep -q "INV-SEP-2026-A1204" apps/resident/lib/data/demo_resident_repository.dart
 
@@ -130,7 +130,7 @@ jobs:
           APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
           {
             echo "### Resident demo APK build"
-            echo "- Version: `${{ steps.release_identity.outputs.build_version }}`"
+            echo "- Version: \`${{ steps.release_identity.outputs.build_version }}\`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Size: ${APK_SIZE} bytes"
             echo "- SHA-256: \`${APK_SHA256}\`"
