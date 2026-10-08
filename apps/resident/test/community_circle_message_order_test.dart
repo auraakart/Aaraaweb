@@ -24,5 +24,23 @@ void main() {
 
     expect(posts.last['body'], 'Latest message');
     expect(posts.last['mine'], isTrue);
+    expect(posts.last['senderName'], isNotEmpty);
+    expect(posts.last['senderFlat'], 'B · 302');
+  });
+  test('sender labels include the name and flat number', () {
+    expect(circleSenderLabel({'senderName': 'Arun Kumar', 'senderFlat': 'A · 204'}), 'Arun Kumar · A · 204');
+    expect(circleSenderLabel({'senderName': 'Priya Sharma', 'senderFlat': 'B · 302', 'mine': true}), 'You (Priya Sharma) · B · 302');
+  });
+  test('demo requests remain pending without publishing', () async {
+    final repository = DemoResidentRepository();
+    await repository.requestCommunityCircle(name: 'Walking neighbours');
+    expect((await repository.communityCircleRequests()).single['status'], 'PENDING');
+    expect((await repository.communityCircles()).any((circle) => circle['name'] == 'Walking neighbours'), isFalse);
+  });
+  test('demo reporting requires membership', () async {
+    final repository = DemoResidentRepository();
+    await repository.reportCommunityCirclePost(circleId: 'demo-circle-1', postId: 'demo-circle-post-1', reason: 'Inappropriate content');
+    await repository.leaveCommunityCircle('demo-circle-1');
+    await expectLater(repository.reportCommunityCirclePost(circleId: 'demo-circle-1', postId: 'demo-circle-post-1', reason: 'Inappropriate content'), throwsStateError);
   });
 }
