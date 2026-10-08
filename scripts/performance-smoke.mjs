@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { writeFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 
 const base=(process.env.AARAAGATE_PERF_BASE_URL??'http://127.0.0.1:3000').replace(/\/$/,'');
 const accessToken=process.env.AARAAGATE_PERF_ACCESS_TOKEN??'aaraagate-perf-access-token-local-ci';
@@ -19,11 +20,11 @@ const percentile=(values,p)=>{
   return sorted[index];
 };
 
-async function hit(scenario){
+async function hit(scenario,baseUrl,requestTimeoutMs){
   const started=performance.now();
   let status=0;
   try{
-    const response=await fetch(`${base}${scenario.path}`,{headers:{Accept:'application/json',...scenario.headers}});
+    const response=await fetch(`${baseUrl}${scenario.path}`,{headers:{Accept:'application/json',...scenario.headers},signal:AbortSignal.timeout(requestTimeoutMs)});
     status=response.status;
     await response.arrayBuffer();
     return {ok:response.ok,status,ms:performance.now()-started};
@@ -32,10 +33,17 @@ async function hit(scenario){
   }
 }
 
-async function runScenario(scenario){
+export async function runScenario(scenario,{baseUrl=base,requestTimeoutMs=10000}={}){
+  if(!Number.isInteger(requestTimeoutMs)||requestTimeoutMs<1)throw new Error('Invalid request deadline');
+  const warmupStarted=performance.now();
   for(let i=0;i<scenario.warmup;i+=1){
-    const result=await hit(scenario);
-    if(!result.ok)throw new Error(`${scenario.name} warmup failed with status ${result.status}: ${result.error??'HTTP failure'}`);
+    const result=await hit(scenario,baseUrl,requestTimeoutMs);
+    if(!result.ok)return {
+      summary:{name:scenario.name,phase:'warmup',warmupCompleted:i,warmupFailures:1,
+        requests:0,successes:0,failures:0,requestTimeoutMs,
+        elapsedMs:Number((performance.now()-warmupStarted).toFixed(2)),status:result.status},
+      problems:[`warmup failed with status ${result.status}`],
+    };
   }
 
   const durations=[];
@@ -47,7 +55,7 @@ async function runScenario(scenario){
     while(true){
       const index=cursor++;
       if(index>=scenario.requests)return;
-      const result=await hit(scenario);
+      const result=await hit(scenario,baseUrl,requestTimeoutMs);
       durations.push(result.ms);
       if(!result.ok)failures+=1;
     }
@@ -59,6 +67,8 @@ async function runScenario(scenario){
   const rps=(scenario.requests/(elapsedMs/1000));
   const summary={
     name:scenario.name,
+    phase:'measured',
+    requestTimeoutMs,
     requests:scenario.requests,
     concurrency:scenario.concurrency,
     successes:success,
@@ -80,27 +90,36 @@ async function runScenario(scenario){
   return {summary,problems};
 }
 
-const results=[];
-const failures=[];
-for(const scenario of scenarios){
-  const result=await runScenario(scenario);
-  results.push(result.summary);
-  for(const problem of result.problems)failures.push(`${scenario.name}: ${problem}`);
-  console.log(JSON.stringify(result.summary));
+export async function runBenchmark({baseUrl=base,outputPath=output,benchmarkScenarios=scenarios,requestTimeoutMs=10000}={}){
+  const results=[];
+  const failures=[];
+  for(const scenario of benchmarkScenarios){
+    const result=await runScenario(scenario,{baseUrl,requestTimeoutMs});
+    results.push(result.summary);
+    for(const problem of result.problems)failures.push(`${scenario.name}: ${problem}`);
+    console.log(JSON.stringify(result.summary));
+  }
+
+  const evidence={
+    generatedAt:new Date().toISOString(),
+    baseUrl,
+    environment:'repository-ci-production-mode',
+    claimBoundary:'Regression evidence only; not a production capacity or SLA certification.',
+    scenarios:results,
+    passed:failures.length===0,
+    failures,
+  };
+  await writeFile(outputPath,JSON.stringify(evidence,null,2));
+  if(failures.length){
+    console.error('Performance regression gate failed:\n'+failures.map(x=>`- ${x}`).join('\n'));
+    return evidence;
+  }
+  console.log(`Performance regression gate passed. Evidence: ${outputPath}`);
+
+  return evidence;
 }
 
-const evidence={
-  generatedAt:new Date().toISOString(),
-  baseUrl:base,
-  environment:'repository-ci-production-mode',
-  claimBoundary:'Regression evidence only; not a production capacity or SLA certification.',
-  scenarios:results,
-  passed:failures.length===0,
-  failures,
-};
-await writeFile(output,JSON.stringify(evidence,null,2));
-if(failures.length){
-  console.error('Performance regression gate failed:\n'+failures.map(x=>`- ${x}`).join('\n'));
-  process.exit(1);
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+  const evidence=await runBenchmark();
+  if(!evidence.passed)process.exitCode=1;
 }
-console.log(`Performance regression gate passed. Evidence: ${output}`);
