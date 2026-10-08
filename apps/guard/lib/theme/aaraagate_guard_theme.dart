@@ -10,7 +10,7 @@ class AaraagateGuardTokens {
   static const double space8 = 32;
   static const double radiusSmall = 12;
   static const double radiusControl = 16;
-  static const double radiusCard = 20;
+  static const double radiusCard = 16;
   static const double radiusSheet = 24;
   static const double radiusPill = 999;
   static const double minTouchTarget = 56;
@@ -20,6 +20,8 @@ class AaraagateGuardTokens {
 class AaraagateGuardMotion {
   static const Duration quick = Duration(milliseconds: 110);
   static const Duration standard = Duration(milliseconds: 200);
+  static Duration duration(BuildContext context, Duration normal) =>
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : normal;
   static const Curve emphasized = Curves.easeOutCubic;
 }
 
@@ -28,7 +30,7 @@ class AaraagateGuardElevation {
         BoxShadow(
           color: shadow.withValues(alpha: .07),
           blurRadius: 20,
-          offset: const Offset(0, 6),
+          offset: const Offset(0, 4),
         ),
       ];
 }
@@ -50,6 +52,7 @@ class AaraagateGuardTheme {
       surface: Colors.white,
     ).copyWith(
       primary: brandDeep,
+      onPrimary: const Color(0xFF001014),
       secondary: brand,
       surface: Colors.white,
       surfaceContainerLowest: Colors.white,
@@ -57,7 +60,7 @@ class AaraagateGuardTheme {
       surfaceContainer: const Color(0xFFF0F8F9),
       surfaceContainerHigh: const Color(0xFFE7F3F5),
       onSurface: ink,
-      outline: line,
+      outline: const Color(0xFF6C858B),
       outlineVariant: const Color(0xFFE7F1F3),
     );
     return _build(scheme: scheme, scaffoldBackground: canvas, divider: line);
@@ -76,7 +79,7 @@ class AaraagateGuardTheme {
       surfaceContainerLow: const Color(0xFF18262B),
       surfaceContainer: const Color(0xFF1D2D32),
       surfaceContainerHigh: const Color(0xFF24373D),
-      outline: const Color(0xFF385158),
+      outline: const Color(0xFF80999F),
       outlineVariant: const Color(0xFF293E44),
     );
     return _build(
@@ -100,10 +103,10 @@ class AaraagateGuardTheme {
       scaffoldBackgroundColor: scaffoldBackground,
       dividerColor: divider,
       textTheme: baseText.copyWith(
-        headlineSmall: baseText.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.4),
-        titleLarge: baseText.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        titleMedium: baseText.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        labelLarge: baseText.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        headlineSmall: baseText.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -.4),
+        titleLarge: baseText.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        titleMedium: baseText.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        labelLarge: baseText.labelLarge?.copyWith(fontWeight: FontWeight.w700),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: scaffoldBackground,
@@ -135,23 +138,24 @@ class AaraagateGuardTheme {
           backgroundColor: scheme.primary,
           foregroundColor: scheme.onPrimary,
           minimumSize: const Size(AaraagateGuardTokens.minTouchTarget, AaraagateGuardTokens.primaryActionHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl)),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: scheme.primary,
+          foregroundColor: scheme.onSurface,
           minimumSize: const Size(AaraagateGuardTokens.minTouchTarget, AaraagateGuardTokens.minTouchTarget),
           side: BorderSide(color: scheme.outline),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          foregroundColor: scheme.onSurface,
           minimumSize: const Size(
             AaraagateGuardTokens.minTouchTarget,
             AaraagateGuardTokens.minTouchTarget,
@@ -159,20 +163,21 @@ class AaraagateGuardTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusSmall),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
+        floatingLabelStyle: TextStyle(color: scheme.onSurface),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl),
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderSide: BorderSide(color: scheme.outline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl),
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderSide: BorderSide(color: scheme.outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AaraagateGuardTokens.radiusControl),
@@ -192,7 +197,7 @@ class AaraagateGuardTheme {
         ),
         secondaryLabelStyle: TextStyle(
           color: scheme.onPrimaryContainer,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(

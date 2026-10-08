@@ -69,7 +69,7 @@ for (const width of [360, 768, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await expect(page.getByRole('main')).toHaveCount(1)
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
-    for (const button of await page.getByRole('button').all()) expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44)
+    for (const button of await page.getByRole('button').all()) expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(48)
     await page.screenshot({ path: testInfo.outputPath(`admin-ui-${width}.png`), fullPage: true })
   })
 }

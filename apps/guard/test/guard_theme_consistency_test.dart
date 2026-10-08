@@ -13,7 +13,7 @@ void main() {
 
     expect(AaraagateGuardTokens.radiusSmall, 12);
     expect(AaraagateGuardTokens.radiusControl, 16);
-    expect(AaraagateGuardTokens.radiusCard, 20);
+    expect(AaraagateGuardTokens.radiusCard, 16);
     expect(AaraagateGuardTokens.radiusSheet, 24);
     expect(AaraagateGuardTokens.minTouchTarget, 56);
     expect(AaraagateGuardTokens.primaryActionHeight, 64);

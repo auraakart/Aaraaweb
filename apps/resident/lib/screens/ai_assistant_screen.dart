@@ -94,6 +94,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Future<void> _ask() async {
+    if (_busy || _listening) return;
     final message = _controller.text.trim();
     if (message.length < 2) return;
     setState(() {
@@ -170,6 +171,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Future<void> _draftComplaint() async {
+    if (_busy || _listening) return;
     final message = _controller.text.trim();
     final unitId = widget.unitId;
     if (message.length < 5 || unitId == null) return;
@@ -243,7 +245,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         child: DropdownButton<String>(
           value: _voiceLanguage,
           isExpanded: true,
-          onChanged: _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
+          onChanged: _busy || _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
           items: [
             for (final entry in ResidentVoiceCopy.languageLabels.entries)
               DropdownMenuItem(value: entry.key, child: Text(entry.value)),
@@ -283,7 +285,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ActionChip(
                 avatar: Icon(action.icon, size: 18, color: scheme.primary),
                 label: Text(action.label),
-                onPressed: _busy
+                onPressed: _busy || _listening
                     ? null
                     : () {
                         setState(() {
@@ -333,15 +335,18 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      _listening ? Icons.hearing_rounded : Icons.check_circle_outline_rounded,
+                      _listening ? Icons.hearing_rounded : Icons.info_outline_rounded,
                       size: 18,
                       color: scheme.primary,
                     ),
                     const SizedBox(width: AaraagateTokens.space2),
                     Expanded(
-                      child: Text(
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
                         _voiceStatus!,
                         style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
                       ),
                     ),
                   ],
@@ -350,6 +355,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               const SizedBox(height: AaraagateTokens.space3),
               TextField(
                 controller: _controller,
+                readOnly: _listening || _busy,
                 onChanged: (_) {
                   if (_proposal?['status']?.toString() == 'PROPOSED') {
                     setState(_clearPendingProposal);
@@ -366,7 +372,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _busy ? null : _ask,
+                  onPressed: _busy || _listening ? null : _ask,
                   icon: const Icon(Icons.send_rounded),
                   label: Text(_busy ? 'Checking…' : 'Ask'),
                 ),
@@ -376,7 +382,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _draftComplaint,
+                    onPressed: _busy || _listening ? null : _draftComplaint,
                     icon: const Icon(Icons.edit_note_rounded),
                     label: const Text('Create complaint'),
                   ),
@@ -433,7 +439,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary, size: 21),
               ),
               const SizedBox(width: AaraagateTokens.space3),
-              Text('Answer', style: theme.textTheme.titleMedium),
+              Expanded(child: Text('Answer', style: theme.textTheme.titleMedium)),
             ],
           ),
           const SizedBox(height: AaraagateTokens.space3),
@@ -455,19 +461,17 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   Widget _proposalCard() {
     final status = _proposal!['status']?.toString() ?? 'PROPOSED';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+    return PremiumSurface(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Review complaint before submitting',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(status == 'PROPOSED' ? 'Ready for your review' : status == 'EXECUTED' || status == 'CONFIRMED' ? 'Complaint submitted' : status == 'CANCELLED' ? 'Complaint cancelled' : 'Status: $status'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               widget.demoMode
                   ? 'Demo safeguard: this simulates review and confirmation and does not submit external data.'
@@ -487,27 +491,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 Text('Category: ${_proposal!['category']}'),
               if ((_proposal!['priority']?.toString().trim().isNotEmpty ?? false))
                 Text('Priority: ${_proposal!['priority']}'),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _busy ? null : () => _proposalAction(false),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _busy ? null : () => _proposalAction(true),
-                      child: const Text('Confirm complaint'),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              PremiumActionGroup(
+                primary: FilledButton(
+                  onPressed: _busy ? null : () => _proposalAction(true),
+                  child: const Text('Confirm complaint'),
+                ),
+                secondary: OutlinedButton(
+                  onPressed: _busy ? null : () => _proposalAction(false),
+                  child: const Text('Cancel'),
+                ),
               ),
             ],
           ],
-        ),
       ),
     );
   }

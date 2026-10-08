@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../data/resident_error_message.dart';
+import '../theme/aaraagate_theme.dart';
+import '../widgets/premium_ui.dart';
+import '../widgets/app_state_card.dart';
 import '../data/push_registration_service.dart';
 import '../data/resident_repository.dart';
 import 'consumer_booking_screen.dart';
@@ -21,6 +25,8 @@ class IndependentServicesScreen extends StatefulWidget {
 
 class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   bool _loading = true;
+  int _loadGeneration = 0;
+  int _favoriteRevision = 0;
   String? _error;
   List<Map<String, dynamic>> _categories = const [];
   List<Map<String, dynamic>> _offerings = const [];
@@ -100,51 +106,51 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     await widget.onSignOut?.call();
   }
 
+  Future<List<Map<String, dynamic>>> _rows(String path, {bool optional = false}) async {
+    try {
+      final raw = await widget.apiClient.get(path).timeout(Duration(seconds: optional ? 8 : 20));
+      return (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+    } catch (_) {
+      if (optional) return const [];
+      rethrow;
+    }
+  }
+
+  Map<String, dynamic> _withTrust(Map<String, dynamic> offering, Map<String, Map<String, dynamic>> trustByProvider) {
+    final provider = Map<String, dynamic>.from(offering['provider'] as Map? ?? const {});
+    final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
+    final trust = trustByProvider[providerId];
+    if (provider['societyRatingAverage'] is num) {
+      provider['ratingAverage'] = provider['societyRatingAverage'];
+      provider['ratingCount'] = provider['societyRatingCount'];
+      provider['completedJobs'] = provider['societyCompletedJobs'];
+    } else if (trust != null) {
+      provider['ratingAverage'] = trust['averageStars'];
+      provider['ratingCount'] = trust['ratingCount'];
+      provider['completedJobs'] = trust['completedJobs'];
+    }
+    return {...offering, 'provider': provider};
+  }
+
   Future<void> _load([String? categoryId]) async {
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
       _error = null;
       _selectedCategoryId = categoryId;
+      _offerings = const [];
+      _communityDeals = const [];
     });
     try {
-      final categoriesRaw = await widget.apiClient.get('/api/v1/consumer/services/categories');
-      final locationsRaw = await widget.apiClient.get('/api/v1/consumer/services/locations');
-      List<dynamic> trustRaw = const [];
-      List<dynamic> favoritesRaw = const [];
-      List<dynamic> recentProvidersRaw = const [];
-      try {
-        final raw = await widget.apiClient.get('/api/v1/consumer/services/providers/trust');
-        trustRaw = raw as List<dynamic>? ?? const [];
-      } catch (_) {
-        // Trust metadata is informational and must never block discovery.
-      }
-      try {
-        final raw = await widget.apiClient.get('/api/v1/consumer/services/favorites');
-        favoritesRaw = raw as List<dynamic>? ?? const [];
-      } catch (_) {
-        // Favourites are optional and must never block service discovery.
-      }
-      try {
-        final raw = await widget.apiClient.get('/api/v1/consumer/services/recent-providers');
-        recentProvidersRaw = raw as List<dynamic>? ?? const [];
-      } catch (_) {
-        // Recent-provider memory is optional and must never block discovery.
-      }
-      final locations = (locationsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-      final trustByProvider = <String, Map<String, dynamic>>{};
-      for (final trust in trustRaw.whereType<Map<String, dynamic>>()) {
-        final providerId = trust['providerId']?.toString();
-        if (providerId != null && providerId.isNotEmpty) trustByProvider[providerId] = trust;
-      }
-      final favoriteIds = favoritesRaw
-          .whereType<Map<String, dynamic>>()
-          .map((item) => item['providerId']?.toString())
-          .whereType<String>()
-          .toSet();
-      final recentProviders = recentProvidersRaw.whereType<Map<String, dynamic>>().toList();
-
+      final bootstrap = await Future.wait([
+        _rows('/api/v1/consumer/services/categories'),
+        _rows('/api/v1/consumer/services/locations'),
+      ]);
+      if (!mounted || generation != _loadGeneration) return;
+      final locations = bootstrap[1];
       String? selectedKey = _selectedLocationKey;
-      if (selectedKey == null || !locations.any((item) => _locationKey(item) == selectedKey && item['serviceAddressConfigured'] != false)) {
+      if (!locations.any((item) => _locationKey(item) == selectedKey && item['serviceAddressConfigured'] != false)) {
+        selectedKey = null;
         for (final location in locations) {
           if (location['serviceAddressConfigured'] != false) {
             selectedKey = _locationKey(location);
@@ -152,61 +158,64 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
           }
         }
       }
-
+      setState(() {
+        _categories = bootstrap[0];
+        _locations = locations;
+        _selectedLocationKey = selectedKey;
+      });
       List<Map<String, dynamic>> offerings = const [];
-      List<Map<String, dynamic>> communityDeals = const [];
+      Map<String, dynamic>? location;
       if (selectedKey != null) {
-        final location = locations.firstWhere((item) => _locationKey(item) == selectedKey);
+        location = locations.firstWhere((item) => _locationKey(item) == selectedKey);
         final params = <String, String>{
           'locationType': location['type'].toString(),
           'locationId': location['id'].toString(),
           if (categoryId != null) 'categoryId': categoryId,
         };
-        final raw = await widget.apiClient.get('/api/v1/consumer/services/offerings?${Uri(queryParameters: params).query}');
-        offerings = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().map((offering) {
-          final provider = Map<String, dynamic>.from(offering['provider'] as Map? ?? const {});
-          final providerId = offering['providerId']?.toString() ?? provider['id']?.toString();
-          final trust = providerId == null ? null : trustByProvider[providerId];
-          if (provider['societyRatingAverage'] is num) {
-            provider['ratingAverage'] = provider['societyRatingAverage'];
-            provider['ratingCount'] = provider['societyRatingCount'];
-            provider['completedJobs'] = provider['societyCompletedJobs'];
-          } else if (trust != null) {
-            provider['ratingAverage'] = trust['averageStars'];
-            provider['ratingCount'] = trust['ratingCount'];
-            provider['completedJobs'] = trust['completedJobs'];
-          }
-          return <String, dynamic>{...offering, 'provider': provider};
-        }).toList();
-        if (location['type']?.toString() == 'SOCIETY_UNIT') {
-          try {
-            final dealQuery = Uri(queryParameters: {
-              'locationType': location['type'].toString(),
-              'locationId': location['id'].toString(),
-            }).query;
-            final dealsRaw = await widget.apiClient.get('/api/v1/consumer/services/community-deals?$dealQuery');
-            communityDeals = (dealsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-          } catch (_) {
-            // Community deals are additive and must never block core service discovery.
-          }
-        }
+        offerings = await _rows('/api/v1/consumer/services/offerings?${Uri(queryParameters: params).query}');
       }
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        _categories = (categoriesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
-        _locations = locations;
-        _selectedLocationKey = selectedKey;
-        _offerings = offerings;
-        _recentProviders = recentProviders;
-        _communityDeals = communityDeals;
-        _favoriteProviderIds = favoriteIds;
+        _offerings = offerings.map((item) => _withTrust(item, const {})).toList();
+        _loading = false;
       });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      // Optional metadata enriches the catalogue after core results are visible.
+      unawaited(_enrich(generation, location));
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _error = residentErrorMessage(error, fallback: 'Services could not be loaded. Check your connection and try again.');
+        _loading = false;
+      });
     }
+  }
+
+  Future<void> _enrich(int generation, Map<String, dynamic>? location) async {
+    final favoriteRevision = _favoriteRevision;
+    final query = location == null ? '' : Uri(queryParameters: {
+      'locationType': location['type'].toString(),
+      'locationId': location['id'].toString(),
+    }).query;
+    final metadata = await Future.wait([
+      _rows('/api/v1/consumer/services/providers/trust', optional: true),
+      _rows('/api/v1/consumer/services/favorites', optional: true),
+      _rows('/api/v1/consumer/services/recent-providers', optional: true),
+      if (location?['type'] == 'SOCIETY_UNIT')
+        _rows('/api/v1/consumer/services/community-deals?$query', optional: true)
+      else Future.value(<Map<String, dynamic>>[]),
+    ]);
+    if (!mounted || generation != _loadGeneration) return;
+    final trust = <String, Map<String, dynamic>>{
+      for (final row in metadata[0]) if (row['providerId'] != null) row['providerId'].toString(): row,
+    };
+    setState(() {
+      _offerings = _offerings.map((item) => _withTrust(item, trust)).toList();
+      _recentProviders = metadata[2];
+      _communityDeals = metadata[3];
+      if (favoriteRevision == _favoriteRevision) {
+        _favoriteProviderIds = metadata[1].map((item) => item['providerId']?.toString()).whereType<String>().toSet();
+      }
+    });
   }
 
   Future<void> _selectLocation(String? key) async {
@@ -247,6 +256,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   }
 
   Future<void> _setFavorite(String providerId, bool active) async {
+    _favoriteRevision++;
     await widget.apiClient.put('/api/v1/consumer/services/favorites/$providerId', {'active': active});
     if (!mounted) return;
     setState(() {
@@ -335,47 +345,17 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       body: RefreshIndicator(
         onRefresh: () => _load(_selectedCategoryId),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      foregroundColor: theme.colorScheme.onPrimaryContainer,
-                      child: Icon(widget.independentMode ? Icons.home_rounded : Icons.apartment_rounded),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(widget.independentMode ? 'Services for your home' : 'Insta Services near you', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.independentMode
-                                ? 'Tell us what you need, then choose from trusted providers serving your address.'
-                                : 'Tell us what you need and compare trusted local providers serving your selected property.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
-                              OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            PremiumPageIntro(
+              icon: widget.independentMode ? Icons.home_rounded : Icons.apartment_rounded,
+              title: widget.independentMode ? 'Services for your home' : 'Insta Services near you',
+              supportingText: 'Compare trusted providers serving your selected address.',
+              action: Wrap(spacing: 8, runSpacing: 8, children: [
+                OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
+                OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
+              ]),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -395,14 +375,18 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                         },
                         icon: const Icon(Icons.close_rounded),
                       ),
-                border: const OutlineInputBorder(),
+
               ),
               onChanged: (value) => setState(() => _query = value),
             ),
-            const SizedBox(height: 18),
-            Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
-            if (_locations.isEmpty && !_loading)
+            const SizedBox(height: 20),
+            Text('Service location', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text('Providers are matched to your selected address and their published service areas.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 12),
+            if (_loading && _locations.isEmpty)
+              const Text('Loading service locations…')
+            else if (_locations.isEmpty && !_loading && _error == null)
               const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No service location is available yet. Open a service to add a home address.')))
             else
               RadioGroup<String>(
@@ -414,7 +398,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                       RadioListTile<String>(
                         value: _locationKey(location),
                         enabled: !_loading && location['serviceAddressConfigured'] != false,
-                        title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        title: Text(location['label']?.toString() ?? 'Service location', style: const TextStyle(fontWeight: FontWeight.w700)),
                         subtitle: Text(location['serviceAddressConfigured'] == false
                             ? 'Society service address is not configured yet.'
                             : '${location['addressLine1'] ?? ''}, ${location['locality'] ?? ''}, ${location['city'] ?? ''}'),
@@ -424,19 +408,19 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                 ),
               ),
             if (_communityDeals.isNotEmpty) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               Row(
                 children: [
-                  Expanded(child: Text('Community deals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+                  Expanded(child: Text('Community deals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
                   const Icon(Icons.groups_2_outlined),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 'Join neighbours for a society service day and unlock the published resident price when the household threshold is met.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               for (final deal in _communityDeals) ...[
                 _CommunityDealCard(
                   deal: deal,
@@ -444,14 +428,14 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                   onJoin: () => _setCommunityDeal(deal, true),
                   onWithdraw: () => _setCommunityDeal(deal, false),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
               ],
             ],
             const SizedBox(height: 16),
-            Text('Service categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
+            Text('Service categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
             SizedBox(
-              height: 42,
+              height: 56 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, double.infinity),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
@@ -468,23 +452,17 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             if (_loading)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 36), child: Center(child: CircularProgressIndicator()))
+              const AppStateCard(icon: Icons.sync_rounded, message: 'Finding providers for your selected location…', loading: true)
             else if (_error != null)
-              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-                const Icon(Icons.cloud_off_rounded),
-                const SizedBox(height: 8),
-                Text(_error!, textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                FilledButton(onPressed: () => _load(_selectedCategoryId), child: const Text('Retry')),
-              ])))
+              AppStateCard(icon: Icons.cloud_off_rounded, message: _error!, actionLabel: 'Retry', onAction: () => _load(_selectedCategoryId))
             else if (_selectedLocation == null)
-              const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Choose or add a service location to find providers serving your area.')))
+              const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Choose or add a service location to find providers serving your area.')))
             else if (_offerings.isEmpty)
-              const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No verified providers currently serve this location for the selected category.')))
+              const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No verified providers currently serve this location for the selected category.')))
             else if (visibleOfferings.isEmpty)
-              Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
                 const Icon(Icons.search_off_rounded),
                 const SizedBox(height: 8),
                 Text('No services match “${_query.trim()}”.', textAlign: TextAlign.center),
@@ -493,7 +471,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               ])))
             else ...[
               if (_query.trim().isEmpty && recentProviderOfferings.isNotEmpty) ...[
-                Text('Used recently', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                Text('Used recently', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -509,10 +487,10 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
               ],
-              Text(_query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 10),
+              Text(_query.trim().isEmpty ? 'Available services' : '${visibleOfferings.length} matching service${visibleOfferings.length == 1 ? '' : 's'}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
               for (final offering in visibleOfferings) ...[
                 _OfferingCard(
                   offering: offering,
@@ -520,7 +498,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
                   onTap: () => _openBooking(offering),
                   onProviderTap: () => _openProviderStorefront(offering),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
               ],
             ],
           ],
@@ -569,20 +547,20 @@ class _CommunityDealCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(deal['title']?.toString() ?? 'Society Service Day', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(deal['title']?.toString() ?? 'Society Service Day', style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 3),
                     Text('${deal['offeringName'] ?? 'Service'} · ${deal['providerName'] ?? 'Provider'}', style: theme.textTheme.bodySmall),
                   ]),
                 ),
-                Text(money(residentPricePaise), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                Text(money(residentPricePaise), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               ],
             ),
             if (deal['description']?.toString().trim().isNotEmpty == true) ...[
               const SizedBox(height: 8),
               Text(deal['description'].toString()),
             ],
-            const SizedBox(height: 10),
-            Wrap(spacing: 10, runSpacing: 8, children: [
+            const SizedBox(height: 12),
+            Wrap(spacing: 12, runSpacing: 8, children: [
               _TrustSignal(icon: Icons.home_work_outlined, text: '$joinedHomes / $threshold homes'),
               if (thresholdMet) const _TrustSignal(icon: Icons.check_circle_outline_rounded, text: 'Threshold met'),
               if (serviceDate != null)
@@ -590,12 +568,12 @@ class _CommunityDealCard extends StatelessWidget {
               if (normalPricePaise > residentPricePaise)
                 _TrustSignal(icon: Icons.savings_outlined, text: 'Normal ${money(normalPricePaise)}'),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               'Joining records household interest only. A service booking and gate access are created separately.',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             if (joined && open)
               OutlinedButton.icon(onPressed: busy ? null : onWithdraw, icon: const Icon(Icons.undo_rounded), label: const Text('Withdraw'))
             else if (joined)
@@ -637,51 +615,39 @@ class _OfferingCard extends StatelessWidget {
     final recurringAvailable = experiencePolicy['recurrenceCadences'] is List
         && (experiencePolicy['recurrenceCadences'] as List).isNotEmpty;
     final providerName = provider['businessName'] ?? offering['providerName'] ?? 'Verified provider';
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const CircleAvatar(child: Icon(Icons.handyman_rounded)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(offering['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w800))),
-                    if (isFavorite) const Icon(Icons.favorite_rounded, size: 18),
-                  ]),
-                  const SizedBox(height: 4),
-                  TextButton.icon(
-                    onPressed: onProviderTap,
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 34), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    icon: const Icon(Icons.storefront_rounded, size: 16),
-                    label: Text('$providerName · ${category['name'] ?? offering['categoryName'] ?? 'Service'}'),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 10, runSpacing: 6, children: [
-                    if (ratingAverage != null && ratingCount > 0) _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
-                    if (completedJobs > 0) _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
-                    const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
-                    if (societyTrusted) const _TrustSignal(icon: Icons.shield_rounded, text: 'Society Trusted'),
-                    if (experiencePolicy['quickServiceEligible'] == true && targetArrivalMinutes != null)
-                      _TrustSignal(icon: Icons.bolt_rounded, text: 'Quick ~$targetArrivalMinutes min'),
-                    if (recurringAvailable) const _TrustSignal(icon: Icons.event_repeat_rounded, text: 'Recurring'),
-                  ]),
-                ]),
-              ),
-              const SizedBox(width: 10),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w900)),
-                const Icon(Icons.chevron_right_rounded),
-              ]),
-            ],
-          ),
+    final theme = Theme.of(context);
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: 'Book ${offering['name'] ?? 'service'} with $providerName',
+      color: theme.colorScheme.surface,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PremiumIdentityHeader(
+          icon: Icons.handyman_rounded,
+          title: offering['name']?.toString() ?? 'Service',
+          supportingText: category['name']?.toString() ?? offering['categoryName']?.toString(),
         ),
-      ),
+        const SizedBox(height: AaraagateTokens.space3),
+        Row(children: [
+          Expanded(child: Text('₹${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}', style: theme.textTheme.titleMedium)),
+          if (isFavorite) const Icon(Icons.favorite_rounded, semanticLabel: 'Favourite provider'),
+          const Icon(Icons.chevron_right_rounded),
+        ]),
+        TextButton.icon(
+          onPressed: onProviderTap,
+          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48), alignment: Alignment.centerLeft),
+          icon: const Icon(Icons.storefront_rounded, size: 20),
+          label: Text('$providerName · ${category['name'] ?? offering['categoryName'] ?? 'Service'}'),
+        ),
+        Wrap(spacing: 12, runSpacing: 8, children: [
+          if (ratingAverage != null && ratingCount > 0) _TrustSignal(icon: Icons.star_rounded, text: '${ratingAverage.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}'),
+          if (completedJobs > 0) _TrustSignal(icon: Icons.task_alt_rounded, text: '$completedJobs completed'),
+          const _TrustSignal(icon: Icons.verified_rounded, text: 'Verified'),
+          if (societyTrusted) const _TrustSignal(icon: Icons.shield_rounded, text: 'Society Trusted'),
+          if (experiencePolicy['quickServiceEligible'] == true && targetArrivalMinutes != null)
+            _TrustSignal(icon: Icons.bolt_rounded, text: 'Quick ~$targetArrivalMinutes min'),
+          if (recurringAvailable) const _TrustSignal(icon: Icons.repeat_rounded, text: 'Recurring available'),
+        ]),
+      ]),
     );
   }
 }
@@ -694,9 +660,9 @@ class _TrustSignal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 15),
-      const SizedBox(width: 3),
-      Text(text, style: Theme.of(context).textTheme.bodySmall),
+      Icon(icon, size: 16),
+      const SizedBox(width: 4),
+      Flexible(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
     ]);
   }
 }
