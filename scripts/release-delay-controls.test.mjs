@@ -159,3 +159,27 @@ test('workflow keeps full gates while preflight avoids repeated toolchain instal
     assert.ok(ci.includes(token), token);
   }
 });
+
+for (const [name, env, expected, withDeps] of [
+  ['ready runner skips system install', {}, 0, false],
+  ['missing dependencies use fallback and verify launch again', { PROBE_FAIL_FIRST: 'true' }, 0, true],
+  ['permanent launch failure cannot pass setup', { PROBE_FAIL_ALWAYS: 'true' }, 1, true],
+]) test(`browser setup: ${name}`, t => {
+  const { dir, run } = repository(t);
+  const bin = join(dir, 'bin'); mkdirSync(bin);
+  const log = join(dir, 'browser.log');
+  writeFileSync(join(bin, 'pnpm'), `#!/bin/bash
+printf '%s\\n' "$*" >> "$BROWSER_LOG"
+if [[ "$*" == *'exec node'* ]]; then
+  if [ "\${PROBE_FAIL_ALWAYS:-false}" = true ]; then exit 1; fi
+  if [ "\${PROBE_FAIL_FIRST:-false}" = true ] && [ ! -f "$PROBE_MARKER" ]; then touch "$PROBE_MARKER"; exit 1; fi
+fi
+`, { mode: 0o755 });
+  const result = run('install-admin-browser-runtime.sh', [], {
+    PATH: `${bin}:${process.env.PATH}`, BROWSER_LOG: log, PROBE_MARKER: join(dir, 'probe'), ...env,
+  });
+  assert.equal(result.status, expected, result.stderr);
+  const commands = readFileSync(log, 'utf8');
+  assert.equal(commands.includes('install --with-deps chromium'), withDeps);
+  assert.equal((commands.match(/exec node/g) ?? []).length, withDeps ? 2 : 1);
+});
