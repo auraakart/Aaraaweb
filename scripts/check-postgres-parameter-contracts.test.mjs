@@ -25,3 +25,9 @@ test('detects tagged and Prisma.sql uncast void lock results', () => {
 test('executeRaw lock results do not require deserialization', () => {
   assert.deepEqual(findings('tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;'), []);
 });
+test('detects multiline two-key advisory locks and permits a text result', () => {
+  const query = 'tx.$queryRaw(Prisma.sql`\nSELECT pg_advisory_xact_lock(\n hashtext(${userId}),\n hashtext(${offeringId})\n)';
+  assert.equal(findings(query + '\n`);').length, 1);
+  assert.deepEqual(findings(query + '::text\n`);'), []);
+  assert.equal(findings(query.replace('$queryRaw(', '$queryRaw<Array<{ locked: string }>>(') + '\n`);').length, 1);
+});
