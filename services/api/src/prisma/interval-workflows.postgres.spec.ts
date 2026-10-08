@@ -8,6 +8,7 @@ import { ParcelReminderService } from '../parcels/parcel-reminder.service';
 import { HelpdeskSlaService } from '../helpdesk/helpdesk-sla.service';
 import { ObjectStorageCleanupService } from '../scheduled-work/object-storage-cleanup.service';
 import type { ObjectStoragePort } from '../services-marketplace/object-storage.port';
+import { CommunityServices3Service } from '../services-marketplace/community-services-3.service';
 
 const withDatabase = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -104,6 +105,33 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     `);
     return parcel;
   }
+
+  databaseTest('creates and updates one recurring preference through the multiline two-key lock', async db => {
+    const category = await db.serviceCategory.create({ data: { name: 'Fixture', slug: `recurring-${randomUUID()}` } });
+    const offering = await db.serviceOffering.create({ data: { providerId, categoryId: category.id, name: 'Fixture', pricePaise: 100 } });
+    await db.$executeRaw(Prisma.sql`
+      INSERT INTO "ServiceOfferingExperiencePolicy" ("offeringId","recurrenceCadences")
+      VALUES (${offering.id}::uuid,'["WEEKLY","MONTHLY"]'::jsonb)
+    `);
+    // Location eligibility has independent coverage. Keep this case scoped to
+    // the real policy, lock and recurring-plan SQL, inside the rollback fixture.
+    const locations = {
+      resolveLocation: vi.fn().mockResolvedValue({ label: 'Fixture unit' }),
+      listServiceableOfferings: vi.fn().mockResolvedValue([{ id: offering.id }]),
+    };
+    const service = new CommunityServices3Service(db, {} as never, locations as never);
+    const input = { offeringId: offering.id, locationType: 'SOCIETY_UNIT' as const, locationId: unitId, cadence: 'WEEKLY' as const };
+    const created = await service.createRecurringPlan(userId, input);
+    const updated = await service.createRecurringPlan(userId, { ...input, cadence: 'MONTHLY' });
+    expect(updated).toMatchObject({ id: created.id, userId, offeringId: offering.id, cadence: 'MONTHLY', status: 'ACTIVE' });
+    const [stored] = await db.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS "count" FROM "ConsumerServiceRecurringPlan"
+      WHERE "userId"=${userId}::uuid AND "offeringId"=${offering.id}::uuid
+        AND "locationId"=${unitId}::uuid AND "locationType"='SOCIETY_UNIT'
+    `);
+    expect(stored.count).toBe(1);
+    await expect(service.createRecurringPlan(userId, { ...input, cadence: 'QUARTERLY' })).rejects.toThrow('Provider has not enabled');
+  });
 
   databaseTest('lists overdue parcels, issues a ten-minute code and collects once without widening society/user scope', async db => {
     const parcels = new ParcelsService(db);

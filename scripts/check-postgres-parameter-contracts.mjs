@@ -14,9 +14,18 @@ export function parameterContractFindings(source) {
       findings.push({ index: match.index, message: 'Cast interpolated integer make_interval arguments explicitly to int.' });
     }
   }
-  const locks = /\$queryRaw(?:\([^`]*?)?`\s*SELECT\s+pg_advisory_xact_lock\([^\n]*?\)\)/g;
+  const locks = /\$queryRaw(?:\s*<[^`]*>)?\s*(?:\([^`]*?)?`\s*SELECT\s+pg_advisory_xact_lock\s*\(/g;
   for (const match of source.matchAll(locks)) {
-    if (!/^\s*::\s*text\b/.test(source.slice(match.index + match[0].length))) {
+    // Match the function's closing parenthesis, including multiline/two-key
+    // calls. Stopping at an inner hash function misses the result's cast.
+    let end = match.index + match[0].length;
+    let depth = 1;
+    while (end < source.length && depth) {
+      if (source[end] === '(') depth++;
+      if (source[end] === ')') depth--;
+      end++;
+    }
+    if (depth || !/^\s*::\s*text\b/.test(source.slice(end))) {
       findings.push({ index: match.index, message: 'Cast advisory-lock void results to text for Prisma $queryRaw, or use $executeRaw.' });
     }
   }

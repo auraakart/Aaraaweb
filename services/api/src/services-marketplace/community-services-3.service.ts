@@ -159,7 +159,7 @@ export class CommunityServices3Service {
         SELECT pg_advisory_xact_lock(
           hashtext(${userId}),
           hashtext(${input.offeringId + ':' + input.locationType + ':' + input.locationId})
-        )
+        )::text
       `);
       const existing = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "ConsumerServiceRecurringPlan"
