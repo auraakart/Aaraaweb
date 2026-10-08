@@ -183,7 +183,20 @@ class _HelpdeskScreenState extends State<HelpdeskScreen> {
                             voiceStatus = ResidentVoiceCopy.text(languageCode, 'listening');
                             validationMessage = null;
                           });
-                          final transcript = await speech.listenOnce(languageCode: languageCode);
+                          String? transcript;
+                          try {
+                            transcript = await speech.listenOnce(languageCode: languageCode);
+                          } on ResidentSpeechUnavailable {
+                            if (sheetContext.mounted) {
+                              setModalState(() {
+                                listening = false;
+                                voiceStatus = ResidentVoiceCopy.text(languageCode, 'assistantUnsupported');
+                              });
+                            }
+                            return;
+                          } catch (_) {
+                            // Keep the typed complaint draft when device recognition fails.
+                          }
                           if (!sheetContext.mounted) return;
                           if (transcript == null || transcript.trim().isEmpty) {
                             setModalState(() {
