@@ -17,6 +17,24 @@ git rev-parse --verify "$HEAD_SHA^{commit}" >/dev/null
 
 mapfile -t CHANGED_FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
 
+PREFLIGHT_MODE="${PREFLIGHT_MODE:-full}"
+case "$PREFLIGHT_MODE" in
+  structural)
+    git diff --check "$BASE_SHA" "$HEAD_SHA"
+    for path in "${CHANGED_FILES[@]}"; do
+      [ -f "$path" ] || continue
+      case "$path" in
+        scripts/*.sh) bash -n "$path" ;;
+        scripts/*.mjs) node --check "$path" ;;
+      esac
+    done
+    echo "Mastermind structural preflight passed; canonical full jobs own dependency installation, analysis and behavioural tests."
+    exit 0
+    ;;
+  full) ;;
+  *) echo "Unknown PREFLIGHT_MODE: $PREFLIGHT_MODE" >&2; exit 2 ;;
+esac
+
 has_prefix() {
   local prefix="$1"
   printf '%s
