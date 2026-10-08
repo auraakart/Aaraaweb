@@ -3,11 +3,13 @@ import fs from 'node:fs';
 const read=(path)=>fs.readFileSync(path,'utf8');
 const requireTokens=(label,source,tokens)=>{for(const token of tokens){if(!source.includes(token))throw new Error(`${label} missing: ${token}`)}};
 
-requireTokens('Root release',read('package.json'),['"version": "4.86.1"','check:v4.86']);
-requireTokens('API release',read('services/api/package.json'),['"version": "4.86.1"']);
-requireTokens('Admin release',read('apps/admin/package.json'),['"version": "4.86.1"']);
-requireTokens('Resident release',read('apps/resident/pubspec.yaml'),['version: 4.86.1+48601']);
-requireTokens('Guard release',read('apps/guard/pubspec.yaml'),['version: 4.86.1+48601']);
+// Release identity alignment is enforced by the shared forward-compatible guard.
+import './check-v4.80.11-release-identity.mjs';
+const releaseVersion=JSON.parse(read('package.json')).version.split('.').map(Number);
+if(releaseVersion[0]<4 || (releaseVersion[0]===4 && (releaseVersion[1]<86 || (releaseVersion[1]===86 && releaseVersion[2]<1)))){
+  throw new Error('V4.86 adoption release must remain V4.86.1 or newer.');
+}
+requireTokens('Root release',read('package.json'),['check:v4.86']);
 
 requireTokens('Easy mode preferences',read('apps/resident/lib/preferences/resident_experience_preferences.dart'),[
   'resident.preference.easy_mode','Device-local accessibility preference','never changes permissions',
