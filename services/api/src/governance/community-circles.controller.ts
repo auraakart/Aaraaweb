@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsISO8601, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { AppPermission } from '../auth/permission.types';
 import { RequiresPermissions } from '../auth/permissions.decorator';
@@ -16,14 +16,27 @@ const CurrentUser=createParamDecorator((_data:unknown,ctx:ExecutionContext)=>ctx
 class CreateCommunityCircleDto{
   @IsString() @MinLength(3) @MaxLength(80) name!:string;
   @IsOptional() @IsString() @MaxLength(500) description?:string;
+  @IsOptional() @IsISO8601() expiresAt?:string|null;
 }
 
 class CommunityCircleStatusDto{
   @IsIn(['ACTIVE','CLOSED']) status!:'ACTIVE'|'CLOSED';
 }
 
-class CommunityCirclePostDto{
+export class CommunityCirclePostDto{
   @IsString() @MinLength(1) @MaxLength(1000) body!:string;
+}
+
+class CircleReviewDto {
+ @IsIn(['APPROVE','REJECT']) decision!:'APPROVE'|'REJECT';
+ @IsString() @MinLength(3) @MaxLength(500) reason!:string;
+}
+class CircleExpiryDto { @IsOptional() @IsISO8601() expiresAt?:string|null; }
+class CircleReportDto { @IsString() @MinLength(3) @MaxLength(500) reason!:string; }
+class CircleModerationDto extends CircleReportDto { @IsBoolean() hidden!:boolean; }
+export class RequestCircleDto {
+ @IsString() @MinLength(3) @MaxLength(80) name!:string;
+ @IsOptional() @IsString() @MaxLength(500) description?:string;
 }
 
 @Controller('community-circles')
@@ -47,7 +60,7 @@ export class CommunityCirclesController{
   @Post()
   @RequiresPermissions(AppPermission.NOTICE_MANAGE)
   create(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:CreateCommunityCircleDto){
-    return this.circles.create(societyId,this.user(userId),dto.name,dto.description);
+    return this.circles.create(societyId,this.user(userId),dto.name,dto.description,dto.expiresAt);
   }
 
   @Post(':id/status')
@@ -79,6 +92,37 @@ export class CommunityCirclesController{
   post(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:CommunityCirclePostDto){
     return this.circles.createPost(societyId,this.user(userId),id,dto.body);
   }
+
+  @Get('requests/mine')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  myRequests(@CurrentTenant() societyId:string,@CurrentUser() userId?:string){return this.circles.myRequests(societyId,this.user(userId));}
+
+  @Post('requests')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  request(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Body() dto:RequestCircleDto){return this.circles.request(societyId,this.user(userId),dto.name,dto.description);}
+
+  @Post(':id/review')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  review(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:CircleReviewDto){return this.circles.review(societyId,id,this.user(userId),dto.decision,dto.reason);}
+
+  @Post(':id/expiry')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  expiry(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:CircleExpiryDto){
+    if(dto.expiresAt===undefined)throw new BadRequestException('Provide a deletion date or null to clear it');
+    return this.circles.setExpiry(societyId,id,dto.expiresAt);
+  }
+
+  @Post(':id/posts/:postId/report')
+  @RequiresPermissions(AppPermission.NOTICE_READ)
+  report(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Param('postId',new ParseUUIDPipe()) postId:string,@Body() dto:CircleReportDto){return this.circles.report(societyId,this.user(userId),id,postId,dto.reason);}
+
+  @Get('reports/manage')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  reports(@CurrentTenant() societyId:string){return this.circles.listReports(societyId);}
+
+  @Post(':id/posts/:postId/moderate')
+  @RequiresPermissions(AppPermission.NOTICE_MANAGE)
+  moderate(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Param('postId',new ParseUUIDPipe()) postId:string,@Body() dto:CircleModerationDto){return this.circles.moderate(societyId,id,postId,this.user(userId),dto.hidden,dto.reason);}
 
   private user(userId?:string){
     if(!userId)throw new BadRequestException('Authenticated user is required');

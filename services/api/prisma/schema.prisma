@@ -833,6 +833,10 @@ model CommunityCircle {
   description     String?
   status          String   @default("ACTIVE")
   createdByUserId String   @db.Uuid
+  expiresAt DateTime? @db.Timestamptz(6)
+  reviewedByUserId String? @db.Uuid
+  reviewedAt DateTime? @db.Timestamptz(6)
+  reviewNote String?
   createdAt       DateTime @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime @updatedAt @db.Timestamptz(6)
 
@@ -856,10 +860,31 @@ model CommunityCirclePost {
   circleId     String   @db.Uuid
   authorUserId String   @db.Uuid
   body         String
+  senderName String?
+  senderFlat String?
+  hidden Boolean @default(false)
+  moderatedByUserId String? @db.Uuid
+  moderatedAt DateTime? @db.Timestamptz(6)
+  moderationReason String?
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([societyId, circleId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_circle_created_idx")
   @@index([societyId, authorUserId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_author_created_idx")
+}
+
+model CommunityCircleReport {
+  id String @id @default(uuid()) @db.Uuid
+  societyId String @db.Uuid
+  circleId String @db.Uuid
+  postId String @db.Uuid
+  reporterUserId String @db.Uuid
+  reason String
+  status String @default("OPEN")
+  resolvedByUserId String? @db.Uuid
+  resolvedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([societyId, postId, reporterUserId])
+  @@index([societyId, status, createdAt], map: "CommunityCircleReport_queue_idx")
 }
 
 model Notice {
