@@ -7,8 +7,19 @@ abstract class ResidentSpeech {
   Future<void> stop();
 }
 
+class ResidentSpeechUnavailable implements Exception {
+  const ResidentSpeechUnavailable(this.languageCode);
+  final String languageCode;
+}
+
 class DeviceResidentSpeech implements ResidentSpeech {
-  DeviceResidentSpeech({SpeechToText? speech}) : _speech = speech ?? SpeechToText();
+  factory DeviceResidentSpeech({SpeechToText? speech}) =>
+      speech == null ? _shared : DeviceResidentSpeech._(speech);
+
+  DeviceResidentSpeech._(this._speech);
+  // The plugin initializes only once and retains its first status/error callbacks.
+  // Keep one callback owner across Assistant and complaint screens too.
+  static final DeviceResidentSpeech _shared = DeviceResidentSpeech._(SpeechToText());
 
   final SpeechToText _speech;
 
@@ -16,6 +27,7 @@ class DeviceResidentSpeech implements ResidentSpeech {
   Future<bool>? _initializing;
   Completer<String?>? _activeCompleter;
   String _latestWords = '';
+  bool _acceptingStatus = false;
 
   static const localeByLanguage = <String, String>{
     'en': 'en_IN',
@@ -28,7 +40,7 @@ class DeviceResidentSpeech implements ResidentSpeech {
     'bn': 'bn_IN',
   };
 
-  static String bestLocaleId({
+  static String? bestLocaleId({
     required String languageCode,
     required Iterable<String> availableLocaleIds,
     String? systemLocaleId,
@@ -48,16 +60,9 @@ class DeviceResidentSpeech implements ResidentSpeech {
       if (normalized == languageNormalized || normalized.startsWith('${languageNormalized}_')) return locale;
     }
 
-    if (systemLocaleId != null && systemLocaleId.trim().isNotEmpty) {
-      final normalizedSystem = normalize(systemLocaleId);
-      for (final locale in available) {
-        if (normalize(locale) == normalizedSystem) return locale;
-      }
-      return systemLocaleId;
-    }
-
-    if (available.isNotEmpty) return available.first;
-    return preferred;
+    // Never interpret Tamil (or another selected language) through English.
+    // Device defaults are unrelated to the explicit language the resident chose.
+    return null;
   }
 
   Future<bool> _ensureInitialized() async {
@@ -66,10 +71,13 @@ class DeviceResidentSpeech implements ResidentSpeech {
     if (pending != null) return pending;
 
     final future = _speech.initialize(
-      onError: (_) => _completeActive(),
+      onError: (_) {
+        if (_acceptingStatus) _completeActive();
+      },
       onStatus: (status) {
         final normalized = status.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-        if (normalized == 'done' || normalized == 'notlistening') {
+        // notListening only ends microphone capture; final text may arrive later.
+        if (_acceptingStatus && normalized == 'done') {
           _completeActive();
         }
       },
@@ -87,17 +95,13 @@ class DeviceResidentSpeech implements ResidentSpeech {
   }
 
   Future<String> _resolveLocaleId(String languageCode) async {
-    try {
-      final locales = await _speech.locales();
-      final systemLocale = await _speech.systemLocale();
-      return bestLocaleId(
-        languageCode: languageCode,
-        availableLocaleIds: locales.map((locale) => locale.localeId),
-        systemLocaleId: systemLocale?.localeId,
-      );
-    } catch (_) {
-      return localeByLanguage[languageCode] ?? localeByLanguage['en']!;
-    }
+    final locales = await _speech.locales();
+    final locale = bestLocaleId(
+      languageCode: languageCode,
+      availableLocaleIds: locales.map((locale) => locale.localeId),
+    );
+    if (locale == null) throw ResidentSpeechUnavailable(languageCode);
+    return locale;
   }
 
   String? _capturedOrNull() {
@@ -114,19 +118,21 @@ class DeviceResidentSpeech implements ResidentSpeech {
 
   @override
   Future<String?> listenOnce({required String languageCode}) async {
-    if (_activeCompleter?.isCompleted == false) {
-      await stop();
-    }
-
-    final available = await _ensureInitialized();
-    if (!available) return null;
-
+    // Do not let one screen/session replace the callbacks of an active capture.
+    if (_activeCompleter != null) return null;
     final completer = Completer<String?>();
     _activeCompleter = completer;
     _latestWords = '';
+    _acceptingStatus = false;
 
     try {
+      final available = await _ensureInitialized();
+      if (!available || completer.isCompleted) return null;
       final localeId = await _resolveLocaleId(languageCode);
+      // Cancel pending native results/timers before installing the next listener.
+      await _speech.cancel();
+      if (completer.isCompleted) return null;
+      _acceptingStatus = true;
       await _speech.listen(
         listenOptions: SpeechListenOptions(
           localeId: localeId,
@@ -134,41 +140,50 @@ class DeviceResidentSpeech implements ResidentSpeech {
           pauseFor: const Duration(seconds: 3),
           partialResults: true,
           cancelOnError: false,
+          listenMode: ListenMode.dictation,
         ),
         onResult: (result) {
+          if (!identical(_activeCompleter, completer) || completer.isCompleted) return;
           final words = result.recognizedWords.trim();
           if (words.isNotEmpty) _latestWords = words;
           if (result.finalResult) _completeActive(words);
         },
       );
-
       return await completer.future.timeout(
         const Duration(seconds: 22),
         onTimeout: _capturedOrNull,
       );
+    } on ResidentSpeechUnavailable {
+      rethrow;
     } catch (_) {
       return _capturedOrNull();
     } finally {
-      if (identical(_activeCompleter, completer)) {
-        _activeCompleter = null;
-      }
+      _acceptingStatus = false;
       try {
-        await _speech.stop();
+        // A final result is already captured; cancel clears any leftover events.
+        await _speech.cancel();
       } catch (_) {
-        // Device/plugin shutdown failures are non-fatal for voice drafting.
+        // A device shutdown failure must not leave the UI stuck listening.
       }
+      if (identical(_activeCompleter, completer)) _activeCompleter = null;
     }
   }
 
   @override
   Future<void> stop() async {
-    _completeActive();
+    if (_activeCompleter == null) return;
+    if (!_acceptingStatus) {
+      _completeActive();
+      return;
+    }
     try {
+      // Let the plugin deliver final words/done after microphone capture stops.
       await _speech.stop();
     } catch (_) {
-      // Treat plugin/device stop failures as already stopped.
+      _completeActive();
     }
   }
+
 }
 
 class SilentResidentSpeech implements ResidentSpeech {
@@ -205,6 +220,7 @@ class ResidentVoiceCopy {
       'listening': 'Listening… describe the issue.',
       'review': 'Got it. Review the text before submitting.',
       'unavailable': 'I could not hear you. Check microphone access and try again, or type instead.',
+      'assistantUnsupported': 'Speech recognition for this language is unavailable on this device. Enable it in your speech-service settings, or type your question.',
       'assistantAction': 'Speak',
       'assistantListening': 'Listening…',
       'assistantReview': 'Got it. Review your question, then tap Ask.',
@@ -225,6 +241,7 @@ class ResidentVoiceCopy {
       'listening': 'கேட்கிறேன்… பிரச்சினையைச் சொல்லுங்கள்.',
       'review': 'புரிந்தது. அனுப்பும் முன் உரையை சரிபார்க்கவும்.',
       'unavailable': 'உங்கள் குரல் கேட்கவில்லை. மைக்ரோஃபோன் அனுமதியை சரிபார்த்து மீண்டும் முயற்சிக்கவும் அல்லது தட்டச்சு செய்யவும்.',
+      'assistantUnsupported': 'இந்த சாதனத்தில் தமிழ் குரல் அறிதல் கிடைக்கவில்லை. குரல் சேவை அமைப்புகளில் தமிழைச் செயல்படுத்தவும் அல்லது கேள்வியைத் தட்டச்சு செய்யவும்.',
       'assistantAction': 'பேசுங்கள்',
       'assistantListening': 'கேட்கிறேன்…',
       'assistantReview': 'புரிந்தது. கேள்வியை சரிபார்த்து, பிறகு கேள் என்பதைத் தட்டவும்.',
