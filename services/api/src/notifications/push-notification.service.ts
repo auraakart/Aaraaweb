@@ -150,11 +150,25 @@ export class PushNotificationService {
     return this.outbox.drainDue((work) => this.deliverOutbox(work));
   }
 
-  private deliverOutbox(work: PushOutboxEnvelope) {
-    if (work.targetScope === 'RESIDENT') {
-      return this.deliverResidentEvent(work.payload as unknown as ResidentMessageEvent);
+  private async deliverOutbox(work: PushOutboxEnvelope) {
+    const payload = work.payload;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+      || !work.userId || typeof payload.userId !== 'string'
+      || payload.userId.toLowerCase() !== work.userId.toLowerCase()) {
+      throw new Error('Push outbox recipient metadata mismatch');
     }
-    return this.deliverConsumerBookingEvent(work.payload as unknown as ConsumerBookingPushEvent);
+    if (work.targetScope === 'RESIDENT') {
+      if (!work.societyId || typeof payload.societyId !== 'string'
+        || payload.societyId.toLowerCase() !== work.societyId.toLowerCase() || payload.type !== work.eventType) {
+        throw new Error('Push outbox resident routing metadata mismatch');
+      }
+      return this.deliverResidentEvent(payload as unknown as ResidentMessageEvent);
+    }
+    if (work.targetScope !== 'CONSUMER' || work.societyId !== null
+      || work.eventType !== 'CONSUMER_SERVICE_BOOKING_STATUS') {
+      throw new Error('Push outbox consumer routing metadata mismatch');
+    }
+    return this.deliverConsumerBookingEvent(payload as unknown as ConsumerBookingPushEvent);
   }
 
   private async deliverConsumerBookingEvent(event: ConsumerBookingPushEvent) {

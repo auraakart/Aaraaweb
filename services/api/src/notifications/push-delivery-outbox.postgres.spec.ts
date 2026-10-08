@@ -2,7 +2,8 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
-import { PushDeliveryOutboxService } from './push-delivery-outbox.service';
+import { PushDeliveryOutboxService, type PushOutboxEnvelope } from './push-delivery-outbox.service';
+import { PushNotificationService } from './push-notification.service';
 
 const withDatabase = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -47,6 +48,31 @@ withDatabase('Push delivery lease ownership on migrated PostgreSQL', () => {
     `);
     return rows[0];
   }
+
+  it.each(['userId', 'societyId'])('defers a persisted %s payload mismatch without device lookup', async field => {
+    const queued = await enqueue();
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE "PushDeliveryOutbox"
+      SET "payload"=jsonb_set("payload",ARRAY[${field}]::text[],to_jsonb(${randomUUID()}::text))
+      WHERE "id"=${queued.id}::uuid AND "societyId"=${societyId}::uuid
+    `);
+    const findMany = vi.spyOn(prisma.devicePushToken, 'findMany');
+    const notification = new PushNotificationService(prisma, outbox);
+    Object.assign(notification, { firebaseApp: {} });
+    const deliver = (notification as unknown as {
+      deliverOutbox(work: PushOutboxEnvelope): Promise<void>;
+    }).deliverOutbox.bind(notification);
+    try {
+      await expect(outbox.attempt(queued.id, deliver)).resolves.toEqual({ dispatched: 0, deferred: 1, failed: 0, skipped: 0 });
+      expect(findMany).not.toHaveBeenCalled();
+      const stored = await row(queued.id);
+      expect(stored).toMatchObject({ status: 'PENDING', attemptCount: 1 });
+      expect(stored.lastError).toContain('metadata mismatch');
+      expect(stored.nextAttemptAt).toBeInstanceOf(Date);
+    } finally {
+      findMany.mockRestore();
+    }
+  });
 
   it.each(['success', 'failure'])('prevents stale transport %s from completing a newer claim', async outcome => {
     const queued = await enqueue();
