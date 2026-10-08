@@ -279,8 +279,6 @@ class PremiumQuickAction extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelLarge,
               ),
             ),
@@ -391,4 +389,30 @@ class PremiumIdentityHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Keeps primary and secondary actions usable at narrow widths or large type.
+class PremiumActionGroup extends StatelessWidget {
+  const PremiumActionGroup({super.key, required this.primary, this.secondary});
+  final Widget primary;
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (secondary == null) return SizedBox(width: double.infinity, child: primary);
+      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          primary,
+          const SizedBox(height: AaraagateTokens.space2),
+          secondary!,
+        ]);
+      }
+      return Row(children: [
+        Expanded(child: secondary!),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(flex: 2, child: primary),
+      ]);
+    },
+  );
 }
