@@ -81,6 +81,7 @@ describe('ParcelsService', () => {
     const lockCall = tx.$queryRaw.mock.calls[0] as unknown[];
     const lockStrings = lockCall[0] as readonly string[];
     expect(lockStrings.join(' ')).toContain('pg_advisory_xact_lock');
+    expect(lockStrings.join(' ')).toContain('::text');
     expect(lockCall).toContain(`${societyId}:${parcelId}`);
     const query = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"pickupCodeHash"');
@@ -123,4 +124,17 @@ describe('ParcelsService', () => {
     expect(sql).toContain('make_interval(hours =>');
     expect(query.values).toContain(24);
   });
+
+  it.each(['resident', 'desk'])('redacts server pickup verifiers from the %s list while preserving metadata', async audience => {
+    const row = { id: parcelId, status: 'RECEIVED', courierName: 'Fixture', overdue: true,
+      pickupCodeHash: 'fixture-verifier', pickupCodeSalt: 'fixture-salt', pickupCodeAttempts: 0,
+      pickupCodeExpiresAt: new Date('2026-10-07T12:00:00Z') };
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([row]) };
+    const service = new ParcelsService(prisma as unknown as PrismaService);
+    const rows = await (audience === 'resident' ? service.listOwn(societyId, recipientId) : service.listDesk(societyId));
+    expect(rows).toEqual([{ ...row, pickupCodeHash: null, pickupCodeSalt: null }]);
+    expect(row.pickupCodeHash).toBe('fixture-verifier');
+    expect(row.pickupCodeSalt).toBe('fixture-salt');
+  });
+
 });

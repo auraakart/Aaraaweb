@@ -19,7 +19,7 @@ export class ServiceBookingRatingService {
       // Serialize rating creation on the booking so retries/double-submits cannot
       // race into the database-level one-rating-per-booking constraint.
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))
+        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))::text
       `);
       const booking = await tx.serviceBooking.findFirst({
         where: {

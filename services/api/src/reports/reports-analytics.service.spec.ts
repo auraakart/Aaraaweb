@@ -63,4 +63,24 @@ describe('ReportsAnalyticsService',()=>{
     await expect(service.journeyFunnel('society-1','not-a-date','2026-09-17')).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.operationsDashboard('society-1','2024-01-01','2026-09-17')).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('restores camel-case journey metrics from real PostgreSQL alias casing without dropping legacy keys', async () => {
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{}]).mockResolvedValueOnce([{}])
+      .mockResolvedValueOnce([{inprogress:0,completed:2}]).mockResolvedValueOnce([{}]);
+    const result=await service.journeyFunnel('society-1','2026-09-01','2026-09-17');
+    expect(result.services).toEqual({inprogress:0,inProgress:0,completed:2});
+  });
+
+  it('restores all operations aliases from PostgreSQL rows while preserving zero counts and legacy fields', async () => {
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{responsebreached:0,resolutionbreached:2,resolvedinrange:3}])
+      .mockResolvedValueOnce([{inprogress:0,completedinrange:4,criticalopen:1}])
+      .mockResolvedValueOnce([{criticalopen:0,resolvedinrange:5,createdinrange:6}]);
+    const result=await service.operationsDashboard('society-1','2026-09-01','2026-09-17');
+    expect(result.helpdesk).toEqual({responsebreached:0,resolutionbreached:2,resolvedinrange:3,responseBreached:0,resolutionBreached:2,resolvedInRange:3});
+    expect(result.facilities).toEqual({inprogress:0,completedinrange:4,criticalopen:1,inProgress:0,completedInRange:4,criticalOpen:1});
+    expect(result.incidents).toEqual({criticalopen:0,resolvedinrange:5,createdinrange:6,criticalOpen:0,resolvedInRange:5,createdInRange:6});
+  });
+
 });

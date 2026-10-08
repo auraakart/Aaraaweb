@@ -178,7 +178,7 @@ export class ServicesMarketplaceService {
       // Serialize booking checks for the same provider within the same society so
       // concurrent requests cannot both observe an empty slot and double-book it.
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${offering.providerId}))
+        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${offering.providerId}))::text
       `);
       const overlap = await tx.serviceBooking.findFirst({
         where: {
@@ -240,7 +240,7 @@ export class ServicesMarketplaceService {
       // Lock the booking transition so concurrent confirmations cannot create
       // multiple access requests or credentials for the same service booking.
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))
+        SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))::text
       `);
       const booking = await tx.serviceBooking.findFirst({
         where: { id: bookingId, societyId },
