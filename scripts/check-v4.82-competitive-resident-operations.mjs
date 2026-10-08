@@ -112,8 +112,8 @@ for(const token of [
   'Join this community circle before viewing or posting messages',
 ]) assert.ok(circles.includes(token),'Community circle trust contract missing: '+token);
 for(const token of ['AppPermission.NOTICE_READ','AppPermission.NOTICE_MANAGE','ProductFeature.NOTICES']) assert.ok(circlesController.includes(token),'Community circle authorization contract missing: '+token);
-for(const token of ['Member identities are not exposed','resident identities are not exposed','not statutory voting']) assert.ok(circlesUi.includes(token),'Community circle Resident trust copy missing: '+token);
-assert.ok(!circles.includes('JOIN "User"'),'Resident circle post queries must not expose a member directory.');
+for(const token of ['Sender names and flat numbers','joined circle members','not statutory voting']) assert.ok(circlesUi.includes(token),'Community circle Resident trust copy missing: '+token);
+assert.ok(!circles.slice(circles.indexOf('async listPosts('),circles.indexOf('async createPost(')).includes('JOIN "User"'),'Message history must use scoped sender snapshots, not a resident directory.');
 
 const previous=read('scripts/check-v4.81.5-maintainability-hygiene.mjs');
 assert.ok(previous.includes('versionAtLeast'),'V4.81.5 invariant must remain forward-compatible.');
