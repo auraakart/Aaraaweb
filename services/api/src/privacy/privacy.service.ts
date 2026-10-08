@@ -84,7 +84,7 @@ export class PrivacyService {
     if (!requestKey) throw new BadRequestException('Privacy request key is required');
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${requestKey}`}))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${requestKey}`}))::text`);
       const existingRows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         SELECT *
         FROM "PrivacyRequestCase"

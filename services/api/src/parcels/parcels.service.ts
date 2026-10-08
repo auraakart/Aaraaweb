@@ -107,7 +107,7 @@ export class ParcelsService {
 
   async issuePickupCode(societyId: string, userId: string, parcelId: string) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${parcelId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${parcelId}`}))::text`;
       const code = randomInt(100000, 1000000).toString();
       const salt = randomBytes(16).toString('hex');
       const digest = pickupDigest(salt, code);

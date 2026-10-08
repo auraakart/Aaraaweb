@@ -70,6 +70,31 @@ withDatabase('Interval-dependent workflows on migrated PostgreSQL', () => {
     }, 20_000);
   }
 
+  it('deserializes advisory locks while retaining transaction ownership and release', async () => {
+    const key = `interval-lock:${randomUUID()}`;
+    await prisma.$transaction(async tx => {
+      const [held] = await tx.$queryRaw<Array<{ locked: string }>>(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${key}))::text AS "locked"
+      `);
+      expect(typeof held.locked).toBe('string');
+      const [contender] = await prisma.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`
+        SELECT pg_try_advisory_xact_lock(hashtext(${key})) AS "locked"
+      `);
+      expect(contender.locked).toBe(false);
+    });
+    const [released] = await prisma.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`
+      SELECT pg_try_advisory_xact_lock(hashtext(${key})) AS "locked"
+    `);
+    expect(released.locked).toBe(true);
+    // The extended-hash variant is used by helpdesk/workforce/service paths.
+    await prisma.$transaction(async tx => {
+      const [held] = await tx.$queryRaw<Array<{ locked: string }>>(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text AS "locked"
+      `);
+      expect(typeof held.locked).toBe('string');
+    });
+  });
+
   async function overdueParcel(db: PrismaService) {
     const parcels = new ParcelsService(db);
     const parcel = await parcels.intake(societyId, userId, { unitId, recipientUserId: userId });

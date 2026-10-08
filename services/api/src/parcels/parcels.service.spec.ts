@@ -81,6 +81,7 @@ describe('ParcelsService', () => {
     const lockCall = tx.$queryRaw.mock.calls[0] as unknown[];
     const lockStrings = lockCall[0] as readonly string[];
     expect(lockStrings.join(' ')).toContain('pg_advisory_xact_lock');
+    expect(lockStrings.join(' ')).toContain('::text');
     expect(lockCall).toContain(`${societyId}:${parcelId}`);
     const query = tx.$queryRaw.mock.calls[1][0] as { strings: readonly string[]; values: unknown[] };
     expect(query.strings.join(' ')).toContain('"pickupCodeHash"');

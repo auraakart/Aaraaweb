@@ -59,7 +59,7 @@ export class ServiceBookingTransitionService {
 
   private lockBooking(tx: Prisma.TransactionClient, societyId: string, bookingId: string) {
     return tx.$queryRaw(Prisma.sql`
-      SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))
+      SELECT pg_advisory_xact_lock(hashtext(${societyId}), hashtext(${bookingId}))::text
     `);
   }
 }
