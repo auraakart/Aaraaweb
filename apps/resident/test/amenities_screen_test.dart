@@ -269,6 +269,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Choose date & time'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Choose date & time'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Choose date & time'));
     await tester.pumpAndSettle();
     expect(find.text('Choose date'), findsOneWidget);
