@@ -88,6 +88,7 @@ describe('ScheduledWorkService', () => {
       escalated: 1,
       sosEscalated: 1,
       amenityDepositsExpired: 0,
+      circlesDeleted:0,
       noticeDispatched: 0,
       noticeDispatchFailed: 0,
     });
@@ -222,4 +223,13 @@ describe('ScheduledWorkService', () => {
     expect(retrySql).toContain('::int)');
     expect(retrySql).toContain('"status"=\'IN_FLIGHT\'');
   });
+});
+
+it('runs circle deletion during the scheduled sweep',async()=>{
+  const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{locked:true}]).mockResolvedValue([])};
+  const prisma={$transaction:vi.fn((callback:(db:typeof tx)=>unknown)=>callback(tx))};
+  const circles={deleteExpired:vi.fn().mockResolvedValue({deleted:2})};
+  const service=new ScheduledWorkService(prisma as never,undefined,undefined,undefined,circles as never);
+  expect(await service.runOnce()).toMatchObject({skipped:false,circlesDeleted:2});
+  expect(circles.deleteExpired).toHaveBeenCalledOnce();
 });

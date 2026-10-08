@@ -29,6 +29,7 @@ class CommunityCirclesScreen extends StatefulWidget {
 
 class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
   List<Map<String, dynamic>> circles = const [];
+  List<Map<String, dynamic>> requests = const [];
   bool loading = true;
   String? error;
   String? busyCircleId;
@@ -42,13 +43,18 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
-      final value = await widget.repository.communityCircles();
-      if (mounted) setState(() => circles = value);
+      final values = await Future.wait([widget.repository.communityCircles(), widget.repository.communityCircleRequests()]);
+      if (mounted) setState(() { circles = values[0]; requests = values[1]; });
     } catch (_) {
       if (mounted) setState(() => error = 'Community circles could not be loaded.');
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  Future<void> _request() async {
+    final submitted = await showDialog<bool>(context: context, builder: (_) => _CircleActionDialog(repository: widget.repository));
+    if (submitted == true && mounted) await _load();
   }
 
   Future<void> _membership(Map<String, dynamic> circle, bool join) async {
@@ -75,7 +81,7 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _CirclePostsSheet(repository: widget.repository, circleId: id, name: circle['name']?.toString() ?? 'Community circle', closed: circle['status'] == 'CLOSED'),
+      builder: (_) => _CirclePostsSheet(repository: widget.repository, circleId: id, name: circle['name']?.toString() ?? 'Community circle', closed: circle['status'] == 'CLOSED', expiresAt: circle['expiresAt']?.toString()),
     );
     await _load();
   }
@@ -93,8 +99,17 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
           children: [
             Text('Opt-in resident circles', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: AaraagateTokens.space1),
-            Text('Join only the society-managed groups you want. Member identities are not exposed as a resident directory.', style: theme.textTheme.bodyMedium),
+            Text('Join the society-managed groups you want. Sender names and flat numbers are visible only to joined circle members.', style: theme.textTheme.bodyMedium),
             const SizedBox(height: AaraagateTokens.space4),
+            OutlinedButton.icon(onPressed: loading ? null : _request, icon: const Icon(Icons.add_circle_outline), label: const Text('Request a circle')),
+            if (requests.isNotEmpty) ...[
+              const SizedBox(height: AaraagateTokens.space2),
+              Text('Your circle requests', style: theme.textTheme.titleMedium),
+              for (final request in requests)
+                ListTile(contentPadding: EdgeInsets.zero, title: Text(request['name']?.toString() ?? 'Circle request'),
+                  subtitle: Text('${request['status'] ?? 'PENDING'}${request['reviewNote'] == null ? '' : ' · ${request['reviewNote']}'}')),
+              const SizedBox(height: AaraagateTokens.space3),
+            ],
             if (loading)
               const AppStateCard(icon: Icons.sync_rounded, message: 'Loading community circles…', loading: true)
             else if (error != null)
@@ -126,6 +141,7 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
                             Text('${circle['memberCount'] ?? 0} joined · ${circle['postCount'] ?? 0} posts${closed ? ' · Closed' : ''}', style: theme.textTheme.bodySmall),
                           ])),
                         ]),
+                        if (circle['expiresAt'] != null) Text('Deletes automatically: ${circleDeletionLabel(circle['expiresAt'].toString())}', style: theme.textTheme.bodySmall),
                         if ((circle['description']?.toString() ?? '').isNotEmpty) ...[
                           const SizedBox(height: AaraagateTokens.space3),
                           Text(circle['description'].toString()),
@@ -170,11 +186,12 @@ class _CommunityCirclesScreenState extends State<CommunityCirclesScreen> {
 }
 
 class _CirclePostsSheet extends StatefulWidget {
-  const _CirclePostsSheet({required this.repository, required this.circleId, required this.name, required this.closed});
+  const _CirclePostsSheet({required this.repository, required this.circleId, required this.name, required this.closed, this.expiresAt});
   final ResidentRepository repository;
   final String circleId;
   final String name;
   final bool closed;
+  final String? expiresAt;
 
   @override
   State<_CirclePostsSheet> createState() => _CirclePostsSheetState();
@@ -251,7 +268,8 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
             children: [
               Text(widget.name, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: AaraagateTokens.space1),
-              Text(widget.closed ? 'This circle is closed and read-only.' : 'Messages show content and whether a post is yours; resident identities are not exposed.', style: theme.textTheme.bodySmall),
+              Text(widget.closed ? 'This circle is closed and read-only.' : 'Sender names and flat numbers are visible to joined circle members. Report inappropriate messages for manager review.', style: theme.textTheme.bodySmall),
+              if (widget.expiresAt != null) Text('This circle and its messages delete on ${circleDeletionLabel(widget.expiresAt!)}.'),
               const SizedBox(height: AaraagateTokens.space3),
               Expanded(
                 child: loading
@@ -271,7 +289,8 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
                                     contentPadding: EdgeInsets.zero,
                                     leading: Icon(mine ? Icons.person_outline : Icons.groups_outlined),
                                     title: Text(post['body']?.toString() ?? ''),
-                                    subtitle: Text('${mine ? 'You' : 'Circle member'}${at == null ? '' : ' · ${at.day}/${at.month} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}'}'),
+                                    subtitle: Text('${circleSenderLabel(post)}${at == null ? '' : ' · ${at.day}/${at.month} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}'}'),
+                                    trailing: IconButton(tooltip: 'Report message', icon: const Icon(Icons.flag_outlined), onPressed: () => showDialog<bool>(context: context, builder: (_) => _CircleActionDialog(repository: widget.repository, circleId: widget.circleId, postId: post['id'].toString()))),
                                   );
                                 },
                               ),
@@ -294,4 +313,66 @@ class _CirclePostsSheetState extends State<_CirclePostsSheet> {
       ),
     );
   }
+}
+
+String circleSenderLabel(Map<String, dynamic> post) {
+  final name = post['senderName']?.toString() ?? 'Former member';
+  final flat = post['senderFlat']?.toString() ?? 'Flat unavailable';
+  return '${post['mine'] == true ? 'You ($name)' : name} · $flat';
+}
+
+String circleDeletionLabel(String raw) {
+  final date = DateTime.tryParse(raw)?.toLocal();
+  if (date == null) return raw;
+  return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+}
+
+class _CircleActionDialog extends StatefulWidget {
+  const _CircleActionDialog({required this.repository, this.circleId, this.postId});
+  final ResidentRepository repository;
+  final String? circleId;
+  final String? postId;
+  @override
+  State<_CircleActionDialog> createState() => _CircleActionDialogState();
+}
+
+class _CircleActionDialogState extends State<_CircleActionDialog> {
+  final primary = TextEditingController();
+  final description = TextEditingController();
+  bool busy = false;
+  bool submitted = false;
+  String? error;
+  bool get reporting => widget.postId != null;
+  @override
+  void dispose() { primary.dispose(); description.dispose(); super.dispose(); }
+  Future<void> submit() async {
+    if (busy) return;
+    if (primary.text.trim().length < 3) { setState(() => error = 'Enter at least 3 characters.'); return; }
+    setState(() { busy = true; error = null; });
+    try {
+      if (reporting) {
+        await widget.repository.reportCommunityCirclePost(circleId: widget.circleId!, postId: widget.postId!, reason: primary.text);
+      } else {
+        await widget.repository.requestCommunityCircle(name: primary.text, description: description.text);
+      }
+      if (mounted) setState(() { busy = false; submitted = true; });
+    } catch (e) {
+      if (mounted) setState(() { busy = false; error = e.toString(); });
+    }
+  }
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(reporting ? 'Report message' : 'Request a circle'),
+    content: submitted ? Text(reporting ? 'Report sent to the society managers for review.' : 'Request submitted. Your circle will be published after manager approval.') : SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      if (!reporting) const Text('Your request needs society manager approval before anyone can join.'),
+      TextField(controller: primary, enabled: !busy, maxLength: reporting ? 500 : 80, maxLines: reporting ? 3 : 1,
+        decoration: InputDecoration(labelText: reporting ? 'Reason' : 'Circle name')),
+      if (!reporting) TextField(controller: description, enabled: !busy, maxLength: 500, maxLines: 3,
+        decoration: const InputDecoration(labelText: 'Purpose / description')),
+      if (error != null) Text(error!),
+    ])),
+    actions: submitted ? [TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Done'))] : [
+      TextButton(onPressed: busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'Submitting…' : reporting ? 'Send report' : 'Submit request'))],
+  );
 }

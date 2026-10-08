@@ -10,10 +10,13 @@ class DemoResidentRepository extends ResidentRepository {
   final Set<String> _joinedCommunityCircles = <String>{'demo-circle-1'};
   final Map<String, List<Map<String, dynamic>>> _communityCirclePosts = <String, List<Map<String, dynamic>>>{
     'demo-circle-1': [
-      {'id': 'demo-circle-post-1', 'body': 'Saturday practice is at 7:00 AM near the central lawn.', 'createdAt': '2026-10-04T01:30:00Z', 'mine': false},
-      {'id': 'demo-circle-post-2', 'body': 'I can bring an extra cricket bat.', 'createdAt': '2026-10-04T03:10:00Z', 'mine': true},
+      {'id': 'demo-circle-post-1', 'body': 'Saturday practice is at 7:00 AM near the central lawn.', 'createdAt': '2026-10-04T01:30:00Z', 'mine': false, 'senderName': 'Arun Kumar', 'senderFlat': 'A · 204'},
+      {'id': 'demo-circle-post-2', 'body': 'I can bring an extra cricket bat.', 'createdAt': '2026-10-04T03:10:00Z', 'mine': true, 'senderName': 'Priya Sharma', 'senderFlat': 'B · 302'},
     ],
   };
+
+  final List<Map<String, dynamic>> _circleRequests = [];
+  final Map<String, String> _circleReports = {};
 
   final List<Map<String, dynamic>> _access = [
     {
@@ -653,6 +656,27 @@ class DemoResidentRepository extends ResidentRepository {
       ];
 
   @override
+  Future<List<Map<String, dynamic>>> communityCircleRequests() async => _circleRequests.map((item) => Map<String, dynamic>.from(item)).toList();
+
+  @override
+  Future<Map<String, dynamic>> requestCommunityCircle({required String name, String? description}) async {
+    final trimmed = name.trim();
+    if (trimmed.length < 3 || trimmed.length > 80) throw StateError('Circle name must be between 3 and 80 characters.');
+    if (_circleRequests.any((item) => item['name'].toString().toLowerCase() == trimmed.toLowerCase())) throw StateError('A circle request with this name already exists.');
+    final request = <String, dynamic>{'id': 'demo-request-${DateTime.now().microsecondsSinceEpoch}', 'name': trimmed, 'description': description?.trim(), 'status': 'PENDING'};
+    _circleRequests.add(request);
+    return Map<String, dynamic>.from(request);
+  }
+
+  @override
+  Future<void> reportCommunityCirclePost({required String circleId, required String postId, required String reason}) async {
+    if (!_joinedCommunityCircles.contains(circleId)) throw StateError('Join this circle before reporting.');
+    if (!(_communityCirclePosts[circleId] ?? []).any((post) => post['id'] == postId)) throw StateError('Message not found.');
+    if (reason.trim().length < 3) throw StateError('Please provide a reason.');
+    _circleReports['$circleId:$postId'] = reason.trim();
+  }
+
+  @override
   Future<Map<String, dynamic>> joinCommunityCircle(String circleId) async {
     _joinedCommunityCircles.add(circleId);
     return {'circleId': circleId, 'joined': true};
@@ -676,6 +700,8 @@ class DemoResidentRepository extends ResidentRepository {
       'body': body.trim(),
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'mine': true,
+      'senderName': 'Priya Sharma',
+      'senderFlat': 'B · 302',
     };
     _communityCirclePosts.putIfAbsent(circleId, () => <Map<String, dynamic>>[]).add(post);
     return post;
