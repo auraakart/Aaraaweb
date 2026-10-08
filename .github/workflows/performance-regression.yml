@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'services/api/**'
-      - 'scripts/performance-smoke.mjs'
+      - 'scripts/performance-smoke*.mjs'
       - '.github/workflows/performance-regression.yml'
       - 'docs/PERFORMANCE-REGRESSION-EVIDENCE.md'
   schedule:
@@ -64,6 +64,8 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
+      - name: Test benchmark failure and deadline behavior
+        run: node --test scripts/performance-smoke.test.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate Prisma client

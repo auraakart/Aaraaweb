@@ -25,6 +25,21 @@ export function pushDeliveryRetryDelayMinutes(attemptCount: number) {
   return Math.min(60, Math.max(1, 2 ** Math.max(0, attemptCount - 1)));
 }
 
+// A final crashed attempt cannot be reclaimed without exceeding the retry cap.
+// Record its unknown transport outcome instead of leaving it IN_FLIGHT forever.
+function expireExhaustedPushSql(id?: string) {
+  return Prisma.sql`
+    UPDATE "PushDeliveryOutbox"
+    SET "status"='FAILED',"nextAttemptAt"=NULL,
+        "lastError"='Final push delivery lease expired; transport outcome unknown',
+        "updatedAt"=CURRENT_TIMESTAMP
+    WHERE "status"='IN_FLIGHT' AND "attemptCount" >= ${PUSH_MAX_ATTEMPTS}
+      AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int)
+      ${id ? Prisma.sql`AND "id"=${id}::uuid` : Prisma.empty}
+    RETURNING "id"
+  `;
+}
+
 @Injectable()
 export class PushDeliveryOutboxService {
   constructor(private readonly prisma: PrismaService) {}
@@ -36,8 +51,8 @@ export class PushDeliveryOutboxService {
     eventType: string;
     dedupeKey: string;
     payload: Record<string, unknown>;
-  }) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: PushDeliveryStatus }>>(Prisma.sql`
+  }, client: Pick<Prisma.TransactionClient, '$queryRaw'> = this.prisma) {
+    const rows = await client.$queryRaw<Array<{ id: string; status: PushDeliveryStatus }>>(Prisma.sql`
       INSERT INTO "PushDeliveryOutbox" (
         "targetScope","societyId","userId","eventType","dedupeKey","payload"
       ) VALUES (
@@ -82,6 +97,7 @@ export class PushDeliveryOutboxService {
 
   private async claimOne(id: string) {
     const rows = await this.prisma.$queryRaw<PushOutboxEnvelope[]>(Prisma.sql`
+      WITH expired AS (${expireExhaustedPushSql(id)})
       UPDATE "PushDeliveryOutbox"
       SET "status"='IN_FLIGHT',
           "attemptCount"="attemptCount"+1,
@@ -92,7 +108,7 @@ export class PushDeliveryOutboxService {
         AND (
           ("status"='PENDING' AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP))
           OR
-          ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}))
+          ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int))
         )
       RETURNING "id","targetScope","societyId","userId","eventType","dedupeKey","payload","status","attemptCount"
     `);
@@ -101,14 +117,14 @@ export class PushDeliveryOutboxService {
 
   private claimDue() {
     return this.prisma.$transaction(async (tx) => tx.$queryRaw<PushOutboxEnvelope[]>(Prisma.sql`
-      WITH candidates AS (
+      WITH expired AS (${expireExhaustedPushSql()}), candidates AS (
         SELECT "id"
         FROM "PushDeliveryOutbox"
         WHERE "attemptCount" < ${PUSH_MAX_ATTEMPTS}
           AND (
             ("status"='PENDING' AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP))
             OR
-            ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}))
+            ("status"='IN_FLIGHT' AND "lastAttemptAt" <= CURRENT_TIMESTAMP - make_interval(mins => ${PUSH_STALE_MINUTES}::int))
           )
         ORDER BY COALESCE("nextAttemptAt","createdAt"),"createdAt"
         LIMIT ${PUSH_BATCH_SIZE}
@@ -131,25 +147,29 @@ export class PushDeliveryOutboxService {
   ) {
     try {
       await deliver(work);
-      await this.prisma.$executeRaw(Prisma.sql`
+      const updated = await this.prisma.$executeRaw(Prisma.sql`
         UPDATE "PushDeliveryOutbox"
         SET "status"='DISPATCHED',"dispatchedAt"=CURRENT_TIMESTAMP,
             "nextAttemptAt"=NULL,"lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${work.id}::uuid AND "status"='IN_FLIGHT'
+          AND "attemptCount"=${work.attemptCount}
       `);
+      if (updated === 0) return { dispatched: 0, deferred: 0, failed: 0, skipped: 1 };
       return { dispatched: 1, deferred: 0, failed: 0, skipped: 0 };
     } catch (error) {
       const exhausted = work.attemptCount >= PUSH_MAX_ATTEMPTS;
       const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown push delivery error';
       const retryDelay = pushDeliveryRetryDelayMinutes(work.attemptCount);
-      await this.prisma.$executeRaw(Prisma.sql`
+      const updated = await this.prisma.$executeRaw(Prisma.sql`
         UPDATE "PushDeliveryOutbox"
         SET "status"=${exhausted ? 'FAILED' : 'PENDING'},
             "nextAttemptAt"=${exhausted ? null : new Date(Date.now() + retryDelay * 60_000)},
             "lastError"=${message},
             "updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${work.id}::uuid AND "status"='IN_FLIGHT'
+          AND "attemptCount"=${work.attemptCount}
       `);
+      if (updated === 0) return { dispatched: 0, deferred: 0, failed: 0, skipped: 1 };
       return { dispatched: 0, deferred: exhausted ? 0 : 1, failed: exhausted ? 1 : 0, skipped: 0 };
     }
   }

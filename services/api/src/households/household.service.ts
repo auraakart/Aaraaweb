@@ -266,7 +266,7 @@ export class HouseholdService {
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `emergency-contact:${societyId}:${householdId}:${idempotencyKey}`;
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text
       `);
       const existing = await tx.emergencyContact.findFirst({
         where: { societyId, householdId, idempotencyKey },

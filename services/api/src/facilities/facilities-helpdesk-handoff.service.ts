@@ -50,7 +50,7 @@ export class FacilitiesHelpdeskHandoffService{
     if(input.assignedUserId)await this.assertActiveSocietyMember(societyId,input.assignedUserId);
     const due=input.dueAt?new Date(input.dueAt):null;
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`helpdesk-facility:${societyId}:${ticketId}`},0))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`helpdesk-facility:${societyId}:${ticketId}`},0))::text`);
       const [ticket]=await tx.$queryRaw<Array<{id:string;title:string;description:string;priority:string;status:string;assetId:string|null;updatedAt:Date}>>(Prisma.sql`
         SELECT "id","title","description","priority","status","assetId","updatedAt" FROM "HelpdeskTicket"
         WHERE "id"=${ticketId}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE

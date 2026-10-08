@@ -22,6 +22,7 @@ jobs:
       docs_only: ${{ steps.detect.outputs.docs_only }}
       release_control_only: ${{ steps.detect.outputs.release_control_only }}
       run_api: ${{ steps.detect.outputs.run_api }}
+      run_performance: ${{ steps.detect.outputs.run_performance }}
       run_admin: ${{ steps.detect.outputs.run_admin }}
       run_flutter: ${{ steps.detect.outputs.run_flutter }}
       run_resident: ${{ steps.detect.outputs.run_resident }}
@@ -37,6 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "run_performance=false" >> "$GITHUB_OUTPUT"
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             # Main is promoted only from the already validated staging branch.
@@ -167,6 +169,12 @@ jobs:
             run_guard=true
           fi
 
+          # Reuse the canonical API database/build for benchmark and finance changes.
+          # Other develop slices do not pay for the 100k-row benchmark.
+          if grep -Eq '^(scripts/performance-smoke.*\.mjs|services/api/scripts/performance-seed\.mjs|services/api/src/accounting/|\.github/workflows/performance-regression\.yml)' /tmp/aaraagate-changed-files.txt; then
+            echo "run_performance=true" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "run_api=$run_api" >> "$GITHUB_OUTPUT"
           echo "run_admin=$run_admin" >> "$GITHUB_OUTPUT"
           echo "run_flutter=$run_flutter" >> "$GITHUB_OUTPUT"
@@ -268,6 +276,14 @@ jobs:
         run: node scripts/check-stable-domain-invariants.mjs
       - name: Check architecture complexity boundaries
         run: node scripts/check-complexity-boundaries.mjs
+      - name: Check PostgreSQL parameter contracts
+        run: |
+          node --test scripts/check-postgres-parameter-contracts.test.mjs
+          node scripts/check-postgres-parameter-contracts.mjs
+      - name: Test performance benchmark failure handling
+        run: node --test scripts/performance-smoke.test.mjs
+      - name: Test dependency audit failure handling
+        run: node --test scripts/check-dependency-risk-budget.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
         run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
       - name: Check V4.81.2 maintainability and tenant hardening
@@ -446,6 +462,8 @@ jobs:
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
         run: pnpm --filter @aaraagate/api typecheck
+      - name: Test PostgreSQL workflows before broad regression
+        run: pnpm --filter @aaraagate/api exec vitest run src/prisma/interval-workflows.postgres.spec.ts src/notifications/push-delivery-outbox.postgres.spec.ts
       - name: Test API before coverage instrumentation
         run: pnpm --filter @aaraagate/api test
       - name: Build API before coverage instrumentation
@@ -468,6 +486,10 @@ jobs:
           path: services/api/coverage-risk/
           if-no-files-found: error
           retention-days: 30
+      - name: Seed isolated performance fixture after regression suites
+        if: needs.change-scope.outputs.run_performance == 'true'
+        working-directory: services/api
+        run: node scripts/performance-seed.mjs
       - name: Start production-mode API
         env:
           NODE_ENV: production
@@ -509,6 +531,17 @@ jobs:
           echo "Production-mode API did not become ready"
           cat /tmp/aaraagate-ci-api.log || true
           exit 1
+      - name: Run scoped production-mode performance benchmark
+        if: needs.change-scope.outputs.run_performance == 'true'
+        run: node scripts/performance-smoke.mjs
+      - name: Upload scoped benchmark evidence
+        if: always() && needs.change-scope.outputs.run_performance == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-performance-${{ github.sha }}
+          path: /tmp/aaraagate-performance-summary.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Stop production-mode API
         if: always()
         run: |

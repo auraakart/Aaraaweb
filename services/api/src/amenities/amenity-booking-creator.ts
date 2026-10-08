@@ -45,7 +45,7 @@ export class AmenityBookingCreator {
     const idempotencyKey = input.idempotencyKey?.trim() || null;
     const guestCount = input.guestCount ?? 0;
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${amenityId}`}))::text`;
 
       if (idempotencyKey) {
         const existing = await tx.$queryRaw<Array<{ id: string; amenityId: string; unitId: string; startsAt: Date; endsAt: Date; guestCount:number }>>`
