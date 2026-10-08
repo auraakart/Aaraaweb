@@ -50,7 +50,7 @@ class FakeApiClient extends ApiClient {
 class FakeResidentSpeech implements ResidentSpeech {
   FakeResidentSpeech(this.transcript);
 
-  final String? transcript;
+  String? transcript;
   String? languageCode;
   int listenCalls = 0;
   int stopCalls = 0;
@@ -126,6 +126,31 @@ void main() {
     expect(speech.languageCode, 'en');
     expect(find.text('Show my open complaints'), findsOneWidget);
     expect(find.textContaining('Got it.'), findsOneWidget);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('assistant captures a second Tamil recording without submitting either draft', (tester) async {
+    final api = FakeApiClient();
+    final speech = FakeResidentSpeech('முதல் கேள்வி');
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: '22222222-2222-4222-8222-222222222222', speech: speech,
+    )));
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('தமிழ்').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('பேசுங்கள்'));
+    await tester.tap(find.text('பேசுங்கள்'));
+    await tester.pumpAndSettle();
+    expect(speech.languageCode, 'ta');
+    expect(find.text('முதல் கேள்வி'), findsOneWidget);
+    speech.transcript = 'இரண்டாவது கேள்வி';
+    await tester.tap(find.text('பேசுங்கள்'));
+    await tester.pumpAndSettle();
+    expect(speech.listenCalls, 2);
+    expect(speech.languageCode, 'ta');
+    expect(find.text('இரண்டாவது கேள்வி'), findsOneWidget);
+    expect(find.text('முதல் கேள்வி'), findsNothing);
     expect(api.posts, isEmpty);
   });
 
