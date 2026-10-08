@@ -63,3 +63,11 @@ It does **not** prove:
 - long-duration soak stability.
 
 Those require hosted/load infrastructure and remain outside this repository-only mastermind gap-closure scope.
+
+## V4.86.2 bounded execution and develop coverage
+
+Each request has a ten-second deadline covering both response headers and body consumption. Failed warmup attempts record `phase: warmup`, status and completed warmup count, with zero measured samples. Later scenarios still run and the JSON is written before the CLI returns failure. Successful measured results retain existing latency/error/throughput gates and add phase/deadline metadata. Errors do not include tokens or response bodies.
+
+Canonical API validation now reuses its isolated PostgreSQL/Redis stack and compiled production API for benchmark/seed/accounting/specialist-performance-workflow changes on develop PRs. The existing 100k-row seed runs after API and coverage suites. Unrelated develop changes skip this additional fixture. Benchmark failure fails the existing API validation gate, and its exact-SHA artifact is uploaded for 30 days even when the benchmark fails. The specialist workflow keeps pre-main, scheduled and manual execution; no second develop benchmark runner is created.
+
+Five HTTP fixture tests cover healthy traffic, stalled headers/body, measured-phase stalls and warmup HTTP denial. They verify bounded completion, persisted failed-run evidence and continued later scenarios. Candidate CI must supply actual benchmark measurements; these fixture tests are not API capacity evidence.
