@@ -89,7 +89,7 @@ export class HelpdeskService {
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `${societyId}:${userId}:${idempotencyKey}`;
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text
       `);
       const [existing] = await tx.$queryRaw<TicketRow[]>(Prisma.sql`
         SELECT * FROM "HelpdeskTicket"
@@ -385,7 +385,7 @@ export class HelpdeskService {
     return this.prisma.$transaction(async (tx) => {
       const lockKey = `helpdesk-comment:${societyId}:${userId}:${normalizedKey}`;
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+        SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text
       `);
       const [existing] = await tx.$queryRaw<{ ticketId: string; type: string; message: string | null }[]>(Prisma.sql`
         SELECT "ticketId", "type", "message"

@@ -167,11 +167,11 @@ ${HELPDESK_TICKET_SLA_STATE_SQL} AS "computedSlaState"
       if (!policy) throw new BadRequestException('No active SLA policy exists for this ticket priority');
       const [updated] = await tx.$queryRaw<Array<Record<string, unknown> & { slaState: SlaState }>>(Prisma.sql`
         UPDATE "HelpdeskTicket" SET
-          "firstResponseDueAt"="createdAt" + make_interval(mins => ${policy.firstResponseMinutes}),
-          "resolutionDueAt"="createdAt" + make_interval(mins => ${policy.resolutionMinutes}),
+          "firstResponseDueAt"="createdAt" + make_interval(mins => ${policy.firstResponseMinutes}::int),
+          "resolutionDueAt"="createdAt" + make_interval(mins => ${policy.resolutionMinutes}::int),
           "slaState"=CASE
-            WHEN CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.resolutionMinutes}) THEN 'RESOLUTION_BREACHED'
-            WHEN "firstRespondedAt" IS NULL AND CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.firstResponseMinutes}) THEN 'RESPONSE_BREACHED'
+            WHEN CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.resolutionMinutes}::int) THEN 'RESOLUTION_BREACHED'
+            WHEN "firstRespondedAt" IS NULL AND CURRENT_TIMESTAMP > "createdAt" + make_interval(mins => ${policy.firstResponseMinutes}::int) THEN 'RESPONSE_BREACHED'
             ELSE 'ON_TRACK'
           END,
           "updatedAt"=CURRENT_TIMESTAMP

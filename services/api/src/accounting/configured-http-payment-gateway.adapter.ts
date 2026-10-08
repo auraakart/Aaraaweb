@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { GatewayOperationRequest, GatewayOperationResult, GatewayPaymentObservation, PaymentGatewayAdapter } from './payment-gateway.adapter';
 
+// Bound each attempt so a stalled bridge cannot pin the sequential runner.
+// Abort errors propagate to its existing UNKNOWN/retry evidence path.
+const GATEWAY_REQUEST_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class ConfiguredHttpPaymentGatewayAdapter implements PaymentGatewayAdapter{
   readonly provider=(process.env.PAYMENT_GATEWAY_RECONCILIATION_PROVIDER??'configured-http').trim();
@@ -17,7 +21,7 @@ export class ConfiguredHttpPaymentGatewayAdapter implements PaymentGatewayAdapte
 
   async queryPayment(paymentId:string):Promise<GatewayPaymentObservation>{
     this.ensureConfigured();
-    const body=await this.json<{providerPaymentId?:string;providerStatus:string;amountPaise:number}>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(paymentId)}`,{headers:this.headers()}));
+    const body=await this.json<{providerPaymentId?:string;providerStatus:string;amountPaise:number}>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(paymentId)}`,{headers:this.headers(),signal:AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS)}));
     if(!body?.providerStatus||!Number.isInteger(body.amountPaise)||body.amountPaise<0)throw new Error('Gateway bridge returned an invalid payment observation');
     return body;
   }
@@ -25,7 +29,7 @@ export class ConfiguredHttpPaymentGatewayAdapter implements PaymentGatewayAdapte
   async refund(input:GatewayOperationRequest):Promise<GatewayOperationResult>{
     this.ensureConfigured();
     if(!input.amountPaise||input.amountPaise<=0)throw new Error('Refund amount must be positive');
-    const body=await this.json<GatewayOperationResult>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(input.paymentId)}/refunds`,{method:'POST',headers:this.headers(input.idempotencyKey),body:JSON.stringify({amountPaise:input.amountPaise,providerOperationId:input.providerOperationId})}));
+    const body=await this.json<GatewayOperationResult>(await fetch(`${this.baseUrl}/payments/${encodeURIComponent(input.paymentId)}/refunds`,{method:'POST',headers:this.headers(input.idempotencyKey),signal:AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),body:JSON.stringify({amountPaise:input.amountPaise,providerOperationId:input.providerOperationId})}));
     if(!['ACCEPTED','SETTLED','FAILED','UNKNOWN'].includes(body?.status))throw new Error('Gateway bridge returned an invalid operation result');
     return body;
   }

@@ -78,4 +78,19 @@ describe('PushDeliveryOutboxService', () => {
     const sql = (tx.$queryRaw.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain('FOR UPDATE SKIP LOCKED');
   });
+
+  it.each(['success', 'failure'])('does not count stale transport %s as an owned state transition', async outcome => {
+    const work = {
+      id: '11111111-1111-4111-8111-111111111111', targetScope: 'CONSUMER' as const,
+      societyId: null, userId: '33333333-3333-4333-8333-333333333333',
+      eventType: 'CONSUMER_SERVICE_BOOKING_STATUS', dedupeKey: 'stale', payload: {},
+      status: 'IN_FLIGHT' as const, attemptCount: 1,
+    };
+    const prisma = { $queryRaw: vi.fn().mockResolvedValue([work]), $executeRaw: vi.fn().mockResolvedValue(0) };
+    const service = new PushDeliveryOutboxService(prisma as never);
+    await expect(service.attempt(work.id, async () => {
+      if (outcome === 'failure') throw new Error('stale failure');
+    })).resolves.toEqual({ dispatched: 0, deferred: 0, failed: 0, skipped: 1 });
+  });
+
 });

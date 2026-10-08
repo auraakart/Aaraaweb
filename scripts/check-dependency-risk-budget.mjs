@@ -1,6 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
 const result = spawnSync('pnpm', ['audit', '--json'], { encoding: 'utf8' });
+if (result.error || result.signal) {
+  console.error('Dependency audit could not complete:', result.error?.message ?? result.signal);
+  process.exit(1);
+}
 const raw = (result.stdout || '').trim();
 if (!raw) {
   console.error(result.stderr || 'pnpm audit returned no JSON output');
@@ -16,10 +20,21 @@ try {
   process.exit(1);
 }
 
-const counts = report?.metadata?.vulnerabilities ?? {};
-const moderate = Number(counts.moderate ?? 0);
-const high = Number(counts.high ?? 0);
-const critical = Number(counts.critical ?? 0);
+const counts = report?.metadata?.vulnerabilities;
+const severities = ['info', 'low', 'moderate', 'high', 'critical'];
+if (report?.error || !counts || severities.some((severity) => !Number.isSafeInteger(counts[severity]) || counts[severity] < 0)) {
+  console.error('Dependency audit returned an error or incomplete vulnerability counts; refusing clean evidence.');
+  process.exit(1);
+}
+// pnpm exits nonzero for real advisories too. Preserve their severity budget,
+// but never accept a failed command claiming zero advisories.
+if (result.status !== 0 && severities.every((severity) => counts[severity] === 0)) {
+  console.error('Dependency audit failed without a valid advisory result.');
+  process.exit(1);
+}
+const moderate = counts.moderate;
+const high = counts.high;
+const critical = counts.critical;
 
 const advisoryRows = [];
 if (report?.advisories && typeof report.advisories === 'object') {

@@ -63,7 +63,6 @@ export class PaymentOrderService {
       `);
       const invoice = invoices[0];
       if (!invoice) throw new NotFoundException('Invoice not found');
-      if (invoice.status !== 'ISSUED') throw new BadRequestException('Invoice is not payable');
 
       const existing = await tx.$queryRaw<Array<{ invoiceId: string } & Record<string, unknown>>>(Prisma.sql`
         SELECT * FROM "Payment"
@@ -74,6 +73,9 @@ export class PaymentOrderService {
         if (existing[0].invoiceId !== invoiceId) throw new BadRequestException('Idempotency key is already used for another invoice');
         return existing[0];
       }
+      // An authorized retry must recover the original order even after capture
+      // has made the invoice non-payable. Only new orders require ISSUED.
+      if (invoice.status !== 'ISSUED') throw new BadRequestException('Invoice is not payable');
 
       const active = await tx.$queryRaw<Array<{ id:string; invoiceId:string; payerUserId:string; status:string } & Record<string, unknown>>>(Prisma.sql`
         SELECT * FROM "Payment"
@@ -94,7 +96,13 @@ export class PaymentOrderService {
         ON CONFLICT ("societyId","payerUserId","idempotencyKey") DO UPDATE SET "idempotencyKey"=EXCLUDED."idempotencyKey"
         RETURNING *
       `);
-      const payment = (rows as { id: string }[])[0];
+      const payment = (rows as { id: string; invoiceId: string | null }[])[0];
+      // Different invoice locks do not serialize the payer's idempotency key.
+      // A concurrent insert can win the unique-key conflict after our lookup.
+      // Reject inside the transaction so its no-op update and audit roll back.
+      if (!payment || payment.invoiceId !== invoiceId) {
+        throw new BadRequestException('Idempotency key is already used for another invoice');
+      }
       await tx.$executeRaw(Prisma.sql`INSERT INTO "PaymentEvent" ("societyId","paymentId","actorUserId","type") VALUES (${societyId}::uuid,${payment.id}::uuid,${userId}::uuid,'ORDER_CREATED')`);
       return payment;
     });

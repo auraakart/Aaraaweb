@@ -5,6 +5,25 @@ const originalEnv={...process.env};
 afterEach(()=>{process.env={...originalEnv};vi.restoreAllMocks();});
 
 describe('ConfiguredHttpPaymentGatewayAdapter',()=>{
+  it.each(['query', 'refund'] as const)('aborts a stalled %s request and propagates uncertainty for runner recovery',async(operation)=>{
+    process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
+    const controller=new AbortController();
+    const timeout=vi.spyOn(AbortSignal,'timeout').mockReturnValue(controller.signal);
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation((_url,options)=>new Promise((_resolve,reject)=>{
+      options?.signal?.addEventListener('abort',()=>reject(options.signal?.reason),{once:true});
+    }));
+    const adapter=new ConfiguredHttpPaymentGatewayAdapter();
+    const request=operation==='query'
+      ? adapter.queryPayment('pay-1')
+      : adapter.refund({paymentId:'pay-1',amountPaise:500,idempotencyKey:'idem-1'});
+    const rejection=expect(request).rejects.toThrow('gateway deadline');
+    controller.abort(new Error('gateway deadline'));
+    await rejection;
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    if(operation==='refund') expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({'Idempotency-Key':'idem-1'}));
+  });
+
   it('queries payment observations from the legacy sandbox bridge',async()=>{
     process.env.PAYMENT_GATEWAY_RECONCILIATION_BASE_URL='https://gateway.example';
     process.env.PAYMENT_GATEWAY_RECONCILIATION_PROVIDER='test-provider';

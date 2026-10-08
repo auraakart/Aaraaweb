@@ -204,7 +204,7 @@ export class ConsumerBookingsService {
     const notes = input.notes?.trim() || null;
     return this.prisma.$transaction(async (tx) => {
       if (idempotencyKey) {
-        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${idempotencyKey}`}))`);
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${userId}:${idempotencyKey}`}))::text`);
         const existing = await tx.$queryRaw<ConsumerBookingRow[]>(Prisma.sql`
           SELECT * FROM "ConsumerServiceBooking"
           WHERE "userId"=${userId}::uuid AND "idempotencyKey"=${idempotencyKey}

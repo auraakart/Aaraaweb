@@ -64,7 +64,7 @@ export class ProviderSettlementService{
     await this.assertProvider(providerId);
     const id=randomUUID();
     return this.prisma.$transaction(async tx=>{
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`settlement:${providerId}`}))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`settlement:${providerId}`}))::text`);
       const eligible=await tx.$queryRaw<Array<{
         paymentId:string;bookingId:string;grossAmountPaise:number;platformFeePaise:number;providerAmountPaise:number;currency:string;capturedAt:Date;
       }>>(Prisma.sql`
