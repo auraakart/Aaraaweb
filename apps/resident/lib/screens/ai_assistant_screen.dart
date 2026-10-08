@@ -84,6 +84,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantReview');
       });
+    } on ResidentSpeechUnavailable {
+      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnsupported'));
+    } catch (_) {
+      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnavailable'));
     } finally {
       if (mounted) setState(() => _listening = false);
     }
