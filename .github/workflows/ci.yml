@@ -593,7 +593,7 @@ jobs:
       - name: Lint shared Admin components and browser contracts
         run: pnpm --filter @aaraagate/admin lint:ui
       - name: Install Admin browser test runtime
-        run: pnpm --filter @aaraagate/admin exec playwright install --with-deps chromium
+        run: bash scripts/install-admin-browser-runtime.sh
       - name: Test shared Admin component interactions and accessibility
         run: pnpm --filter @aaraagate/admin test:ui
       - name: Typecheck admin
