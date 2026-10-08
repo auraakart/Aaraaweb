@@ -25,7 +25,8 @@ void main() {
     expect(posts.last['body'], 'Latest message');
     expect(posts.last['mine'], isTrue);
     expect(posts.last['senderName'], isNotEmpty);
-    expect(posts.last['senderFlat'], 'B · 302');
+    final home = (await repository.households()).first;
+    expect(posts.last['senderFlat'], '${home['buildingName']} · ${home['unitNumber']}');
   });
   test('sender labels include the name and flat number', () {
     expect(circleSenderLabel({'senderName': 'Arun Kumar', 'senderFlat': 'A · 204'}), 'Arun Kumar · A · 204');

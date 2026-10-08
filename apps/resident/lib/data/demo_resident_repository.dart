@@ -11,7 +11,7 @@ class DemoResidentRepository extends ResidentRepository {
   final Map<String, List<Map<String, dynamic>>> _communityCirclePosts = <String, List<Map<String, dynamic>>>{
     'demo-circle-1': [
       {'id': 'demo-circle-post-1', 'body': 'Saturday practice is at 7:00 AM near the central lawn.', 'createdAt': '2026-10-04T01:30:00Z', 'mine': false, 'senderName': 'Arun Kumar', 'senderFlat': 'A · 204'},
-      {'id': 'demo-circle-post-2', 'body': 'I can bring an extra cricket bat.', 'createdAt': '2026-10-04T03:10:00Z', 'mine': true, 'senderName': 'Priya Sharma', 'senderFlat': 'B · 302'},
+      {'id': 'demo-circle-post-2', 'body': 'I can bring an extra cricket bat.', 'createdAt': '2026-10-04T03:10:00Z', 'mine': true, 'senderName': 'Priya Sharma', 'senderFlat': 'Maple Tower · A-1204'},
     ],
   };
 
@@ -701,7 +701,7 @@ class DemoResidentRepository extends ResidentRepository {
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'mine': true,
       'senderName': 'Priya Sharma',
-      'senderFlat': 'B · 302',
+      'senderFlat': 'Maple Tower · A-1204',
     };
     _communityCirclePosts.putIfAbsent(circleId, () => <Map<String, dynamic>>[]).add(post);
     return post;

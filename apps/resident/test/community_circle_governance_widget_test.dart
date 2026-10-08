@@ -10,7 +10,7 @@ void main() {
     await tester.tap(find.text('OPEN CIRCLE'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Arun Kumar · A · 204'), findsOneWidget);
-    expect(find.textContaining('You (Priya Sharma) · B · 302'), findsOneWidget);
+    expect(find.textContaining('You (Priya Sharma) · Maple Tower · A-1204'), findsOneWidget);
     await tester.tap(find.byTooltip('Report message').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Inappropriate content');
