@@ -130,3 +130,81 @@ describe('PushNotificationService', () => {
     expect(result).toEqual({ count: 1 });
   });
 });
+
+
+describe('Durable push routing boundary', () => {
+  const resident = {
+    id: 'outbox-1', targetScope: 'RESIDENT' as const, societyId: 'society-1',
+    userId: 'user-1', eventType: 'PARCEL_RECEIVED', dedupeKey: 'parcel-1',
+    status: 'IN_FLIGHT' as const, attemptCount: 1,
+    payload: { userId: 'user-1', societyId: 'society-1', type: 'PARCEL_RECEIVED' },
+  };
+  const consumer = {
+    ...resident, targetScope: 'CONSUMER' as const, societyId: null,
+    eventType: 'CONSUMER_SERVICE_BOOKING_STATUS', payload: { userId: 'user-1' },
+  };
+
+  function harness() {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const prisma = { devicePushToken: { findMany }, $queryRaw: queryRaw } as unknown as PrismaService;
+    const service = new PushNotificationService(prisma);
+    // No device registrations means no external Firebase call. Configuration
+    // allows the test to prove whether recipient lookup is reached.
+    Object.assign(service, { firebaseApp: {} });
+    const deliver = (service as unknown as {
+      deliverOutbox(work: typeof resident | typeof consumer): Promise<void>;
+    }).deliverOutbox.bind(service);
+    return { deliver, findMany, queryRaw };
+  }
+
+  it.each([
+    { ...resident, payload: { ...resident.payload, userId: 'other-user' } },
+    { ...resident, payload: { ...resident.payload, societyId: 'other-society' } },
+    { ...resident, payload: { ...resident.payload, type: 'BILLING_INVOICE_ISSUED' } },
+    { ...resident, societyId: null },
+    { ...consumer, payload: { userId: 'other-user' } },
+    { ...consumer, societyId: 'society-1' },
+    { ...consumer, eventType: 'PARCEL_RECEIVED' },
+    { ...resident, payload: null },
+    { ...resident, payload: [] },
+    { ...resident, payload: 'invalid' },
+    { ...resident, payload: {} },
+    { ...resident, payload: { ...resident.payload, userId: 1 } },
+    { ...resident, payload: { userId: resident.userId, type: resident.eventType } },
+    { ...resident, targetScope: 'UNKNOWN' },
+  ])('rejects mismatched routing before looking up tokens: %j', async work => {
+    const { deliver, findMany, queryRaw } = harness();
+    await expect(deliver(work as typeof resident)).rejects.toThrow('metadata mismatch');
+    expect(findMany).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('uses matching resident society/user metadata for token lookup', async () => {
+    const { deliver, findMany, queryRaw } = harness();
+    await expect(deliver(resident)).resolves.toBeUndefined();
+    expect(findMany).toHaveBeenCalledWith({
+      where: { societyId: resident.societyId, userId: resident.userId, active: true },
+      select: { id: true, token: true },
+    });
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('retains consumer user token routing with a null society envelope', async () => {
+    const { deliver, findMany, queryRaw } = harness();
+    await expect(deliver(consumer)).resolves.toBeUndefined();
+    expect(queryRaw).toHaveBeenCalledOnce();
+    expect(queryRaw.mock.calls[0][0].values).toEqual([consumer.userId]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('preserves PostgreSQL UUID identity when payload casing differs', async () => {
+    const { deliver, findMany } = harness();
+    const userId = 'aabcdef0-1234-4234-8234-123456789abc';
+    const societyId = 'bbbcdef0-1234-4234-8234-123456789abc';
+    await expect(deliver({ ...resident, userId, societyId, payload: {
+      ...resident.payload, userId: userId.toUpperCase(), societyId: societyId.toUpperCase(),
+    } })).resolves.toBeUndefined();
+    expect(findMany).toHaveBeenCalledOnce();
+  });
+});
