@@ -39,6 +39,18 @@ class RecoveryServicesApi extends ApiClient {
   }
 }
 
+class FavoriteMemoryServicesApi extends RecoveryServicesApi {
+  bool failFavorites = false;
+  @override
+  Future<dynamic> get(String path) async {
+    if (path.endsWith('/favorites')) {
+      if (failFavorites) throw StateError('Optional metadata unavailable');
+      return [{'providerId': 'provider-1'}];
+    }
+    return super.get(path);
+  }
+}
+
 Future<void> showServices(WidgetTester tester, RecoveryServicesApi api) async {
   await tester.pumpWidget(MaterialApp(home: IndependentServicesScreen(apiClient: api)));
   await tester.pump();
@@ -95,4 +107,16 @@ void main() {
     expect(find.text('Home cleaning'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('optional metadata failure preserves a known favourite', (tester) async {
+    final api = FavoriteMemoryServicesApi();
+    await showServices(tester, api);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    api.failFavorites = true;
+    await tester.tap(find.text('Fast category'));
+    await tester.pumpAndSettle();
+    expect(find.text('Latest category provider'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+  });
+
 }

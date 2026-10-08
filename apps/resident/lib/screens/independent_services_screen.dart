@@ -107,12 +107,15 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _rows(String path, {bool optional = false}) async {
+    final raw = await widget.apiClient.get(path).timeout(Duration(seconds: optional ? 8 : 20));
+    return (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>?> _optionalRows(String path) async {
     try {
-      final raw = await widget.apiClient.get(path).timeout(Duration(seconds: optional ? 8 : 20));
-      return (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+      return await _rows(path, optional: true);
     } catch (_) {
-      if (optional) return const [];
-      rethrow;
+      return null; // Keep previously known preferences when metadata is unavailable.
     }
   }
 
@@ -197,23 +200,23 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
       'locationId': location['id'].toString(),
     }).query;
     final metadata = await Future.wait([
-      _rows('/api/v1/consumer/services/providers/trust', optional: true),
-      _rows('/api/v1/consumer/services/favorites', optional: true),
-      _rows('/api/v1/consumer/services/recent-providers', optional: true),
+      _optionalRows('/api/v1/consumer/services/providers/trust'),
+      _optionalRows('/api/v1/consumer/services/favorites'),
+      _optionalRows('/api/v1/consumer/services/recent-providers'),
       if (location?['type'] == 'SOCIETY_UNIT')
-        _rows('/api/v1/consumer/services/community-deals?$query', optional: true)
+        _optionalRows('/api/v1/consumer/services/community-deals?$query')
       else Future.value(<Map<String, dynamic>>[]),
     ]);
     if (!mounted || generation != _loadGeneration) return;
     final trust = <String, Map<String, dynamic>>{
-      for (final row in metadata[0]) if (row['providerId'] != null) row['providerId'].toString(): row,
+      for (final row in metadata[0] ?? <Map<String, dynamic>>[]) if (row['providerId'] != null) row['providerId'].toString(): row,
     };
     setState(() {
       _offerings = _offerings.map((item) => _withTrust(item, trust)).toList();
-      _recentProviders = metadata[2];
-      _communityDeals = metadata[3];
-      if (favoriteRevision == _favoriteRevision) {
-        _favoriteProviderIds = metadata[1].map((item) => item['providerId']?.toString()).whereType<String>().toSet();
+      if (metadata[2] != null) _recentProviders = metadata[2]!;
+      if (metadata[3] != null) _communityDeals = metadata[3]!;
+      if (favoriteRevision == _favoriteRevision && metadata[1] != null) {
+        _favoriteProviderIds = metadata[1]!.map((item) => item['providerId']?.toString()).whereType<String>().toSet();
       }
     });
   }
