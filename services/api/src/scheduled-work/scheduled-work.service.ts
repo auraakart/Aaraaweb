@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { CommunityCirclesService } from '../governance/community-circles.service';
 import { Prisma } from '@prisma/client';
 import { NotificationRealtimeService } from '../notifications/notification-realtime.service';
 import { PushNotificationService } from '../notifications/push-notification.service';
@@ -48,6 +49,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
     private readonly realtime?: NotificationRealtimeService,
     private readonly push?: PushNotificationService,
     private readonly amenities?: AmenitiesService,
+    private readonly circles?: CommunityCirclesService,
   ) {}
 
   onModuleInit() {
@@ -243,6 +245,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
 
       if (sweep.skipped) return { skipped: true, reason: sweep.reason };
 
+      const circleExpiry=this.circles?await this.circles.deleteExpired():{deleted:0};
       const depositExpiry=this.amenities?await this.amenities.expireUnpaidDeposits():{expired:0};
       const dispatchResult = await this.dispatchNotices(sweep.noticeDispatches);
       const pushResult = this.push ? await this.push.drainDurableOutbox() : null;
@@ -252,6 +255,7 @@ export class ScheduledWorkService implements OnModuleInit, OnModuleDestroy {
         escalated: sweep.escalated,
         sosEscalated: sweep.sosEscalated,
         amenityDepositsExpired:depositExpiry.expired,
+        circlesDeleted:circleExpiry.deleted,
         noticeDispatched: dispatchResult.dispatched,
         noticeDispatchFailed: dispatchResult.failed,
         ...(pushResult ? {

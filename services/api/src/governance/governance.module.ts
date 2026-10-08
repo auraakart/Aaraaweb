@@ -23,6 +23,6 @@ import { GovernanceService } from './governance.service';
   imports:[EntitlementsModule],
   controllers:[GovernanceController,GovernanceCommunityController,CommunityEventsController,CommunityCirclesController,ResidentDirectoryController,GovernanceArtifactsController,GovernancePollParticipationController,GovernanceElectionFoundationController,GovernanceElectionBallotDraftController,GovernanceElectionProcedureController,GovernanceElectionReadinessController,GovernanceElectionPrivacyController,GovernanceElectionHoldController],
   providers:[GovernanceService,CommunityEventsService,CommunityCirclesService,ResidentDirectoryService,PrismaService],
-  exports:[GovernanceService],
+  exports:[GovernanceService,CommunityCirclesService],
 })
 export class GovernanceModule{}

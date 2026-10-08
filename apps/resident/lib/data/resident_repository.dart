@@ -150,6 +150,16 @@ class ResidentRepository {
     return _list(value);
   }
 
+  Future<List<Map<String, dynamic>>> communityCircleRequests() async => _list(await api.get('/api/v1/community-circles/requests/mine'));
+
+  Future<Map<String, dynamic>> requestCommunityCircle({required String name, String? description}) async {
+    return Map<String, dynamic>.from(await api.post('/api/v1/community-circles/requests', {'name': name.trim(), 'description': description?.trim()}) as Map);
+  }
+
+  Future<void> reportCommunityCirclePost({required String circleId, required String postId, required String reason}) async {
+    await api.post('/api/v1/community-circles/$circleId/posts/$postId/report', {'reason': reason.trim()});
+  }
+
   Future<Map<String, dynamic>> joinCommunityCircle(String circleId) async {
     final value = await api.post('/api/v1/community-circles/$circleId/join', const {});
     return Map<String, dynamic>.from(value as Map);
