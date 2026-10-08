@@ -78,7 +78,7 @@ void main() {
       await request.response.flush();
       await Future<void>.delayed(const Duration(milliseconds: 750));
       request.response.write('data: {"event":"ready"}\n\n');
-      await request.response.flush();
+      await request.response.close();
     });
     addTearDown(() => server.close(force: true));
     final api = ApiClient(
@@ -87,7 +87,10 @@ void main() {
       requestTimeout: const Duration(milliseconds: 500),
     );
 
-    expect(await api.sse('/events').first, {'event': 'ready'});
+    expect(
+      await api.sse('/events').first.timeout(const Duration(seconds: 4)),
+      {'event': 'ready'},
+    );
   });
 
   test('a silent SSE handshake exits rather than hanging indefinitely', () async {
