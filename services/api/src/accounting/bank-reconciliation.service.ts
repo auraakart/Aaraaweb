@@ -10,7 +10,7 @@ type ImportBankTransactionInput = {
 };
 type MatchInput = { journalEntryId:string; note?:string };
 type BankStatementRowInput = Omit<ImportBankTransactionInput,'bankAccountId'>;
-type ExistingBankTransaction = { externalKey:string; transactionDate:Date|string; direction:string; amountPaise:bigint|number|string };
+type ExistingBankTransaction = { externalKey:string; transactionDate:Date|string; valueDate?:Date|string|null; direction:string; amountPaise:bigint|number|string; reference?:string|null; description?:string|null };
 
 @Injectable()
 export class BankReconciliationService {
@@ -74,7 +74,7 @@ export class BankReconciliationService {
       `);
       if(rows.length) return rows[0];
       const existing=await this.prisma.$queryRaw<Array<Record<string,unknown>&ExistingBankTransaction>>(Prisma.sql`
-        SELECT "id","bankAccountId","externalKey","transactionDate","valueDate","direction"::text AS "direction","amountPaise"::text AS "amountPaise","status"::text AS "status"
+        SELECT "id","bankAccountId","externalKey","transactionDate","valueDate","direction"::text AS "direction","amountPaise"::text AS "amountPaise","reference","description","status"::text AS "status"
         FROM "BankStatementTransaction" WHERE "societyId"=${societyId}::uuid AND "bankAccountId"=${input.bankAccountId}::uuid AND "externalKey"=${externalKey} LIMIT 1
       `);
       if(!existing[0]) throw new ConflictException('Bank transaction external key already exists');
@@ -91,7 +91,7 @@ export class BankReconciliationService {
     if(normalized.some(item=>!item.row.externalKey)) throw new BadRequestException('Every bank statement row requires an external key');
     const keys=[...new Set(normalized.map(item=>item.row.externalKey))];
     const existing=await this.prisma.$queryRaw<ExistingBankTransaction[]>(Prisma.sql`
-      SELECT "externalKey","transactionDate","direction"::text AS "direction","amountPaise"
+      SELECT "externalKey","transactionDate","valueDate","direction"::text AS "direction","amountPaise","reference","description"
       FROM "BankStatementTransaction"
       WHERE "societyId"=${societyId}::uuid AND "bankAccountId"=${bankAccountId}::uuid
         AND "externalKey" IN (${Prisma.join(keys)})
@@ -266,12 +266,25 @@ export class BankReconciliationService {
     return rows[0]??{transactionCount:0,matchedCount:0,unmatchedCount:0,ignoredCount:0,staleUnmatchedCount:0,unmatchedValuePaise:'0',matchRatePct:0};
   }
 
+  // A bank external key identifies one immutable imported statement record.
+  // A retry can be idempotent only when both money and bank remittance metadata match.
+  private statementDate(value:Date|string|null|undefined) {
+    if(value===null||value===undefined||value==='') return null;
+    return (value instanceof Date ? value.toISOString() : String(value)).slice(0,10);
+  }
+
+  private statementText(value:string|null|undefined) {
+    return value?.trim()||null;
+  }
+
   private sameImportedTransaction(existing:ExistingBankTransaction,input:ImportBankTransactionInput) {
-    const existingDate=existing.transactionDate instanceof Date?existing.transactionDate.toISOString().slice(0,10):String(existing.transactionDate).slice(0,10);
     return existing.externalKey===input.externalKey.trim()
-      &&existingDate===input.transactionDate.slice(0,10)
+      &&this.statementDate(existing.transactionDate)===this.statementDate(input.transactionDate)
+      &&this.statementDate(existing.valueDate)===this.statementDate(input.valueDate)
       &&existing.direction===input.direction
-      &&Number(existing.amountPaise)===input.amountPaise;
+      &&Number(existing.amountPaise)===input.amountPaise
+      &&this.statementText(existing.reference)===this.statementText(input.reference)
+      &&this.statementText(existing.description)===this.statementText(input.description);
   }
 
   private rethrow(error:unknown,fallback:string):never {
