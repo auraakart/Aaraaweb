@@ -156,6 +156,53 @@ export class AiAssistantService {
       );
     }
 
+    // V4.89.8: only the authenticated parcel recipient can view parcel facts.
+    // Keep parcel codes, tracking references, private notes and other occupants out.
+    if(/\b(?:(?:my|our)\s+(?:parcels?|packages?|deliver(?:y|ies))|(?:parcels?|packages?)\s+(?:for me|waiting|status)|(?:do|did)\s+i\s+have\s+(?:any\s+)?(?:packages?|parcels?|deliveries)|where(?:'s| is)\s+my\s+(?:package|parcel|delivery))\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_PARCELS');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking about your parcels.','UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const rows=await this.prisma.$queryRaw<Array<{status:string,courierName:string|null}>>(Prisma.sql`
+        SELECT p."status",p."courierName"
+        FROM "Parcel" p
+        WHERE p."societyId"=${societyId}::uuid
+          AND p."unitId"=${unitId}::uuid
+          AND p."recipientUserId"=${userId}::uuid
+        ORDER BY CASE p."status" WHEN 'RECEIVED' THEN 0 ELSE 1 END,
+          p."receivedAt" DESC,p."id" DESC
+        LIMIT 20
+      `);
+      const received=rows.filter(item=>item.status==='RECEIVED');
+      const collected=rows.filter(item=>item.status==='COLLECTED').length;
+      const returned=rows.filter(item=>item.status==='RETURNED').length;
+      const waitingCouriers=received.slice(0,3)
+        .map(item=>String(item.courierName??'').replace(/\s+/g,' ').trim().slice(0,60))
+        .filter(Boolean);
+      const facts={
+        waitingCount:received.length,
+        collectedCount:collected,
+        returnedCount:returned,
+        latestRecordsReviewed:rows.length,
+        limitedTo:20,
+        waitingCourierNames:waitingCouriers,
+      };
+      const answer=rows.length
+        ? 'Among your latest '+rows.length+' parcel record(s), '+received.length
+          +' are waiting at the parcel desk, '+collected+' are collected and '
+          +returned+' are returned.'
+          +(waitingCouriers.length?' Recent couriers: '+waitingCouriers.join(', ')+'.':'')
+          +' Open Parcels to see the latest status or generate your own pickup code.'
+        : 'No parcels addressed to you were found for the selected home. Open Parcels to check future deliveries.';
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_PARCELS','RESIDENT_PARCELS',facts,['Parcel'],answer,
+      );
+    }
+
     // On-demand briefing: a current snapshot of authorized records, not a
     // scheduled notification, a prediction, or an unverified "today" history.
     if(/what(?:'s| is|s) happening today|today(?:'s)? (?:brief|highlights|updates?)|daily brief(?:ing)?|morning brief(?:ing)?|what should i know today|anything (?:important|urgent) today/.test(routed)){

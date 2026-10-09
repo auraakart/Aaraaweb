@@ -74,3 +74,12 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Missing selected unit, nonresident owner, unrelated security role and parking-bay allocation requests fail without guessing or exposing another household's inventory.
 - Add targeted negative privacy and no-hallucination tests. Other parking assignment and delivery tools remain separate work.
 - Version identity changes only on the consolidated release; staging/main untouched during development.
+
+## V4.89.8: personal parcel and delivery answers (develop candidate)
+
+- Added read-only `RESIDENT_PARCELS` permissioned by `PARCEL_READ_OWN` and active occupancy of the selected property.
+- Only `Parcel` rows addressed to the authenticated `recipientUserId` within the selected society/unit may be counted or summarized. Other household members' deliveries remain private.
+- Query selects only status and courier name. Never reads or returns parcel pickup codes/hashes, tracking references, internal notes or security metadata.
+- Response distinguishes `RECEIVED` (waiting at parcel desk), `COLLECTED` and `RETURNED`, and labels counts as a bounded recent-20-record snapshot rather than an unbounded history. Pickup-code issuance remains exclusively in the authorized Parcels screen.
+- Negative tests cover non-resident owners, unrelated recipients, guards, missing property and SQL projection limitations. No society-wide parcel desk tool or assistant pickup mutations are introduced.
+- Next gaps: opt-in notifications, question follow-ups, FAQ catalog coverage, contextual source links and accessibility/privacy release evidence. Stage/main remain unchanged until explicitly approved.

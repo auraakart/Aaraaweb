@@ -6,6 +6,7 @@ export type AiAssistantIntent =
   | 'RESIDENT_STATUS'
   | 'RESIDENT_HOUSEHOLD'
   | 'RESIDENT_VEHICLES'
+  | 'RESIDENT_PARCELS'
   | 'RESIDENT_DAILY_BRIEF'
   | 'RESIDENT_WORKFORCE'
   | 'RESIDENT_UTILITIES'
@@ -37,6 +38,7 @@ export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.PAYMENT_CREATE_OWN,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
   {id:'RESIDENT_HOUSEHOLD',label:'My approved family members',context:'PROPERTY',permissions:[AppPermission.HOUSEHOLD_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_VEHICLES',label:'My household vehicles',context:'PROPERTY',permissions:[AppPermission.HOUSEHOLD_READ_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_PARCELS',label:'My personal parcel status',context:'PROPERTY',permissions:[AppPermission.PARCEL_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_DAILY_BRIEF',label:'My current home briefing',context:'PROPERTY',permissions:[AppPermission.NOTICE_READ,AppPermission.HELPDESK_READ_OWN,AppPermission.VISITOR_READ_OWN],permissionMode:'ANY'},
   {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_UTILITIES',label:'Property utility usage',context:'PROPERTY',permissions:[AppPermission.PAYMENT_CREATE_OWN],permissionMode:'ALL'},
