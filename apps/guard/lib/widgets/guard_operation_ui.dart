@@ -63,6 +63,8 @@ class GuardQuickAction extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       label: label,
+      onTap: onTap,
+      excludeSemantics: true,
       child: Material(
         color: background,
         borderRadius: radius,

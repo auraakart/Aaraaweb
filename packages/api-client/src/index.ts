@@ -1,16 +1,21 @@
 export class AaraagateApiError extends Error {
+  readonly status: number;
+  readonly body?: unknown;
   constructor(
     message: string,
-    readonly status: number,
-    readonly body?: unknown,
+    status: number,
+    body?: unknown,
   ) {
     super(message);
     this.name = 'AaraagateApiError';
+    this.status = status;
+    this.body = body;
   }
 }
 
 export type AaraagateRequestOptions = RequestInit & {
   accessToken?: string;
+  timeoutMs?: number;
 };
 
 export function normalizeApiBaseUrl(value?: string) {
@@ -29,24 +34,33 @@ export function apiErrorMessage(body: unknown, status: number) {
 export function createAaraagateApiClient(baseUrl: string) {
   const base = normalizeApiBaseUrl(baseUrl);
   return async function request<T>(path: string, options: AaraagateRequestOptions = {}): Promise<T> {
-    const { accessToken, headers, ...init } = options;
-    const response = await fetch(`${base}/api/v1${path}`, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...headers,
-      },
-    });
-    const text = await response.text();
-    let body: unknown = null;
+    const { accessToken, headers, timeoutMs = 20_000, ...init } = options;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new RangeError('Request timeout must be positive');
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(new DOMException('Request timed out; verify the current status before retrying.', 'TimeoutError')), timeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, deadline.signal]) : deadline.signal;
     try {
-      body = text ? JSON.parse(text) : null;
-    } catch {
-      body = text;
+      const response = await fetch(`${base}/api/v1${path}`, {
+        ...init,
+        signal,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          ...headers,
+        },
+      });
+      const text = await response.text();
+      let body: unknown = null;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        body = text;
+      }
+      if (!response.ok) throw new AaraagateApiError(apiErrorMessage(body, response.status), response.status, body);
+      return body as T;
+    } finally {
+      clearTimeout(timer);
     }
-    if (!response.ok) throw new AaraagateApiError(apiErrorMessage(body, response.status), response.status, body);
-    return body as T;
   };
 }

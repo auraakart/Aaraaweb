@@ -108,9 +108,12 @@ class _AuthScreenState extends State<AuthScreen> {
                         children: [
                           Icon(Icons.lock_outline_rounded, size: 16, color: scheme.onSurfaceVariant),
                           const SizedBox(width: AaraagateTokens.space2),
-                          Text(
-                            'Secure context-scoped session',
-                            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                          Flexible(
+                            child: Text(
+                              'Secure context-scoped session',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
                           ),
                         ],
                       ),

@@ -1,6 +1,6 @@
 {
   "name": "aaraagate",
-  "version": "4.87.0",
+  "version": "4.88.5",
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {

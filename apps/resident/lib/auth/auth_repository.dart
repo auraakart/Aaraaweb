@@ -58,9 +58,10 @@ class OtpVerificationResult {
 }
 
 class AuthRepository {
-  AuthRepository({required this.baseUrl});
+  AuthRepository({required this.baseUrl, this.requestTimeout = const Duration(seconds: 20)});
+  final Duration requestTimeout;
   final String baseUrl;
-  final HttpClient _client = HttpClient();
+
 
   Future<String> requestOtp(String phone) async {
     final json = await _post('/api/v1/auth/otp/request', {'phone': phone});
@@ -200,7 +201,16 @@ class AuthRepository {
 
   Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body, String? accessToken}) async {
     final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}$path');
-    final request = await _client.openUrl(method, uri);
+    final client = HttpClient()..connectionTimeout = requestTimeout;
+    try {
+      return await _exchange(client, method, uri, body, accessToken).timeout(requestTimeout);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<dynamic> _exchange(HttpClient client, String method, Uri uri, Map<String, dynamic>? body, String? accessToken) async {
+    final request = await client.openUrl(method, uri);
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (accessToken != null) request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
     if (body != null) {

@@ -1,36 +1,11 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'guard_api.dart';
 
 class GuardOperationsClient {
   GuardOperationsClient(this.api);
   final GuardApi api;
 
-  String get _root => '${api.baseUrl.replaceFirst(RegExp(r'/$'), '')}/api/v1/guard-operations';
-  Map<String,String> get _headers => {
-    HttpHeaders.acceptHeader:'application/json',
-    HttpHeaders.contentTypeHeader:'application/json',
-    HttpHeaders.authorizationHeader:'Bearer ${api.accessToken}',
-  };
-
-  Future<dynamic> _send(String method,String path,{Map<String,dynamic>? body}) async {
-    try {
-      final uri=Uri.parse('$_root/${path.replaceFirst(RegExp(r'^/'),'')}');
-      final response=method=='GET'
-          ? await http.get(uri,headers:_headers)
-          : await http.post(uri,headers:_headers,body:jsonEncode(body??const {}));
-      dynamic decoded;
-      if(response.body.isNotEmpty){try{decoded=jsonDecode(response.body);}catch(_){decoded=response.body;}}
-      if(response.statusCode<200||response.statusCode>=300){
-        final message=decoded is Map?decoded['message']?.toString():null;
-        throw GuardApiException(message??'Guard operation failed',statusCode:response.statusCode);
-      }
-      return decoded;
-    } on GuardApiException { rethrow; }
-      on SocketException catch(e){throw GuardApiException(e.message,transport:true);}
-      on http.ClientException catch(e){throw GuardApiException(e.message,transport:true);}
-  }
+  Future<dynamic> _send(String method, String path, {Map<String, dynamic>? body}) =>
+      api.operation(method, path, body: body);
 
   Future<Map<String,dynamic>> summary() async => Map<String,dynamic>.from(await _send('GET','summary') as Map);
   Future<List<Map<String,dynamic>>> overstays() => _list('overstays');
