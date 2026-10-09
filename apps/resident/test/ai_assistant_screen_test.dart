@@ -266,6 +266,61 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
+  testWidgets('demo rejects unrelated questions without inventing society facts', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    for (final question in ['Who won the cricket match?', 'What is the weather in Mumbai?']) {
+      await tester.enterText(find.byType(TextField), question);
+      await tester.ensureVisible(find.text('Ask'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ask'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('outside Aaraagate Assistant’s scope'), findsOneWidget);
+      expect(find.textContaining('Today you have one visitor'), findsNothing);
+      expect(find.textContaining('Based on '), findsNothing);
+    }
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo family member request redirects to the existing profile feature', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'give my family member list');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Profile → Family members'), findsOneWidget);
+    expect(find.textContaining('Today you have one visitor'), findsNothing);
+    expect(find.textContaining('Based on '), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo keeps society updates but does not mistake generic updates for notices', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Summarize society updates');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Key updates: lift maintenance'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'How do I update my phone OS?');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('outside Aaraagate Assistant’s scope'), findsOneWidget);
+    expect(find.textContaining('Key updates: lift maintenance'), findsNothing);
+  });
+
   testWidgets('assistant accepts a contextual Home prompt without auto-submitting', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(
