@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/resident_home_highlights.dart';
 import '../theme/aaraagate_theme.dart';
+import '../layout/resident_responsive_layout.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/premium_ui.dart';
 import 'sos_screen.dart';
@@ -97,7 +98,10 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: AaraagateTokens.space3),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 720 ? 4 : 2;
+                  final scale = MediaQuery.textScalerOf(context).scale(1);
+                  final columns = constraints.maxWidth >= 720 && scale < 1.3
+                      ? 4
+                      : residentQuickActionColumns(maxWidth: constraints.maxWidth, textScale: scale);
                   const gap = AaraagateTokens.space3;
                   final itemWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
                   return Wrap(
@@ -399,14 +403,14 @@ class _AssistantEntryCard extends StatelessWidget {
                 Text(
                   'AARAAGATE ASSISTANT',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: .7,
                   ),
                 ),
                 const SizedBox(height: AaraagateTokens.space1),
                 Text('Ask Aaraagate Assistant', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 2),
+                const SizedBox(height: AaraagateTokens.space1),
                 Text(
                   summary,
                   maxLines: 2,
@@ -495,7 +499,7 @@ class _PendingAccessCardState extends State<_PendingAccessCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(name, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AaraagateTokens.space1),
                       Text(
                         purpose == null || purpose.isEmpty ? type : '$type · $purpose',
                         maxLines: 1,
@@ -688,7 +692,7 @@ class _HomeSummaryRow extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AaraagateTokens.space1),
                   Text(
                     subtitle,
                     maxLines: 1,

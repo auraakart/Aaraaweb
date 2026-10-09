@@ -224,9 +224,9 @@ void main() {
 
     final title = tester.widget<Text>(find.text('Household staff'));
     final supporting = tester.widget<Text>(find.text('Attendance, leave and ratings in one place.'));
-    expect(title.maxLines, 2);
-    expect(title.overflow, TextOverflow.ellipsis);
-    expect(supporting.maxLines, 2);
+    expect(title.maxLines, isNull);
+    expect(title.textScaler, isNull);
+    expect(supporting.maxLines, isNull);
     expect(find.byTooltip('Add household staff'), findsOneWidget);
     expect(find.byTooltip('Refresh staff'), findsOneWidget);
     expect(tester.takeException(), isNull);

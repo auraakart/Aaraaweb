@@ -90,21 +90,11 @@ class ProfileScreen extends StatelessWidget {
             else ...[
               PremiumSurface(
                 elevated: true,
-                child: Row(children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl)),
-                    child: Icon(Icons.home_rounded, size: 30, color: scheme.onPrimaryContainer),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space4),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(household['displayName']?.toString() ?? household['societyName']?.toString() ?? 'Your household', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: AaraagateTokens.space1),
-                    Text(_unitLabel(household), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                  ])),
-                ]),
+                child: PremiumIdentityHeader(
+                  icon: Icons.home_rounded,
+                  title: household['displayName']?.toString() ?? household['societyName']?.toString() ?? 'Your household',
+                  supportingText: _unitLabel(household),
+                ),
               ),
               const SizedBox(height: AaraagateTokens.space6),
               const PremiumSectionHeader(title: 'Your household', supportingText: 'People, vehicles and property lifecycle for the selected home.'),

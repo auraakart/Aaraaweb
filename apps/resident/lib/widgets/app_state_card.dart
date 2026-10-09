@@ -52,9 +52,9 @@ class AppStateCard extends StatelessWidget {
                   color: scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
                 ),
-                child: Icon(icon, size: 26, color: scheme.onPrimaryContainer),
+                child: Icon(icon, size: 24, color: scheme.onPrimaryContainer),
               ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AaraagateTokens.space4),
             Text(
               message,
               textAlign: TextAlign.center,

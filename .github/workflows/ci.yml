@@ -260,6 +260,8 @@ jobs:
         run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Check V4 release evidence contract
         run: node scripts/check-v4-release-evidence.mjs
+      - name: Test release delay prevention controls
+        run: node --test scripts/release-delay-controls.test.mjs
       - name: Check V4.80.12 main review routing
         run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax
@@ -372,28 +374,14 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Setup pnpm
-        if: ${{ github.event_name == 'pull_request' && (needs.change-scope.outputs.run_api == 'true' || needs.change-scope.outputs.run_admin == 'true') }}
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.15.0
       - name: Setup Node.js
-        if: ${{ github.event_name == 'pull_request' && (needs.change-scope.outputs.run_api == 'true' || needs.change-scope.outputs.run_admin == 'true') }}
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Setup Flutter
-        if: ${{ github.event_name == 'pull_request' && needs.change-scope.outputs.run_flutter == 'true' }}
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.0'
-          channel: stable
-          cache: true
-      - name: Run compatibility preflight
+      - name: Run structural compatibility preflight
         if: ${{ github.event_name == 'pull_request' }}
         env:
+          PREFLIGHT_MODE: structural
           RUN_API: ${{ needs.change-scope.outputs.run_api }}
           RUN_ADMIN: ${{ needs.change-scope.outputs.run_admin }}
           RUN_RESIDENT: ${{ needs.change-scope.outputs.run_resident }}
@@ -605,7 +593,7 @@ jobs:
       - name: Lint shared Admin components and browser contracts
         run: pnpm --filter @aaraagate/admin lint:ui
       - name: Install Admin browser test runtime
-        run: pnpm --filter @aaraagate/admin exec playwright install --with-deps chromium
+        run: bash scripts/install-admin-browser-runtime.sh
       - name: Test shared Admin component interactions and accessibility
         run: pnpm --filter @aaraagate/admin test:ui
       - name: Typecheck admin
@@ -650,6 +638,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -660,6 +650,12 @@ jobs:
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
         run: flutter pub get
+      - name: Changed Resident tests before broad regression
+        if: needs.change-scope.outputs.run_resident == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/run-changed-flutter-tests.sh resident "$BASE_SHA" "$HEAD_SHA"
       - name: Risk-weighted Resident behavioural regression gate
         if: needs.change-scope.outputs.run_resident == 'true'
         working-directory: apps/resident
@@ -691,6 +687,12 @@ jobs:
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard
         run: flutter pub get
+      - name: Changed Guard tests before broad regression
+        if: needs.change-scope.outputs.run_guard == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/run-changed-flutter-tests.sh guard "$BASE_SHA" "$HEAD_SHA"
       - name: Risk-weighted Guard behavioural regression gate
         if: needs.change-scope.outputs.run_guard == 'true'
         working-directory: apps/guard

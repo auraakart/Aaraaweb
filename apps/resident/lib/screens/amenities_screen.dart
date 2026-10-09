@@ -571,7 +571,7 @@ class _BookingSheetState extends State<_BookingSheet> {
             const PremiumSectionHeader(title: 'Choose date'),
             const SizedBox(height: AaraagateTokens.space3),
             SizedBox(
-              height: 68,
+              height: 72 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, double.infinity),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: quickDates.length,
@@ -583,12 +583,12 @@ class _BookingSheetState extends State<_BookingSheet> {
                     selected: selected,
                     onSelected: (_) => setState(() => _date = date),
                     label: SizedBox(
-                      width: 46,
+                      width: 48 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, double.infinity),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(_weekday(date), style: theme.textTheme.labelSmall),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text('${date.day}', style: theme.textTheme.titleMedium),
                         ],
                       ),
@@ -636,16 +636,20 @@ class _BookingSheetState extends State<_BookingSheet> {
               const SizedBox(height:AaraagateTokens.space2),
               PremiumSurface(
                 semanticLabel:'Selected guest count $_guestCount of maximum $maxGuests',
-                child:Row(children:[
+                child:Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AaraagateTokens.space2,
+                  runSpacing: AaraagateTokens.space2,
+                  children:[
                   const Icon(Icons.group_outlined),
                   const SizedBox(width:AaraagateTokens.space3),
-                  Expanded(child:Text('Guests joining you',style:theme.textTheme.bodyLarge?.copyWith(fontWeight:FontWeight.w700))),
+                  Text('Guests joining you',style:theme.textTheme.bodyLarge?.copyWith(fontWeight:FontWeight.w700)),
                   IconButton(
                     tooltip:'Remove guest',
                     onPressed:_guestCount>0?()=>setState(()=>_guestCount--):null,
                     icon:const Icon(Icons.remove_circle_outline),
                   ),
-                  SizedBox(width:32,child:Text('$_guestCount',textAlign:TextAlign.center,style:theme.textTheme.titleMedium)),
+                  Text('$_guestCount',textAlign:TextAlign.center,style:theme.textTheme.titleMedium),
                   IconButton(
                     tooltip:'Add guest',
                     onPressed:_guestCount<maxGuests?()=>setState(()=>_guestCount++):null,
@@ -730,40 +734,18 @@ class _AmenityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: AaraagateTokens.iconContainer,
-                height: AaraagateTokens.iconContainer,
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-                ),
-                child: Icon(Icons.sports_tennis_rounded, color: scheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: AaraagateTokens.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(amenity['name']?.toString() ?? 'Amenity', style: theme.textTheme.titleMedium),
-                    if (amenity['location'] != null) ...[
-                      const SizedBox(height: AaraagateTokens.space1),
-                      Text(amenity['location'].toString(), style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                    ],
-                  ],
-                ),
-              ),
-              AaraagateStatusPill(
-                label: approval ? 'Approval required' : 'Instant booking',
-                tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
-              ),
-            ],
+          PremiumIdentityHeader(
+            icon: Icons.sports_tennis_rounded,
+            title: amenity['name']?.toString() ?? 'Amenity',
+            supportingText: amenity['location']?.toString(),
+            status: AaraagateStatusPill(
+              label: approval ? 'Approval required' : 'Instant booking',
+              tone: approval ? AaraagateStatusTone.warning : AaraagateStatusTone.info,
+            ),
           ),
           if (description.isNotEmpty) ...[
             const SizedBox(height: AaraagateTokens.space3),
-            Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
+            Text(description, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
           ],
           if(blackout!=null) ...[
             const SizedBox(height:AaraagateTokens.space3),
@@ -883,7 +865,7 @@ class _BookingCard extends StatelessWidget {
                 Text('${_feeLabel(booking['feePaise'])} · ${_titleCase(statusLabel)}${guests>0?' · $guests guest${guests==1?'':'s'}':''}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                 if(depositPaise>0) ...[
                   const SizedBox(height:AaraagateTokens.space1),
-                  Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}',style:theme.textTheme.bodySmall?.copyWith(color:depositStatus=='PAYMENT_REQUIRED'?scheme.primary:scheme.onSurfaceVariant)),
+                  Text('Refundable deposit ${_feeLabel(depositPaise)} · ${_titleCase(depositStatus.replaceAll('_',' ').toLowerCase())}${booking['depositDueAt']!=null?' · due ${_formatApiDate(booking['depositDueAt'])}':''}',style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurfaceVariant)),
                 ],
               ],
             ),
@@ -912,9 +894,9 @@ class _Meta extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 5),
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600))),
       ],
     );
   }
