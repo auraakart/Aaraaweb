@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { canReadPropertyPayables } from '../auth/property-finance-access';
-import { currentResidentPropertySql } from '../auth/property-scope.sql';
+import { currentOccupantPropertySql, currentPayerPropertySql, currentResidentPropertySql } from '../auth/property-scope.sql';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -125,14 +125,14 @@ export class AiAssistantService {
 
     if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(routed)){
       this.requireTool(roles,'RESIDENT_GATE');
-      await this.assertResidentUnit(societyId,userId,unitId);
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.insights.residentGateStatus(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
     if(unitId && /utility|meter|consumption|reading|electricity|water usage|water meter/.test(routed)){
       this.requireTool(roles,'RESIDENT_UTILITIES');
-      await this.assertResidentUnit(societyId,userId,unitId);
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.insights.residentUtilities(societyId,unitId);
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_UTILITIES','RESIDENT_UTILITIES',facts,
@@ -144,7 +144,7 @@ export class AiAssistantService {
     if(unitId && /resident request|noc|no[- ]?dues|address proof|certificate|permission letter|parking permission|move[- ]?out letter/.test(routed)){
       this.requireTool(roles,'RESIDENT_REQUESTS');
       await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.insights.residentRequests(societyId,unitId);
+      const facts=await this.insights.residentRequests(societyId,userId,unitId);
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_REQUESTS','RESIDENT_REQUESTS',facts,
         ['HelpdeskTicket'],
@@ -154,6 +154,7 @@ export class AiAssistantService {
 
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
       this.requireTool(roles,'RESIDENT_WORKFORCE');
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave','AccessRequest','WorkforcePaymentRecord'],'Grounded household-staff status, gate-derived attendance and resident-recorded payment evidence for the current occupant of the selected property only. Scheduled evidence gaps are not labelled absence, and payment records are not bank/payroll proof.');
     }
@@ -384,7 +385,9 @@ export class AiAssistantService {
     const invoices=canReadPropertyPayables(roles)
       ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
           SELECT "id","invoiceNumber","amountPaise","dueDate","status" FROM "MaintenanceInvoice"
-          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid ORDER BY "issuedAt" DESC LIMIT 20
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid
+            AND ${currentPayerPropertySql(societyId,userId,unitId)}
+          ORDER BY "issuedAt" DESC LIMIT 20
         `)
       : [];
     const payments=canReadPropertyPayables(roles)
@@ -392,11 +395,8 @@ export class AiAssistantService {
           SELECT p."id",p."invoiceId",p."amountPaise",p."status",p."createdAt",p."completedAt"
           FROM "Payment" p JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
           WHERE p."societyId"=${societyId}::uuid AND i."unitId"=${unitId}::uuid
-            AND (p."payerUserId"=${userId}::uuid OR EXISTS(
-              SELECT 1 FROM "UnitOwnership" ow WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid
-                AND ow."userId"=${userId}::uuid AND ow."active"=TRUE AND ow."verified"=TRUE
-                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
-            ))
+            AND p."payerUserId"=${userId}::uuid
+            AND ${currentPayerPropertySql(societyId,userId,unitId)}
           ORDER BY p."createdAt" DESC LIMIT 20
         `)
       : [];
@@ -422,6 +422,16 @@ export class AiAssistantService {
         `)
       : [];
     return {invoices,payments,tickets,amenityBookings:amenities,serviceBookings:services};
+  }
+
+  private async assertCurrentOccupantUnit(societyId:string,userId:string,unitId:string){
+    const rows=await this.prisma.$queryRaw<Array<{allowed:boolean}>>(Prisma.sql`
+      SELECT TRUE AS "allowed" FROM "Unit" u
+      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid
+        AND ${currentOccupantPropertySql(societyId,userId,unitId)}
+      LIMIT 1
+    `);
+    if(!rows[0]?.allowed) throw new ForbiddenException('Current occupant authorization required for private household activity');
   }
 
   private async assertResidentUnit(societyId:string,userId:string,unitId:string){

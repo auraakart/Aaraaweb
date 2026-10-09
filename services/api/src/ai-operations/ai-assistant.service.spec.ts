@@ -188,6 +188,7 @@ describe('V4.6 grounded AI assistant',()=>{
 
   it('routes household staff status through the canonical occupant-scoped workforce service',async()=>{
     const {prisma,workforce,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]);
     workforce.residentStatusMine.mockResolvedValue({
       activeAssignmentCount:1,checkedInCount:1,onLeaveCount:0,
       staff:[{id:'assignment-1',name:'Maya',role:'MAID',checkedInNow:true}],
@@ -205,8 +206,59 @@ describe('V4.6 grounded AI assistant',()=>{
       '22222222-2222-4222-8222-222222222222',
       '33333333-3333-4333-8333-333333333333',
     );
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const authorizationSql=(prisma.$queryRaw.mock.calls[0][0] as {strings:readonly string[]}).strings.join('?');
+    expect(authorizationSql).toContain('FROM "UnitOccupancy"');
+    expect(authorizationSql).not.toContain('FROM "UnitOwnership"');
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('rejects non-resident owner access to live visitor/household activity before retrieval',async()=>{
+    const {prisma,workforce,service}=setup();
+    // Ownership can remain valid after moving out; occupancy must still be active.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER], 'Who is at my gate?', '33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER], 'Is my household staff checked in?', '33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(workforce.residentStatusMine).not.toHaveBeenCalled();
+  });
+
+  it('limits tenant and multi-property role finance queries to the current payer and own payment history',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]);
+    // No rows exist when unit payer relation is missing, despite OWNER being a
+    // society-level role earned from another apartment.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER,AppRole.FAMILY_MEMBER], 'Show my maintenance payment due', '33333333-3333-4333-8333-333333333333');
+    const sqls=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?'));
+    const invoice=sqls.find(sql=>sql.includes('FROM "MaintenanceInvoice"'));
+    const payment=sqls.find(sql=>sql.includes('FROM "Payment" p'));
+    expect(invoice).toContain('FROM "UnitOccupancy"');
+    expect(invoice).toContain('"relation"=\'TENANT\'');
+    expect(invoice).toContain('FROM "UnitOwnership"');
+    expect(payment).toContain('p."payerUserId"=?::uuid');
+    expect(payment).toContain('FROM "UnitOccupancy"');
+    expect(payment).not.toContain('OR EXISTS(');
+  });
+
+  it('keeps private resident certificate/request rows creator scoped',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]).mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT], 'Show my NOC requests', '33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_REQUESTS');
+    const requestSql=(prisma.$queryRaw.mock.calls[1][0] as {strings:readonly string[]}).strings.join('?');
+    expect(requestSql).toContain('"createdById"=?::uuid');
   });
 
   it('grounds society policy questions in current published document citations and never invents a missing answer',async()=>{
