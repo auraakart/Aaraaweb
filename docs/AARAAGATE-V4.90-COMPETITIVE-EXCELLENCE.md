@@ -34,6 +34,14 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Regressions:** import duplicate metadata mismatch, normalized identical retry, preview mismatch. This remains a *bounded* first V4.90.2 finance improvement: owner/tenant payment races, reversals, Tally acceptance and complete finance scenarios still need exact-head verification and review. No automatic bank matching or posting is added.
 
+## V4.90.3: Guard workforce accessibility — first bounded UX slice
+
+**Root cause:** repeated `ENTER` and `EXIT` buttons in the Guard workforce list did not identify the worker or household unit. This made similarly named controls ambiguous when many assignments were on screen.
+
+**Change:** add descriptive button semantics for society workforce and both household attendance actions, including the worker name and building/unit. Preserve visible concise labels, action callbacks, eligibility and gate authority. Dark/light widget tests assert distinct action labels.
+
+**Not claimed:** end-to-end TalkBack voice output, 320px/200% text on real devices, complete Resident/Admin accessibility acceptance or any physical-device certification. Those require separate evidence.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
