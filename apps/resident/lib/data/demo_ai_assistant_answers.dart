@@ -18,6 +18,7 @@ class DemoAiAssistantAnswers {
           .map((row) => ((row['user'] as Map)['name'] ?? '').toString().trim())
           .where((name) => name.isNotEmpty).take(30).toList(growable: false);
       return {
+        'intent': 'RESIDENT_HOUSEHOLD',
         'answer': members.isEmpty
             ? 'Demo household: no active approved family members are recorded. Open Profile → Family members.'
             : 'Demo household: '+members.length.toString()+' approved family member(s): '+members.join(', ')+'. Open Profile → Family members for management.',
@@ -40,6 +41,7 @@ class DemoAiAssistantAnswers {
           }).toList(growable: false);
       final summary = vehicles.map((v) => v['vehicleType'].toString()+' '+v['make'].toString()+' · plate ending '+v['plateSuffix'].toString()).join('; ');
       return {
+        'intent': 'RESIDENT_VEHICLES',
         'answer': vehicles.isEmpty
             ? 'Demo household: no active registered vehicles. Open Profile → Vehicles.'
             : 'Demo household: '+vehicles.length.toString()+' registered vehicle(s): '+summary+'. Open Profile → Vehicles.',
@@ -53,12 +55,14 @@ class DemoAiAssistantAnswers {
       // shipment for the first fixture unit. Never include pickup codes.
       if (householdId == 'demo-household-2') {
         return {
+          'intent': 'RESIDENT_PARCELS',
           'answer': 'Demo household: no parcel records are available for this home.',
           'facts': {'waitingCount': 0, 'collectedCount': 0},
           'sources': ['Demo parcel fixture'],
         };
       }
       return {
+        'intent': 'RESIDENT_PARCELS',
         'answer': 'Demo parcel snapshot: 2 packages are waiting at the parcel desk (Amazon and BlueDart); 1 was collected. Open Parcels for details and pickup-code actions.',
         'facts': {'waitingCount': 2, 'collectedCount': 1, 'limitedTo': 20},
         'sources': ['Demo parcel fixture'],
