@@ -24,6 +24,20 @@ export function currentResidentPropertySql(societyId: string, userId: string, un
   )`;
 }
 
+/**
+ * Daily-living access requires an active occupant relationship. Ownership of
+ * this or another property does not grant gate/staff/occupant-private reads.
+ */
+export function currentOccupantPropertySql(societyId: string, userId: string, unitId: string) {
+  return Prisma.sql`EXISTS (
+    SELECT 1 FROM "UnitOccupancy" occ
+    WHERE occ."societyId"=${societyId}::uuid AND occ."unitId"=${unitId}::uuid
+      AND occ."userId"=${userId}::uuid AND occ."active"=TRUE
+      AND occ."effectiveFrom"<=CURRENT_TIMESTAMP
+      AND (occ."effectiveTo" IS NULL OR occ."effectiveTo">CURRENT_TIMESTAMP)
+  )`;
+}
+
 export function currentPayerPropertySql(societyId: string, userId: string, unitId: string) {
   return Prisma.sql`(
     EXISTS (

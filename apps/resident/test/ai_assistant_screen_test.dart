@@ -2,13 +2,25 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
+import 'package:aaraagate_resident/preferences/assistant_local_preferences.dart';
+import 'package:aaraagate_resident/preferences/resident_experience_preferences.dart';
 import 'package:aaraagate_resident/screens/ai_assistant_screen.dart';
 import 'package:aaraagate_resident/voice/resident_speech.dart';
+
+class FakeAssistantPreferenceStore implements ResidentPreferenceStore {
+  final values = <String, String>{};
+  @override
+  Future<String?> read(String key) async => values[key];
+  @override
+  Future<void> write(String key, String value) async { values[key] = value; }
+}
 
 class FakeApiClient extends ApiClient {
   FakeApiClient() : super(baseUrl: 'http://example.test', accessToken: 'token');
 
   final List<String> posts = [];
+  final List<String> assistantMessages = [];
+  String assistantIntent = 'RESIDENT_STATUS';
   final List<String> gets = [];
 
   @override
@@ -21,8 +33,9 @@ class FakeApiClient extends ApiClient {
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
     posts.add(path);
     if (path.endsWith('/assistant/query')) {
+      assistantMessages.add(body?['message']?.toString() ?? '');
       return {
-        'intent': 'RESIDENT_STATUS',
+        'intent': assistantIntent,
         'answer': 'You have 2 active helpdesk requests. Water seepage near the balcony is high priority.',
         'facts': {'activeRequests': 2, 'highPriority': 'Water seepage near balcony'},
         'sources': ['Helpdesk', 'SLA status'],
@@ -285,7 +298,7 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
-  testWidgets('demo family member request redirects to the existing profile feature', (tester) async {
+  testWidgets('demo family member request uses only the selected synthetic household', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: 'demo-unit-1', demoMode: true,
@@ -296,10 +309,115 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('Priya Sharma'), findsOneWidget);
     expect(find.textContaining('Profile → Family members'), findsOneWidget);
+    expect(find.textContaining('98765'), findsNothing);
     expect(find.textContaining('Today you have one visitor'), findsNothing);
+    expect(find.text('Based on Demo household fixture'), findsOneWidget);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo shows safe household vehicle and parcel previews', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my registered vehicles');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('plate ending 1234'), findsOneWidget);
+    expect(find.textContaining('KA01AB1234'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Where is my package?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 packages are waiting'), findsOneWidget);
+    expect(find.textContaining('AMZ-77421'), findsNothing);
+    expect(find.textContaining('Based on Demo parcel fixture'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Who won the cricket match?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('outside Aaraagate Assistant’s scope'), findsOneWidget);
     expect(find.textContaining('Based on '), findsNothing);
     expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo never leaks first household fixtures to another selected home', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-2', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'give my family member list');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no active approved family members'), findsOneWidget);
+    expect(find.textContaining('Priya Sharma'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Show my registered vehicles');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no active registered vehicles'), findsOneWidget);
+    expect(find.textContaining('Maruti'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no parcel records'), findsOneWidget);
+    expect(find.textContaining('Amazon'), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('authorized Assistant answer offers a whitelisted in-app destination', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null), onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsOneWidget);
+    await tester.ensureVisible(find.text('Open Parcels'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open Parcels'));
+    expect(opened, ['parcels']);
+    await tester.enterText(find.byType(TextField), 'Who won the cricket match?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsNothing);
+    expect(opened, ['parcels']);
+  });
+
+  testWidgets('no related screen button without selected property or injected callback', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: null, demoMode: true,
+      speech: FakeResidentSpeech(null), onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsNothing);
+    expect(opened, isEmpty);
   });
 
   testWidgets('demo keeps society updates but does not mistake generic updates for notices', (tester) async {
@@ -319,6 +437,172 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('outside Aaraagate Assistant’s scope'), findsOneWidget);
     expect(find.textContaining('Key updates: lift maintenance'), findsNothing);
+  });
+
+  testWidgets('explicit complaint-creation questions offer review before any mutation', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: '22222222-2222-4222-8222-222222222222',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Raise a complaint about leaking kitchen sink');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsOneWidget);
+    expect(api.posts.where((path)=>path.endsWith('/assistant/helpdesk-from-text')), isEmpty);
+    await tester.ensureVisible(find.text('Prepare complaint for review'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prepare complaint for review'));
+    await tester.pumpAndSettle();
+    expect(find.text('Review complaint before submitting'), findsOneWidget);
+    expect(find.text('Confirm complaint'), findsOneWidget);
+    expect(api.posts.where((path)=>path.endsWith('/confirm')), isEmpty);
+  });
+
+  testWidgets('lookup questions and edited drafts cannot activate a stale proposal action', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit', demoMode:true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my complaints');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Create complaint about water leakage');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsNothing);
+  });
+
+  testWidgets('general society rule follow-ups expand without changing the authorized property', (tester) async {
+    final api = FakeApiClient()..assistantIntent = 'SOCIETY_KNOWLEDGE';
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('copilot'), apiClient: api, unitId: 'unit-1',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'What are pool rules?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'What about weekends?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages, [
+      'What are pool rules?', 'What are pool rules and timings for weekends?',
+    ]);
+    // Switching properties clears the last answer and policy context.
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('copilot'), apiClient: api, unitId: 'unit-2',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('You have 2 active helpdesk requests'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'What about weekends?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages.last, 'What about weekends?');
+  });
+
+  testWidgets('personal financial follow-ups never inherit stale user facts', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'unit-1', speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'What about last month?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages.last, 'What about last month?');
+    expect(api.posts.where((x)=>x.endsWith('/assistant/query')).length, 2);
+  });
+
+
+  test('device-local Assistant shortcut consent is isolated per login and home', () async {
+    final storage = FakeAssistantPreferenceStore();
+    final first = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:unit-1');
+    final second = AssistantLocalPreferences(store: storage, scope: 'session-b:society-a:unit-1');
+    final other = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:unit-2');
+    await first.setBriefingShortcut(true);
+    expect(await first.loadBriefingShortcut(), isTrue);
+    expect(await second.loadBriefingShortcut(), isFalse);
+    expect(await other.loadBriefingShortcut(), isFalse);
+    final unbound = AssistantLocalPreferences(store: storage);
+    expect(await unbound.loadBriefingShortcut(), isFalse);
+    await expectLater(unbound.setBriefingShortcut(true), throwsStateError);
+    expect(storage.values.length, 1);
+  });
+
+  testWidgets('daily summary shortcut stays off until explicit device-local opt-in', (tester) async {
+    final storage = FakeAssistantPreferenceStore();
+    final settings = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:demo-unit-1');
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null), assistantPreferences: settings,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Daily briefing'), findsNothing);
+    expect(storage.values, isEmpty);
+    await tester.ensureVisible(find.text('Show daily briefing shortcut'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey + '.session-a%3Asociety-a%3Ademo-unit-1'], 'true');
+    expect(find.text('Daily briefing'), findsOneWidget);
+    expect(api.posts, isEmpty);
+    await tester.ensureVisible(find.text('Show daily briefing shortcut'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey + '.session-a%3Asociety-a%3Ademo-unit-1'], 'false');
+    expect(find.text('Daily briefing'), findsNothing);
+  });
+
+  testWidgets('answer feedback is session-only until resident opens Helpdesk', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+      assistantPreferences: AssistantLocalPreferences(store: FakeAssistantPreferenceStore(), scope: 'session-a:society-a:demo-unit-1'),
+      onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Not helpful'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Not helpful'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no question or rating was sent'), findsOneWidget);
+    expect(find.text('Report in Helpdesk'), findsOneWidget);
+    expect(api.posts, isEmpty);
+    await tester.ensureVisible(find.text('Report in Helpdesk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report in Helpdesk'));
+    expect(opened, ['helpdesk']);
+    expect(api.posts, isEmpty);
   });
 
   testWidgets('assistant accepts a contextual Home prompt without auto-submitting', (tester) async {
