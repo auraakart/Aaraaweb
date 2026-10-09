@@ -56,3 +56,13 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 - Compose current visible notice titles, pending visitor requests, caller-created open helpdesk requests and payer-eligible invoice record counts from independent source-authorized existing tools. Explicitly describe a **current snapshot**, not false claims of events occurring today.
 - No background monitoring, automatic notifications or new data-provider sharing is performed. Proactive opt-in reminders and persisted resident feedback require a distinct consent/preference and notification design before release.
 - Regression covers the authorized tenant, nonresident/expired occupant denial and missing property context. Acceptance still includes cross-role negative integration, multilingual physical-device usability and comprehensive policy coverage; no fabricated >8.5 score.
+
+## V4.89 version identity and closure discipline (pending release checks)
+
+The planned consolidated develop release candidate uses root/API/Admin version `4.89.6` and Resident/Guard `4.89.6+48906`. It is **not** automatically a staging/main release.
+
+The bounded V4.89 slices introduce selected-property occupant/payer read restrictions, current family queries, audience-grounded policy and notice answers, readable personal status, review-first complaint initiation and on-demand current-home briefing.
+
+**Items still needing separate acceptance/work:** wider society FAQ catalog/coverage, natural multi-turn conversations beyond routing hints, genuine opt-in notifications with consent/retention controls, actionable source deep links, persisted feedback, full adversarial privacy/e2e matrix and physical device multilingual usability. No claims that all society questions are answered, no unexplained 8.5+ score, and no productionization or external-provider integration acceptance.
+
+No main merge is permitted without a separately approved, green release PR; the earlier V4.88.6 main release is still governed independently.
