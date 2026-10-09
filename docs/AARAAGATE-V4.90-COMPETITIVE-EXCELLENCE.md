@@ -52,6 +52,16 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Limitations:** stability is screen-session scoped, not persisted across app restarts; this does not deliver a server-quoted final price, approved extra-work quotation, automated recurring booking, real provider guarantees or live integration acceptance. Full Services 3.1 flows remain open.
 
+## V4.90.5: permission-grounded society policy Q&A — first bounded slice
+
+**Root cause:** the knowledge-intent recognizer missed everyday reversed-word-order visitor questions such as “rules for visitors” and questions about permission, entry pass or after-hours access. Those could fall through to generic/visitor status without querying published society rules.
+
+**Change:** expand the deterministic knowledge-intent patterns for public visitor/guest/delivery rules and access conditions; preserve the explicit suppression of a resident's private pass/activity queries, runtime tenant permission checks, document audience filtering and no-evidence fallback. The recognizer invents no society policy and does not supply new multi-turn memory.
+
+**Tests:** extend the existing assistant service's published-source/no-answer matrix with common rule queries, plus a private visitor pass negative regression. Exact-head CI remains mandatory.
+
+**Not claimed:** arbitrary multilingual chat, complete physical voice UAT, complete society FAQ corpus, or private knowledge sharing between properties.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
