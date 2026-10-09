@@ -59,7 +59,7 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 
 ## V4.89 version identity and closure discipline (pending release checks)
 
-The planned consolidated develop release candidate uses root/API/Admin version `4.89.6` and Resident/Guard `4.89.6+48906`. It is **not** automatically a staging/main release.
+The planned consolidated develop release candidate uses root/API/Admin version `4.89.14` and Resident/Guard `4.89.14+48914`. It is **not** automatically a staging/main release.
 
 The bounded V4.89 slices introduce selected-property occupant/payer read restrictions, current family queries, audience-grounded policy and notice answers, readable personal status, review-first complaint initiation and on-demand current-home briefing.
 
