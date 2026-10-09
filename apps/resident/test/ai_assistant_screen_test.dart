@@ -321,6 +321,49 @@ void main() {
     expect(find.textContaining('Key updates: lift maintenance'), findsNothing);
   });
 
+  testWidgets('explicit complaint-creation questions offer review before any mutation', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: '22222222-2222-4222-8222-222222222222',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Raise a complaint about leaking kitchen sink');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsOneWidget);
+    expect(api.posts.where((path)=>path.endsWith('/assistant/helpdesk-from-text')), isEmpty);
+    await tester.ensureVisible(find.text('Prepare complaint for review'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prepare complaint for review'));
+    await tester.pumpAndSettle();
+    expect(find.text('Review complaint before submitting'), findsOneWidget);
+    expect(find.text('Confirm complaint'), findsOneWidget);
+    expect(api.posts.where((path)=>path.endsWith('/confirm')), isEmpty);
+  });
+
+  testWidgets('lookup questions and edited drafts cannot activate a stale proposal action', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit', demoMode:true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my complaints');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Create complaint about water leakage');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
+    await tester.pumpAndSettle();
+    expect(find.text('Prepare complaint for review'), findsNothing);
+  });
+
   testWidgets('assistant accepts a contextual Home prompt without auto-submitting', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(

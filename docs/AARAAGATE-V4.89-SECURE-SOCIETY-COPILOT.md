@@ -42,3 +42,10 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 - Invoice face value is **not** labelled net outstanding; CREATED payments are not treated as settled. Family members do not obtain finance answers.
 - Add Hindi, Tamil, Telugu, Kannada, Malayalam and Bengali family/society-rule intent hints without changing server-side authorization.
 - Validate Tamil household routing and source-limited, null-safe personal answer composition. Multi-turn memory and natural free-form generative AI remain separate future work.
+
+## V4.89.5: review-first complaint assistance (candidate)
+
+- Explicit create/raise/file/report complaints offer `Prepare complaint for review` after an Assistant answer on the selected home; passive complaint status queries never trigger this.
+- Preparation reuses the existing authorized helpdesk proposal endpoint and independent confirmation; asking never auto-submits a complaint.
+- Editing the submitted question hides stale proposed action; no cross-topic draft activation.
+- Resident widget regressions prove separate preparation and confirmation plus passive-query denial. Source deep links and persisted feedback remain separate roadmap items.

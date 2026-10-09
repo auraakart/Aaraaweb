@@ -31,6 +31,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   String? _error;
   Map<String, dynamic>? _result;
   Map<String, dynamic>? _proposal;
+  String? _lastSubmittedMessage;
   late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
@@ -101,6 +102,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _busy = true;
       _error = null;
       _result = null;
+      _lastSubmittedMessage = message;
       _clearPendingProposal();
     });
     try {
@@ -380,7 +382,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 controller: _controller,
                 readOnly: _listening || _busy,
                 onChanged: (_) {
-                  if (_proposal?['status']?.toString() == 'PROPOSED') {
+                  if (_proposal?['status']?.toString() == 'PROPOSED' || _result != null) {
                     setState(_clearPendingProposal);
                   }
                 },
@@ -437,6 +439,15 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
+  bool get _canPrepareComplaintFromAnswer {
+    final prompt = _lastSubmittedMessage;
+    return widget.unitId != null && !_busy && !_listening &&
+        _result != null && prompt != null &&
+        _controller.text.trim() == prompt &&
+        RegExp(r'\b(?:raise|file|create|submit|register)\s+(?:a\s+)?(?:complaint|ticket)\b|\breport\s+(?:an?\s+)?(?:issue|problem)\b',
+          caseSensitive: false).hasMatch(prompt);
+  }
+
   Widget _resultCard(ThemeData theme) {
     final sources = ((_result!['sources'] as List?) ?? const [])
         .map((source) => source.toString().trim())
@@ -475,6 +486,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             Text(
               'Based on ' + sources.join(' · '),
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+          if (_canPrepareComplaintFromAnswer) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            OutlinedButton.icon(
+              onPressed: _draftComplaint,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Prepare complaint for review'),
             ),
           ],
         ],
