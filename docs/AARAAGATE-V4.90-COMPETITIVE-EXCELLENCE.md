@@ -26,6 +26,14 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Current status:** code and tests proposed on the V4.90.1 feature branch. Flutter execution, CI, physical-device testing, full Gate workflows, finance and later slices are **not yet claimed passed**. Do not treat this as full V4.90 completion or assign a new competitive score.
 
+## V4.90.2: finance integrity — first bank statement slice
+
+**Root cause:** bank imports and bank-statement previews compared same-key retries using date, direction and amount only. A repeated bank external key could therefore silently accept changed value date, remittance reference or description, misrepresenting immutable imported statement provenance.
+
+**Change:** require exact canonical value-date and trimmed reference/description fingerprint agreement as well as existing money/transaction checks. Read these columns in existing-import and preview queries; preserve society/bank-account SQL scoping, the existing idempotent insert conflict boundary, and accounting journal immutability. Matching whitespace around a stable bank reference is not a conflict.
+
+**Regressions:** import duplicate metadata mismatch, normalized identical retry, preview mismatch. This remains a *bounded* first V4.90.2 finance improvement: owner/tenant payment races, reversals, Tally acceptance and complete finance scenarios still need exact-head verification and review. No automatic bank matching or posting is added.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.

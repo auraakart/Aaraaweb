@@ -41,6 +41,60 @@ describe('BankReconciliationService invariants', () => {
     })).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('refuses an external key reused with changed value date, reference, or description', async () => {
+    const existing = {
+      id:'tx-1',bankAccountId:'bank-1',externalKey:'EXT-1',
+      transactionDate:'2026-09-17',valueDate:'2026-09-18',
+      direction:'CREDIT',amountPaise:'12500',reference:'UTR-1',description:'Monthly maintenance',
+      status:'UNMATCHED',
+    };
+    const original = {
+      bankAccountId:'bank-1',externalKey:'EXT-1',transactionDate:'2026-09-17',valueDate:'2026-09-18',
+      direction:'CREDIT' as const,amountPaise:12500,reference:'UTR-1',description:'Monthly maintenance',
+    };
+    for (const changed of [
+      {valueDate:'2026-09-19'},
+      {reference:'UTR-2'},
+      {description:'Different remittance'},
+    ]) {
+      const queryRaw = vi.fn()
+        .mockResolvedValueOnce([{id:'bank-1'}])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([existing]);
+      await expect(serviceWith({$queryRaw:queryRaw}).importTransaction('society-a','user-a',{...original,...changed}))
+        .rejects.toBeInstanceOf(ConflictException);
+    }
+  });
+
+  it('accepts an identical imported record with insignificant surrounding whitespace', async () => {
+    const queryRaw = vi.fn()
+      .mockResolvedValueOnce([{id:'bank-1'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id:'tx-1',bankAccountId:'bank-1',externalKey:'EXT-1',
+        transactionDate:'2026-09-17',valueDate:'2026-09-18',direction:'CREDIT',amountPaise:'12500',
+        reference:'UTR-1',description:'Monthly maintenance',status:'UNMATCHED',
+      }]);
+    await expect(serviceWith({$queryRaw:queryRaw}).importTransaction('society-a','user-a',{
+      bankAccountId:'bank-1',externalKey:' EXT-1 ',transactionDate:'2026-09-17',valueDate:'2026-09-18',
+      direction:'CREDIT',amountPaise:12500,reference:' UTR-1 ',description:' Monthly maintenance ',
+    })).resolves.toMatchObject({id:'tx-1'});
+  });
+
+  it('flags a changed value date or remittance reference in bank preview', async () => {
+    const queryRaw=vi.fn()
+      .mockResolvedValueOnce([{id:'bank-1'}])
+      .mockResolvedValueOnce([{
+        externalKey:'EXT-OLD',transactionDate:'2026-09-17',valueDate:'2026-09-18',
+        direction:'CREDIT',amountPaise:12500n,reference:'UTR-1',description:'Maintenance',
+      }]);
+    const preview=await serviceWith({$queryRaw:queryRaw}).previewImport('society-a','bank-1',[
+      {externalKey:'EXT-OLD',transactionDate:'2026-09-17',valueDate:'2026-09-19',direction:'CREDIT',amountPaise:12500,reference:'UTR-1',description:'Maintenance'},
+    ]);
+    expect(preview).toMatchObject({conflictCount:1,canCommit:false});
+    expect(preview.items[0]).toMatchObject({status:'CONFLICT'});
+  });
+
   it('previews statement rows and classifies database and in-batch duplicates without mutation', async () => {
     const queryRaw=vi.fn()
       .mockResolvedValueOnce([{id:'bank-1'}])
