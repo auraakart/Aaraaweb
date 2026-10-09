@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/assistant_destinations.dart';
 import '../data/assistant_followup_context.dart';
+import '../preferences/assistant_local_preferences.dart';
 import '../data/demo_ai_assistant_answers.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
@@ -17,6 +18,7 @@ class AiAssistantScreen extends StatefulWidget {
     this.initialPrompt,
     this.speech,
     this.onOpenSection,
+    this.assistantPreferences,
   });
 
   final ApiClient apiClient;
@@ -25,6 +27,7 @@ class AiAssistantScreen extends StatefulWidget {
   final String? initialPrompt;
   final ResidentSpeech? speech;
   final ValueChanged<String>? onOpenSection;
+  final AssistantLocalPreferences? assistantPreferences;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -38,6 +41,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   Map<String, dynamic>? _proposal;
   String? _lastSubmittedMessage;
   String? _lastPolicyPrompt;
+  bool _dailyBriefingShortcut = false;
+  bool? _feedbackHelpful;
+  late final AssistantLocalPreferences _localPreferences;
   late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
@@ -55,8 +61,34 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   void initState() {
     super.initState();
     _speech = widget.speech ?? DeviceResidentSpeech();
+    _localPreferences = widget.assistantPreferences ?? AssistantLocalPreferences();
+    _readAssistantPreferences();
     if (widget.initialPrompt?.trim().isNotEmpty == true) {
       _controller.text = widget.initialPrompt!.trim();
+    }
+  }
+
+  Future<void> _readAssistantPreferences() async {
+    try {
+      final enabled = await _localPreferences.loadBriefingShortcut();
+      if (mounted) setState(() => _dailyBriefingShortcut = enabled);
+    } catch (_) {
+      // An unavailable secure preference store never enables consent.
+    }
+  }
+
+  Future<void> _setDailyBriefingShortcut(bool enabled) async {
+    final previous = _dailyBriefingShortcut;
+    setState(() => _dailyBriefingShortcut = enabled);
+    try {
+      await _localPreferences.setBriefingShortcut(enabled);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _dailyBriefingShortcut = previous);
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Could not save Assistant preference.')),
+        );
+      }
     }
   }
 
@@ -67,6 +99,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       // Never display a prior household's answer or reuse its conversation topic.
       _lastPolicyPrompt = null;
       _lastSubmittedMessage = null;
+      _feedbackHelpful = null;
       _result = null;
       _proposal = null;
       _error = null;
@@ -127,6 +160,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _busy = true;
       _error = null;
       _result = null;
+      _feedbackHelpful = null;
       _lastSubmittedMessage = message;
       _clearPendingProposal();
     });
@@ -272,7 +306,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           spacing: AaraagateTokens.space2,
           runSpacing: AaraagateTokens.space2,
           children: [
-            for (final action in _quickActions)
+            for (final action in [
+              ..._quickActions,
+              if (_dailyBriefingShortcut)
+                (label: 'Daily briefing', prompt: 'What is happening today?', icon: Icons.wb_sunny_outlined),
+            ])
               ActionChip(
                 avatar: Icon(action.icon, size: 18, color: scheme.primary),
                 label: Text(action.label),
@@ -290,7 +328,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
           ],
         ),
-        const SizedBox(height: AaraagateTokens.space5),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Show daily briefing shortcut'),
+          subtitle: const Text('Optional on this device. No push notifications or background monitoring.'),
+          value: _dailyBriefingShortcut,
+          onChanged: _busy || _listening ? null : _setDailyBriefingShortcut,
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
         PremiumSurface(
           elevated: true,
           child: Column(
@@ -463,6 +508,37 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               label: Text(destination.label),
               onPressed: () => widget.onOpenSection!(destination.section),
             ),
+          ],
+          const SizedBox(height: AaraagateTokens.space3),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AaraagateTokens.space2,
+            children: [
+              const Text('Was this useful?'),
+              TextButton.icon(
+                onPressed: () => setState(() => _feedbackHelpful = true),
+                icon: const Icon(Icons.thumb_up_outlined, size: 18),
+                label: const Text('Helpful'),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() => _feedbackHelpful = false),
+                icon: const Icon(Icons.thumb_down_outlined, size: 18),
+                label: const Text('Not helpful'),
+              ),
+            ],
+          ),
+          if (_feedbackHelpful != null) ...[
+            const SizedBox(height: AaraagateTokens.space1),
+            Text(
+              'Feedback stays on this screen; no question or rating was sent.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            if (_feedbackHelpful == false && widget.unitId != null && widget.onOpenSection != null)
+              TextButton.icon(
+                icon: const Icon(Icons.support_agent_rounded),
+                label: const Text('Report in Helpdesk'),
+                onPressed: () => widget.onOpenSection!('helpdesk'),
+              ),
           ],
           if (_canPrepareComplaintFromAnswer) ...[
             const SizedBox(height: AaraagateTokens.space3),

@@ -2,8 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aaraagate_resident/data/api_client.dart';
+import 'package:aaraagate_resident/preferences/assistant_local_preferences.dart';
+import 'package:aaraagate_resident/preferences/resident_experience_preferences.dart';
 import 'package:aaraagate_resident/screens/ai_assistant_screen.dart';
 import 'package:aaraagate_resident/voice/resident_speech.dart';
+
+class FakeAssistantPreferenceStore implements ResidentPreferenceStore {
+  final values = <String, String>{};
+  @override
+  Future<String?> read(String key) async => values[key];
+  @override
+  Future<void> write(String key, String value) async { values[key] = value; }
+}
 
 class FakeApiClient extends ApiClient {
   FakeApiClient() : super(baseUrl: 'http://example.test', accessToken: 'token');
@@ -523,6 +533,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.assistantMessages.last, 'What about last month?');
     expect(api.posts.where((x)=>x.endsWith('/assistant/query')).length, 2);
+  });
+
+  testWidgets('daily summary shortcut stays off until explicit device-local opt-in', (tester) async {
+    final storage = FakeAssistantPreferenceStore();
+    final settings = AssistantLocalPreferences(store: storage);
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null), assistantPreferences: settings,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Daily briefing'), findsNothing);
+    expect(storage.values, isEmpty);
+    await tester.ensureVisible(find.text('Show daily briefing shortcut'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey], 'true');
+    expect(find.text('Daily briefing'), findsOneWidget);
+    expect(api.posts, isEmpty);
+    await tester.ensureVisible(find.text('Show daily briefing shortcut'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey], 'false');
+    expect(find.text('Daily briefing'), findsNothing);
+  });
+
+  testWidgets('answer feedback is session-only until resident opens Helpdesk', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+      assistantPreferences: AssistantLocalPreferences(store: FakeAssistantPreferenceStore()),
+      onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Not helpful'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Not helpful'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no question or rating was sent'), findsOneWidget);
+    expect(find.text('Report in Helpdesk'), findsOneWidget);
+    expect(api.posts, isEmpty);
+    await tester.ensureVisible(find.text('Report in Helpdesk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report in Helpdesk'));
+    expect(opened, ['helpdesk']);
+    expect(api.posts, isEmpty);
   });
 
   testWidgets('assistant accepts a contextual Home prompt without auto-submitting', (tester) async {
