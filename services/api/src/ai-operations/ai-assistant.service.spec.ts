@@ -503,6 +503,74 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
+  it('answers a tenant parcel question from recipient-only, minimum-field records',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([
+        {status:'RECEIVED',courierName:'Blue Dart',trackingReference:'SECRET-TRACK',pickupCodeHash:'SECRET-HASH'},
+        {status:'COLLECTED',courierName:'India Post'},
+        {status:'RETURNED',courierName:null},
+      ]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Where is my package?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_PARCELS');
+    expect(result.facts).toEqual({
+      waitingCount:1,collectedCount:1,returnedCount:1,
+      latestRecordsReviewed:3,limitedTo:20,waitingCourierNames:['Blue Dart'],
+    });
+    expect(result.answer).toContain('1 are waiting at the parcel desk');
+    expect(result.answer).not.toContain('SECRET-TRACK');
+    expect(JSON.stringify(result)).not.toContain('SECRET-HASH');
+    expect(result.sources).toEqual(['Parcel']);
+    const sqls=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('p."recipientUserId"=?::uuid');
+    expect(sqls[1]).toContain('p."societyId"=?::uuid');
+    expect(sqls[1]).toContain('p."unitId"=?::uuid');
+    expect(sqls[1]).not.toContain('pickupCodeHash');
+    expect(sqls[1]).not.toContain('trackingReference');
+    expect(sqls[1]).not.toContain('p.*');
+  });
+
+  it('does not expose tenant parcel history to nonresident owners or unrelated occupants',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Show my deliveries','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('supports personal parcel lookup for a family member without widening to another recipient',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{status:'RECEIVED',courierName:null}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.FAMILY_MEMBER],
+      'Do I have any deliveries?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_PARCELS');
+    expect(result.facts).toEqual(expect.objectContaining({waitingCount:1,waitingCourierNames:[]}));
+    const sql=(prisma.$queryRaw.mock.calls[1][0] as {strings:readonly string[]}).strings.join('?');
+    expect(sql).toContain('p."recipientUserId"=?::uuid');
+  });
+
+  it('requires selected property and parcel permission before any personal data retrieval',async()=>{
+    const {prisma,service}=setup();
+    const missing=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],'Show my parcels');
+    expect(missing.intent).toBe('UNSUPPORTED');
+    expect(missing.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.SECURITY_GUARD],
+      'Show my parcels','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.tools([AppRole.SECURITY_GUARD]).tools.map(x=>x.id)).not.toContain('RESIDENT_PARCELS');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw

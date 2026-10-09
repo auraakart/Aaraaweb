@@ -23,6 +23,7 @@ const requiredBoundaries = [
   'services/api/src/amenities/amenity-booking-creator.ts',
   'services/api/src/ai-operations/ai-assistant.policy.ts',
   'services/api/src/ai-operations/ai-society-insights.ts',
+  'services/api/src/ai-operations/ai-resident-private-queries.ts',
   'services/api/src/billing/payment-webhook.processor.ts',
   'services/api/src/billing/payment-order.service.ts',
   'services/api/src/auth/property-finance-access.ts',
@@ -50,6 +51,14 @@ if (!amenities.includes('private readonly policy = new AmenityPolicyEngine()')) 
 const resident = fs.readFileSync('apps/resident/lib/data/resident_data_controller.dart', 'utf8');
 if (!resident.includes('ResidentHouseholdSnapshot') || !resident.includes('ResidentWorkforceSnapshot')) {
   console.error('ResidentDataController must retain extracted household/workforce snapshot boundaries.');
+  process.exit(1);
+}
+
+const assistant = fs.readFileSync('services/api/src/ai-operations/ai-assistant.service.ts', 'utf8');
+if (!assistant.includes('new AiResidentPrivateQueries(prisma)')
+    || !assistant.includes('this.privateQueries.vehicles(')
+    || !assistant.includes('this.privateQueries.parcels(')) {
+  console.error('Assistant private household read paths must remain delegated to the bounded query component.');
   process.exit(1);
 }
 

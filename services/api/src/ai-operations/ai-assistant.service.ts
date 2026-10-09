@@ -10,6 +10,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
 import { residentAnswer } from './ai-resident-answer';
+import { AiResidentPrivateQueries } from './ai-resident-private-queries';
 import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
 import { AiActionCentre } from './ai-action-centre';
 
@@ -30,6 +31,7 @@ export class AiAssistantService {
   private readonly insights: AiSocietyInsights;
   private readonly copilot: AiCopilot;
   private readonly actionCentreBuilder: AiActionCentre;
+  private readonly privateQueries: AiResidentPrivateQueries;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -40,6 +42,7 @@ export class AiAssistantService {
     this.insights = new AiSocietyInsights(prisma);
     this.copilot = new AiCopilot(prisma);
     this.actionCentreBuilder = new AiActionCentre(operations,this.insights,this.copilot);
+    this.privateQueries = new AiResidentPrivateQueries(prisma);
   }
 
   tools(roles:readonly AppRole[]){
@@ -120,30 +123,10 @@ export class AiAssistantService {
         );
       }
       await this.assertCurrentOccupantUnit(societyId,userId,unitId);
-      const rows=await this.prisma.$queryRaw<Array<{plateNumber:string,vehicleType:string,make:string|null}>>(Prisma.sql`
-        SELECT v."plateNumber",v."vehicleType",v."make"
-        FROM "HouseholdVehicle" v
-        JOIN "Household" h ON h."id"=v."householdId" AND h."societyId"=v."societyId"
-        WHERE v."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid
-          AND v."active"=TRUE
-        ORDER BY v."createdAt" DESC,v."id" DESC LIMIT 20
-      `);
-      const vehicles=rows.map(row=>{
-        const plate=String(row.plateNumber??'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
-        return {
-          plateSuffix:plate.length>=4?plate.slice(-4):'',
-          vehicleType:String(row.vehicleType??'').slice(0,32),
-          make:String(row.make??'').replace(/\s+/g,' ').trim().slice(0,50),
-        };
-      });
-      const answer=vehicles.length
-        ? 'Your current home has '+vehicles.length+' active registered vehicle(s): '
-          +vehicles.map(v=>v.vehicleType+(v.make?' ('+v.make+')':'')+' • '+(v.plateSuffix?'plate ending '+v.plateSuffix:'plate unavailable')).join('; ')
-          +'. Open Profile → Vehicles for authorized vehicle management.'
-        : 'No active household vehicles are recorded for your selected home. Open Profile → Vehicles to review or request changes.';
+      const {facts,answer}=await this.privateQueries.vehicles(societyId,userId,unitId);
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_VEHICLES','RESIDENT_VEHICLES',
-        {vehicles,limitedTo:20},['HouseholdVehicle'],answer,
+        facts,['HouseholdVehicle'],answer,
       );
     }
 
@@ -153,6 +136,23 @@ export class AiAssistantService {
         societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
         'I cannot confirm your allocated parking space from the Assistant yet. Please review your authorized parking details in the app or ask society management.',
         'UNSUPPORTED',
+      );
+    }
+
+    // V4.89.8: only the authenticated parcel recipient can view parcel facts.
+    // Keep parcel codes, tracking references, private notes and other occupants out.
+    if(/\b(?:(?:my|our)\s+(?:parcels?|packages?|deliver(?:y|ies))|(?:parcels?|packages?)\s+(?:for me|waiting|status)|(?:do|did)\s+i\s+have\s+(?:any\s+)?(?:packages?|parcels?|deliveries)|where(?:'s| is)\s+my\s+(?:package|parcel|delivery))\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_PARCELS');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking about your parcels.','UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const {facts,answer}=await this.privateQueries.parcels(societyId,userId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_PARCELS','RESIDENT_PARCELS',facts,['Parcel'],answer,
       );
     }
 

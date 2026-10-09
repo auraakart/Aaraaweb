@@ -74,3 +74,20 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Missing selected unit, nonresident owner, unrelated security role and parking-bay allocation requests fail without guessing or exposing another household's inventory.
 - Add targeted negative privacy and no-hallucination tests. Other parking assignment and delivery tools remain separate work.
 - Version identity changes only on the consolidated release; staging/main untouched during development.
+
+## V4.89.8: personal parcel and delivery answers (develop candidate)
+
+- Added read-only `RESIDENT_PARCELS` permissioned by `PARCEL_READ_OWN` and active occupancy of the selected property.
+- Only `Parcel` rows addressed to the authenticated `recipientUserId` within the selected society/unit may be counted or summarized. Other household members' deliveries remain private.
+- Query selects only status and courier name. Never reads or returns parcel pickup codes/hashes, tracking references, internal notes or security metadata.
+- Response distinguishes `RECEIVED` (waiting at parcel desk), `COLLECTED` and `RETURNED`, and labels counts as a bounded recent-20-record snapshot rather than an unbounded history. Pickup-code issuance remains exclusively in the authorized Parcels screen.
+- Negative tests cover non-resident owners, unrelated recipients, guards, missing property and SQL projection limitations. No society-wide parcel desk tool or assistant pickup mutations are introduced.
+- Next gaps: opt-in notifications, question follow-ups, FAQ catalog coverage, contextual source links and accessibility/privacy release evidence. Stage/main remain unchanged until explicitly approved.
+
+## V4.89.8 CI blockage corrected: bounded private-query extraction
+
+- Exact-head PR #1156 CI run 37900704227 failed the mandatory V4.81.2 architecture complexity gate because `ai-assistant.service.ts` grew to 616 lines (580 maximum). The API wrapper consequently reported SKIPPED, causing required merge gates to fail. This was a real code-structure issue, not an external runner delay.
+- Extract registered-vehicle and personal-parcel SQL, minimal projections, and response formatting into `ai-resident-private-queries.ts`. The public Assistant continues to enforce permission and active selected-unit occupancy **before** calling the helper; the SQL revalidates occupancy to prevent revocation races.
+- Keep original recipient-user, unit, and society restrictions; do not return tracking references, pickup secrets, raw license plates, or private third-party data.
+- Preserve the 580-line budget. The architecture checker now requires the private-query helper and delegation, preventing a future accidental reintegration into the large service. Run this targeted checker before each Assistant code PR; never increase the budget as a workaround.
+- Corrected PR must pass new exact-head repository, API, Flutter/Admin, and dependency-security gates before develop merge. Staging and main untouched.
