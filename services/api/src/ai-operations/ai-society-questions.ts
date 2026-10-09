@@ -24,5 +24,8 @@ export function isSocietyKnowledgeQuestion(text:string):boolean {
     // Conversational phrasings without exact 'rule' or 'policy' keywords.
     /\b(?:who|can|may|are)\b.{0,55}\b(?:use|access|book|enter)\b.{0,35}\b(?:gym|pool|clubhouse|community\s+hall|guest\s+room)\b/,
     /\b(?:what|when|where|how)\b.{0,55}\b(?:garbage|waste|trash|recycling|quiet\s+hours?|renovation|society\s+office)\b/,
+    /\b(?:can|when|how)\b.{0,40}\bmove[- ]?(?:in|out)\b/,
+    /\b(?:when|can|may|where)\b.{0,45}\b(?:delivery|guest|visitor)\b.{0,30}\b(?:enter|arrive|access|come)\b/,
+    /\b(?:festival|events?|celebrations?)\b.{0,35}\b(?:decorations?|allowed|permitted|permissions?|guidelines?)\b/,
   ].some(pattern=>pattern.test(question));
 }
