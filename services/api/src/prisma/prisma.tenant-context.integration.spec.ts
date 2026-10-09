@@ -37,6 +37,18 @@ describeWithDatabase('PrismaService tenant context PostgreSQL integration', () =
     expect(afterB).not.toBe(societyB);
   });
 
+  it('clears rolled-back tenant context before subsequent pooled work', async () => {
+    const failedSociety = '11111111-1111-4111-8111-111111111111';
+    const nextSociety = '22222222-2222-4222-8222-222222222222';
+    await expect(prisma.withTenantContext(failedSociety, async tx => {
+      expect(await readContext(tx)).toBe(failedSociety);
+      throw new Error('rollback fixture');
+    })).rejects.toThrow('rollback fixture');
+    expect(await readContext(prisma)).not.toBe(failedSociety);
+    expect(await prisma.withTenantContext(nextSociety, tx => readContext(tx))).toBe(nextSociety);
+    expect(await readContext(prisma)).not.toBe(nextSociety);
+  });
+
   it('does not open a database transaction for a malformed society id', async () => {
     let invoked = false;
     await expect(

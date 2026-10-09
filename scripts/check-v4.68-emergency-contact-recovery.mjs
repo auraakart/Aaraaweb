@@ -1,3 +1,4 @@
+import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import fs from 'node:fs';
 import { readContractBundle } from './lib/source-contract-bundles.mjs';
 
@@ -25,9 +26,7 @@ must('V4.68 service recovery',read('services/api/src/households/household.servic
 ]);
 must('V4.68 risk coverage',read('services/api/vitest.risk-coverage.config.ts'),[
   'src/households/household.service.spec.ts',
-  "'src/households/household.service.ts':",
-  'statements: 35',
-  'lines: 35'
+  "'src/households/household.service.ts':"
 ]);
 must('V4.68 API regression',read('services/api/src/households/household.service.spec.ts'),[
   'exact emergency-contact same-key replay without a second insert',
@@ -83,3 +82,5 @@ must('V4.68 closure',read('docs/AARAAGATE-V4.68-RELEASE-CLOSURE.md'),[
   'Repository release truth is closed on `develop` only.'
 ]);
 console.log('V4.68 emergency-contact mutation recovery release contract: PASS');
+
+requireCoverageFloor(read('services/api/vitest.risk-coverage.config.ts'), 'src/households/household.service.ts', { statements: 35, lines: 35 });

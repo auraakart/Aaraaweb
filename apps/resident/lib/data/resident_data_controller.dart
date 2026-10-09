@@ -830,6 +830,7 @@ class ResidentDataController extends ChangeNotifier {
     _accessEvents?.cancel();
     _accessEvents = null;
     push.dispose();
+    repository.api.close();
     super.dispose();
   }
 }

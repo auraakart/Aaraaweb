@@ -13,7 +13,11 @@ import '../../app/admin-navigation.css'
 import '../../app/admin-shell.css'
 import '../../app/property-workspace.css'
 
-const session={accessToken:'visual-fixture-token',role:'SUPER_ADMIN',societyName:'Aaraagate Visual Society'}
+const fixtureOptions=new URLSearchParams(window.location.search)
+const financeRequests:Array<{path:string;method:string}>=[]
+Object.assign(window,{financeRequests})
+let periodClosed=false
+const session={accessToken:'visual-fixture-token',role:fixtureOptions.get('role')??'SUPER_ADMIN',societyName:'Aaraagate Visual Society'}
 sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(session))
 
 const now='2026-09-20T02:30:00.000Z'
@@ -66,6 +70,13 @@ window.fetch=async(input,init={})=>{
   const method=(init.method??'GET').toUpperCase()
 
   if(!url.pathname.startsWith('/api/v1')) return json({ok:true})
+
+  if(path.startsWith('/accounting/')) financeRequests.push({path,method})
+  if(path==='/accounting/periods/period-1/close'&&method==='POST') {
+    if(fixtureOptions.get('close')==='denied') return new Response(JSON.stringify({message:'Finance permission was revoked'}),{status:403,headers:{'Content-Type':'application/json'}})
+    periodClosed=true
+    return json({ok:true})
+  }
 
   if(path==='/helpdesk/sla/queue') return json([fixtures.helpdeskTicket])
   if(path==='/helpdesk/review/context') return json([{id:'reviewer-1',name:'Facility Reviewer',phone:'+91 90000 00010'}])
@@ -154,7 +165,7 @@ window.fetch=async(input,init={})=>{
   if(path.startsWith('/accounting/receivables/ageing')) return json({currentPaise:'125000',days1To30Paise:'0',days31To60Paise:'0',days61To90Paise:'0',days90PlusPaise:'0'})
   if(path==='/accounting/receivables/charge-rules') return json([{id:'rule-1',code:'MAINT',name:'Maintenance',frequency:'MONTHLY',amountPaise:'350000',lateFeeMode:'FIXED',graceDays:5,active:true}])
   if(path==='/accounting/journals') return json([{id:'journal-1',entryNumber:'JV-2026-09-001',entryDate:now,description:'Maintenance billing',status:'POSTED',debitPaise:'350000',creditPaise:'350000',postedAt:now}])
-  if(path==='/accounting/periods') return json([{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:'OPEN'}])
+  if(path==='/accounting/periods') return json([{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:periodClosed?'CLOSED':'OPEN'}])
   if(path==='/accounting/late-fees/batches') return json([])
   if(path==='/accounting/late-fees/unapplied-cash') return json({paymentCount:0,totalCapturedPaise:'0',totalAllocatedPaise:'0',totalUnappliedPaise:'0',payments:[]})
   if(path==='/accounting/finance-operations/operational-readiness') return json({
@@ -166,7 +177,7 @@ window.fetch=async(input,init={})=>{
     generatedAt:now,
   })
   if(path==='/accounting/finance-operations/treasurer-control-centre') return json({status:'CLEAR',bank:{unmatchedBank:0,unmatchedMovementPaise:'0'},cash:{unappliedCount:0,unappliedPaise:'0'},budget:{overrunLines:0,overrunPaise:'0'},tax:{gstEnabled:false,tdsEnabled:false,documentsMissingTaxEvidence:0},refunds:{refunds30d:0,refundedPaise30d:'0'},nextActions:['Continue routine finance controls.'],automaticPosting:false,automaticMatching:false,boundary:'Treasurer control evidence is deterministic current-state aggregation.',generatedAt:now})
-  if(path==='/accounting/periods/period-1/close-readiness') return json({period:{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:'OPEN'},journalSummary:{draftCount:0,postedCount:1,reversedCount:0,debitPaise:'350000',creditPaise:'350000',balanced:true},blockers:[],readyToClose:true})
+  if(path==='/accounting/periods/period-1/close-readiness') return json({period:{id:'period-1',code:'SEP-26',name:'September 2026',startsOn:periodStart,endsOn:periodEnd,status:periodClosed?'CLOSED':'OPEN'},journalSummary:{draftCount:0,postedCount:1,reversedCount:0,debitPaise:'350000',creditPaise:'350000',balanced:true},blockers:[],readyToClose:true})
   if(path.startsWith('/accounting/reports/trial-balance')) return json([{accountId:'acc-1',code:'1100',name:'Receivables',type:'ASSET',debitPaise:'125000',creditPaise:'0',netDebitPaise:'125000'}])
   if(path.startsWith('/accounting/reports/income-expense')) return json([{accountId:'acc-2',code:'4100',name:'Maintenance income',type:'INCOME',debitPaise:'0',creditPaise:'350000',amountPaise:'350000'}])
   if(path.startsWith('/accounting/reports/balance-sheet')) return json({asOf:'2026-09-30',accounts:[],currentResultPaise:'350000',assetTotalPaise:'125000',liabilityTotalPaise:'0',equityTotalPaise:'125000',balanceCheckPaise:'0'})
