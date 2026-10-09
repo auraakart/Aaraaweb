@@ -107,3 +107,11 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Attach typed demo intents only to fixture-backed family, vehicle and parcel answers, not unsupported or off-topic responses. The source label remains visible.
 - Widget tests confirm source-backed Parcel navigation, no destination for off-topic/unsupported responses, no property context and no hidden navigation without an explicit callback.
 - Direct document-ID deep links are intentionally not fabricated because the Resident app does not yet expose a confirmed document viewer route; SOCIETY_KNOWLEDGE continues to cite the document, with a separate supported reader integration to follow.
+
+## V4.89.12 — Bounded conversational follow-ups (development candidate)
+
+- Keep only the last **society-policy question** in the current Assistant screen. Recognize short follow-ups such as “What about weekends?” and “What about tenants?” for an explicit general topic (pool, gym, parking policy, waste, pets, renovation) and construct a complete question for the same existing audience-filtered knowledge tool.
+- No cross-topic/private memory for billing, visitor activity, household names, parcels or financial history; unsupported time-window questions are forwarded unchanged, not guessed from prior facts. No persistent transcript or external AI session state.
+- If the selected property, API client or demo/live mode changes, clear the displayed result, outstanding proposals and policy context. Async answers from the old property cannot reappear.
+- Widget regressions verify safe published-policy follow-up expansion, selected-unit context reset and avoidance of stale personal financial answers.
+- This is an intentionally bounded conversation capability. Full natural multi-turn dialogue, speech locale UX and past-period financial comparisons remain future features requiring dedicated secured source tools.
