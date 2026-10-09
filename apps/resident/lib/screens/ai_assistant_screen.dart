@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
 import '../data/assistant_destinations.dart';
+import '../data/assistant_followup_context.dart';
 import '../data/demo_ai_assistant_answers.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
@@ -36,6 +37,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   Map<String, dynamic>? _result;
   Map<String, dynamic>? _proposal;
   String? _lastSubmittedMessage;
+  String? _lastPolicyPrompt;
   late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
@@ -55,6 +57,20 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _speech = widget.speech ?? DeviceResidentSpeech();
     if (widget.initialPrompt?.trim().isNotEmpty == true) {
       _controller.text = widget.initialPrompt!.trim();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AiAssistantScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.unitId != widget.unitId || oldWidget.demoMode != widget.demoMode || oldWidget.apiClient != widget.apiClient) {
+      // Never display a prior household's answer or reuse its conversation topic.
+      _lastPolicyPrompt = null;
+      _lastSubmittedMessage = null;
+      _result = null;
+      _proposal = null;
+      _error = null;
+      _controller.clear();
     }
   }
 
@@ -102,6 +118,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (_busy || _listening) return;
     final message = _controller.text.trim();
     if (message.length < 2) return;
+    final requestedUnitId = widget.unitId;
+    final effectiveMessage = expandSocietyPolicyFollowup(message,
+      previousQuestion: _lastPolicyPrompt,
+      previousIntent: _lastPolicyPrompt == null ? null : 'SOCIETY_KNOWLEDGE',
+    );
     setState(() {
       _busy = true;
       _error = null;
@@ -112,19 +133,27 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     try {
       if (widget.demoMode) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
-        if (!mounted) return;
-        setState(() => _result = DemoAiAssistantAnswers.answer(message, unitId: widget.unitId));
+        if (!mounted || widget.unitId != requestedUnitId) return;
+        final demoResult = DemoAiAssistantAnswers.answer(effectiveMessage, unitId: requestedUnitId);
+        setState(() {
+          _result = demoResult;
+          _lastPolicyPrompt = demoResult['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
+        });
         return;
       }
       final raw = await widget.apiClient.post(
         '/api/v1/ai-operations/assistant/query',
         {
-          'message': message,
-          if (widget.unitId != null) 'unitId': widget.unitId,
+          'message': effectiveMessage,
+          if (requestedUnitId != null) 'unitId': requestedUnitId,
         },
       );
-      if (!mounted) return;
-      setState(() => _result = Map<String, dynamic>.from(raw as Map));
+      if (!mounted || widget.unitId != requestedUnitId) return;
+      final next = Map<String, dynamic>.from(raw as Map);
+      setState(() {
+        _result = next;
+        _lastPolicyPrompt = next['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
+      });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
