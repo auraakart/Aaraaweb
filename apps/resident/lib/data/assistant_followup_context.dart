@@ -25,7 +25,7 @@ String expandSocietyPolicyFollowup(String prompt, {
   };
   String? subject;
   for (final entry in topics.entries) {
-    if (RegExp('(^|[^a-z])'+RegExp.escape(entry.key)+'([^a-z]|$)').hasMatch(old)) {
+    if (RegExp(r'(^|[^a-z])'+RegExp.escape(entry.key)+r'([^a-z]|$)').hasMatch(old)) {
       subject = entry.value;
       break;
     }
