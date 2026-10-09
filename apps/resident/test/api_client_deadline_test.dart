@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:aaraagate_resident/auth/auth_repository.dart';
 
 import 'package:aaraagate_resident/data/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,4 +110,46 @@ void main() {
           .having((error) => error.message, 'message', contains('reconnect'))),
     );
   });
+
+  test('OTP request deadline does not retry and permits a new request', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    var calls = 0;
+    server.listen((request) async {
+      calls++;
+      if (calls > 1) {
+        request.response.write('{"challengeId":"recovered"}');
+        await request.response.close();
+      }
+    });
+    final auth = AuthRepository(baseUrl: 'http://127.0.0.1:${server.port}', requestTimeout: const Duration(milliseconds: 200));
+    await expectLater(auth.requestOtp('+919876543210'), throwsA(isA<TimeoutException>()));
+    expect(calls, 1);
+    expect(await auth.requestOtp('+919876543210'), 'recovered');
+  });
+
+  for (final partialBody in [false, true]) {
+    test('bounds stalled ${partialBody ? "body" : "headers"} and permits recovery', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var calls = 0;
+      server.listen((request) async {
+        calls++;
+        if (request.uri.path == '/ok') {
+          request.response.write('{"ok":true}');
+          await request.response.close();
+        } else if (partialBody) {
+          request.response.write('{');
+          await request.response.flush();
+        }
+      });
+      final client = ApiClient(baseUrl: 'http://127.0.0.1:${server.port}', accessToken: 'test', requestTimeout: const Duration(milliseconds: 200));
+      addTearDown(client.close);
+      await expectLater(client.post('/stall', {'idempotencyKey': 'original'}), throwsA(isA<ApiException>().having((error) => error.statusCode, 'status', 408)));
+      expect(calls, 1);
+      expect(await client.get('/ok'), {'ok': true});
+      client.close();
+      await expectLater(client.get('/ok'), throwsStateError);
+    });
+  }
 }

@@ -20,9 +20,47 @@ Target a defendable **8.5+/10** quality score without treating production infras
 - A `408` client-side `ApiException` signals an expired deadline, not proof that a POST/PUT/PATCH was rolled back. Mutations require status reconciliation before any retry.
 - The SSE handshake is deadline-bound; ongoing event delivery is not terminated simply because a quiet stream exceeds 20 seconds.
 - Existing authentication, method semantics, JSON decoding and HTTP error mappings remain unchanged.
-- Validation: `cd apps/resident && flutter test test/api_client_deadline_test.dart`; then Resident regression and relevant CI. **Tests/CI are pending** until executed by GitHub; this document does not claim completion.
+- Validation: `cd apps/resident && flutter test test/api_client_deadline_test.dart`; then Resident regression and relevant CI. V4.88.1 merged as PR #1140 with successful CI run 37824470430. Later changes require their own candidate validation.
 - Scope exclusion: production deployment, provider activations, physical microphone/TalkBack evidence, iOS and hardware.
 
 ## Release governance
 
 Development changes target `develop` through review/CI. Minimize `staging` promotions and do not merge `main` without a fresh explicit user approval. No score increase or milestone completion is claimed on the basis of code changes alone.
+
+## V4.88.2–V4.88.5 consolidated candidate
+
+Candidate identity: Root/API/Admin `4.88.5`; Resident/Guard `4.88.5+48805`.
+Changes build on develop `7a3161e3c7013484936ffdca496746e456991e0e`.
+One consolidated develop PR avoids per-slice staging or main commits.
+
+| Slice | Implemented evidence | Acceptance still required |
+|---|---|---|
+| V4.88.2 | App-shell device text scaling preserved, Easy Mode minimum; Guard action exposes a single labelled semantic action; 320px/200% light/dark keyboard regression | Exact-candidate Flutter checks; physical TalkBack, voice and two-device acceptance |
+| V4.88.3 | Shared Guard operations transport, bounded OTP/web requests, no automatic uncertain-write replay; Resident disposal/late-connection cancellation; revoked-owner payment recovery and rolled-back tenant-context isolation; real Admin finance confirmation, denial and read-only journeys | Exact-candidate mobile, browser and migrated PostgreSQL suites |
+| V4.88.4 | Six sampled API coverage floors raised against prior measured coverage; historical gates enforce minimums; additional authenticated finance-readiness workload against 100k payment fixture | Candidate API/Resident/Guard coverage and performance artifacts; these are sampled regression floors, not whole-codebase coverage or production capacity |
+| V4.88.5 | Synchronized release identity; consolidated acceptance matrix and fixed scoring rubric below | Full required CI and evidence review before integration/promotion; no automatic score increase |
+
+### Fixed assessment rubric
+
+| Dimension | Weight | Evidence required |
+|---|---:|---|
+| Workflow and financial integrity | 25% | Daily journeys, duplicate/concurrent writes, reconciliation, reversal and migration fixtures |
+| Reliability and recovery | 20% | Bounded requests, safe replay identities, cancellation, stale-result rejection, notification recovery |
+| Security and tenant isolation | 20% | Cross-society denial, revoked authority, ownership transitions and background-work boundaries |
+| Resident, Guard and Admin usability | 15% | Automated accessibility plus explicitly recorded physical-device acceptance |
+| Maintainability | 10% | Shared transport, bounded responsibilities and current guidance |
+| Performance evidence | 10% | Repeatable representative workloads with predefined budgets |
+
+Acceptance: weighted score >=8.5, no dimension below 8.0, no unresolved critical/high in-scope findings and passing required candidate checks. The historic 9+ rating is not comparable without the same scope and evidence. No numeric re-score is assigned while candidate validation or usability acceptance is incomplete.
+
+### Regression evidence map
+
+- Resident: `api_client_deadline_test.dart` retains V4.88.1 SSE handshake/liveness tests and adds stalled-body, single-send, recovery and closed-client cases; `app_text_scaling_test.dart` exercises the actual app shell.
+- Guard: `api_deadline_test.dart` verifies original idempotency headers and transport classification; existing queue/controller tests remain authoritative for offline replay. `guard_accessibility_test.dart` covers the shared action's semantic, touch and keyboard contract.
+- Admin: `finance-safety.spec.mjs` mounts the actual finance page with deterministic API fixtures; this proves UI confirmation/denial behavior, not database authorization. API PostgreSQL tests provide separate server-side evidence.
+- API: `payment-integrity.postgres.spec.ts` adds revoked-owner recovery denial; `prisma.tenant-context.integration.spec.ts` adds rollback isolation. Existing notification, gate replay, accounting reversal and migration suites are reused without claiming that fixtures replace live integrations.
+- Performance: `performance-smoke.mjs` adds authenticated operational readiness beside treasurer control, both with 24 measured requests, concurrency 4, p95 <=2500ms, throughput >=1.5 requests/s and zero failures. This broadens finance-read coverage; mixed Resident/Guard peak-load certification remains unproven.
+
+### Current validation state
+
+The 12 local JavaScript transport, coverage-contract and benchmark-helper tests pass. Full candidate validation is in progress. Earlier baseline runs are not substituted for candidate evidence. Production deployment, live-provider certification, physical hardware and adoption remain excluded; physical accessibility acceptance remains pending and is not silently marked complete.

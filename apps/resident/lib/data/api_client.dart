@@ -24,6 +24,17 @@ class ApiClient {
   // Event streams instead bound only their initial handshake.
   final Duration requestTimeout;
   final HttpClient _client = HttpClient();
+  bool _closed = false;
+  final Set<HttpClientRequest> _requests = {};
+
+  void close() {
+    _closed = true;
+    for (final request in _requests) {
+      request.abort();
+    }
+    _requests.clear();
+    _client.close(force: true);
+  }
 
   Future<dynamic> get(String path) => _send('GET', path);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) =>
@@ -44,18 +55,25 @@ class ApiClient {
   );
 
   Stream<Map<String, dynamic>> sse(String path) async* {
+    if (_closed) throw StateError('API client is closed');
     if (accessToken.isEmpty) throw ApiException(401, 'Sign in is required');
     HttpClientRequest? activeRequest;
+    var expired = false;
     HttpClientResponse response;
     try {
       response = await (() async {
         final request = await _client.getUrl(_uri(path));
+        if (expired || _closed) {
+          request.abort();
+          throw StateError('Request is no longer active');
+        }
         activeRequest = request;
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
         request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
         return request.close();
       })().timeout(requestTimeout);
     } on TimeoutException {
+      expired = true;
       activeRequest?.abort();
       throw ApiException(408, 'Event stream connection timed out. Please reconnect.');
     }
@@ -89,10 +107,17 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   ]) async {
+    if (_closed) throw StateError('API client is closed');
     if (accessToken.isEmpty) throw ApiException(401, 'Sign in is required');
     HttpClientRequest? activeRequest;
+    var expired = false;
     Future<dynamic> exchange() async {
       final request = await _client.openUrl(method, _uri(path));
+      if (expired || _closed) {
+        request.abort();
+        throw StateError('Request is no longer active');
+      }
+      _requests.add(request);
       activeRequest = request;
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
@@ -127,6 +152,7 @@ class ApiClient {
     try {
       return await exchange().timeout(requestTimeout);
     } on TimeoutException {
+      expired = true;
       // A deadline releases the caller but cannot undo a server-side mutation.
       // Abort the active transport where possible and make retry uncertainty
       // explicit for writes, particularly payments and bookings.
@@ -137,6 +163,8 @@ class ApiClient {
             ? 'Request timed out. Please retry.'
             : 'Request timed out. Check the latest status before retrying.',
       );
+    } finally {
+      if (activeRequest != null) _requests.remove(activeRequest);
     }
   }
 }

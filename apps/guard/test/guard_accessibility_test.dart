@@ -1,6 +1,7 @@
 import 'package:aaraagate_guard/theme/aaraagate_guard_theme.dart';
 import 'package:aaraagate_guard/widgets/guard_operation_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 double contrast(Color a, Color b) {
@@ -27,4 +28,38 @@ void main() {
     )));
     expect(tester.widget<AnimatedContainer>(find.byType(AnimatedContainer)).duration, Duration.zero);
   });
+  for (final dark in [false, true]) {
+    testWidgets('quick action is labelled, keyboard operable and fits 320px at 200% in ${dark ? "dark" : "light"} mode', (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+      addTearDown(semantics.dispose);
+      var calls = 0;
+      await tester.pumpWidget(MaterialApp(
+        theme: dark ? AaraagateGuardTheme.dark() : AaraagateGuardTheme.light(),
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2), disableAnimations: true),
+          child: Scaffold(body: SingleChildScrollView(child: GuardQuickAction(
+            icon: Icons.person_add,
+            label: 'WALK-IN VISITOR',
+            onTap: () => calls++,
+          ))),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsLabel('WALK-IN VISITOR'), findsOneWidget);
+      final action = find.byType(InkWell);
+      expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(action).width, greaterThanOrEqualTo(48));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+    });
+  }
+
 }

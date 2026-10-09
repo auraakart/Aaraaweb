@@ -99,6 +99,21 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     expect(await prisma.paymentEvent.count({ where: { paymentId: original.id, type: 'ORDER_CREATED' } })).toBe(1);
   });
 
+  it('denies recovery of an existing order after ownership is revoked', async () => {
+    const issued = await invoice(secondUnitId);
+    const key = randomUUID();
+    const original = await orders.createPayment(societyId, ownerId, issued.id, key) as { id: string };
+    const where = { societyId, unitId: secondUnitId, userId: ownerId };
+    try {
+      await prisma.unitOwnership.updateMany({ where, data: { active: false } });
+      await expect(orders.createPayment(societyId, ownerId, issued.id, key)).rejects.toBeInstanceOf(NotFoundException);
+      expect(await prisma.payment.count({ where: { invoiceId: issued.id } })).toBe(1);
+      expect(await prisma.paymentEvent.count({ where: { paymentId: original.id, type: 'ORDER_CREATED' } })).toBe(1);
+    } finally {
+      await prisma.unitOwnership.updateMany({ where, data: { active: true } });
+    }
+  });
+
   it('serializes owner and tenant attempts for the same invoice', async () => {
     const issued = await invoice();
     const results = await Promise.allSettled([
