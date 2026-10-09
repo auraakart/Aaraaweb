@@ -10,6 +10,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
 import { residentAnswer } from './ai-resident-answer';
+import { isSocietyKnowledgeQuestion } from './ai-society-questions';
 import { AiResidentPrivateQueries } from './ai-resident-private-queries';
 import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
 import { AiActionCentre } from './ai-action-centre';
@@ -215,7 +216,7 @@ export class AiAssistantService {
       );
     }
 
-    if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge|(?:garbage|waste|trash|recycling)\s*(?:collection|schedule|rules?)?|pet rules?|parking rules?|pool (?:rules?|hours?|timings?)|clubhouse rules?|quiet hours?|visitor hours?|society office hours?|society contact|emergency procedure/.test(routed)){
+    if(isSocietyKnowledgeQuestion(routed)){
       this.requireTool(roles,'SOCIETY_KNOWLEDGE');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.documents.searchKnowledgeForUser(
