@@ -287,13 +287,13 @@ async societyFinance(societyId:string,minimumPaise:number){
     };
   }
 
-  async residentRequests(societyId:string,unitId:string){
+  async residentRequests(societyId:string,userId:string,unitId:string){
     const requests=await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
       SELECT "id","title","category","status","priority","createdAt","updatedAt","resolvedAt","closedAt"
       FROM "HelpdeskTicket"
       WHERE "societyId"=${societyId}::uuid
         AND "unitId"=${unitId}::uuid
-        AND "category" LIKE 'RESIDENT_REQUEST:%'
+        AND "category" LIKE 'RESIDENT_REQUEST:%' AND "createdById"=${userId}::uuid
       ORDER BY "createdAt" DESC
       LIMIT 20
     `);

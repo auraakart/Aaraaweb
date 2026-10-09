@@ -92,3 +92,41 @@ Reports, exports and audit views must preserve the same authorization constraint
 
 ## Definition of done
 A V2 feature is complete only when requirement mapping, tenancy/authorization, validation, privacy/audit implications, migrations where relevant, targeted tests, client UX states, operational failure handling and traceability are complete. Cross-cutting finance, authorization, data-migration or privacy changes require milestone-level regression before staging/main promotion.
+
+## CI status checkpoint and no-repoll policy (V4.89, 2026-10-09)
+
+Prevent avoidable development stalls from repeated GitHub polling:
+
+1. Read develop/staging/main once per slice, resolve exact PR head and scope; repository state is authoritative.
+2. Publish one coherent PR. Allow required GitHub CI and Develop auto merge to run normally. Do not recreate slices that are already merged.
+3. If workflow is still running and no action is possible, record the PR URL/run ID and report the pending gate. Do not continually poll each job or make unverified progress claims.
+4. Once GitHub reports completion, verify PR merged status and develop branch head rather than assuming auto-merge succeeded. A manual merge is justified only when a green PR remains open at its exact tested head.
+5. On failures, inspect that one failed job, patch narrowly, then run selective tests before required CI on the new head.
+6. Preserve protected staging/main and independent release approvals. External queue latency and review timing cannot be guaranteed, but the redundant operator polling loop is avoidable.
+
+## Bot-authored synchronize deadlock remediation (2026-10-09)
+
+Root cause: `Develop auto merge` used `github.token` to call the GitHub
+`/pulls/{number}/update-branch` API after concurrent development merges.
+GitHub-suppressed `pull_request` workflow creation for these bot-authored
+head updates. The new head thus had **no valid CI checks**, and the workflow
+was `action_required`. Repeating the bot update did not fix this state.
+
+Preventive controls:
+- The CI auto-merge job **must never write to the PR branch** with `github.token`.
+- If `develop` advanced, fail the stale exact-head merge gate with a clear
+  actionable error. An independently authorized repository actor synchronizes
+  the PR branch once, triggering a real `pull_request` workflow and required
+  checks on the new SHA.
+- Merge only an exact, latest, green PR head; never reuse old commit checks and
+  never turn required CI off.
+- Keep only one **non-draft**, merge-eligible mastermind PR active at a time;
+  other feature slices can be prepared as drafts but are promoted only after
+  current PR integration and branch synchronization. This reduces stale-base
+  churn and runner waste.
+- The regression test in `scripts/release-delay-controls.test.mjs` rejects
+  reintroduction of token-driven PR updates. No additional `staging` or `main`
+  commits are required.
+
+These controls eliminate the observed bot-generated CI deadlock, but they do
+not guarantee zero waiting for external runners or future independent reviews.

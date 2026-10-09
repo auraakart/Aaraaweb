@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../data/assistant_destinations.dart';
+import '../data/assistant_followup_context.dart';
+import '../preferences/assistant_local_preferences.dart';
+import '../data/demo_ai_assistant_answers.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
 import '../widgets/premium_ui.dart';
@@ -13,6 +17,9 @@ class AiAssistantScreen extends StatefulWidget {
     this.demoMode = false,
     this.initialPrompt,
     this.speech,
+    this.onOpenSection,
+    this.assistantPreferences,
+    this.preferenceScope,
   });
 
   final ApiClient apiClient;
@@ -20,6 +27,9 @@ class AiAssistantScreen extends StatefulWidget {
   final bool demoMode;
   final String? initialPrompt;
   final ResidentSpeech? speech;
+  final ValueChanged<String>? onOpenSection;
+  final AssistantLocalPreferences? assistantPreferences;
+  final String? preferenceScope;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -31,6 +41,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   String? _error;
   Map<String, dynamic>? _result;
   Map<String, dynamic>? _proposal;
+  String? _lastSubmittedMessage;
+  String? _lastPolicyPrompt;
+  bool _dailyBriefingShortcut = false;
+  bool? _feedbackHelpful;
+  late AssistantLocalPreferences _localPreferences;
+  int _preferenceLoadEpoch = 0;
   late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
@@ -48,8 +64,61 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   void initState() {
     super.initState();
     _speech = widget.speech ?? DeviceResidentSpeech();
+    _localPreferences = widget.assistantPreferences ?? AssistantLocalPreferences(scope: widget.preferenceScope);
+    _readAssistantPreferences();
     if (widget.initialPrompt?.trim().isNotEmpty == true) {
       _controller.text = widget.initialPrompt!.trim();
+    }
+  }
+
+  Future<void> _readAssistantPreferences() async {
+    final epoch = ++_preferenceLoadEpoch;
+    try {
+      final enabled = await _localPreferences.loadBriefingShortcut();
+      if (mounted && epoch == _preferenceLoadEpoch) {
+        setState(() => _dailyBriefingShortcut = enabled);
+      }
+    } catch (_) {
+      if (mounted && epoch == _preferenceLoadEpoch) {
+        setState(() => _dailyBriefingShortcut = false);
+      }
+    }
+  }
+
+  Future<void> _setDailyBriefingShortcut(bool enabled) async {
+    final previous = _dailyBriefingShortcut;
+    setState(() => _dailyBriefingShortcut = enabled);
+    try {
+      await _localPreferences.setBriefingShortcut(enabled);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _dailyBriefingShortcut = previous);
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Could not save Assistant preference.')),
+        );
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AiAssistantScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preferenceScope != widget.preferenceScope) {
+      _dailyBriefingShortcut = false;
+      if (widget.assistantPreferences == null) {
+        _localPreferences = AssistantLocalPreferences(scope: widget.preferenceScope);
+      }
+      _readAssistantPreferences();
+    }
+    if (oldWidget.unitId != widget.unitId || oldWidget.demoMode != widget.demoMode || oldWidget.apiClient != widget.apiClient || oldWidget.preferenceScope != widget.preferenceScope) {
+      // Never display a prior household's answer or reuse its conversation topic.
+      _lastPolicyPrompt = null;
+      _lastSubmittedMessage = null;
+      _feedbackHelpful = null;
+      _result = null;
+      _proposal = null;
+      _error = null;
+      _controller.clear();
     }
   }
 
@@ -97,100 +166,48 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (_busy || _listening) return;
     final message = _controller.text.trim();
     if (message.length < 2) return;
+    final requestedUnitId = widget.unitId;
+    final effectiveMessage = expandSocietyPolicyFollowup(message,
+      previousQuestion: _lastPolicyPrompt,
+      previousIntent: _lastPolicyPrompt == null ? null : 'SOCIETY_KNOWLEDGE',
+    );
     setState(() {
       _busy = true;
       _error = null;
       _result = null;
+      _feedbackHelpful = null;
+      _lastSubmittedMessage = message;
       _clearPendingProposal();
     });
     try {
       if (widget.demoMode) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
-        if (!mounted) return;
-        setState(() => _result = _demoAnswer(message));
+        if (!mounted || widget.unitId != requestedUnitId) return;
+        final demoResult = DemoAiAssistantAnswers.answer(effectiveMessage, unitId: requestedUnitId);
+        setState(() {
+          _result = demoResult;
+          _lastPolicyPrompt = demoResult['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
+        });
         return;
       }
       final raw = await widget.apiClient.post(
         '/api/v1/ai-operations/assistant/query',
         {
-          'message': message,
-          if (widget.unitId != null) 'unitId': widget.unitId,
+          'message': effectiveMessage,
+          if (requestedUnitId != null) 'unitId': requestedUnitId,
         },
       );
-      if (!mounted) return;
-      setState(() => _result = Map<String, dynamic>.from(raw as Map));
+      if (!mounted || widget.unitId != requestedUnitId) return;
+      final next = Map<String, dynamic>.from(raw as Map);
+      setState(() {
+        _result = next;
+        _lastPolicyPrompt = next['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
+      });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Map<String, dynamic> _demoAnswer(String message) {
-    final normalized = message.toLowerCase().trim();
-    // Demo responses are fixture-only: do not substitute a generic society
-    // summary for unsupported or unrelated questions.
-    if (RegExp(r'\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Your family member list is an Aaraagate feature, but it is not available through this assistant. Open Profile → Family members to view the list for your selected household.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    if (RegExp(r'\b(dues?|maintenance|bills?|invoices?|receipts?|payments?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Your September maintenance bill is ₹4,250 and is due on 25 September. Your August bill is fully paid.',
-        'facts': {'outstanding': '₹4,250', 'period': 'September 2026', 'dueDate': '25 Sep 2026', 'lastPayment': '₹4,250 on 05 Aug 2026 via UPI'},
-        'sources': ['Maintenance billing', 'Payment receipts'],
-      };
-    }
-    if (RegExp(r'\b(complaints?|helpdesk|tickets?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'You have 2 active helpdesk requests. Water seepage near the balcony is high priority; the corridor-light request is already in progress.',
-        'facts': {'activeRequests': 2, 'highPriority': 'Water seepage near balcony', 'inProgress': 'Corridor light not working'},
-        'sources': ['Helpdesk', 'SLA status'],
-      };
-    }
-    if (RegExp(r'\b(visitors?|staff|gates?|domestic help|maids?|drivers?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Amit Verma is waiting for approval. One delivery and one cab entry were also recorded today. Lakshmi and Ramesh are active household staff.',
-        'facts': {'waitingApproval': 'Amit Verma', 'recentEntries': 3, 'activeStaff': 4},
-        'sources': ['Gate access', 'Domestic help'],
-      };
-    }
-    if (RegExp(r'\b(amenit(?:y|ies)|bookings?|clubhouse|badminton|swimming pool|guest rooms?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Badminton, clubhouse, swimming pool and guest-room options are available in this demo. Weekend slots are usually the busiest.',
-        'facts': {'recommended': 'Badminton court · Saturday 6:00 PM', 'otherOptions': ['Clubhouse', 'Swimming pool', 'Guest room']},
-        'sources': ['Amenities', 'Booking availability'],
-      };
-    }
-    if (RegExp(r'\b(notices?|announcements?|(?:society|community)\s+updates?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Key updates: lift maintenance is scheduled tomorrow, the Ganesh festival programme starts Friday at 6:30 PM, and September maintenance is pending.',
-        'facts': {'priorityUpdates': 3, 'nextEvent': 'Ganesh festival · Friday 6:30 PM'},
-        'sources': ['Society notices', 'Community calendar', 'Billing'],
-      };
-    }
-    if (RegExp(r'\b(services?|providers?|plumbers?|electricians?|cleaning)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Browse available providers in the Services tab. This demo assistant cannot confirm live service availability or complete a booking from a free-text question.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    if (RegExp(r'\b(vehicles?|parking|family|household|residents?|occupants?|profile|documents?|privacy|security|emergenc(?:y|ies)|community|society|facilities|vendors?|deliver(?:y|ies))\b').hasMatch(normalized)) {
-      return {
-        'answer': 'That is an Aaraagate topic, but this assistant demo cannot answer it yet. Try the relevant app screen, or ask about dues, visitors, staff, complaints, amenities, services or society updates.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    return {
-      'answer': 'That question is outside Aaraagate Assistant’s scope. I can help with maintenance dues, visitors, household staff, complaints, amenities, services and society updates.',
-      'facts': <String, dynamic>{},
-      'sources': <String>[],
-    };
   }
 
   Future<void> _draftComplaint() async {
@@ -304,7 +321,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           spacing: AaraagateTokens.space2,
           runSpacing: AaraagateTokens.space2,
           children: [
-            for (final action in _quickActions)
+            for (final action in [
+              ..._quickActions,
+              if (_dailyBriefingShortcut)
+                (label: 'Daily briefing', prompt: 'What is happening today?', icon: Icons.wb_sunny_outlined),
+            ])
               ActionChip(
                 avatar: Icon(action.icon, size: 18, color: scheme.primary),
                 label: Text(action.label),
@@ -322,7 +343,15 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
           ],
         ),
-        const SizedBox(height: AaraagateTokens.space5),
+        if (widget.preferenceScope?.trim().isNotEmpty == true || widget.assistantPreferences != null)
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Show daily briefing shortcut'),
+          subtitle: const Text('Optional on this device. No push notifications or background monitoring.'),
+          value: _dailyBriefingShortcut,
+          onChanged: _busy || _listening ? null : _setDailyBriefingShortcut,
+        ),
+        const SizedBox(height: AaraagateTokens.space3),
         PremiumSurface(
           elevated: true,
           child: Column(
@@ -380,7 +409,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 controller: _controller,
                 readOnly: _listening || _busy,
                 onChanged: (_) {
-                  if (_proposal?['status']?.toString() == 'PROPOSED') {
+                  if (_proposal?['status']?.toString() == 'PROPOSED' || _result != null) {
                     setState(_clearPendingProposal);
                   }
                 },
@@ -437,6 +466,15 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
+  bool get _canPrepareComplaintFromAnswer {
+    final prompt = _lastSubmittedMessage;
+    return widget.unitId != null && !_busy && !_listening &&
+        _result != null && prompt != null &&
+        _controller.text.trim() == prompt &&
+        RegExp(r'\b(?:raise|file|create|submit|register)\s+(?:a\s+)?(?:complaint|ticket)\b|\breport\s+(?:an?\s+)?(?:issue|problem)\b',
+          caseSensitive: false).hasMatch(prompt);
+  }
+
   Widget _resultCard(ThemeData theme) {
     final sources = ((_result!['sources'] as List?) ?? const [])
         .map((source) => source.toString().trim())
@@ -444,6 +482,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         .take(3)
         .toList(growable: false);
     final answer = _result!['answer']?.toString().trim();
+    final destination = widget.unitId != null && sources.isNotEmpty
+        ? assistantDestinationForIntent(_result!['intent']?.toString()) : null;
 
     return PremiumSurface(
       elevated: true,
@@ -475,6 +515,53 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             Text(
               'Based on ' + sources.join(' · '),
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+          if (destination != null && widget.onOpenSection != null) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: Text(destination.label),
+              onPressed: () => widget.onOpenSection!(destination.section),
+            ),
+          ],
+          const SizedBox(height: AaraagateTokens.space3),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AaraagateTokens.space2,
+            children: [
+              const Text('Was this useful?'),
+              TextButton.icon(
+                onPressed: () => setState(() => _feedbackHelpful = true),
+                icon: const Icon(Icons.thumb_up_outlined, size: 18),
+                label: const Text('Helpful'),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() => _feedbackHelpful = false),
+                icon: const Icon(Icons.thumb_down_outlined, size: 18),
+                label: const Text('Not helpful'),
+              ),
+            ],
+          ),
+          if (_feedbackHelpful != null) ...[
+            const SizedBox(height: AaraagateTokens.space1),
+            Text(
+              'Feedback stays on this screen; no question or rating was sent.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            if (_feedbackHelpful == false && widget.unitId != null && widget.onOpenSection != null)
+              TextButton.icon(
+                icon: const Icon(Icons.support_agent_rounded),
+                label: const Text('Report in Helpdesk'),
+                onPressed: () => widget.onOpenSection!('helpdesk'),
+              ),
+          ],
+          if (_canPrepareComplaintFromAnswer) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            OutlinedButton.icon(
+              onPressed: _draftComplaint,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Prepare complaint for review'),
             ),
           ],
         ],

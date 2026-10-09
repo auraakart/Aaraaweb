@@ -9,6 +9,7 @@ import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/amenities_screen.dart';
 import 'screens/ai_assistant_screen.dart';
+import 'screens/parcels_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/community_screen.dart';
 import 'screens/gate_screen.dart';
@@ -154,6 +155,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           propertyContexts: widget.authController.memberships,
           currentSocietyId: session.societyId,
           currentUnitId: session.activeUnitId,
+          assistantPreferenceScope: session.sessionId + ':' + (session.societyId ?? '') + ':' + (session.activeUnitId ?? ''),
           onSwitchProperty: _switchProperty,
           easyMode: widget.experiencePreferences.easyMode,
           onEasyModeChanged: widget.experiencePreferences.setEasyMode,
@@ -164,7 +166,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged});
   final ResidentDataController controller;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
@@ -172,6 +174,7 @@ class ResidentHomeShell extends StatefulWidget {
   final List<SocietyMembershipOption> propertyContexts;
   final String? currentSocietyId;
   final String? currentUnitId;
+  final String assistantPreferenceScope;
   final Future<void> Function(SocietyMembershipOption membership, PropertySummary? property) onSwitchProperty;
   final bool easyMode;
   final Future<void> Function(bool enabled) onEasyModeChanged;
@@ -199,6 +202,30 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
   }
 
   void _openUpdates() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UpdatesScreen(controller: widget.controller)));
+
+  void _openAssistantSection(String section) {
+    final controller = widget.controller;
+    final unitId = widget.currentUnitId;
+    switch (section) {
+      case 'profile':
+        if (unitId == null) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => _profile(controller)));
+      case 'parcels':
+        if (unitId == null || !controller.hasFeature('DELIVERY_MANAGEMENT')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ParcelsScreen(
+          repository: controller.repository,
+          unitId: unitId,
+          demoMode: controller.repository is DemoResidentRepository,
+        )));
+      case 'notices':
+        if (!controller.hasFeature('NOTICES')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller)));
+      case 'helpdesk':
+        if (unitId == null || !controller.hasFeature('HELPDESK')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)));
+    }
+  }
+
 
   ProfileScreen _profile(ResidentDataController controller) => ProfileScreen(
         controller: controller,
@@ -253,7 +280,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
             onOpenAmenities: _openAmenities,
-            onOpenAi: (initialPrompt) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository, initialPrompt: initialPrompt))),
+            onOpenAi: (initialPrompt) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository, initialPrompt: initialPrompt, onOpenSection: _openAssistantSection, preferenceScope: widget.assistantPreferenceScope))),
           ),
           showGate
               ? GateScreen(controller: controller)

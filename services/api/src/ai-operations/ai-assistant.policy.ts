@@ -4,6 +4,10 @@ import { AppPermission, hasPermission } from '../auth/permission.types';
 export type AiAssistantIntent =
   | 'SOCIETY_FINANCE'
   | 'RESIDENT_STATUS'
+  | 'RESIDENT_HOUSEHOLD'
+  | 'RESIDENT_VEHICLES'
+  | 'RESIDENT_PARCELS'
+  | 'RESIDENT_DAILY_BRIEF'
   | 'RESIDENT_WORKFORCE'
   | 'RESIDENT_UTILITIES'
   | 'RESIDENT_REQUESTS'
@@ -32,6 +36,10 @@ export type AiAssistantToolDefinition = {
 export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
   {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.PAYMENT_CREATE_OWN,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_HOUSEHOLD',label:'My approved family members',context:'PROPERTY',permissions:[AppPermission.HOUSEHOLD_READ_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_VEHICLES',label:'My household vehicles',context:'PROPERTY',permissions:[AppPermission.HOUSEHOLD_READ_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_PARCELS',label:'My personal parcel status',context:'PROPERTY',permissions:[AppPermission.PARCEL_READ_OWN],permissionMode:'ALL'},
+  {id:'RESIDENT_DAILY_BRIEF',label:'My current home briefing',context:'PROPERTY',permissions:[AppPermission.NOTICE_READ,AppPermission.HELPDESK_READ_OWN,AppPermission.VISITOR_READ_OWN],permissionMode:'ANY'},
   {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_UTILITIES',label:'Property utility usage',context:'PROPERTY',permissions:[AppPermission.PAYMENT_CREATE_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_REQUESTS',label:'Resident requests and certificates',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN],permissionMode:'ALL'},
@@ -49,6 +57,8 @@ export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
 export function residentIntentRoutingText(text: string) {
   const hints: string[] = [];
   const groups: Array<[RegExp, string]> = [
+    [/परिवार|सदस्य|குடும்ப|உறுப்பினர்|కుటుంబ|సభ్యులు|ಕುಟುಂಬ|ಸದಸ್ಯರು|കുടുംബ|അംഗങ്ങൾ|পরিবার|সদস্য/u,' family members household '],
+    [/नियम|विधि|விதிகள்|నియమాలు|ನಿಯಮಗಳು|നിയമങ്ങൾ|নিয়ম/u,' society rule policy '],
     [/शिकायत|புகார்|ఫిర్యాదు|ದೂರು|പരാതി|तक्रार|অভিযোগ/u,' complaint helpdesk ticket '],
     [/भुगतान|बकाया|கட்டணம்|நிலுவை|చెల్లింపు|బకాయి|ಪಾವತಿ|ಬಾಕಿ|പണമടവ്|കുടിശ്ശിക|भरणा|थकबाकी|পেমেন্ট|বকেয়া/u,' payment due maintenance invoice '],
     [/आगंतुक|मेहमान|கேட்|விருந்தினர்|గేట్|సందర్శకుడు|ಗೇಟ್|ಭೇಟಿಕಾರ|ഗേറ്റ്|സന്ദർശകൻ|पाहुणा|গেট|অতিথি/u,' visitor gate entry pass '],
