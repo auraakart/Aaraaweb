@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,8 @@ class GuardApiException implements Exception {
 }
 
 class GuardApi {
-  GuardApi({required this.baseUrl});
+  GuardApi({required this.baseUrl, this.requestTimeout = const Duration(seconds: 20)});
+  final Duration requestTimeout;
   final String baseUrl;
   String accessToken = '';
 
@@ -60,11 +62,18 @@ class GuardApi {
     try {
       final uri = Uri.parse('$_root/${path.replaceFirst(RegExp(r'^/'), '')}');
       final headers = {..._headers, ...?extraHeaders};
-      final response = method == 'GET'
-          ? await http.get(uri, headers: headers)
-          : method == 'PATCH'
-              ? await http.patch(uri, headers: headers, body: jsonEncode(body ?? const {}))
-              : await http.post(uri, headers: headers, body: jsonEncode(body ?? const {}));
+      final client = http.Client();
+      final request = http.Request(method, uri)..headers.addAll(headers);
+      if (method != 'GET') request.body = jsonEncode(body ?? const {});
+      final http.Response response;
+      try {
+        response = await (() async {
+          final streamed = await client.send(request);
+          return http.Response.fromStream(streamed);
+        })().timeout(requestTimeout);
+      } finally {
+        client.close();
+      }
       dynamic decoded;
       if (response.body.isNotEmpty) {
         try {
@@ -78,6 +87,8 @@ class GuardApi {
         throw GuardApiException(message ?? 'Request failed', statusCode: response.statusCode);
       }
       return decoded;
+    } on TimeoutException {
+      throw GuardApiException('Request timed out. Check the current status before retrying.', transport: true);
     } on GuardApiException {
       rethrow;
     } on SocketException catch (e) {
@@ -86,6 +97,9 @@ class GuardApi {
       throw GuardApiException(e.message, transport: true);
     }
   }
+
+  Future<dynamic> operation(String method, String path, {Map<String, dynamic>? body}) =>
+      _send(method, '/guard-operations/$path', body: body);
 
   Future<Map<String, dynamic>> requestOtp(String phone) async => Map<String, dynamic>.from(await _send('POST', '/auth/otp/request', body: {'phone': phone}) as Map);
   Future<Map<String, dynamic>> verifyOtp(String challengeId, String code) async => Map<String, dynamic>.from(await _send('POST', '/auth/otp/verify', body: {'challengeId': challengeId, 'code': code}) as Map);
