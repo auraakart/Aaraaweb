@@ -9,6 +9,8 @@ class FakeApiClient extends ApiClient {
   FakeApiClient() : super(baseUrl: 'http://example.test', accessToken: 'token');
 
   final List<String> posts = [];
+  final List<String> assistantMessages = [];
+  String assistantIntent = 'RESIDENT_STATUS';
   final List<String> gets = [];
 
   @override
@@ -21,8 +23,9 @@ class FakeApiClient extends ApiClient {
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
     posts.add(path);
     if (path.endsWith('/assistant/query')) {
+      assistantMessages.add(body?['message']?.toString() ?? '');
       return {
-        'intent': 'RESIDENT_STATUS',
+        'intent': assistantIntent,
         'answer': 'You have 2 active helpdesk requests. Water seepage near the balcony is high priority.',
         'facts': {'activeRequests': 2, 'highPriority': 'Water seepage near balcony'},
         'sources': ['Helpdesk', 'SLA status'],
@@ -467,6 +470,59 @@ void main() {
     await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
     await tester.pumpAndSettle();
     expect(find.text('Prepare complaint for review'), findsNothing);
+  });
+
+  testWidgets('general society rule follow-ups expand without changing the authorized property', (tester) async {
+    final api = FakeApiClient()..assistantIntent = 'SOCIETY_KNOWLEDGE';
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('copilot'), apiClient: api, unitId: 'unit-1',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'What are pool rules?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'What about weekends?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages, [
+      'What are pool rules?', 'What are pool rules and timings for weekends?',
+    ]);
+    // Switching properties clears the last answer and policy context.
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('copilot'), apiClient: api, unitId: 'unit-2',
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('You have 2 active helpdesk requests'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'What about weekends?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages.last, 'What about weekends?');
+  });
+
+  testWidgets('personal financial follow-ups never inherit stale user facts', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'unit-1', speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'What about last month?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(api.assistantMessages.last, 'What about last month?');
+    expect(api.posts.where((x)=>x.endsWith('/assistant/query')).length, 2);
   });
 
   testWidgets('assistant accepts a contextual Home prompt without auto-submitting', (tester) async {
