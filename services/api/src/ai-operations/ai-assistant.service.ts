@@ -71,13 +71,40 @@ export class AiAssistantService {
       );
     }
 
-    // Family members are supported in Profile, but not by an AI retrieval tool.
-    // Do not fetch or synthesize household records from a free-text request.
+    // V4.89.2: answer own household questions from the active, selected home
+    // after runtime occupant authorization. Never return phone/email, past
+    // occupancies, or another household's members.
     if(/\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_HOUSEHOLD');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking for its family member list.',
+          'UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const rows=await this.prisma.$queryRaw<Array<{name:string|null,relation:string}>>(Prisma.sql`
+        SELECT u."name", o."relation"
+        FROM "UnitOccupancy" o
+        JOIN "User" u ON u."id"=o."userId"
+        WHERE o."societyId"=${societyId}::uuid AND o."unitId"=${unitId}::uuid
+          AND o."relation"='FAMILY_MEMBER' AND o."active"=TRUE
+          AND o."effectiveFrom"<=CURRENT_TIMESTAMP
+          AND (o."effectiveTo" IS NULL OR o."effectiveTo">CURRENT_TIMESTAMP)
+          AND u."status"='ACTIVE'
+        ORDER BY u."name",o."createdAt" LIMIT 30
+      `);
+      const members=rows.map(row=>({
+        name:(row.name??'').replace(/\s+/g,' ').trim().slice(0,80)||'Unnamed member',
+        relation:row.relation,
+      }));
+      const answer=members.length
+        ? `Your current household has ${members.length} approved family member(s): ${members.map(member=>member.name).join(', ')}. For details and permitted management actions, open Profile → Family members.`
+        : 'There are no active approved family members recorded for your selected home. Open Profile → Family members to review pending requests.';
       return this.auditedResponse(
-        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
-        'Family members are available under Profile → Family members. I cannot retrieve that list through the assistant; open the screen for your selected household.',
-        'UNSUPPORTED',
+        societyId,userId,unitId,'RESIDENT_HOUSEHOLD','RESIDENT_HOUSEHOLD',
+        {members,limitedTo:30},['UnitOccupancy','User'],answer,
       );
     }
 

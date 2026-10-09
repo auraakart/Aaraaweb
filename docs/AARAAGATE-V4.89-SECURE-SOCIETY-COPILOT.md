@@ -19,3 +19,11 @@
 ## Governance and acceptance
 
 All work targets `develop` until staged release approval. Full API/Resident/Admin security and tenant regression gates are mandatory; no score increase or production/device readiness is implied. Validate owner of Unit A/tenant of Unit B, move-out expiry, family role, revoked owner, independent payer and other-household denial. Financial/gate mutations still follow authoritative domain services and require confirmation.
+
+## V4.89.2: first authorized My Home read tool (candidate)
+
+- `RESIDENT_HOUSEHOLD` answers a family's member-list question only with an active, time-valid selected-unit occupant relationship and `HOUSEHOLD_READ_OWN` permission.
+- Minimal projection returns only active approved `FAMILY_MEMBER` names and relationship; no phone/email, other units, pending or ended occupants.
+- The Assistant provides a grounded answer and routes to Profile → Family members for detailed or management flows.
+- A missing unit context does not trigger a cross-unit lookup; a non-resident owner or former occupant is denied.
+- Further V4.89.2 read tools (vehicles, deliveries and personalized account status) remain planned; this is an initial capability slice.

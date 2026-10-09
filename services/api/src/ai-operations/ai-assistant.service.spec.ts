@@ -317,10 +317,13 @@ describe('V4.6 grounded AI assistant',()=>{
     const society='11111111-1111-4111-8111-111111111111';
     const user='22222222-2222-4222-8222-222222222222';
     const unit='33333333-3333-4333-8333-333333333333';
-    const family=await service.query(society,user,[AppRole.OWNER],'give my family member list',unit);
-    expect(family.intent).toBe('UNSUPPORTED');
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{name:'Aanya',relation:'FAMILY_MEMBER'}]);
+    const family=await service.query(society,user,[AppRole.TENANT],'give my family member list',unit);
+    expect(family.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(family.answer).toContain('Aanya');
     expect(family.answer).toContain('Profile → Family members');
-    expect(family.sources).toEqual([]);
+    expect(family.sources).toEqual(['UnitOccupancy','User']);
     const unrelated=await service.query(society,user,[AppRole.OWNER],'Who won the cricket match?',unit);
     expect(unrelated.intent).toBe('UNSUPPORTED');
     expect(unrelated.answer).toContain('outside Aaraagate Assistant’s scope');
@@ -328,10 +331,49 @@ describe('V4.6 grounded AI assistant',()=>{
     const appTopic=await service.query(society,user,[AppRole.OWNER],'Show my parking sticker',unit);
     expect(appTopic.intent).toBe('UNSUPPORTED');
     expect(appTopic.answer).toContain('not available through this assistant');
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
   });
 
+
+  it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{name:'Meera',relation:'FAMILY_MEMBER'},{name:'Ravi',relation:'FAMILY_MEMBER'}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],'List my family members','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(result.answer).toContain('Meera, Ravi');
+    expect(result.facts).toEqual({members:[{name:'Meera',relation:'FAMILY_MEMBER'},{name:'Ravi',relation:'FAMILY_MEMBER'}],limitedTo:30});
+    const sqls=prisma.$queryRaw.mock.calls.map(call=>(call[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('"societyId"=?::uuid');
+    expect(sqls[1]).toContain('"unitId"=?::uuid');
+    expect(sqls[1]).toContain('"relation"=\'FAMILY_MEMBER\'');
+    expect(sqls[1]).toContain('"effectiveTo"');
+    expect(sqls[1]).not.toContain('"phone"');
+    expect(sqls[1]).not.toContain('"email"');
+  });
+
+  it('denies ex-occupants and non-resident owners access to the selected household list',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],'Show my family members','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('asks for property context rather than choosing an unverified family',async()=>{
+    const {prisma,service}=setup();
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],'Show family member list');
+    expect(result.intent).toBe('UNSUPPORTED');
+    expect(result.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
   it('does not hallucinate an unsupported answer',async()=>{
     const {prisma,service}=setup();
     const result=await service.query('society-1','user-1',[AppRole.OWNER],'Predict next year property prices');

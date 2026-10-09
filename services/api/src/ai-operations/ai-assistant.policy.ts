@@ -4,6 +4,7 @@ import { AppPermission, hasPermission } from '../auth/permission.types';
 export type AiAssistantIntent =
   | 'SOCIETY_FINANCE'
   | 'RESIDENT_STATUS'
+  | 'RESIDENT_HOUSEHOLD'
   | 'RESIDENT_WORKFORCE'
   | 'RESIDENT_UTILITIES'
   | 'RESIDENT_REQUESTS'
@@ -32,6 +33,7 @@ export type AiAssistantToolDefinition = {
 export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
   {id:'SOCIETY_FINANCE',label:'Society finance',context:'SOCIETY',permissions:[AppPermission.FINANCE_READ],permissionMode:'ALL'},
   {id:'RESIDENT_STATUS',label:'Resident property status',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN,AppPermission.PROPERTY_FINANCE_READ,AppPermission.PAYMENT_CREATE_OWN,AppPermission.AMENITY_READ,AppPermission.SERVICES_MARKETPLACE_USE],permissionMode:'ANY'},
+  {id:'RESIDENT_HOUSEHOLD',label:'My approved family members',context:'PROPERTY',permissions:[AppPermission.HOUSEHOLD_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_WORKFORCE',label:'Household staff status',context:'PROPERTY',permissions:[AppPermission.WORKFORCE_READ_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_UTILITIES',label:'Property utility usage',context:'PROPERTY',permissions:[AppPermission.PAYMENT_CREATE_OWN],permissionMode:'ALL'},
   {id:'RESIDENT_REQUESTS',label:'Resident requests and certificates',context:'PROPERTY',permissions:[AppPermission.HELPDESK_READ_OWN],permissionMode:'ALL'},
