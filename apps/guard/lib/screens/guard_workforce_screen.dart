@@ -410,11 +410,17 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        FilledButton.icon(
-                          onPressed: _busy ? null : () => _mutateSociety(worker),
-                          icon: Icon(worker.present ? Icons.logout_rounded : Icons.login_rounded),
-                          label: Text(worker.present ? 'EXIT' : 'ENTER', style: const TextStyle(fontWeight: FontWeight.w900)),
-                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58)),
+                        Semantics(
+                          button: true,
+                          label: worker.present
+                              ? 'Check out society worker ${worker.name}'
+                              : 'Check in society worker ${worker.name}',
+                          child: FilledButton.icon(
+                            onPressed: _busy ? null : () => _mutateSociety(worker),
+                            icon: Icon(worker.present ? Icons.logout_rounded : Icons.login_rounded),
+                            label: Text(worker.present ? 'EXIT' : 'ENTER', style: const TextStyle(fontWeight: FontWeight.w900)),
+                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58)),
+                          ),
                         ),
                       ],
                     ),
@@ -462,20 +468,28 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                           const SizedBox(height: 14),
                           Row(children: [
                             Expanded(
-                              child: FilledButton.icon(
-                                onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_IN'),
-                                icon: const Icon(Icons.login_rounded),
-                                label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                              child: Semantics(
+                                button: true,
+                                label: 'Check in household worker $name at ${assignment.buildingName} ${assignment.unitNumber}',
+                                child: FilledButton.icon(
+                                  onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_IN'),
+                                  icon: const Icon(Icons.login_rounded),
+                                  label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_OUT'),
-                                icon: const Icon(Icons.logout_rounded),
-                                label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                              child: Semantics(
+                                button: true,
+                                label: 'Check out household worker $name at ${assignment.buildingName} ${assignment.unitNumber}',
+                                child: OutlinedButton.icon(
+                                  onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_OUT'),
+                                  icon: const Icon(Icons.logout_rounded),
+                                  label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                                ),
                               ),
                             ),
                           ]),
