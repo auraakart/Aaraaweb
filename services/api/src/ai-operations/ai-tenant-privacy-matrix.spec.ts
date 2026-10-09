@@ -22,12 +22,13 @@ const actor='22222222-2222-4222-8222-222222222222';
 const home='33333333-3333-4333-8333-333333333333';
 
 describe('V4.89.13 Society Copilot adversarial tenant privacy matrix',()=>{
-  it.each([
+  const deniedCases: Array<[string, AppRole, string]> = [
     ['TENANT',AppRole.TENANT,'List my family members'],
     ['OWNER',AppRole.OWNER,'Show my cars'],
     ['OWNER',AppRole.OWNER,'Show my parcels'],
     ['TENANT',AppRole.TENANT,"What's happening today?"],
-  ])('denies a %s with no current occupancy before reading private records: %s',async(_,role,prompt)=>{
+  ];
+  it.each(deniedCases)('denies a %s with no current occupancy before reading private records: %s',async(_,role,prompt)=>{
     const {service,prisma}=fixture();
     prisma.$queryRaw.mockResolvedValueOnce([]);
     await expect(service.query(society,actor,[role],prompt,home)).rejects.toBeInstanceOf(ForbiddenException);
