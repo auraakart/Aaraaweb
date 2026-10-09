@@ -38,39 +38,77 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     super.dispose();
   }
 
+  // Discard responses from an older gate, authenticated session, or search.
+  // Never publish a previous household's list after switching context.
+  int _loadEpoch = 0;
+
+  bool _currentLoad(int epoch, String gateId, String sessionId, String societyId, String guardUserId) {
+    final session = widget.controller.session;
+    return mounted &&
+        epoch == _loadEpoch &&
+        widget.controller.gateId == gateId &&
+        session?.sessionId == sessionId &&
+        session?.societyId == societyId &&
+        session?.userId == guardUserId;
+  }
+
   Future<void> _load() async {
-    if (widget.controller.gateId == null) {
-      setState(() => _error = 'Select an active gate first.');
+    final epoch = ++_loadEpoch;
+    final gateId = widget.controller.gateId;
+    final session = widget.controller.session;
+    if (gateId == null || session == null) {
+      if (!mounted) return;
+      setState(() {
+        _workers = const [];
+        _societyWorkers = const [];
+        _societyLookup = const [];
+        _queued = 0;
+        _syncMessage = null;
+        _busy = false;
+        _error = gateId == null ? 'Select an active gate first.' : 'Sign in to view workforce.';
+      });
       return;
     }
+
+    final sessionId = session.sessionId;
+    final societyId = session.societyId;
+    final guardUserId = session.userId;
+    final query = _search.text;
+    bool current() => _currentLoad(epoch, gateId, sessionId, societyId, guardUserId);
+
     setState(() {
       _busy = true;
       _error = null;
+      _workers = const [];
+      _societyWorkers = const [];
+      _societyLookup = const [];
     });
     try {
       await _syncQueue();
-      final results = await widget.controller.api.eligibleWorkforce(query: _search.text);
-      if (!mounted) return;
+      if (!current()) return;
+      final results = await widget.controller.api.eligibleWorkforce(query: query);
+      if (!current()) return;
       setState(() => _workers = results);
 
       try {
         final societyResults = await widget.controller.api.eligibleSocietyWorkforce(
-          gateId: widget.controller.gateId!,
-          query: _search.text,
+          gateId: gateId,
+          query: query,
         );
-        final lookup = _search.text.trim().length >= 2
+        if (!current()) return;
+        final lookup = query.trim().length >= 2
             ? await widget.controller.api.lookupSocietyWorkforce(
-                gateId: widget.controller.gateId!,
-                query: _search.text,
+                gateId: gateId,
+                query: query,
               )
             : const <GuardSocietyWorker>[];
-        if (!mounted) return;
+        if (!current()) return;
         setState(() {
           _societyWorkers = societyResults;
           _societyLookup = lookup.where((worker) => !worker.eligible).toList(growable: false);
         });
       } on GuardApiException catch (e) {
-        if (!mounted) return;
+        if (!current()) return;
         setState(() {
           _societyWorkers = const [];
           _societyLookup = const [];
@@ -78,10 +116,10 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         });
       }
     } on GuardApiException catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() => _error = e.message);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
