@@ -92,3 +92,14 @@ Reports, exports and audit views must preserve the same authorization constraint
 
 ## Definition of done
 A V2 feature is complete only when requirement mapping, tenancy/authorization, validation, privacy/audit implications, migrations where relevant, targeted tests, client UX states, operational failure handling and traceability are complete. Cross-cutting finance, authorization, data-migration or privacy changes require milestone-level regression before staging/main promotion.
+
+## CI status checkpoint and no-repoll policy (V4.89, 2026-10-09)
+
+Prevent avoidable development stalls from repeated GitHub polling:
+
+1. Read develop/staging/main once per slice, resolve exact PR head and scope; repository state is authoritative.
+2. Publish one coherent PR. Allow required GitHub CI and Develop auto merge to run normally. Do not recreate slices that are already merged.
+3. If workflow is still running and no action is possible, record the PR URL/run ID and report the pending gate. Do not continually poll each job or make unverified progress claims.
+4. Once GitHub reports completion, verify PR merged status and develop branch head rather than assuming auto-merge succeeded. A manual merge is justified only when a green PR remains open at its exact tested head.
+5. On failures, inspect that one failed job, patch narrowly, then run selective tests before required CI on the new head.
+6. Preserve protected staging/main and independent release approvals. External queue latency and review timing cannot be guaranteed, but the redundant operator polling loop is avoidable.

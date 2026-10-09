@@ -437,6 +437,72 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
+
+  it('returns only current-unit registered vehicles with masked plates for a current tenant',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([
+        {plateNumber:'KA 03 AB 9876',vehicleType:'CAR',make:'Maruti'},
+        {plateNumber:'TN09 XX 1234',vehicleType:'TWO_WHEELER',make:null},
+      ]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Show my registered vehicles','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_VEHICLES');
+    expect(result.answer).toContain('plate ending 9876');
+    expect(result.answer).not.toContain('KA 03 AB 9876');
+    expect(JSON.stringify(result.facts)).not.toContain('KA03AB9876');
+    expect(result.facts).toEqual({vehicles:[
+      {plateSuffix:'9876',vehicleType:'CAR',make:'Maruti'},
+      {plateSuffix:'1234',vehicleType:'TWO_WHEELER',make:''},
+    ],limitedTo:20});
+    const sqls=prisma.$queryRaw.mock.calls.map(call=>(call[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('FROM "HouseholdVehicle"');
+    expect(sqls[1]).toContain('JOIN "Household"');
+    expect(sqls[1]).toContain('h."unitId"=?::uuid');
+    expect(sqls[1]).toContain('v."societyId"=?::uuid');
+    expect(sqls[1]).toContain('v."active"=TRUE');
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks private vehicle inventory for an owner without current occupancy',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Show my cars','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not choose a unit or fabricate parking allocation in household queries',async()=>{
+    const {prisma,service}=setup();
+    const noUnit=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'List my vehicles');
+    expect(noUnit.intent).toBe('UNSUPPORTED');
+    expect(noUnit.answer).toContain('Select your current home');
+    const parking=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Where is my parking slot?');
+    expect(parking.intent).toBe('UNSUPPORTED');
+    expect(parking.answer).toContain('cannot confirm');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not expose the private vehicle tool to staff without household permission',async()=>{
+    const {prisma,service}=setup();
+    expect(service.tools([AppRole.SECURITY_GUARD]).tools.map(t=>t.id)).not.toContain('RESIDENT_VEHICLES');
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.SECURITY_GUARD],
+      'Show my registered vehicles','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw

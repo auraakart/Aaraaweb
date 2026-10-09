@@ -66,3 +66,11 @@ The bounded V4.89 slices introduce selected-property occupant/payer read restric
 **Items still needing separate acceptance/work:** wider society FAQ catalog/coverage, natural multi-turn conversations beyond routing hints, genuine opt-in notifications with consent/retention controls, actionable source deep links, persisted feedback, full adversarial privacy/e2e matrix and physical device multilingual usability. No claims that all society questions are answered, no unexplained 8.5+ score, and no productionization or external-provider integration acceptance.
 
 No main merge is permitted without a separately approved, green release PR; the earlier V4.88.6 main release is still governed independently.
+
+## V4.89.7: active household vehicle query (development candidate)
+
+- Add read-only RESIDENT_VEHICLES tool gated by HOUSEHOLD_READ_OWN and current selected-unit occupancy; ownership of another home is not sufficient.
+- The database query filters society, unit and active household vehicle state; returns only sanitized make/type and last four plate characters. No unmasked vehicle registration is placed in answers or structured facts.
+- Missing selected unit, nonresident owner, unrelated security role and parking-bay allocation requests fail without guessing or exposing another household's inventory.
+- Add targeted negative privacy and no-hallucination tests. Other parking assignment and delivery tools remain separate work.
+- Version identity changes only on the consolidated release; staging/main untouched during development.

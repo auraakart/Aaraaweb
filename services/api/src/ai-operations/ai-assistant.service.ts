@@ -109,6 +109,53 @@ export class AiAssistantService {
       );
     }
 
+
+    // V4.89.7: private current-home vehicle reads; raw plates are never returned.
+    if(/\b(?:(?:my|our)\s+(?:registered\s+)?(?:vehicles?|cars?|bikes?|two[- ]wheelers?)|registered\s+(?:vehicles?|cars?|bikes?)|vehicle\s+list|vehicles?\s+registered\s+(?:to|for)\s+(?:my|our))\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_VEHICLES');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking for its registered vehicles.','UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const rows=await this.prisma.$queryRaw<Array<{plateNumber:string,vehicleType:string,make:string|null}>>(Prisma.sql`
+        SELECT v."plateNumber",v."vehicleType",v."make"
+        FROM "HouseholdVehicle" v
+        JOIN "Household" h ON h."id"=v."householdId" AND h."societyId"=v."societyId"
+        WHERE v."societyId"=${societyId}::uuid AND h."unitId"=${unitId}::uuid
+          AND v."active"=TRUE
+        ORDER BY v."createdAt" DESC,v."id" DESC LIMIT 20
+      `);
+      const vehicles=rows.map(row=>{
+        const plate=String(row.plateNumber??'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
+        return {
+          plateSuffix:plate.length>=4?plate.slice(-4):'',
+          vehicleType:String(row.vehicleType??'').slice(0,32),
+          make:String(row.make??'').replace(/\s+/g,' ').trim().slice(0,50),
+        };
+      });
+      const answer=vehicles.length
+        ? 'Your current home has '+vehicles.length+' active registered vehicle(s): '
+          +vehicles.map(v=>v.vehicleType+(v.make?' ('+v.make+')':'')+' • '+(v.plateSuffix?'plate ending '+v.plateSuffix:'plate unavailable')).join('; ')
+          +'. Open Profile → Vehicles for authorized vehicle management.'
+        : 'No active household vehicles are recorded for your selected home. Open Profile → Vehicles to review or request changes.';
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_VEHICLES','RESIDENT_VEHICLES',
+        {vehicles,limitedTo:20},['HouseholdVehicle'],answer,
+      );
+    }
+
+    // A registered vehicle does not prove allocation of a society parking bay.
+    if(/\b(?:(?:my|our)\s+parking\s+(?:slot|space|bay|allocation)|where\s+(?:is|are)\s+(?:my|our)\s+parking)\b/.test(routed)){
+      return this.auditedResponse(
+        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+        'I cannot confirm your allocated parking space from the Assistant yet. Please review your authorized parking details in the app or ask society management.',
+        'UNSUPPORTED',
+      );
+    }
+
     // On-demand briefing: a current snapshot of authorized records, not a
     // scheduled notification, a prediction, or an unverified "today" history.
     if(/what(?:'s| is|s) happening today|today(?:'s)? (?:brief|highlights|updates?)|daily brief(?:ing)?|morning brief(?:ing)?|what should i know today|anything (?:important|urgent) today/.test(routed)){
