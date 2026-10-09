@@ -24,6 +24,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(residentIntentRoutingText('मेरी शिकायत दिखाओ')).toContain('complaint helpdesk ticket');
     expect(residentIntentRoutingText('என் கட்டணம் நிலுவையில் உள்ளதா')).toContain('payment due maintenance invoice');
     expect(residentIntentRoutingText('গেটে অতিথি আছে কি')).toContain('visitor gate entry pass');
+    expect(residentIntentRoutingText('என் குடும்ப உறுப்பினர் யார்?')).toContain('family members household');
+    expect(residentIntentRoutingText('सोसायटी के नियम क्या हैं?')).toContain('society rule policy');
   });
 
   it('exposes only permission-authorized registered tools and keeps mutation scope fixed',()=>{
@@ -110,6 +112,9 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('RESIDENT_STATUS');
     expect(result.sources).toEqual(expect.arrayContaining(['MaintenanceInvoice','Payment']));
     expect((result.facts as {invoices:Array<{id:string}>}).invoices).toEqual([expect.objectContaining({id:'invoice-1'})]);
+    expect(result.answer).toContain('INV-1');
+    expect(result.answer).toContain('₹1,250.00');
+    expect(result.answer).toContain('not a verified net outstanding balance');
     const sqlCalls=prisma.$queryRaw.mock.calls.map((call)=>{
       const sql=call[0] as {strings?:readonly string[]};
       return (sql.strings??[]).join('?');
@@ -133,6 +138,7 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('RESIDENT_NOTICES');
     expect(result.sources).toEqual(['Notice','NoticeRecipient']);
     expect(result.facts).toEqual([expect.objectContaining({title:'Water shutdown'})]);
+    expect(result.answer).toContain('Water shutdown');
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -188,6 +194,7 @@ describe('V4.6 grounded AI assistant',()=>{
 
   it('routes household staff status through the canonical occupant-scoped workforce service',async()=>{
     const {prisma,workforce,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]);
     workforce.residentStatusMine.mockResolvedValue({
       activeAssignmentCount:1,checkedInCount:1,onLeaveCount:0,
       staff:[{id:'assignment-1',name:'Maya',role:'MAID',checkedInNow:true}],
@@ -205,8 +212,94 @@ describe('V4.6 grounded AI assistant',()=>{
       '22222222-2222-4222-8222-222222222222',
       '33333333-3333-4333-8333-333333333333',
     );
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const authorizationSql=(prisma.$queryRaw.mock.calls[0][0] as {strings:readonly string[]}).strings.join('?');
+    expect(authorizationSql).toContain('FROM "UnitOccupancy"');
+    expect(authorizationSql).not.toContain('FROM "UnitOwnership"');
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('rejects non-resident owner access to live visitor/household activity before retrieval',async()=>{
+    const {prisma,workforce,service}=setup();
+    // Ownership can remain valid after moving out; occupancy must still be active.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER], 'Who is at my gate?', '33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER], 'Is my household staff checked in?', '33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(workforce.residentStatusMine).not.toHaveBeenCalled();
+  });
+
+  it('limits tenant and multi-property role finance queries to the current payer and own payment history',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]);
+    // No rows exist when unit payer relation is missing, despite OWNER being a
+    // society-level role earned from another apartment.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER,AppRole.FAMILY_MEMBER], 'Show my maintenance payment due', '33333333-3333-4333-8333-333333333333');
+    const sqls=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?'));
+    const invoice=sqls.find(sql=>sql.includes('FROM "MaintenanceInvoice"'));
+    const payment=sqls.find(sql=>sql.includes('FROM "Payment" p'));
+    expect(invoice).toContain('FROM "UnitOccupancy"');
+    expect(invoice).toContain('"relation"=\'TENANT\'');
+    expect(invoice).toContain('FROM "UnitOwnership"');
+    expect(payment).toContain('p."payerUserId"=?::uuid');
+    expect(payment).toContain('FROM "UnitOccupancy"');
+    expect(payment).not.toContain('OR EXISTS(');
+  });
+
+  it('keeps private resident certificate/request rows creator scoped',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]).mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT], 'Show my NOC requests', '33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_REQUESTS');
+    const requestSql=(prisma.$queryRaw.mock.calls[1][0] as {strings:readonly string[]}).strings.join('?');
+    expect(requestSql).toContain('"createdById"=?::uuid');
+  });
+
+  it('recognizes common resident society questions without inventing answers',async()=>{
+    const {prisma,documents,service}=setup();
+    const questions=[
+      'Can tenants use the gym?',
+      'When can I move in?',
+      'How does garbage segregation work?',
+      'Where is the society office?',
+      'Are dogs allowed in common areas?',
+      'What are renovation timings?',
+      'What are visitor parking fees?',
+      'When can delivery agents enter?',
+      'What are clubhouse guest limits?',
+      'What is the emergency contact number?',
+      'Are festival decorations permitted?',
+    ];
+    documents.searchKnowledgeForUser.mockResolvedValue([]);
+    for(const question of questions) {
+      const answer=await service.query('society-1','user-1',[AppRole.TENANT],question);
+      expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+      expect(answer.answer).toContain('No matching published society knowledge');
+    }
+    expect(documents.searchKnowledgeForUser).toHaveBeenCalledTimes(questions.length);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not treat unrelated questions or private home requests as society rules',async()=>{
+    const {prisma,documents,service}=setup();
+    const outside=await service.query('society-1','user-1',[AppRole.TENANT],'Who won the cricket match?');
+    expect(outside.intent).toBe('UNSUPPORTED');
+    const privateParking=await service.query('society-1','user-1',[AppRole.TENANT],'Where is my parking bay?');
+    expect(privateParking.intent).toBe('UNSUPPORTED');
+    expect(documents.searchKnowledgeForUser).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('grounds society policy questions in current published document citations and never invents a missing answer',async()=>{
@@ -219,6 +312,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('SOCIETY_KNOWLEDGE');
     expect(result.sources).toEqual(['SocietyDocument','SocietyDocumentKnowledge']);
     expect(result.facts).toEqual(expect.objectContaining({matches:[expect.objectContaining({documentId:'doc-1',version:3})]}));
+    expect(result.answer).toContain('Parking policy');
+    expect(result.answer).toContain('Visitor parking is limited to designated bays.');
     expect(documents.searchKnowledgeForUser).toHaveBeenCalledWith('society-1','user-1','What does our parking policy say?',false);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
@@ -229,6 +324,29 @@ describe('V4.6 grounded AI assistant',()=>{
     expect((missing.facts as {answerBoundary:string}).answerBoundary).toContain('No matching published society document');
   });
 
+
+  it('answers ordinary waste and parking rule questions only from published authorized society evidence',async()=>{
+    const {prisma,documents,service}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([{
+      documentId:'doc-2',title:'Waste collection schedule',version:2,
+      excerpt:'Dry waste collection is on Wednesdays.',category:'NOTICE',score:9,
+    }]);
+    const answer=await service.query('society-1','user-1',[AppRole.TENANT],
+      'When is garbage collection in our society?');
+    expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(answer.answer).toContain('Dry waste collection is on Wednesdays.');
+    expect(answer.sources).toContain('SocietyDocumentKnowledge');
+    expect(documents.searchKnowledgeForUser).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not invent an answer to a society rule when there is no published document',async()=>{
+    const {documents,service}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([]);
+    const answer=await service.query('society-1','user-1',[AppRole.TENANT],'What are the pool rules?');
+    expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(answer.answer).toContain('No matching published society knowledge');
+  });
   it('allows governance read only to governance-readable roles',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw
@@ -260,6 +378,272 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
+  it('distinguishes family member requests, unsupported app topics and off-topic queries',async()=>{
+    const {prisma,service}=setup();
+    const society='11111111-1111-4111-8111-111111111111';
+    const user='22222222-2222-4222-8222-222222222222';
+    const unit='33333333-3333-4333-8333-333333333333';
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{name:'Aanya',relation:'FAMILY_MEMBER'}]);
+    const family=await service.query(society,user,[AppRole.TENANT],'give my family member list',unit);
+    expect(family.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(family.answer).toContain('Aanya');
+    expect(family.answer).toContain('Profile → Family members');
+    expect(family.sources).toEqual(['UnitOccupancy','User']);
+    const unrelated=await service.query(society,user,[AppRole.OWNER],'Who won the cricket match?',unit);
+    expect(unrelated.intent).toBe('UNSUPPORTED');
+    expect(unrelated.answer).toContain('outside Aaraagate Assistant’s scope');
+    expect(unrelated.sources).toEqual([]);
+    const appTopic=await service.query(society,user,[AppRole.OWNER],'Show my parking sticker',unit);
+    expect(appTopic.intent).toBe('UNSUPPORTED');
+    expect(appTopic.answer).toContain('not available through this assistant');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
+  });
+
+
+
+  it('answers personal complaints without exposing finance data to family members',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{title:'Water leak',status:'OPEN'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.FAMILY_MEMBER],
+      'Show my complaints status','33333333-3333-4333-8333-333333333333');
+    expect(result.answer).toContain('Water leak (OPEN)');
+    expect(result.answer).not.toContain('₹');
+  });
+
+  it('routes Tamil family-list questions through the same authorized household tool',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]).mockResolvedValueOnce([{name:'Anitha',relation:'FAMILY_MEMBER'}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'என் குடும்ப உறுப்பினர் யார்?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(result.answer).toContain('Anitha');
+  });
+
+
+  it('builds a current-occupant briefing from separately authorized, person-scoped evidence',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{title:'Lift maintenance'}])
+      .mockResolvedValueOnce([{name:'Amit',status:'PENDING'}])
+      .mockResolvedValueOnce([{invoiceNumber:'INV-1',status:'ISSUED',amountPaise:125000}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{title:'Leak',status:'OPEN'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'What\'s happening today?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_DAILY_BRIEF');
+    expect(result.answer).toContain('Lift maintenance');
+    expect(result.answer).toContain('1 pending visitor request(s)');
+    expect(result.answer).toContain('1 invoice record(s) to review');
+    expect(result.facts).toEqual(expect.objectContaining({noticeCount:1,pendingVisits:1,openRequests:1,invoiceReviewCount:1}));
+    expect(result.mutationPerformed).toBe(false);
+    const sql=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?')).join('\n');
+    expect(sql).toContain('v."hostUserId"=?::uuid');
+    expect(sql).toContain('p."payerUserId"=?::uuid');
+  });
+
+  it('refuses current-home briefings to non-resident owners and ended tenants',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Daily briefing for my home','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('asks for property selection before preparing a personal briefing',async()=>{
+    const {prisma,service}=setup();
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Morning briefing');
+    expect(result.intent).toBe('UNSUPPORTED');
+    expect(result.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+
+  it('returns only current-unit registered vehicles with masked plates for a current tenant',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([
+        {plateNumber:'KA 03 AB 9876',vehicleType:'CAR',make:'Maruti'},
+        {plateNumber:'TN09 XX 1234',vehicleType:'TWO_WHEELER',make:null},
+      ]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Show my registered vehicles','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_VEHICLES');
+    expect(result.answer).toContain('plate ending 9876');
+    expect(result.answer).not.toContain('KA 03 AB 9876');
+    expect(JSON.stringify(result.facts)).not.toContain('KA03AB9876');
+    expect(result.facts).toEqual({vehicles:[
+      {plateSuffix:'9876',vehicleType:'CAR',make:'Maruti'},
+      {plateSuffix:'1234',vehicleType:'TWO_WHEELER',make:''},
+    ],limitedTo:20});
+    const sqls=prisma.$queryRaw.mock.calls.map(call=>(call[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('FROM "HouseholdVehicle"');
+    expect(sqls[1]).toContain('JOIN "Household"');
+    expect(sqls[1]).toContain('h."unitId"=?::uuid');
+    expect(sqls[1]).toContain('v."societyId"=?::uuid');
+    expect(sqls[1]).toContain('v."active"=TRUE');
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks private vehicle inventory for an owner without current occupancy',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Show my cars','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not choose a unit or fabricate parking allocation in household queries',async()=>{
+    const {prisma,service}=setup();
+    const noUnit=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'List my vehicles');
+    expect(noUnit.intent).toBe('UNSUPPORTED');
+    expect(noUnit.answer).toContain('Select your current home');
+    const parking=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Where is my parking slot?');
+    expect(parking.intent).toBe('UNSUPPORTED');
+    expect(parking.answer).toContain('cannot confirm');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not expose the private vehicle tool to staff without household permission',async()=>{
+    const {prisma,service}=setup();
+    expect(service.tools([AppRole.SECURITY_GUARD]).tools.map(t=>t.id)).not.toContain('RESIDENT_VEHICLES');
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.SECURITY_GUARD],
+      'Show my registered vehicles','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('answers a tenant parcel question from recipient-only, minimum-field records',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([
+        {status:'RECEIVED',courierName:'Blue Dart',trackingReference:'SECRET-TRACK',pickupCodeHash:'SECRET-HASH'},
+        {status:'COLLECTED',courierName:'India Post'},
+        {status:'RETURNED',courierName:null},
+      ]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Where is my package?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_PARCELS');
+    expect(result.facts).toEqual({
+      waitingCount:1,collectedCount:1,returnedCount:1,
+      latestRecordsReviewed:3,limitedTo:20,waitingCourierNames:['Blue Dart'],
+    });
+    expect(result.answer).toContain('1 are waiting at the parcel desk');
+    expect(result.answer).not.toContain('SECRET-TRACK');
+    expect(JSON.stringify(result)).not.toContain('SECRET-HASH');
+    expect(result.sources).toEqual(['Parcel']);
+    const sqls=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('p."recipientUserId"=?::uuid');
+    expect(sqls[1]).toContain('p."societyId"=?::uuid');
+    expect(sqls[1]).toContain('p."unitId"=?::uuid');
+    expect(sqls[1]).not.toContain('pickupCodeHash');
+    expect(sqls[1]).not.toContain('trackingReference');
+    expect(sqls[1]).not.toContain('p.*');
+  });
+
+  it('does not expose tenant parcel history to nonresident owners or unrelated occupants',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Show my deliveries','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('supports personal parcel lookup for a family member without widening to another recipient',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{status:'RECEIVED',courierName:null}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.FAMILY_MEMBER],
+      'Do I have any deliveries?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_PARCELS');
+    expect(result.facts).toEqual(expect.objectContaining({waitingCount:1,waitingCourierNames:[]}));
+    const sql=(prisma.$queryRaw.mock.calls[1][0] as {strings:readonly string[]}).strings.join('?');
+    expect(sql).toContain('p."recipientUserId"=?::uuid');
+  });
+
+  it('requires selected property and parcel permission before any personal data retrieval',async()=>{
+    const {prisma,service}=setup();
+    const missing=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],'Show my parcels');
+    expect(missing.intent).toBe('UNSUPPORTED');
+    expect(missing.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.SECURITY_GUARD],
+      'Show my parcels','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.tools([AppRole.SECURITY_GUARD]).tools.map(x=>x.id)).not.toContain('RESIDENT_PARCELS');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{name:'Meera',relation:'FAMILY_MEMBER'},{name:'Ravi',relation:'FAMILY_MEMBER'}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],'List my family members','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(result.answer).toContain('Meera, Ravi');
+    expect(result.facts).toEqual({members:[{name:'Meera',relation:'FAMILY_MEMBER'},{name:'Ravi',relation:'FAMILY_MEMBER'}],limitedTo:30});
+    const sqls=prisma.$queryRaw.mock.calls.map(call=>(call[0] as {strings:readonly string[]}).strings.join('?'));
+    expect(sqls[0]).toContain('FROM "UnitOccupancy"');
+    expect(sqls[0]).not.toContain('FROM "UnitOwnership"');
+    expect(sqls[1]).toContain('"societyId"=?::uuid');
+    expect(sqls[1]).toContain('"unitId"=?::uuid');
+    expect(sqls[1]).toContain('"relation"=\'FAMILY_MEMBER\'');
+    expect(sqls[1]).toContain('"effectiveTo"');
+    expect(sqls[1]).not.toContain('"phone"');
+    expect(sqls[1]).not.toContain('"email"');
+  });
+
+  it('denies ex-occupants and non-resident owners access to the selected household list',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.OWNER],'Show my family members','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('asks for property context rather than choosing an unverified family',async()=>{
+    const {prisma,service}=setup();
+    const result=await service.query('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
+      [AppRole.TENANT],'Show family member list');
+    expect(result.intent).toBe('UNSUPPORTED');
+    expect(result.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
   it('does not hallucinate an unsupported answer',async()=>{
     const {prisma,service}=setup();
     const result=await service.query('society-1','user-1',[AppRole.OWNER],'Predict next year property prices');

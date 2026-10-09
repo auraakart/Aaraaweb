@@ -183,3 +183,13 @@ fi
   assert.equal(commands.includes('install --with-deps chromium'), withDeps);
   assert.equal((commands.match(/exec node/g) ?? []).length, withDeps ? 2 : 1);
 });
+
+test('develop auto merge never updates PR heads using its GitHub Actions token', () => {
+  const ci = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8');
+  const autoMerge = ci.split('  develop-auto-merge:')[1];
+  assert.ok(autoMerge, 'develop auto merge job is required');
+  assert.ok(autoMerge.includes('require_fresh_base'), 'stale base must be rejected');
+  assert.ok(autoMerge.includes('exit 1'), 'stale base cannot report success');
+  assert.ok(!autoMerge.includes('/pulls/$PR_NUMBER/update-branch'), 'github.token PR updates suppress synchronize CI');
+  assert.ok(autoMerge.includes('-f sha="$EXPECTED_HEAD_SHA"'), 'merge must retain exact validated SHA');
+});

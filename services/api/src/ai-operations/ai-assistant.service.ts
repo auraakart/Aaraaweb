@@ -3,12 +3,15 @@ import { Prisma } from '@prisma/client';
 import { AppRole } from '../auth/auth.types';
 import { AppPermission, hasPermission } from '../auth/permission.types';
 import { canReadPropertyPayables } from '../auth/property-finance-access';
-import { currentResidentPropertySql } from '../auth/property-scope.sql';
+import { currentOccupantPropertySql, currentPayerPropertySql, currentResidentPropertySql } from '../auth/property-scope.sql';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
+import { residentAnswer } from './ai-resident-answer';
+import { isSocietyKnowledgeQuestion } from './ai-society-questions';
+import { AiResidentPrivateQueries } from './ai-resident-private-queries';
 import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
 import { AiActionCentre } from './ai-action-centre';
 
@@ -29,6 +32,7 @@ export class AiAssistantService {
   private readonly insights: AiSocietyInsights;
   private readonly copilot: AiCopilot;
   private readonly actionCentreBuilder: AiActionCentre;
+  private readonly privateQueries: AiResidentPrivateQueries;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -39,6 +43,7 @@ export class AiAssistantService {
     this.insights = new AiSocietyInsights(prisma);
     this.copilot = new AiCopilot(prisma);
     this.actionCentreBuilder = new AiActionCentre(operations,this.insights,this.copilot);
+    this.privateQueries = new AiResidentPrivateQueries(prisma);
   }
 
   tools(roles:readonly AppRole[]){
@@ -71,6 +76,130 @@ export class AiAssistantService {
       );
     }
 
+    // V4.89.2: answer own household questions from the active, selected home
+    // after runtime occupant authorization. Never return phone/email, past
+    // occupancies, or another household's members.
+    if(/\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_HOUSEHOLD');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking for its family member list.',
+          'UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const rows=await this.prisma.$queryRaw<Array<{name:string|null,relation:string}>>(Prisma.sql`
+        SELECT u."name", o."relation"
+        FROM "UnitOccupancy" o
+        JOIN "User" u ON u."id"=o."userId"
+        WHERE o."societyId"=${societyId}::uuid AND o."unitId"=${unitId}::uuid
+          AND o."relation"='FAMILY_MEMBER' AND o."active"=TRUE
+          AND o."effectiveFrom"<=CURRENT_TIMESTAMP
+          AND (o."effectiveTo" IS NULL OR o."effectiveTo">CURRENT_TIMESTAMP)
+          AND u."status"='ACTIVE'
+        ORDER BY u."name",o."createdAt" LIMIT 30
+      `);
+      const members=rows.map(row=>({
+        name:(row.name??'').replace(/\s+/g,' ').trim().slice(0,80)||'Unnamed member',
+        relation:row.relation,
+      }));
+      const answer=members.length
+        ? `Your current household has ${members.length} approved family member(s): ${members.map(member=>member.name).join(', ')}. For details and permitted management actions, open Profile → Family members.`
+        : 'There are no active approved family members recorded for your selected home. Open Profile → Family members to review pending requests.';
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_HOUSEHOLD','RESIDENT_HOUSEHOLD',
+        {members,limitedTo:30},['UnitOccupancy','User'],answer,
+      );
+    }
+
+
+    // V4.89.7: private current-home vehicle reads; raw plates are never returned.
+    if(/\b(?:(?:my|our)\s+(?:registered\s+)?(?:vehicles?|cars?|bikes?|two[- ]wheelers?)|registered\s+(?:vehicles?|cars?|bikes?)|vehicle\s+list|vehicles?\s+registered\s+(?:to|for)\s+(?:my|our))\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_VEHICLES');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking for its registered vehicles.','UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const {facts,answer}=await this.privateQueries.vehicles(societyId,userId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_VEHICLES','RESIDENT_VEHICLES',
+        facts,['HouseholdVehicle'],answer,
+      );
+    }
+
+    // A registered vehicle does not prove allocation of a society parking bay.
+    if(/\b(?:(?:my|our)\s+parking\s+(?:slot|space|bay|allocation)|where\s+(?:is|are)\s+(?:my|our)\s+parking)\b/.test(routed)){
+      return this.auditedResponse(
+        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+        'I cannot confirm your allocated parking space from the Assistant yet. Please review your authorized parking details in the app or ask society management.',
+        'UNSUPPORTED',
+      );
+    }
+
+    // V4.89.8: only the authenticated parcel recipient can view parcel facts.
+    // Keep parcel codes, tracking references, private notes and other occupants out.
+    if(/\b(?:(?:my|our)\s+(?:parcels?|packages?|deliver(?:y|ies))|(?:parcels?|packages?)\s+(?:for me|waiting|status)|(?:do|did)\s+i\s+have\s+(?:any\s+)?(?:packages?|parcels?|deliveries)|where(?:'s| is)\s+my\s+(?:package|parcel|delivery))\b/.test(routed)){
+      this.requireTool(roles,'RESIDENT_PARCELS');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home before asking about your parcels.','UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const {facts,answer}=await this.privateQueries.parcels(societyId,userId,unitId);
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_PARCELS','RESIDENT_PARCELS',facts,['Parcel'],answer,
+      );
+    }
+
+    // On-demand briefing: a current snapshot of authorized records, not a
+    // scheduled notification, a prediction, or an unverified "today" history.
+    if(/what(?:'s| is|s) happening today|today(?:'s)? (?:brief|highlights|updates?)|daily brief(?:ing)?|morning brief(?:ing)?|what should i know today|anything (?:important|urgent) today/.test(routed)){
+      this.requireTool(roles,'RESIDENT_DAILY_BRIEF');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home to see a personalized society briefing.',
+          'UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const notices=hasPermission(roles,AppPermission.NOTICE_READ)
+        ? await this.insights.residentNotices(societyId,userId,unitId) : [];
+      const visitors=hasPermission(roles,AppPermission.VISITOR_READ_OWN)
+        ? await this.insights.residentGateStatus(societyId,userId,unitId) : [];
+      const personal=await this.residentStatus(societyId,userId,unitId,roles);
+      const visibleTitles=notices.slice(0,3)
+        .map(item=>String(item.title??'').replace(/\s+/g,' ').trim().slice(0,100)).filter(Boolean);
+      const pendingVisits=visitors.filter(item=>String(item.status)==='PENDING').length;
+      const openRequests=(personal.tickets??[])
+        .filter(item=>!['CLOSED','RESOLVED','CANCELLED'].includes(String(item.status))).length;
+      const invoiceReviewCount=canReadPropertyPayables(roles)
+        ? (personal.invoices??[]).filter(item=>!['PAID','CANCELLED','VOID'].includes(String(item.status))).length
+        : null;
+      const sources=[
+        ...(hasPermission(roles,AppPermission.NOTICE_READ)?['Notice','NoticeRecipient']:[]),
+        ...(hasPermission(roles,AppPermission.VISITOR_READ_OWN)?['Visitor','VisitorPass']:[]),
+        ...(hasPermission(roles,AppPermission.HELPDESK_READ_OWN)?['HelpdeskTicket']:[]),
+        ...(canReadPropertyPayables(roles)?['MaintenanceInvoice']:[]),
+      ];
+      const summary='Your current home snapshot: '+notices.length+' visible published notice(s)'
+        +', '+pendingVisits+' pending visitor request(s), '+openRequests+' open helpdesk request(s)'
+        +(invoiceReviewCount===null?'':', '+invoiceReviewCount+' invoice record(s) to review')
+        +'. '+(visibleTitles.length?'Notice highlights: '+visibleTitles.join('; ')+'. ':'')
+        +'Open the relevant app section for full details and up-to-date action status.';
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_DAILY_BRIEF','RESIDENT_DAILY_BRIEF',
+        {visibleNoticeTitles:visibleTitles,noticeCount:notices.length,pendingVisits,openRequests,invoiceReviewCount},
+        sources,summary,
+      );
+    }
+
     const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
     if(!unitId&&plan.multiDomain){
       const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);
@@ -87,7 +216,7 @@ export class AiAssistantService {
       );
     }
 
-    if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge/.test(routed)){
+    if(isSocietyKnowledgeQuestion(routed)){
       this.requireTool(roles,'SOCIETY_KNOWLEDGE');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.documents.searchKnowledgeForUser(
@@ -100,29 +229,33 @@ export class AiAssistantService {
           : 'No matching published society document was found. No policy answer was invented.'},
         ['SocietyDocument','SocietyDocumentKnowledge'],
         facts.length
-          ? 'Grounded society knowledge from current published document versions with document citations.'
+          ? `The published society document "${String(facts[0].title).trim().slice(0,100)}" (version ${facts[0].version}) includes: ${String(facts[0].excerpt).trim().slice(0,420)}. Open the cited document for full context and the latest applicable instructions.`
           : 'No matching published society knowledge was found; no answer was invented.',
         facts.length?'SUCCESS':'UNSUPPORTED',
       );
     }
 
-    if(unitId && /notice|announcement|society update|community update/.test(routed)){
+    if(unitId && /notice|announcement|society update|community update|water (?:shutdown|outage)|power outage|electricity outage|lift maintenance|planned (?:water|power|lift) shutdown/.test(routed)){
       this.requireTool(roles,'RESIDENT_NOTICES');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.insights.residentNotices(societyId,userId,unitId);
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
+      const titles=facts.slice(0,5).map(item=>String(item.title??'').replace(/\s+/g,' ').trim().slice(0,120)).filter(Boolean);
+      const answer=titles.length
+        ? `Your current published society notices include: ${titles.join('; ')}. Open Notices to see timing, audience and full details.`
+        : 'No currently published notices are visible for your selected property.';
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],answer);
     }
 
     if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(routed)){
       this.requireTool(roles,'RESIDENT_GATE');
-      await this.assertResidentUnit(societyId,userId,unitId);
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.insights.residentGateStatus(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_GATE','RESIDENT_GATE',facts,['Visitor','VisitorPass'],'Grounded visitor and gate-pass status for the signed-in resident and selected property only.');
     }
 
     if(unitId && /utility|meter|consumption|reading|electricity|water usage|water meter/.test(routed)){
       this.requireTool(roles,'RESIDENT_UTILITIES');
-      await this.assertResidentUnit(societyId,userId,unitId);
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.insights.residentUtilities(societyId,unitId);
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_UTILITIES','RESIDENT_UTILITIES',facts,
@@ -134,7 +267,7 @@ export class AiAssistantService {
     if(unitId && /resident request|noc|no[- ]?dues|address proof|certificate|permission letter|parking permission|move[- ]?out letter/.test(routed)){
       this.requireTool(roles,'RESIDENT_REQUESTS');
       await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.insights.residentRequests(societyId,unitId);
+      const facts=await this.insights.residentRequests(societyId,userId,unitId);
       return this.auditedResponse(
         societyId,userId,unitId,'RESIDENT_REQUESTS','RESIDENT_REQUESTS',facts,
         ['HelpdeskTicket'],
@@ -144,6 +277,7 @@ export class AiAssistantService {
 
     if(unitId && /staff|domestic help|worker|workforce|maid|driver|household staff/.test(routed)){
       this.requireTool(roles,'RESIDENT_WORKFORCE');
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
       const facts=await this.workforce.residentStatusMine(societyId,userId,unitId);
       return this.auditedResponse(societyId,userId,unitId,'RESIDENT_WORKFORCE','RESIDENT_WORKFORCE',facts,['WorkforceAssignment','DomesticWorker','WorkforceLeave','AccessRequest','WorkforcePaymentRecord'],'Grounded household-staff status, gate-derived attendance and resident-recorded payment evidence for the current occupant of the selected property only. Scheduled evidence gaps are not labelled absence, and payment records are not bank/payroll proof.');
     }
@@ -158,7 +292,7 @@ export class AiAssistantService {
         ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
         ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
       ];
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,residentAnswer(routed,facts,canReadPropertyPayables(roles)));
     }
 
     if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(routed)){
@@ -208,11 +342,15 @@ export class AiAssistantService {
       return this.auditedResponse(societyId,userId,unitId,'DISCOVERY','DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
     }
 
+    // Distinguish an unsupported in-app topic from an off-topic question.
+    const appRelated=/\b(?:society|community|resident|residents|household|family|members|parking|vehicle|vehicles|document|documents|profile|privacy|emergency|delivery|deliveries|notice|notices|gate|amenity|amenities|services|facility|facilities|billing)\b/.test(routed);
     return this.auditedResponse(
       societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',
       {supported:this.tools(roles).tools.map(tool=>tool.label)},
       [],
-      'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.',
+      appRelated
+        ? 'That Aaraagate topic is not available through this assistant yet. Please use the appropriate app screen. No information was invented.'
+        : 'That question is outside Aaraagate Assistant’s scope. Please ask about authorized society or property information, such as dues, visitors, staff, complaints, amenities or notices.',
       'UNSUPPORTED',
     );
   }
@@ -370,7 +508,9 @@ export class AiAssistantService {
     const invoices=canReadPropertyPayables(roles)
       ? await this.prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`
           SELECT "id","invoiceNumber","amountPaise","dueDate","status" FROM "MaintenanceInvoice"
-          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid ORDER BY "issuedAt" DESC LIMIT 20
+          WHERE "societyId"=${societyId}::uuid AND "unitId"=${unitId}::uuid
+            AND ${currentPayerPropertySql(societyId,userId,unitId)}
+          ORDER BY "issuedAt" DESC LIMIT 20
         `)
       : [];
     const payments=canReadPropertyPayables(roles)
@@ -378,11 +518,8 @@ export class AiAssistantService {
           SELECT p."id",p."invoiceId",p."amountPaise",p."status",p."createdAt",p."completedAt"
           FROM "Payment" p JOIN "MaintenanceInvoice" i ON i."id"=p."invoiceId" AND i."societyId"=p."societyId"
           WHERE p."societyId"=${societyId}::uuid AND i."unitId"=${unitId}::uuid
-            AND (p."payerUserId"=${userId}::uuid OR EXISTS(
-              SELECT 1 FROM "UnitOwnership" ow WHERE ow."societyId"=${societyId}::uuid AND ow."unitId"=${unitId}::uuid
-                AND ow."userId"=${userId}::uuid AND ow."active"=TRUE AND ow."verified"=TRUE
-                AND ow."effectiveFrom"<=CURRENT_TIMESTAMP AND (ow."effectiveTo" IS NULL OR ow."effectiveTo">CURRENT_TIMESTAMP)
-            ))
+            AND p."payerUserId"=${userId}::uuid
+            AND ${currentPayerPropertySql(societyId,userId,unitId)}
           ORDER BY p."createdAt" DESC LIMIT 20
         `)
       : [];
@@ -408,6 +545,16 @@ export class AiAssistantService {
         `)
       : [];
     return {invoices,payments,tickets,amenityBookings:amenities,serviceBookings:services};
+  }
+
+  private async assertCurrentOccupantUnit(societyId:string,userId:string,unitId:string){
+    const rows=await this.prisma.$queryRaw<Array<{allowed:boolean}>>(Prisma.sql`
+      SELECT TRUE AS "allowed" FROM "Unit" u
+      WHERE u."id"=${unitId}::uuid AND u."societyId"=${societyId}::uuid
+        AND ${currentOccupantPropertySql(societyId,userId,unitId)}
+      LIMIT 1
+    `);
+    if(!rows[0]?.allowed) throw new ForbiddenException('Current occupant authorization required for private household activity');
   }
 
   private async assertResidentUnit(societyId:string,userId:string,unitId:string){

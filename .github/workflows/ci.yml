@@ -897,19 +897,17 @@ jobs:
 
           test "$current_sha" = "$EXPECTED_HEAD_SHA"
 
-          refresh_stale_base() {
-            echo "Develop moved from $EXPECTED_BASE_SHA; refreshing PR #$PR_NUMBER before merge."
-            gh api \
-              --method PUT \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/$REPOSITORY/pulls/$PR_NUMBER/update-branch" \
-              -f expected_head_sha="$EXPECTED_HEAD_SHA" >/dev/null
-            echo "Requested update-branch for PR #$PR_NUMBER; synchronize validation will re-run on current develop."
-            exit 0
+          # Never update a PR branch using github.token. GitHub deliberately
+          # suppresses pull_request/synchronize CI when that token writes a
+          # merge commit, leaving a new untested head with action_required.
+          # Preserve exact-head safety and surface an actionable failure.
+          require_fresh_base() {
+            echo "::error title=Stale PR requires user-authored synchronization::PR #$PR_NUMBER targets an older develop head. Sync the head via an external authorized identity and require green checks on the new SHA. CI will not silently change the branch with github.token."
+            exit 1
           }
 
           if [ "$current_develop_sha" != "$EXPECTED_BASE_SHA" ]; then
-            refresh_stale_base
+            require_fresh_base
           fi
 
           latest_develop="$(gh api \
@@ -917,7 +915,7 @@ jobs:
             "/repos/$REPOSITORY/branches/develop")"
           latest_develop_sha="$(printf '%s' "$latest_develop" | jq -r '.commit.sha')"
           if [ "$latest_develop_sha" != "$EXPECTED_BASE_SHA" ]; then
-            refresh_stale_base
+            require_fresh_base
           fi
 
           response="$(gh api             --method PUT             -H "Accept: application/vnd.github+json"             "/repos/$REPOSITORY/pulls/$PR_NUMBER/merge"             -f merge_method=squash             -f sha="$EXPECTED_HEAD_SHA")"
