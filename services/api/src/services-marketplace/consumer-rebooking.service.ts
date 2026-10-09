@@ -7,6 +7,7 @@ export type ConsumerRebookInput = {
   scheduledFrom: Date;
   scheduledUntil: Date;
   notes?: string;
+  idempotencyKey?: string;
 };
 
 type RebookSourceRow = {
@@ -50,6 +51,7 @@ export class ConsumerRebookingService {
         scheduledFrom: input.scheduledFrom,
         scheduledUntil: input.scheduledUntil,
         notes: input.notes,
+        idempotencyKey: input.idempotencyKey,
       });
     }
 
@@ -61,6 +63,7 @@ export class ConsumerRebookingService {
         scheduledFrom: input.scheduledFrom,
         scheduledUntil: input.scheduledUntil,
         notes: input.notes,
+        idempotencyKey: input.idempotencyKey,
       });
     }
 

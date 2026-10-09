@@ -1,5 +1,5 @@
 import { Body, Controller, ExecutionContext, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
-import { IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsISO8601, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerRebookingService } from './consumer-rebooking.service';
 
@@ -11,6 +11,7 @@ class ConsumerRebookDto {
   @IsISO8601() scheduledFrom!: string;
   @IsISO8601() scheduledUntil!: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
 }
 
 @Controller('consumer/services/history')
@@ -29,6 +30,7 @@ export class ConsumerRebookingController {
       scheduledFrom: new Date(dto.scheduledFrom),
       scheduledUntil: new Date(dto.scheduledUntil),
       notes: dto.notes,
+      idempotencyKey: dto.idempotencyKey,
     });
   }
 }
