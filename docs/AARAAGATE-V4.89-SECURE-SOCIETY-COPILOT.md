@@ -99,3 +99,11 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Demo parcel answers reflect parcel-screen fixtures without revealing pickup references or codes; personal daily briefing is explicitly a simulation, never real-time status.
 - No policy/rule text or parking bay assignments are fabricated; unsupported and off-topic replies stay distinct and return no invented sources.
 - Widget regressions cover demo selected-home isolation, masked vehicle identifiers, self-parcels, out-of-scope prompts and no API calls in demo mode. Real tenant authorization remains API enforced; demo values are not represented as real account data.
+
+## V4.89.11 — Contextual in-app navigation (candidate)
+
+- Render related-screen actions only for known supported, source-backed Assistant intents, a selected property and a real host callback; never use AI/source text as a URL or app route.
+- Whitelist Profile for authorized household/vehicles, Parcels for recipient deliveries, Notices for society notices and Helpdesk for owned requests. Entitlement and selected-property checks also happen in the navigation host; existing target-screen/API permissions remain authoritative.
+- Attach typed demo intents only to fixture-backed family, vehicle and parcel answers, not unsupported or off-topic responses. The source label remains visible.
+- Widget tests confirm source-backed Parcel navigation, no destination for off-topic/unsupported responses, no property context and no hidden navigation without an explicit callback.
+- Direct document-ID deep links are intentionally not fabricated because the Resident app does not yet expose a confirmed document viewer route; SOCIETY_KNOWLEDGE continues to cite the document, with a separate supported reader integration to follow.
