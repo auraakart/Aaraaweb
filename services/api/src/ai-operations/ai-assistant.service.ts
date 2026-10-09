@@ -109,6 +109,49 @@ export class AiAssistantService {
       );
     }
 
+    // On-demand briefing: a current snapshot of authorized records, not a
+    // scheduled notification, a prediction, or an unverified "today" history.
+    if(/what(?:'s| is|s) happening today|today(?:'s)? (?:brief|highlights|updates?)|daily brief(?:ing)?|morning brief(?:ing)?|what should i know today|anything (?:important|urgent) today/.test(routed)){
+      this.requireTool(roles,'RESIDENT_DAILY_BRIEF');
+      if(!unitId){
+        return this.auditedResponse(
+          societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+          'Select your current home to see a personalized society briefing.',
+          'UNSUPPORTED',
+        );
+      }
+      await this.assertCurrentOccupantUnit(societyId,userId,unitId);
+      const notices=hasPermission(roles,AppPermission.NOTICE_READ)
+        ? await this.insights.residentNotices(societyId,userId,unitId) : [];
+      const visitors=hasPermission(roles,AppPermission.VISITOR_READ_OWN)
+        ? await this.insights.residentGateStatus(societyId,userId,unitId) : [];
+      const personal=await this.residentStatus(societyId,userId,unitId,roles);
+      const visibleTitles=notices.slice(0,3)
+        .map(item=>String(item.title??'').replace(/\s+/g,' ').trim().slice(0,100)).filter(Boolean);
+      const pendingVisits=visitors.filter(item=>String(item.status)==='PENDING').length;
+      const openRequests=(personal.tickets??[])
+        .filter(item=>!['CLOSED','RESOLVED','CANCELLED'].includes(String(item.status))).length;
+      const invoiceReviewCount=canReadPropertyPayables(roles)
+        ? (personal.invoices??[]).filter(item=>!['PAID','CANCELLED','VOID'].includes(String(item.status))).length
+        : null;
+      const sources=[
+        ...(hasPermission(roles,AppPermission.NOTICE_READ)?['Notice','NoticeRecipient']:[]),
+        ...(hasPermission(roles,AppPermission.VISITOR_READ_OWN)?['Visitor','VisitorPass']:[]),
+        ...(hasPermission(roles,AppPermission.HELPDESK_READ_OWN)?['HelpdeskTicket']:[]),
+        ...(canReadPropertyPayables(roles)?['MaintenanceInvoice']:[]),
+      ];
+      const summary='Your current home snapshot: '+notices.length+' visible published notice(s)'
+        +', '+pendingVisits+' pending visitor request(s), '+openRequests+' open helpdesk request(s)'
+        +(invoiceReviewCount===null?'':', '+invoiceReviewCount+' invoice record(s) to review')
+        +'. '+(visibleTitles.length?'Notice highlights: '+visibleTitles.join('; ')+'. ':'')
+        +'Open the relevant app section for full details and up-to-date action status.';
+      return this.auditedResponse(
+        societyId,userId,unitId,'RESIDENT_DAILY_BRIEF','RESIDENT_DAILY_BRIEF',
+        {visibleNoticeTitles:visibleTitles,noticeCount:notices.length,pendingVisits,openRequests,invoiceReviewCount},
+        sources,summary,
+      );
+    }
+
     const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
     if(!unitId&&plan.multiDomain){
       const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);

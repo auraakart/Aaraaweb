@@ -49,3 +49,10 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 - Preparation reuses the existing authorized helpdesk proposal endpoint and independent confirmation; asking never auto-submits a complaint.
 - Editing the submitted question hides stale proposed action; no cross-topic draft activation.
 - Resident widget regressions prove separate preparation and confirmation plus passive-query denial. Source deep links and persisted feedback remain separate roadmap items.
+
+## V4.89.6: current-home briefing, read-only and permission scoped (candidate)
+
+- Recognize on-demand daily/morning briefing prompts and require current, time-valid occupancy and selected property. A nonresident owner or former tenant is denied.
+- Compose current visible notice titles, pending visitor requests, caller-created open helpdesk requests and payer-eligible invoice record counts from independent source-authorized existing tools. Explicitly describe a **current snapshot**, not false claims of events occurring today.
+- No background monitoring, automatic notifications or new data-provider sharing is performed. Proactive opt-in reminders and persisted resident feedback require a distinct consent/preference and notification design before release.
+- Regression covers the authorized tenant, nonresident/expired occupant denial and missing property context. Acceptance still includes cross-role negative integration, multilingual physical-device usability and comprehensive policy coverage; no fabricated >8.5 score.
