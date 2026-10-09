@@ -133,6 +133,7 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('RESIDENT_NOTICES');
     expect(result.sources).toEqual(['Notice','NoticeRecipient']);
     expect(result.facts).toEqual([expect.objectContaining({title:'Water shutdown'})]);
+    expect(result.answer).toContain('Water shutdown');
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -271,6 +272,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('SOCIETY_KNOWLEDGE');
     expect(result.sources).toEqual(['SocietyDocument','SocietyDocumentKnowledge']);
     expect(result.facts).toEqual(expect.objectContaining({matches:[expect.objectContaining({documentId:'doc-1',version:3})]}));
+    expect(result.answer).toContain('Parking policy');
+    expect(result.answer).toContain('Visitor parking is limited to designated bays.');
     expect(documents.searchKnowledgeForUser).toHaveBeenCalledWith('society-1','user-1','What does our parking policy say?',false);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
@@ -281,6 +284,29 @@ describe('V4.6 grounded AI assistant',()=>{
     expect((missing.facts as {answerBoundary:string}).answerBoundary).toContain('No matching published society document');
   });
 
+
+  it('answers ordinary waste and parking rule questions only from published authorized society evidence',async()=>{
+    const {prisma,documents,service}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([{
+      documentId:'doc-2',title:'Waste collection schedule',version:2,
+      excerpt:'Dry waste collection is on Wednesdays.',category:'NOTICE',score:9,
+    }]);
+    const answer=await service.query('society-1','user-1',[AppRole.TENANT],
+      'When is garbage collection in our society?');
+    expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(answer.answer).toContain('Dry waste collection is on Wednesdays.');
+    expect(answer.sources).toContain('SocietyDocumentKnowledge');
+    expect(documents.searchKnowledgeForUser).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not invent an answer to a society rule when there is no published document',async()=>{
+    const {documents,service}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([]);
+    const answer=await service.query('society-1','user-1',[AppRole.TENANT],'What are the pool rules?');
+    expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(answer.answer).toContain('No matching published society knowledge');
+  });
   it('allows governance read only to governance-readable roles',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw
