@@ -261,7 +261,7 @@ jobs:
       - name: Check V4 release evidence contract
         run: node scripts/check-v4-release-evidence.mjs
       - name: Test release delay prevention controls
-        run: node --test scripts/release-delay-controls.test.mjs
+        run: node --test scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs
       - name: Check V4.80.12 main review routing
         run: node scripts/check-v4.80.12-main-review-routing.mjs
       - name: Validate release migration control syntax

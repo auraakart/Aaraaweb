@@ -1,3 +1,4 @@
+import { requireCoverageFloor } from './lib/coverage-thresholds.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -62,9 +63,10 @@ assert.ok(flutterCoverage.includes("'lib/data/resident_data_controller.dart': 42
 assert.ok(flutterCoverage.includes("'lib/guard_controller.dart': 38"));
 
 const apiCoverage = read('services/api/vitest.risk-coverage.config.ts');
-for (const token of ['statements: 30','branches: 28','statements: 35','branches: 32']) {
-  assert.ok(apiCoverage.includes(token), 'API risk floor missing: ' + token);
-}
+requireCoverageFloor(apiCoverage, 'src/access/access.service.ts', { statements: 45 });
+requireCoverageFloor(apiCoverage, 'src/auth/session.service.ts', { statements: 30, branches: 28 });
+requireCoverageFloor(apiCoverage, 'src/ai-operations/ai-operations.service.ts', { statements: 35, branches: 32 });
+requireCoverageFloor(apiCoverage, 'src/households/household.service.ts', { statements: 35 });
 for (const spec of [
   'src/auth/session.service.spec.ts',
   'src/ai-operations/ai-operations.service.spec.ts',

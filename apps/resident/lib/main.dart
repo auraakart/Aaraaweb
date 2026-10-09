@@ -69,7 +69,7 @@ class AaraagateResidentApp extends StatelessWidget {
             builder: (context, child) {
               final media = MediaQuery.of(context);
               return MediaQuery(
-                data: media.copyWith(textScaler: TextScaler.linear(easyMode ? 1.12 : 1.0)),
+                data: media.copyWith(textScaler: easyMode ? media.textScaler.clamp(minScaleFactor: 1.12) : media.textScaler),
                 child: child ?? const SizedBox.shrink(),
               );
             },
