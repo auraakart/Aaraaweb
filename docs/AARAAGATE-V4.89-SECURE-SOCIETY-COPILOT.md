@@ -91,3 +91,10 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Keep original recipient-user, unit, and society restrictions; do not return tracking references, pickup secrets, raw license plates, or private third-party data.
 - Preserve the 580-line budget. The architecture checker now requires the private-query helper and delegation, preventing a future accidental reintegration into the large service. Run this targeted checker before each Assistant code PR; never increase the budget as a workaround.
 - Corrected PR must pass new exact-head repository, API, Flutter/Admin, and dependency-security gates before develop merge. Staging and main untouched.
+
+## V4.89.10 — Common society question coverage (development candidate)
+
+- Extract high-frequency general society question classification into `ai-society-questions.ts` with explicit coverage for shared-facility eligibility/hours, waste segregation, pets, visitor rules, renovation/move-in, emergency contacts, office hours and event policies.
+- All new intents reuse the existing audience-filtered, published `SocietyDocumentKnowledge` search; absent documented guidance produces a clear no-evidence response. No default timings, restrictions, fees or contact numbers are invented.
+- Private personal requests and unrelated questions do not become society policy queries. Added table-driven resident regression tests for common question phrasings and unsupported privacy-sensitive prompts.
+- This is routing/catalog coverage, not a claim of complete society content or a generative chatbot. Curation and publication of society-specific FAQs remain Admin responsibilities.

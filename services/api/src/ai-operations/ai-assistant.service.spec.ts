@@ -267,6 +267,41 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(requestSql).toContain('"createdById"=?::uuid');
   });
 
+  it('recognizes common resident society questions without inventing answers',async()=>{
+    const {prisma,documents,service}=setup();
+    const questions=[
+      'Can tenants use the gym?',
+      'When can I move in?',
+      'How does garbage segregation work?',
+      'Where is the society office?',
+      'Are dogs allowed in common areas?',
+      'What are renovation timings?',
+      'What are visitor parking fees?',
+      'When can delivery agents enter?',
+      'What are clubhouse guest limits?',
+      'What is the emergency contact number?',
+      'Are festival decorations permitted?',
+    ];
+    documents.searchKnowledgeForUser.mockResolvedValue([]);
+    for(const question of questions) {
+      const answer=await service.query('society-1','user-1',[AppRole.TENANT],question);
+      expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+      expect(answer.answer).toContain('No matching published society knowledge');
+    }
+    expect(documents.searchKnowledgeForUser).toHaveBeenCalledTimes(questions.length);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not treat unrelated questions or private home requests as society rules',async()=>{
+    const {prisma,documents,service}=setup();
+    const outside=await service.query('society-1','user-1',[AppRole.TENANT],'Who won the cricket match?');
+    expect(outside.intent).toBe('UNSUPPORTED');
+    const privateParking=await service.query('society-1','user-1',[AppRole.TENANT],'Where is my parking bay?');
+    expect(privateParking.intent).toBe('UNSUPPORTED');
+    expect(documents.searchKnowledgeForUser).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('grounds society policy questions in current published document citations and never invents a missing answer',async()=>{
     const {prisma,documents,service}=setup();
     documents.searchKnowledgeForUser.mockResolvedValue([{
