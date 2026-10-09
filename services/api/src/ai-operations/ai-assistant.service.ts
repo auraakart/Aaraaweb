@@ -124,7 +124,7 @@ export class AiAssistantService {
       );
     }
 
-    if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge/.test(routed)){
+    if(/bylaw|bye[- ]?law|policy|document|circular|handbook|society rule|community rule|meeting minutes|knowledge|(?:garbage|waste|trash|recycling)\s*(?:collection|schedule|rules?)?|pet rules?|parking rules?|pool (?:rules?|hours?|timings?)|clubhouse rules?|quiet hours?|visitor hours?|society office hours?|society contact|emergency procedure/.test(routed)){
       this.requireTool(roles,'SOCIETY_KNOWLEDGE');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.documents.searchKnowledgeForUser(
@@ -137,17 +137,21 @@ export class AiAssistantService {
           : 'No matching published society document was found. No policy answer was invented.'},
         ['SocietyDocument','SocietyDocumentKnowledge'],
         facts.length
-          ? 'Grounded society knowledge from current published document versions with document citations.'
+          ? `The published society document "${String(facts[0].title).trim().slice(0,100)}" (version ${facts[0].version}) includes: ${String(facts[0].excerpt).trim().slice(0,420)}. Open the cited document for full context and the latest applicable instructions.`
           : 'No matching published society knowledge was found; no answer was invented.',
         facts.length?'SUCCESS':'UNSUPPORTED',
       );
     }
 
-    if(unitId && /notice|announcement|society update|community update/.test(routed)){
+    if(unitId && /notice|announcement|society update|community update|water (?:shutdown|outage)|power outage|electricity outage|lift maintenance|planned (?:water|power|lift) shutdown/.test(routed)){
       this.requireTool(roles,'RESIDENT_NOTICES');
       await this.assertResidentUnit(societyId,userId,unitId);
       const facts=await this.insights.residentNotices(societyId,userId,unitId);
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],'Grounded notices visible to the signed-in resident for the selected property and society.');
+      const titles=facts.slice(0,5).map(item=>String(item.title??'').replace(/\s+/g,' ').trim().slice(0,120)).filter(Boolean);
+      const answer=titles.length
+        ? `Your current published society notices include: ${titles.join('; ')}. Open Notices to see timing, audience and full details.`
+        : 'No currently published notices are visible for your selected property.';
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_NOTICES','RESIDENT_NOTICES',facts,['Notice','NoticeRecipient'],answer);
     }
 
     if(unitId && /visitor|gate|entry|pass|check[- ]?in|check[- ]?out/.test(routed)){

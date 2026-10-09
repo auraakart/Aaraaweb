@@ -27,3 +27,11 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 - The Assistant provides a grounded answer and routes to Profile → Family members for detailed or management flows.
 - A missing unit context does not trigger a cross-unit lookup; a non-resident owner or former occupant is denied.
 - Further V4.89.2 read tools (vehicles, deliveries and personalized account status) remain planned; this is an initial capability slice.
+
+## V4.89.3: society knowledge answer quality (candidate)
+
+- Route common published society rules, pet/parking/pool policies, waste collection and office-hour questions to existing audience-checked SocietyDocument retrieval.
+- Return a brief **attributed excerpt** from the current top matching published document, preserving version and document citation; do not synthesize unsupported details.
+- Improve resident notice answers to give titles rather than an unhelpful generic label. Route practical water/power/lift outage queries to visible published notices.
+- Continue to return an explicit no-evidence answer when society documentation is missing.
+- Test published-content and missing-knowledge behaviors; the underlying role/audience filters remain authoritative.
