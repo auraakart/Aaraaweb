@@ -66,9 +66,9 @@ const autoRequired=[
   'if [ "$current_develop_sha" != "$EXPECTED_BASE_SHA" ]',
   'latest_develop_sha=',
   'if [ "$latest_develop_sha" != "$EXPECTED_BASE_SHA" ]',
-  '/pulls/$PR_NUMBER/update-branch',
-  '-f expected_head_sha="$EXPECTED_HEAD_SHA"',
-  'synchronize validation will re-run on current develop',
+  'require_fresh_base()',
+  'Stale PR requires user-authored synchronization',
+  'exit 1',
   'current_merged=',
   'already merged at the exact tested head',
   '-f merge_method=squash',
@@ -95,8 +95,13 @@ if(!autoHeader.includes('concurrency:')||
   console.error('Develop auto-merge must serialize base-changing merge decisions without cancelling queued validations.');
   process.exit(1);
 }
-if(autoMerge.includes('test "$current_develop_sha" = "$EXPECTED_BASE_SHA"')){
-  console.error('Develop auto-merge must refresh a stale PR base instead of failing an otherwise green validation run.');
+if(autoMerge.includes('/pulls/$PR_NUMBER/update-branch')||
+   autoMerge.includes('-f expected_head_sha="$EXPECTED_HEAD_SHA"')){
+  console.error('Develop auto-merge must never bot-refresh a PR head: github.token suppresses new CI checks and strands the PR.');
+  process.exit(1);
+}
+if(!autoMerge.includes('require_fresh_base') || !autoMerge.includes('exit 1')){
+  console.error('Develop auto-merge must fail closed on stale base and require externally triggered CI revalidation.');
   process.exit(1);
 }
 if(autoMerge.includes("github.event.pull_request.base.ref == 'develop'")||
