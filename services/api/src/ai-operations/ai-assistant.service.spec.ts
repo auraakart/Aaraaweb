@@ -260,6 +260,26 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
+  it('distinguishes family member requests, unsupported app topics and off-topic queries',async()=>{
+    const {prisma,service}=setup();
+    const society='11111111-1111-4111-8111-111111111111';
+    const user='22222222-2222-4222-8222-222222222222';
+    const unit='33333333-3333-4333-8333-333333333333';
+    const family=await service.query(society,user,[AppRole.OWNER],'give my family member list',unit);
+    expect(family.intent).toBe('UNSUPPORTED');
+    expect(family.answer).toContain('Profile → Family members');
+    expect(family.sources).toEqual([]);
+    const unrelated=await service.query(society,user,[AppRole.OWNER],'Who won the cricket match?',unit);
+    expect(unrelated.intent).toBe('UNSUPPORTED');
+    expect(unrelated.answer).toContain('outside Aaraagate Assistant’s scope');
+    expect(unrelated.sources).toEqual([]);
+    const appTopic=await service.query(society,user,[AppRole.OWNER],'Show my parking sticker',unit);
+    expect(appTopic.intent).toBe('UNSUPPORTED');
+    expect(appTopic.answer).toContain('not available through this assistant');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
+  });
+
   it('does not hallucinate an unsupported answer',async()=>{
     const {prisma,service}=setup();
     const result=await service.query('society-1','user-1',[AppRole.OWNER],'Predict next year property prices');

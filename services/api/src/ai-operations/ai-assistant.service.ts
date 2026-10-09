@@ -71,6 +71,16 @@ export class AiAssistantService {
       );
     }
 
+    // Family members are supported in Profile, but not by an AI retrieval tool.
+    // Do not fetch or synthesize household records from a free-text request.
+    if(/\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b/.test(routed)){
+      return this.auditedResponse(
+        societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',{},[],
+        'Family members are available under Profile → Family members. I cannot retrieve that list through the assistant; open the screen for your selected household.',
+        'UNSUPPORTED',
+      );
+    }
+
     const plan=this.copilot.plan(routed,this.tools(roles).tools.map(tool=>tool.id));
     if(!unitId&&plan.multiDomain){
       const snapshot=await this.multiDomainSnapshot(societyId,plan.selected,text);
@@ -208,11 +218,15 @@ export class AiAssistantService {
       return this.auditedResponse(societyId,userId,unitId,'DISCOVERY','DISCOVERY',facts,['Amenity','ServiceOffering','ServiceProviderSociety'],'Grounded discovery from active amenities and approved society service offerings.');
     }
 
+    // Distinguish an unsupported in-app topic from an off-topic question.
+    const appRelated=/\b(?:society|community|resident|residents|household|family|members|parking|vehicle|vehicles|document|documents|profile|privacy|emergency|delivery|deliveries|notice|notices|gate|amenity|amenities|services|facility|facilities|billing)\b/.test(routed);
     return this.auditedResponse(
       societyId,userId,unitId,'UNSUPPORTED','UNSUPPORTED',
       {supported:this.tools(roles).tools.map(tool=>tool.label)},
       [],
-      'I could not map that request to an approved Aaraagate AI tool. No answer was invented and no mutation was attempted.',
+      appRelated
+        ? 'That Aaraagate topic is not available through this assistant yet. Please use the appropriate app screen. No information was invented.'
+        : 'That question is outside Aaraagate Assistant’s scope. Please ask about authorized society or property information, such as dues, visitors, staff, complaints, amenities or notices.',
       'UNSUPPORTED',
     );
   }

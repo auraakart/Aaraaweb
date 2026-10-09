@@ -127,46 +127,69 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Map<String, dynamic> _demoAnswer(String message) {
-    final normalized = message.toLowerCase();
-    if (normalized.contains('due') || normalized.contains('maintenance') || normalized.contains('bill')) {
+    final normalized = message.toLowerCase().trim();
+    // Demo responses are fixture-only: do not substitute a generic society
+    // summary for unsupported or unrelated questions.
+    if (RegExp(r'\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b').hasMatch(normalized)) {
+      return {
+        'answer': 'Your family member list is an Aaraagate feature, but it is not available through this assistant. Open Profile → Family members to view the list for your selected household.',
+        'facts': <String, dynamic>{},
+        'sources': <String>[],
+      };
+    }
+    if (RegExp(r'\b(dues?|maintenance|bills?|invoices?|receipts?|payments?)\b').hasMatch(normalized)) {
       return {
         'answer': 'Your September maintenance bill is ₹4,250 and is due on 25 September. Your August bill is fully paid.',
         'facts': {'outstanding': '₹4,250', 'period': 'September 2026', 'dueDate': '25 Sep 2026', 'lastPayment': '₹4,250 on 05 Aug 2026 via UPI'},
         'sources': ['Maintenance billing', 'Payment receipts'],
       };
     }
-    if (normalized.contains('complaint') || normalized.contains('helpdesk') || normalized.contains('ticket')) {
+    if (RegExp(r'\b(complaints?|helpdesk|tickets?)\b').hasMatch(normalized)) {
       return {
         'answer': 'You have 2 active helpdesk requests. Water seepage near the balcony is high priority; the corridor-light request is already in progress.',
         'facts': {'activeRequests': 2, 'highPriority': 'Water seepage near balcony', 'inProgress': 'Corridor light not working'},
         'sources': ['Helpdesk', 'SLA status'],
       };
     }
-    if (normalized.contains('visitor') || normalized.contains('staff') || normalized.contains('gate')) {
+    if (RegExp(r'\b(visitors?|staff|gates?|domestic help|maids?|drivers?)\b').hasMatch(normalized)) {
       return {
         'answer': 'Amit Verma is waiting for approval. One delivery and one cab entry were also recorded today. Lakshmi and Ramesh are active household staff.',
         'facts': {'waitingApproval': 'Amit Verma', 'recentEntries': 3, 'activeStaff': 4},
         'sources': ['Gate access', 'Domestic help'],
       };
     }
-    if (normalized.contains('amenit')) {
+    if (RegExp(r'\b(amenit(?:y|ies)|bookings?|clubhouse|badminton|swimming pool|guest rooms?)\b').hasMatch(normalized)) {
       return {
         'answer': 'Badminton, clubhouse, swimming pool and guest-room options are available in this demo. Weekend slots are usually the busiest.',
         'facts': {'recommended': 'Badminton court · Saturday 6:00 PM', 'otherOptions': ['Clubhouse', 'Swimming pool', 'Guest room']},
         'sources': ['Amenities', 'Booking availability'],
       };
     }
-    if (normalized.contains('notice') || normalized.contains('update') || normalized.contains('society')) {
+    if (RegExp(r'\b(notices?|announcements?|(?:society|community)\s+updates?)\b').hasMatch(normalized)) {
       return {
         'answer': 'Key updates: lift maintenance is scheduled tomorrow, the Ganesh festival programme starts Friday at 6:30 PM, and September maintenance is pending.',
         'facts': {'priorityUpdates': 3, 'nextEvent': 'Ganesh festival · Friday 6:30 PM'},
         'sources': ['Society notices', 'Community calendar', 'Billing'],
       };
     }
+    if (RegExp(r'\b(services?|providers?|plumbers?|electricians?|cleaning)\b').hasMatch(normalized)) {
+      return {
+        'answer': 'Browse available providers in the Services tab. This demo assistant cannot confirm live service availability or complete a booking from a free-text question.',
+        'facts': <String, dynamic>{},
+        'sources': <String>[],
+      };
+    }
+    if (RegExp(r'\b(vehicles?|parking|family|household|residents?|occupants?|profile|documents?|privacy|security|emergenc(?:y|ies)|community|society|facilities|vendors?|deliver(?:y|ies))\b').hasMatch(normalized)) {
+      return {
+        'answer': 'That is an Aaraagate topic, but this assistant demo cannot answer it yet. Try the relevant app screen, or ask about dues, visitors, staff, complaints, amenities, services or society updates.',
+        'facts': <String, dynamic>{},
+        'sources': <String>[],
+      };
+    }
     return {
-      'answer': 'Today you have one visitor waiting at the gate, ₹4,250 maintenance due, two active helpdesk requests, and a Saturday badminton option. I can also summarize notices, staff, services and community activity.',
-      'facts': {'gate': '1 approval waiting', 'billing': '₹4,250 due', 'helpdesk': '2 active', 'amenitySuggestion': 'Badminton · Saturday 6:00 PM'},
-      'sources': ['Gate access', 'Billing', 'Helpdesk', 'Amenities'],
+      'answer': 'That question is outside Aaraagate Assistant’s scope. I can help with maintenance dues, visitors, household staff, complaints, amenities, services and society updates.',
+      'facts': <String, dynamic>{},
+      'sources': <String>[],
     };
   }
 
