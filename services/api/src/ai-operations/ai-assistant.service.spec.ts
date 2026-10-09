@@ -391,6 +391,52 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.answer).toContain('Anitha');
   });
 
+
+  it('builds a current-occupant briefing from separately authorized, person-scoped evidence',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{title:'Lift maintenance'}])
+      .mockResolvedValueOnce([{name:'Amit',status:'PENDING'}])
+      .mockResolvedValueOnce([{invoiceNumber:'INV-1',status:'ISSUED',amountPaise:125000}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{title:'Leak',status:'OPEN'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'What\'s happening today?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_DAILY_BRIEF');
+    expect(result.answer).toContain('Lift maintenance');
+    expect(result.answer).toContain('1 pending visitor request(s)');
+    expect(result.answer).toContain('1 invoice record(s) to review');
+    expect(result.facts).toEqual(expect.objectContaining({noticeCount:1,pendingVisits:1,openRequests:1,invoiceReviewCount:1}));
+    expect(result.mutationPerformed).toBe(false);
+    const sql=prisma.$queryRaw.mock.calls.map(c=>(c[0] as {strings:readonly string[]}).strings.join('?')).join('\n');
+    expect(sql).toContain('v."hostUserId"=?::uuid');
+    expect(sql).toContain('p."payerUserId"=?::uuid');
+  });
+
+  it('refuses current-home briefings to non-resident owners and ended tenants',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.OWNER],
+      'Daily briefing for my home','33333333-3333-4333-8333-333333333333')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('asks for property selection before preparing a personal briefing',async()=>{
+    const {prisma,service}=setup();
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'Morning briefing');
+    expect(result.intent).toBe('UNSUPPORTED');
+    expect(result.answer).toContain('Select your current home');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
     const {prisma,service}=setup();
     prisma.$queryRaw
