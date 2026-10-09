@@ -27,6 +27,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
   List<Map<String, dynamic>> _history = const [];
   final Set<String> _rebooking = <String>{};
   final _rebookAttempts = RebookAttemptRegistry();
+  int _historyLoadEpoch = 0;
 
   @override
   void initState() {
@@ -34,24 +35,52 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant ServiceHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.apiClient != widget.apiClient ||
+        oldWidget.location['type'] != widget.location['type'] ||
+        oldWidget.location['id'] != widget.location['id']) {
+      // A changed home or authenticated client must start a fresh read.
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    ++_historyLoadEpoch;
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final epoch = ++_historyLoadEpoch;
+    final locationType = widget.location['type'].toString();
+    final locationId = widget.location['id'].toString();
+    final client = widget.apiClient;
+    bool current() => mounted &&
+        epoch == _historyLoadEpoch &&
+        identical(widget.apiClient, client) &&
+        widget.location['type'].toString() == locationType &&
+        widget.location['id'].toString() == locationId;
+
     setState(() {
       _loading = true;
       _error = null;
+      _history = const [];
     });
     try {
       final params = Uri(queryParameters: {
-        'locationType': widget.location['type'].toString(),
-        'locationId': widget.location['id'].toString(),
+        'locationType': locationType,
+        'locationId': locationId,
       }).query;
-      final raw = await widget.apiClient.get('/api/v1/consumer/services/history?$params');
-      if (!mounted) return;
+      final raw = await client.get('/api/v1/consumer/services/history?$params');
+      if (!current()) return;
       setState(() => _history = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList());
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (current()) setState(() => _loading = false);
     }
   }
 
