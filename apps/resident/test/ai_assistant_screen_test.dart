@@ -535,9 +535,25 @@ void main() {
     expect(api.posts.where((x)=>x.endsWith('/assistant/query')).length, 2);
   });
 
+
+  test('device-local Assistant shortcut consent is isolated per login and home', () async {
+    final storage = FakeAssistantPreferenceStore();
+    final first = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:unit-1');
+    final second = AssistantLocalPreferences(store: storage, scope: 'session-b:society-a:unit-1');
+    final other = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:unit-2');
+    await first.setBriefingShortcut(true);
+    expect(await first.loadBriefingShortcut(), isTrue);
+    expect(await second.loadBriefingShortcut(), isFalse);
+    expect(await other.loadBriefingShortcut(), isFalse);
+    final unbound = AssistantLocalPreferences(store: storage);
+    expect(await unbound.loadBriefingShortcut(), isFalse);
+    await expectLater(unbound.setBriefingShortcut(true), throwsStateError);
+    expect(storage.values.length, 1);
+  });
+
   testWidgets('daily summary shortcut stays off until explicit device-local opt-in', (tester) async {
     final storage = FakeAssistantPreferenceStore();
-    final settings = AssistantLocalPreferences(store: storage);
+    final settings = AssistantLocalPreferences(store: storage, scope: 'session-a:society-a:demo-unit-1');
     final api = FakeApiClient();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: 'demo-unit-1', demoMode: true,
@@ -550,14 +566,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Switch).first);
     await tester.pumpAndSettle();
-    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey], 'true');
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey + '.session-a%3Asociety-a%3Ademo-unit-1'], 'true');
     expect(find.text('Daily briefing'), findsOneWidget);
     expect(api.posts, isEmpty);
     await tester.ensureVisible(find.text('Show daily briefing shortcut'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Switch).first);
     await tester.pumpAndSettle();
-    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey], 'false');
+    expect(storage.values[AssistantLocalPreferences.briefingShortcutKey + '.session-a%3Asociety-a%3Ademo-unit-1'], 'false');
     expect(find.text('Daily briefing'), findsNothing);
   });
 
@@ -567,7 +583,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: 'demo-unit-1', demoMode: true,
       speech: FakeResidentSpeech(null),
-      assistantPreferences: AssistantLocalPreferences(store: FakeAssistantPreferenceStore()),
+      assistantPreferences: AssistantLocalPreferences(store: FakeAssistantPreferenceStore(), scope: 'session-a:society-a:demo-unit-1'),
       onOpenSection: opened.add,
     )));
     await tester.enterText(find.byType(TextField), 'Show my parcels');

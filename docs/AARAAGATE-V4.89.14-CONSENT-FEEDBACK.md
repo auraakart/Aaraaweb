@@ -7,3 +7,6 @@
 
 ## Not yet delivered
 Scheduled reminders, OS notification permission, background monitoring, persisted feedback analytics and server-side retention workflows require a separate consent/retention and notification design. The on-demand shortcut is **not** a push reminder. No physical-device/provider/production readiness is claimed.
+
+## Consent-scoping hardening
+The secure device-local opt-in key is scoped by login session, society and selected home. A new user or property does not inherit consent; absent identity fails closed. Stale asynchronous preference loads cannot re-enable consent after scope changes. This remains a local shortcut only, without push notifications or persisted answer content.

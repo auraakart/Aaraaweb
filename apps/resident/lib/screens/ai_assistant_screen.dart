@@ -19,6 +19,7 @@ class AiAssistantScreen extends StatefulWidget {
     this.speech,
     this.onOpenSection,
     this.assistantPreferences,
+    this.preferenceScope,
   });
 
   final ApiClient apiClient;
@@ -28,6 +29,7 @@ class AiAssistantScreen extends StatefulWidget {
   final ResidentSpeech? speech;
   final ValueChanged<String>? onOpenSection;
   final AssistantLocalPreferences? assistantPreferences;
+  final String? preferenceScope;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -43,7 +45,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   String? _lastPolicyPrompt;
   bool _dailyBriefingShortcut = false;
   bool? _feedbackHelpful;
-  late final AssistantLocalPreferences _localPreferences;
+  late AssistantLocalPreferences _localPreferences;
+  int _preferenceLoadEpoch = 0;
   late final ResidentSpeech _speech;
   bool _listening = false;
   String _voiceLanguage = 'en';
@@ -61,7 +64,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   void initState() {
     super.initState();
     _speech = widget.speech ?? DeviceResidentSpeech();
-    _localPreferences = widget.assistantPreferences ?? AssistantLocalPreferences();
+    _localPreferences = widget.assistantPreferences ?? AssistantLocalPreferences(scope: widget.preferenceScope);
     _readAssistantPreferences();
     if (widget.initialPrompt?.trim().isNotEmpty == true) {
       _controller.text = widget.initialPrompt!.trim();
@@ -69,11 +72,16 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Future<void> _readAssistantPreferences() async {
+    final epoch = ++_preferenceLoadEpoch;
     try {
       final enabled = await _localPreferences.loadBriefingShortcut();
-      if (mounted) setState(() => _dailyBriefingShortcut = enabled);
+      if (mounted && epoch == _preferenceLoadEpoch) {
+        setState(() => _dailyBriefingShortcut = enabled);
+      }
     } catch (_) {
-      // An unavailable secure preference store never enables consent.
+      if (mounted && epoch == _preferenceLoadEpoch) {
+        setState(() => _dailyBriefingShortcut = false);
+      }
     }
   }
 
@@ -95,7 +103,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   @override
   void didUpdateWidget(covariant AiAssistantScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.unitId != widget.unitId || oldWidget.demoMode != widget.demoMode || oldWidget.apiClient != widget.apiClient) {
+    if (oldWidget.preferenceScope != widget.preferenceScope) {
+      _dailyBriefingShortcut = false;
+      if (widget.assistantPreferences == null) {
+        _localPreferences = AssistantLocalPreferences(scope: widget.preferenceScope);
+      }
+      _readAssistantPreferences();
+    }
+    if (oldWidget.unitId != widget.unitId || oldWidget.demoMode != widget.demoMode || oldWidget.apiClient != widget.apiClient || oldWidget.preferenceScope != widget.preferenceScope) {
       // Never display a prior household's answer or reuse its conversation topic.
       _lastPolicyPrompt = null;
       _lastSubmittedMessage = null;
@@ -328,6 +343,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
           ],
         ),
+        if (widget.preferenceScope?.trim().isNotEmpty == true || widget.assistantPreferences != null)
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('Show daily briefing shortcut'),

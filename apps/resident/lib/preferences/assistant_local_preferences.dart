@@ -1,13 +1,26 @@
 import 'resident_experience_preferences.dart';
 
-/// Explicit device-local preference only. No notifications or transcripts.
+/// Opt-in is tied to one authenticated session, society and selected property.
 class AssistantLocalPreferences {
-  AssistantLocalPreferences({ResidentPreferenceStore? store})
-      : _store = store ?? SecureResidentPreferenceStore();
+  AssistantLocalPreferences({ResidentPreferenceStore? store, String? scope})
+      : _store = store ?? SecureResidentPreferenceStore(),
+        _scope = scope?.trim();
   final ResidentPreferenceStore _store;
+  final String? _scope;
   static const briefingShortcutKey = 'resident.assistant.briefing_shortcut_opt_in';
-  Future<bool> loadBriefingShortcut() async =>
-      (await _store.read(briefingShortcutKey)) == 'true';
-  Future<void> setBriefingShortcut(bool enabled) async =>
-      _store.write(briefingShortcutKey, enabled ? 'true' : 'false');
+  String? get _scopedKey => (_scope?.isNotEmpty ?? false)
+      ? briefingShortcutKey + '.' + Uri.encodeComponent(_scope!)
+      : null;
+
+  Future<bool> loadBriefingShortcut() async {
+    final key = _scopedKey;
+    if (key == null) return false;
+    return (await _store.read(key)) == 'true';
+  }
+
+  Future<void> setBriefingShortcut(bool enabled) async {
+    final key = _scopedKey;
+    if (key == null) throw StateError('Authenticated Assistant preference context required');
+    await _store.write(key, enabled ? 'true' : 'false');
+  }
 }
