@@ -9,6 +9,7 @@ import 'data/resident_data_controller.dart';
 import 'data/resident_repository.dart';
 import 'screens/amenities_screen.dart';
 import 'screens/ai_assistant_screen.dart';
+import 'screens/parcels_screen.dart';
 import 'screens/billing_screen.dart';
 import 'screens/community_screen.dart';
 import 'screens/gate_screen.dart';
@@ -200,6 +201,30 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
 
   void _openUpdates() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UpdatesScreen(controller: widget.controller)));
 
+  void _openAssistantSection(String section) {
+    final controller = widget.controller;
+    final unitId = widget.currentUnitId;
+    switch (section) {
+      case 'profile':
+        if (unitId == null) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => _profile(controller)));
+      case 'parcels':
+        if (unitId == null || !controller.hasFeature('DELIVERY_MANAGEMENT')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ParcelsScreen(
+          repository: controller.repository,
+          unitId: unitId,
+          demoMode: controller.repository is DemoResidentRepository,
+        )));
+      case 'notices':
+        if (!controller.hasFeature('NOTICES')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller)));
+      case 'helpdesk':
+        if (unitId == null || !controller.hasFeature('HELPDESK')) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => HelpdeskScreen(controller: controller)));
+    }
+  }
+
+
   ProfileScreen _profile(ResidentDataController controller) => ProfileScreen(
         controller: controller,
         onSignOut: widget.onSignOut,
@@ -253,7 +278,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
             onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoticesScreen(controller: controller))),
             onOpenBilling: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BillingScreen(repository: controller.repository, activeUnitId: controller.primaryUnitId))),
             onOpenAmenities: _openAmenities,
-            onOpenAi: (initialPrompt) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository, initialPrompt: initialPrompt))),
+            onOpenAi: (initialPrompt) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AiAssistantScreen(apiClient: widget.consumerApiClient, unitId: widget.currentUnitId, demoMode: controller.repository is DemoResidentRepository, initialPrompt: initialPrompt, onOpenSection: _openAssistantSection))),
           ),
           showGate
               ? GateScreen(controller: controller)

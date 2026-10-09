@@ -365,6 +365,48 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
+  testWidgets('authorized Assistant answer offers a whitelisted in-app destination', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null), onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsOneWidget);
+    await tester.ensureVisible(find.text('Open Parcels'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open Parcels'));
+    expect(opened, ['parcels']);
+    await tester.enterText(find.byType(TextField), 'Who won the cricket match?');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsNothing);
+    expect(opened, ['parcels']);
+  });
+
+  testWidgets('no related screen button without selected property or injected callback', (tester) async {
+    final opened = <String>[];
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: null, demoMode: true,
+      speech: FakeResidentSpeech(null), onOpenSection: opened.add,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open Parcels'), findsNothing);
+    expect(opened, isEmpty);
+  });
+
   testWidgets('demo keeps society updates but does not mistake generic updates for notices', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(

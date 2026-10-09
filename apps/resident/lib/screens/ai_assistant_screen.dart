@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../data/assistant_destinations.dart';
 import '../data/demo_ai_assistant_answers.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
@@ -14,6 +15,7 @@ class AiAssistantScreen extends StatefulWidget {
     this.demoMode = false,
     this.initialPrompt,
     this.speech,
+    this.onOpenSection,
   });
 
   final ApiClient apiClient;
@@ -21,6 +23,7 @@ class AiAssistantScreen extends StatefulWidget {
   final bool demoMode;
   final String? initialPrompt;
   final ResidentSpeech? speech;
+  final ValueChanged<String>? onOpenSection;
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -389,6 +392,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         .take(3)
         .toList(growable: false);
     final answer = _result!['answer']?.toString().trim();
+    final destination = widget.unitId != null && sources.isNotEmpty
+        ? assistantDestinationForIntent(_result!['intent']?.toString()) : null;
 
     return PremiumSurface(
       elevated: true,
@@ -420,6 +425,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             Text(
               'Based on ' + sources.join(' · '),
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+          if (destination != null && widget.onOpenSection != null) ...[
+            const SizedBox(height: AaraagateTokens.space3),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: Text(destination.label),
+              onPressed: () => widget.onOpenSection!(destination.section),
             ),
           ],
           if (_canPrepareComplaintFromAnswer) ...[
