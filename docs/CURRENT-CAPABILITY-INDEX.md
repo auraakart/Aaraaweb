@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.86.1 Assistant UX & Voice Hardening, including V4.86 adoption/readiness, V4.85 Community Services 3.0, V4.84 field-operations readiness and the prior architecture/security/recovery slices recorded below. V4.51.1 Post-Release Regression Hardening remains historical squash-promotion/Resident speech-packaging evidence.
+**Current-state review baseline:** V4.89.14 Secure Society Copilot, plus the V4.90 non-production develop quality slices tracked in [V4.90 Competitive Excellence](AARAAGATE-V4.90-COMPETITIVE-EXCELLENCE.md). V4.90 does not become a main/released app version until separately approved and promoted. Earlier V4.86 and V4.51.1 narratives below remain historical implementation evidence, including V4.51.1 Post-Release Regression Hardening; older release documents may intentionally describe capabilities as deferred at their original date.
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces

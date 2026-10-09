@@ -62,6 +62,16 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Not claimed:** arbitrary multilingual chat, complete physical voice UAT, complete society FAQ corpus, or private knowledge sharing between properties.
 
+## V4.90.6: maintainability and selected-property UI truth (bounded slice)
+
+**Root cause:** Resident Service History fetched on initial mount only. If a selected home or authenticated `ApiClient` changed while the screen state was reused, an older response (or late error) could render against the newly selected property. The canonical capability index also retained a V4.86.1 header after V4.89 and V4.90 changes.
+
+**Change:** trigger a new history read on property or API-client changes, snapshot the requested property and client, reject results/errors/finalization from superseded requests, and clear old rows at refresh start. Update the capability-index review pointer to the current Society Copilot/V4.90 documentation without rewriting historical milestones.
+
+**Regressions:** a slow original-property result cannot replace the new home's empty state; old-session errors cannot appear under a new API client.
+
+**Boundaries:** this changes only client-side presentation; backend society/household authorization still determines returned rows. No main/staging promotion, field metrics, device acceptance, 8.5+ re-score or infrastructure claim is included. Full CI exact-head validation must precede develop merge. Large-file modularization and nonproduction pilot evidence remain open.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
