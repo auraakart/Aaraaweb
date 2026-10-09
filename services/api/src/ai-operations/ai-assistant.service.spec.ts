@@ -281,6 +281,10 @@ describe('V4.6 grounded AI assistant',()=>{
       'What are clubhouse guest limits?',
       'What is the emergency contact number?',
       'Are festival decorations permitted?',
+      'What are the rules for visitors?',
+      'Are visitors allowed after 10 pm?',
+      'Do guests need an entry pass?',
+
     ];
     documents.searchKnowledgeForUser.mockResolvedValue([]);
     for(const question of questions) {
@@ -296,6 +300,8 @@ describe('V4.6 grounded AI assistant',()=>{
     const {prisma,documents,service}=setup();
     const outside=await service.query('society-1','user-1',[AppRole.TENANT],'Who won the cricket match?');
     expect(outside.intent).toBe('UNSUPPORTED');
+    const privateVisitor=await service.query('society-1','user-1',[AppRole.TENANT],'Where is my visitor pass?');
+    expect(privateVisitor.intent).toBe('UNSUPPORTED');
     const privateParking=await service.query('society-1','user-1',[AppRole.TENANT],'Where is my parking bay?');
     expect(privateParking.intent).toBe('UNSUPPORTED');
     expect(documents.searchKnowledgeForUser).not.toHaveBeenCalled();

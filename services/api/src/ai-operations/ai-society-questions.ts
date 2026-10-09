@@ -21,6 +21,12 @@ export function isSocietyKnowledgeQuestion(text:string):boolean {
     /\b(?:society\s+(?:office|helpdesk|manager)\s*(?:hours?|timings?|contact|phone)|emergency\s+(?:contacts?|procedures?|numbers?|plan))\b/,
     /\b(?:festival|events?|celebrations?)\s*(?:rules?|polic(?:y|ies)|permissions?|guidelines?)\b/,
     /\b(?:visitor|guest|delivery)\s*(?:entry|access|hours?|timings?|rules?|polic(?:y|ies)|permissions?|restrictions?)\b/,
+    // V4.90.5: reverse-word-order and short everyday visitor questions.
+    // These patterns only choose a published, audience-scoped knowledge lookup;
+    // they never supply a rule or override a private resident intent.
+    /\b(?:rules?|restrictions?|permissions?)\s+(?:for|on|about)\s+(?:visitors?|guests?|deliveries?|pets?|dogs?|cats?|parking|vehicles?|gym|pool|clubhouse|garbage|waste|renovation)\b/,
+    /\b(?:are|is|can|may)\b.{0,50}\b(?:visitors?|guests?|deliveries?|pets?|dogs?|cats?)\b.{0,30}\b(?:allowed|permitted|restricted|banned)\b/,
+    /\b(?:visitors?|guests?|deliveries?)\b.{0,30}\b(?:need|require)\b.{0,25}\b(?:pass|approval|permission)\b/,
     // Conversational phrasings without exact 'rule' or 'policy' keywords.
     /\b(?:who|can|may|are)\b.{0,55}\b(?:use|access|book|enter)\b.{0,35}\b(?:gym|pool|clubhouse|community\s+hall|guest\s+room)\b/,
     /\b(?:what|when|where|how)\b.{0,55}\b(?:garbage|waste|trash|recycling|quiet\s+hours?|renovation|society\s+office)\b/,
