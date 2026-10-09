@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../data/rebook_attempt_registry.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
 
 class ServiceHistoryScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
   String? _error;
   List<Map<String, dynamic>> _history = const [];
   final Set<String> _rebooking = <String>{};
+  final _rebookAttempts = RebookAttemptRegistry();
 
   @override
   void initState() {
@@ -100,7 +102,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
 
   Future<void> _rebookService(Map<String, dynamic> item, Map<String, dynamic> offering) async {
     final bookingId = item['id']?.toString();
-    if (bookingId == null || bookingId.isEmpty || !mounted) return;
+    if (bookingId == null || bookingId.isEmpty || !mounted || _rebooking.contains(bookingId)) return;
 
     final now = DateTime.now();
     final initialDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
@@ -134,12 +136,25 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
       return;
     }
 
+    // Preserve one key across uncertain network results for the same selection.
+    // Clear only after the server confirms a booking, not after a timeout.
+    final attemptKey = _rebookAttempts.keyFor(
+      bookingId: bookingId,
+      scheduledFrom: scheduledFrom,
+      scheduledUntil: scheduledUntil,
+    );
     setState(() => _rebooking.add(bookingId));
     try {
       await widget.apiClient.post('/api/v1/consumer/services/history/$bookingId/rebook', {
         'scheduledFrom': scheduledFrom.toUtc().toIso8601String(),
         'scheduledUntil': scheduledUntil.toUtc().toIso8601String(),
+        'idempotencyKey': attemptKey,
       });
+      _rebookAttempts.confirmed(
+        bookingId: bookingId,
+        scheduledFrom: scheduledFrom,
+        scheduledUntil: scheduledUntil,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service rebooked using current availability and pricing.')));
       await _load();

@@ -42,6 +42,16 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Not claimed:** end-to-end TalkBack voice output, 320px/200% text on real devices, complete Resident/Admin accessibility acceptance or any physical-device certification. Those require separate evidence.
 
+## V4.90.4: Services 3.1 — safe repeat booking (bounded slice)
+
+**Root cause:** the repeat-booking API delegated to the existing idempotent booking engine without forwarding a retry identity; the Resident service-history button omitted a key. If a booking succeeded server-side but its response was lost, a repeated user attempt could create another booking.
+
+**Change:** an optional validated `idempotencyKey` flows through the existing rebooking route to the authoritative `ConsumerBookingsService`. The Resident service-history screen uses a device-memory attempt registry keyed to original booking + selected slot. Retry of the same unconfirmed attempt keeps the same unpredictable key; a confirmed booking clears it. Concurrent taps for one booking are ignored. Existing booking availability, current price, serviceability and active-property authorization remain authoritative.
+
+**Tests:** service forwarding for society-unit rebooking and a pure Flutter registry test covering stable retries, changed schedules and post-success reset.
+
+**Limitations:** stability is screen-session scoped, not persisted across app restarts; this does not deliver a server-quoted final price, approved extra-work quotation, automated recurring booking, real provider guarantees or live integration acceptance. Full Services 3.1 flows remain open.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
