@@ -9,6 +9,7 @@ import { WorkforceService } from '../workforce/workforce.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AiOperationsService } from './ai-operations.service';
 import { AiSocietyInsights } from './ai-society-insights';
+import { residentAnswer } from './ai-resident-answer';
 import { AiCopilot, type RecommendationOutcomeStatus } from './ai-copilot';
 import { AiActionCentre } from './ai-action-centre';
 
@@ -200,7 +201,7 @@ export class AiAssistantService {
         ...(hasPermission(roles,AppPermission.AMENITY_READ)?['AmenityBooking']:[]),
         ...(hasPermission(roles,AppPermission.SERVICES_MARKETPLACE_USE)?['ServiceBooking']:[]),
       ];
-      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,'Grounded status for the selected property only.');
+      return this.auditedResponse(societyId,userId,unitId,'RESIDENT_STATUS','RESIDENT_STATUS',facts,sources,residentAnswer(routed,facts,canReadPropertyPayables(roles)));
     }
 
     if(/overdue|collection|ageing|aging|arrears|maintenance due/.test(routed)){
