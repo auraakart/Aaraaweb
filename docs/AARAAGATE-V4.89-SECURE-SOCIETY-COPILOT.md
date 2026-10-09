@@ -35,3 +35,10 @@ All work targets `develop` until staged release approval. Full API/Resident/Admi
 - Improve resident notice answers to give titles rather than an unhelpful generic label. Route practical water/power/lift outage queries to visible published notices.
 - Continue to return an explicit no-evidence answer when society documentation is missing.
 - Test published-content and missing-knowledge behaviors; the underlying role/audience filters remain authoritative.
+
+## V4.89.4: understandable personalized answers and vernacular coverage (candidate)
+
+- Replace generic selected-property status copy with safe invoice, payer-history, complaint, booking, and count summaries based on already authorized backend records.
+- Invoice face value is **not** labelled net outstanding; CREATED payments are not treated as settled. Family members do not obtain finance answers.
+- Add Hindi, Tamil, Telugu, Kannada, Malayalam and Bengali family/society-rule intent hints without changing server-side authorization.
+- Validate Tamil household routing and source-limited, null-safe personal answer composition. Multi-turn memory and natural free-form generative AI remain separate future work.

@@ -24,6 +24,8 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(residentIntentRoutingText('मेरी शिकायत दिखाओ')).toContain('complaint helpdesk ticket');
     expect(residentIntentRoutingText('என் கட்டணம் நிலுவையில் உள்ளதா')).toContain('payment due maintenance invoice');
     expect(residentIntentRoutingText('গেটে অতিথি আছে কি')).toContain('visitor gate entry pass');
+    expect(residentIntentRoutingText('என் குடும்ப உறுப்பினர் யார்?')).toContain('family members household');
+    expect(residentIntentRoutingText('सोसायटी के नियम क्या हैं?')).toContain('society rule policy');
   });
 
   it('exposes only permission-authorized registered tools and keeps mutation scope fixed',()=>{
@@ -110,6 +112,9 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(result.intent).toBe('RESIDENT_STATUS');
     expect(result.sources).toEqual(expect.arrayContaining(['MaintenanceInvoice','Payment']));
     expect((result.facts as {invoices:Array<{id:string}>}).invoices).toEqual([expect.objectContaining({id:'invoice-1'})]);
+    expect(result.answer).toContain('INV-1');
+    expect(result.answer).toContain('₹1,250.00');
+    expect(result.answer).toContain('not a verified net outstanding balance');
     const sqlCalls=prisma.$queryRaw.mock.calls.map((call)=>{
       const sql=call[0] as {strings?:readonly string[]};
       return (sql.strings??[]).join('?');
@@ -361,6 +366,30 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
   });
 
+
+
+  it('answers personal complaints without exposing finance data to family members',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}])
+      .mockResolvedValueOnce([{title:'Water leak',status:'OPEN'}])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.FAMILY_MEMBER],
+      'Show my complaints status','33333333-3333-4333-8333-333333333333');
+    expect(result.answer).toContain('Water leak (OPEN)');
+    expect(result.answer).not.toContain('₹');
+  });
+
+  it('routes Tamil family-list questions through the same authorized household tool',async()=>{
+    const {prisma,service}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{allowed:true}]).mockResolvedValueOnce([{name:'Anitha',relation:'FAMILY_MEMBER'}]);
+    const result=await service.query('11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',[AppRole.TENANT],
+      'என் குடும்ப உறுப்பினர் யார்?','33333333-3333-4333-8333-333333333333');
+    expect(result.intent).toBe('RESIDENT_HOUSEHOLD');
+    expect(result.answer).toContain('Anitha');
+  });
 
   it('answers a current tenant family-list query without returning contact details or past household records',async()=>{
     const {prisma,service}=setup();

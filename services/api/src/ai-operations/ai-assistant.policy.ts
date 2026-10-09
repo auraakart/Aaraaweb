@@ -51,6 +51,8 @@ export const AI_ASSISTANT_TOOLS: readonly AiAssistantToolDefinition[] = [
 export function residentIntentRoutingText(text: string) {
   const hints: string[] = [];
   const groups: Array<[RegExp, string]> = [
+    [/परिवार|सदस्य|குடும்ப|உறுப்பினர்|కుటుంబ|సభ్యులు|ಕುಟುಂಬ|ಸದಸ್ಯರು|കുടുംബ|അംഗങ്ങൾ|পরিবার|সদস্য/u,' family members household '],
+    [/नियम|विधि|விதிகள்|నియమాలు|ನಿಯಮಗಳು|നിയമങ്ങൾ|নিয়ম/u,' society rule policy '],
     [/शिकायत|புகார்|ఫిర్యాదు|ದೂರು|പരാതി|तक्रार|অভিযোগ/u,' complaint helpdesk ticket '],
     [/भुगतान|बकाया|கட்டணம்|நிலுவை|చెల్లింపు|బకాయి|ಪಾವತಿ|ಬಾಕಿ|പണമടവ്|കുടിശ്ശിക|भरणा|थकबाकी|পেমেন্ট|বকেয়া/u,' payment due maintenance invoice '],
     [/आगंतुक|मेहमान|கேட்|விருந்தினர்|గేట్|సందర్శకుడు|ಗೇಟ್|ಭೇಟಿಕಾರ|ഗേറ്റ്|സന്ദർശകൻ|पाहुणा|গেট|অতিথি/u,' visitor gate entry pass '],
