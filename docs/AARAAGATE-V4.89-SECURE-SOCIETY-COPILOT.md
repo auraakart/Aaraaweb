@@ -91,3 +91,11 @@ No main merge is permitted without a separately approved, green release PR; the 
 - Keep original recipient-user, unit, and society restrictions; do not return tracking references, pickup secrets, raw license plates, or private third-party data.
 - Preserve the 580-line budget. The architecture checker now requires the private-query helper and delegation, preventing a future accidental reintegration into the large service. Run this targeted checker before each Assistant code PR; never increase the budget as a workaround.
 - Corrected PR must pass new exact-head repository, API, Flutter/Admin, and dependency-security gates before develop merge. Staging and main untouched.
+
+## V4.89.9 — Demo/live Assistant parity (candidate)
+
+- Extract local demo question responses into `demo_ai_assistant_answers.dart` so the Resident screen stays bounded and real mode continues through server-authorized APIs.
+- Demo family/vehicle answers derive only from `DemoHouseholdState` for the explicitly selected demo unit. Family names are minimal, vehicle plates show only a four-character suffix and no personal contact fields enter the response.
+- Demo parcel answers reflect parcel-screen fixtures without revealing pickup references or codes; personal daily briefing is explicitly a simulation, never real-time status.
+- No policy/rule text or parking bay assignments are fabricated; unsupported and off-topic replies stay distinct and return no invented sources.
+- Widget regressions cover demo selected-home isolation, masked vehicle identifiers, self-parcels, out-of-scope prompts and no API calls in demo mode. Real tenant authorization remains API enforced; demo values are not represented as real account data.

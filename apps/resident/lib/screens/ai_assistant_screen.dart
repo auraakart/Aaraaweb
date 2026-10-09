@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/api_client.dart';
+import '../data/demo_ai_assistant_answers.dart';
 import '../theme/aaraagate_theme.dart';
 import '../voice/resident_speech.dart';
 import '../widgets/premium_ui.dart';
@@ -109,7 +110,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       if (widget.demoMode) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
         if (!mounted) return;
-        setState(() => _result = _demoAnswer(message));
+        setState(() => _result = DemoAiAssistantAnswers.answer(message, unitId: widget.unitId));
         return;
       }
       final raw = await widget.apiClient.post(
@@ -126,73 +127,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Map<String, dynamic> _demoAnswer(String message) {
-    final normalized = message.toLowerCase().trim();
-    // Demo responses are fixture-only: do not substitute a generic society
-    // summary for unsupported or unrelated questions.
-    if (RegExp(r'\b(?:family|household)\s+members?\b|\bmembers?\s+(?:of\s+)?(?:(?:my|our)\s+)?(?:family|household)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Your family member list is an Aaraagate feature, but it is not available through this assistant. Open Profile → Family members to view the list for your selected household.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    if (RegExp(r'\b(dues?|maintenance|bills?|invoices?|receipts?|payments?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Your September maintenance bill is ₹4,250 and is due on 25 September. Your August bill is fully paid.',
-        'facts': {'outstanding': '₹4,250', 'period': 'September 2026', 'dueDate': '25 Sep 2026', 'lastPayment': '₹4,250 on 05 Aug 2026 via UPI'},
-        'sources': ['Maintenance billing', 'Payment receipts'],
-      };
-    }
-    if (RegExp(r'\b(complaints?|helpdesk|tickets?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'You have 2 active helpdesk requests. Water seepage near the balcony is high priority; the corridor-light request is already in progress.',
-        'facts': {'activeRequests': 2, 'highPriority': 'Water seepage near balcony', 'inProgress': 'Corridor light not working'},
-        'sources': ['Helpdesk', 'SLA status'],
-      };
-    }
-    if (RegExp(r'\b(visitors?|staff|gates?|domestic help|maids?|drivers?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Amit Verma is waiting for approval. One delivery and one cab entry were also recorded today. Lakshmi and Ramesh are active household staff.',
-        'facts': {'waitingApproval': 'Amit Verma', 'recentEntries': 3, 'activeStaff': 4},
-        'sources': ['Gate access', 'Domestic help'],
-      };
-    }
-    if (RegExp(r'\b(amenit(?:y|ies)|bookings?|clubhouse|badminton|swimming pool|guest rooms?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Badminton, clubhouse, swimming pool and guest-room options are available in this demo. Weekend slots are usually the busiest.',
-        'facts': {'recommended': 'Badminton court · Saturday 6:00 PM', 'otherOptions': ['Clubhouse', 'Swimming pool', 'Guest room']},
-        'sources': ['Amenities', 'Booking availability'],
-      };
-    }
-    if (RegExp(r'\b(notices?|announcements?|(?:society|community)\s+updates?)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Key updates: lift maintenance is scheduled tomorrow, the Ganesh festival programme starts Friday at 6:30 PM, and September maintenance is pending.',
-        'facts': {'priorityUpdates': 3, 'nextEvent': 'Ganesh festival · Friday 6:30 PM'},
-        'sources': ['Society notices', 'Community calendar', 'Billing'],
-      };
-    }
-    if (RegExp(r'\b(services?|providers?|plumbers?|electricians?|cleaning)\b').hasMatch(normalized)) {
-      return {
-        'answer': 'Browse available providers in the Services tab. This demo assistant cannot confirm live service availability or complete a booking from a free-text question.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    if (RegExp(r'\b(vehicles?|parking|family|household|residents?|occupants?|profile|documents?|privacy|security|emergenc(?:y|ies)|community|society|facilities|vendors?|deliver(?:y|ies))\b').hasMatch(normalized)) {
-      return {
-        'answer': 'That is an Aaraagate topic, but this assistant demo cannot answer it yet. Try the relevant app screen, or ask about dues, visitors, staff, complaints, amenities, services or society updates.',
-        'facts': <String, dynamic>{},
-        'sources': <String>[],
-      };
-    }
-    return {
-      'answer': 'That question is outside Aaraagate Assistant’s scope. I can help with maintenance dues, visitors, household staff, complaints, amenities, services and society updates.',
-      'facts': <String, dynamic>{},
-      'sources': <String>[],
-    };
   }
 
   Future<void> _draftComplaint() async {

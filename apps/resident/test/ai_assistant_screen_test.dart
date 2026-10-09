@@ -285,7 +285,7 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
-  testWidgets('demo family member request redirects to the existing profile feature', (tester) async {
+  testWidgets('demo family member request uses only the selected synthetic household', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: 'demo-unit-1', demoMode: true,
@@ -296,9 +296,62 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('Priya Sharma'), findsOneWidget);
     expect(find.textContaining('Profile → Family members'), findsOneWidget);
+    expect(find.textContaining('98765'), findsNothing);
     expect(find.textContaining('Today you have one visitor'), findsNothing);
     expect(find.textContaining('Based on '), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo shows safe household vehicle and parcel previews', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-1', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my registered vehicles');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('plate ending 1234'), findsOneWidget);
+    expect(find.textContaining('KA01AB1234'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Where is my package?');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 packages are waiting'), findsOneWidget);
+    expect(find.textContaining('AMZ-77421'), findsNothing);
+    expect(find.textContaining('Based on Demo parcel fixture'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Who won the cricket match?');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('outside Aaraagate Assistant’s scope'), findsOneWidget);
+    expect(find.textContaining('Based on '), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('demo never leaks first household fixtures to another selected home', (tester) async {
+    final api = FakeApiClient();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: 'demo-unit-2', demoMode: true,
+      speech: FakeResidentSpeech(null),
+    )));
+    await tester.enterText(find.byType(TextField), 'give my family member list');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no active approved family members'), findsOneWidget);
+    expect(find.textContaining('Priya Sharma'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Show my registered vehicles');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no active registered vehicles'), findsOneWidget);
+    expect(find.textContaining('Maruti'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Show my parcels');
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no parcel records'), findsOneWidget);
+    expect(find.textContaining('Amazon'), findsNothing);
     expect(api.posts, isEmpty);
   });
 
