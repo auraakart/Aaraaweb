@@ -121,7 +121,7 @@ void main() {
     expect(find.text('Current Gate Worker'), findsOneWidget);
 
     controller.gateId = null;
-    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.tap(find.byTooltip('Search'));
     await tester.pump();
     expect(find.text('Select an active gate first.'), findsOneWidget);
     expect(find.text('Current Gate Worker'), findsNothing);
