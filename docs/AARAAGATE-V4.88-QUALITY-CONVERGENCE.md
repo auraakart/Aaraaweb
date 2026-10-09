@@ -35,7 +35,7 @@ One consolidated develop PR avoids per-slice staging or main commits.
 
 | Slice | Implemented evidence | Acceptance still required |
 |---|---|---|
-| V4.88.2 | App-shell device text scaling preserved, Easy Mode minimum; Guard action exposes a single labelled semantic action; 320px/200% light/dark keyboard regression | Exact-candidate Flutter checks; physical TalkBack, voice and two-device acceptance |
+| V4.88.2 | App-shell device text scaling preserved, Easy Mode minimum, sign-in footer reflow; Guard action exposes a single labelled semantic action; 320px/200% light/dark keyboard regression | Exact-candidate Flutter checks; physical TalkBack, voice and two-device acceptance |
 | V4.88.3 | Shared Guard operations transport, bounded OTP/web requests, no automatic uncertain-write replay; Resident disposal/late-connection cancellation; revoked-owner payment recovery and rolled-back tenant-context isolation; real Admin finance confirmation, denial and read-only journeys | Exact-candidate mobile, browser and migrated PostgreSQL suites |
 | V4.88.4 | Six sampled API coverage floors raised against prior measured coverage; historical gates enforce minimums; additional authenticated finance-readiness workload against 100k payment fixture | Candidate API/Resident/Guard coverage and performance artifacts; these are sampled regression floors, not whole-codebase coverage or production capacity |
 | V4.88.5 | Synchronized release identity; consolidated acceptance matrix and fixed scoring rubric below | Full required CI and evidence review before integration/promotion; no automatic score increase |
@@ -63,4 +63,14 @@ Acceptance: weighted score >=8.5, no dimension below 8.0, no unresolved critical
 
 ### Current validation state
 
-The 12 local JavaScript transport, coverage-contract and benchmark-helper tests pass. Full candidate validation is in progress. Earlier baseline runs are not substituted for candidate evidence. Production deployment, live-provider certification, physical hardware and adoption remain excluded; physical accessibility acceptance remains pending and is not silently marked complete.
+The 12 local JavaScript transport, coverage-contract and benchmark-helper tests pass under Node 22.23.3. Local API tests: 1,402 passed and 31 database-dependent cases skipped. API/Admin typechecking, API lint and Admin UI lint pass.
+
+Initial candidate `8badf9fcd8d25d3420e909c367dbf6132c17c91e`, CI [37875584884](https://github.com/auraakart/Aaraaweb/actions/runs/37875584884):
+
+- API: all 1,433 tests passed across 340 files, including migrated PostgreSQL cases; 181 migrations applied. Risk suite: 58 tests passed; sampled line coverage 70.29%, branch coverage 50.23%; all six file floors passed.
+- Admin: all 31 browser cases passed, plus source regressions, lint, typecheck and build.
+- Dependency security: passed, zero reported vulnerabilities.
+- All five benchmark scenarios passed with zero request failures. Finance-readiness p95 34.83ms; treasurer-control p95 889.15ms on the synthetic 100k-payment ledger. Runner-specific measurements are regression evidence only.
+- Resident changed tests: eight transport cases passed; the app-shell test caught the sign-in footer overflowing at 200% text. The footer now wraps within available width, and the test uses a 320px viewport. The initial run is therefore **not** an accepted full candidate.
+
+Final-candidate required checks and merge status are tracked in [PR #1141](https://github.com/auraakart/Aaraaweb/pull/1141). All required checks must pass on the final head after the footer correction; partial initial success does not waive mobile acceptance. Production deployment, live-provider certification, physical hardware and adoption remain excluded; physical accessibility acceptance remains pending and is not silently marked complete.
