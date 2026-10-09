@@ -335,6 +335,7 @@ void main() {
     expect(find.text('Prepare complaint for review'), findsOneWidget);
     expect(api.posts.where((path)=>path.endsWith('/assistant/helpdesk-from-text')), isEmpty);
     await tester.ensureVisible(find.text('Prepare complaint for review'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare complaint for review'));
     await tester.pumpAndSettle();
     expect(find.text('Review complaint before submitting'), findsOneWidget);
