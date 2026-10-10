@@ -55,6 +55,16 @@ class GuardController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   Timer? _reconnectTimer;
   bool _disposed = false;
+  int _gateContextEpoch = 0;
+
+  // Async responses are not allowed to repopulate a different gate or guard session.
+  bool _sameGateContext(String gate, GuardSession? original, int epoch) {
+    final current = session;
+    return !_disposed && epoch == _gateContextEpoch && gateId == gate &&
+        current?.sessionId == original?.sessionId &&
+        current?.societyId == original?.societyId &&
+        current?.userId == original?.userId;
+  }
   // Session-local retry identities for gate-arrival writes with unknown outcomes.
   // Never generate a new key for the same uncertain request/action.
   final Map<String, String> _uncertainWalkInKeys = {};
@@ -186,7 +196,7 @@ class GuardController extends ChangeNotifier {
     });
   }
 
-  void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
+  void selectGate(String? value) { _gateContextEpoch++; gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
 
   Future<void> setLanguage(String code) async {
     if (!guardLanguages.any((language) => language.code == code)) return;
@@ -223,11 +233,19 @@ class GuardController extends ChangeNotifier {
       api.assessWatchlist(name:name,phone:phone,vehicleNumber:vehicleNumber);
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
-    walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final created = await api.createWalkIn(gateId: gate, unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+    if (_sameGateContext(gate, startedSession, epoch)) walkInAccess = created;
   });
 
   Future<void> createGateArrival({required String unitId, required String subjectType, required String name, String? provider, String? phone, String? vehicleNumber, String? note}) => _run(() async {
-    walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final created = await api.createGateArrival(gateId: gate, unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
+    if (_sameGateContext(gate, startedSession, epoch)) walkInAccess = created;
   });
 
   String _walkInMutationScope(String gate, String requestId, String type) {
@@ -243,7 +261,10 @@ class GuardController extends ChangeNotifier {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
     final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
     final latest = await api.requestStatus(gate, requestId);
+    if (!_sameGateContext(gate, startedSession, epoch) || walkInAccess?['id']?.toString() != requestId) return;
     walkInAccess = latest;
     for (final type in ['CHECK_IN', 'CHECK_OUT']) {
       final scope = _walkInMutationScope(gate, requestId, type);
@@ -305,7 +326,11 @@ class GuardController extends ChangeNotifier {
   Future<void> verifyCredential(String credential) => _run(() async {
     final value = credential.trim();
     if (value.isEmpty) throw StateError('Scan or enter an access credential');
-    verifiedAccess = await api.verifyAccess(_requireGate(), value);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final verified = await api.verifyAccess(gate, value);
+    if (_sameGateContext(gate, startedSession, epoch)) verifiedAccess = verified;
   });
 
   Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential);
@@ -398,6 +423,7 @@ class GuardController extends ChangeNotifier {
   Future<void> retryQueuedActions() => _run(syncQueuedActions);
 
   Future<void> signOut() async {
+    _gateContextEpoch++;
     final current = session;
     if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
     _reconnectTimer?.cancel();

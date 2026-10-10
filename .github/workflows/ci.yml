@@ -702,6 +702,7 @@ jobs:
           test/guard_realtime_lifecycle_test.dart
           test/guard_workforce_assignment_test.dart
           test/guard_walkin_uncertain_mutation_test.dart
+          test/guard_gate_context_isolation_test.dart
       - name: Risk-weighted Guard coverage gate
         if: needs.change-scope.outputs.run_guard == 'true'
         run: node scripts/check-flutter-risk-coverage.mjs apps/guard/coverage/lcov.info guard
