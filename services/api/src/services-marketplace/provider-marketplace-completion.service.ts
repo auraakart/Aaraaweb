@@ -432,17 +432,29 @@ export class ProviderMarketplaceCompletionService {
           AND "userId"=${userId}::uuid FOR UPDATE
       `);
       if(!booking.length)throw new NotFoundException('Booking not found');
+      // Lock the original booking first, then the quote (the same lock order as
+      // provider withdrawal). Check saved consent before booking status: a
+      // response may have been lost just before the service was completed.
+      const quote=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid FOR UPDATE
+      `);
+      if(!quote.length)throw new NotFoundException('Extra work quote not found');
+      const status=decision==='APPROVE'?'APPROVED':'DECLINED';
+      if(quote[0].status!=='PENDING'){
+        if(quote[0].status===status && quote[0].respondedByUserId===userId &&
+          (decision==='APPROVE' ? quote[0].responseReason==null
+            : quote[0].responseReason===normalizedReason)){
+          return quote[0]; // Exact lost-response recovery; no duplicate event.
+        }
+        throw new ConflictException('Extra work quote has already been decided or withdrawn');
+      }
       if(booking[0].status!==ServiceBookingStatus.IN_PROGRESS){
         throw new BadRequestException('Extra work quote cannot be decided after service is no longer in progress');
       }
-      const quote=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
-        SELECT "id","amountPaise"::text AS "amountPaise","scopeDescription","status"
-        FROM "ConsumerServiceExtraWorkQuote"
-        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
-          AND "status"='PENDING' FOR UPDATE
-      `);
-      if(!quote.length)throw new NotFoundException('Pending extra work quote not found');
-      const status=decision==='APPROVE'?'APPROVED':'DECLINED';
       const changed=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
         UPDATE "ConsumerServiceExtraWorkQuote" SET "status"=${status},
           "respondedByUserId"=${userId}::uuid,
