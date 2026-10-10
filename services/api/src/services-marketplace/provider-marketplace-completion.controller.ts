@@ -45,6 +45,9 @@ class ExtraWorkQuoteDecisionDto {
  @IsIn(['APPROVE','DECLINE']) decision!:'APPROVE'|'DECLINE';
  @IsOptional() @IsString() @MaxLength(500) reason?:string;
 }
+class ExtraWorkQuoteWithdrawalDto{
+ @IsString() @MinLength(3) @MaxLength(500) reason!:string;
+}
 class EvidenceDto{@IsIn(['NOTE','REFERENCE']) evidenceType!:'NOTE'|'REFERENCE';@IsOptional() @IsString() @MaxLength(1000) reference?:string;@IsOptional() @IsString() @MaxLength(2000) note?:string;}
 class DisputeDto{@IsString() @MinLength(2) @MaxLength(80) reasonCode!:string;@IsString() @MinLength(5) @MaxLength(2000) detail!:string;}
 class DisputeResolutionDto{@IsIn(['RESOLVED','DISMISSED']) status!:'RESOLVED'|'DISMISSED';@IsString() @MinLength(5) @MaxLength(2000) resolutionNote!:string;}
@@ -80,6 +83,11 @@ export class ProviderMarketplaceCompletionController{
  @Post('bookings/:id/extra-work-quotes') createQuote(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string,@Body() d:ExtraWorkQuoteDto){
   return this.svc.proposeExtraWorkQuote(requireUser(u),id,d.scopeDescription,d.amountPaise,d.idempotencyKey);
+ }
+ @Post('bookings/:bookingId/extra-work-quotes/:quoteId/withdraw')
+ withdrawQuote(@CurrentUser() u:string|undefined,@Param('bookingId',ParseUUIDPipe) bookingId:string,
+  @Param('quoteId',ParseUUIDPipe) quoteId:string,@Body() d:ExtraWorkQuoteWithdrawalDto){
+  return this.svc.withdrawExtraWorkQuote(requireUser(u),bookingId,quoteId,d.reason);
  }
  @Get('bookings/:id/extra-work-quotes') providerQuotes(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string){return this.svc.listProviderExtraWorkQuotes(requireUser(u),id);}
