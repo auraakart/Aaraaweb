@@ -33,5 +33,9 @@ export function isSocietyKnowledgeQuestion(text:string):boolean {
     /\b(?:can|when|how)\b.{0,40}\bmove[- ]?(?:in|out)\b/,
     /\b(?:when|can|may|where)\b.{0,45}\b(?:delivery|guest|visitor)\b.{0,30}\b(?:enter|arrive|access|come)\b/,
     /\b(?:festival|events?|celebrations?)\b.{0,35}\b(?:decorations?|allowed|permitted|permissions?|guidelines?)\b/,
+    // Questions about whether guests can park or stay overnight must retrieve
+    // published society rules, not a generic answer or private visitor status.
+    /\b(?:can|may|are|is|do|does)\b.{0,55}\b(?:visitors?|guests?)\b.{0,35}\b(?:park|parking|stay|overnight)\b/,
+    /\b(?:is|are|can|may)\b.{0,40}\b(?:overnight|guest|visitor)\s+parking\b.{0,30}\b(?:allowed|permitted|fees?|charges?|rules?)\b/,
   ].some(pattern=>pattern.test(question));
 }
