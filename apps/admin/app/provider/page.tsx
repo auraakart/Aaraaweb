@@ -23,6 +23,7 @@ type Category={id:string;name:string;slug:string}
 type ReadinessCheck={key:string;ready:boolean;count:number}
 type ProviderReadiness={ready:boolean;checks:ReadinessCheck[];pendingProposals:number;openDisputes:number}
 type ProviderDispute={id:string;bookingId:string;reasonCode:string;detail:string;status:string;createdAt:string;resolutionNote?:string|null}
+type DisputeEvidence={id:string;disputeId:string;actorType:'RESIDENT'|'PROVIDER';note:string;reference?:string|null;createdAt:string}
 type AvailabilityException={id:string;serviceDate:string;closed:boolean;slotCapacity?:number|null;note?:string|null;active:boolean}
 type View='bookings'|'catalogue'|'agents'|'coverage'|'schedule'|'earnings'|'readiness'
 
@@ -213,11 +214,51 @@ function Schedule({session,offerings}:{session:AuthSession;offerings:Offering[]}
 
 function Readiness({session}:{session:AuthSession}){
   const[data,setData]=useState<ProviderReadiness|null>(null),[disputes,setDisputes]=useState<ProviderDispute[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('')
+  const[threads,setThreads]=useState<Record<string,DisputeEvidence[]>>({})
+  const[working,setWorking]=useState('')
+  const pendingEvidence=useRef<Record<string,{note:string;idempotencyKey:string}>>({})
+  const reviewThread=async(id:string)=>{
+    setWorking(id);setError('')
+    try{const items=await api<DisputeEvidence[]>(`/provider/services/disputes/${id}/evidence`,{},session)
+      setThreads(old=>({...old,[id]:items}))
+    }catch(e){setError(e instanceof Error?e.message:'Unable to load service evidence')}
+    finally{setWorking('')}
+  }
+  const addNote=async(id:string)=>{
+    let pending=pendingEvidence.current[id]
+    if(!pending){
+      const note=(await operatorPrompt('Evidence note for resident and platform reviewer (5–2000 characters)'))?.trim()
+      if(!note)return
+      if(note.length<5||note.length>2000){setError('Evidence note must be 5–2000 characters');return}
+      pending={note,idempotencyKey:crypto.randomUUID()}
+      pendingEvidence.current[id]=pending
+    }
+    setWorking(id);setError('')
+    try{await api(`/provider/services/disputes/${id}/evidence`,{
+      method:'POST',body:JSON.stringify(pending)
+    },session)
+      delete pendingEvidence.current[id]
+      await reviewThread(id)
+    }catch(e){setError((e instanceof Error?e.message:'Unable to add evidence')+'. Retry saved note without changing its identity.')}
+    finally{setWorking('')}
+  }
   const load=useCallback(async()=>{setLoading(true);setError('');try{const[r,d]=await Promise.all([api<ProviderReadiness>('/provider/services/readiness',{},session),api<ProviderDispute[]>('/provider/services/disputes',{},session)]);setData(r);setDisputes(d)}catch(e){setError(e instanceof Error?e.message:'Provider readiness could not be loaded')}finally{setLoading(false)}},[session])
   useEffect(()=>{void load()},[load])
   if(loading)return <section style={panel}>Loading readiness…</section>
   const activeDisputes=disputes.filter(d=>['OPEN','UNDER_REVIEW'].includes(d.status))
-  return <section style={panel}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'start',flexWrap:'wrap'}}><div><h2>Provider readiness</h2><p style={muted}>Repository readiness across catalogue, coverage, availability and field-agent capacity.</p></div><span style={{...badge,background:data?.ready?'#ecfdf5':'#fff7df',color:data?.ready?'#065f46':'#8a6100'}}>{data?.ready?'READY':'ACTION NEEDED'}</span></div>{error&&<div style={errorBox}>{error}</div>}<div style={{...metrics,marginTop:12}}>{data?.checks.map(c=><article key={c.key} style={metric}><strong>{c.ready?'✓':'!'}</strong><span>{c.key.replaceAll('_',' ')}</span><small>{c.count} configured</small></article>)}</div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:18}}><span style={chip}>{data?.pendingProposals??0} pending proposal(s)</span><span style={(data?.openDisputes??0)>0?{...chip,background:'#fff7df'}:chip}>{data?.openDisputes??0} open dispute(s)</span></div>{activeDisputes.length>0&&<div style={{...stack,marginTop:20}}><h3 style={{marginBottom:0}}>Service issues & warranty revisit requests</h3><p style={muted}>These are consumer-raised review cases. Resolve service concerns operationally while the platform review record remains authoritative.</p>{activeDisputes.map(d=><article key={d.id} style={card}><div><strong>{d.reasonCode.replaceAll('_',' ')}</strong><div>{d.detail}</div><small>{d.status} · {new Date(d.createdAt).toLocaleString('en-IN')}</small></div></article>)}</div>}<button style={{...button,marginTop:16}} onClick={()=>void load()}>Refresh</button></section>
+  return <section style={panel}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'start',flexWrap:'wrap'}}><div><h2>Provider readiness</h2><p style={muted}>Repository readiness across catalogue, coverage, availability and field-agent capacity.</p></div><span style={{...badge,background:data?.ready?'#ecfdf5':'#fff7df',color:data?.ready?'#065f46':'#8a6100'}}>{data?.ready?'READY':'ACTION NEEDED'}</span></div>{error&&<div style={errorBox}>{error}</div>}<div style={{...metrics,marginTop:12}}>{data?.checks.map(c=><article key={c.key} style={metric}><strong>{c.ready?'✓':'!'}</strong><span>{c.key.replaceAll('_',' ')}</span><small>{c.count} configured</small></article>)}</div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:18}}><span style={chip}>{data?.pendingProposals??0} pending proposal(s)</span><span style={(data?.openDisputes??0)>0?{...chip,background:'#fff7df'}:chip}>{data?.openDisputes??0} open dispute(s)</span></div>{activeDisputes.length>0&&<div style={{...stack,marginTop:20}}><h3 style={{marginBottom:0}}>Service issues & warranty revisit requests</h3><p style={muted}>These are consumer-raised review cases. Resolve service concerns operationally while the platform review record remains authoritative.</p>{activeDisputes.map(d=><article key={d.id} style={card}><div><strong>{d.reasonCode.replaceAll('_',' ')}</strong><div>{d.detail}</div><small>{d.status} · {new Date(d.createdAt).toLocaleString('en-IN')}</small>
+      {(threads[d.id]??[]).map(e=><div key={e.id} style={{marginTop:6,fontSize:13}}>
+        <strong>{e.actorType==='RESIDENT'?'Resident':'Provider'}:</strong> {e.note}
+        <small style={{display:'block'}}>{new Date(e.createdAt).toLocaleString('en-IN')}</small>
+      </div>)}
+      <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+        <button style={button} disabled={!!working} onClick={()=>void reviewThread(d.id)}>Review evidence notes</button>
+        <button style={primary} disabled={!!working} onClick={()=>void addNote(d.id)}>
+          {pendingEvidence.current[d.id]?'Retry saved note':'Add provider evidence note'}
+        </button>
+        {pendingEvidence.current[d.id]&&<button style={button} disabled={!!working}
+          onClick={()=>{delete pendingEvidence.current[d.id];setError('Saved evidence note discarded')}}>Discard saved note</button>}
+      </div></div></article>)}</div>}<button style={{...button,marginTop:16}} onClick={()=>void load()}>Refresh</button></section>
 }
 
 function Earnings({session}:{session:AuthSession}){

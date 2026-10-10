@@ -50,6 +50,11 @@ class ExtraWorkQuoteWithdrawalDto{
 }
 class EvidenceDto{@IsIn(['NOTE','REFERENCE']) evidenceType!:'NOTE'|'REFERENCE';@IsOptional() @IsString() @MaxLength(1000) reference?:string;@IsOptional() @IsString() @MaxLength(2000) note?:string;}
 class DisputeDto{@IsString() @MinLength(2) @MaxLength(80) reasonCode!:string;@IsString() @MinLength(5) @MaxLength(2000) detail!:string;}
+class DisputeEvidenceDto {
+ @IsString() @MinLength(5) @MaxLength(2000) note!:string;
+ @IsOptional() @IsString() @MaxLength(400) reference?:string;
+ @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!:string;
+}
 class DisputeResolutionDto{@IsIn(['RESOLVED','DISMISSED']) status!:'RESOLVED'|'DISMISSED';@IsString() @MinLength(5) @MaxLength(2000) resolutionNote!:string;}
 class ExceptionDto{@IsISO8601({strict:true}) serviceDate!:string;@IsBoolean() closed!:boolean;@IsOptional() @Type(()=>Number) @IsInt() @Min(1) @Max(1000) slotCapacity?:number;@IsOptional() @IsString() @MaxLength(500) note?:string;@IsOptional() @IsBoolean() active?:boolean;}
 
@@ -93,6 +98,12 @@ export class ProviderMarketplaceCompletionController{
   @Param('id',ParseUUIDPipe) id:string){return this.svc.listProviderExtraWorkQuotes(requireUser(u),id);}
  @Post('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:EvidenceDto){return this.svc.addCompletionEvidence(requireUser(u),id,d.evidenceType,d.reference,d.note);}
  @Get('disputes') disputes(@CurrentUser() u:string|undefined){return this.svc.listMyDisputes(requireUser(u));}
+ @Get('disputes/:id/evidence') disputeEvidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
+  return this.svc.listDisputeEvidence(requireUser(u),id,'PROVIDER');
+ }
+ @Post('disputes/:id/evidence') addDisputeEvidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeEvidenceDto){
+  return this.svc.addDisputeEvidence(requireUser(u),id,'PROVIDER',d.note,d.idempotencyKey,d.reference);
+ }
  @Get('offerings/:id/availability-exceptions') exceptions(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listAvailabilityExceptions(requireUser(u),id);}
  @Post('offerings/:id/availability-exceptions') setException(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:ExceptionDto){return this.svc.setAvailabilityException(requireUser(u),id,d);}
  @Get('readiness') readiness(@CurrentUser() u:string|undefined){return this.svc.getProviderReadiness(requireUser(u));}
@@ -114,6 +125,16 @@ export class ConsumerMarketplaceCompletionController{
  @Get('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerEvidence(requireUser(u),id);}
  @Post('bookings/:id/disputes') dispute(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeDto){return this.svc.openDispute(requireUser(u),id,d.reasonCode,d.detail);}
  @Get('bookings/:id/disputes') consumerDisputes(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerDisputes(requireUser(u),id);}
+ @Get('bookings/:bookingId/disputes/:disputeId/evidence') disputeEvidence(
+   @CurrentUser() u:string|undefined,@Param('bookingId',ParseUUIDPipe) bookingId:string,
+   @Param('disputeId',ParseUUIDPipe) disputeId:string){
+   return this.svc.listDisputeEvidence(requireUser(u),disputeId,'RESIDENT',bookingId);
+ }
+ @Post('bookings/:bookingId/disputes/:disputeId/evidence') addDisputeEvidence(
+   @CurrentUser() u:string|undefined,@Param('bookingId',ParseUUIDPipe) bookingId:string,
+   @Param('disputeId',ParseUUIDPipe) disputeId:string,@Body() d:DisputeEvidenceDto){
+   return this.svc.addDisputeEvidence(requireUser(u),disputeId,'RESIDENT',d.note,d.idempotencyKey,d.reference,bookingId);
+ }
 }
 
 @Controller('platform/services/disputes')
@@ -121,6 +142,8 @@ export class ConsumerMarketplaceCompletionController{
 export class PlatformMarketplaceCompletionController{
  constructor(private readonly svc:ProviderMarketplaceCompletionService){}
  @Get() @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY) list(@Query('status') status?:string){return this.svc.listPlatformDisputes(status);}
+ @Get(':id/evidence') @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY)
+ evidence(@Param('id',ParseUUIDPipe) id:string){return this.svc.listPlatformDisputeEvidence(id);}
  @Post(':id/resolve') @RequiresPermissions(AppPermission.PLATFORM_PROVIDER_VERIFY)
  resolve(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeResolutionDto){return this.svc.resolveDispute(requireUser(u),id,d.status,d.resolutionNote);}
 }
