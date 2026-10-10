@@ -456,6 +456,10 @@ jobs:
         env:
           AARAAGATE_FINANCE_CONCURRENCY_CI: '1'
         run: pnpm --filter @aaraagate/api exec vitest run src/accounting/finance-concurrency.postgres.spec.ts
+      - name: Bank provenance and Tally CSV acceptance (disposable PostgreSQL)
+        env:
+          AARAAGATE_FINANCE_CONCURRENCY_CI: '1'
+        run: pnpm --filter @aaraagate/api exec vitest run src/accounting/bank-export-acceptance.postgres.spec.ts
       - name: Test API before coverage instrumentation
         run: pnpm --filter @aaraagate/api test
       - name: Build API before coverage instrumentation
