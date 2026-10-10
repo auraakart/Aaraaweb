@@ -1,11 +1,13 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseExtraWorkRupees, preserveQuoteRetryIdentity, type ExtraWorkQuoteDraft } from '../../lib/extra-work-quote'
 import { operatorPrompt } from '../../lib/operator-dialog'
 
 type AuthSession={sessionId:string;accessToken:string;refreshToken:string}
 type Membership={societyId:string;role:string;society?:{name?:string;code?:string}}
 type Provider={providerId:string;businessName:string;verification:string;providerActive:boolean}
+type ExtraWorkQuote={id:string;scopeDescription:string;amountPaise:string;status:string;responseReason?:string|null;createdAt:string;respondedAt?:string|null}
 type Booking={id:string;offeringId:string;offeringName:string;addressSnapshot:Record<string,unknown>;status:string;scheduledFrom:string;scheduledUntil:string;servicePricePaise:number;notes?:string|null;createdAt:string}
 type Agent={id:string;displayName:string;phone?:string|null;externalRef?:string|null;active:boolean}
 type Area={id:string;postalCode:string;active:boolean}
@@ -85,13 +87,53 @@ function ProviderConsole({session,onLogout}:{session:AuthSession;onLogout:()=>Pr
 
 function Bookings({session,bookings,agents,reload}:{session:AuthSession;bookings:Booking[];agents:Agent[];reload:()=>Promise<void>}){
   const[busy,setBusy]=useState(''),[error,setError]=useState(''),[assignments,setAssignments]=useState<Record<string,Assignment[]>>({})
+  const[quotes,setQuotes]=useState<Record<string,ExtraWorkQuote[]>>({})
+  const quoteDrafts=useRef<Record<string,ExtraWorkQuoteDraft>>({})
   const respond=async(b:Booking,decision:'ACCEPT'|'DECLINE')=>{const note=await operatorPrompt(decision==='ACCEPT'?'Optional acceptance note':'Optional decline note')??undefined;setBusy(b.id);setError('');try{await api(`/provider/services/bookings/${b.id}/respond`,{method:'POST',body:JSON.stringify({decision,note})},session);await reload()}catch(e){setError(e instanceof Error?e.message:'Booking could not be updated')}finally{setBusy('')}}
   const propose=async(b:Booking)=>{const from=await operatorPrompt('Proposed start (ISO date/time)',b.scheduledFrom)??'';if(!from.trim())return;const until=await operatorPrompt('Proposed end (ISO date/time)',b.scheduledUntil)??'';if(!until.trim())return;const note=await operatorPrompt('Reason for alternate time (optional)')??undefined;setBusy(b.id);setError('');try{await api(`/provider/services/bookings/${b.id}/proposals`,{method:'POST',body:JSON.stringify({proposedFrom:new Date(from).toISOString(),proposedUntil:new Date(until).toISOString(),note})},session);await reload()}catch(e){setError(e instanceof Error?e.message:'Counter-proposal could not be created')}finally{setBusy('')}}
+  const refreshQuotes=async(bookingId:string)=>{
+    setBusy(bookingId);setError('');
+    try{
+      const rows=await api<ExtraWorkQuote[]>(`/provider/services/bookings/${bookingId}/extra-work-quotes`,{},session)
+      setQuotes(previous=>({...previous,[bookingId]:rows}))
+    }catch(e){setError(e instanceof Error?e.message:'Could not load quote decisions')}
+    finally{setBusy('')}
+  }
+  const submitQuote=async(b:Booking)=>{
+    let draft=quoteDrafts.current[b.id]
+    if(!draft){
+      const scope=(await operatorPrompt('Describe the extra work (at least 10 characters)'))?.trim()??''
+      if(!scope)return
+      if(scope.length<10||scope.length>1500){setError('Describe extra work in 10–1500 characters');return}
+      const input=(await operatorPrompt('Additional quotation amount in INR (e.g. 125.00)'))?.trim()??''
+      if(!input)return
+      const amountPaise=parseExtraWorkRupees(input)
+      if(amountPaise===null){setError('Enter a positive INR amount with at most 2 decimal places, up to ₹10,00,000');return}
+      draft=preserveQuoteRetryIdentity(undefined,scope,amountPaise,()=>crypto.randomUUID())
+      quoteDrafts.current[b.id]=draft
+    }
+    setBusy(b.id);setError('')
+    try{
+      const saved=await api<ExtraWorkQuote>(`/provider/services/bookings/${b.id}/extra-work-quotes`,{
+        method:'POST',body:JSON.stringify(draft),
+      },session)
+      delete quoteDrafts.current[b.id]
+      setQuotes(previous=>({...previous,[b.id]:[saved,...(previous[b.id]??[]).filter(q=>q.id!==saved.id)]}))
+    }catch(e){setError((e instanceof Error?e.message:'Quote request failed')+
+      '. Retry the saved quote to retain its original request identity.')}
+    finally{setBusy('')}
+  }
+  const discardDraft=(bookingId:string)=>{
+    delete quoteDrafts.current[bookingId]
+    setError('The local quote draft was cleared. Review existing quote decisions before proposing again.')
+  }
   const addEvidence=async(b:Booking)=>{const note=await operatorPrompt('Completion evidence note')??'';if(!note.trim())return;setBusy(b.id);setError('');try{await api(`/provider/services/bookings/${b.id}/completion-evidence`,{method:'POST',body:JSON.stringify({evidenceType:'NOTE',note:note.trim()})},session)}catch(e){setError(e instanceof Error?e.message:'Completion evidence could not be added')}finally{setBusy('')}}
   const loadAssignments=async(id:string)=>{setBusy(id);setError('');try{const rows=await api<Assignment[]>(`/provider/services/bookings/${id}/assignments`,{},session);setAssignments(x=>({...x,[id]:rows}))}catch(e){setError(e instanceof Error?e.message:'Assignments could not be loaded')}finally{setBusy('')}}
   const assign=async(bookingId:string,agentId:string)=>{if(!agentId)return;setBusy(bookingId);setError('');try{await api(`/provider/services/bookings/${bookingId}/assignments`,{method:'POST',body:JSON.stringify({agentId})},session);await loadAssignments(bookingId)}catch(e){setError(e instanceof Error?e.message:'Agent could not be assigned')}finally{setBusy('')}}
   const transition=async(bookingId:string,assignment:Assignment,status:string)=>{setBusy(assignment.id);setError('');try{await api(`/provider/services/assignments/${assignment.id}/status`,{method:'POST',body:JSON.stringify({status})},session);await loadAssignments(bookingId)}catch(e){setError(e instanceof Error?e.message:'Dispatch status could not be updated')}finally{setBusy('')}}
-  return <section style={panel}><h2>Booking queue</h2><p style={muted}>New requests are shown first. Delivery details are immutable booking snapshots.</p>{error&&<div style={errorBox}>{error}</div>}<div style={stack}>{bookings.length===0?<p>No bookings yet.</p>:bookings.map(b=>{const rows=assignments[b.id];const active=rows?.find(a=>!['REJECTED','RELEASED'].includes(a.status));return <article key={b.id} style={card}><div style={{flex:1,minWidth:240}}><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong>{b.offeringName}</strong><span style={badge}>{b.status}</span></div><div>{new Date(b.scheduledFrom).toLocaleString('en-IN')} → {new Date(b.scheduledUntil).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div><small>{money(b.servicePricePaise)} · {addressText(b.addressSnapshot)}</small>{b.notes&&<div style={{marginTop:6}}>Note: {b.notes}</div>}</div><div style={{display:'grid',gap:8,minWidth:210}}>{b.status==='REQUESTED'&&<><button style={primary} disabled={!!busy} onClick={()=>void respond(b,'ACCEPT')}>Accept</button><button style={button} disabled={!!busy} onClick={()=>void propose(b)}>Suggest another time</button><button style={button} disabled={!!busy} onClick={()=>void respond(b,'DECLINE')}>Decline</button></>}{b.status==='IN_PROGRESS'&&<button style={button} disabled={!!busy} onClick={()=>void addEvidence(b)}>Add completion note</button>}{['CONFIRMED','IN_PROGRESS'].includes(b.status)&&<>{!rows?<button style={button} disabled={!!busy} onClick={()=>void loadAssignments(b.id)}>Manage dispatch</button>:active?<><div><b>{active.agentDisplayName??'Assigned agent'}</b> · {active.status}</div>{active.status==='ASSIGNED'&&<button style={primary} onClick={()=>void transition(b.id,active,'ACCEPTED')}>Agent accepted</button>}{active.status==='ACCEPTED'&&<button style={primary} onClick={()=>void transition(b.id,active,'EN_ROUTE')}>Mark en route</button>}{active.status==='EN_ROUTE'&&<button style={primary} onClick={()=>void transition(b.id,active,'ARRIVED')}>Mark arrived</button>}{['ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED'].includes(active.status)&&<button style={button} onClick={()=>void transition(b.id,active,'RELEASED')}>Release assignment</button>}</>:<select style={input} defaultValue="" onChange={e=>void assign(b.id,e.target.value)}><option value="">Assign field agent…</option>{agents.filter(a=>a.active).map(a=><option key={a.id} value={a.id}>{a.displayName}</option>)}</select>}</>}</div></article>})}</div></section>
+  return <section style={panel}><h2>Booking queue</h2><p style={muted}>New requests are shown first. Delivery details are immutable booking snapshots.</p>{error&&<div style={errorBox}>{error}</div>}<div style={stack}>{bookings.length===0?<p>No bookings yet.</p>:bookings.map(b=>{const rows=assignments[b.id];const active=rows?.find(a=>!['REJECTED','RELEASED'].includes(a.status));return <article key={b.id} style={card}><div style={{flex:1,minWidth:240}}><div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><strong>{b.offeringName}</strong><span style={badge}>{b.status}</span></div><div>{new Date(b.scheduledFrom).toLocaleString('en-IN')} → {new Date(b.scheduledUntil).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div><small>{money(b.servicePricePaise)} · {addressText(b.addressSnapshot)}</small>{b.notes&&<div style={{marginTop:6}}>Note: {b.notes}</div>}</div><div style={{display:'grid',gap:8,minWidth:210}}>{b.status==='REQUESTED'&&<><button style={primary} disabled={!!busy} onClick={()=>void respond(b,'ACCEPT')}>Accept</button><button style={button} disabled={!!busy} onClick={()=>void propose(b)}>Suggest another time</button><button style={button} disabled={!!busy} onClick={()=>void respond(b,'DECLINE')}>Decline</button></>}{b.status==='IN_PROGRESS'&&<><button style={button} disabled={!!busy} onClick={()=>void addEvidence(b)}>Add completion note</button><button style={primary} disabled={!!busy} onClick={()=>void submitQuote(b)}>{quoteDrafts.current[b.id]?'Retry saved quote':'Propose extra work quote'}</button>{quoteDrafts.current[b.id]&&<button style={button} disabled={!!busy} onClick={()=>discardDraft(b.id)}>Discard local draft</button>}</>}
+<button style={button} disabled={!!busy} onClick={()=>void refreshQuotes(b.id)}>Review quote decisions</button>
+{(quotes[b.id]??[]).map(q=><div key={q.id} style={{fontSize:13,padding:8,border:'1px solid #d7e3e4',borderRadius:10}}><strong>{q.scopeDescription}</strong><div>{money(Number(q.amountPaise))} additional · {q.status}</div>{q.responseReason&&<small>Resident response: {q.responseReason}</small>}<small style={{display:'block'}}>No payment or original-price change occurs on approval.</small></div>)}{['CONFIRMED','IN_PROGRESS'].includes(b.status)&&<>{!rows?<button style={button} disabled={!!busy} onClick={()=>void loadAssignments(b.id)}>Manage dispatch</button>:active?<><div><b>{active.agentDisplayName??'Assigned agent'}</b> · {active.status}</div>{active.status==='ASSIGNED'&&<button style={primary} onClick={()=>void transition(b.id,active,'ACCEPTED')}>Agent accepted</button>}{active.status==='ACCEPTED'&&<button style={primary} onClick={()=>void transition(b.id,active,'EN_ROUTE')}>Mark en route</button>}{active.status==='EN_ROUTE'&&<button style={primary} onClick={()=>void transition(b.id,active,'ARRIVED')}>Mark arrived</button>}{['ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED'].includes(active.status)&&<button style={button} onClick={()=>void transition(b.id,active,'RELEASED')}>Release assignment</button>}</>:<select style={input} defaultValue="" onChange={e=>void assign(b.id,e.target.value)}><option value="">Assign field agent…</option>{agents.filter(a=>a.active).map(a=><option key={a.id} value={a.id}>{a.displayName}</option>)}</select>}</>}</div></article>})}</div></section>
 }
 
 function Catalogue({session,offerings,reload}:{session:AuthSession;offerings:Offering[];reload:()=>Promise<void>}){
