@@ -11,7 +11,7 @@ export class PaymentExceptionsService{
 
   async paymentSnapshot(societyId:string,paymentId:string){
     const rows=await this.prisma.$queryRaw<Array<{id:string;status:string;amountPaise:bigint;grossAllocated:bigint;reversedAllocated:bigint;refundedPaise:bigint}>>(Prisma.sql`
-      SELECT p."id",p."status",p."amountPaise",
+      SELECT p."id",p."status",p."amountPaise"::bigint AS "amountPaise",
         COALESCE((SELECT SUM(a."amountPaise") FROM "ReceivableAllocation" a WHERE a."societyId"=p."societyId" AND a."paymentId"=p."id"),0)::bigint AS "grossAllocated",
         COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r JOIN "ReceivableAllocation" a ON a."id"=r."allocationId" AND a."societyId"=r."societyId" WHERE a."societyId"=p."societyId" AND a."paymentId"=p."id"),0)::bigint AS "reversedAllocated",
         COALESCE((SELECT SUM(rf."amountPaise") FROM "PaymentRefund" rf WHERE rf."societyId"=p."societyId" AND rf."paymentId"=p."id"),0)::bigint AS "refundedPaise"

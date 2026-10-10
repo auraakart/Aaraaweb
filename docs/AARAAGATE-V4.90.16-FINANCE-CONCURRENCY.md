@@ -8,10 +8,19 @@
 - `SettlementService` and `PaymentExceptionsService` use per-society idempotency identities, validating safe whole-paise amounts. Reconciliation records provider observations and must invalidate `MATCHED` when expected refunded amount changes.
 
 ## Acceptance matrix
-The new `finance-concurrency.postgres.spec.ts` runs seven actual committed PostgreSQL operations: competing allocations against one payment; two payments against one receivable; two over-limit refunds; two reversals against one allocation plus released-funds refund; mixed refund/allocation race; identical-key concurrent refund retries; and payment-reconciliation `MATCHED` → `PENDING` → `MATCHED` on additional partial refund. Assert persisted paise totals, receipt cardinality, status and expected versus observed net amounts, not merely mocked callback ordering.
+The new `finance-concurrency.postgres.spec.ts` runs eight actual committed PostgreSQL operations: competing allocations against one payment; two payments against one receivable; two over-limit refunds; two reversals against one allocation plus released-funds refund; mixed refund/allocation race; identical-key concurrent refund retries; and payment-reconciliation `MATCHED` → `PENDING` → `MATCHED` on additional partial refund. Assert persisted paise totals, receipt cardinality, status and expected versus observed net amounts, not merely mocked callback ordering.
 
 ## Database safety
 Accounting histories are intentionally append-only and prohibit deletion by test teardown. Therefore this suite is **opt-in and locked to** `GITHUB_ACTIONS=true`, `AARAAGATE_FINANCE_CONCURRENCY_CI=1`, localhost port 5432, database `aaraagate_ci`, no override schema. CI provisions this disposable PostgreSQL 16 container and migrates it afresh; it is destroyed after the run. Persistent/local databases skip this suite even if `DATABASE_URL` is present. No trigger disabling, test-data deletion, external payment instructions or altered runtime permissions.
 
 ## Validation and exclusions
 Required PR-head GitHub API full CI must pass schema validation, clean migrations, lint, typecheck, targeted PostgreSQL acceptance, broad API tests, coverage and merge gates before develop integration. Remain outside scope: bank import provenance, representative Tally CSV signoff, live payment gateway operation, device UAT, staging/main promotion and productionization. A CI pass is **simulated provider observation acceptance**, not third-party reconciled evidence.
+
+## Findings from first migrated CI execution and verified code corrections
+
+The first full PostgreSQL run **failed** and exposed actual defects suppressed by mocked tests:
+1. The deployed `aaraagate_recalculate_receivable_status` function referenced `'OPEN'::"ReceivableStatus"`, although the enum only permits `ISSUED`, `PARTIALLY_SETTLED`, `SETTLED`, `VOID`. Consequently ordinary allocation or reversal writes failed at the database boundary. A forward-only migration replaces the function using the correct `ISSUED` branch without altering old migrations, immutable receipts or trigger attachments.
+2. `Payment.amountPaise` is an SQL INT and comes back to JavaScript as `number`; allocation/refund sums are PostgreSQL BIGINT and come back as `bigint`. Balance calculations and reconciliation mismatched these runtime types. Cast captured payment amount to `bigint` in the three affected SQL read projections so calculations use exact integer arithmetic.
+3. Added an eighth end-to-end case verifying full reversal returns the receivable to `ISSUED` and preserves the append-only history.
+
+The initial CI result is **not** a pass; require a new successful exact-head run before merging.

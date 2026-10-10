@@ -148,6 +148,26 @@ disposable('V4.90.16 finance concurrent acceptance on migrated disposable Postgr
     expect(receivable.status).toBe('PARTIALLY_SETTLED');
   }, 25_000);
 
+
+  it('restores ISSUED after a fully reversed allocation, without rewriting history', async () => {
+    const paymentId = await createCapturedPayment(1000);
+    const receivableId = await createReceivable(1000);
+    const allocation = await settlement.allocate(societyId, userId, receivableId, {
+      paymentId, amountPaise: 1000, idempotencyKey: randomUUID(),
+    }) as { id: string };
+    await exceptions.reverseAllocation(societyId, userId, allocation.id, {
+      amountPaise: 1000, reason: 'Full reversal', idempotencyKey: randomUUID(),
+    });
+    const [receivable] = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status"::text AS status FROM "Receivable"
+      WHERE "societyId"=${societyId}::uuid AND "id"=${receivableId}::uuid
+    `);
+    expect(receivable.status).toBe('ISSUED');
+    expect(await settlement.paymentAvailability(societyId, paymentId)).toMatchObject({
+      grossAllocatedPaise: '1000', reversedPaise: '1000', availablePaise: '1000',
+    });
+  }, 25_000);
+
   it('never allows a concurrent refund and allocation to exceed captured funds', async () => {
     const paymentId = await createCapturedPayment(1000);
     const receivableId = await createReceivable(1000);

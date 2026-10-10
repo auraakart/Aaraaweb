@@ -46,7 +46,7 @@ export class PaymentReconciliationService{
   `);if(!rows.length)throw new NotFoundException('Reconciliation case not found');return rows[0];}
 
   async openOrRefreshCase(societyId:string,paymentId:string,provider:string){const providerName=provider.trim();if(!providerName)throw new BadRequestException('Provider is required');return this.prisma.$transaction(async tx=>{
-    const p=await tx.$queryRaw<Array<{id:string;status:string;amountPaise:bigint}>>(Prisma.sql`SELECT "id","status","amountPaise" FROM "Payment" WHERE "societyId"=${societyId}::uuid AND "id"=${paymentId}::uuid FOR UPDATE`);if(!p.length)throw new NotFoundException('Payment not found');
+    const p=await tx.$queryRaw<Array<{id:string;status:string;amountPaise:bigint}>>(Prisma.sql`SELECT "id","status","amountPaise"::bigint AS "amountPaise" FROM "Payment" WHERE "societyId"=${societyId}::uuid AND "id"=${paymentId}::uuid FOR UPDATE`);if(!p.length)throw new NotFoundException('Payment not found');
     const refunds=await tx.$queryRaw<Array<{total:bigint}>>(Prisma.sql`SELECT COALESCE(SUM("amountPaise"),0)::bigint AS total FROM "PaymentRefund" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid`);
     const captured=(p[0].status==='CAPTURED'||p[0].status==='REFUNDED')?p[0].amountPaise:0n,refunded=refunds[0].total;
     const existing=await tx.$queryRaw<Array<{id:string;provider:string}>>(Prisma.sql`SELECT "id","provider" FROM "PaymentReconciliationCase" WHERE "societyId"=${societyId}::uuid AND "paymentId"=${paymentId}::uuid AND "status"<>'RESOLVED' FOR UPDATE`);
