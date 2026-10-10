@@ -119,7 +119,7 @@ testWidgets('service issue resolution is visible after reopening a completed boo
   await tester.pumpAndSettle();
   expect(find.text('Service issue history'), findsOneWidget);
   expect(find.text('Status: RESOLVED'), findsOneWidget);
-  expect(find.text('Replacement part installed', findRichText: true), findsWidgets);
+  expect(find.textContaining('Resolution: Replacement part installed'), findsOneWidget);
 });
 
 testWidgets('an open service dispute stays visible while a second report is disabled', (tester) async {
