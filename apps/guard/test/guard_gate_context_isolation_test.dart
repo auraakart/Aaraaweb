@@ -14,6 +14,8 @@ class _DelayedGateApi extends GuardApi {
   final status = Completer<Map<String, dynamic>>();
   final credentialCheckIn = Completer<Map<String, dynamic>>();
   final credentialCheckOut = Completer<Map<String, dynamic>>();
+  final walkInCheckIn = Completer<Map<String, dynamic>>();
+  final walkInCheckOut = Completer<Map<String, dynamic>>();
 
   @override
   Future<Map<String, dynamic>> createWalkIn({required String gateId, required String unitId, required String name, String? phone, String? purpose}) => walkIn.future;
@@ -32,6 +34,12 @@ class _DelayedGateApi extends GuardApi {
 
   @override
   Future<Map<String, dynamic>> checkOut(String gateId, String credential, String idempotencyKey) => credentialCheckOut.future;
+
+  @override
+  Future<Map<String, dynamic>> checkInRequest(String gateId, String requestId, String idempotencyKey) => walkInCheckIn.future;
+
+  @override
+  Future<Map<String, dynamic>> checkOutRequest(String gateId, String requestId, String idempotencyKey) => walkInCheckOut.future;
 }
 
 class _MemoryOfflineQueue extends OfflineActionQueue {
@@ -169,6 +177,46 @@ void main() {
     expect(queue.actions, hasLength(1));
     expect(controller.queuedActions, 1);
     expect(controller.error, contains('saved and will sync safely'));
+    controller.dispose();
+  });
+
+  test('a late walk-in check-in cannot resurrect the previous gate request', () async {
+    final api = _DelayedGateApi();
+    final controller = _controller(api);
+    controller.walkInAccess = {'id': 'old-request', 'status': 'APPROVED'};
+    final pending = controller.checkInWalkIn();
+    controller.selectGate('gate-new');
+    api.walkInCheckIn.complete({'id': 'old-request', 'status': 'CHECKED_IN'});
+    await pending;
+    expect(controller.walkInAccess, isNull);
+    expect(controller.error, isNull);
+    controller.dispose();
+  });
+
+  test('a late walk-in check-out cannot overwrite a newer active request', () async {
+    final api = _DelayedGateApi();
+    final controller = _controller(api);
+    controller.walkInAccess = {'id': 'old-request', 'status': 'CHECKED_IN'};
+    final pending = controller.checkOutWalkIn();
+    controller.walkInAccess = {'id': 'new-request', 'status': 'APPROVED'};
+    api.walkInCheckOut.complete({'id': 'old-request', 'status': 'CHECKED_OUT'});
+    await pending;
+    expect(controller.walkInAccess?['id'], 'new-request');
+    expect(controller.walkInAccess?['status'], 'APPROVED');
+    expect(controller.error, isNull);
+    controller.dispose();
+  });
+
+  test('a late failed walk-in write is silent after switching gates', () async {
+    final api = _DelayedGateApi();
+    final controller = _controller(api);
+    controller.walkInAccess = {'id': 'old-request', 'status': 'APPROVED'};
+    final pending = controller.checkInWalkIn();
+    controller.selectGate('gate-new');
+    api.walkInCheckIn.completeError(GuardApiException('offline', transport: true));
+    await pending;
+    expect(controller.walkInAccess, isNull);
+    expect(controller.error, isNull);
     controller.dispose();
   });
 
