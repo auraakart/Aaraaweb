@@ -12,6 +12,8 @@ class _DelayedGateApi extends GuardApi {
   final arrival = Completer<Map<String, dynamic>>();
   final verify = Completer<Map<String, dynamic>>();
   final status = Completer<Map<String, dynamic>>();
+  final credentialCheckIn = Completer<Map<String, dynamic>>();
+  final credentialCheckOut = Completer<Map<String, dynamic>>();
 
   @override
   Future<Map<String, dynamic>> createWalkIn({required String gateId, required String unitId, required String name, String? phone, String? purpose}) => walkIn.future;
@@ -24,6 +26,22 @@ class _DelayedGateApi extends GuardApi {
 
   @override
   Future<Map<String, dynamic>> requestStatus(String gateId, String requestId) => status.future;
+
+  @override
+  Future<Map<String, dynamic>> checkIn(String gateId, String credential, String idempotencyKey) => credentialCheckIn.future;
+
+  @override
+  Future<Map<String, dynamic>> checkOut(String gateId, String credential, String idempotencyKey) => credentialCheckOut.future;
+}
+
+class _MemoryOfflineQueue extends OfflineActionQueue {
+  final actions = <QueuedGateAction>[];
+
+  @override
+  Future<void> enqueue(QueuedGateAction action) async => actions.add(action);
+
+  @override
+  Future<List<QueuedGateAction>> read() async => List.unmodifiable(actions);
 }
 
 const _originalSession = GuardSession(
@@ -31,10 +49,10 @@ const _originalSession = GuardSession(
   userId: 'guard-old', societyId: 'society-1',
 );
 
-GuardController _controller(_DelayedGateApi api) => GuardController(
+GuardController _controller(_DelayedGateApi api, {OfflineActionQueue? offlineQueue}) => GuardController(
   api: api,
   sessions: const GuardSessionStore(),
-  offlineQueue: const OfflineActionQueue(),
+  offlineQueue: offlineQueue ?? const OfflineActionQueue(),
 )..session = _originalSession
  ..gateId = 'gate-old';
 
@@ -88,4 +106,70 @@ void main() {
     expect(controller.walkInAccess, isNull);
     controller.dispose();
   });
+  test('late credential check-in cannot replace the next gate verified card', () async {
+    final api = _DelayedGateApi();
+    final controller = _controller(api);
+    final pending = controller.checkIn('credential-old');
+    controller.selectGate('gate-new');
+    api.credentialCheckIn.complete({'id': 'old-entry', 'status': 'CHECKED_IN'});
+    await pending;
+    expect(controller.verifiedAccess, isNull);
+    expect(controller.error, isNull);
+    expect(controller.gateId, 'gate-new');
+    controller.dispose();
+  });
+
+  test('late credential check-out cannot replace a new guard session', () async {
+    final api = _DelayedGateApi();
+    final controller = _controller(api);
+    final pending = controller.checkOut('credential-old');
+    controller.session = const GuardSession(
+      sessionId: 'session-new', accessToken: 'token-new', refreshToken: 'refresh-new',
+      userId: 'guard-new', societyId: 'society-2',
+    );
+    api.credentialCheckOut.complete({'id': 'old-exit', 'status': 'CHECKED_OUT'});
+    await pending;
+    expect(controller.verifiedAccess, isNull);
+    expect(controller.error, isNull);
+    controller.dispose();
+  });
+
+  test('uncertain credential mutation retains the originating guard and gate after a session switch', () async {
+    final api = _DelayedGateApi();
+    final queue = _MemoryOfflineQueue();
+    final controller = _controller(api, offlineQueue: queue);
+    final pending = controller.checkIn('credential-old');
+    controller.session = const GuardSession(
+      sessionId: 'session-new', accessToken: 'token-new', refreshToken: 'refresh-new',
+      userId: 'guard-new', societyId: 'society-2',
+    );
+    controller.selectGate('gate-new');
+    api.credentialCheckIn.completeError(GuardApiException('connection dropped', transport: true));
+    await pending;
+    expect(queue.actions, hasLength(1));
+    final original = queue.actions.single;
+    expect(original.societyId, _originalSession.societyId);
+    expect(original.guardUserId, _originalSession.userId);
+    expect(original.gateId, 'gate-old');
+    expect(original.credential, 'credential-old');
+    expect(original.idempotencyKey, isNotEmpty);
+    expect(controller.queuedActions, 0);
+    expect(controller.offlineSyncMessage, isNull);
+    expect(controller.error, isNull);
+    controller.dispose();
+  });
+
+  test('current guard still gets a recoverable offline confirmation', () async {
+    final api = _DelayedGateApi();
+    final queue = _MemoryOfflineQueue();
+    final controller = _controller(api, offlineQueue: queue);
+    final pending = controller.checkIn('credential-old');
+    api.credentialCheckIn.completeError(GuardApiException('connection dropped', transport: true));
+    await pending;
+    expect(queue.actions, hasLength(1));
+    expect(controller.queuedActions, 1);
+    expect(controller.error, contains('saved and will sync safely'));
+    controller.dispose();
+  });
+
 }
