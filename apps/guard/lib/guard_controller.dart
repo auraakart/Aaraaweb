@@ -341,15 +341,37 @@ class GuardController extends ChangeNotifier {
       final value = credential.trim();
       if (value.isEmpty) throw StateError('Scan or enter an access credential');
       final gate = _requireGate();
+      final startedSession = session;
+      if (startedSession == null) throw StateError('Sign in to record a gate action');
+      final epoch = _gateContextEpoch;
       final key = _idempotencyKey();
       try {
-        verifiedAccess = type == 'CHECK_IN' ? await api.checkIn(gate, value, key) : await api.checkOut(gate, value, key);
+        final updated = type == 'CHECK_IN'
+            ? await api.checkIn(gate, value, key)
+            : await api.checkOut(gate, value, key);
+        // A completed write for the previous guard/gate must not appear in the
+        // newly selected gate's verified access card.
+        if (_sameGateContext(gate, startedSession, epoch)) verifiedAccess = updated;
       } on GuardApiException catch (e) {
-        if (!e.transport) rethrow;
-        final current = session;
-        if (current == null) throw StateError('Sign in is required to save an offline action');
-        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now().toUtc(), societyId: current.societyId, guardUserId: current.userId));
-        await _refreshQueueCounts(current);
+        if (!e.transport) {
+          if (_sameGateContext(gate, startedSession, epoch)) rethrow;
+          return;
+        }
+        // A lost response may have committed server-side. Persist exactly the
+        // original operation/key and originating session for safe reconciliation,
+        // never whichever guard happens to be selected when the error arrives.
+        await offlineQueue.enqueue(QueuedGateAction(
+          type: type,
+          gateId: gate,
+          credential: value,
+          idempotencyKey: key,
+          createdAt: DateTime.now().toUtc(),
+          societyId: startedSession.societyId,
+          guardUserId: startedSession.userId,
+        ));
+        if (!_sameGateContext(gate, startedSession, epoch)) return;
+        await _refreshQueueCounts(startedSession);
+        if (!_sameGateContext(gate, startedSession, epoch)) return;
         offlineSyncMessage = 'Action saved securely. Retry when connectivity returns.';
         throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
