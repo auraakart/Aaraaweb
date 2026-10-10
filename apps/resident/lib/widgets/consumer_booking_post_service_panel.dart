@@ -22,6 +22,8 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   bool _respondingProposal = false;
   bool _respondingQuote = false;
   bool _openingDispute = false;
+  bool _addingDisputeEvidence = false;
+  final Map<String, Map<String, String>> _pendingDisputeEvidence = {};
   String? _error;
   Map<String, dynamic>? _completion;
   Map<String, dynamic>? _rating;
@@ -29,6 +31,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   List<Map<String, dynamic>> _quotes = const [];
   List<Map<String, dynamic>> _evidence = const [];
   List<Map<String, dynamic>> _disputes = const [];
+  Map<String, List<Map<String, dynamic>>> _disputeEvidence = {};
   int _stars = 0;
   final TextEditingController _comment = TextEditingController();
 
@@ -78,8 +81,20 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       } catch (_) {
         disputesRaw = const <dynamic>[];
       }
+      final threadRows = <String, List<Map<String, dynamic>>>{};
+      for (final d in (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().take(5)) {
+        final disputeId = d['id']?.toString() ?? '';
+        if (disputeId.isEmpty) continue;
+        try {
+          final items = await widget.apiClient.get(
+            '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes/$disputeId/evidence');
+          threadRows[disputeId] = (items as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>().toList();
+        } catch (_) { threadRows[disputeId] = const []; }
+      }
       if (!mounted) return;
       setState(() {
+        _disputeEvidence = threadRows;
         _completion = results[0] is Map<String, dynamic> ? results[0] as Map<String, dynamic> : null;
         _rating = results[1] is Map<String, dynamic> ? results[1] as Map<String, dynamic> : null;
         _stars = (_rating?['stars'] as num?)?.toInt() ?? 0;
@@ -302,6 +317,52 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     }
   }
 
+
+  Future<void> _addDisputeEvidence(String disputeId) async {
+    if (_addingDisputeEvidence) return;
+    var pending = _pendingDisputeEvidence[disputeId];
+    if (pending == null) {
+      final controller = TextEditingController();
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Add evidence to service issue'),
+          content: TextField(controller: controller, maxLength: 2000,
+              maxLines: 4, decoration: const InputDecoration(
+              labelText: 'Evidence note', hintText: 'Describe the work or communication')),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Add note')),
+          ],
+        ),
+      );
+      final text = controller.text.trim();
+      controller.dispose();
+      if (accepted != true || text.length < 5 || text.length > 2000 || !mounted) return;
+      pending = {
+        'note': text,
+        'idempotencyKey': '${DateTime.now().microsecondsSinceEpoch}-$disputeId',
+      };
+      _pendingDisputeEvidence[disputeId] = pending;
+    }
+    setState(() => _addingDisputeEvidence = true);
+    try {
+      await widget.apiClient.post(
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes/$disputeId/evidence',
+        pending,
+      );
+      _pendingDisputeEvidence.remove(disputeId);
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Evidence note added to the review history.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Evidence not confirmed: $e. Retry the saved note.')));
+    } finally {
+      if (mounted) setState(() => _addingDisputeEvidence = false);
+    }
+  }
+
   Future<void> _submitRating() async {
     if (_submittingRating || _stars < 1) return;
     setState(() => _submittingRating = true);
@@ -466,6 +527,24 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                           Text(dispute['detail'].toString()),
                         if ((dispute['resolutionNote']?.toString() ?? '').isNotEmpty)
                           Text('Resolution: ${dispute['resolutionNote']}'),
+                        ...(_disputeEvidence[dispute['id']?.toString() ?? ''] ?? const <Map<String, dynamic>>[])
+                            .take(5).map((item) => Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text('${item['actorType'] == 'PROVIDER' ? 'Provider' : 'Resident'}: ${item['note'] ?? ''}'),
+                            )),
+                        if (dispute['status'] == 'OPEN' || dispute['status'] == 'UNDER_REVIEW')
+                          TextButton(
+                            onPressed: _addingDisputeEvidence ? null : () =>
+                                _addDisputeEvidence(dispute['id'].toString()),
+                            child: Text(_pendingDisputeEvidence.containsKey(dispute['id']?.toString())
+                                ? 'Retry saved evidence note' : 'Add evidence note'),
+                          ),
+                        if (_pendingDisputeEvidence.containsKey(dispute['id']?.toString()))
+                          TextButton(
+                            onPressed: _addingDisputeEvidence ? null : () => setState(() =>
+                                _pendingDisputeEvidence.remove(dispute['id']?.toString())),
+                            child: const Text('Discard saved evidence note'),
+                          ),
                       ],
                     ),
                   )),
