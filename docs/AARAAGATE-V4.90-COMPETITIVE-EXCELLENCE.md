@@ -72,6 +72,33 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 **Boundaries:** this changes only client-side presentation; backend society/household authorization still determines returned rows. No main/staging promotion, field metrics, device acceptance, 8.5+ re-score or infrastructure claim is included. Full CI exact-head validation must precede develop merge. Large-file modularization and nonproduction pilot evidence remain open.
 
+## V4.90.7–V4.90.13 verified develop continuation
+
+**Evidence baseline:** `develop` merge head `a7f4ea00019ee2b116610243bef4f9c070cfe4fa`. The rows below record repository code and CI completion, **not** hosted or device acceptance. Individual slice documents provide details, tests and known limitations.
+
+| Slice | Develop merge | PR | Implemented and CI-validated scope |
+|---|---|---|---|
+| V4.90.7 | `0328a6d` | [#1172](https://github.com/auraakart/Aaraaweb/pull/1172) | Guard workforce offline queue: bounded transport retries, stale/conflict supervisor review, secure session scoping |
+| V4.90.8 | `950ecf7` | [#1173](https://github.com/auraakart/Aaraaweb/pull/1173) | Reconcile uncertain walk-in access transitions and preserve a stable session-scoped mutation identity |
+| V4.90.9 | `12cce0b` | [#1174](https://github.com/auraakart/Aaraaweb/pull/1174) | Safe whole-paise inputs for allocation/reversal/refund and nonblank payment retry keys |
+| V4.90.10 | `a0877e1` | [#1175](https://github.com/auraakart/Aaraaweb/pull/1175) | Safe whole-paise gateway observations and provider refund-operation requests |
+| V4.90.11 | `55bc65c` | [#1176](https://github.com/auraakart/Aaraaweb/pull/1176) | Guard delayed response isolation across gate/session/request changes; risk-weighted Flutter regression evidence |
+| V4.90.12 | `8b9b980` | [#1177](https://github.com/auraakart/Aaraaweb/pull/1177) | Exact same-key service-booking recovery after appointment start; past-slot new booking still denied |
+| V4.90.13 | `a7f4ea0` | [#1178](https://github.com/auraakart/Aaraaweb/pull/1178) | Guest/overnight parking questions routed only to existing authorized published society documents |
+
+**Engineering gate evidence:** Each referenced PR was checked against its exact feature head, passed its required GitHub CI, and was merged into `develop`. The finance and services slices passed clean PostgreSQL migration/workflow checks; Guard slices passed risk-weighted Flutter checks, including the coverage floor; the AI slice passed API checks. This table does not imply physical pilot or external integration acceptance.
+
+### Residual non-production acceptance — explicitly open
+
+1. **Gate:** full in-flight gate-mutation context isolation, denied-entry/no-response user journeys, supervisor shift reconciliation, cross-role smoke and real-device offline reliability
+2. **Finance:** broader concurrent partial-settlement/reversal/refund test matrix, imported bank statement provenance, Tally CSV acceptance against a representative ledger and audit review
+3. **Services 3.1:** quoted extra-work approval, booking modifications, dispute/revisit continuity and provider behavior validation
+4. **Resident/Guard/Admin UX:** 320px / 200%-text, TalkBack/keyboard, reduced-motion and dark/light checks with real Android devices and Admin browser acceptance
+5. **Society Copilot:** multilingual grounded-answer quality set, citation/no-evidence adversarial tests, owner/occupant privacy review and explicit approval flows
+6. **Governance:** exact final-head performance evidence, independent closure review and refreshed non-production quality/competitor score before any consolidated staging candidate
+
+**Release policy:** No V4.90 staging or main promotion is part of these merges. Productionization, live providers, hardware certification and real field acceptance remain separately gated. The target 8.5+/10 is a criterion, **not** a score established by these changes.
+
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
