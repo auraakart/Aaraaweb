@@ -9,6 +9,7 @@ class FakeApiClient extends ApiClient {
   Map<String, dynamic> completion;
   Map<String, dynamic>? rating;
   List<Map<String, dynamic>> disputes = const [];
+  List<Map<String, dynamic>> quotes = const [];
   final List<String> posts = <String>[];
   Map<String, dynamic>? lastBody;
 
@@ -17,6 +18,7 @@ class FakeApiClient extends ApiClient {
     if (path.endsWith('/completion')) return completion;
     if (path.endsWith('/rating')) return rating;
     if (path.endsWith('/disputes')) return disputes;
+    if (path.endsWith('/extra-work-quotes')) return quotes;
     throw StateError('Unexpected GET $path');
   }
 
@@ -24,6 +26,13 @@ class FakeApiClient extends ApiClient {
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
     posts.add(path);
     lastBody = body;
+    if (path.contains('/extra-work-quotes/') && path.endsWith('/respond')) {
+      final quoteId = path.split('/extra-work-quotes/').last.split('/').first;
+      quotes = quotes.map((q) => q['id'] == quoteId
+          ? {...q, 'status': body?['decision'] == 'APPROVE' ? 'APPROVED' : 'DECLINED'}
+          : q).toList();
+      return quotes.firstWhere((q) => q['id'] == quoteId);
+    }
     if (path.endsWith('/completion/confirm')) {
       completion = <String, dynamic>{
         ...completion,
@@ -140,4 +149,46 @@ testWidgets('an open service dispute stays visible while a second report is disa
   expect(button.onPressed, isNull);
   expect(client.posts, isEmpty);
 });
+  testWidgets('resident confirms extra-work approval without a payment operation', (tester) async {
+    final client = FakeApiClient(completion: {
+      'bookingStatus': 'IN_PROGRESS', 'requestedAt': null, 'confirmedAt': null,
+    })..quotes = [{
+      'id': 'quote-1', 'scopeDescription': 'Replace damaged valve',
+      'amountPaise': '12500', 'status': 'PENDING',
+    }];
+    await tester.pumpWidget(host(client));
+    await tester.pumpAndSettle();
+    expect(find.text('Extra-work quotations'), findsOneWidget);
+    expect(find.text('Extra work: ₹125.00'), findsOneWidget);
+    await tester.ensureVisible(find.text('Approve extra work'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Approve extra work'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm approval'), findsOneWidget);
+    expect(client.posts, isEmpty);
+    await tester.tap(find.text('Confirm approval'));
+    await tester.pumpAndSettle();
+    expect(client.lastBody?['decision'], 'APPROVE');
+    expect(client.posts.single, contains('/extra-work-quotes/quote-1/respond'));
+    expect(find.text('Quote status: APPROVED'), findsOneWidget);
+    expect(find.text('Approve extra work'), findsNothing);
+  });
+
+  testWidgets('completed quote stays visible without any new acceptance control', (tester) async {
+    final client = FakeApiClient(completion: {
+      'bookingStatus': 'COMPLETED',
+      'requestedAt': '2026-09-07T11:55:00.000Z',
+      'confirmedAt': '2026-09-07T12:00:00.000Z',
+    })..quotes = [{
+      'id': 'quote-1', 'scopeDescription': 'Replace damaged valve',
+      'amountPaise': '12500', 'status': 'APPROVED',
+    }];
+    await tester.pumpWidget(host(client));
+    await tester.pumpAndSettle();
+    expect(find.text('Quote status: APPROVED'), findsOneWidget);
+    expect(find.text('Approve extra work'), findsNothing);
+    expect(client.posts, isEmpty);
+  });
+
+
 }

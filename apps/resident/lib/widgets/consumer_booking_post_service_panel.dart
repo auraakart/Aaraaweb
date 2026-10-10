@@ -20,11 +20,13 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   bool _confirming = false;
   bool _submittingRating = false;
   bool _respondingProposal = false;
+  bool _respondingQuote = false;
   bool _openingDispute = false;
   String? _error;
   Map<String, dynamic>? _completion;
   Map<String, dynamic>? _rating;
   List<Map<String, dynamic>> _proposals = const [];
+  List<Map<String, dynamic>> _quotes = const [];
   List<Map<String, dynamic>> _evidence = const [];
   List<Map<String, dynamic>> _disputes = const [];
   int _stars = 0;
@@ -53,8 +55,14 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/rating'),
       ]);
       dynamic proposalsRaw;
+      dynamic quotesRaw;
       dynamic evidenceRaw;
       dynamic disputesRaw;
+      try {
+        quotesRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes');
+      } catch (_) {
+        quotesRaw = const <dynamic>[];
+      }
       try {
         proposalsRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals');
       } catch (_) {
@@ -77,6 +85,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         _stars = (_rating?['stars'] as num?)?.toInt() ?? 0;
         _comment.text = _rating?['comment']?.toString() ?? '';
         _proposals = (proposalsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _quotes = (quotesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _evidence = (evidenceRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _disputes = (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
@@ -167,6 +176,81 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _respondingProposal = false);
+    }
+  }
+
+
+  String _quoteRupees(String raw) {
+    final amount = BigInt.tryParse(raw) ?? BigInt.zero;
+    final rupees = amount ~/ BigInt.from(100);
+    final cents = (amount % BigInt.from(100)).toString().padLeft(2, '0');
+    return '₹$rupees.$cents';
+  }
+
+  Future<void> _respondToQuote(Map<String, dynamic> quote, bool approve) async {
+    if (_respondingQuote) return;
+    final id = quote['id']?.toString();
+    if (id == null) return;
+    final reasonController = TextEditingController();
+    String? validation;
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, update) => AlertDialog(
+          title: Text(approve ? 'Approve extra work?' : 'Decline extra work?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(quote['scopeDescription']?.toString() ?? ''),
+              const SizedBox(height: 8),
+              Text('Additional quote: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
+              const SizedBox(height: 8),
+              const Text('This records consent only. No payment is taken and your original booking charge is unchanged.'),
+              if (!approve) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 500,
+                  maxLines: 2,
+                  decoration: InputDecoration(labelText: 'Reason for declining', errorText: validation),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Keep reviewing')),
+            FilledButton(
+              onPressed: () {
+                if (!approve && reasonController.text.trim().length < 3) {
+                  update(() => validation = 'Please give a short reason.');
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: Text(approve ? 'Confirm approval' : 'Confirm decline'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (agreed != true || !mounted) return;
+    setState(() => _respondingQuote = true);
+    try {
+      await widget.apiClient.post(
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$id/respond',
+        {'decision': approve ? 'APPROVE' : 'DECLINE', if (!approve) 'reason': reason},
+      );
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(approve ? 'Extra work approved. No payment was taken.' : 'Extra work declined.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _respondingQuote = false);
     }
   }
 
@@ -281,7 +365,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
 
     final unresolvedDispute = _disputes.any((d) => d['status'] == 'OPEN' || d['status'] == 'UNDER_REVIEW');
     if (!completionPending && !completed && pendingProposal == null &&
-        _evidence.isEmpty && _disputes.isEmpty) return const SizedBox.shrink();
+        _evidence.isEmpty && _disputes.isEmpty && _quotes.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     return Column(
@@ -312,6 +396,52 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                       Expanded(child: FilledButton(onPressed: _respondingProposal ? null : () => _respondToProposal(pendingProposal!, 'ACCEPT'), child: const Text('Accept time'))),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
+
+        if (_quotes.isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Extra-work quotations', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  const Text('Approving a quote does not charge you or alter your original booking price.'),
+                  const SizedBox(height: 10),
+                  ..._quotes.take(5).map((quote) {
+                    final pending = quote['status'] == 'PENDING';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(quote['scopeDescription']?.toString() ?? ''),
+                          Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
+                          Text('Quote status: ${quote['status'] ?? 'PENDING'}'),
+                          if ((quote['responseReason']?.toString() ?? '').isNotEmpty)
+                            Text('Response: ${quote['responseReason']}'),
+                          if (pending && bookingStatus == 'IN_PROGRESS') ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(child: OutlinedButton(
+                                  onPressed: _respondingQuote ? null : () => _respondToQuote(quote, false),
+                                  child: const Text('Decline extra work'))),
+                                const SizedBox(width: 8),
+                                Expanded(child: FilledButton(
+                                  onPressed: _respondingQuote ? null : () => _respondToQuote(quote, true),
+                                  child: const Text('Approve extra work'))),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
