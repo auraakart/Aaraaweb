@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -10,6 +11,7 @@ type ImportBankTransactionInput = {
 };
 type MatchInput = { journalEntryId:string; note?:string };
 type BankStatementRowInput = Omit<ImportBankTransactionInput,'bankAccountId'>;
+type StatementBatchInput = { bankAccountId: string; sourceSha256: string; rows: BankStatementRowInput[] };
 type ExistingBankTransaction = { externalKey:string; transactionDate:Date|string; valueDate?:Date|string|null; direction:string; amountPaise:bigint|number|string; reference?:string|null; description?:string|null };
 
 @Injectable()
@@ -62,7 +64,7 @@ export class BankReconciliationService {
   async importTransaction(societyId:string,userId:string,input:ImportBankTransactionInput) {
     const externalKey=input.externalKey.trim();
     if(!externalKey) throw new BadRequestException('Bank transaction external key is required');
-    if(input.amountPaise<=0) throw new BadRequestException('Bank transaction amount must be positive');
+    if(!Number.isSafeInteger(input.amountPaise) || input.amountPaise<=0) throw new BadRequestException('Bank transaction amount must be a positive whole number of paise');
     const account=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "SocietyBankAccount" WHERE "id"=${input.bankAccountId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true LIMIT 1`);
     if(!account.length) throw new BadRequestException('Bank account is not available for this society');
     try {
@@ -81,6 +83,143 @@ export class BankReconciliationService {
       if(!this.sameImportedTransaction(existing[0],input)) throw new ConflictException('Bank transaction external key conflicts with previously imported data');
       return existing[0];
     } catch(error) { this.rethrow(error,'Bank transaction could not be imported'); }
+  }
+
+
+  // Atomic statement-level import: the supplied source digest identifies a
+  // bank statement file, while the independent manifest digest binds its rows.
+  // No raw statement bytes are accepted or stored by this endpoint.
+  async importStatementBatch(societyId: string, userId: string, input: StatementBatchInput) {
+    const sourceSha256 = input.sourceSha256?.trim().toLowerCase();
+    if (!sourceSha256 || !/^[a-f0-9]{64}$/.test(sourceSha256)) {
+      throw new BadRequestException('A 64-character source SHA-256 digest is required');
+    }
+    if (!Array.isArray(input.rows) || input.rows.length < 1 || input.rows.length > 500) {
+      throw new BadRequestException('A statement batch requires between 1 and 500 rows');
+    }
+    const seen = new Set<string>();
+    const rows = input.rows.map(row => {
+      const externalKey = row.externalKey?.trim();
+      if (!externalKey || externalKey.length > 160 || seen.has(externalKey)) {
+        throw new BadRequestException('Statement rows require unique, nonblank external keys');
+      }
+      seen.add(externalKey);
+      if (!Number.isSafeInteger(row.amountPaise) || row.amountPaise <= 0) {
+        throw new BadRequestException('Bank amount must be a positive whole number of paise');
+      }
+      if (row.direction !== 'CREDIT' && row.direction !== 'DEBIT') {
+        throw new BadRequestException('Bank direction must be CREDIT or DEBIT');
+      }
+      const dateOnly = (date: string | undefined) => {
+        if (date === undefined) return null;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+            Number.isNaN(Date.parse(`${date}T00:00:00Z`)) ||
+            new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) {
+          throw new BadRequestException('Statement dates must be valid YYYY-MM-DD values');
+        }
+        return date;
+      };
+      const transactionDate = dateOnly(row.transactionDate);
+      if (transactionDate === null) throw new BadRequestException('Transaction date is required');
+      const reference = row.reference?.trim() || null;
+      const description = row.description?.trim() || null;
+      if ((reference?.length ?? 0) > 160 || (description?.length ?? 0) > 500) {
+        throw new BadRequestException('Statement reference or description is too long');
+      }
+      return {
+        externalKey, transactionDate, valueDate: dateOnly(row.valueDate),
+        direction: row.direction, amountPaise: row.amountPaise, reference, description,
+      };
+    });
+    const manifestSha256 = createHash('sha256')
+      .update(JSON.stringify({ bankAccountId: input.bankAccountId, rows }))
+      .digest('hex');
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        // Include society AND bank in the lock scope. Replays, even from another
+        // HTTP worker, must compare their complete manifest before returning.
+        await tx.$executeRaw(Prisma.sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(
+            ${`bank-statement:${societyId}:${input.bankAccountId}:${sourceSha256}`},0))
+        `);
+        const account = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "SocietyBankAccount"
+          WHERE "id"=${input.bankAccountId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true LIMIT 1
+        `);
+        if (!account.length) throw new BadRequestException('Bank account is not available for this society');
+        const prior = await tx.$queryRaw<Array<Record<string, unknown> & { manifestSha256: string }>>(Prisma.sql`
+          SELECT "id","bankAccountId","sourceSha256","manifestSha256","rowCount","newCount","rows","importedAt"
+          FROM "BankStatementImportBatch" WHERE "societyId"=${societyId}::uuid
+            AND "bankAccountId"=${input.bankAccountId}::uuid AND "sourceSha256"=${sourceSha256}
+          LIMIT 1
+        `);
+        if (prior.length) {
+          if (prior[0].manifestSha256 !== manifestSha256) {
+            throw new ConflictException('Source checksum was already used with different statement rows');
+          }
+          return prior[0];
+        }
+
+        let newCount = 0;
+        const evidence: Array<{ rowIndex: number; externalKey: string; transactionId: string; outcome: string }> = [];
+        for (let index = 0; index < rows.length; index++) {
+          const row = rows[index];
+          const inserted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            INSERT INTO "BankStatementTransaction"
+              ("societyId","bankAccountId","externalKey","transactionDate","valueDate",
+               "direction","amountPaise","reference","description","importedByUserId")
+            VALUES (${societyId}::uuid,${input.bankAccountId}::uuid,${row.externalKey},
+              ${row.transactionDate}::date,${row.valueDate}::date,
+              ${row.direction}::"BankTransactionDirection",${row.amountPaise},
+              ${row.reference},${row.description},${userId}::uuid)
+            ON CONFLICT ("bankAccountId","externalKey") DO NOTHING
+            RETURNING "id"
+          `);
+          let transactionId = inserted[0]?.id;
+          if (transactionId) newCount++;
+          else {
+            const existing = await tx.$queryRaw<Array<{ id: string } & ExistingBankTransaction>>(Prisma.sql`
+              SELECT "id","externalKey","transactionDate","valueDate","direction"::text AS "direction",
+                "amountPaise"::text AS "amountPaise","reference","description"
+              FROM "BankStatementTransaction"
+              WHERE "societyId"=${societyId}::uuid AND "bankAccountId"=${input.bankAccountId}::uuid
+                AND "externalKey"=${row.externalKey} LIMIT 1
+            `);
+            if (!existing[0] || !this.sameImportedTransaction(existing[0], {
+              ...row, valueDate: row.valueDate ?? undefined,
+              reference: row.reference ?? undefined, description: row.description ?? undefined,
+              bankAccountId: input.bankAccountId,
+            })) {
+              throw new ConflictException('Bank external key conflicts with existing immutable statement evidence');
+            }
+            transactionId = existing[0].id;
+          }
+          evidence.push({ rowIndex: index, externalKey: row.externalKey,
+            transactionId, outcome: inserted.length ? 'IMPORTED' : 'ALREADY_IMPORTED' });
+        }
+        const receipt = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+          INSERT INTO "BankStatementImportBatch"
+            ("societyId","bankAccountId","sourceSha256","manifestSha256",
+             "rowCount","newCount","rows","importedByUserId")
+          VALUES (${societyId}::uuid,${input.bankAccountId}::uuid,${sourceSha256},
+            ${manifestSha256},${rows.length},${newCount},${JSON.stringify(evidence)}::jsonb,${userId}::uuid)
+          RETURNING "id","bankAccountId","sourceSha256","manifestSha256","rowCount","newCount","rows","importedAt"
+        `);
+        return receipt[0];
+      });
+    } catch (error) { this.rethrow(error, 'Statement batch could not be imported'); }
+  }
+
+  listImportBatches(societyId: string, bankAccountId?: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT "id","bankAccountId","sourceSha256","manifestSha256","rowCount","newCount",
+        "rows","importedByUserId","importedAt"
+      FROM "BankStatementImportBatch"
+      WHERE "societyId"=${societyId}::uuid
+        AND (${bankAccountId ?? null}::uuid IS NULL OR "bankAccountId"=${bankAccountId ?? null}::uuid)
+      ORDER BY "importedAt" DESC,"id" DESC LIMIT 100
+    `);
   }
 
   async previewImport(societyId:string,bankAccountId:string,rows:BankStatementRowInput[]) {
