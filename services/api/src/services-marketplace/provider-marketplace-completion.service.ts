@@ -19,7 +19,7 @@ type BookingProposalRow = {
 };
 type ExtraWorkQuoteRow = {
   id:string; bookingId:string; providerId:string; scopeDescription:string;
-  amountPaise:string; idempotencyKey:string; status:'PENDING'|'APPROVED'|'DECLINED';
+  amountPaise:string; idempotencyKey:string; status:'PENDING'|'APPROVED'|'DECLINED'|'WITHDRAWN';
   createdByUserId:string; respondedByUserId:string|null; responseReason:string|null;
   createdAt:Date; respondedAt:Date|null;
 };
