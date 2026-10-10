@@ -19,7 +19,7 @@ type BookingProposalRow = {
 };
 type ExtraWorkQuoteRow = {
   id:string; bookingId:string; providerId:string; scopeDescription:string;
-  amountPaise:string; status:'PENDING'|'APPROVED'|'DECLINED';
+  amountPaise:string; idempotencyKey:string; status:'PENDING'|'APPROVED'|'DECLINED';
   createdByUserId:string; respondedByUserId:string|null; responseReason:string|null;
   createdAt:Date; respondedAt:Date|null;
 };
@@ -280,8 +280,11 @@ export class ProviderMarketplaceCompletionService {
   }
 
 
-  async proposeExtraWorkQuote(userId:string,bookingId:string,scope:string,amountPaise:number){
-    const description=scope.trim();
+  async proposeExtraWorkQuote(userId:string,bookingId:string,scope:string,amountPaise:number,idempotencyKey:string){
+    const description=scope.trim(),key=idempotencyKey?.trim();
+    if(!key||key.length<8||key.length>120){
+      throw new BadRequestException('Extra work quote idempotency key must be between 8 and 120 characters');
+    }
     if(description.length<10||description.length>1500){
       throw new BadRequestException('Extra work scope must be between 10 and 1500 characters');
     }
@@ -290,33 +293,39 @@ export class ProviderMarketplaceCompletionService {
     }
     const provider=await this.operators.resolveProvider(userId);
     return this.prisma.$transaction(async tx=>{
-      const booking=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
         SELECT "id","status" FROM "ConsumerServiceBooking"
         WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
       `);
-      if(!booking.length)throw new NotFoundException('Provider booking not found');
-      if(booking[0].status!==ServiceBookingStatus.IN_PROGRESS){
-        throw new BadRequestException('Extra work quotes require a service already in progress');
-      }
-      const prior=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
-        SELECT "id","bookingId","providerId","scopeDescription",
+      if(!bookings.length)throw new NotFoundException('Provider booking not found');
+      // Retry identity remains valid after APPROVE/DECLINE and booking closure.
+      const existing=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription","idempotencyKey",
           "amountPaise"::text AS "amountPaise","status","createdByUserId",
           "respondedByUserId","responseReason","createdAt","respondedAt"
-        FROM "ConsumerServiceExtraWorkQuote" WHERE "bookingId"=${bookingId}::uuid
-          AND "status"='PENDING' LIMIT 1
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "bookingId"=${bookingId}::uuid AND "idempotencyKey"=${key} LIMIT 1
       `);
-      if(prior.length){
-        if(prior[0].scopeDescription===description && prior[0].amountPaise===String(amountPaise)){
-          return prior[0]; // Lost-response retry: same quote, not another charge.
+      if(existing.length){
+        if(existing[0].scopeDescription!==description||existing[0].amountPaise!==String(amountPaise)){
+          throw new ConflictException('Quote retry identity is already bound to different scope or amount');
         }
-        throw new ConflictException('Respond to the pending extra work quote before creating another');
+        return existing[0];
       }
+      if(bookings[0].status!==ServiceBookingStatus.IN_PROGRESS){
+        throw new BadRequestException('Extra work quotes require a service already in progress');
+      }
+      const pending=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING' LIMIT 1
+      `);
+      if(pending.length)throw new ConflictException('Respond to the pending extra work quote before creating another');
       const created=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
         INSERT INTO "ConsumerServiceExtraWorkQuote"
-          ("id","bookingId","providerId","scopeDescription","amountPaise","createdByUserId")
+          ("id","bookingId","providerId","scopeDescription","amountPaise","idempotencyKey","createdByUserId")
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,
-          ${description},${amountPaise},${userId}::uuid)
-        RETURNING "id","bookingId","providerId","scopeDescription",
+          ${description},${amountPaise},${key},${userId}::uuid)
+        RETURNING "id","bookingId","providerId","scopeDescription","idempotencyKey",
           "amountPaise"::text AS "amountPaise","status","createdByUserId",
           "respondedByUserId","responseReason","createdAt","respondedAt"
       `);

@@ -39,6 +39,7 @@ class ProposalDecisionDto{@IsIn(['ACCEPT','REJECT']) decision!:'ACCEPT'|'REJECT'
 class ExtraWorkQuoteDto {
  @IsString() @MinLength(10) @MaxLength(1500) scopeDescription!:string;
  @Type(()=>Number) @IsInt() @Min(1) @Max(100000000) amountPaise!:number;
+ @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!:string;
 }
 class ExtraWorkQuoteDecisionDto {
  @IsIn(['APPROVE','DECLINE']) decision!:'APPROVE'|'DECLINE';
@@ -78,7 +79,7 @@ export class ProviderMarketplaceCompletionController{
  @Post('bookings/:id/proposals') proposal(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:ProposalDto){return this.svc.proposeBookingTime(requireUser(u),id,new Date(d.proposedFrom),new Date(d.proposedUntil),d.note);}
  @Post('bookings/:id/extra-work-quotes') createQuote(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string,@Body() d:ExtraWorkQuoteDto){
-  return this.svc.proposeExtraWorkQuote(requireUser(u),id,d.scopeDescription,d.amountPaise);
+  return this.svc.proposeExtraWorkQuote(requireUser(u),id,d.scopeDescription,d.amountPaise,d.idempotencyKey);
  }
  @Get('bookings/:id/extra-work-quotes') providerQuotes(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string){return this.svc.listProviderExtraWorkQuotes(requireUser(u),id);}

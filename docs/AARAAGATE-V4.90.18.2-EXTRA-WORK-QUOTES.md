@@ -7,3 +7,5 @@ Resident booking owners see quote details and explicit **Approve extra work** / 
 **Consent is not payment.** Quote approval does not mutate the booking's original price, issue an invoice, create a payment order, charge the resident or settle with a provider. Those require a separate authorized financial workflow and are deliberately excluded. Provider dashboard entry UI, live payment collection, productionization and staging/main promotion are likewise excluded.
 
 Service and widget tests cover invalid paise values, cancelled/completed states, quote idempotency, consent evidence, no payment side effects, tenant isolation, and explicit on-device approval. Merge only after clean migration, full API and Flutter validation and required CI gates.
+
+**Idempotency after approval:** Quote creation requires a persistent 8–120 character idempotency key. The booking/key pair is unique and immutable. Repeating an exact request returns its quote even after resident approval/decline or later booking completion; changed price/scope using that key is rejected. Provider clients must retain that key for retries.

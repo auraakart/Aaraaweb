@@ -15,22 +15,22 @@ describe('V4.90.18.2 quote consent boundaries',()=>{
   it.each([0,-1,1.5,Number.NaN,Infinity,100000001,Number.MAX_SAFE_INTEGER+1])(
     'rejects invalid quote paise %s',async amount=>{
       const {service,prisma}=setup();
-      await expect(service.proposeExtraWorkQuote('provider-user','booking-1','Replace damaged valve',amount))
+      await expect(service.proposeExtraWorkQuote('provider-user','booking-1','Replace damaged valve',amount,'retry-key-123'))
         .rejects.toThrow('positive safe whole');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
-  it('returns identical pending quote after a lost provider response',async()=>{
-    const pending={id:'quote-1',scopeDescription:'Replace damaged valve',amountPaise:'12500',status:'PENDING'};
+  it('recovers original approved quote after lost provider response',async()=>{
+    const pending={id:'quote-1',scopeDescription:'Replace damaged valve',amountPaise:'12500',status:'APPROVED'};
     const {service,tx}=setup([[{id:'booking-1',status:'IN_PROGRESS'}],[pending]]);
-    expect(await service.proposeExtraWorkQuote('provider-user','booking-1',' Replace damaged valve ',12500)).toBe(pending);
+    expect(await service.proposeExtraWorkQuote('provider-user','booking-1',' Replace damaged valve ',12500,'retry-key-123')).toBe(pending);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(sqlText(tx.$queryRaw.mock.calls[0][0])).toContain('FOR UPDATE');
   });
   it('rejects quote creation on a completed booking before writing',async()=>{
-    const {service,tx}=setup([[{id:'booking-1',status:'COMPLETED'}]]);
-    await expect(service.proposeExtraWorkQuote('provider-user','booking-1','Replace damaged valve',12500))
+    const {service,tx}=setup([[{id:'booking-1',status:'COMPLETED'}],[]]);
+    await expect(service.proposeExtraWorkQuote('provider-user','booking-1','Replace damaged valve',12500,'retry-key-123'))
       .rejects.toThrow('service already in progress');
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
   });
   it('records explicit approval as an event without any payment or booking price update',async()=>{
     const approved={id:'quote-1',status:'APPROVED',amountPaise:'12500'};
@@ -72,5 +72,19 @@ describe('V4.90.18.2 quote consent boundaries',()=>{
     await expect(service.listConsumerExtraWorkQuotes('other-resident','booking-1'))
       .rejects.toThrow('Booking not found');
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('quote idempotency key binding',()=>{
+  it('refuses reusing a retry key for different money',async()=>{
+    const tx={$queryRaw:vi.fn()
+      .mockResolvedValueOnce([{id:'booking-1',status:'COMPLETED'}])
+      .mockResolvedValueOnce([{id:'quote-1',scopeDescription:'Replace damaged valve',amountPaise:'12500'}])};
+    const prisma={$transaction:vi.fn(async(cb:(client:typeof tx)=>Promise<unknown>)=>cb(tx))};
+    const operators={resolveProvider:vi.fn().mockResolvedValue({providerId:'provider-1'})};
+    const svc=new ProviderMarketplaceCompletionService(prisma as never,operators as never,{} as never);
+    await expect(svc.proposeExtraWorkQuote('provider-user','booking-1','Replace damaged valve',12501,'retry-key-123'))
+      .rejects.toThrow('bound to different scope or amount');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
   });
 });

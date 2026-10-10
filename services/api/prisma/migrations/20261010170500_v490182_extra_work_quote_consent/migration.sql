@@ -6,6 +6,7 @@ CREATE TABLE "ConsumerServiceExtraWorkQuote" (
   "providerId" UUID NOT NULL,
   "scopeDescription" TEXT NOT NULL,
   "amountPaise" BIGINT NOT NULL,
+  "idempotencyKey" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'PENDING',
   "createdByUserId" UUID NOT NULL,
   "respondedByUserId" UUID,
@@ -16,6 +17,8 @@ CREATE TABLE "ConsumerServiceExtraWorkQuote" (
   CONSTRAINT "ConsumerServiceExtraWorkQuote_scope_check" CHECK
     (char_length(btrim("scopeDescription")) BETWEEN 10 AND 1500),
   CONSTRAINT "ConsumerServiceExtraWorkQuote_amount_check" CHECK ("amountPaise" BETWEEN 1 AND 100000000),
+  CONSTRAINT "ConsumerServiceExtraWorkQuote_idempotency_check" CHECK
+    (char_length(btrim("idempotencyKey")) BETWEEN 8 AND 120),
   CONSTRAINT "ConsumerServiceExtraWorkQuote_status_check" CHECK ("status" IN ('PENDING','APPROVED','DECLINED')),
   CONSTRAINT "ConsumerServiceExtraWorkQuote_response_check" CHECK (
     ("status"='PENDING' AND "respondedByUserId" IS NULL AND "respondedAt" IS NULL AND "responseReason" IS NULL)
@@ -24,6 +27,7 @@ CREATE TABLE "ConsumerServiceExtraWorkQuote" (
         AND length(btrim("responseReason")) BETWEEN 3 AND 500)
   )
 );
+CREATE UNIQUE INDEX "ConsumerServiceExtraWorkQuote_booking_key_unique" ON "ConsumerServiceExtraWorkQuote" ("bookingId","idempotencyKey");
 CREATE UNIQUE INDEX "ConsumerServiceExtraWorkQuote_one_pending"
   ON "ConsumerServiceExtraWorkQuote" ("bookingId") WHERE "status"='PENDING';
 CREATE INDEX "ConsumerServiceExtraWorkQuote_booking_created_idx"
@@ -47,6 +51,7 @@ BEGIN
     OR NEW."providerId" IS DISTINCT FROM OLD."providerId"
     OR NEW."scopeDescription" IS DISTINCT FROM OLD."scopeDescription"
     OR NEW."amountPaise" IS DISTINCT FROM OLD."amountPaise"
+    OR NEW."idempotencyKey" IS DISTINCT FROM OLD."idempotencyKey"
     OR NEW."createdByUserId" IS DISTINCT FROM OLD."createdByUserId"
     OR NEW."createdAt" IS DISTINCT FROM OLD."createdAt"
   THEN RAISE EXCEPTION 'Extra work quotation scope and price are immutable'; END IF;
