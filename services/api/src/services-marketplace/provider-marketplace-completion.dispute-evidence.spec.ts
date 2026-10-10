@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Prisma } from '@prisma/client';
 import { ProviderMarketplaceCompletionService } from './provider-marketplace-completion.service';
 
 const sql=(value:unknown)=>String((value as {strings?:string[]}).strings?.join(' ')??'');
