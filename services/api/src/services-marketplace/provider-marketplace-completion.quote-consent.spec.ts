@@ -88,3 +88,67 @@ describe('quote idempotency key binding',()=>{
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
   });
 });
+
+
+describe('V4.90.18.4 provider quote withdrawal',()=>{
+  it('rejects empty reasons before touching provider identity or database',async()=>{
+    const {service,prisma,operators}=setup();
+    await expect(service.withdrawExtraWorkQuote('provider-user','booking-1','quote-1',' '))
+      .rejects.toThrow('Quote withdrawal reason must be between 3 and 500 characters');
+    expect(operators.resolveProvider).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+  it('withdraws one pending quote and appends the original-booking audit event',async()=>{
+    const {service,tx}=setup([
+      [{id:'booking-1',status:'IN_PROGRESS'}],
+      [{id:'quote-1',status:'PENDING',responseReason:null}],
+      [{id:'quote-1',status:'WITHDRAWN',responseReason:'Wrong replacement part'}],
+    ]);
+    await expect(service.withdrawExtraWorkQuote('provider-user','booking-1','quote-1','  Wrong replacement part  '))
+      .resolves.toMatchObject({status:'WITHDRAWN',responseReason:'Wrong replacement part'});
+    const queries=tx.$queryRaw.mock.calls.map(x=>sqlText(x[0]));
+    expect(queries[0]).toContain('FOR UPDATE');
+    expect(queries[1]).toContain('FOR UPDATE');
+    expect(queries[2]).toContain('"status"=\'PENDING\'');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(sqlText(tx.$executeRaw.mock.calls[0][0])).toContain('PROVIDER_WITHDREW_EXTRA_WORK_QUOTE');
+    const all=[...tx.$queryRaw.mock.calls,...tx.$executeRaw.mock.calls].map(x=>sqlText(x[0])).join('\n');
+    expect(all).not.toContain('INSERT INTO "Payment"');
+    expect(all).not.toContain('SET "servicePricePaise"');
+  });
+  it('idempotently returns a matching prior withdrawal without writing another event',async()=>{
+    const {service,tx}=setup([
+      [{id:'booking-1',status:'COMPLETED'}],
+      [{id:'quote-1',status:'WITHDRAWN',responseReason:'Wrong replacement part'}],
+    ]);
+    await expect(service.withdrawExtraWorkQuote('provider-user','booking-1','quote-1','Wrong replacement part'))
+      .resolves.toMatchObject({status:'WITHDRAWN'});
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('rejects withdrawn quote retry with a different reason',async()=>{
+    const {service,tx}=setup([
+      [{id:'booking-1',status:'IN_PROGRESS'}],
+      [{id:'quote-1',status:'WITHDRAWN',responseReason:'Wrong replacement part'}],
+    ]);
+    await expect(service.withdrawExtraWorkQuote('provider-user','booking-1','quote-1','Different amount'))
+      .rejects.toThrow('Withdrawal retry must retain');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it.each(['APPROVED','DECLINED'])('refuses withdrawing %s resident decision',async status=>{
+    const {service,tx}=setup([
+      [{id:'booking-1',status:'IN_PROGRESS'}],
+      [{id:'quote-1',status,responseReason:null}],
+    ]);
+    await expect(service.withdrawExtraWorkQuote('provider-user','booking-1','quote-1','Wrong price'))
+      .rejects.toThrow('Resident-decided');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('fails closed for another provider before revealing a quote',async()=>{
+    const {service,tx}=setup([[]]);
+    await expect(service.withdrawExtraWorkQuote('wrong-user','booking-1','quote-1','Wrong price'))
+      .rejects.toThrow('Provider booking not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+});

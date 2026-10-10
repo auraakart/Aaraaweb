@@ -333,6 +333,68 @@ export class ProviderMarketplaceCompletionService {
     });
   }
 
+
+  // A provider may retract an unaccepted quotation, including after the booking
+  // closes. Never retract a resident-approved/declined quote. Lock the same
+  // booking row used by the resident decision before checking the quote state.
+  async withdrawExtraWorkQuote(userId:string,bookingId:string,quoteId:string,reason:string){
+    const normalizedReason=reason?.trim()??'';
+    if(normalizedReason.length<3||normalizedReason.length>500){
+      throw new BadRequestException('Quote withdrawal reason must be between 3 and 500 characters');
+    }
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid
+        FOR UPDATE
+      `);
+      if(!bookings.length)throw new NotFoundException('Provider booking not found');
+      const quotes=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid
+        FOR UPDATE
+      `);
+      const quote=quotes[0];
+      if(!quote)throw new NotFoundException('Provider quotation not found');
+      if(quote.status==='WITHDRAWN'){
+        if(quote.responseReason!==normalizedReason){
+          throw new ConflictException('Withdrawal retry must retain the original reason');
+        }
+        return quote; // Lost-response recovery: immutable original receipt.
+      }
+      if(quote.status!=='PENDING'){
+        throw new ConflictException('Resident-decided quotations cannot be withdrawn');
+      }
+      const changed=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        UPDATE "ConsumerServiceExtraWorkQuote"
+        SET "status"='WITHDRAWN',"respondedByUserId"=${userId}::uuid,
+          "responseReason"=${normalizedReason},"respondedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid AND "status"='PENDING'
+        RETURNING "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+      `);
+      if(!changed.length)throw new ConflictException('Quotation decision changed concurrently');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'PROVIDER_WITHDREW_EXTRA_WORK_QUOTE',
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${`Quote ${quoteId}: ${normalizedReason}`},CURRENT_TIMESTAMP)
+      `);
+      // Reversal of consent is not possible. No booking price/payment changes.
+      return changed[0];
+    });
+  }
+
   async listProviderExtraWorkQuotes(userId:string,bookingId:string){
     const provider=await this.operators.resolveProvider(userId);
     const bookings=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
