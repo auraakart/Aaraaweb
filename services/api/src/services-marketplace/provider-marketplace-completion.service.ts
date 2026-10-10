@@ -185,20 +185,45 @@ export class ProviderMarketplaceCompletionService {
   }
 
   async proposeBookingTime(userId:string,bookingId:string,proposedFrom:Date,proposedUntil:Date,note?:string){
-    if(proposedFrom<=new Date()||proposedUntil<=proposedFrom) throw new BadRequestException('Proposed service window is invalid');
+    if(!Number.isFinite(proposedFrom.getTime())||!Number.isFinite(proposedUntil.getTime())||
+        proposedFrom<=new Date()||proposedUntil<=proposedFrom) {
+      throw new BadRequestException('Proposed service window is invalid');
+    }
     const provider=await this.operators.resolveProvider(userId);
-    const rows=await this.prisma.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
-      SELECT "id","status" FROM "ConsumerServiceBooking" WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
-    `);
-    if(!rows[0]) throw new NotFoundException('Provider booking not found');
-    if(rows[0].status!==ServiceBookingStatus.REQUESTED) throw new BadRequestException('Only requested bookings can receive a provider counter-proposal');
-    try{
-      const result=await this.prisma.$queryRaw<BookingProposalRow[]>(Prisma.sql`
-        INSERT INTO "ProviderBookingProposal" ("id","bookingId","providerId","proposedFrom","proposedUntil","note","createdByUserId")
-        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
-        RETURNING *
-      `); return result[0];
-    }catch{throw new BadRequestException('A pending proposal already exists for this booking');}
+    try {
+      return await this.prisma.$transaction(async tx=>{
+        // Serialize with resident acceptance and booking cancellation. Both
+        // paths already lock the same booking row before changing its state.
+        const rows=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+          SELECT "id","status" FROM "ConsumerServiceBooking"
+          WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+        `);
+        if(!rows[0]) throw new NotFoundException('Provider booking not found');
+        if(rows[0].status!==ServiceBookingStatus.REQUESTED) {
+          throw new BadRequestException('Only requested bookings can receive a provider counter-proposal');
+        }
+        const pending=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+          SELECT "id" FROM "ProviderBookingProposal"
+          WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING' LIMIT 1
+        `);
+        if(pending.length) throw new BadRequestException('A pending proposal already exists for this booking');
+        const inserted=await tx.$queryRaw<BookingProposalRow[]>(Prisma.sql`
+          INSERT INTO "ProviderBookingProposal"
+            ("id","bookingId","providerId","proposedFrom","proposedUntil","note","createdByUserId")
+          VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,
+            ${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
+          RETURNING *
+        `);
+        return inserted[0];
+      });
+    } catch(error) {
+      // Do not mask authorization, database errors or status-transition faults.
+      if(typeof error==='object' && error!==null && 'code' in error &&
+          String((error as {code?:unknown}).code)==='23505') {
+        throw new BadRequestException('A pending proposal already exists for this booking');
+      }
+      throw error;
+    }
   }
 
   async listConsumerProposals(userId:string,bookingId:string){
@@ -278,6 +303,18 @@ export class ProviderMarketplaceCompletionService {
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,${booking.providerId}::uuid,${reasonCode.trim()},${detail.trim()}) RETURNING *
       `); return rows[0];
     }catch{throw new BadRequestException('An open dispute already exists for this booking');}
+  }
+
+  async listConsumerDisputes(userId:string,bookingId:string){
+    // Check consumer ownership before returning any case history or notes.
+    await this.assertConsumerBooking(userId,bookingId);
+    return this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`
+      SELECT "id","bookingId","reasonCode","detail","status","resolutionNote",
+             "resolvedAt","createdAt","updatedAt"
+      FROM "ConsumerServiceDispute"
+      WHERE "bookingId"=${bookingId}::uuid AND "userId"=${userId}::uuid
+      ORDER BY "createdAt" DESC,"id" DESC LIMIT 30
+    `);
   }
 
   async listMyDisputes(userId:string){

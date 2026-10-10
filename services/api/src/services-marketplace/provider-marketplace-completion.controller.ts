@@ -83,6 +83,7 @@ export class ConsumerMarketplaceCompletionController{
  @Post('bookings/:bookingId/proposals/:proposalId/respond') respond(@CurrentUser() u:string|undefined,@Param('bookingId',ParseUUIDPipe) bookingId:string,@Param('proposalId',ParseUUIDPipe) proposalId:string,@Body() d:ProposalDecisionDto){return this.svc.respondToProposal(requireUser(u),bookingId,proposalId,d.decision,d.reason);}
  @Get('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerEvidence(requireUser(u),id);}
  @Post('bookings/:id/disputes') dispute(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeDto){return this.svc.openDispute(requireUser(u),id,d.reasonCode,d.detail);}
+ @Get('bookings/:id/disputes') consumerDisputes(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerDisputes(requireUser(u),id);}
 }
 
 @Controller('platform/services/disputes')
