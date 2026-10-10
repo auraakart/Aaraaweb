@@ -55,10 +55,11 @@ describe('V4.90.18.2 quote consent boundaries',()=>{
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
   it('refuses approving after service completion',async()=>{
-    const {service,tx}=setup([[{id:'booking-1',status:'COMPLETED'}]]);
+    const {service,tx}=setup([[{id:'booking-1',status:'COMPLETED'}],
+      [{id:'quote-1',status:'PENDING'}]]);
     await expect(service.respondToExtraWorkQuote('resident-1','booking-1','quote-1','APPROVE'))
       .rejects.toThrow('no longer in progress');
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
   });
   it('requires an explicit decline reason before transaction',async()=>{
     const {service,prisma}=setup();
@@ -148,6 +149,54 @@ describe('V4.90.18.4 provider quote withdrawal',()=>{
     const {service,tx}=setup([[]]);
     await expect(service.withdrawExtraWorkQuote('wrong-user','booking-1','quote-1','Wrong price'))
       .rejects.toThrow('Provider booking not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe('V4.90.18.5 resident quote decision retry continuity',()=>{
+  it.each(['IN_PROGRESS','COMPLETED'])('replays the original approved receipt in %s state without another event',async bookingStatus=>{
+    const approved={id:'quote-1',status:'APPROVED',respondedByUserId:'resident-1',
+      responseReason:null,amountPaise:'12500'};
+    const {service,tx}=setup([[{id:'booking-1',status:bookingStatus}],[approved]]);
+    await expect(service.respondToExtraWorkQuote('resident-1','booking-1','quote-1','APPROVE'))
+      .resolves.toBe(approved);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(sqlText(tx.$queryRaw.mock.calls[0][0])).toContain('FOR UPDATE');
+    expect(sqlText(tx.$queryRaw.mock.calls[1][0])).toContain('FOR UPDATE');
+    expect(sqlText(tx.$queryRaw.mock.calls[1][0])).not.toContain('"status"=\'PENDING\'');
+  });
+
+  it('replays the original decline with exactly the saved normalized reason',async()=>{
+    const declined={id:'quote-1',status:'DECLINED',respondedByUserId:'resident-1',
+      responseReason:'Already fixed',amountPaise:'4500'};
+    const {service,tx}=setup([[{id:'booking-1',status:'COMPLETED'}],[declined]]);
+    await expect(service.respondToExtraWorkQuote('resident-1','booking-1','quote-1',
+      'DECLINE','  Already fixed  ')).resolves.toBe(declined);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {decision:'DECLINE' as const,reason:'New reason',prior:'APPROVED',savedReason:null,actor:'resident-1'},
+    {decision:'APPROVE' as const,reason:undefined,prior:'DECLINED',savedReason:'Not needed',actor:'resident-1'},
+    {decision:'DECLINE' as const,reason:'Different reason',prior:'DECLINED',savedReason:'Already fixed',actor:'resident-1'},
+    {decision:'APPROVE' as const,reason:undefined,prior:'APPROVED',savedReason:null,actor:'another-user'},
+    {decision:'APPROVE' as const,reason:undefined,prior:'WITHDRAWN',savedReason:'Incorrect scope',actor:'provider-user'},
+  ])('rejects conflicting/foreign quote decision retry %# without writes',async x=>{
+    const {service,tx}=setup([[{id:'booking-1',status:'IN_PROGRESS'}],[{
+      id:'quote-1',status:x.prior,respondedByUserId:x.actor,responseReason:x.savedReason,
+    }]]);
+    await expect(service.respondToExtraWorkQuote('resident-1','booking-1','quote-1',
+      x.decision,x.reason)).rejects.toThrow('already been decided or withdrawn');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejects all retries before reading quotes when booking ownership fails',async()=>{
+    const {service,tx}=setup([[]]);
+    await expect(service.respondToExtraWorkQuote('other-user','booking-1','quote-1','APPROVE'))
+      .rejects.toThrow('Booking not found');
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
