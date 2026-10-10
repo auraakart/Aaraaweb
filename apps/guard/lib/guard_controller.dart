@@ -55,6 +55,9 @@ class GuardController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   Timer? _reconnectTimer;
   bool _disposed = false;
+  // Session-local retry identities for gate-arrival writes with unknown outcomes.
+  // Never generate a new key for the same uncertain request/action.
+  final Map<String, String> _uncertainWalkInKeys = {};
 
   bool get signedIn => session != null;
   bool get needsSocietySelection => session == null && userId != null && memberships.length > 1 && selectionToken != null;
@@ -227,10 +230,27 @@ class GuardController extends ChangeNotifier {
     walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
   });
 
+  String _walkInMutationScope(String gate, String requestId, String type) {
+    final current = session;
+    if (current == null) throw StateError('Sign in to manage gate arrivals');
+    return '${current.sessionId}:${current.societyId}:${current.userId}:$gate:$requestId:$type';
+  }
+
+  bool _walkInMutationConfirmed(String type, String? status) =>
+      type == 'CHECK_OUT' ? status == 'CHECKED_OUT' : status == 'CHECKED_IN' || status == 'CHECKED_OUT';
+
   Future<void> refreshWalkIn() => _run(() async {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
-    walkInAccess = await api.requestStatus(_requireGate(), requestId);
+    final gate = _requireGate();
+    final latest = await api.requestStatus(gate, requestId);
+    walkInAccess = latest;
+    for (final type in ['CHECK_IN', 'CHECK_OUT']) {
+      final scope = _walkInMutationScope(gate, requestId, type);
+      if (_walkInMutationConfirmed(type, latest['status']?.toString())) {
+        _uncertainWalkInKeys.remove(scope);
+      }
+    }
   });
 
   Future<void> checkInWalkIn() => _walkInMutation('CHECK_IN');
@@ -240,8 +260,44 @@ class GuardController extends ChangeNotifier {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
     final gate = _requireGate();
-    final key = _idempotencyKey();
-    walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
+    final scope = _walkInMutationScope(gate, requestId, type);
+    final previousKey = _uncertainWalkInKeys[scope];
+
+    // A lost response is not proof that an entry did not happen. Re-read the
+    // authoritative gate state before retrying an unconfirmed write.
+    if (previousKey != null) {
+      Map<String, dynamic> current;
+      try {
+        current = await api.requestStatus(gate, requestId);
+      } on GuardApiException {
+        throw StateError('Previous gate action is unconfirmed. Refresh status before retrying; do not create a new entry.');
+      }
+      final status = current['status']?.toString();
+      walkInAccess = current;
+      if (_walkInMutationConfirmed(type, status)) {
+        _uncertainWalkInKeys.remove(scope);
+        return;
+      }
+      final expected = type == 'CHECK_IN' ? 'APPROVED' : 'CHECKED_IN';
+      if (status != expected) {
+        throw StateError('Gate request is $status. Supervisor review is required before another action.');
+      }
+    }
+
+    final key = previousKey ?? _idempotencyKey();
+    try {
+      walkInAccess = type == 'CHECK_IN'
+          ? await api.checkInRequest(gate, requestId, key)
+          : await api.checkOutRequest(gate, requestId, key);
+      _uncertainWalkInKeys.remove(scope);
+    } on GuardApiException catch (e) {
+      if (e.transport || e.statusCode == 409) {
+        _uncertainWalkInKeys[scope] = key;
+        throw StateError('Gate action outcome is unconfirmed. Refresh gate status before retry; the same secure request identity will be reused.');
+      }
+      _uncertainWalkInKeys.remove(scope);
+      rethrow;
+    }
   });
 
   void clearWalkIn() { walkInAccess = null; notifyListeners(); }
@@ -350,7 +406,7 @@ class GuardController extends ChangeNotifier {
     _gateEvents = null; realtimeConnected = false;
     await sessions.clear(); api.accessToken = '';
     session = null; userId = null; selectionToken = null; memberships = const []; gates = const []; units = const []; gateId = null;
-    verifiedAccess = null; walkInAccess = null; queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
+    verifiedAccess = null; walkInAccess = null; _uncertainWalkInKeys.clear(); queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
     notifyListeners();
   }
 
