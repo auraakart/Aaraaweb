@@ -40,7 +40,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   bool _busy = false;
   String? _error;
   Map<String, dynamic>? _result;
-  Map<String, dynamic>? _proposal;
   String? _lastSubmittedMessage;
   String? _lastPolicyPrompt;
   bool _dailyBriefingShortcut = false;
@@ -116,14 +115,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _lastSubmittedMessage = null;
       _feedbackHelpful = null;
       _result = null;
-      _proposal = null;
       _error = null;
       _controller.clear();
     }
-  }
-
-  void _clearPendingProposal() {
-    if (_proposal?['status']?.toString() == 'PROPOSED') _proposal = null;
   }
 
   @override
@@ -148,7 +142,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         return;
       }
       setState(() {
-        _clearPendingProposal();
+        _lastSubmittedMessage = null;
         _controller.text = text.trim();
         _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantReview');
@@ -177,7 +171,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _result = null;
       _feedbackHelpful = null;
       _lastSubmittedMessage = message;
-      _clearPendingProposal();
     });
     try {
       if (widget.demoMode) {
@@ -203,73 +196,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _result = next;
         _lastPolicyPrompt = next['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
       });
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _draftComplaint() async {
-    if (_busy || _listening) return;
-    final message = _controller.text.trim();
-    final unitId = widget.unitId;
-    if (message.length < 5 || unitId == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _result = null;
-      _clearPendingProposal();
-    });
-    try {
-      if (widget.demoMode) {
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-        if (!mounted) return;
-        final lower = message.toLowerCase();
-        setState(() => _proposal = {
-          'id': 'demo-ai-proposal-1',
-          'status': 'PROPOSED',
-          'title': 'Resident-reported issue',
-          'description': message,
-          'category': lower.contains('water') || lower.contains('leak') ? 'PLUMBING' : lower.contains('light') || lower.contains('power') ? 'ELECTRICAL' : lower.contains('lift') ? 'LIFT' : 'GENERAL',
-          'priority': lower.contains('urgent') || lower.contains('leak') || lower.contains('danger') ? 'HIGH' : 'NORMAL',
-        });
-        return;
-      }
-      final raw = await widget.apiClient.post(
-        '/api/v1/ai-operations/assistant/helpdesk-from-text',
-        {'unitId': unitId, 'text': message},
-      );
-      if (!mounted) return;
-      setState(() => _proposal = Map<String, dynamic>.from(raw as Map));
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _proposalAction(bool confirm) async {
-    final id =
-        _proposal?['id']?.toString() ?? _proposal?['proposalId']?.toString();
-    if (id == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      if (widget.demoMode) {
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        if (!mounted) return;
-        setState(() => _proposal = {...?_proposal, 'status': confirm ? 'CONFIRMED' : 'CANCELLED', if (confirm) 'ticketId': 'demo-ticket-ai-1'});
-        return;
-      }
-      final action = confirm ? 'confirm' : 'cancel';
-      final raw = await widget.apiClient.post(
-        '/api/v1/ai-operations/proposals/$id/$action',
-      );
-      if (!mounted) return;
-      setState(() => _proposal = Map<String, dynamic>.from(raw as Map));
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -333,7 +259,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     ? null
                     : () {
                         setState(() {
-                          _clearPendingProposal();
                           _controller.text = action.prompt;
                           _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
                           _voiceStatus = null;
@@ -409,8 +334,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 controller: _controller,
                 readOnly: _listening || _busy,
                 onChanged: (_) {
-                  if (_proposal?['status']?.toString() == 'PROPOSED' || _result != null) {
-                    setState(_clearPendingProposal);
+                  if (_lastSubmittedMessage != null) {
+                    setState(() => _lastSubmittedMessage = null);
                   }
                 },
                 minLines: 2,
@@ -429,17 +354,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   label: Text(_busy ? 'Checking…' : 'Ask'),
                 ),
               ),
-              if (widget.unitId != null) ...[
-                const SizedBox(height: AaraagateTokens.space2),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy || _listening ? null : _draftComplaint,
-                    icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text('Create complaint'),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -466,9 +380,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  bool get _canPrepareComplaintFromAnswer {
+  bool get _canOpenHelpdeskForComplaint {
     final prompt = _lastSubmittedMessage;
-    return widget.unitId != null && !_busy && !_listening &&
+    return widget.unitId != null && widget.onOpenSection != null && !_busy && !_listening &&
         _result != null && prompt != null &&
         _controller.text.trim() == prompt &&
         RegExp(r'\b(?:raise|file|create|submit|register)\s+(?:a\s+)?(?:complaint|ticket)\b|\breport\s+(?:an?\s+)?(?:issue|problem)\b',
@@ -556,64 +470,16 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 onPressed: () => widget.onOpenSection!('helpdesk'),
               ),
           ],
-          if (_canPrepareComplaintFromAnswer) ...[
+          // Only Helpdesk creates complaints; the Assistant may navigate there.
+          if (_canOpenHelpdeskForComplaint && destination?.section != 'helpdesk') ...[
             const SizedBox(height: AaraagateTokens.space3),
             OutlinedButton.icon(
-              onPressed: _draftComplaint,
-              icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Prepare complaint for review'),
+              onPressed: () => widget.onOpenSection!('helpdesk'),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('Open Helpdesk'),
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _proposalCard() {
-    final status = _proposal!['status']?.toString() ?? 'PROPOSED';
-    return PremiumSurface(
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Review complaint before submitting',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(status == 'PROPOSED' ? 'Ready for your review' : status == 'EXECUTED' || status == 'CONFIRMED' ? 'Complaint submitted' : status == 'CANCELLED' ? 'Complaint cancelled' : 'Status: $status'),
-            const SizedBox(height: 8),
-            Text(
-              widget.demoMode
-                  ? 'Demo safeguard: this simulates review and confirmation and does not submit external data.'
-                  : status == 'PROPOSED'
-                      ? 'Aaraagate prepared this from your description. Review it first—nothing is submitted until you confirm.'
-                      : status == 'EXECUTED' || status == 'CONFIRMED'
-                          ? 'Your complaint has been submitted through the normal authorized helpdesk workflow.'
-                          : status == 'CANCELLED'
-                              ? 'This proposal was cancelled and no complaint was submitted.'
-                              : 'Normal complaint authorization and validation still apply.',
-            ),
-            if (status == 'PROPOSED') ...[
-              const SizedBox(height: 12),
-              if ((_proposal!['title']?.toString().trim().isNotEmpty ?? false))
-                Text('Title: ${_proposal!['title']}'),
-              if ((_proposal!['category']?.toString().trim().isNotEmpty ?? false))
-                Text('Category: ${_proposal!['category']}'),
-              if ((_proposal!['priority']?.toString().trim().isNotEmpty ?? false))
-                Text('Priority: ${_proposal!['priority']}'),
-              const SizedBox(height: 16),
-              PremiumActionGroup(
-                primary: FilledButton(
-                  onPressed: _busy ? null : () => _proposalAction(true),
-                  child: const Text('Confirm complaint'),
-                ),
-                secondary: OutlinedButton(
-                  onPressed: _busy ? null : () => _proposalAction(false),
-                  child: const Text('Cancel'),
-                ),
-              ),
-            ],
-          ],
       ),
     );
   }
@@ -629,10 +495,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (_result != null) {
       content.add(const SizedBox(height: AaraagateTokens.space3));
       content.add(_resultCard(theme));
-    }
-    if (_proposal != null) {
-      content.add(const SizedBox(height: AaraagateTokens.space3));
-      content.add(_proposalCard());
     }
 
     return Scaffold(
