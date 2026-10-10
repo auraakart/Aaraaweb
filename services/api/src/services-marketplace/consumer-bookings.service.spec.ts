@@ -236,6 +236,57 @@ describe('ConsumerBookingsService', () => {
     expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
   });
 
+  it('recovers an exact same-key booking after the booked slot has already begun', async () => {
+    const { tx, availability, service } = setup();
+    const from = new Date('2024-05-01T10:00:00Z');
+    const until = new Date('2024-05-01T11:00:00Z');
+    const booked = {
+      id: '77777777-7777-4777-8777-777777777777',
+      homeId: home.id, societyUnitId: null,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: from, scheduledUntil: until, notes: null,
+      servicePricePaise: 75000, status: 'COMPLETED',
+    };
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([booked]);
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id, offeringId: booked.offeringId,
+      scheduledFrom: from, scheduledUntil: until, idempotencyKey: 'recover-old-booking',
+    })).resolves.toEqual(booked);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
+    expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+  });
+
+  it('does not create a new historical booking when a key has no matching record', async () => {
+    const { tx, availability, service } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id, offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: new Date('2024-05-01T10:00:00Z'),
+      scheduledUntil: new Date('2024-05-01T11:00:00Z'),
+      idempotencyKey: 'unseen-old-booking',
+    })).rejects.toThrow('Scheduled start must be in the future');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.serviceOffering.findFirst).not.toHaveBeenCalled();
+    expect(availability.lockAndAssertBookable).not.toHaveBeenCalled();
+  });
+
+  it('rejects a changed payload rather than recovering a past booking with the same key', async () => {
+    const { tx, service } = setup();
+    const from = new Date('2024-05-01T10:00:00Z');
+    const until = new Date('2024-05-01T11:00:00Z');
+    tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      homeId: home.id, societyUnitId: null,
+      offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: from, scheduledUntil: until, notes: 'Original instructions',
+    }]);
+    await expect(service.createBooking(home.userId, {
+      homeId: home.id, offeringId: '33333333-3333-3333-3333-333333333333',
+      scheduledFrom: from, scheduledUntil: until, notes: 'Changed instructions',
+      idempotencyKey: 'recover-old-booking',
+    })).rejects.toThrow('Idempotency key is already used for another service booking');
+  });
+
   it('rejects reuse of a booking key when only service instructions change', async () => {
     const { tx, service } = setup();
     const from = new Date('2030-01-01T10:00:00Z');
