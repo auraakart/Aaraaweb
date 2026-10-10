@@ -9,7 +9,7 @@ export class SettlementService {
   constructor(private readonly prisma: PrismaService) {}
 
   async allocate(societyId: string, userId: string, receivableId: string, input: AllocationInput) {
-    if (input.amountPaise <= 0) throw new BadRequestException('Allocation amount must be positive');
+    if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise <= 0) throw new BadRequestException('Allocation amount must be a positive whole number of paise');
     const key = input.idempotencyKey.trim();
     if (!key) throw new BadRequestException('Idempotency key is required');
 

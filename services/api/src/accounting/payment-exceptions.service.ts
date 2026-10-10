@@ -34,7 +34,7 @@ export class PaymentExceptionsService{
   `);}
 
   async reverseAllocation(societyId:string,userId:string,allocationId:string,input:ReverseAllocationInput){
-    if(input.amountPaise<=0)throw new BadRequestException('Reversal amount must be positive');
+    if(!Number.isSafeInteger(input.amountPaise)||input.amountPaise<=0)throw new BadRequestException('Reversal amount must be a positive whole number of paise');
     const reason=input.reason.trim(),key=input.idempotencyKey.trim();if(!reason||!key)throw new BadRequestException('Reason and idempotency key are required');
     return this.prisma.$transaction(async tx=>{
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${societyId}:${key}`}))`);
@@ -58,7 +58,7 @@ export class PaymentExceptionsService{
   }
 
   async recordRefund(societyId:string,userId:string,paymentId:string,input:RefundInput){
-    if(input.amountPaise<=0)throw new BadRequestException('Refund amount must be positive');
+    if(!Number.isSafeInteger(input.amountPaise)||input.amountPaise<=0)throw new BadRequestException('Refund amount must be a positive whole number of paise');
     const reason=input.reason.trim(),key=input.idempotencyKey.trim();if(!reason||!key)throw new BadRequestException('Reason and idempotency key are required');
     const providerReference=input.providerReference?.trim()||null;
     return this.prisma.$transaction(async tx=>{
