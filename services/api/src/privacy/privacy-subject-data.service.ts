@@ -22,7 +22,7 @@ export class PrivacySubjectDataService {
     if(privacyCase.requestType!=='ACCESS') throw new BadRequestException('Only completed ACCESS requests can generate a data export');
     if(privacyCase.status!=='COMPLETED') throw new BadRequestException('Data export becomes available after the ACCESS request is completed');
 
-    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,offeringEvents]=await Promise.all([
+    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,extraWorkBillingRequests,offeringEvents]=await Promise.all([
       this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","phone","email","name","status","createdAt","updatedAt"
         FROM "User" WHERE "id"=${userId}::uuid LIMIT 1
@@ -103,6 +103,11 @@ export class PrivacySubjectDataService {
         ORDER BY e."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
       !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT "id","bookingId","quoteId","amountPaise"::text AS "amountPaise","status","createdAt"
+        FROM "ConsumerServiceExtraWorkBillingRequest"
+        WHERE "userId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"
         FROM "ServiceOfferingProviderEvent" WHERE "actorUserId"=${userId}::uuid ORDER BY "occurredAt" DESC LIMIT 1000
       `):Promise.resolve([]),
@@ -126,6 +131,7 @@ export class PrivacySubjectDataService {
       consumerServiceCompletionEvidence:completionEvidence,
       consumerServiceDisputes:serviceDisputes,
       consumerServiceDisputeEvidence:disputeEvidence,
+      consumerServiceExtraWorkBillingRequests:extraWorkBillingRequests,
       serviceOfferingProviderEvents:offeringEvents,
       privacyRequests,
       exclusions:[

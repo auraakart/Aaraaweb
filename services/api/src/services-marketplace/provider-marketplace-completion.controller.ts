@@ -96,6 +96,10 @@ export class ProviderMarketplaceCompletionController{
  }
  @Get('bookings/:id/extra-work-quotes') providerQuotes(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string){return this.svc.listProviderExtraWorkQuotes(requireUser(u),id);}
+ @Get('bookings/:id/extra-work-billing-requests') providerExtraWorkBillRequests(
+   @CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
+   return this.svc.listProviderExtraWorkBillRequests(requireUser(u),id);
+ }
  @Post('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:EvidenceDto){return this.svc.addCompletionEvidence(requireUser(u),id,d.evidenceType,d.reference,d.note);}
  @Get('disputes') disputes(@CurrentUser() u:string|undefined){return this.svc.listMyDisputes(requireUser(u));}
  @Get('disputes/:id/evidence') disputeEvidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
@@ -121,6 +125,15 @@ export class ConsumerMarketplaceCompletionController{
   @Param('bookingId',ParseUUIDPipe) bookingId:string,@Param('quoteId',ParseUUIDPipe) quoteId:string,
   @Body() d:ExtraWorkQuoteDecisionDto){
   return this.svc.respondToExtraWorkQuote(requireUser(u),bookingId,quoteId,d.decision,d.reason);
+ }
+ @Get('bookings/:id/extra-work-billing-requests') consumerExtraWorkBillRequests(
+   @CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
+   return this.svc.listConsumerExtraWorkBillRequests(requireUser(u),id);
+ }
+ @Post('bookings/:bookingId/extra-work-quotes/:quoteId/request-separate-bill')
+ requestSeparateBill(@CurrentUser() u:string|undefined,
+   @Param('bookingId',ParseUUIDPipe) bookingId:string,@Param('quoteId',ParseUUIDPipe) quoteId:string){
+   return this.svc.requestExtraWorkBill(requireUser(u),bookingId,quoteId);
  }
  @Get('bookings/:id/completion-evidence') evidence(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listConsumerEvidence(requireUser(u),id);}
  @Post('bookings/:id/disputes') dispute(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:DisputeDto){return this.svc.openDispute(requireUser(u),id,d.reasonCode,d.detail);}
