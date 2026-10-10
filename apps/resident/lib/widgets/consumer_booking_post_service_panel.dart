@@ -21,6 +21,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   bool _submittingRating = false;
   bool _respondingProposal = false;
   bool _respondingQuote = false;
+  bool _requestingExtraWorkBill = false;
   bool _openingDispute = false;
   bool _addingDisputeEvidence = false;
   final Map<String, Map<String, String>> _pendingDisputeEvidence = {};
@@ -29,6 +30,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   Map<String, dynamic>? _rating;
   List<Map<String, dynamic>> _proposals = const [];
   List<Map<String, dynamic>> _quotes = const [];
+  List<Map<String, dynamic>> _extraWorkBillRequests = const [];
   List<Map<String, dynamic>> _evidence = const [];
   List<Map<String, dynamic>> _disputes = const [];
   Map<String, List<Map<String, dynamic>>> _disputeEvidence = {};
@@ -59,12 +61,19 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       ]);
       dynamic proposalsRaw;
       dynamic quotesRaw;
+      dynamic separateBillsRaw;
       dynamic evidenceRaw;
       dynamic disputesRaw;
       try {
         quotesRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes');
       } catch (_) {
         quotesRaw = const <dynamic>[];
+      }
+      try {
+        separateBillsRaw = await widget.apiClient.get(
+          '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-billing-requests');
+      } catch (_) {
+        separateBillsRaw = const <dynamic>[];
       }
       try {
         proposalsRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals');
@@ -101,6 +110,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         _comment.text = _rating?['comment']?.toString() ?? '';
         _proposals = (proposalsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _quotes = (quotesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _extraWorkBillRequests = (separateBillsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _evidence = (evidenceRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _disputes = (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
@@ -266,6 +276,43 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) setState(() => _respondingQuote = false);
+    }
+  }
+
+
+  Future<void> _requestSeparateExtraWorkBill(Map<String, dynamic> quote) async {
+    if (_requestingExtraWorkBill || quote['status'] != 'APPROVED') return;
+    final quoteId = quote['id']?.toString();
+    if (quoteId == null || quoteId.isEmpty) return;
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Request a separate extra-work bill?'),
+        content: Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}\n'
+          'This records a billing request only. It is not an invoice or payment; no charge or provider payout occurs.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Request separate bill')),
+        ],
+      ),
+    );
+    if (agreed != true || !mounted) return;
+    setState(() => _requestingExtraWorkBill = true);
+    try {
+      await widget.apiClient.post(
+        '/api/v1/consumer/services/bookings/${widget.bookingId}/extra-work-quotes/$quoteId/request-separate-bill',
+        <String, dynamic>{},
+      );
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Separate bill requested. No payment was collected.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Bill request not confirmed: $error. You can safely retry the same quote.')));
+    } finally {
+      if (mounted) setState(() => _requestingExtraWorkBill = false);
     }
   }
 
@@ -483,6 +530,16 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                           Text(quote['scopeDescription']?.toString() ?? ''),
                           Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
                           Text('Quote status: ${quote['status'] ?? 'PENDING'}'),
+                          if (_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id']))
+                            const Text('Separate bill requested — awaiting independent invoice and payment setup.'),
+                          if (quote['status'] == 'APPROVED' &&
+                              !_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id'])) ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: _requestingExtraWorkBill ? null : () => _requestSeparateExtraWorkBill(quote),
+                              child: const Text('Request separate bill'),
+                            ),
+                          ],
                           if ((quote['responseReason']?.toString() ?? '').isNotEmpty)
                             Text('Response: ${quote['responseReason']}'),
                           if (pending && bookingStatus == 'IN_PROGRESS') ...[
