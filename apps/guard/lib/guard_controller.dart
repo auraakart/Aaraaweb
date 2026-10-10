@@ -281,20 +281,27 @@ class GuardController extends ChangeNotifier {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
     final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    bool current() => _sameGateContext(gate, startedSession, epoch) &&
+        walkInAccess?['id']?.toString() == requestId;
     final scope = _walkInMutationScope(gate, requestId, type);
     final previousKey = _uncertainWalkInKeys[scope];
 
     // A lost response is not proof that an entry did not happen. Re-read the
     // authoritative gate state before retrying an unconfirmed write.
     if (previousKey != null) {
-      Map<String, dynamic> current;
+      Map<String, dynamic> refreshed;
       try {
-        current = await api.requestStatus(gate, requestId);
+        refreshed = await api.requestStatus(gate, requestId);
       } on GuardApiException {
+        if (!current()) return;
         throw StateError('Previous gate action is unconfirmed. Refresh status before retrying; do not create a new entry.');
       }
-      final status = current['status']?.toString();
-      walkInAccess = current;
+      // A delayed refresh must never overwrite a different active request.
+      if (!current()) return;
+      final status = refreshed['status']?.toString();
+      walkInAccess = refreshed;
       if (_walkInMutationConfirmed(type, status)) {
         _uncertainWalkInKeys.remove(scope);
         return;
@@ -307,17 +314,25 @@ class GuardController extends ChangeNotifier {
 
     final key = previousKey ?? _idempotencyKey();
     try {
-      walkInAccess = type == 'CHECK_IN'
+      final updated = type == 'CHECK_IN'
           ? await api.checkInRequest(gate, requestId, key)
           : await api.checkOutRequest(gate, requestId, key);
       _uncertainWalkInKeys.remove(scope);
+      if (current()) walkInAccess = updated;
     } on GuardApiException catch (e) {
       if (e.transport || e.statusCode == 409) {
-        _uncertainWalkInKeys[scope] = key;
+        // Keep the same retry identity on an ordinary gate switch. A signed-out
+        // or replaced session must not recreate session-local state.
+        if (!_disposed && session?.sessionId == startedSession?.sessionId &&
+            session?.societyId == startedSession?.societyId &&
+            session?.userId == startedSession?.userId) {
+          _uncertainWalkInKeys[scope] = key;
+        }
+        if (!current()) return;
         throw StateError('Gate action outcome is unconfirmed. Refresh gate status before retry; the same secure request identity will be reused.');
       }
       _uncertainWalkInKeys.remove(scope);
-      rethrow;
+      if (current()) rethrow;
     }
   });
 
