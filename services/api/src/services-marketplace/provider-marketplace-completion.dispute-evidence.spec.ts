@@ -39,7 +39,7 @@ describe('V4.90.18.7 scoped service dispute evidence',()=>{
   });
   it('rejects outsider before insert under row lock',async()=>{
     const tx={$queryRaw:vi.fn().mockResolvedValue([])};
-    const prisma={$transaction:vi.fn(async(cb:(tx:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={$transaction:vi.fn(async(cb:(value:unknown)=>unknown)=>cb(tx))};
     await expect(service(prisma).addDisputeEvidence('u','d','RESIDENT','Repair still leaks','key-123456',undefined,'b'))
       .rejects.toThrow('Service dispute not found');
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -47,7 +47,7 @@ describe('V4.90.18.7 scoped service dispute evidence',()=>{
   });
   it('does not write to resolved disputes',async()=>{
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'d',status:'RESOLVED'}]).mockResolvedValueOnce([])};
-    const prisma={$transaction:vi.fn(async(cb:(tx:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={$transaction:vi.fn(async(cb:(value:unknown)=>unknown)=>cb(tx))};
     await expect(service(prisma).addDisputeEvidence('u','d','RESIDENT','Repair still leaks','key-123456',undefined,'b'))
       .rejects.toThrow('only while a dispute is open');
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
@@ -55,7 +55,7 @@ describe('V4.90.18.7 scoped service dispute evidence',()=>{
   it('replays exact lost responses without creating duplicate evidence',async()=>{
     const prior={id:'e',note:'Repair still leaks',reference:null,actorType:'RESIDENT'};
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'d',status:'RESOLVED'}]).mockResolvedValueOnce([prior])};
-    const prisma={$transaction:vi.fn(async(cb:(tx:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={$transaction:vi.fn(async(cb:(value:unknown)=>unknown)=>cb(tx))};
     expect(await service(prisma).addDisputeEvidence('u','d','RESIDENT',prior.note,'key-123456',undefined,'b'))
       .toEqual(prior);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
@@ -63,14 +63,14 @@ describe('V4.90.18.7 scoped service dispute evidence',()=>{
   it('rejects altered evidence under the same retry identity',async()=>{
     const prior={id:'e',note:'Different original note',reference:null,actorType:'PROVIDER'};
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'d',status:'OPEN'}]).mockResolvedValueOnce([prior])};
-    const prisma={$transaction:vi.fn(async(cb:(tx:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={$transaction:vi.fn(async(cb:(value:unknown)=>unknown)=>cb(tx))};
     await expect(service(prisma).addDisputeEvidence('u','d','PROVIDER','Repair still leaks','key-123456'))
       .rejects.toThrow('bound to another note');
   });
   it('inserts exactly one new evidence record in an open dispute',async()=>{
     const tx={$queryRaw:vi.fn().mockResolvedValueOnce([{id:'d',status:'OPEN'}])
       .mockResolvedValueOnce([]).mockResolvedValueOnce([{id:'e',note:'Repair still leaks'}])};
-    const prisma={$transaction:vi.fn(async(cb:(tx:typeof tx)=>unknown)=>cb(tx))};
+    const prisma={$transaction:vi.fn(async(cb:(value:unknown)=>unknown)=>cb(tx))};
     expect(await service(prisma).addDisputeEvidence('u','d','RESIDENT','Repair still leaks','key-123456',undefined,'b'))
       .toMatchObject({id:'e'});
     expect(sql(tx.$queryRaw.mock.calls[2][0])).toContain('INSERT INTO "ConsumerServiceDisputeEvidence"');
