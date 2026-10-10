@@ -100,9 +100,8 @@ void main() {
     expect(client.lastBody?['comment'], 'Excellent service');
     expect(find.text('Your rating'), findsOneWidget);
   });
-}
 
-testWidgets('service issue resolution is visible after reopening a completed booking', (tester) async {
+  testWidgets('service issue resolution is visible after reopening a completed booking', (tester) async {
   final client = FakeApiClient(
     completion: {
       'bookingStatus': 'COMPLETED',
@@ -141,3 +140,4 @@ testWidgets('an open service dispute stays visible while a second report is disa
   expect(button.onPressed, isNull);
   expect(client.posts, isEmpty);
 });
+}
