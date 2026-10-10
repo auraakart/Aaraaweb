@@ -10,6 +10,10 @@ class QueuedWorkforceAction {
     required this.createdAt,
     required this.societyId,
     required this.guardUserId,
+    this.attemptCount = 0,
+    this.nextAttemptAt,
+    this.failureKind,
+    this.reviewRequired = false,
   });
 
   final String type;
@@ -19,18 +23,71 @@ class QueuedWorkforceAction {
   final DateTime createdAt;
   final String societyId;
   final String guardUserId;
+  final int attemptCount;
+  final DateTime? nextAttemptAt;
+  final String? failureKind;
+  final bool reviewRequired;
 
   bool belongsTo({required String societyId, required String guardUserId}) =>
       this.societyId == societyId && this.guardUserId == guardUserId;
+
+  // Old attendance must be reconciled by a supervisor, never blindly replayed.
+  bool isStale(DateTime now) =>
+      now.toUtc().difference(createdAt.toUtc()) > const Duration(hours: 24);
+
+  bool canRetry(DateTime now) =>
+      !reviewRequired && (nextAttemptAt == null || !nextAttemptAt!.isAfter(now));
+
+  QueuedWorkforceAction withRetryFailure(DateTime now) {
+    final attempts = attemptCount + 1;
+    if (attempts >= 6) return requiringReview(now, 'RETRY_LIMIT');
+    final backoffSeconds = 5 * (1 << (attempts - 1));
+    return _copy(
+      attemptCount: attempts,
+      nextAttemptAt: now.add(Duration(seconds: backoffSeconds)),
+      failureKind: 'TRANSPORT',
+    );
+  }
+
+  QueuedWorkforceAction requiringReview(DateTime now, String reason) => _copy(
+        attemptCount: attemptCount + 1,
+        clearNextAttemptAt: true,
+        failureKind: reason,
+        reviewRequired: true,
+      );
+
+  QueuedWorkforceAction _copy({
+    int? attemptCount,
+    DateTime? nextAttemptAt,
+    bool clearNextAttemptAt = false,
+    String? failureKind,
+    bool? reviewRequired,
+  }) => QueuedWorkforceAction(
+        type: type,
+        gateId: gateId,
+        assignmentId: assignmentId,
+        idempotencyKey: idempotencyKey,
+        createdAt: createdAt,
+        societyId: societyId,
+        guardUserId: guardUserId,
+        attemptCount: attemptCount ?? this.attemptCount,
+        nextAttemptAt: clearNextAttemptAt ? null : (nextAttemptAt ?? this.nextAttemptAt),
+        failureKind: failureKind ?? this.failureKind,
+        reviewRequired: reviewRequired ?? this.reviewRequired,
+      );
 
   Map<String, dynamic> toJson() => {
         'type': type,
         'gateId': gateId,
         'assignmentId': assignmentId,
         'idempotencyKey': idempotencyKey,
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
         'societyId': societyId,
         'guardUserId': guardUserId,
+        'attemptCount': attemptCount,
+        if (nextAttemptAt != null) 'nextAttemptAt': nextAttemptAt!.toUtc().toIso8601String(),
+        if (failureKind != null) 'failureKind': failureKind,
+        'reviewRequired': reviewRequired,
       };
 
   static QueuedWorkforceAction? tryFromJson(Map<String, dynamic> json) {
@@ -41,13 +98,17 @@ class QueuedWorkforceAction {
     final societyId = json['societyId']?.toString() ?? '';
     final guardUserId = json['guardUserId']?.toString() ?? '';
     final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '');
+    final attemptCount = int.tryParse(json['attemptCount']?.toString() ?? '0') ?? -1;
+    final nextAttemptAt = DateTime.tryParse(json['nextAttemptAt']?.toString() ?? '');
+    final failureKind = json['failureKind']?.toString();
+    final reviewRequired = json['reviewRequired'] == true;
     if (!const {'CHECK_IN', 'CHECK_OUT'}.contains(type) ||
         gateId.isEmpty ||
         assignmentId.isEmpty ||
         idempotencyKey.isEmpty ||
         societyId.isEmpty ||
         guardUserId.isEmpty ||
-        createdAt == null) {
+        createdAt == null || attemptCount < 0) {
       return null;
     }
     return QueuedWorkforceAction(
@@ -55,9 +116,13 @@ class QueuedWorkforceAction {
       gateId: gateId,
       assignmentId: assignmentId,
       idempotencyKey: idempotencyKey,
-      createdAt: createdAt,
+      createdAt: createdAt.toUtc(),
       societyId: societyId,
       guardUserId: guardUserId,
+      attemptCount: attemptCount,
+      nextAttemptAt: nextAttemptAt?.toUtc(),
+      failureKind: failureKind,
+      reviewRequired: reviewRequired,
     );
   }
 }
