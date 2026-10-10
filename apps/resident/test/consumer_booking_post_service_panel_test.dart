@@ -8,6 +8,7 @@ class FakeApiClient extends ApiClient {
 
   Map<String, dynamic> completion;
   Map<String, dynamic>? rating;
+  List<Map<String, dynamic>> disputes = const [];
   final List<String> posts = <String>[];
   Map<String, dynamic>? lastBody;
 
@@ -15,6 +16,7 @@ class FakeApiClient extends ApiClient {
   Future<dynamic> get(String path) async {
     if (path.endsWith('/completion')) return completion;
     if (path.endsWith('/rating')) return rating;
+    if (path.endsWith('/disputes')) return disputes;
     throw StateError('Unexpected GET $path');
   }
 
@@ -98,4 +100,44 @@ void main() {
     expect(client.lastBody?['comment'], 'Excellent service');
     expect(find.text('Your rating'), findsOneWidget);
   });
+
+  testWidgets('service issue resolution is visible after reopening a completed booking', (tester) async {
+  final client = FakeApiClient(
+    completion: {
+      'bookingStatus': 'COMPLETED',
+      'requestedAt': '2026-09-07T11:55:00.000Z',
+      'confirmedAt': '2026-09-07T12:00:00.000Z',
+    },
+  )..disputes = [{
+    'id': 'dispute-1',
+    'status': 'RESOLVED',
+    'detail': 'Tap leaking again',
+    'resolutionNote': 'Replacement part installed',
+  }];
+  await tester.pumpWidget(host(client));
+  await tester.pumpAndSettle();
+  expect(find.text('Service issue history'), findsOneWidget);
+  expect(find.text('Status: RESOLVED'), findsOneWidget);
+  expect(find.textContaining('Resolution: Replacement part installed'), findsOneWidget);
+});
+
+testWidgets('an open service dispute stays visible while a second report is disabled', (tester) async {
+  final client = FakeApiClient(completion: {
+    'bookingStatus': 'IN_PROGRESS',
+    'requestedAt': '2026-09-07T11:55:00.000Z',
+    'confirmedAt': null,
+  })..disputes = [{
+    'id': 'dispute-2',
+    'status': 'UNDER_REVIEW',
+    'detail': 'Repair not completed',
+  }];
+  await tester.pumpWidget(host(client));
+  await tester.pumpAndSettle();
+  expect(find.text('Status: UNDER_REVIEW'), findsOneWidget);
+  final button = tester.widget<OutlinedButton>(
+    find.ancestor(of: find.text('Report an issue instead'), matching: find.byType(OutlinedButton)).first,
+  );
+  expect(button.onPressed, isNull);
+  expect(client.posts, isEmpty);
+});
 }

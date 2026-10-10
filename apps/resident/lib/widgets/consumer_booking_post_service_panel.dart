@@ -26,6 +26,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
   Map<String, dynamic>? _rating;
   List<Map<String, dynamic>> _proposals = const [];
   List<Map<String, dynamic>> _evidence = const [];
+  List<Map<String, dynamic>> _disputes = const [];
   int _stars = 0;
   final TextEditingController _comment = TextEditingController();
 
@@ -53,6 +54,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       ]);
       dynamic proposalsRaw;
       dynamic evidenceRaw;
+      dynamic disputesRaw;
       try {
         proposalsRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/proposals');
       } catch (_) {
@@ -63,6 +65,11 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       } catch (_) {
         evidenceRaw = const <dynamic>[];
       }
+      try {
+        disputesRaw = await widget.apiClient.get('/api/v1/consumer/services/bookings/${widget.bookingId}/disputes');
+      } catch (_) {
+        disputesRaw = const <dynamic>[];
+      }
       if (!mounted) return;
       setState(() {
         _completion = results[0] is Map<String, dynamic> ? results[0] as Map<String, dynamic> : null;
@@ -71,6 +78,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         _comment.text = _rating?['comment']?.toString() ?? '';
         _proposals = (proposalsRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
         _evidence = (evidenceRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
+        _disputes = (disputesRaw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList();
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -168,7 +176,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
     String detailHint = 'What went wrong?',
     String successMessage = 'Service issue submitted for review.',
   }) async {
-    if (_openingDispute) return;
+    if (_openingDispute || _disputes.any((d) => d['status'] == 'OPEN' || d['status'] == 'UNDER_REVIEW')) return;
     final reason = TextEditingController(text: reasonCode);
     final detail = TextEditingController();
     final submitted = await showDialog<bool>(
@@ -199,6 +207,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
         '/api/v1/consumer/services/bookings/${widget.bookingId}/disputes',
         {'reasonCode': reason.text.trim(), 'detail': detail.text.trim()},
       );
+      await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -270,7 +279,9 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
       if (proposal['status']?.toString() == 'PENDING') { pendingProposal = proposal; break; }
     }
 
-    if (!completionPending && !completed && pendingProposal == null && _evidence.isEmpty) return const SizedBox.shrink();
+    final unresolvedDispute = _disputes.any((d) => d['status'] == 'OPEN' || d['status'] == 'UNDER_REVIEW');
+    if (!completionPending && !completed && pendingProposal == null &&
+        _evidence.isEmpty && _disputes.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     return Column(
@@ -301,6 +312,33 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                       Expanded(child: FilledButton(onPressed: _respondingProposal ? null : () => _respondToProposal(pendingProposal!, 'ACCEPT'), child: const Text('Accept time'))),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
+        if (_disputes.isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Service issue history', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  ..._disputes.take(5).map((dispute) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Status: ${dispute['status'] ?? 'OPEN'}',
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        if ((dispute['detail']?.toString() ?? '').isNotEmpty)
+                          Text(dispute['detail'].toString()),
+                        if ((dispute['resolutionNote']?.toString() ?? '').isNotEmpty)
+                          Text('Resolution: ${dispute['resolutionNote']}'),
+                      ],
+                    ),
+                  )),
                 ],
               ),
             ),
@@ -358,7 +396,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _openingDispute ? null : _openDispute,
+                      onPressed: _openingDispute || unresolvedDispute ? null : _openDispute,
                       icon: const Icon(Icons.report_problem_outlined),
                       label: const Text('Report an issue instead'),
                     ),
@@ -399,7 +437,7 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                   if (revisitEligible) ...[
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
-                      onPressed: _openingDispute
+                      onPressed: _openingDispute || unresolvedDispute
                           ? null
                           : () => _openDispute(
                                 reasonCode: 'WARRANTY_REVISIT',
