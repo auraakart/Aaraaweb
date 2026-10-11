@@ -131,3 +131,64 @@ describe('V4.90.18.9 — provider bill-request receipt, not an invoice',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('V4.90.18.10 — non-payable extra-work billing draft',()=>{
+  const requestId='66666666-6666-4666-8666-666666666666';
+  const providerId=approved.providerId;
+  const source={id:requestId,quoteId,userId:actor,providerId,amountPaise:'12500'};
+  const draft={id:'77777777-7777-4777-8777-777777777777',billingRequestId:requestId,
+    quoteId,userId:actor,providerId,amountPaise:'12500',status:'DRAFT'};
+  it('denies foreign providers before even reading bill requests',async()=>{
+    const {svc,tx}=setup([[]]);
+    await expect(svc.prepareExtraWorkBillingDraft('foreign-provider',bookingId,requestId))
+      .rejects.toThrow('Provider booking not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a missing or unapproved bill request before reading acknowledgements',async()=>{
+    const {svc,tx}=setup([[booking],[]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .rejects.toThrow('Approved separate bill request not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+  it('requires the existing provider acknowledgement',async()=>{
+    const {svc,tx}=setup([[booking],[source],[]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .rejects.toThrow('must acknowledge');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+  it('inserts immutable INR draft without charging or repricing',async()=>{
+    const {svc,tx}=setup([[booking],[source],[{id:'ack-1'}],[],[draft]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .resolves.toEqual(draft);
+    const query=tx.$queryRaw.mock.calls.map(x=>sqlText(x[0]));
+    expect(query[0]).toContain('FOR UPDATE');
+    expect(query[1]).toContain('FOR UPDATE OF r');
+    expect(query[4]).toContain('INSERT INTO "ConsumerServiceExtraWorkBillingDraft"');
+    expect(sqlValues(tx.$queryRaw.mock.calls[4][0])).toContain(BigInt(12500));
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const sql=[...query,...tx.$executeRaw.mock.calls.map(x=>sqlText(x[0]))].join('\n');
+    expect(sql).toContain('PROVIDER_PREPARED_NONPAYABLE_EXTRA_WORK_DRAFT');
+    expect(sql).not.toContain('INSERT INTO "ConsumerServicePayment"');
+    expect(sql).not.toContain('INSERT INTO "Invoice"');
+    expect(sql).not.toContain('SET "servicePricePaise"');
+  });
+  it('replays original draft even after the booking changes, without a second event',async()=>{
+    const {svc,tx}=setup([[booking],[source],[{id:'ack-1'}],[draft]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .resolves.toEqual(draft);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('rejects a conflicting existing draft',async()=>{
+    const {svc,tx}=setup([[booking],[source],[{id:'ack-1'}],[{...draft,amountPaise:'12501'}]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .rejects.toThrow('conflicts');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('blocks new drafts when the booking has been cancelled',async()=>{
+    const {svc,tx}=setup([[{...booking,status:'CANCELLED'}],[source],[{id:'ack-1'}],[]]);
+    await expect(svc.prepareExtraWorkBillingDraft('provider-user',bookingId,requestId))
+      .rejects.toThrow('Cancelled booking');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+});

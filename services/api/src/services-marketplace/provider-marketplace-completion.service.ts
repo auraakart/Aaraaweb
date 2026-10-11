@@ -582,13 +582,83 @@ export class ProviderMarketplaceCompletionService {
     });
   }
 
+  // This snapshot is preparatory only, with no invoice, payment or tax side effects.
+  // Always lock booking before bill request; return original receipt on retry.
+  async prepareExtraWorkBillingDraft(userId:string,bookingId:string,requestId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+      `);
+      if(!bookings[0])throw new NotFoundException('Provider booking not found');
+      const requests=await tx.$queryRaw<Array<{
+        id:string;bookingId:string;quoteId:string;userId:string;providerId:string;amountPaise:string;
+      }>>(Prisma.sql`
+        SELECT r."id",r."bookingId",r."quoteId",r."userId",r."providerId",
+          r."amountPaise"::text AS "amountPaise"
+        FROM "ConsumerServiceExtraWorkBillingRequest" r
+        JOIN "ConsumerServiceExtraWorkQuote" q ON q."id"=r."quoteId"
+          AND q."bookingId"=r."bookingId" AND q."providerId"=r."providerId"
+          AND q."status"='APPROVED' AND q."amountPaise"=r."amountPaise"
+        WHERE r."id"=${requestId}::uuid AND r."bookingId"=${bookingId}::uuid
+          AND r."providerId"=${provider.providerId}::uuid
+        FOR UPDATE OF r
+      `);
+      const request=requests[0];
+      if(!request)throw new NotFoundException('Approved separate bill request not found');
+      const acknowledgements=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "ConsumerServiceExtraWorkBillAcknowledgement"
+        WHERE "billingRequestId"=${requestId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid LIMIT 1
+      `);
+      if(!acknowledgements[0])throw new BadRequestException('Provider must acknowledge the resident bill request first');
+      const previous=await tx.$queryRaw<Array<{
+        id:string;billingRequestId:string;bookingId:string;quoteId:string;providerId:string;
+        userId:string;amountPaise:string;currency:string;status:string;createdAt:Date;
+      }>>(Prisma.sql`
+        SELECT "id","billingRequestId","bookingId","quoteId","providerId","userId",
+          "amountPaise"::text AS "amountPaise","currency","status","createdAt"
+        FROM "ConsumerServiceExtraWorkBillingDraft"
+        WHERE "billingRequestId"=${requestId}::uuid FOR UPDATE
+      `);
+      if(previous[0]){
+        if(previous[0].amountPaise!==request.amountPaise||
+          previous[0].userId!==request.userId||previous[0].quoteId!==request.quoteId||
+          previous[0].providerId!==provider.providerId){
+          throw new ConflictException('Existing billing draft conflicts with approved request evidence');
+        }
+        return previous[0];
+      }
+      if(bookings[0].status===ServiceBookingStatus.CANCELLED)
+        throw new BadRequestException('Cancelled booking cannot prepare a new billing draft');
+      const drafts=await tx.$queryRaw<Array<{id:string;billingRequestId:string;amountPaise:string;status:string}>>(Prisma.sql`
+        INSERT INTO "ConsumerServiceExtraWorkBillingDraft"
+          ("id","billingRequestId","bookingId","quoteId","providerId","userId","amountPaise")
+        VALUES (${randomUUID()}::uuid,${requestId}::uuid,${bookingId}::uuid,${request.quoteId}::uuid,
+          ${provider.providerId}::uuid,${request.userId}::uuid,${BigInt(request.amountPaise)})
+        RETURNING "id","billingRequestId","amountPaise"::text AS "amountPaise","status"
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'PROVIDER_PREPARED_NONPAYABLE_EXTRA_WORK_DRAFT',
+          ${bookings[0].status}::"ServiceBookingStatus",${bookings[0].status}::"ServiceBookingStatus",
+          ${`Request ${requestId}: non-payable billing draft; no tax invoice or payment`},CURRENT_TIMESTAMP)
+      `);
+      return drafts[0];
+    });
+  }
+
   async listConsumerExtraWorkBillRequests(userId:string,bookingId:string){
     await this.assertConsumerBooking(userId,bookingId);
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",r."status",r."createdAt",
-        a."createdAt" AS "providerAcknowledgedAt"
+        a."createdAt" AS "providerAcknowledgedAt",d."createdAt" AS "nonPayableDraftPreparedAt"
       FROM "ConsumerServiceExtraWorkBillingRequest" r
       LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
       WHERE r."bookingId"=${bookingId}::uuid AND r."userId"=${userId}::uuid
       ORDER BY r."createdAt" DESC,r."id" DESC LIMIT 100
     `);
@@ -603,9 +673,11 @@ export class ProviderMarketplaceCompletionService {
     if(!booking[0])throw new NotFoundException('Provider booking not found');
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",
-        r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt"
+        r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt",
+        d."createdAt" AS "nonPayableDraftPreparedAt"
       FROM "ConsumerServiceExtraWorkBillingRequest" r
       LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
       WHERE r."bookingId"=${bookingId}::uuid AND r."providerId"=${provider.providerId}::uuid
       ORDER BY r."createdAt" DESC,r."id" DESC LIMIT 100
     `);
