@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.10",
+      "currentSlice": "V5.2.11",
       "slices": [
         {
           "id": "V5.2.1",
@@ -214,11 +214,25 @@
         {
           "id": "V5.2.10",
           "name": "Scope existing community governance visibility and audience transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "d3967f146a627fb9c8e8993703ab8884df68a2e9",
           "evidence": [
             "services/api/src/governance/governance-community.transactions.spec.ts",
             "services/api/src/governance/governance-community.postgres.spec.ts"
+          ],
+          "pullRequest": 1221,
+          "mergeSha": "9714207c62b7ac8651aa33ce390eeef78982d296",
+          "validatedRuntimeSha": "444c4880ca59eb1759dd6febf9941eccdf3a4e42",
+          "ciRun": 38161686487
+        },
+        {
+          "id": "V5.2.11",
+          "name": "Scope existing election policy and electorate snapshot transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "9714207c62b7ac8651aa33ce390eeef78982d296",
+          "evidence": [
+            "services/api/src/governance/governance-election-foundation.transactions.spec.ts",
+            "services/api/src/governance/governance-election-foundation.postgres.spec.ts"
           ]
         }
       ]
