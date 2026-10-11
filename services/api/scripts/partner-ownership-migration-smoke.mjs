@@ -16,7 +16,9 @@ fixtureUrl.pathname = `/${database}`;
 function execute(url, input, expectReservedSlugFailure = false) {
   const result = spawnSync('psql', ['--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--quiet'], {
     input, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024,
-    env: { ...process.env, PGDATABASE: url.toString() },
+    env: { ...process.env, PGHOST: url.hostname, PGPORT: url.port || '5432',
+      PGUSER: decodeURIComponent(url.username), PGPASSWORD: decodeURIComponent(url.password),
+      PGDATABASE: decodeURIComponent(url.pathname.slice(1)), PGCONNECT_TIMEOUT: '10' },
   });
   if (result.error) throw result.error;
   if (expectReservedSlugFailure) {
@@ -25,8 +27,10 @@ function execute(url, input, expectReservedSlugFailure = false) {
   }
   if (result.status !== 0) throw new Error(`PostgreSQL upgrade smoke failed: ${result.stderr}`);
 }
+let created = false;
 try {
   execute(adminUrl, `CREATE DATABASE "${database}";`);
+  created = true;
   const historical = fs.readdirSync(root).filter(name => name < migrationName && fs.existsSync(path.join(root, name, 'migration.sql'))).sort();
   const migration = fs.readFileSync(path.join(root, migrationName, 'migration.sql'), 'utf8');
   // One connection retains temporary reconciliation tables across migration replay.
@@ -35,5 +39,5 @@ try {
   execute(fixtureUrl, sql);
   console.log(`V5 partner ownership: ${historical.length} historical migrations, 64 tier/override/status fixtures, legacy insert, constraints, immutability, replay, atomic failure rollback and deletion passed.`);
 } finally {
-  execute(adminUrl, `DROP DATABASE IF EXISTS "${database}" WITH (FORCE);`);
+  if (created) execute(adminUrl, `DROP DATABASE IF EXISTS "${database}" WITH (FORCE);`);
 }

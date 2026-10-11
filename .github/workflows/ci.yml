@@ -461,6 +461,7 @@ jobs:
         env:
           AARAAGATE_PARTNER_MIGRATION_CI: '1'
         run: |
+          node --test services/api/scripts/partner-ownership-migration-smoke.test.mjs
           node services/api/scripts/partner-ownership-migration-smoke.mjs
           pnpm --filter @aaraagate/api exec vitest run src/societies/societies-compatibility.postgres.spec.ts
       - name: Lint API
