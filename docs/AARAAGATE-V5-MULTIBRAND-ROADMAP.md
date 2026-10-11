@@ -444,3 +444,14 @@ Local validation: API lint/typecheck/build and 101 focused tests passed; 5 Postg
 PR #1213 passed all required gates and full API/Admin/Flutter validation on `be55234e2b879b48344d62a1b7b1084cddd31df9`, and merged into develop at `6a364bf6880396524902229421aa215d545b513d`. Native PostgreSQL executed and passed the new configuration boundary test; the prior pending record is superseded.
 
 V5.2.3 scopes gate assignment checks, list, assign and deactivate operations with transaction-local society context. Gate ownership checks, active security membership validation and mutation queries use only the supplied transaction client. Existing explicit SQL scope, gate/time-window filters, role permissions and response fields remain unchanged. The native PostgreSQL fixture covers foreign gates/users/deactivation targets, assignment window boundaries and inactive gates. Local API lint/typecheck/build and 27 focused tests passed; the PostgreSQL test was skipped locally without DATABASE_URL and remains a mandatory protected-CI result before merge. No RLS activation, main/staging promotion or hosted migration.
+
+
+## V5.2.5 community event tenant transactions
+
+V5.2.4 merged through PR #1215 as `a92428210ceddba03aef0aecd51ede1b25b08619` after canonical CI run [38145620048](https://github.com/auraakart/Aaraaweb/actions/runs/38145620048) passed on head `62465f42a19c8c9ef745afb2f5d2d4c82769318a`.
+
+Community event resident/admin listing, creation, lifecycle and RSVP paths now use `withTenantContext` and its supplied transaction client. Existing explicit society and owner/occupant audience predicates, event/RSVP row locks, capacity enforcement, idempotent RSVP/lifecycle behavior and response fields remain intact. Unit tests reject fallback to the global client; a disposable PostgreSQL fixture covers foreign event rejection, owner-only audience, concurrent last-place RSVPs, unchanged RSVP retries, cancelled lifecycle and revoked occupancy.
+
+V5.2.5 is implemented pending protected CI. The PostgreSQL fixture runs in the canonical API full test suite. This is one bounded governance conversion, not full governance isolation or database RLS activation. No schema, permission, entitlement, Android identity or client contract changes. Staging/main promotion remains excluded. A reviewed revert is the rollback path.
+
+Local V5.2.5 validation: Node 22/pnpm 10.15 frozen install; API lint, typecheck and build; 37 focused event/poll unit tests passed; four database tests skipped without DATABASE_URL. Deterministic inventory, API route contract, community event contract, PostgreSQL parameter contract, repository integrity, product branding and secret-pattern checks passed. Native PostgreSQL and protected CI evidence remain pending.

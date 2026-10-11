@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "fe5b51418f3dc361be951bdf08c762e14c519f00b24923912738650ba3b6d162",
+  "sourceDigest": "dec4394a3132d5dfef37c4cb6a377eeea88c0361b4128e59a957061eef1d65c3",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 58,
-    "runtimeTenantContextCalls": 10,
+    "runtimeTenantContextCalls": 15,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -51,6 +51,26 @@
     {
       "file": "services/api/src/gates/gate-assignment.service.ts",
       "line": 83
+    },
+    {
+      "file": "services/api/src/governance/community-events.service.ts",
+      "line": 24
+    },
+    {
+      "file": "services/api/src/governance/community-events.service.ts",
+      "line": 75
+    },
+    {
+      "file": "services/api/src/governance/community-events.service.ts",
+      "line": 103
+    },
+    {
+      "file": "services/api/src/governance/community-events.service.ts",
+      "line": 118
+    },
+    {
+      "file": "services/api/src/governance/community-events.service.ts",
+      "line": 141
     },
     {
       "file": "services/api/src/governance/governance-poll-participation.controller.ts",
@@ -992,16 +1012,16 @@
     {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":200,"method":"assertMembership","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":207,"method":"senderIdentity","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","UnitOwnership","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":223,"method":"assertCurrentResident","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":24,"method":"listVisible","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":75,"method":"listManage","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":103,"method":"create","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":117,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":128,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":140,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":169,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":177,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":185,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":196,"method":"summary","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":24,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":75,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":104,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":119,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":130,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":142,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":171,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":179,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":187,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":198,"method":"summary","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-artifacts.controller.ts","line":43,"method":"listDocuments","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceDocumentReference"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-artifacts.controller.ts","line":50,"method":"addDocument","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceResolution"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-artifacts.controller.ts","line":51,"method":"addDocument","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceDocumentReference"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
