@@ -217,6 +217,10 @@ describe('V4.90.18.11 — independent read-only Finance handoff',()=>{
     expect(sql).toContain('r."bookingId"');
     expect(sql).toContain('r."providerId"');
     expect(sql).toContain('b."userId"=r."userId"');
+    expect(sqlValues(prisma.$queryRaw.mock.calls[0][0])).toContain(bookingId);
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain(requestId);
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain(bookingId);
+    expect(sql).not.toContain('@{');
   });
 
   it('reports complete evidence while explicitly denying invoice and payment readiness',async()=>{

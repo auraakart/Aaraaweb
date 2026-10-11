@@ -656,7 +656,7 @@ export class ProviderMarketplaceCompletionService {
     const provider=await this.operators.resolveProvider(userId);
     const bookings=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT "id" FROM "ConsumerServiceBooking"
-      WHERE "id"=@{bookingId}::uuid AND "providerId"=@{provider.providerId}::uuid LIMIT 1
+      WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
     `);
     if(!bookings[0])throw new NotFoundException('Provider booking not found');
     const rows=await this.prisma.$queryRaw<Array<{
@@ -680,8 +680,8 @@ export class ProviderMarketplaceCompletionService {
         ON a."billingRequestId"=r."id" AND a."providerId"=r."providerId"
       LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d
         ON d."billingRequestId"=r."id" AND d."providerId"=r."providerId"
-      WHERE r."id"=@{requestId}::uuid AND r."bookingId"=@{bookingId}::uuid
-        AND r."providerId"=@{provider.providerId}::uuid LIMIT 1
+      WHERE r."id"=${requestId}::uuid AND r."bookingId"=${bookingId}::uuid
+        AND r."providerId"=${provider.providerId}::uuid LIMIT 1
     `);
     const row=rows[0];
     if(!row)throw new NotFoundException('Provider bill request not found');
