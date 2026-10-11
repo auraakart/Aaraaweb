@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.5",
+      "currentSlice": "V5.2.6",
       "slices": [
         {
           "id": "V5.2.1",
@@ -144,6 +144,18 @@
           "evidence": [
             "services/api/src/governance/community-events.service.spec.ts",
             "services/api/src/governance/community-events.postgres.spec.ts"
+          ],
+          "pullRequest": 1216,
+          "validatedRuntimeSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff"
+        },
+        {
+          "id": "V5.2.6",
+          "name": "Resident directory profiles and consent-based contact tenant transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff",
+          "evidence": [
+            "services/api/src/governance/resident-directory.service.spec.ts",
+            "services/api/src/governance/resident-directory.postgres.spec.ts"
           ]
         }
       ]

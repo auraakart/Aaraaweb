@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "dec4394a3132d5dfef37c4cb6a377eeea88c0361b4128e59a957061eef1d65c3",
+  "sourceDigest": "8ceed8bd3f603307a46e58e6c6e75042cc622ab9c01ed2793d1961508f8fdd3e",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 58,
-    "runtimeTenantContextCalls": 15,
+    "runtimeTenantContextCalls": 22,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -87,6 +87,34 @@
     {
       "file": "services/api/src/governance/governance-poll-participation.controller.ts",
       "line": 117
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 17
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 39
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 60
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 98
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 123
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 168
+    },
+    {
+      "file": "services/api/src/governance/resident-directory.service.ts",
+      "line": 184
     },
     {
       "file": "services/api/src/societies/societies.controller.ts",
@@ -1127,19 +1155,19 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance.service.ts","line":104,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["GovernanceEvidenceEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance.service.ts","line":109,"method":"assertMeeting","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceMeeting"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance.service.ts","line":110,"method":"evidence","operation":"$executeRaw","kind":"RAW_SQL","tables":["GovernanceEvidenceEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":18,"method":"mine","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.user","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":25,"method":"mine","operation":"findUnique","kind":"ORM","tables":["User"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma.user","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":38,"method":"updateMine","operation":"findUnique","kind":"ORM","tables":["User"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":44,"method":"updateMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":57,"method":"listVisible","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest","ResidentDirectoryProfile","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":93,"method":"contactRequests","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest","ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/governance/resident-directory.service.ts","line":117,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":118,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":140,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":150,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":162,"method":"respond","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":175,"method":"withdraw","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":187,"method":"assertCurrentResident","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":19,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.user","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":26,"method":"callback","operation":"findUnique","kind":"ORM","tables":["User"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.user","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":41,"method":"callback","operation":"findUnique","kind":"ORM","tables":["User"],"queryScopeSignals":["userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":47,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":62,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest","ResidentDirectoryProfile","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":100,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest","ResidentDirectoryProfile"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/governance/resident-directory.service.ts","line":125,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":126,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryProfile","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":148,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":158,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":171,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":186,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["ResidentDirectoryContactRequest"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/resident-directory.service.ts","line":199,"method":"assertCurrentResident","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/guard-operations/guard-operations.service.ts","line":16,"method":"summary","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccessRequest","GuardWatchlistEntry","MaterialGatePass","PatrolCheckpoint","SecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/guard-operations/guard-operations.service.ts","line":28,"method":"overstays","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccessRequest","Building","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/guard-operations/guard-operations.service.ts","line":42,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["AccessRequest","Building","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},

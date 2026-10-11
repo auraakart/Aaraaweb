@@ -455,3 +455,14 @@ Community event resident/admin listing, creation, lifecycle and RSVP paths now u
 V5.2.5 is implemented pending protected CI. The PostgreSQL fixture runs in the canonical API full test suite. This is one bounded governance conversion, not full governance isolation or database RLS activation. No schema, permission, entitlement, Android identity or client contract changes. Staging/main promotion remains excluded. A reviewed revert is the rollback path.
 
 Local V5.2.5 validation: Node 22/pnpm 10.15 frozen install; API lint, typecheck and build; 37 focused event/poll unit tests passed; four database tests skipped without DATABASE_URL. Deterministic inventory, API route contract, community event contract, PostgreSQL parameter contract, repository integrity, product branding and secret-pattern checks passed. Native PostgreSQL and protected CI evidence remain pending.
+
+
+## V5.2.6 resident directory tenant transactions
+
+V5.2.5 is published through PR #1216 on validated source tree `3140270199010f0ac2198a1ab9af71b1669b0e61`; protected CI remains pending at this slice's starting point.
+
+Resident directory profile reads/writes, visible listing, contact request history, requests, responses and withdrawals now use one society-scoped transaction per operation. Current owner/occupant checks and the self-only identity projection run on the supplied transaction client, including requester checks inside the contact-request pair lock transaction. Existing opt-in visibility, reciprocal pending-request exclusion, recipient/requester authority, current residency, consent notes and response fields remain unchanged. Acceptance does not reveal phone/email or grant messaging access.
+
+Unit tests reject global-client fallback and revoked authority, cover invisible/foreign recipients and consent actor restrictions. The disposable PostgreSQL fixture exercises two societies, hidden profiles, cross-society access, reciprocal request races, wrong-actor response/withdrawal, accepted and withdrawn lifecycle, repeat response and revoked occupancy. Canonical API CI owns native database validation. No schema, RLS, permission, feature or client contract change; full V5 isolation remains open. Rollback is a reviewed revert of this slice. Staging/main promotion remains excluded.
+
+Local V5.2.6 validation: API lint, typecheck and build passed; 20 directory/controller tests passed and one PostgreSQL fixture skipped without DATABASE_URL. The earlier combined directory/controller/event run passed 42 tests. Inventory regeneration/stale check reports 22 runtime context calls; adoption, API and PostgreSQL parameter contracts pass. Native PostgreSQL and protected CI remain required.

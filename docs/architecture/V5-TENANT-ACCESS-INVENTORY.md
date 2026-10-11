@@ -1,6 +1,6 @@
 # V5.0.2 tenant-access inventory and V5.2 work queue
 
-Version: 1.3, 2026-10-11. Current review baseline: develop `a92428210ceddba03aef0aecd51ede1b25b08619`, with the V5.2.5 community-event transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
+Version: 1.4, 2026-10-11. Current review baseline: develop `a92428210ceddba03aef0aecd51ede1b25b08619`, with the V5.2.5 community-event and V5.2.6 resident-directory transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
 
 ## Coverage and reproduction
 
@@ -20,7 +20,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 58 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 15 |
+| Runtime calls to `withTenantContext` | 22 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -56,7 +56,7 @@ Every table has a boundary and maintainer responsibility in the JSON register; n
 | ISO-06 | P0 | all scoped table batches; runtime DB role/RLS policies | Explicit table-by-table policy matrix, applicable bypass-role audit, USING/WITH CHECK and missing-context negatives; no blanket RLS activation before conversion |
 | ISO-07 | P1 | disposable performance-seed.mjs (11 Unsafe calls), SQL utility/advisory locks | Fixture-only execution safeguards, no runtime promotion, controlled identifier construction and trigger restoration; lock keys appropriate to society/user/provider scope |
 
-The `withTenantContext` helper sets a transaction-local database value. Fifteen runtime calls now cover branding configuration, society details, gate assignments, community-poll participation and community events. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
+The `withTenantContext` helper sets a transaction-local database value. Twenty-two runtime calls now cover branding configuration, society details, gate assignments, community-poll participation, community events and the resident directory. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
 
 Definition of Done for this inventory: exhaustive static register for the supported repository source forms; table/route/query evidence and authority classes; explicit exceptions/limitations; maintainer responsibilities; prioritized V5.2 conversion queue; deterministic stale check in canonical CI. Definition of Done for isolation is separate: runtime-role, pooled-connection, nested-write, worker, storage/cache and cross-audience tests tied to each converted batch. Changes to source or DDL forms require extractor review as well as regeneration.
 
@@ -81,3 +81,10 @@ PR #1215 passed canonical CI run 38145620048 at head `62465f42a19c8c9ef745afb2f5
 Community event resident/admin listing, creation, lifecycle and RSVP operations now establish tenant context and use the supplied transaction client throughout. Explicit society/audience predicates, event/RSVP row locks, capacity enforcement and existing responses are retained. The PostgreSQL fixture tests both societies, owner/occupant visibility, inaccessible lifecycle/RSVP operations, concurrent last-place booking, unchanged RSVP retry, revoked occupancy and cancelled lifecycle. It runs in the existing canonical API full suite; native database and protected CI validation remain required before this slice merges.
 
 Five event operations add five runtime context calls, for fifteen total. No migration or RLS policy is added. Community circles, directory and other governance paths remain in the conversion queue; this slice does not close ISO-04 or V5.2. Staging/main promotion remains excluded.
+
+
+## V5.2.6 bounded conversion
+
+Seven resident-directory operations now use society-scoped transactions. Owner/occupant checks, self-profile identity lookup and contact recipient/pending-pair validation stay on the supplied client. The opt-in projection, private participant-only contact history and consent transition predicates are preserved. Unit tests cover revoked residents and global-client fallback; the disposable PostgreSQL fixture covers foreign societies, hidden recipients, reciprocal pending-request concurrency, consent actor restrictions, repeat responses, withdrawals and revoked occupancy. Native database validation remains required in canonical CI.
+
+Runtime context calls increase from fifteen to twenty-two; this does not enable RLS or close the remaining governance conversion queue. Staging/main remain excluded.
