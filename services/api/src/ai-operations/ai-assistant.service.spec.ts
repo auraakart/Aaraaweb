@@ -326,6 +326,7 @@ describe('V4.6 grounded AI assistant',()=>{
     documents.searchKnowledgeForUser.mockResolvedValueOnce([]);
     const missing=await service.query('society-1','user-1',[AppRole.OWNER],'What does our pet policy document say?');
     expect(missing.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(missing.sources).toEqual([]);
     expect(missing.answer).toContain('No matching published society knowledge was found');
     expect((missing.facts as {answerBoundary:string}).answerBoundary).toContain('No matching published society document');
   });
@@ -344,6 +345,23 @@ describe('V4.6 grounded AI assistant',()=>{
     expect(answer.sources).toContain('SocietyDocumentKnowledge');
     expect(documents.searchKnowledgeForUser).toHaveBeenCalledTimes(1);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['blank excerpt', {documentId:'doc-1',title:'Pool policy',version:2,excerpt:'   '}],
+    ['title-only match', {documentId:'doc-1',title:'Pool policy',version:2,excerpt:'Pool policy'}],
+    ['missing document reference', {documentId:'',title:'Pool policy',version:2,excerpt:'No diving allowed'}],
+    ['invalid source version', {documentId:'doc-1',title:'Pool policy',version:0,excerpt:'No diving allowed'}],
+  ])('refuses %s as usable policy evidence and omits false citations',async(_label,fragment)=>{
+    const {documents,service,prisma}=setup();
+    documents.searchKnowledgeForUser.mockResolvedValueOnce([fragment]);
+    const answer=await service.query('society-1','user-1',[AppRole.TENANT],'What are the pool rules?');
+    expect(answer.intent).toBe('SOCIETY_KNOWLEDGE');
+    expect(answer.answer).toContain('No matching published society knowledge');
+    expect(answer.sources).toEqual([]);
+    expect((answer.facts as {matches:unknown[]}).matches).toEqual([]);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('does not invent an answer to a society rule when there is no published document',async()=>{
