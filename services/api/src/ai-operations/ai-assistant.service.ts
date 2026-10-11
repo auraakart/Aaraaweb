@@ -219,15 +219,25 @@ export class AiAssistantService {
     if(isSocietyKnowledgeQuestion(routed)){
       this.requireTool(roles,'SOCIETY_KNOWLEDGE');
       if(unitId) await this.assertResidentUnit(societyId,userId,unitId);
-      const facts=await this.documents.searchKnowledgeForUser(
+      const candidates=await this.documents.searchKnowledgeForUser(
         societyId,userId,text,hasPermission(roles,AppPermission.DOCUMENTS_READ),
       );
+      // A title-only or malformed search hit is a pointer to a document, not
+      // published policy text. Do not claim a citation or quote an empty excerpt.
+      const facts=candidates.filter(item=>{
+        const title=String(item.title??'').trim();
+        const excerpt=String(item.excerpt??'').trim();
+        return String(item.documentId??'').trim().length>0
+          && Number.isInteger(item.version) && item.version>0
+          && title.isNotEmpty && excerpt.isNotEmpty
+          && title.toLowerCase()!==excerpt.toLowerCase();
+      });
       return this.auditedResponse(
         societyId,userId,unitId,'SOCIETY_KNOWLEDGE','SOCIETY_KNOWLEDGE',
         {matches:facts,answerBoundary:facts.length
           ? 'Use the cited excerpts as the authoritative published source. Open the document for full context before acting.'
           : 'No matching published society document was found. No policy answer was invented.'},
-        ['SocietyDocument','SocietyDocumentKnowledge'],
+        facts.length?['SocietyDocument','SocietyDocumentKnowledge']:[],
         facts.length
           ? `The published society document "${String(facts[0].title).trim().slice(0,100)}" (version ${facts[0].version}) includes: ${String(facts[0].excerpt).trim().slice(0,420)}. Open the cited document for full context and the latest applicable instructions.`
           : 'No matching published society knowledge was found; no answer was invented.',
