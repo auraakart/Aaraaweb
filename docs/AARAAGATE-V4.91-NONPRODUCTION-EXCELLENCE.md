@@ -46,3 +46,20 @@ Scoped PostgreSQL tests extend existing invoice/payment-order authority rather t
 ## V4.91.4 — Source-validity and no-evidence citation truth
 
 **Identified:** A published-document search with no matches was still exposing `SocietyDocument`/knowledge-table source labels, which could visually imply cited evidence. Title-only or malformed search hits could be quoted as policy despite no actual excerpt. **Correction:** accept only search hits with a nonblank document identity, positive integral version, nonblank title, and substantial excerpt other than the bare title. If no valid evidence exists, return the unchanged no-answer explanation with empty source list and audit status UNSUPPORTED. Keep role-scoped database search authoritative and no autonomous mutation. Extend adversarial suite for blank/placeholder/malformed hits. This is API quality and safety, not multilingual market expansion or a replacement retrieval engine.
+
+## V4.91.1–V4.91.4: exact-head engineering evidence
+
+| Slice | Merged PR | Develop commit | Verified scope and gates |
+|---|---|---|---|
+| V4.91.1 | [#1198](https://github.com/auraakart/Aaraaweb/pull/1198) | `7b6afe01efc30564e823074f34c1830bb2638838` | Resident Assistant English-only, no selector, repeated voice/320px/200%-text regression; full Flutter, mandatory checks green |
+| V4.91.2 | [#1199](https://github.com/auraakart/Aaraaweb/pull/1199) | `b50753af671c9cf14a2c3ce7b16efb8294b13827` | Migrated PostgreSQL departed-tenant, other-unit receipt and cross-society payment regressions; full API, mandatory checks green |
+| V4.91.3 | [#1200](https://github.com/auraakart/Aaraaweb/pull/1200) | `0f41b176f0900792e430bacf64404a09ca3c4abc` | Pending speech/API answer context isolation across home/auth switch; full Flutter, mandatory checks green |
+| V4.91.4 | [#1201](https://github.com/auraakart/Aaraaweb/pull/1201) | `1778446fa2c0c1094a29b6fa28be5d71b740becc` | No false society-policy citations for blank, title-only or invalid evidence; full API, mandatory checks green |
+
+## V4.91.5: technical debt and truthful evidence closure
+
+See [V4.91 closure evidence](AARAAGATE-V4.91-CLOSURE-EVIDENCE.md) for dependency risk, scoped file measurements, residual unverified manual/device scenarios and explicit stop conditions. The final documentation PR must separately pass exact-head mandatory checks before engineering-scope closure; no staging/main promotion follows automatically.
+
+**Unverified acceptance:** cross-role field UAT, real TalkBack/android devices, admin browser keyboard, financial refund/reversal/Tally matrix, Services provider field journeys, penetration testing and exact-head performance comparisons. Target 8.5+/10 remains an unverified criterion, not an earned re-score.
+
+**Stop at V4.91.5.** Any remaining defect must receive its own reproducible scope and required review. Do not automatically open V4.91.6 or reopen Services 3.1.

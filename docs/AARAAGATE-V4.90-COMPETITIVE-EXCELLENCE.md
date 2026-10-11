@@ -102,3 +102,7 @@ Existing features take precedence over new abstractions. Preserve current occupa
 ## Completion rules
 
 Validate exact PR-head checks before merging to `develop`. A partial or unrelated passing workflow is insufficient. For every future slice, record changed files, executed checks, unverified assumptions, residual risks and branch/PR references. Do not increase scores until acceptance criteria are satisfied.
+
+## V4.91 follow-up (current non-production scope)
+
+The V4.90 milestones above remain historical; the current develop engineering continuation is V4.91. PRs [#1198](https://github.com/auraakart/Aaraaweb/pull/1198)–[#1201](https://github.com/auraakart/Aaraaweb/pull/1201) add English-only Assistant UX, payment/privacy regression, context-switch safety and no-evidence AI citation protection. See [V4.91 closure evidence](AARAAGATE-V4.91-CLOSURE-EVIDENCE.md) for exact-head CI and outstanding human/device acceptance. Services 3.1 is still frozen at .10; the independently approved .11 non-payable Finance handoff is not permission for a payable order. No 8.5+/10 quality result is certified.
