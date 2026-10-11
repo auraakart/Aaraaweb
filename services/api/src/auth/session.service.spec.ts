@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthStateStore } from './auth-state.store';
 import { SessionService } from './session.service';
+import { AuthContextService } from './auth-context.service';
+import { PrismaMembershipRepository } from './prisma-membership.repository';
+import { AppRole } from './auth.types';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 type SessionPrismaMock = {
@@ -13,6 +16,7 @@ type SessionPrismaMock = {
     create: ReturnType<typeof vi.fn>;
   };
   societyMembership: { findMany: ReturnType<typeof vi.fn> };
+  $queryRaw: ReturnType<typeof vi.fn>;
 };
 
 describe('SessionService lifecycle security', () => {
@@ -30,13 +34,73 @@ describe('SessionService lifecycle security', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         create: vi.fn(),
       },
-      societyMembership: { findMany: vi.fn() },
+      societyMembership: { findMany: vi.fn().mockResolvedValue([]) },
+      $queryRaw: vi.fn().mockResolvedValue([]),
     };
-    service = new SessionService(prisma as unknown as PrismaService, state);
+    const persistence = prisma as unknown as PrismaService;
+    service = new SessionService(persistence, state, new AuthContextService(new PrismaMembershipRepository(persistence)));
   });
 
   afterEach(async () => {
     await state.onModuleDestroy();
+  });
+
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const societyId = '22222222-2222-4222-8222-222222222222';
+  const refreshToken = 'membership-refresh-token';
+  function activeSocietySession() {
+    return {
+      id: 'membership-session', userId, societyId, revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      refreshExpiresAt: new Date(Date.now() + 60_000),
+      refreshTokenHash: hash(refreshToken),
+      user: { status: 'ACTIVE' }, society: { status: 'ACTIVE' },
+    };
+  }
+
+  it('rejects bearer access after the last society authority is revoked', async () => {
+    prisma.session.findUnique.mockResolvedValue(activeSocietySession());
+    await expect(service.getPrincipal('access')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.societyMembership.findMany).toHaveBeenCalledWith({ where: { userId, societyId, active: true } });
+  });
+
+  it('rejects refresh without society authority before consuming or rotating the token', async () => {
+    prisma.session.findUnique.mockResolvedValue(activeSocietySession());
+    await expect(service.refresh('membership-session', refreshToken)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.session.updateMany).not.toHaveBeenCalled();
+    expect(await state.getJson(`auth:refresh-used:${hash(refreshToken)}`)).toBeNull();
+  });
+
+  it('reloads roles for bearer access and refresh in the selected society', async () => {
+    prisma.session.findUnique.mockResolvedValue(activeSocietySession());
+    prisma.societyMembership.findMany.mockResolvedValue([{ userId, societyId, role: AppRole.TENANT, active: true }]);
+    await expect(service.getPrincipal('access')).resolves.toEqual({ userId, societyId, roles: [AppRole.TENANT] });
+    await expect(service.refresh('membership-session', refreshToken)).resolves.toHaveProperty('accessToken');
+    expect(prisma.societyMembership.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves active dedicated auditor authority for bearer access and refresh', async () => {
+    prisma.session.findUnique.mockResolvedValue(activeSocietySession());
+    prisma.$queryRaw.mockResolvedValue([{ userId, societyId }]);
+    await expect(service.getPrincipal('access')).resolves.toEqual({ userId, societyId, roles: [AppRole.AUDITOR] });
+    await expect(service.refresh('membership-session', refreshToken)).resolves.toHaveProperty('accessToken');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    const [sql, boundUser, boundSociety, responsibility] = prisma.$queryRaw.mock.calls[0];
+    expect(sql.join('')).toContain('"active" = true');
+    expect([boundUser, boundSociety, responsibility]).toEqual([userId, societyId, 'READ_ONLY_AUDITOR']);
+  });
+
+  it('does not accept memberships from another society or commercial partner roles', async () => {
+    prisma.session.findUnique.mockResolvedValue(activeSocietySession());
+    const otherSociety = '33333333-3333-4333-8333-333333333333';
+    prisma.societyMembership.findMany.mockImplementation(({ where }) =>
+      Promise.resolve(where.societyId === otherSociety ? [{ userId, societyId: otherSociety, role: AppRole.SOCIETY_ADMIN, active: true }] : []));
+    const partnerLookup = vi.fn().mockResolvedValue([{ role: 'PARTNER_ADMIN' }]);
+    Object.assign(prisma, { partnerMembership: { findMany: partnerLookup } });
+    await expect(service.getPrincipal('access')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.refresh('membership-session', refreshToken)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(partnerLookup).not.toHaveBeenCalled();
+    expect(prisma.session.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects an otherwise-valid bearer session when its society is suspended', async () => {

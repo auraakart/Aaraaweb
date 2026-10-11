@@ -373,6 +373,12 @@ V5 engineering completion requires all of the following:
 
 Engineering evidence is not field or production acceptance. A proposed acceptance criterion is not a test result. Stop at this Definition of Done rather than extending the program automatically.
 
+### V5.2.1 society session authority
+
+Implementation resumes from develop `c2b80e16edb4e0f6f13f1d39a621d2ca0ef6bcdd`, preserving the completed V5.0.1, V5.0.2 and V5.1.0 slices. Bearer access and refresh now use the existing AuthContextService to revalidate active society membership or a dedicated active READ_ONLY_AUDITOR assignment. A revoked membership no longer returns a society principal with empty roles. Refresh rejects missing authority before consuming the replay marker or rotating tokens. Independent-home sessions remain society-less; partner ownership and memberships grant no society authority.
+
+Local evidence: API lint, typecheck, build, selective preflight, compiled branding HTTP smoke and 83 authentication, occupancy, auditor permission and branding tests passed. The reproducible inventory is regenerated for the changed authentication path. CI scope now requires dependent Admin and both Flutter clients for runtime authentication, branding and entitlement changes; test-only changes retain narrow scope. Protected CI and merge remain pending; this slice does not implement database RLS, partner session audiences, transfers, licensing or complete V5.2 isolation. Staging/main promotion is excluded.
+
 ## 17. Source register
 
 Repository links use the reviewed immutable SHA. All statements of current implementation above are based on these repository sources or the explicitly stated read-only live ruleset review.
