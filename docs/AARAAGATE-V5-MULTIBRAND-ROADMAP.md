@@ -540,3 +540,13 @@ V5.2.12 merged through PR #1223 at `9f2deeaf0209add86490b12ebb492f59971be96e` af
 Existing hold list/open/resolve/cancel and readiness handlers use society context. Open and close retain their existing shared helper paths, society locks, parent checks, append-only sequence allocation and distinct-author closure. Readiness retains its single-query aggregate and all current-policy, review, approval, procedure/privacy and active-hold blockers. No workflow or response is rebuilt; execution/casting stay disabled.
 
 Local validation: 20 focused tests and API lint/typecheck/build passed. Native PostgreSQL fixture requires protected CI and checks foreign ballots, duplicate hold concurrency, same-author denial, oversized-close failure without history mutation, resolve/reopen/cancel sequencing, readiness blocking/unblocking and disabled-policy rejection. Disposable cleanup restores append-only triggers transactionally and deletes generated fixtures only. Runtime context calls increase from 67 to 71. Ballot review/draft/decision conversion and other isolation batches remain open. No schema/RLS or partner audience activation; develop only. Rollback is a reviewed revert.
+
+## V5.2.13 protected closure
+
+PR #1224 merged into develop at `6e32d0ee572dd1f6652ba1502554c417b55bff8d`, testing runtime `9e8335a242725e8170623f90e6d2611de81b248f` in [CI 38163180918](https://github.com/auraakart/Aaraaweb/actions/runs/38163180918). All required gates passed: 1,812 API tests passed, 15 skipped, and the native PostgreSQL hold/readiness fixture passed.
+
+## V5.2.14 existing ballot evidence transactions
+
+The seven existing ballot controller operations now establish society context. Draft parent, options and latest decision reads use the same transaction client; review, draft/options and decision writes retain society locks, current enabled policy checks, reviewed-electorate prerequisites, append-only sequencing and distinct actors. Cancellation of stale policy-bound drafts remains available with a reason. Responses still disable execution and vote casting. No feature rebuild, schema/RLS or branding activation.
+
+Validation: 25 focused tests; API lint, typecheck and build; deterministic tenant inventory and repository contracts. Native PostgreSQL fixture covers foreign parents/history, actor separation, concurrent review sequences and duplicate approval, draft/first-option rollback when the second insert fails, blocked review, disabled latest policy, failed cancellation rollback and terminal immutable decisions. Protected full CI remains required before merge. The broader V5.2 isolation queue stays open; no staging/main promotion.
