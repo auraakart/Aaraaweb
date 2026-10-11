@@ -127,6 +127,14 @@ jobs:
           if grep -Eq '^services/api/' /tmp/aaraagate-changed-files.txt; then
             run_api=true
           fi
+          # Authentication, branding and entitlement contracts affect every client.
+          # Focused API tests cannot replace dependent Admin/Flutter validation.
+          if grep -E '^services/api/src/(auth|branding|entitlements)/.*\.ts$' /tmp/aaraagate-changed-files.txt | grep -Ev '\.spec\.ts$' | grep -q .; then
+            run_admin=true
+            run_flutter=true
+            run_resident=true
+            run_guard=true
+          fi
           if grep -Eq '^apps/admin/' /tmp/aaraagate-changed-files.txt; then
             run_admin=true
           fi
