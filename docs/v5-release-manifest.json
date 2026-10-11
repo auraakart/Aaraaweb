@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "programVersion": "5.0.0",
+  "program": "Aaraagate V5 Society Branding and Partner White Label",
+  "status": "IN_DEVELOPMENT",
+  "baselineSha": "4e3bc2e4af4e3f597557d119586d7ce60462d348",
+  "repository": "auraakart/Aaraaweb",
+  "defaultBrand": "aaraagate",
+  "productionizationIncluded": false,
+  "promotion": {
+    "target": "develop",
+    "staging": "CONSOLIDATED_CANDIDATE_ONLY",
+    "main": "EXPLICIT_OWNER_APPROVAL_REQUIRED"
+  },
+  "milestones": [
+    {
+      "id": "V5.0",
+      "name": "Baseline contracts and architecture",
+      "status": "IN_PROGRESS",
+      "currentSlice": "V5.0.1",
+      "slices": [
+        {
+          "id": "V5.0.1",
+          "name": "Read-only default-brand and authenticated context configuration",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "evidence": [
+            "services/api/src/branding/branding.service.spec.ts",
+            "services/api/src/branding/branding.controller.spec.ts",
+            "services/api/scripts/branding-http-smoke.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "V5.1",
+      "name": "Partner ownership and compatibility schema",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.0"
+      ]
+    },
+    {
+      "id": "V5.2",
+      "name": "Audience RBAC and tenant isolation",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.1"
+      ]
+    },
+    {
+      "id": "V5.3",
+      "name": "Runtime society branding",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.2"
+      ]
+    },
+    {
+      "id": "V5.4",
+      "name": "Partner portal licensing and domain contracts",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.2",
+        "V5.3"
+      ]
+    },
+    {
+      "id": "V5.5",
+      "name": "Branded Android build automation",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.3",
+        "V5.4"
+      ]
+    },
+    {
+      "id": "V5.6",
+      "name": "Regression rollback and engineering closure",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.1",
+        "V5.2",
+        "V5.3",
+        "V5.4",
+        "V5.5"
+      ]
+    }
+  ],
+  "roadmap": "docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md",
+  "invariants": [
+    "One shared codebase",
+    "Society operational isolation",
+    "Aaraagate default brand",
+    "Existing effective entitlements preserved",
+    "Branding does not grant authorization",
+    "No productionization",
+    "No staging/main per-slice promotion"
+  ]
+}

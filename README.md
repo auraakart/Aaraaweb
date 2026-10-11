@@ -50,3 +50,7 @@ See `docs/architecture/README.md` for the architecture baseline.
 
 - [Current capability index](docs/CURRENT-CAPABILITY-INDEX.md)
 - [API contract policy](docs/api-contract-policy.json)
+
+## Aaraagate V5 development
+
+Society Branding and Partner White Label development uses this shared repository. See [V5 roadmap](docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md) and [V5 program manifest](docs/v5-release-manifest.json). V5.0.1 starts with read-only default-brand configuration; partner activation, isolation, licensing and branded builds remain subsequent gated milestones. Existing distributed app versions remain unchanged until an approved consolidated candidate. Productionization is excluded.
