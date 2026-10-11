@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.12",
+      "currentSlice": "V5.2.13",
       "slices": [
         {
           "id": "V5.2.1",
@@ -242,11 +242,25 @@
         {
           "id": "V5.2.12",
           "name": "Scope existing election procedure/privacy evidence and enforce latest policy",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "75564a450ecb8b8360a35481263529b27f728db9",
           "evidence": [
             "services/api/src/governance/governance-election-policy-evidence.transactions.spec.ts",
             "services/api/src/governance/governance-election-policy-evidence.postgres.spec.ts"
+          ],
+          "pullRequest": 1223,
+          "mergeSha": "9f2deeaf0209add86490b12ebb492f59971be96e",
+          "validatedRuntimeSha": "0d59fe025791aaddd82ad6b95f81497d7e27d444",
+          "ciRun": 38162653650
+        },
+        {
+          "id": "V5.2.13",
+          "name": "Scope existing election hold lifecycle and readiness transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "9f2deeaf0209add86490b12ebb492f59971be96e",
+          "evidence": [
+            "services/api/src/governance/governance-election-hold-readiness.transactions.spec.ts",
+            "services/api/src/governance/governance-election-hold-readiness.postgres.spec.ts"
           ]
         }
       ]
