@@ -41,6 +41,19 @@ for(const token of [
   assert.ok(demo.includes(token),`Resident demo workflow missing traceability token: ${token}`);
 }
 assert.ok(demo.includes("github.ref == 'refs/heads/main'"),'Stable demo release must remain main-push gated.');
+for (const token of [
+  'flutter build apk --release',
+  'app-release.apk dist/Aaraagate-Resident-Demo-Showcase-V2.apk',
+  'unzip -tq "$APK"',
+  'grep -Fxq AndroidManifest.xml /tmp/aaraagate-demo-apk-entries.txt',
+  'grep -Fxq classes.dex /tmp/aaraagate-demo-apk-entries.txt',
+  'lib/arm64-v8a/libflutter.so',
+  'artifactContentType: application/vnd.android.package-archive',
+  'Android Files / File Manager > Downloads',
+]) {
+  assert.ok(demo.includes(token),`Resident demo download/integrity check missing: ${token}.`);
+}
+assert.ok(!demo.includes('flutter build apk --debug'),'Demo should not regress to oversized debug APK.');
 
 const legacy=read('scripts/check-v4.68-emergency-contact-recovery.mjs');
 assert.ok(legacy.includes('must remain aligned at V4.68.0 or newer.'),'Historical V4.68 release guard must remain forward-compatible.');
