@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.7",
+      "currentSlice": "V5.2.8",
       "slices": [
         {
           "id": "V5.2.1",
@@ -166,7 +166,7 @@
         {
           "id": "V5.2.7",
           "name": "Scope community-circle membership, posts and moderation to society transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "12d861fe02d6b056ceab415ed86822d0e8ac7ec9",
           "evidence": [
             "services/api/src/governance/community-circles.service.spec.ts",
@@ -174,6 +174,23 @@
           ],
           "exceptions": [
             "Scheduled cross-society expiry cleanup retains its bounded platform transaction; worker conversion remains ISO-03 work."
+          ],
+          "mergeSha": "2d2dd11d1c844a4d793ef24284668c63a0585d82",
+          "pullRequest": 1218,
+          "validatedRuntimeSha": "c10c14fb4bfd1b439a1f5a71023c50ecd01cc938",
+          "ciRun": 38156639668
+        },
+        {
+          "id": "V5.2.8",
+          "name": "Scope committee and meeting operations with atomic governance evidence",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "2d2dd11d1c844a4d793ef24284668c63a0585d82",
+          "evidence": [
+            "services/api/src/governance/governance.service.spec.ts",
+            "services/api/src/governance/governance.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No RLS activation or partner audience change. Existing identity-reference validation is preserved; full ISO-04 reference governance and remaining controllers stay open."
           ]
         }
       ]
