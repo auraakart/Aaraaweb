@@ -651,6 +651,60 @@ export class ProviderMarketplaceCompletionService {
     });
   }
 
+  // Independent Finance handoff: evidence-only read, never tax, invoice or money movement.
+  async getExtraWorkFinanceHandoff(userId:string,bookingId:string,requestId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    const bookings=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceBooking"
+      WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    if(!bookings[0])throw new NotFoundException('Provider booking not found');
+    const rows=await this.prisma.$queryRaw<Array<{
+      id:string;quoteId:string;amountPaise:string;quoteAmountPaise:string;
+      quoteStatus:string;sameConsentingResident:boolean;acknowledgementId:string|null;
+      draftId:string|null;draftAmountPaise:string|null;draftCurrency:string|null;draftStatus:string|null;
+    }>>(Prisma.sql`
+      SELECT r."id",r."quoteId",r."amountPaise"::text AS "amountPaise",
+        q."amountPaise"::text AS "quoteAmountPaise",q."status" AS "quoteStatus",
+        (q."respondedByUserId"=r."userId") AS "sameConsentingResident",
+        a."id" AS "acknowledgementId",
+        d."id" AS "draftId",d."amountPaise"::text AS "draftAmountPaise",
+        d."currency" AS "draftCurrency",d."status" AS "draftStatus"
+      FROM "ConsumerServiceExtraWorkBillingRequest" r
+      JOIN "ConsumerServiceExtraWorkQuote" q
+        ON q."id"=r."quoteId" AND q."bookingId"=r."bookingId"
+        AND q."providerId"=r."providerId"
+      JOIN "ConsumerServiceBooking" b
+        ON b."id"=r."bookingId" AND b."userId"=r."userId"
+      LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a
+        ON a."billingRequestId"=r."id" AND a."providerId"=r."providerId"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d
+        ON d."billingRequestId"=r."id" AND d."providerId"=r."providerId"
+      WHERE r."id"=${requestId}::uuid AND r."bookingId"=${bookingId}::uuid
+        AND r."providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    const row=rows[0];
+    if(!row)throw new NotFoundException('Provider bill request not found');
+    const blockers:string[]=[];
+    if(row.quoteStatus!=='APPROVED'||row.sameConsentingResident!==true)
+      blockers.push('RESIDENT_QUOTE_APPROVAL_REQUIRED');
+    if(row.quoteAmountPaise!==row.amountPaise)
+      blockers.push('APPROVED_QUOTE_AMOUNT_MISMATCH');
+    if(!row.acknowledgementId)blockers.push('PROVIDER_ACKNOWLEDGEMENT_MISSING');
+    if(!row.draftId)blockers.push('NONPAYABLE_DRAFT_MISSING');
+    else if(row.draftAmountPaise!==row.amountPaise||row.draftCurrency!=='INR'||row.draftStatus!=='DRAFT')
+      blockers.push('NONPAYABLE_DRAFT_CONFLICT');
+    return {
+      bookingId,requestId,quoteId:row.quoteId,nonPayableDraftId:row.draftId,
+      amountPaise:row.amountPaise,currency:'INR',
+      evidenceState:blockers.length?'INCOMPLETE':'COMPLETE',
+      blockers,
+      handoffState:blockers.length?'EVIDENCE_INCOMPLETE':'FINANCE_POLICY_APPROVAL_REQUIRED',
+      financePolicyApproval:'NOT_GRANTED',invoiceStatus:'NOT_ISSUED',
+      paymentOrderStatus:'NOT_CREATED',settlementStatus:'NOT_AUTHORIZED',
+    };
+  }
+
   async listConsumerExtraWorkBillRequests(userId:string,bookingId:string){
     await this.assertConsumerBooking(userId,bookingId);
     return this.prisma.$queryRaw(Prisma.sql`

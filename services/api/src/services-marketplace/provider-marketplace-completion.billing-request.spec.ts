@@ -192,3 +192,82 @@ describe('V4.90.18.10 — non-payable extra-work billing draft',()=>{
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 });
+
+describe('V4.90.18.11 — independent read-only Finance handoff',()=>{
+  const requestId='66666666-6666-4666-8666-666666666666';
+  const evidence={id:requestId,quoteId,amountPaise:'12500',quoteAmountPaise:'12500',
+    quoteStatus:'APPROVED',sameConsentingResident:true,acknowledgementId:'ack-1',
+    draftId:'draft-1',draftAmountPaise:'12500',draftCurrency:'INR',draftStatus:'DRAFT'};
+
+  it('rejects a foreign provider before reading any billing request',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(svc.getExtraWorkFinanceHandoff('foreign-provider',bookingId,requestId))
+      .rejects.toThrow('Provider booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('denies a foreign or missing request and joins original resident ownership',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{id:bookingId}]).mockResolvedValueOnce([]);
+    await expect(svc.getExtraWorkFinanceHandoff('provider-user',bookingId,requestId))
+      .rejects.toThrow('Provider bill request not found');
+    const sql=sqlText(prisma.$queryRaw.mock.calls[1][0]);
+    expect(sql).toContain('r."bookingId"');
+    expect(sql).toContain('r."providerId"');
+    expect(sql).toContain('b."userId"=r."userId"');
+    expect(sqlValues(prisma.$queryRaw.mock.calls[0][0])).toContain(bookingId);
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain(requestId);
+    expect(sqlValues(prisma.$queryRaw.mock.calls[1][0])).toContain(bookingId);
+    expect(sql).not.toContain('@{');
+  });
+
+  it('reports complete evidence while explicitly denying invoice and payment readiness',async()=>{
+    const {svc,prisma,tx}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{id:bookingId}]).mockResolvedValueOnce([evidence]);
+    await expect(svc.getExtraWorkFinanceHandoff('provider-user',bookingId,requestId)).resolves.toEqual({
+      bookingId,requestId,quoteId,nonPayableDraftId:'draft-1',amountPaise:'12500',currency:'INR',
+      evidenceState:'COMPLETE',blockers:[],handoffState:'FINANCE_POLICY_APPROVAL_REQUIRED',
+      financePolicyApproval:'NOT_GRANTED',invoiceStatus:'NOT_ISSUED',
+      paymentOrderStatus:'NOT_CREATED',settlementStatus:'NOT_AUTHORIZED',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const sql=prisma.$queryRaw.mock.calls.map(x=>sqlText(x[0])).join('\n');
+    expect(sql).not.toMatch(/\bINSERT\b|\bUPDATE\b|\bDELETE\b/i);
+    expect(sql).not.toContain('ConsumerServicePayment');
+  });
+
+  it('reports missing acknowledgement and draft without a false authorization',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{id:bookingId}])
+      .mockResolvedValueOnce([{...evidence,acknowledgementId:null,draftId:null}]);
+    const output=await svc.getExtraWorkFinanceHandoff('provider-user',bookingId,requestId);
+    expect(output.evidenceState).toBe('INCOMPLETE');
+    expect(output.blockers).toEqual(['PROVIDER_ACKNOWLEDGEMENT_MISSING','NONPAYABLE_DRAFT_MISSING']);
+    expect(output.handoffState).toBe('EVIDENCE_INCOMPLETE');
+  });
+
+  it('blocks removed consent, mismatched quote and conflicting draft evidence',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{id:bookingId}])
+      .mockResolvedValueOnce([{...evidence,quoteStatus:'WITHDRAWN',sameConsentingResident:false,
+        quoteAmountPaise:'12600',draftAmountPaise:'12400',draftCurrency:'USD'}]);
+    const output=await svc.getExtraWorkFinanceHandoff('provider-user',bookingId,requestId);
+    expect(output.blockers).toEqual([
+      'RESIDENT_QUOTE_APPROVAL_REQUIRED','APPROVED_QUOTE_AMOUNT_MISMATCH','NONPAYABLE_DRAFT_CONFLICT',
+    ]);
+    expect(output.paymentOrderStatus).toBe('NOT_CREATED');
+    expect(output.settlementStatus).toBe('NOT_AUTHORIZED');
+  });
+
+  it('never includes resident identity, invoice numbers or payment references',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{id:bookingId}]).mockResolvedValueOnce([evidence]);
+    const output=await svc.getExtraWorkFinanceHandoff('provider-user',bookingId,requestId);
+    expect(output).not.toHaveProperty('userId');
+    expect(output).not.toHaveProperty('invoiceNumber');
+    expect(output).not.toHaveProperty('paymentId');
+  });
+});

@@ -27,7 +27,7 @@ The final PR implementation head e78c9cadba3c3552f7d1bc0284c0f7cb7640c5ba passed
 
 ## Exit criteria and residual risk
 
-1. **Engineering implementation boundary: CLOSED.** V4.90.18.1–.10 are merged. No V4.90.18.11+ sequence, dependency-driven expansion or next-slice autopilot.
+1. **Engineering implementation boundary: CLOSED.** V4.90.18.1–.10 are merged and Services 3.1 remains closed. The explicitly owner-authorized, read-only independent Finance handoff V4.90.18.11 below does not reopen Services. No V4.90.18.12+ sequence, dependency-driven expansion or next-slice autopilot.
 2. **Safety invariants: ACTIVE.** Immutable original booking price/payment, authenticated consumer/provider ownership, privacy minimization, safe consent/retries and separate extra-work draft identity stay enforced.
 3. **Product/field acceptance: NOT VERIFIED.** Run independently tracked role UAT for repeat booking, cancellations and schedule changes, quote consent/withdrawal, disputes, resident/provider errors and recovery; test large text, keyboard/TalkBack and device behavior. A defect is a narrowly scoped fix with regression evidence, not a new feature sub-slice.
 4. **Scope-specific interface work: DONE AS IMPLEMENTED.** Premium UI modernization belongs to the separate V4.90 UX track. Existing guarantee/warranty promises remain authoritative; no new provider underwriting is claimed.
@@ -45,7 +45,9 @@ Every newly approved workstream needs a **single accountable owner, objective, i
 
 ## Repo gate and exceptions
 
-Required Repository structure CI runs the Services 3.1 closure check, rejecting new PR titles/head branch labels V4.90.18.11 and higher. This **narrow version guard** does not replace semantic PR review: a renamed PR that introduces invoices, payments, settlements or broad Privacy/UI features without a separately authorized workstream is equally out of scope.
+**Exception:** V4.90.18.11 — ONE_APPROVED_READ_ONLY_FINANCE_HANDOFF. On 2026-10-11 the owner explicitly authorized only a bounded independent Finance evidence endpoint, its tests, documentation and closure exception. This is **not** authorization for invoice issuance, payment orders, tax, payouts, migrations, resident data expansion or UI redesign. The exception matches one exact PR title and branch only; see [V4.90.18.11](AARAAGATE-V4.90.18.11-INDEPENDENT-FINANCE-HANDOFF.md).
+
+Required Repository structure CI runs the Services 3.1 closure check, rejecting new PR titles/head branch labels above .10 except the exact owner-authorized one-time .11 Finance handoff. This **narrow version guard** does not replace semantic PR review: a renamed PR that introduces invoices, payments, settlements or broad Privacy/UI features without a separately authorized workstream is equally out of scope.
 
 Correctness or security hotfixes of existing Services behavior are permitted as separately scoped bugfixes with exact-head regression gates and unchanged no-charge/no-reprice rules. They do **not** reopen feature development.
 
