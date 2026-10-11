@@ -531,7 +531,10 @@ class _ConsumerBookingPostServicePanelState extends State<ConsumerBookingPostSer
                           Text('Extra work: ${_quoteRupees(quote['amountPaise']?.toString() ?? '0')}'),
                           Text('Quote status: ${quote['status'] ?? 'PENDING'}'),
                           if (_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id']))
-                            const Text('Separate bill requested — awaiting independent invoice and payment setup.'),
+                            Text(_extraWorkBillRequests.any((r) =>
+                              r['quoteId'] == quote['id'] && r['providerAcknowledgedAt'] != null)
+                                ? 'Provider acknowledged the bill request. No invoice or payment has been issued.'
+                                : 'Separate bill requested — awaiting provider acknowledgement; no invoice or payment yet.'),
                           if (quote['status'] == 'APPROVED' &&
                               !_extraWorkBillRequests.any((r) => r['quoteId'] == quote['id'])) ...[
                             const SizedBox(height: 8),

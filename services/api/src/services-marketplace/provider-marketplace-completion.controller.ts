@@ -96,6 +96,11 @@ export class ProviderMarketplaceCompletionController{
  }
  @Get('bookings/:id/extra-work-quotes') providerQuotes(@CurrentUser() u:string|undefined,
   @Param('id',ParseUUIDPipe) id:string){return this.svc.listProviderExtraWorkQuotes(requireUser(u),id);}
+ @Post('bookings/:bookingId/extra-work-billing-requests/:requestId/acknowledge')
+ acknowledgeExtraWorkBillRequest(@CurrentUser() u:string|undefined,
+  @Param('bookingId',ParseUUIDPipe) bookingId:string,@Param('requestId',ParseUUIDPipe) requestId:string){
+  return this.svc.acknowledgeExtraWorkBillRequest(requireUser(u),bookingId,requestId);
+ }
  @Get('bookings/:id/extra-work-billing-requests') providerExtraWorkBillRequests(
    @CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){
    return this.svc.listProviderExtraWorkBillRequests(requireUser(u),id);
