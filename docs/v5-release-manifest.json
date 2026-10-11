@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.8",
+      "currentSlice": "V5.2.9",
       "slices": [
         {
           "id": "V5.2.1",
@@ -183,7 +183,7 @@
         {
           "id": "V5.2.8",
           "name": "Scope committee and meeting operations with atomic governance evidence",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2d2dd11d1c844a4d793ef24284668c63a0585d82",
           "evidence": [
             "services/api/src/governance/governance.service.spec.ts",
@@ -191,6 +191,20 @@
           ],
           "limitations": [
             "No RLS activation or partner audience change. Existing identity-reference validation is preserved; full ISO-04 reference governance and remaining controllers stay open."
+          ],
+          "mergeSha": "5c73fab6d3b242676687c0fea7d3251872ab39ca",
+          "pullRequest": 1219,
+          "validatedRuntimeSha": "d03ef1bc69f40459baf7132433648698e025d0ec",
+          "ciRun": 38158624597
+        },
+        {
+          "id": "V5.2.9",
+          "name": "Scope governance document and poll artifacts with atomic evidence",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "5c73fab6d3b242676687c0fea7d3251872ab39ca",
+          "evidence": [
+            "services/api/src/governance/governance-artifacts.transactions.spec.ts",
+            "services/api/src/governance/governance-artifacts.postgres.spec.ts"
           ]
         }
       ]
