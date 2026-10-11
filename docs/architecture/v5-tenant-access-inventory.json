@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "8ceed8bd3f603307a46e58e6c6e75042cc622ab9c01ed2793d1961508f8fdd3e",
+  "sourceDigest": "fd13538aa506e35015508b4cea4eda65d14c4e61bca5107094a03eea6b2f6096",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 58,
-    "runtimeTenantContextCalls": 22,
+    "runtimeTenantContextCalls": 37,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -51,6 +51,66 @@
     {
       "file": "services/api/src/gates/gate-assignment.service.ts",
       "line": 83
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 19
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 33
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 46
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 56
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 63
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 83
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 94
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 104
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 112
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 122
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 130
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 146
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 160
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 173
+    },
+    {
+      "file": "services/api/src/governance/community-circles.service.ts",
+      "line": 185
     },
     {
       "file": "services/api/src/governance/community-events.service.ts",
@@ -1018,28 +1078,28 @@
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":96,"method":"activate","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":103,"method":"deactivate","operation":"findFirst","kind":"ORM","tables":["Gate"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.gate","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/gates/gates.controller.ts","line":105,"method":"deactivate","operation":"update","kind":"ORM","tables":["Gate"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":20,"method":"listVisible","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":31,"method":"listManage","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":43,"method":"myRequests","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/governance/community-circles.service.ts","line":61,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":62,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":67,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":89,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":98,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":108,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":115,"method":"leave","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":121,"method":"listPosts","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":139,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":150,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost","CommunityCircleReport"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":161,"method":"listReports","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCirclePost","CommunityCircleReport"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":173,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":177,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleReport"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":184,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":193,"method":"circle","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":200,"method":"assertMembership","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":207,"method":"senderIdentity","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","UnitOwnership","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":223,"method":"assertCurrentResident","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":21,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":34,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember","CommunityCirclePost","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":48,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"DATABASE_UTILITY","file":"services/api/src/governance/community-circles.service.ts","line":69,"method":"insertCircle","operation":"$queryRaw","kind":"RAW_SQL","tables":[],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SQL_UTILITY_SCOPE_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":70,"method":"insertCircle","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":75,"method":"insertCircle","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":86,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":97,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":106,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":116,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":124,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":132,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":151,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":162,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost","CommunityCircleReport"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":174,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCirclePost","CommunityCircleReport"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":187,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCirclePost"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":191,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["CommunityCircleReport"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":199,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":[],"enclosingScopeSignals":[],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
+    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":208,"method":"circle","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":215,"method":"assertMembership","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityCircle","CommunityCircleMember"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":222,"method":"senderIdentity","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","Unit","UnitOccupancy","UnitOwnership","User"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"db","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-circles.service.ts","line":238,"method":"assertCurrentResident","operation":"$queryRaw","kind":"RAW_SQL","tables":["UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":24,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":75,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent","CommunityEventRsvp"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/community-events.service.ts","line":104,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["CommunityEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
