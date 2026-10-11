@@ -43,21 +43,17 @@ class FakeApiClient extends ApiClient {
         'mutationPerformed': false,
       };
     }
-    if (path.endsWith('/assistant/helpdesk-from-text')) {
-      return {
-        'id': '11111111-1111-4111-8111-111111111111',
-        'status': 'PROPOSED',
-        'requiresConfirmation': true,
-      };
-    }
-    if (path.endsWith('/confirm')) {
-      return {
-        'proposalId': '11111111-1111-4111-8111-111111111111',
-        'status': 'EXECUTED',
-        'result': {'ticketId': 'ticket-1'},
-      };
-    }
     return {'status': 'CANCELLED'};
+  }
+}
+
+class PendingAssistantApiClient extends FakeApiClient {
+  final reply = Completer<dynamic>();
+
+  @override
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) {
+    posts.add(path);
+    return reply.future;
   }
 }
 
@@ -90,7 +86,7 @@ class PendingResidentSpeech extends FakeResidentSpeech {
 }
 
 void main() {
-  testWidgets('recording locks query and complaint actions until transcript review', (tester) async {
+  testWidgets('recording locks question submission until transcript review', (tester) async {
     final api = FakeApiClient();
     final speech = PendingResidentSpeech();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
@@ -101,14 +97,13 @@ void main() {
     await tester.tap(find.text('Speak'));
     await tester.pump();
     final ask = tester.widget<FilledButton>(find.ancestor(of: find.text('Ask'), matching: find.byWidgetPredicate((w) => w is FilledButton)).first);
-    final complaint = tester.widget<OutlinedButton>(find.ancestor(of: find.text('Create complaint'), matching: find.byWidgetPredicate((w) => w is OutlinedButton)).first);
     expect(ask.onPressed, isNull);
-    expect(complaint.onPressed, isNull);
+    expect(find.text('Create complaint'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
     expect(api.posts, isEmpty);
-    speech.result.complete('பராமரிப்பு கட்டணம் என்ன');
+    speech.result.complete('What is my maintenance due?');
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'பராமரிப்பு கட்டணம் என்ன');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'What is my maintenance due?');
     expect(tester.widget<FilledButton>(find.ancestor(of: find.text('Ask'), matching: find.byWidgetPredicate((w) => w is FilledButton)).first).onPressed, isNotNull);
     expect(api.posts, isEmpty);
   });
@@ -133,7 +128,10 @@ void main() {
     expect(find.text('Book amenities'), findsOneWidget);
     expect(find.text('Society updates'), findsOneWidget);
     expect(find.text('Speak'), findsOneWidget);
-    expect(find.text('Create complaint'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(find.text('Language'), findsNothing);
+    expect(find.text('Create complaint'), findsNothing);
+    expect(find.text('Prepare complaint for review'), findsNothing);
     expect(find.text('Available for you'), findsNothing);
 
     await tester.enterText(find.byType(TextField), 'Show my open complaints');
@@ -173,85 +171,64 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
-  testWidgets('assistant captures a second Tamil recording without submitting either draft', (tester) async {
+  testWidgets('English-only Assistant hides the language picker and keeps repeat voice drafts review-only', (tester) async {
     final api = FakeApiClient();
-    final speech = FakeResidentSpeech('முதல் கேள்வி');
+    final speech = FakeResidentSpeech('First question');
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: '22222222-2222-4222-8222-222222222222', speech: speech,
     )));
-    await tester.tap(find.byType(DropdownButton<String>));
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(find.text('Language'), findsNothing);
+    await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('தமிழ்').last);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('பேசுங்கள்'));
-    await tester.tap(find.text('பேசுங்கள்'));
-    await tester.pumpAndSettle();
-    expect(speech.languageCode, 'ta');
-    expect(find.text('முதல் கேள்வி'), findsOneWidget);
-    speech.transcript = 'இரண்டாவது கேள்வி';
-    await tester.tap(find.text('பேசுங்கள்'));
+    expect(speech.languageCode, 'en');
+    expect(find.text('First question'), findsOneWidget);
+    speech.transcript = 'Second question';
+    await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
     expect(speech.listenCalls, 2);
-    expect(speech.languageCode, 'ta');
-    expect(find.text('இரண்டாவது கேள்வி'), findsOneWidget);
-    expect(find.text('முதல் கேள்வி'), findsNothing);
+    expect(speech.languageCode, 'en');
+    expect(find.text('Second question'), findsOneWidget);
+    expect(find.text('First question'), findsNothing);
     expect(api.posts, isEmpty);
   });
 
-  testWidgets('assistant requires explicit complaint confirmation', (tester) async {
-    final api = FakeApiClient();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AiAssistantScreen(
-          apiClient: api,
-          unitId: '22222222-2222-4222-8222-222222222222',
-          speech: FakeResidentSpeech(null),
-        ),
-      ),
-    );
-
-    await tester.enterText(find.byType(TextField), 'Water is leaking near the kitchen sink');
-    await tester.ensureVisible(find.text('Create complaint'));
+  testWidgets('English-only Assistant speech works at narrow width with 200 percent text', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final speech = FakeResidentSpeech('What are my dues?');
+    await tester.pumpWidget(MaterialApp(home: MediaQuery(
+      data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+      child: AiAssistantScreen(apiClient: FakeApiClient(),
+        unitId: '22222222-2222-4222-8222-222222222222', speech: speech),
+    )));
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    await tester.ensureVisible(find.text('Speak'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create complaint'));
+    await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
-
-    expect(find.text('Review complaint before submitting'), findsOneWidget);
-    expect(find.text('Confirm complaint'), findsOneWidget);
-    expect(api.posts.where((path) => path.endsWith('/confirm')), isEmpty);
-
-    await tester.ensureVisible(find.text('Confirm complaint'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirm complaint'));
-    await tester.pumpAndSettle();
-
-    expect(api.posts.where((path) => path.endsWith('/confirm')).length, 1);
+    expect(speech.languageCode, 'en');
+    expect(find.text('What are my dues?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('editing source text invalidates an unconfirmed complaint proposal', (tester) async {
+
+  testWidgets('assistant does not create complaints from problem descriptions', (tester) async {
     final api = FakeApiClient();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AiAssistantScreen(
-          apiClient: api,
-          unitId: '22222222-2222-4222-8222-222222222222',
-          speech: FakeResidentSpeech(null),
-        ),
-      ),
-    );
-
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      apiClient: api, unitId: '22222222-2222-4222-8222-222222222222',
+      speech: FakeResidentSpeech(null),
+    )));
+    expect(find.text('Create complaint'), findsNothing);
     await tester.enterText(find.byType(TextField), 'Water is leaking near the kitchen sink');
-    await tester.ensureVisible(find.text('Create complaint'));
+    await tester.ensureVisible(find.text('Ask'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create complaint'));
+    await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
-    expect(find.text('Confirm complaint'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextField), 'The issue is now a lift noise complaint');
-    await tester.pump();
-
+    expect(find.text('Prepare complaint for review'), findsNothing);
+    expect(find.text('Review complaint before submitting'), findsNothing);
     expect(find.text('Confirm complaint'), findsNothing);
-    expect(api.posts.where((path) => path.endsWith('/confirm')), isEmpty);
+    expect(api.posts, ['/api/v1/ai-operations/assistant/query']);
   });
 
   testWidgets('demo assistant answers locally and does not expose debug facts', (tester) async {
@@ -439,47 +416,49 @@ void main() {
     expect(find.textContaining('Key updates: lift maintenance'), findsNothing);
   });
 
-  testWidgets('explicit complaint-creation questions offer review before any mutation', (tester) async {
+
+  testWidgets('explicit complaint requests navigate to Helpdesk without proposals', (tester) async {
     final api = FakeApiClient();
+    final sections = <String>[];
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: '22222222-2222-4222-8222-222222222222',
-      speech: FakeResidentSpeech(null),
+      speech: FakeResidentSpeech(null), onOpenSection: sections.add,
     )));
     await tester.enterText(find.byType(TextField), 'Raise a complaint about leaking kitchen sink');
     await tester.ensureVisible(find.text('Ask'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
-    expect(find.text('Prepare complaint for review'), findsOneWidget);
-    expect(api.posts.where((path)=>path.endsWith('/assistant/helpdesk-from-text')), isEmpty);
-    await tester.ensureVisible(find.text('Prepare complaint for review'));
+    expect(find.text('Create complaint'), findsNothing);
+    expect(find.text('Prepare complaint for review'), findsNothing);
+    expect(find.text('Open Helpdesk'), findsOneWidget);
+    await tester.ensureVisible(find.text('Open Helpdesk'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Prepare complaint for review'));
-    await tester.pumpAndSettle();
-    expect(find.text('Review complaint before submitting'), findsOneWidget);
-    expect(find.text('Confirm complaint'), findsOneWidget);
-    expect(api.posts.where((path)=>path.endsWith('/confirm')), isEmpty);
+    await tester.tap(find.text('Open Helpdesk'));
+    expect(sections, ['helpdesk']);
+    expect(api.posts, ['/api/v1/ai-operations/assistant/query']);
   });
 
-  testWidgets('lookup questions and edited drafts cannot activate a stale proposal action', (tester) async {
+  testWidgets('edited question invalidates contextual Helpdesk navigation', (tester) async {
     final api = FakeApiClient();
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
-      apiClient: api, unitId: 'demo-unit', demoMode:true,
-      speech: FakeResidentSpeech(null),
+      apiClient: api, unitId: 'demo-unit', speech: FakeResidentSpeech(null),
+      onOpenSection: (_) {},
     )));
     await tester.enterText(find.byType(TextField), 'Show my complaints');
     await tester.ensureVisible(find.text('Ask'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
-    expect(find.text('Prepare complaint for review'), findsNothing);
+    expect(find.text('Open Helpdesk'), findsNothing);
     await tester.enterText(find.byType(TextField), 'Create complaint about water leakage');
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
-    expect(find.text('Prepare complaint for review'), findsOneWidget);
+    expect(find.text('Open Helpdesk'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'What is my maintenance due?');
     await tester.pumpAndSettle();
-    expect(find.text('Prepare complaint for review'), findsNothing);
+    expect(find.text('Open Helpdesk'), findsNothing);
+    expect(api.posts.where((path) => path.endsWith('/assistant/query')).length, 2);
   });
 
   testWidgets('general society rule follow-ups expand without changing the authorized property', (tester) async {
@@ -622,4 +601,62 @@ void main() {
     expect(find.text('What is my maintenance due and when should I pay it?'), findsOneWidget);
     expect(api.posts, isEmpty);
   });
+  testWidgets('old property microphone transcript is discarded on unit switch', (tester) async {
+    final api = FakeApiClient();
+    final speech = PendingResidentSpeech();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('voice-context'), apiClient: api, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.tap(find.text('Speak'));
+    await tester.pump();
+    expect(find.text('Listening…'), findsWidgets);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('voice-context'), apiClient: api, unitId: 'unit-B', speech: speech,
+    )));
+    await tester.pump();
+    expect(speech.stopCalls, greaterThan(0));
+    speech.result.complete('Prior property private question');
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(find.text('Prior property private question'), findsNothing);
+    expect(find.text('Listening…'), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('old authenticated API result cannot appear after client swap for same unit', (tester) async {
+    final oldApi = PendingAssistantApiClient();
+    final newApi = FakeApiClient();
+    final speech = FakeResidentSpeech(null);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('answer-context'), apiClient: oldApi, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my open complaints');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pump();
+    expect(oldApi.posts, ['/api/v1/ai-operations/assistant/query']);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('answer-context'), apiClient: newApi, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.pump();
+    oldApi.reply.complete({
+      'intent': 'RESIDENT_STATUS',
+      'answer': 'Private old-session answer',
+      'sources': ['Old session'],
+      'grounded': true,
+      'mutationPerformed': false,
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Private old-session answer'), findsNothing);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(newApi.posts, isEmpty);
+    await tester.enterText(find.byType(TextField), 'Show my maintenance dues');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(newApi.posts, ['/api/v1/ai-operations/assistant/query']);
+  });
+
 }

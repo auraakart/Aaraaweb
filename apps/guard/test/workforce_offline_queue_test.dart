@@ -97,6 +97,47 @@ void main() {
     expect(items.where((item) => item.belongsTo(societyId: 'society-2', guardUserId: 'guard-2')), hasLength(1));
   });
 
+  test('a transport failure backs off, preserves identity, and eventually requires review', () {
+    final now = DateTime.utc(2026, 10, 10, 6);
+    var action = QueuedWorkforceAction(
+      type: 'CHECK_IN', gateId: 'gate-1', assignmentId: 'assignment-1',
+      idempotencyKey: 'retry-safe', createdAt: now,
+      societyId: 'society-1', guardUserId: 'guard-1',
+    );
+    action = action.withRetryFailure(now);
+    expect(action.canRetry(now), isFalse);
+    expect(action.canRetry(now.add(const Duration(seconds: 6))), isTrue);
+    expect(action.idempotencyKey, 'retry-safe');
+    expect(action.attemptCount, 1);
+    final restored = QueuedWorkforceAction.tryFromJson(action.toJson())!;
+    expect(restored.nextAttemptAt, action.nextAttemptAt);
+    expect(restored.canRetry(now), isFalse);
+    for (var attempt = 2; attempt <= 6; attempt++) {
+      action = action.withRetryFailure(now.add(Duration(seconds: attempt * 60)));
+    }
+    expect(action.reviewRequired, isTrue);
+    expect(action.failureKind, 'RETRY_LIMIT');
+    expect(action.canRetry(now.add(const Duration(days: 1))), isFalse);
+  });
+
+  test('stale and rejected attendance are retained for supervisor review', () {
+    final now = DateTime.utc(2026, 10, 10, 6);
+    final action = QueuedWorkforceAction(
+      type: 'CHECK_OUT', gateId: 'gate-1', assignmentId: 'assignment-1',
+      idempotencyKey: 'old', createdAt: now.subtract(const Duration(days: 2)),
+      societyId: 'society-1', guardUserId: 'guard-1',
+    );
+    expect(action.isStale(now), isTrue);
+    final blocked = action.requiringReview(now, 'CONFLICT');
+    expect(blocked.reviewRequired, isTrue);
+    expect(blocked.failureKind, 'CONFLICT');
+    expect(blocked.canRetry(now.add(const Duration(days: 3))), isFalse);
+    final restored = QueuedWorkforceAction.tryFromJson(blocked.toJson())!;
+    expect(restored.reviewRequired, isTrue);
+    expect(restored.failureKind, 'CONFLICT');
+    expect(restored.idempotencyKey, 'old');
+  });
+
   test('sanitizes malformed secure-storage records and retains valid actions', () async {
     final valid = QueuedWorkforceAction(
       type: 'CHECK_OUT',

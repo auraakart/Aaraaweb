@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
+import '../data/rebook_attempt_registry.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
 
 class ServiceHistoryScreen extends StatefulWidget {
@@ -25,6 +26,8 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
   String? _error;
   List<Map<String, dynamic>> _history = const [];
   final Set<String> _rebooking = <String>{};
+  final _rebookAttempts = RebookAttemptRegistry();
+  int _historyLoadEpoch = 0;
 
   @override
   void initState() {
@@ -32,24 +35,52 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant ServiceHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.apiClient != widget.apiClient ||
+        oldWidget.location['type'] != widget.location['type'] ||
+        oldWidget.location['id'] != widget.location['id']) {
+      // A changed home or authenticated client must start a fresh read.
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    ++_historyLoadEpoch;
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final epoch = ++_historyLoadEpoch;
+    final locationType = widget.location['type'].toString();
+    final locationId = widget.location['id'].toString();
+    final client = widget.apiClient;
+    bool current() => mounted &&
+        epoch == _historyLoadEpoch &&
+        identical(widget.apiClient, client) &&
+        widget.location['type'].toString() == locationType &&
+        widget.location['id'].toString() == locationId;
+
     setState(() {
       _loading = true;
       _error = null;
+      _history = const [];
     });
     try {
       final params = Uri(queryParameters: {
-        'locationType': widget.location['type'].toString(),
-        'locationId': widget.location['id'].toString(),
+        'locationType': locationType,
+        'locationId': locationId,
       }).query;
-      final raw = await widget.apiClient.get('/api/v1/consumer/services/history?$params');
-      if (!mounted) return;
+      final raw = await client.get('/api/v1/consumer/services/history?$params');
+      if (!current()) return;
       setState(() => _history = (raw as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>().toList());
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (current()) setState(() => _loading = false);
     }
   }
 
@@ -100,7 +131,7 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
 
   Future<void> _rebookService(Map<String, dynamic> item, Map<String, dynamic> offering) async {
     final bookingId = item['id']?.toString();
-    if (bookingId == null || bookingId.isEmpty || !mounted) return;
+    if (bookingId == null || bookingId.isEmpty || !mounted || _rebooking.contains(bookingId)) return;
 
     final now = DateTime.now();
     final initialDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
@@ -134,12 +165,25 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
       return;
     }
 
+    // Preserve one key across uncertain network results for the same selection.
+    // Clear only after the server confirms a booking, not after a timeout.
+    final attemptKey = _rebookAttempts.keyFor(
+      bookingId: bookingId,
+      scheduledFrom: scheduledFrom,
+      scheduledUntil: scheduledUntil,
+    );
     setState(() => _rebooking.add(bookingId));
     try {
       await widget.apiClient.post('/api/v1/consumer/services/history/$bookingId/rebook', {
         'scheduledFrom': scheduledFrom.toUtc().toIso8601String(),
         'scheduledUntil': scheduledUntil.toUtc().toIso8601String(),
+        'idempotencyKey': attemptKey,
       });
+      _rebookAttempts.confirmed(
+        bookingId: bookingId,
+        scheduledFrom: scheduledFrom,
+        scheduledUntil: scheduledUntil,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service rebooked using current availability and pricing.')));
       await _load();
