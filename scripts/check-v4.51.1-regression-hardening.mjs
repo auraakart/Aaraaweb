@@ -35,7 +35,7 @@ const apkWorkflow=read('.github/workflows/resident-demo-apk.yml');
 requireTokens('Resident APK speech packaging gate',apkWorkflow,[
   'Configure and verify Resident speech recognition permissions',
   'node scripts/configure-resident-android-speech.mjs',
-  'Build debug APK',
+  'Build smaller universal release-mode demo APK',
 ]);
 
 const capability=read('docs/CURRENT-CAPABILITY-INDEX.md');
