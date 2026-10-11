@@ -20,7 +20,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 59 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 63 |
+| Runtime calls to `withTenantContext` | 67 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -136,3 +136,8 @@ Four existing community handlers use the tenant context. The visibility check an
 ## V5.2.11 existing election foundation conversion
 
 Five existing policy and electorate handlers use society context, preserving society locks, immutable snapshots, eligibility predicates, separation of duties and response fields. Parent and member reads share a supplied client; no nested/global fallback remains in these handlers. Runtime context calls increase from 58 to 63. Native PostgreSQL and protected CI remain required before merge.
+
+
+## V5.2.12 existing procedure and privacy evidence conversion
+
+Four procedure/privacy handlers establish society context. Writes reject the latest disabled policy instead of selecting historical enabled revisions. Society locks, versioning, append-only evidence and author separation remain intact. Runtime context calls increase from 63 to 67. Native PostgreSQL and protected CI remain required before merge.
