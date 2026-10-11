@@ -11,7 +11,7 @@ for(const token of [
   'workflow_dispatch:',
   'Build Resident demo APK',
   "flutter-version: '3.47.0'",
-  'Build debug APK',
+  'Build smaller universal release-mode demo APK',
   "github.event_name == 'push' && github.ref == 'refs/heads/main'",
 ]){
   if(!workflow.includes(token)) throw new Error('Resident Demo APK main-boundary evidence contract missing: '+token);
