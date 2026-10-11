@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.2",
+      "currentSlice": "V5.2.3",
       "slices": [
         {
           "id": "V5.2.1",
@@ -98,13 +98,26 @@
         {
           "id": "V5.2.2",
           "name": "Tenant transaction for configuration and society detail with dedicated auditor parity",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "806ab618eed144c23c231b96afc104a50605151c",
           "evidence": [
             "services/api/src/branding/branding.service.spec.ts",
             "services/api/src/branding/branding-context.postgres.spec.ts",
             "services/api/src/societies/societies.authorization.spec.ts",
             "services/api/src/entitlements/entitlement.service.spec.ts"
+          ],
+          "pullRequest": 1213,
+          "validatedRuntimeSha": "be55234e2b879b48344d62a1b7b1084cddd31df9",
+          "mergeSha": "6a364bf6880396524902229421aa215d545b513d"
+        },
+        {
+          "id": "V5.2.3",
+          "name": "Gate assignment tenant transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "6a364bf6880396524902229421aa215d545b513d",
+          "evidence": [
+            "services/api/src/gates/gate-assignment.service.spec.ts",
+            "services/api/src/gates/gate-assignment.postgres.spec.ts"
           ]
         }
       ]
