@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.6",
+      "currentSlice": "V5.2.7",
       "slices": [
         {
           "id": "V5.2.1",
@@ -152,11 +152,28 @@
         {
           "id": "V5.2.6",
           "name": "Resident directory profiles and consent-based contact tenant transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff",
           "evidence": [
             "services/api/src/governance/resident-directory.service.spec.ts",
             "services/api/src/governance/resident-directory.postgres.spec.ts"
+          ],
+          "mergeSha": "12d861fe02d6b056ceab415ed86822d0e8ac7ec9",
+          "pullRequest": 1217,
+          "validatedRuntimeSha": "db72cfc4b1ab9a05341f54e5cfbce5708c575d1e",
+          "ciRun": 38155971108
+        },
+        {
+          "id": "V5.2.7",
+          "name": "Scope community-circle membership, posts and moderation to society transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "12d861fe02d6b056ceab415ed86822d0e8ac7ec9",
+          "evidence": [
+            "services/api/src/governance/community-circles.service.spec.ts",
+            "services/api/src/governance/community-circles.postgres.spec.ts"
+          ],
+          "exceptions": [
+            "Scheduled cross-society expiry cleanup retains its bounded platform transaction; worker conversion remains ISO-03 work."
           ]
         }
       ]

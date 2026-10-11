@@ -1,3 +1,4 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe,expect,it,vi } from 'vitest';
 import { CommunityCirclesService } from './community-circles.service';
 
@@ -7,7 +8,7 @@ describe('CommunityCirclesService',()=>{
       .mockResolvedValueOnce([{allowed:true}])
       .mockResolvedValueOnce([{id:'member-1'}])
       .mockResolvedValueOnce([]);
-    const service=new CommunityCirclesService({$queryRaw:queryRaw} as never);
+    const service=new CommunityCirclesService({withTenantContext:vi.fn((_society:string,callback:(tx:unknown)=>unknown)=>callback({$queryRaw:queryRaw}))} as never);
 
     await service.listPosts('society-1','user-1','circle-1');
 
@@ -21,7 +22,10 @@ describe('CommunityCirclesService',()=>{
 function fixture(results:unknown[]){
   const query=vi.fn();results.forEach(rows=>query.mockResolvedValueOnce(rows));
   const db={$queryRaw:query,$executeRaw:vi.fn().mockResolvedValue(1)};
-  const prisma={...db,$transaction:vi.fn(async(callback:(tx:typeof db)=>unknown)=>callback(db))};
+  const forbidden=()=>{throw new Error('Global client access');};
+  const prisma={$queryRaw:vi.fn(forbidden),$executeRaw:vi.fn(forbidden),
+    withTenantContext:vi.fn((_society:string,callback:(tx:typeof db)=>unknown)=>callback(db)),
+    $transaction:vi.fn(async(callback:(tx:typeof db)=>unknown)=>callback(db))};
   return {service:new CommunityCirclesService(prisma as never),db,prisma};
 }
 const active=[{id:'circle',status:'ACTIVE',expiresAt:null}],allowed=[{allowed:true}],member=[{id:'member'}];
@@ -75,7 +79,7 @@ describe('circle publication, sender identity and moderation',()=>{
   it('hides a post and resolves reports in one transaction',async()=>{
     const {service,db,prisma}=fixture([active,[{id:'post',hidden:true}]]);
     expect(await service.moderate('society','circle','post','admin',true,'Spam content')).toMatchObject({hidden:true});
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);expect(db.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society',expect.any(Function));expect(prisma.$transaction).not.toHaveBeenCalled();expect(db.$executeRaw).toHaveBeenCalledTimes(1);
     expect(sql(db.$queryRaw.mock.calls[1])).toContain('"moderatedByUserId"');
   });
 });
@@ -97,5 +101,46 @@ describe('optional circle expiry',()=>{
     expect(sql(db.$queryRaw.mock.calls[0])).toContain('"expiresAt" IS NOT NULL');
     expect(sql(db.$queryRaw.mock.calls[0])).toContain('"expiresAt"<=CURRENT_TIMESTAMP');
     expect(sql(db.$queryRaw.mock.calls[0])).toContain('LIMIT 100 FOR UPDATE SKIP LOCKED');
+  });
+});
+
+
+describe('community circle tenant boundaries',()=>{
+  it.each([
+    (s:CommunityCirclesService)=>s.listVisible('society','user'),
+    (s:CommunityCirclesService)=>s.myRequests('society','user'),
+    (s:CommunityCirclesService)=>s.request('society','user','Cricket'),
+    (s:CommunityCirclesService)=>s.join('society','user','circle'),
+    (s:CommunityCirclesService)=>s.leave('society','user','circle'),
+    (s:CommunityCirclesService)=>s.listPosts('society','user','circle'),
+  ])('rejects revoked residency before a resident operation touches circle data',async run=>{
+    const {service,db,prisma}=fixture([[{allowed:false}]]);
+    await expect(run(service)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society',expect.any(Function));
+    expect(db.$queryRaw).toHaveBeenCalledOnce();expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+  it.each([
+    (s:CommunityCirclesService)=>s.review('society','foreign','admin','APPROVE','Valid request'),
+    (s:CommunityCirclesService)=>s.setStatus('society','foreign','CLOSED'),
+    (s:CommunityCirclesService)=>s.setExpiry('society','foreign',null),
+    (s:CommunityCirclesService)=>s.createPost('society','user','foreign','Hello'),
+    (s:CommunityCirclesService)=>s.report('society','user','foreign','post','Spam content'),
+    (s:CommunityCirclesService)=>s.moderate('society','foreign','post','admin',true,'Spam content'),
+  ])('rejects foreign or expired circle parents before a child write',async run=>{
+    const {service,db,prisma}=fixture([[]]);
+    await expect(run(service)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society',expect.any(Function));
+    expect(db.$queryRaw).toHaveBeenCalledOnce();expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+  it.each(['listManage','listReports'] as const)('scopes %s and its child projections',async method=>{
+    const {service,db,prisma}=fixture([[]]);
+    expect(await service[method]('society')).toEqual([]);
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society',expect.any(Function));
+    expect((db.$queryRaw.mock.calls[0][0] as {values:unknown[]}).values).toContain('society');
+  });
+  it('retains the platform scheduler exception without opening tenant context',async()=>{
+    const {service,prisma}=fixture([[]]);
+    expect(await service.deleteExpired()).toEqual({deleted:0});
+    expect(prisma.withTenantContext).not.toHaveBeenCalled();expect(prisma.$transaction).toHaveBeenCalledOnce();
   });
 });
