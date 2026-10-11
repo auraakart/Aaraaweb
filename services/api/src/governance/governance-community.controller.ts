@@ -22,7 +22,7 @@ export class GovernanceCommunityController{
   @RequiresPermissions(AppPermission.NOTICE_READ)
   listMeetings(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT m."id",m."meetingType",m."status",m."title",m."scheduledAt",m."heldAt",m."location",
              m."quorumRequired",m."quorumPresent",m."minutesSummary",m."byeLawReference",m."audienceScope"
       FROM "GovernanceMeeting" m
@@ -35,33 +35,35 @@ export class GovernanceCommunityController{
           SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
         )))
       ORDER BY m."scheduledAt" DESC LIMIT 250
-    `);
+    `));
   }
 
   @Get('community/meetings/:id')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   async getMeeting(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){
     const actor=this.user(userId);
-    const visible=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
-      SELECT m."id" FROM "GovernanceMeeting" m
-      WHERE m."id"=${id}::uuid AND m."societyId"=${societyId}::uuid
-        AND (
-          EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
-          OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
-        )
-        AND (m."audienceScope"='COMMUNITY' OR (m."audienceScope"='OWNER_ONLY' AND EXISTS(
-          SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
-        ))) LIMIT 1
-    `);
-    if(!visible.length)throw new BadRequestException('Governance meeting not available');
-    return this.governance.getMeeting(societyId,id);
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const visible=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT m."id" FROM "GovernanceMeeting" m
+        WHERE m."id"=${id}::uuid AND m."societyId"=${societyId}::uuid
+          AND (
+            EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+            OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+          )
+          AND (m."audienceScope"='COMMUNITY' OR (m."audienceScope"='OWNER_ONLY' AND EXISTS(
+            SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+          ))) LIMIT 1 FOR SHARE
+      `);
+      if(!visible.length)throw new BadRequestException('Governance meeting not available');
+      return this.governance.getMeetingInContext(tx,societyId,id);
+    });
   }
 
   @Get('community/documents')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   listDocuments(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT d."id",d."meetingId",d."resolutionId",d."kind",d."fileReference",d."note",d."verifiedAt",d."audienceScope",d."createdAt"
       FROM "GovernanceDocumentReference" d
       JOIN "GovernanceMeeting" m ON m."id"=d."meetingId" AND m."societyId"=d."societyId"
@@ -78,7 +80,7 @@ export class GovernanceCommunityController{
           )
         )
       ORDER BY d."createdAt" DESC LIMIT 250
-    `);
+    `));
   }
 
   @Post('audience/:kind/:id')
@@ -87,7 +89,7 @@ export class GovernanceCommunityController{
     const actor=this.user(userId);
     const resourceType=kind==='meeting'?'MEETING':kind==='document'?'DOCUMENT':kind==='poll'?'POLL':null;
     if(!resourceType)throw new BadRequestException('Unsupported governance audience resource');
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const current=resourceType==='MEETING'
         ?await tx.$queryRaw<Array<{audienceScope:'COMMUNITY'|'OWNER_ONLY'}>>(Prisma.sql`SELECT "audienceScope" FROM "GovernanceMeeting" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE`)
         :resourceType==='DOCUMENT'

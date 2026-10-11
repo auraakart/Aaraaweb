@@ -54,10 +54,10 @@ export class GovernanceService{
   `));}
 
   getMeeting(societyId:string,id:string){
-    return this.prisma.withTenantContext(societyId, tx=>this.meetingInContext(tx,societyId,id));
+    return this.prisma.withTenantContext(societyId, tx=>this.getMeetingInContext(tx,societyId,id));
   }
 
-  private async meetingInContext(tx:Prisma.TransactionClient,societyId:string,id:string):Promise<Record<string,unknown>>{
+  async getMeetingInContext(tx:Prisma.TransactionClient,societyId:string,id:string):Promise<Record<string,unknown>>{
     const meetings=await tx.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT * FROM "GovernanceMeeting" WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid LIMIT 1`);if(!meetings.length)throw new NotFoundException('Governance meeting not found');
     const [agenda,resolutions,actions,evidence]=await Promise.all([
       tx.$queryRaw(Prisma.sql`SELECT * FROM "GovernanceAgendaItem" WHERE "societyId"=${societyId}::uuid AND "meetingId"=${id}::uuid ORDER BY "ordinal"`),
@@ -73,7 +73,7 @@ export class GovernanceService{
       const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         INSERT INTO "GovernanceMeeting" ("societyId","meetingType","title","scheduledAt","location","quorumRequired","quorumRuleReference","byeLawReference","createdByUserId")
         VALUES (${societyId}::uuid,${input.meetingType},${title},${input.scheduledAt},${input.location?.trim()||null},${input.quorumRequired??null},${input.quorumRuleReference?.trim()||null},${input.byeLawReference?.trim()||null},${actorUserId}::uuid) RETURNING "id"
-      `);await this.evidence(tx,societyId,rows[0].id,actorUserId,'MEETING_CREATED',`Meeting created: ${title}`);return this.meetingInContext(tx,societyId,rows[0].id);
+      `);await this.evidence(tx,societyId,rows[0].id,actorUserId,'MEETING_CREATED',`Meeting created: ${title}`);return this.getMeetingInContext(tx,societyId,rows[0].id);
     });
   }
 
@@ -82,7 +82,7 @@ export class GovernanceService{
       const rows=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
         UPDATE "GovernanceMeeting" SET "status"=${input.status},"heldAt"=${input.heldAt??null},"quorumPresent"=${input.quorumPresent??null},"minutesSummary"=${input.minutesSummary?.trim()||null},"quorumRuleReference"=COALESCE(${input.quorumRuleReference?.trim()||null},"quorumRuleReference"),"byeLawReference"=COALESCE(${input.byeLawReference?.trim()||null},"byeLawReference"),"updatedAt"=CURRENT_TIMESTAMP
         WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid RETURNING "id"
-      `);if(!rows.length)throw new NotFoundException('Governance meeting not found');await this.evidence(tx,societyId,id,actorUserId,'MEETING_OUTCOME_RECORDED',`Meeting status recorded as ${input.status}`,{quorumPresent:input.quorumPresent});return this.meetingInContext(tx,societyId,id);
+      `);if(!rows.length)throw new NotFoundException('Governance meeting not found');await this.evidence(tx,societyId,id,actorUserId,'MEETING_OUTCOME_RECORDED',`Meeting status recorded as ${input.status}`,{quorumPresent:input.quorumPresent});return this.getMeetingInContext(tx,societyId,id);
     });
   }
 

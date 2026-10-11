@@ -20,7 +20,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 59 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 54 |
+| Runtime calls to `withTenantContext` | 58 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -126,3 +126,8 @@ Six governance artifact operations now establish society context. Document paren
 Twenty transaction tests cover global-client fallbacks, foreign parents, linked resolutions, evidence failures, later option failure and actor/input validation. A disposable PostgreSQL fixture covers two societies, same-society foreign meetings/resolutions, document verification races and retries, failed-evidence rollback, and a real downstream option-length constraint rollback. Fixture-only cleanup restores the append-only delete trigger using transactional DDL/table locking and touches only generated society IDs. Canonical CI must execute the database fixture before merge.
 
 Local artifact/controller/permission validation: 27 tests passed. API lint/typecheck/build, deterministic inventory and API/PostgreSQL parameter, repository, branding and secret checks passed. Native PostgreSQL remains required in protected CI. Runtime context calls increase from 48 to 54. No schema/RLS or partner audience changes. Community audience/detail reads, election/privacy/readiness controllers and other isolation batches remain open; this does not certify complete V5 isolation. Rollback is a reviewed revert. Staging/main promotion remains excluded.
+
+
+## V5.2.10 existing community governance conversion
+
+Four existing community handlers use the tenant context. The visibility check and authoritative meeting aggregate share the supplied client, with a shared meeting row lock through detail assembly. Audience mutation and audit retain their atomic transaction and now establish society context. Existing owner/occupant and parent audience filters remain intact. Runtime context calls increase from 54 to 58; no database policy or new product flow is introduced. Native PostgreSQL and protected CI remain required before merge.
