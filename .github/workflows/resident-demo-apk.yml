@@ -8,6 +8,11 @@ on:
       - '.github/workflows/resident-demo-apk.yml'
       - 'scripts/enrich-resident-demo-fixture.py'
       - 'scripts/enrich-resident-demo-fixture-premium.py'
+  # Packaging changes must prove they build an installable APK before promotion.
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/resident-demo-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -96,16 +101,17 @@ jobs:
           grep -q "Continue as Demo Resident" apps/resident/lib/auth/auth_screen.dart
           grep -q "AARAGATE_DEMO_MODE" apps/resident/lib/main.dart
 
-      - name: Build debug APK
+      - name: Build smaller universal release-mode demo APK
+        # Flutter's generated wrapper uses demo/debug signing; not store signing.
         working-directory: apps/resident
         env:
           DEMO_API_BASE_URL: ${{ vars.AARAGATE_DEMO_API_BASE_URL }}
         run: |
           DEMO_FLAGS=(--dart-define=AARAGATE_DEMO_MODE=true)
           if [ -n "$DEMO_API_BASE_URL" ]; then
-            flutter build apk --debug "${DEMO_FLAGS[@]}" --dart-define=AARAGATE_API_BASE_URL="$DEMO_API_BASE_URL"
+            flutter build apk --release "${DEMO_FLAGS[@]}" --dart-define=AARAGATE_API_BASE_URL="$DEMO_API_BASE_URL"
           else
-            flutter build apk --debug "${DEMO_FLAGS[@]}"
+            flutter build apk --release "${DEMO_FLAGS[@]}"
           fi
 
       - name: Read Resident release identity
@@ -120,7 +126,14 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp apps/resident/build/app/outputs/flutter-apk/app-debug.apk dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          cp apps/resident/build/app/outputs/flutter-apk/app-release.apk dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          APK=dist/Aaraagate-Resident-Demo-Showcase-V2.apk
+          unzip -tq "$APK"
+          zipinfo -1 "$APK" > /tmp/aaraagate-demo-apk-entries.txt
+          grep -Fxq AndroidManifest.xml /tmp/aaraagate-demo-apk-entries.txt
+          grep -Fxq classes.dex /tmp/aaraagate-demo-apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libflutter.so' /tmp/aaraagate-demo-apk-entries.txt
+          echo 'APK archive, Android manifest, bytecode and ARM64 engine verified.'
 
       - name: Record Resident APK build evidence
         run: |
@@ -155,7 +168,12 @@ jobs:
             Latest installable Resident Demo Showcase APK from the main branch.
             Version: V${{ steps.release_identity.outputs.version }}
             Source commit: `${{ github.sha }}`
-            Download the .apk asset directly; no ZIP extraction is required.
+            Download the APK from this page under Assets in Chrome; do not use an embedded chat browser.
+            If it is not visible after download, use Chrome > Downloads or Android Files / File Manager > Downloads.
+            A downloaded APK will not appear as an installed app until it is opened and installed.
+            If prompted, allow Chrome or Files to install this trusted APK.
+            If an older demo has a different CI demo-signing key, preserve local data before uninstalling it.
+            No ZIP extraction is required; this is a demo build, not production signing.
           artifacts: dist/Aaraagate-Resident-Demo-Showcase-V2.apk
           artifactContentType: application/vnd.android.package-archive
           allowUpdates: true
