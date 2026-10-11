@@ -105,7 +105,7 @@ describe('V4.90.18.9 — provider bill-request receipt, not an invoice',()=>{
     expect(queries[3]).toContain('INSERT INTO "ConsumerServiceExtraWorkBillAcknowledgement"');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     const sql=[...queries,...tx.$executeRaw.mock.calls.map(x=>sqlText(x[0]))].join('\n');
-    expect(sqlValues(tx.$executeRaw.mock.calls[0][0])).toContain('PROVIDER_ACKNOWLEDGED_EXTRA_WORK_BILL_REQUEST');
+    expect(sql).toContain('PROVIDER_ACKNOWLEDGED_EXTRA_WORK_BILL_REQUEST');
     expect(sql).not.toContain('INSERT INTO "ConsumerServicePayment"');
     expect(sql).not.toContain('INSERT INTO "Invoice"');
     expect(sql).not.toContain('SET "servicePricePaise"');
