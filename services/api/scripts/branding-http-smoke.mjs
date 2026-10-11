@@ -10,13 +10,14 @@ const { BrandingController, BrandingContextController } = require('../dist/brand
 const { BrandingService } = require('../dist/branding/branding.service.js');
 const { BearerGuard } = require('../dist/auth/bearer.guard.js');
 const { SessionService } = require('../dist/auth/session.service.js');
+const { PrismaMembershipRepository } = require('../dist/auth/prisma-membership.repository.js');
 const { PrismaService } = require('../dist/prisma/prisma.service.js');
 const { EntitlementService } = require('../dist/entitlements/entitlement.service.js');
 const { validationPipeOptions } = require('../dist/validation-pipe.options.js');
 const societyId = '11111111-1111-4111-8111-111111111111';
 let metadataReads = 0;
 const prisma = {
-  societyMembership: { findFirst: async ({ where }) => where.societyId === societyId && where.userId === 'member' ? { id: 'membership' } : null },
+  withTenantContext: async (id, callback) => { return callback(prisma); },
   society: { findFirst: async ({ where }) => {
     metadataReads++;
     assert.equal(where.id, societyId);
@@ -24,6 +25,10 @@ const prisma = {
     return { id: societyId, name: 'Society A' };
   } },
 };
+const memberships = { findActiveByUserAndSociety: async (userId, id, tx) => {
+  assert.equal(tx, prisma);
+  return userId === 'member' && id === societyId ? [{ userId, societyId, role: 'TENANT', active: true }] : [];
+} };
 const entitlements = { current: async (id) => {
   assert.equal(id, societyId);
   return { productTier: 'STARTER', enabledFeatures: ['VISITOR_MANAGEMENT', 'AI_ASSISTANT'] };
@@ -41,6 +46,7 @@ Module({
   providers: [BrandingService, BearerGuard,
     { provide: PrismaService, useValue: prisma },
     { provide: EntitlementService, useValue: entitlements },
+    { provide: PrismaMembershipRepository, useValue: memberships },
     { provide: SessionService, useValue: sessions }],
 })(SmokeModule);
 const app = await NestFactory.create(SmokeModule, { logger: false });

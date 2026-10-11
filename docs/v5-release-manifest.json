@@ -80,17 +80,32 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.1",
+      "currentSlice": "V5.2.2",
       "slices": [
         {
           "id": "V5.2.1",
           "name": "Revalidate society authority for bearer and refresh sessions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/auth/session.service.spec.ts",
             "services/api/src/occupancy-authority.regression.spec.ts"
           ],
-          "baselineSha": "c2b80e16edb4e0f6f13f1d39a621d2ca0ef6bcdd"
+          "baselineSha": "c2b80e16edb4e0f6f13f1d39a621d2ca0ef6bcdd",
+          "pullRequest": 1212,
+          "validatedRuntimeSha": "53a8ee739ab8c72d4ab911a2c59e3a97f1f88468",
+          "mergeSha": "806ab618eed144c23c231b96afc104a50605151c"
+        },
+        {
+          "id": "V5.2.2",
+          "name": "Tenant transaction for configuration and society detail with dedicated auditor parity",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "806ab618eed144c23c231b96afc104a50605151c",
+          "evidence": [
+            "services/api/src/branding/branding.service.spec.ts",
+            "services/api/src/branding/branding-context.postgres.spec.ts",
+            "services/api/src/societies/societies.authorization.spec.ts",
+            "services/api/src/entitlements/entitlement.service.spec.ts"
+          ]
         }
       ]
     },
