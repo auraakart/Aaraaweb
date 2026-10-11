@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.4",
+      "currentSlice": "V5.2.5",
       "slices": [
         {
           "id": "V5.2.1",
@@ -126,11 +126,24 @@
         {
           "id": "V5.2.4",
           "name": "Community poll participation and results tenant transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "360537eaf2d3ffd167a4c597826b30c87bef0203",
           "evidence": [
             "services/api/src/governance/governance-poll-participation.controller.spec.ts",
             "services/api/src/governance/governance-poll-participation.postgres.spec.ts"
+          ],
+          "pullRequest": 1215,
+          "validatedRuntimeSha": "62465f42a19c8c9ef745afb2f5d2d4c82769318a",
+          "mergeSha": "a92428210ceddba03aef0aecd51ede1b25b08619"
+        },
+        {
+          "id": "V5.2.5",
+          "name": "Community event listing, lifecycle and RSVP tenant transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "a92428210ceddba03aef0aecd51ede1b25b08619",
+          "evidence": [
+            "services/api/src/governance/community-events.service.spec.ts",
+            "services/api/src/governance/community-events.postgres.spec.ts"
           ]
         }
       ]
