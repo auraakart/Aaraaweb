@@ -1,6 +1,6 @@
 # V5.1.0 partner ownership and compatibility migration
 
-Version: 1.0, 2026-10-11. Development foundation only. Partner onboarding, transfers, licensing enforcement, brand activation, custom domains and production rollout remain later gated slices.
+Version: 1.1, 2026-10-11. Development foundation only. Partner onboarding, transfers, licensing enforcement, brand activation, custom domains and production rollout remain later gated slices.
 
 ## Contract and affected modules
 
@@ -43,3 +43,7 @@ Slice Done means the above gates pass at the exact PR head, the migration and sc
 - Before partner activation, rollback application code to the preceding develop build and keep additive tables, defaults, FKs and snapshots. Older server INSERTs remain compatible. Verify legacy create/list/detail, bearer context and current entitlements again. Do not drop ownership fields after any custom ownership data exists.
 - If fixture equality or a required gate fails, do not merge or activate partner readers. Investigate before replaying. Restore disposable databases from fixtures for rehearsals; no production data or migration execution has been authorized here.
 - Database schema ownership alone supplies no strict tenant isolation. Do not onboard white-label partners or trust a client-supplied partnerId until the V5.2 authorization/DB-role/workers/cache/storage gates close.
+
+## Protected validation closure
+
+Implemented and merged through [PR #1210](https://github.com/auraakart/Aaraaweb/pull/1210). Runtime head f2a28dda4c5c2531d3ac2c95be62341010b0b2a3 passed [canonical CI](https://github.com/auraakart/Aaraaweb/actions/runs/38132938204); develop merge 2ee24a4ab6f302e0d767df3c31f18229883baf91. Native PostgreSQL 16 clean deployment, historical upgrade, 64 compatibility fixtures, replay, atomic failure rollback, constraints and legacy society response checks passed. API/Admin/Flutter full suites and required merge gates passed. The test harness uses explicit PostgreSQL connection fields and Node adapter tests live with the repository's Node tests. The tenant-index checker recognizes society-leading primary keys without requiring duplicate indexes, with non-leading/commented-key regression coverage. Staging/main and hosted environments remain untouched.

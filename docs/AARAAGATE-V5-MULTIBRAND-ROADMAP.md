@@ -6,7 +6,7 @@
 **Repository:** auraakart/Aaraaweb
 **Reviewed develop snapshot:** `4e3bc2e4af4e3f597557d119586d7ce60462d348`
 **Snapshot commit:** `fix(android): reduce demo APK and verify Android package integrity (#1206)`, 11 October 2026 at 13:42 IST
-**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation merged with protected checks; V5.0.2 inventory and V5.1.0 ownership/compatibility foundation implemented pending their protected checks; later milestones remain planned. Staging/main promotion is separate; main requires explicit owner approval.
+**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation merged with protected checks; V5.0.2 inventory and V5.1.0 ownership/compatibility foundation merged with all protected checks passed; later milestones remain planned. Staging/main promotion is separate; main requires explicit owner approval.
 **Scope:** Engineering, automated tests, local/test-environment demonstrations and build artifacts. Productionization excluded.
 
 ## 1. Recommended product and architecture decision
@@ -420,3 +420,7 @@ Protected CI status is recorded on the feature PR rather than fabricated here. N
 V5.0.1 passed all protected checks and merged through PR #1209 at develop 8e87dbf8f809215db92e14dfd727c42ac7f76553. The tenant-access inventory is complete as a reproducible static source register: 249 tables, 2,123 access sites and 872 handlers, with authority classes, maintainers, exceptions and a prioritized isolation conversion queue. It demonstrates remaining isolation work, including no runtime tenant-context calls or migrated RLS policy statements; it is not a security certification. See [inventory and work queue](architecture/V5-TENANT-ACCESS-INVENTORY.md).
 
 V5.1.0 adds built-in Aaraagate commercial ownership, separate partner roles and immutable legacy entitlement cutover evidence. It retains the live entitlement resolver, old-server INSERT defaults and society response contracts. Tests cover all 189 prior migrations, 64 compatibility fixtures, constraints, replay, deletion and atomic failure rollback. Snapshot evidence is not a subscription grant. See [schema, acceptance and rollback contract](architecture/V5-PARTNER-OWNERSHIP-COMPATIBILITY.md). Ownership history, transfer administration and actual legacy licensing conversion remain gated follow-up work. Staging/main and hosted migration execution are excluded.
+
+### V5.1.0 protected validation closure
+
+[PR #1210](https://github.com/auraakart/Aaraaweb/pull/1210) merged into develop at 2ee24a4ab6f302e0d767df3c31f18229883baf91. Exact validated runtime head: f2a28dda4c5c2531d3ac2c95be62341010b0b2a3. [Canonical CI evidence](https://github.com/auraakart/Aaraaweb/actions/runs/38132938204): repository structure, Mastermind preflight, API/Admin/Flutter full validation and all required merge gates passed; dependency-security gate passed with the package graph unchanged. Native PostgreSQL 16 clean deploy and historical upgrade/replay/atomic rollback tests passed, including all 64 compatibility fixtures and the exact legacy society response contract. Staging/main were not promoted. V5.0 baseline work beyond the tenant inventory and remaining V5.1/V5.2 work remain explicitly open in the manifest; this is development evidence, not productionization or tenant-isolation certification.
