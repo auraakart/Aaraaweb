@@ -46,6 +46,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   bool? _feedbackHelpful;
   late AssistantLocalPreferences _localPreferences;
   int _preferenceLoadEpoch = 0;
+  // Invalidates voice, preference write and query results after auth/property swaps.
+  int _contextEpoch = 0;
   late final ResidentSpeech _speech;
   bool _listening = false;
   // English-only Assistant; independent Helpdesk locales remain unchanged.
@@ -86,12 +88,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Future<void> _setDailyBriefingShortcut(bool enabled) async {
+    final epoch = _contextEpoch;
     final previous = _dailyBriefingShortcut;
     setState(() => _dailyBriefingShortcut = enabled);
     try {
       await _localPreferences.setBriefingShortcut(enabled);
     } catch (_) {
-      if (mounted) {
+      if (mounted && epoch == _contextEpoch) {
         setState(() => _dailyBriefingShortcut = previous);
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           const SnackBar(content: Text('Could not save Assistant preference.')),
@@ -111,6 +114,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _readAssistantPreferences();
     }
     if (oldWidget.unitId != widget.unitId || oldWidget.demoMode != widget.demoMode || oldWidget.apiClient != widget.apiClient || oldWidget.preferenceScope != widget.preferenceScope) {
+      // Abort/invalidate late voice and API responses before the new home becomes interactive.
+      _contextEpoch++;
+      _speech.stop();
+      _busy = false;
+      _listening = false;
+      _voiceStatus = null;
       // Never display a prior household's answer or reuse its conversation topic.
       _lastPolicyPrompt = null;
       _lastSubmittedMessage = null;
@@ -130,6 +139,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   Future<void> _listenForAssistant() async {
     if (_busy || _listening) return;
+    final epoch = _contextEpoch;
     setState(() {
       _listening = true;
       _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantListening');
@@ -137,7 +147,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     });
     try {
       final text = await _speech.listenOnce(languageCode: _assistantSpeechLanguageCode);
-      if (!mounted) return;
+      if (!mounted || epoch != _contextEpoch) return;
       if (text == null || text.trim().isEmpty) {
         setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnavailable'));
         return;
@@ -149,11 +159,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantReview');
       });
     } on ResidentSpeechUnavailable {
-      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnsupported'));
+      if (mounted && epoch == _contextEpoch) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnsupported'));
     } catch (_) {
-      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnavailable'));
+      if (mounted && epoch == _contextEpoch) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnavailable'));
     } finally {
-      if (mounted) setState(() => _listening = false);
+      if (mounted && epoch == _contextEpoch) setState(() => _listening = false);
     }
   }
 
@@ -162,6 +172,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final message = _controller.text.trim();
     if (message.length < 2) return;
     final requestedUnitId = widget.unitId;
+    final epoch = _contextEpoch;
+    final apiClient = widget.apiClient;
+    final demoMode = widget.demoMode;
     final effectiveMessage = expandSocietyPolicyFollowup(message,
       previousQuestion: _lastPolicyPrompt,
       previousIntent: _lastPolicyPrompt == null ? null : 'SOCIETY_KNOWLEDGE',
@@ -174,9 +187,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       _lastSubmittedMessage = message;
     });
     try {
-      if (widget.demoMode) {
+      if (demoMode) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
-        if (!mounted || widget.unitId != requestedUnitId) return;
+        if (!mounted || epoch != _contextEpoch || widget.unitId != requestedUnitId) return;
         final demoResult = DemoAiAssistantAnswers.answer(effectiveMessage, unitId: requestedUnitId);
         setState(() {
           _result = demoResult;
@@ -184,23 +197,23 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         });
         return;
       }
-      final raw = await widget.apiClient.post(
+      final raw = await apiClient.post(
         '/api/v1/ai-operations/assistant/query',
         {
           'message': effectiveMessage,
           if (requestedUnitId != null) 'unitId': requestedUnitId,
         },
       );
-      if (!mounted || widget.unitId != requestedUnitId) return;
+      if (!mounted || epoch != _contextEpoch || widget.unitId != requestedUnitId) return;
       final next = Map<String, dynamic>.from(raw as Map);
       setState(() {
         _result = next;
         _lastPolicyPrompt = next['intent'] == 'SOCIETY_KNOWLEDGE' ? effectiveMessage : null;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted && epoch == _contextEpoch) setState(() => _error = error.toString());
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && epoch == _contextEpoch) setState(() => _busy = false);
     }
   }
 
