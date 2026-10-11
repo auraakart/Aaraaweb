@@ -9,7 +9,7 @@ export class SettlementService {
   constructor(private readonly prisma: PrismaService) {}
 
   async allocate(societyId: string, userId: string, receivableId: string, input: AllocationInput) {
-    if (input.amountPaise <= 0) throw new BadRequestException('Allocation amount must be positive');
+    if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise <= 0) throw new BadRequestException('Allocation amount must be a positive whole number of paise');
     const key = input.idempotencyKey.trim();
     if (!key) throw new BadRequestException('Idempotency key is required');
 
@@ -54,7 +54,7 @@ export class SettlementService {
 
   async paymentAvailability(societyId: string, paymentId: string) {
     const rows = await this.prisma.$queryRaw<Array<{ amountPaise: bigint; status: string; grossAllocatedPaise: bigint; reversedPaise: bigint; refundedPaise: bigint }>>(Prisma.sql`
-      SELECT p."amountPaise", p."status",
+      SELECT p."amountPaise"::bigint AS "amountPaise", p."status",
              COALESCE((SELECT SUM(a."amountPaise") FROM "ReceivableAllocation" a WHERE a."paymentId"=p."id" AND a."societyId"=p."societyId"),0)::bigint AS "grossAllocatedPaise",
              COALESCE((SELECT SUM(r."amountPaise") FROM "ReceivableAllocationReversal" r JOIN "ReceivableAllocation" a ON a."id"=r."allocationId" AND a."societyId"=r."societyId" WHERE a."paymentId"=p."id" AND a."societyId"=p."societyId"),0)::bigint AS "reversedPaise",
              COALESCE((SELECT SUM(rf."amountPaise") FROM "PaymentRefund" rf WHERE rf."paymentId"=p."id" AND rf."societyId"=p."societyId"),0)::bigint AS "refundedPaise"

@@ -63,3 +63,62 @@ describe('ProviderMarketplaceCompletionService resident proposal recovery', () =
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });
+
+describe('V4.90.18.1 provider proposal races and dispute continuity', () => {
+  const operator = { resolveProvider: vi.fn().mockResolvedValue({ providerId: 'provider-1' }) };
+
+  it('locks the booking before creating a provider time proposal', async () => {
+    const tx = { $queryRaw: vi.fn()
+      .mockResolvedValueOnce([{ id: 'booking-1', status: 'REQUESTED' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'proposal-1', status: 'PENDING' }]) };
+    const prisma = { $transaction: vi.fn(async (cb: (value: typeof tx) => unknown) => cb(tx)) };
+    const svc = new ProviderMarketplaceCompletionService(prisma as never, operator as never, {} as never);
+    const proposal = await svc.proposeBookingTime('provider-user','booking-1',
+      new Date('2030-01-01T09:00:00Z'),new Date('2030-01-01T10:00:00Z'));
+    expect(proposal).toMatchObject({ id: 'proposal-1' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(sqlText(tx.$queryRaw.mock.calls[0][0])).toContain('FOR UPDATE');
+    expect(sqlText(tx.$queryRaw.mock.calls[2][0])).toContain('INSERT INTO "ProviderBookingProposal"');
+  });
+
+  it('does not propose a different time for a booking cancelled concurrently', async () => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 'booking-1', status: 'CANCELLED' }]) };
+    const prisma = { $transaction: vi.fn(async (cb: (value: typeof tx) => unknown) => cb(tx)) };
+    const svc = new ProviderMarketplaceCompletionService(prisma as never, operator as never, {} as never);
+    await expect(svc.proposeBookingTime('provider-user','booking-1',
+      new Date('2030-01-01T09:00:00Z'),new Date('2030-01-01T10:00:00Z')))
+      .rejects.toThrow('Only requested bookings');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed on an unavailable provider booking', async () => {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
+    const prisma = { $transaction: vi.fn(async (cb: (value: typeof tx) => unknown) => cb(tx)) };
+    const svc = new ProviderMarketplaceCompletionService(prisma as never, operator as never, {} as never);
+    await expect(svc.proposeBookingTime('provider-user','unknown',
+      new Date('2030-01-01T09:00:00Z'),new Date('2030-01-01T10:00:00Z')))
+      .rejects.toThrow('Provider booking not found');
+  });
+
+  it('requires consumer ownership before returning dispute notes and resolution', async () => {
+    const prisma = { $queryRaw: vi.fn().mockResolvedValueOnce([]) };
+    const svc = new ProviderMarketplaceCompletionService(prisma as never, operator as never, {} as never);
+    await expect(svc.listConsumerDisputes('user-1','other-booking'))
+      .rejects.toThrow('Booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns only scoped dispute history after validating booking ownership', async () => {
+    const prisma = { $queryRaw: vi.fn()
+      .mockResolvedValueOnce([{ id: 'booking-1', providerId: 'provider-1', status: 'COMPLETED' }])
+      .mockResolvedValueOnce([{ id: 'dispute-1', status: 'RESOLVED', resolutionNote: 'Repair completed' }]) };
+    const svc = new ProviderMarketplaceCompletionService(prisma as never, operator as never, {} as never);
+    expect(await svc.listConsumerDisputes('user-1','booking-1'))
+      .toMatchObject([{ id: 'dispute-1', resolutionNote: 'Repair completed' }]);
+    const query = prisma.$queryRaw.mock.calls[1][0];
+    expect(sqlText(query)).toContain('"userId"');
+    expect(sqlText(query)).toContain('"bookingId"');
+    expect(sqlValues(query)).toContain('user-1');
+  });
+});

@@ -22,7 +22,7 @@ export class PrivacySubjectDataService {
     if(privacyCase.requestType!=='ACCESS') throw new BadRequestException('Only completed ACCESS requests can generate a data export');
     if(privacyCase.status!=='COMPLETED') throw new BadRequestException('Data export becomes available after the ACCESS request is completed');
 
-    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,offeringEvents]=await Promise.all([
+    const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,extraWorkBillingRequests,offeringEvents]=await Promise.all([
       this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","phone","email","name","status","createdAt","updatedAt"
         FROM "User" WHERE "id"=${userId}::uuid LIMIT 1
@@ -97,6 +97,21 @@ export class PrivacySubjectDataService {
         ORDER BY d."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
       !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT e."id",e."disputeId",e."actorType",e."note",e."reference",e."createdAt"
+        FROM "ConsumerServiceDisputeEvidence" e JOIN "ConsumerServiceDispute" d ON d."id"=e."disputeId"
+        WHERE d."userId"=${userId}::uuid OR e."actorUserId"=${userId}::uuid
+        ORDER BY e."createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
+        SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",
+          r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt",
+          d."createdAt" AS "nonPayableDraftPreparedAt"
+        FROM "ConsumerServiceExtraWorkBillingRequest" r
+        LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+        LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
+        WHERE r."userId"=${userId}::uuid ORDER BY r."createdAt" DESC LIMIT 1000
+      `):Promise.resolve([]),
+      !societyId?this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"
         FROM "ServiceOfferingProviderEvent" WHERE "actorUserId"=${userId}::uuid ORDER BY "occurredAt" DESC LIMIT 1000
       `):Promise.resolve([]),
@@ -119,6 +134,8 @@ export class PrivacySubjectDataService {
       consumerServiceBookingProposals:bookingProposals,
       consumerServiceCompletionEvidence:completionEvidence,
       consumerServiceDisputes:serviceDisputes,
+      consumerServiceDisputeEvidence:disputeEvidence,
+      consumerServiceExtraWorkBillingRequests:extraWorkBillingRequests,
       serviceOfferingProviderEvents:offeringEvents,
       privacyRequests,
       exclusions:[
@@ -243,6 +260,7 @@ export class PrivacySubjectDataService {
       let bookingProposalsMinimised=0;
       let completionEvidenceMinimised=0;
       let serviceDisputesMinimised=0;
+      let disputeEvidenceMinimised=0;
       let accountAnonymized=false;
       if(!societyId){
         homes=await tx.$executeRaw(Prisma.sql`
@@ -268,6 +286,12 @@ export class PrivacySubjectDataService {
           SET "reference"=NULL,"note"=NULL
           WHERE e."actorUserId"=${userId}::uuid
              OR EXISTS (SELECT 1 FROM "ConsumerServiceBooking" b WHERE b."id"=e."bookingId" AND b."userId"=${userId}::uuid)
+        `);
+        disputeEvidenceMinimised=await tx.$executeRaw(Prisma.sql`
+          UPDATE "ConsumerServiceDisputeEvidence" e
+          SET "note"='Erased by privacy request',"reference"=NULL
+          FROM "ConsumerServiceDispute" d
+          WHERE e."disputeId"=d."id" AND (d."userId"=${userId}::uuid OR e."actorUserId"=${userId}::uuid)
         `);
         serviceDisputesMinimised=await tx.$executeRaw(Prisma.sql`
           UPDATE "ConsumerServiceDispute"
@@ -306,6 +330,7 @@ export class PrivacySubjectDataService {
         bookingProposalsMinimised,
         completionEvidenceMinimised,
         serviceDisputesMinimised,
+        disputeEvidenceMinimised,
         accountAnonymized,
         retainedCategories:plan.retain,
       };

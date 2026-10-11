@@ -1,6 +1,6 @@
 # Aaraagate Current Capability Index
 
-**Current-state review baseline:** V4.86.1 Assistant UX & Voice Hardening, including V4.86 adoption/readiness, V4.85 Community Services 3.0, V4.84 field-operations readiness and the prior architecture/security/recovery slices recorded below. V4.51.1 Post-Release Regression Hardening remains historical squash-promotion/Resident speech-packaging evidence.
+**Current-state review baseline:** V4.89.14 Secure Society Copilot, plus the V4.90 non-production develop quality slices tracked in [V4.90 Competitive Excellence](AARAAGATE-V4.90-COMPETITIVE-EXCELLENCE.md). V4.90 does not become a main/released app version until separately approved and promoted. Earlier V4.86 and V4.51.1 narratives below remain historical implementation evidence, including V4.51.1 Post-Release Regression Hardening; older release documents may intentionally describe capabilities as deferred at their original date.
 **Purpose:** reviewer entry point for what the repository currently implements. Older milestone documents remain historical evidence and can intentionally describe capabilities as deferred at that earlier point in time.
 
 ## Runtime surfaces
@@ -21,6 +21,8 @@ The current API graph includes authentication, societies, residents, properties,
 Current repository behavior includes provider operator identity, onboarding application/evidence-reference review, catalogue self-service and history, provider/offering serviceability, weekly and date-specific availability, consumer booking, provider accept/decline, schedule counter-proposals, resident acceptance/rejection, dispatch/agents, gate-linked fulfilment, completion evidence, ratings, disputes, payment readiness/records, settlement evidence/foundations and provider-readiness visibility.
 
 This does **not** claim live KYC-provider verification, real bank payout execution, payment-provider certification, GPS/masked calling, hosted production readiness or real-world provider acceptance.
+
+**Services 3.1 completion boundary:** V4.90.18 implementation closes at .10 on develop. Separate-bill request, acknowledgement and non-payable draft **do not** issue an invoice or authorize payment or settlement. Independent Finance, Privacy and UX work must be separately scoped/approved. Field UAT remains unverified. See [Services 3.1 scope closure](AARAAGATE-V4.90.18-SERVICES-3.1-CLOSURE.md).
 
 ## Resident experience
 
@@ -169,3 +171,11 @@ V4.86.0 adds **Adoption & Competitive Readiness** without reopening hosting or d
 V4.86 engineering hardening adds a repo-enforced **Mastermind preflight** before the expensive CI fan-out. API changes now run Prisma generation, lint/typecheck and Vitest related tests against changed source; Resident and Guard changes run analysis plus the established risk-weighted behavioural suites; Admin changes run typecheck. Full API/Admin/Flutter/dependency validation starts only after that compatibility gate passes. This addresses the V4.86 delay root cause (late discovery of call-site and test-fixture drift) without changing product behavior or the 4.86.0 release identity.
 
 V4.86.1 adds **Assistant UX & Voice Hardening**. Resident Assistant now uses a compact premium composition with five concise quick actions, corrected native-language labels, a simple localized Speak action, a shorter composer and answer-only presentation with compact source context instead of raw fact-key dumps. The shared Resident speech helper initializes once per lifecycle, resolves the selected language against installed recognition locales, preserves usable partial transcripts when Android ends recognition without a final result and retains typed fallback. Complaint creation remains prepare/review/explicit-confirmation only; voice never performs an autonomous mutation. Root/API/Admin identify as 4.86.1 and Resident/Guard as 4.86.1+48601. Hosting/provider deployment and external-provider certification remain outside this subversion.
+
+## Current V4.91 non-production engineering status
+
+V4.91.1–V4.91.4 merged on `develop` via PRs [#1198](https://github.com/auraakart/Aaraaweb/pull/1198), [#1199](https://github.com/auraakart/Aaraaweb/pull/1199), [#1200](https://github.com/auraakart/Aaraaweb/pull/1200) and [#1201](https://github.com/auraakart/Aaraaweb/pull/1201). **Resident Aaraagate Assistant** now has no voice language selector and always requests English speech recognition. Shared Resident Helpdesk device-language dictation and Guard localization remain supported, because they are independent callers. The historical V4.86.1 multilingual Assistant description above records the earlier version, not the current screen.
+
+The bounded fixes also cover stale Assistant voice/response isolation on property/login switch, cross-unit/tenant payment authorization tests on migrated PostgreSQL, and no-evidence/no-false-citation Society Copilot handling. Neither separate payable Services invoices, settlement, changes to current occupant routing nor autonomous AI actions were added.
+
+V4.91.5 consolidates debt and residual acceptance in [V4.91 closure evidence](AARAAGATE-V4.91-CLOSURE-EVIDENCE.md). Automated engineering checks are not physical-device, independent field, legal, external-provider or operational acceptance; the 8.5+ quality goal remains unverified. Services 3.1 stays closed at V4.90.18.10 and its one-off .11 handoff is read-only and consumed.

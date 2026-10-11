@@ -55,6 +55,19 @@ class GuardController extends ChangeNotifier {
   StreamSubscription<Map<String, dynamic>>? _gateEvents;
   Timer? _reconnectTimer;
   bool _disposed = false;
+  int _gateContextEpoch = 0;
+
+  // Async responses are not allowed to repopulate a different gate or guard session.
+  bool _sameGateContext(String gate, GuardSession? original, int epoch) {
+    final current = session;
+    return !_disposed && epoch == _gateContextEpoch && gateId == gate &&
+        current?.sessionId == original?.sessionId &&
+        current?.societyId == original?.societyId &&
+        current?.userId == original?.userId;
+  }
+  // Session-local retry identities for gate-arrival writes with unknown outcomes.
+  // Never generate a new key for the same uncertain request/action.
+  final Map<String, String> _uncertainWalkInKeys = {};
 
   bool get signedIn => session != null;
   bool get needsSocietySelection => session == null && userId != null && memberships.length > 1 && selectionToken != null;
@@ -183,7 +196,7 @@ class GuardController extends ChangeNotifier {
     });
   }
 
-  void selectGate(String? value) { gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
+  void selectGate(String? value) { _gateContextEpoch++; gateId = value; verifiedAccess = null; walkInAccess = null; notifyListeners(); }
 
   Future<void> setLanguage(String code) async {
     if (!guardLanguages.any((language) => language.code == code)) return;
@@ -220,17 +233,45 @@ class GuardController extends ChangeNotifier {
       api.assessWatchlist(name:name,phone:phone,vehicleNumber:vehicleNumber);
 
   Future<void> createWalkIn({required String unitId, required String name, String? phone, String? purpose}) => _run(() async {
-    walkInAccess = await api.createWalkIn(gateId: _requireGate(), unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final created = await api.createWalkIn(gateId: gate, unitId: unitId, name: name.trim(), phone: phone, purpose: purpose);
+    if (_sameGateContext(gate, startedSession, epoch)) walkInAccess = created;
   });
 
   Future<void> createGateArrival({required String unitId, required String subjectType, required String name, String? provider, String? phone, String? vehicleNumber, String? note}) => _run(() async {
-    walkInAccess = await api.createGateArrival(gateId: _requireGate(), unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final created = await api.createGateArrival(gateId: gate, unitId: unitId, subjectType: subjectType, name: name.trim(), provider: provider, phone: phone, vehicleNumber: vehicleNumber, note: note);
+    if (_sameGateContext(gate, startedSession, epoch)) walkInAccess = created;
   });
+
+  String _walkInMutationScope(String gate, String requestId, String type) {
+    final current = session;
+    if (current == null) throw StateError('Sign in to manage gate arrivals');
+    return '${current.sessionId}:${current.societyId}:${current.userId}:$gate:$requestId:$type';
+  }
+
+  bool _walkInMutationConfirmed(String type, String? status) =>
+      type == 'CHECK_OUT' ? status == 'CHECKED_OUT' : status == 'CHECKED_IN' || status == 'CHECKED_OUT';
 
   Future<void> refreshWalkIn() => _run(() async {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
-    walkInAccess = await api.requestStatus(_requireGate(), requestId);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final latest = await api.requestStatus(gate, requestId);
+    if (!_sameGateContext(gate, startedSession, epoch) || walkInAccess?['id']?.toString() != requestId) return;
+    walkInAccess = latest;
+    for (final type in ['CHECK_IN', 'CHECK_OUT']) {
+      final scope = _walkInMutationScope(gate, requestId, type);
+      if (_walkInMutationConfirmed(type, latest['status']?.toString())) {
+        _uncertainWalkInKeys.remove(scope);
+      }
+    }
   });
 
   Future<void> checkInWalkIn() => _walkInMutation('CHECK_IN');
@@ -240,8 +281,59 @@ class GuardController extends ChangeNotifier {
     final requestId = walkInAccess?['id']?.toString();
     if (requestId == null) throw StateError('No gate approval is active');
     final gate = _requireGate();
-    final key = _idempotencyKey();
-    walkInAccess = type == 'CHECK_IN' ? await api.checkInRequest(gate, requestId, key) : await api.checkOutRequest(gate, requestId, key);
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    bool current() => _sameGateContext(gate, startedSession, epoch) &&
+        walkInAccess?['id']?.toString() == requestId;
+    final scope = _walkInMutationScope(gate, requestId, type);
+    final previousKey = _uncertainWalkInKeys[scope];
+
+    // A lost response is not proof that an entry did not happen. Re-read the
+    // authoritative gate state before retrying an unconfirmed write.
+    if (previousKey != null) {
+      Map<String, dynamic> refreshed;
+      try {
+        refreshed = await api.requestStatus(gate, requestId);
+      } on GuardApiException {
+        if (!current()) return;
+        throw StateError('Previous gate action is unconfirmed. Refresh status before retrying; do not create a new entry.');
+      }
+      // A delayed refresh must never overwrite a different active request.
+      if (!current()) return;
+      final status = refreshed['status']?.toString();
+      walkInAccess = refreshed;
+      if (_walkInMutationConfirmed(type, status)) {
+        _uncertainWalkInKeys.remove(scope);
+        return;
+      }
+      final expected = type == 'CHECK_IN' ? 'APPROVED' : 'CHECKED_IN';
+      if (status != expected) {
+        throw StateError('Gate request is $status. Supervisor review is required before another action.');
+      }
+    }
+
+    final key = previousKey ?? _idempotencyKey();
+    try {
+      final updated = type == 'CHECK_IN'
+          ? await api.checkInRequest(gate, requestId, key)
+          : await api.checkOutRequest(gate, requestId, key);
+      _uncertainWalkInKeys.remove(scope);
+      if (current()) walkInAccess = updated;
+    } on GuardApiException catch (e) {
+      if (e.transport || e.statusCode == 409) {
+        // Keep the same retry identity on an ordinary gate switch. A signed-out
+        // or replaced session must not recreate session-local state.
+        if (!_disposed && session?.sessionId == startedSession?.sessionId &&
+            session?.societyId == startedSession?.societyId &&
+            session?.userId == startedSession?.userId) {
+          _uncertainWalkInKeys[scope] = key;
+        }
+        if (!current()) return;
+        throw StateError('Gate action outcome is unconfirmed. Refresh gate status before retry; the same secure request identity will be reused.');
+      }
+      _uncertainWalkInKeys.remove(scope);
+      if (current()) rethrow;
+    }
   });
 
   void clearWalkIn() { walkInAccess = null; notifyListeners(); }
@@ -249,7 +341,11 @@ class GuardController extends ChangeNotifier {
   Future<void> verifyCredential(String credential) => _run(() async {
     final value = credential.trim();
     if (value.isEmpty) throw StateError('Scan or enter an access credential');
-    verifiedAccess = await api.verifyAccess(_requireGate(), value);
+    final gate = _requireGate();
+    final startedSession = session;
+    final epoch = _gateContextEpoch;
+    final verified = await api.verifyAccess(gate, value);
+    if (_sameGateContext(gate, startedSession, epoch)) verifiedAccess = verified;
   });
 
   Future<void> checkIn(String credential) => _gateMutation('CHECK_IN', credential);
@@ -260,15 +356,37 @@ class GuardController extends ChangeNotifier {
       final value = credential.trim();
       if (value.isEmpty) throw StateError('Scan or enter an access credential');
       final gate = _requireGate();
+      final startedSession = session;
+      if (startedSession == null) throw StateError('Sign in to record a gate action');
+      final epoch = _gateContextEpoch;
       final key = _idempotencyKey();
       try {
-        verifiedAccess = type == 'CHECK_IN' ? await api.checkIn(gate, value, key) : await api.checkOut(gate, value, key);
+        final updated = type == 'CHECK_IN'
+            ? await api.checkIn(gate, value, key)
+            : await api.checkOut(gate, value, key);
+        // A completed write for the previous guard/gate must not appear in the
+        // newly selected gate's verified access card.
+        if (_sameGateContext(gate, startedSession, epoch)) verifiedAccess = updated;
       } on GuardApiException catch (e) {
-        if (!e.transport) rethrow;
-        final current = session;
-        if (current == null) throw StateError('Sign in is required to save an offline action');
-        await offlineQueue.enqueue(QueuedGateAction(type: type, gateId: gate, credential: value, idempotencyKey: key, createdAt: DateTime.now().toUtc(), societyId: current.societyId, guardUserId: current.userId));
-        await _refreshQueueCounts(current);
+        if (!e.transport) {
+          if (_sameGateContext(gate, startedSession, epoch)) rethrow;
+          return;
+        }
+        // A lost response may have committed server-side. Persist exactly the
+        // original operation/key and originating session for safe reconciliation,
+        // never whichever guard happens to be selected when the error arrives.
+        await offlineQueue.enqueue(QueuedGateAction(
+          type: type,
+          gateId: gate,
+          credential: value,
+          idempotencyKey: key,
+          createdAt: DateTime.now().toUtc(),
+          societyId: startedSession.societyId,
+          guardUserId: startedSession.userId,
+        ));
+        if (!_sameGateContext(gate, startedSession, epoch)) return;
+        await _refreshQueueCounts(startedSession);
+        if (!_sameGateContext(gate, startedSession, epoch)) return;
         offlineSyncMessage = 'Action saved securely. Retry when connectivity returns.';
         throw StateError('Network unavailable. Action saved and will sync safely when connectivity returns.');
       }
@@ -342,6 +460,7 @@ class GuardController extends ChangeNotifier {
   Future<void> retryQueuedActions() => _run(syncQueuedActions);
 
   Future<void> signOut() async {
+    _gateContextEpoch++;
     final current = session;
     if (current != null) { try { await api.logout(current.sessionId, current.refreshToken); } catch (_) {} }
     _reconnectTimer?.cancel();
@@ -350,7 +469,7 @@ class GuardController extends ChangeNotifier {
     _gateEvents = null; realtimeConnected = false;
     await sessions.clear(); api.accessToken = '';
     session = null; userId = null; selectionToken = null; memberships = const []; gates = const []; units = const []; gateId = null;
-    verifiedAccess = null; walkInAccess = null; queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
+    verifiedAccess = null; walkInAccess = null; _uncertainWalkInKeys.clear(); queuedActions = 0; reviewRequiredActions = 0; offlineSyncMessage = null; directoryFromCache = false;
     notifyListeners();
   }
 

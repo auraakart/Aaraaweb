@@ -22,6 +22,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
   List<GuardSocietyWorker> _societyWorkers = const [];
   List<GuardSocietyWorker> _societyLookup = const [];
   int _queued = 0;
+  int _reviewRequired = 0;
   bool _busy = false;
   String? _error;
   String? _syncMessage;
@@ -38,39 +39,78 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
     super.dispose();
   }
 
+  // Discard responses from an older gate, authenticated session, or search.
+  // Never publish a previous household's list after switching context.
+  int _loadEpoch = 0;
+
+  bool _currentLoad(int epoch, String gateId, String sessionId, String societyId, String guardUserId) {
+    final session = widget.controller.session;
+    return mounted &&
+        epoch == _loadEpoch &&
+        widget.controller.gateId == gateId &&
+        session?.sessionId == sessionId &&
+        session?.societyId == societyId &&
+        session?.userId == guardUserId;
+  }
+
   Future<void> _load() async {
-    if (widget.controller.gateId == null) {
-      setState(() => _error = 'Select an active gate first.');
+    final epoch = ++_loadEpoch;
+    final gateId = widget.controller.gateId;
+    final session = widget.controller.session;
+    if (gateId == null || session == null) {
+      if (!mounted) return;
+      setState(() {
+        _workers = const [];
+        _societyWorkers = const [];
+        _societyLookup = const [];
+        _queued = 0;
+        _reviewRequired = 0;
+        _syncMessage = null;
+        _busy = false;
+        _error = gateId == null ? 'Select an active gate first.' : 'Sign in to view workforce.';
+      });
       return;
     }
+
+    final sessionId = session.sessionId;
+    final societyId = session.societyId;
+    final guardUserId = session.userId;
+    final query = _search.text;
+    bool current() => _currentLoad(epoch, gateId, sessionId, societyId, guardUserId);
+
     setState(() {
       _busy = true;
       _error = null;
+      _workers = const [];
+      _societyWorkers = const [];
+      _societyLookup = const [];
     });
     try {
       await _syncQueue();
-      final results = await widget.controller.api.eligibleWorkforce(query: _search.text);
-      if (!mounted) return;
+      if (!current()) return;
+      final results = await widget.controller.api.eligibleWorkforce(query: query);
+      if (!current()) return;
       setState(() => _workers = results);
 
       try {
         final societyResults = await widget.controller.api.eligibleSocietyWorkforce(
-          gateId: widget.controller.gateId!,
-          query: _search.text,
+          gateId: gateId,
+          query: query,
         );
-        final lookup = _search.text.trim().length >= 2
+        if (!current()) return;
+        final lookup = query.trim().length >= 2
             ? await widget.controller.api.lookupSocietyWorkforce(
-                gateId: widget.controller.gateId!,
-                query: _search.text,
+                gateId: gateId,
+                query: query,
               )
             : const <GuardSocietyWorker>[];
-        if (!mounted) return;
+        if (!current()) return;
         setState(() {
           _societyWorkers = societyResults;
           _societyLookup = lookup.where((worker) => !worker.eligible).toList(growable: false);
         });
       } on GuardApiException catch (e) {
-        if (!mounted) return;
+        if (!current()) return;
         setState(() {
           _societyWorkers = const [];
           _societyLookup = const [];
@@ -78,10 +118,10 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         });
       }
     } on GuardApiException catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() => _error = e.message);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
@@ -91,6 +131,7 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       if (mounted) {
         setState(() {
           _queued = 0;
+          _reviewRequired = 0;
           _syncMessage = null;
         });
       }
@@ -103,16 +144,31 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       if (mounted) {
         setState(() {
           _queued = 0;
+          _reviewRequired = 0;
           _syncMessage = null;
         });
       }
       return;
     }
     final remaining = <QueuedWorkforceAction>[];
+    final now = DateTime.now().toUtc();
     var synced = 0;
-    var rejected = 0;
+    var deferred = 0;
     for (var index = 0; index < pending.length; index++) {
-      final action = pending[index];
+      var action = pending[index];
+      if (action.reviewRequired) {
+        remaining.add(action);
+        continue;
+      }
+      if (action.isStale(now)) {
+        remaining.add(action.requiringReview(now, 'STALE'));
+        continue;
+      }
+      if (!action.canRetry(now)) {
+        remaining.add(action);
+        deferred++;
+        continue;
+      }
       try {
         if (action.type == 'CHECK_IN') {
           await widget.controller.api.workforceCheckIn(gateId: action.gateId, assignmentId: action.assignmentId, idempotencyKey: action.idempotencyKey);
@@ -122,27 +178,32 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
         synced++;
       } on GuardApiException catch (e) {
         if (e.transport) {
-          remaining.addAll(pending.sublist(index));
+          remaining.add(action.withRetryFailure(now));
+          remaining.addAll(pending.sublist(index + 1));
           break;
         }
-        remaining.add(action);
-        rejected++;
+        remaining.add(action.requiringReview(now, e.statusCode == 409 ? 'CONFLICT' : 'REJECTED'));
       }
     }
+    // Preserve unrelated guard/society queues, including records requiring review.
     await _queue.replace([...otherSessions, ...remaining]);
-    if (!mounted) return;
+    if (!mounted || widget.controller.session?.sessionId != session.sessionId) return;
+    final reviewCount = remaining.where((action) => action.reviewRequired).length;
     setState(() {
       _queued = remaining.length;
+      _reviewRequired = reviewCount;
       _syncMessage = remaining.isEmpty
           ? '$synced offline attendance ${synced == 1 ? 'action' : 'actions'} synced.'
-          : rejected > 0
-              ? '$synced synced; $rejected retained for supervisor review.'
-              : 'Connectivity is still unavailable. ${remaining.length} attendance ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
+          : reviewCount > 0
+              ? '$reviewCount attendance ${reviewCount == 1 ? 'action requires' : 'actions require'} supervisor review. Do not repeat these entries.'
+              : deferred > 0
+                  ? '${remaining.length} attendance ${remaining.length == 1 ? 'action is' : 'actions are'} waiting for a safe retry window.'
+                  : 'Connection unavailable. ${remaining.length} attendance ${remaining.length == 1 ? 'action remains' : 'actions remain'} queued.';
     });
   }
 
   Future<void> _retrySync() async {
-    if (_busy) return;
+    if (_busy || _queued <= _reviewRequired) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -203,9 +264,9 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
       if (!mounted) return;
       setState(() {
         _queued = count;
-        _syncMessage = 'Attendance saved securely. Retry when connectivity returns.';
+        _syncMessage = 'Attendance pending. Refresh to retry safely when connectivity returns.';
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network unavailable. Attendance saved securely and will sync automatically.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network unavailable. Attendance is pending secure reconciliation.')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -279,8 +340,8 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                 GuardStateCard(
                   icon: _queued == 0 ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
                   message: _syncMessage ?? '$_queued offline attendance ${_queued == 1 ? 'action' : 'actions'} pending securely.',
-                  actionLabel: _queued > 0 ? 'Retry safe sync' : null,
-                  onAction: _queued > 0 && !_busy ? _retrySync : null,
+                  actionLabel: _queued > _reviewRequired ? 'Retry safe sync' : null,
+                  onAction: _queued > _reviewRequired && !_busy ? _retrySync : null,
                 ),
               ],
               const SizedBox(height: 16),
@@ -372,11 +433,17 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        FilledButton.icon(
-                          onPressed: _busy ? null : () => _mutateSociety(worker),
-                          icon: Icon(worker.present ? Icons.logout_rounded : Icons.login_rounded),
-                          label: Text(worker.present ? 'EXIT' : 'ENTER', style: const TextStyle(fontWeight: FontWeight.w900)),
-                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58)),
+                        Semantics(
+                          button: true,
+                          label: worker.present
+                              ? 'Check out society worker ${worker.name}'
+                              : 'Check in society worker ${worker.name}',
+                          child: FilledButton.icon(
+                            onPressed: _busy ? null : () => _mutateSociety(worker),
+                            icon: Icon(worker.present ? Icons.logout_rounded : Icons.login_rounded),
+                            label: Text(worker.present ? 'EXIT' : 'ENTER', style: const TextStyle(fontWeight: FontWeight.w900)),
+                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58)),
+                          ),
                         ),
                       ],
                     ),
@@ -424,20 +491,28 @@ class _GuardWorkforceScreenState extends State<GuardWorkforceScreen> {
                           const SizedBox(height: 14),
                           Row(children: [
                             Expanded(
-                              child: FilledButton.icon(
-                                onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_IN'),
-                                icon: const Icon(Icons.login_rounded),
-                                label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                              child: Semantics(
+                                button: true,
+                                label: 'Check in household worker $name at ${assignment.buildingName} ${assignment.unitNumber}',
+                                child: FilledButton.icon(
+                                  onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_IN'),
+                                  icon: const Icon(Icons.login_rounded),
+                                  label: const Text('ENTER', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_OUT'),
-                                icon: const Icon(Icons.logout_rounded),
-                                label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
-                                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                              child: Semantics(
+                                button: true,
+                                label: 'Check out household worker $name at ${assignment.buildingName} ${assignment.unitNumber}',
+                                child: OutlinedButton.icon(
+                                  onPressed: _busy ? null : () => _mutate(assignment, 'CHECK_OUT'),
+                                  icon: const Icon(Icons.logout_rounded),
+                                  label: const Text('EXIT', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900)),
+                                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
+                                ),
                               ),
                             ),
                           ]),
