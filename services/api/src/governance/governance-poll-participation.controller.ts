@@ -26,7 +26,7 @@ export class GovernancePollParticipationController{
   @RequiresPermissions(AppPermission.NOTICE_READ)
   listAvailable(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined){
     const actor=this.user(userId);
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx=>tx.$queryRaw(Prisma.sql`
       SELECT p."id",p."pollType",p."status",p."title",p."description",p."opensAt",p."closesAt",p."statutoryUseProhibited",p."audienceScope",
         COALESCE(json_agg(json_build_object('id',o."id",'ordinal',o."ordinal",'label',o."label") ORDER BY o."ordinal") FILTER (WHERE o."id" IS NOT NULL),'[]'::json) AS options,
         r."optionId" AS "myOptionId"
@@ -43,45 +43,47 @@ export class GovernancePollParticipationController{
           SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
         ))
       GROUP BY p."id",r."optionId" ORDER BY p."createdAt" DESC
-    `);
+    `));
   }
 
   @Get(':id/results')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   async results(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string){
     const actor=this.user(userId);
-    const polls=await this.prisma.$queryRaw<Array<{id:string;status:string;statutoryUseProhibited:boolean}>>(Prisma.sql`
-      SELECT p."id",p."status",p."statutoryUseProhibited" FROM "GovernancePoll" p
-      WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
-        AND (
-          EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
-          OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
-        )
-        AND (p."audienceScope"='COMMUNITY' OR EXISTS(
-          SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
-        ))
-      LIMIT 1
-    `);
-    if(!polls.length)throw new BadRequestException('Community poll not found');
-    const poll=polls[0];
-    if(!poll.statutoryUseProhibited)throw new ForbiddenException('Statutory voting is not supported by community poll results');
-    if(poll.status!=='CLOSED')throw new ConflictException('Community poll results are available only after the poll is closed');
-    const options=await this.prisma.$queryRaw<Array<{id:string;ordinal:number;label:string;responseCount:number}>>(Prisma.sql`
-      SELECT o."id",o."ordinal",o."label",COUNT(r."id")::int AS "responseCount"
-      FROM "GovernancePollOption" o
-      LEFT JOIN "GovernancePollResponse" r ON r."optionId"=o."id" AND r."pollId"=${id}::uuid
-      WHERE o."pollId"=${id}::uuid
-      GROUP BY o."id",o."ordinal",o."label"
-      ORDER BY o."ordinal"
-    `);
-    return {pollId:id,status:poll.status,totalResponses:options.reduce((sum,option)=>sum+option.responseCount,0),options,statutoryUseProhibited:true};
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const polls=await tx.$queryRaw<Array<{id:string;status:string;statutoryUseProhibited:boolean}>>(Prisma.sql`
+        SELECT p."id",p."status",p."statutoryUseProhibited" FROM "GovernancePoll" p
+        WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
+          AND (
+            EXISTS(SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP))
+            OR EXISTS(SELECT 1 FROM "UnitOccupancy" oc WHERE oc."societyId"=${societyId}::uuid AND oc."userId"=${actor}::uuid AND oc."active"=TRUE AND oc."effectiveFrom"<=CURRENT_TIMESTAMP AND (oc."effectiveTo" IS NULL OR oc."effectiveTo">CURRENT_TIMESTAMP))
+          )
+          AND (p."audienceScope"='COMMUNITY' OR EXISTS(
+            SELECT 1 FROM "UnitOwnership" uo WHERE uo."societyId"=${societyId}::uuid AND uo."userId"=${actor}::uuid AND uo."verified"=TRUE AND uo."active"=TRUE AND uo."effectiveFrom"<=CURRENT_TIMESTAMP AND (uo."effectiveTo" IS NULL OR uo."effectiveTo">CURRENT_TIMESTAMP)
+          ))
+        LIMIT 1
+      `);
+      if(!polls.length)throw new BadRequestException('Community poll not found');
+      const poll=polls[0];
+      if(!poll.statutoryUseProhibited)throw new ForbiddenException('Statutory voting is not supported by community poll results');
+      if(poll.status!=='CLOSED')throw new ConflictException('Community poll results are available only after the poll is closed');
+      const options=await tx.$queryRaw<Array<{id:string;ordinal:number;label:string;responseCount:number}>>(Prisma.sql`
+        SELECT o."id",o."ordinal",o."label",COUNT(r."id")::int AS "responseCount"
+        FROM "GovernancePollOption" o
+        LEFT JOIN "GovernancePollResponse" r ON r."optionId"=o."id" AND r."pollId"=${id}::uuid
+        WHERE o."pollId"=${id}::uuid
+        GROUP BY o."id",o."ordinal",o."label"
+        ORDER BY o."ordinal"
+      `);
+      return {pollId:id,status:poll.status,totalResponses:options.reduce((sum,option)=>sum+option.responseCount,0),options,statutoryUseProhibited:true};
+    });
   }
 
   @Post(':id/responses')
   @RequiresPermissions(AppPermission.NOTICE_READ)
   async respond(@CurrentTenant() societyId:string,@CurrentUser() userId:string|undefined,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PollResponseDto){
     const actor=this.user(userId);
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const polls=await tx.$queryRaw<Array<{id:string;status:string;opensAt:Date|null;closesAt:Date|null;statutoryUseProhibited:boolean}>>(Prisma.sql`
         SELECT p."id",p."status",p."opensAt",p."closesAt",p."statutoryUseProhibited" FROM "GovernancePoll" p
         WHERE p."id"=${id}::uuid AND p."societyId"=${societyId}::uuid
@@ -112,7 +114,7 @@ export class GovernancePollParticipationController{
   @Post(':id/status')
   @RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)
   async setStatus(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) id:string,@Body() dto:PollStatusDto){
-    return this.prisma.$transaction(async tx=>{
+    return this.prisma.withTenantContext(societyId, async tx=>{
       const rows=await tx.$queryRaw<Array<{id:string;status:string;closesAt:Date|null;statutoryUseProhibited:boolean}>>(Prisma.sql`
         SELECT "id","status","closesAt","statutoryUseProhibited" FROM "GovernancePoll"
         WHERE "id"=${id}::uuid AND "societyId"=${societyId}::uuid FOR UPDATE
