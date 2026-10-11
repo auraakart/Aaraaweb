@@ -20,7 +20,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 59 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 67 |
+| Runtime calls to `withTenantContext` | 71 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -141,3 +141,8 @@ Five existing policy and electorate handlers use society context, preserving soc
 ## V5.2.12 existing procedure and privacy evidence conversion
 
 Four procedure/privacy handlers establish society context. Writes reject the latest disabled policy instead of selecting historical enabled revisions. Society locks, versioning, append-only evidence and author separation remain intact. Runtime context calls increase from 63 to 67. Native PostgreSQL and protected CI remain required before merge.
+
+
+## V5.2.13 existing election hold and readiness conversion
+
+Hold list/open/close and readiness use society context. Both close routes reuse one scoped close helper. Existing locks, parent checks, version sequencing, author separation and readiness blockers remain intact. Runtime context calls increase from 67 to 71. Native PostgreSQL and protected CI remain required before merge.

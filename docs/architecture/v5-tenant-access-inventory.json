@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "3e7e2a2a1b7bd82fcd52e9109133d209ffa4eead5bc5b5ea6848d06b690c7a49",
+  "sourceDigest": "ddf2eb5ec20f666d0e2ae00232af2c39f7033a6fb0139e3affeaa1afb0263ae5",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 59,
-    "runtimeTenantContextCalls": 67,
+    "runtimeTenantContextCalls": 71,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -193,6 +193,18 @@
       "line": 110
     },
     {
+      "file": "services/api/src/governance/governance-election-hold.controller.ts",
+      "line": 37
+    },
+    {
+      "file": "services/api/src/governance/governance-election-hold.controller.ts",
+      "line": 62
+    },
+    {
+      "file": "services/api/src/governance/governance-election-hold.controller.ts",
+      "line": 73
+    },
+    {
       "file": "services/api/src/governance/governance-election-privacy.controller.ts",
       "line": 41
     },
@@ -207,6 +219,10 @@
     {
       "file": "services/api/src/governance/governance-election-procedure.controller.ts",
       "line": 63
+    },
+    {
+      "file": "services/api/src/governance/governance-election-readiness.controller.ts",
+      "line": 43
     },
     {
       "file": "services/api/src/governance/governance-poll-participation.controller.ts",
@@ -1282,7 +1298,7 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-foundation.controller.ts","line":127,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["GovernanceElectorateMember","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-foundation.controller.ts","line":136,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["GovernanceElectorateMember","UnitOccupancy"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-foundation.controller.ts","line":146,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectorateMember"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-hold.controller.ts","line":37,"method":"list","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionHoldEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-hold.controller.ts","line":37,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionHoldEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-hold.controller.ts","line":63,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-hold.controller.ts","line":74,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-hold.controller.ts","line":84,"method":"insert","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionHoldEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -1299,7 +1315,7 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-procedure.controller.ts","line":65,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionPolicyRevision"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-procedure.controller.ts","line":72,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionProcedureRevision"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-procedure.controller.ts","line":77,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionProcedureRevision"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-readiness.controller.ts","line":43,"method":"assess","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionBallotDraft","GovernanceElectionBallotDraftDecision","GovernanceElectionHoldEvent","GovernanceElectionPolicyRevision","GovernanceElectionPrivacyArchitectureRevision","GovernanceElectionProcedureRevision","GovernanceElectorateReviewAttestation","GovernanceElectorateSnapshot"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-election-readiness.controller.ts","line":44,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernanceElectionBallotDraft","GovernanceElectionBallotDraftDecision","GovernanceElectionHoldEvent","GovernanceElectionPolicyRevision","GovernanceElectionPrivacyArchitectureRevision","GovernanceElectionProcedureRevision","GovernanceElectorateReviewAttestation","GovernanceElectorateSnapshot"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-poll-participation.controller.ts","line":29,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernancePoll","GovernancePollOption","GovernancePollResponse","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-poll-participation.controller.ts","line":54,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernancePoll","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/governance/governance-poll-participation.controller.ts","line":70,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["GovernancePollOption","GovernancePollResponse"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
@@ -2981,7 +2997,7 @@
     {"file":"services/api/src/governance/governance-election-foundation.controller.ts","line":71,"method":"listSnapshots","route":"@Get('electorate-snapshots')","boundaryEvidence":["@Controller('governance/elections')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-election-foundation.controller.ts","line":85,"method":"getSnapshot","route":"@Get('electorate-snapshots/:id')","boundaryEvidence":["@Controller('governance/elections')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId","userId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-election-foundation.controller.ts","line":106,"method":"createSnapshot","route":"@Post('electorate-snapshots')","boundaryEvidence":["@Controller('governance/elections')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId","withTenantContext"]},
-    {"file":"services/api/src/governance/governance-election-hold.controller.ts","line":34,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('governance/elections/ballot-drafts/:id/holds')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/governance/governance-election-hold.controller.ts","line":34,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('governance/elections/ballot-drafts/:id/holds')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-election-hold.controller.ts","line":43,"method":"open","route":"@Post()","boundaryEvidence":["@Controller('governance/elections/ballot-drafts/:id/holds')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/governance/governance-election-hold.controller.ts","line":49,"method":"resolve","route":"@Post('resolve')","boundaryEvidence":["@Controller('governance/elections/ballot-drafts/:id/holds')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/governance/governance-election-hold.controller.ts","line":55,"method":"cancel","route":"@Post('cancel')","boundaryEvidence":["@Controller('governance/elections/ballot-drafts/:id/holds')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId"]},
@@ -2989,7 +3005,7 @@
     {"file":"services/api/src/governance/governance-election-privacy.controller.ts","line":56,"method":"record","route":"@Post('revisions')","boundaryEvidence":["@Controller('governance/elections/privacy-architecture')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-election-procedure.controller.ts","line":41,"method":"current","route":"@Get()","boundaryEvidence":["@Controller('governance/elections/procedure')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-election-procedure.controller.ts","line":59,"method":"record","route":"@Post('revisions')","boundaryEvidence":["@Controller('governance/elections/procedure')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_MANAGE)"],"scopeSignals":["societyId","userId","withTenantContext"]},
-    {"file":"services/api/src/governance/governance-election-readiness.controller.ts","line":40,"method":"assess","route":"@Get('ballot-drafts/:id')","boundaryEvidence":["@Controller('governance/elections/readiness')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId"]},
+    {"file":"services/api/src/governance/governance-election-readiness.controller.ts","line":40,"method":"assess","route":"@Get('ballot-drafts/:id')","boundaryEvidence":["@Controller('governance/elections/readiness')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.GOVERNANCE_READ)"],"scopeSignals":["societyId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-poll-participation.controller.ts","line":25,"method":"listAvailable","route":"@Get()","boundaryEvidence":["@Controller('governance/community-polls')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.NOTICE_READ)"],"scopeSignals":["societyId","userId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-poll-participation.controller.ts","line":49,"method":"results","route":"@Get(':id/results')","boundaryEvidence":["@Controller('governance/community-polls')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.NOTICE_READ)"],"scopeSignals":["societyId","userId","withTenantContext"]},
     {"file":"services/api/src/governance/governance-poll-participation.controller.ts","line":82,"method":"respond","route":"@Post(':id/responses')","boundaryEvidence":["@Controller('governance/community-polls')","@UseGuards(BearerGuard,TenantGuard,FeatureGuard,PermissionsGuard)","@RequiresFeature(ProductFeature.GOVERNANCE_POLLS)","@RequiresPermissions(AppPermission.NOTICE_READ)"],"scopeSignals":["societyId","userId","withTenantContext"]},

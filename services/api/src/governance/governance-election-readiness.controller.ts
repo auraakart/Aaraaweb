@@ -40,89 +40,91 @@ export class GovernanceElectionReadinessController{
   @Get('ballot-drafts/:id')
   @RequiresPermissions(AppPermission.GOVERNANCE_READ)
   async assess(@CurrentTenant() societyId:string,@Param('id',new ParseUUIDPipe()) ballotDraftId:string){
-    const rows=await this.prisma.$queryRaw<ReadinessRow[]>(Prisma.sql`
-      SELECT d."id" AS "ballotDraftId",d."snapshotId",s."policyRevisionId",p."version" AS "policyVersion",p."enabled" AS "policyEnabled",
-        (p."enabled"=TRUE AND NOT EXISTS(
-          SELECT 1 FROM "GovernanceElectionPolicyRevision" newer
-          WHERE newer."societyId"=p."societyId" AND newer."version">p."version"
-        )) AS "policyCurrent",
-        procedure."id" AS "procedureRevisionId",procedure."version" AS "procedureVersion",
-        privacy."id" AS "privacyArchitectureRevisionId",privacy."version" AS "privacyArchitectureVersion",
-        review."outcome" AS "reviewOutcome",review."sequence" AS "reviewSequence",
-        decision."outcome" AS "decisionOutcome",decision."sequence" AS "decisionSequence",
-        hold."action" AS "holdAction",hold."sequence" AS "holdSequence",hold."category" AS "holdCategory"
-      FROM "GovernanceElectionBallotDraft" d
-      JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
-      JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
-      LEFT JOIN LATERAL (
-        SELECT r."id",r."version" FROM "GovernanceElectionProcedureRevision" r
-        WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
-        ORDER BY r."version" DESC LIMIT 1
-      ) procedure ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT r."id",r."version" FROM "GovernanceElectionPrivacyArchitectureRevision" r
-        WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
-        ORDER BY r."version" DESC LIMIT 1
-      ) privacy ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT r."outcome",r."sequence" FROM "GovernanceElectorateReviewAttestation" r
-        WHERE r."societyId"=d."societyId" AND r."snapshotId"=s."id"
-        ORDER BY r."sequence" DESC LIMIT 1
-      ) review ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT x."outcome",x."sequence" FROM "GovernanceElectionBallotDraftDecision" x
-        WHERE x."societyId"=d."societyId" AND x."ballotDraftId"=d."id"
-        ORDER BY x."sequence" DESC LIMIT 1
-      ) decision ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT h."action",h."sequence",h."category" FROM "GovernanceElectionHoldEvent" h
-        WHERE h."societyId"=d."societyId" AND h."ballotDraftId"=d."id"
-        ORDER BY h."sequence" DESC LIMIT 1
-      ) hold ON TRUE
-      WHERE d."id"=${ballotDraftId}::uuid AND d."societyId"=${societyId}::uuid LIMIT 1
-    `);
-    if(!rows.length)throw new BadRequestException('Ballot draft not found');
-    const row=rows[0];
-    const checks={
-      currentEnabledPolicy:row.policyEnabled&&row.policyCurrent,
-      snapshotBoundToCurrentPolicy:row.policyCurrent,
-      electorateReviewed:row.reviewOutcome==='REVIEWED',
-      procedureConfigured:!!row.procedureRevisionId,
-      privacyArchitectureConfigured:!!row.privacyArchitectureRevisionId,
-      ballotApproved:row.decisionOutcome==='APPROVED',
-      ballotNotCancelled:row.decisionOutcome!=='CANCELLED',
-      noActiveHold:row.holdAction!=='OPEN_HOLD',
-    };
-    const blockers:string[]=[];
-    if(!checks.currentEnabledPolicy)blockers.push('CURRENT_ENABLED_POLICY_REQUIRED');
-    if(!checks.snapshotBoundToCurrentPolicy)blockers.push('CURRENT_POLICY_SNAPSHOT_REQUIRED');
-    if(!checks.electorateReviewed)blockers.push('ELECTORATE_REVIEW_REQUIRED');
-    if(!checks.procedureConfigured)blockers.push('PROCEDURE_POLICY_REQUIRED');
-    if(!checks.privacyArchitectureConfigured)blockers.push('PRIVACY_ARCHITECTURE_REQUIRED');
-    if(!checks.ballotApproved)blockers.push(row.decisionOutcome==='CANCELLED'?'BALLOT_CANCELLED':'BALLOT_APPROVAL_REQUIRED');
-    if(!checks.noActiveHold)blockers.push('ACTIVE_ELECTION_HOLD');
-    const configurationReady=blockers.length===0;
-    return {
-      ballotDraftId:row.ballotDraftId,
-      snapshotId:row.snapshotId,
-      policyRevisionId:row.policyRevisionId,
-      policyVersion:row.policyVersion,
-      procedureRevisionId:row.procedureRevisionId,
-      procedureVersion:row.procedureVersion,
-      privacyArchitectureRevisionId:row.privacyArchitectureRevisionId,
-      privacyArchitectureVersion:row.privacyArchitectureVersion,
-      reviewOutcome:row.reviewOutcome,
-      reviewSequence:row.reviewSequence,
-      decisionOutcome:row.decisionOutcome,
-      decisionSequence:row.decisionSequence,
-      holdAction:row.holdAction,
-      holdSequence:row.holdSequence,
-      holdCategory:row.holdCategory,
-      checks,
-      blockers,
-      configurationReady,
-      executionEnabled:false,
-      castingEnabled:false,
-    };
+    return this.prisma.withTenantContext(societyId, async tx=>{
+      const rows=await tx.$queryRaw<ReadinessRow[]>(Prisma.sql`
+        SELECT d."id" AS "ballotDraftId",d."snapshotId",s."policyRevisionId",p."version" AS "policyVersion",p."enabled" AS "policyEnabled",
+          (p."enabled"=TRUE AND NOT EXISTS(
+            SELECT 1 FROM "GovernanceElectionPolicyRevision" newer
+            WHERE newer."societyId"=p."societyId" AND newer."version">p."version"
+          )) AS "policyCurrent",
+          procedure."id" AS "procedureRevisionId",procedure."version" AS "procedureVersion",
+          privacy."id" AS "privacyArchitectureRevisionId",privacy."version" AS "privacyArchitectureVersion",
+          review."outcome" AS "reviewOutcome",review."sequence" AS "reviewSequence",
+          decision."outcome" AS "decisionOutcome",decision."sequence" AS "decisionSequence",
+          hold."action" AS "holdAction",hold."sequence" AS "holdSequence",hold."category" AS "holdCategory"
+        FROM "GovernanceElectionBallotDraft" d
+        JOIN "GovernanceElectorateSnapshot" s ON s."id"=d."snapshotId" AND s."societyId"=d."societyId"
+        JOIN "GovernanceElectionPolicyRevision" p ON p."id"=s."policyRevisionId" AND p."societyId"=d."societyId"
+        LEFT JOIN LATERAL (
+          SELECT r."id",r."version" FROM "GovernanceElectionProcedureRevision" r
+          WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
+          ORDER BY r."version" DESC LIMIT 1
+        ) procedure ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT r."id",r."version" FROM "GovernanceElectionPrivacyArchitectureRevision" r
+          WHERE r."societyId"=d."societyId" AND r."policyRevisionId"=p."id"
+          ORDER BY r."version" DESC LIMIT 1
+        ) privacy ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT r."outcome",r."sequence" FROM "GovernanceElectorateReviewAttestation" r
+          WHERE r."societyId"=d."societyId" AND r."snapshotId"=s."id"
+          ORDER BY r."sequence" DESC LIMIT 1
+        ) review ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT x."outcome",x."sequence" FROM "GovernanceElectionBallotDraftDecision" x
+          WHERE x."societyId"=d."societyId" AND x."ballotDraftId"=d."id"
+          ORDER BY x."sequence" DESC LIMIT 1
+        ) decision ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT h."action",h."sequence",h."category" FROM "GovernanceElectionHoldEvent" h
+          WHERE h."societyId"=d."societyId" AND h."ballotDraftId"=d."id"
+          ORDER BY h."sequence" DESC LIMIT 1
+        ) hold ON TRUE
+        WHERE d."id"=${ballotDraftId}::uuid AND d."societyId"=${societyId}::uuid LIMIT 1
+      `);
+      if(!rows.length)throw new BadRequestException('Ballot draft not found');
+      const row=rows[0];
+      const checks={
+        currentEnabledPolicy:row.policyEnabled&&row.policyCurrent,
+        snapshotBoundToCurrentPolicy:row.policyCurrent,
+        electorateReviewed:row.reviewOutcome==='REVIEWED',
+        procedureConfigured:!!row.procedureRevisionId,
+        privacyArchitectureConfigured:!!row.privacyArchitectureRevisionId,
+        ballotApproved:row.decisionOutcome==='APPROVED',
+        ballotNotCancelled:row.decisionOutcome!=='CANCELLED',
+        noActiveHold:row.holdAction!=='OPEN_HOLD',
+      };
+      const blockers:string[]=[];
+      if(!checks.currentEnabledPolicy)blockers.push('CURRENT_ENABLED_POLICY_REQUIRED');
+      if(!checks.snapshotBoundToCurrentPolicy)blockers.push('CURRENT_POLICY_SNAPSHOT_REQUIRED');
+      if(!checks.electorateReviewed)blockers.push('ELECTORATE_REVIEW_REQUIRED');
+      if(!checks.procedureConfigured)blockers.push('PROCEDURE_POLICY_REQUIRED');
+      if(!checks.privacyArchitectureConfigured)blockers.push('PRIVACY_ARCHITECTURE_REQUIRED');
+      if(!checks.ballotApproved)blockers.push(row.decisionOutcome==='CANCELLED'?'BALLOT_CANCELLED':'BALLOT_APPROVAL_REQUIRED');
+      if(!checks.noActiveHold)blockers.push('ACTIVE_ELECTION_HOLD');
+      const configurationReady=blockers.length===0;
+      return {
+        ballotDraftId:row.ballotDraftId,
+        snapshotId:row.snapshotId,
+        policyRevisionId:row.policyRevisionId,
+        policyVersion:row.policyVersion,
+        procedureRevisionId:row.procedureRevisionId,
+        procedureVersion:row.procedureVersion,
+        privacyArchitectureRevisionId:row.privacyArchitectureRevisionId,
+        privacyArchitectureVersion:row.privacyArchitectureVersion,
+        reviewOutcome:row.reviewOutcome,
+        reviewSequence:row.reviewSequence,
+        decisionOutcome:row.decisionOutcome,
+        decisionSequence:row.decisionSequence,
+        holdAction:row.holdAction,
+        holdSequence:row.holdSequence,
+        holdCategory:row.holdCategory,
+        checks,
+        blockers,
+        configurationReady,
+        executionEnabled:false,
+        castingEnabled:false,
+      };
+    });
   }
 }
