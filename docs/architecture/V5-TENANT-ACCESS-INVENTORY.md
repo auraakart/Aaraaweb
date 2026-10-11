@@ -88,3 +88,8 @@ Five event operations add five runtime context calls, for fifteen total. No migr
 Seven resident-directory operations now use society-scoped transactions. Owner/occupant checks, self-profile identity lookup and contact recipient/pending-pair validation stay on the supplied client. The opt-in projection, private participant-only contact history and consent transition predicates are preserved. Unit tests cover revoked residents and global-client fallback; the disposable PostgreSQL fixture covers foreign societies, hidden recipients, reciprocal pending-request concurrency, consent actor restrictions, repeat responses, withdrawals and revoked occupancy. Native database validation remains required in canonical CI.
 
 Runtime context calls increase from fifteen to twenty-two; this does not enable RLS or close the remaining governance conversion queue. Staging/main remain excluded.
+
+
+## V5.2.6 synchronization recovery
+
+V5.2.5 merged through PR #1216 at `a276ae344ebc0e51a0a75afe6313b2b38a494e5b`. V5.2.6 canonical CI run 38154135594 passed all required validation gates, including full API and native PostgreSQL, on `0b6e2307be5f23ea87c93da431fbc888ea6685d6`; only the auto-merge step failed because develop advanced during validation. This recovery preserves both slices and refreshes the branch base. Protected checks must pass on the synchronized head before merge. Subsequent slices start only after the preceding develop merge is verified, avoiding stacked generated-register conflicts. Staging/main remain untouched.

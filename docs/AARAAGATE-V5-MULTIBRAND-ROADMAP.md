@@ -466,3 +466,8 @@ Resident directory profile reads/writes, visible listing, contact request histor
 Unit tests reject global-client fallback and revoked authority, cover invisible/foreign recipients and consent actor restrictions. The disposable PostgreSQL fixture exercises two societies, hidden profiles, cross-society access, reciprocal request races, wrong-actor response/withdrawal, accepted and withdrawn lifecycle, repeat response and revoked occupancy. Canonical API CI owns native database validation. No schema, RLS, permission, feature or client contract change; full V5 isolation remains open. Rollback is a reviewed revert of this slice. Staging/main promotion remains excluded.
 
 Local V5.2.6 validation: API lint, typecheck and build passed; 20 directory/controller tests passed and one PostgreSQL fixture skipped without DATABASE_URL. The earlier combined directory/controller/event run passed 42 tests. Inventory regeneration/stale check reports 22 runtime context calls; adoption, API and PostgreSQL parameter contracts pass. Native PostgreSQL and protected CI remain required.
+
+
+## V5.2.6 synchronization recovery
+
+V5.2.5 merged through PR #1216 at `a276ae344ebc0e51a0a75afe6313b2b38a494e5b`. V5.2.6 canonical CI run 38154135594 passed all required validation gates, including full API and native PostgreSQL, on `0b6e2307be5f23ea87c93da431fbc888ea6685d6`; only the auto-merge step failed because develop advanced during validation. This recovery preserves both slices and refreshes the branch base. Protected checks must pass on the synchronized head before merge. Subsequent slices start only after the preceding develop merge is verified, avoiding stacked generated-register conflicts. Staging/main remain untouched.

@@ -139,14 +139,15 @@
         {
           "id": "V5.2.5",
           "name": "Community event listing, lifecycle and RSVP tenant transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "a92428210ceddba03aef0aecd51ede1b25b08619",
           "evidence": [
             "services/api/src/governance/community-events.service.spec.ts",
             "services/api/src/governance/community-events.postgres.spec.ts"
           ],
           "pullRequest": 1216,
-          "validatedRuntimeSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff"
+          "validatedRuntimeSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff",
+          "mergeSha": "a276ae344ebc0e51a0a75afe6313b2b38a494e5b"
         },
         {
           "id": "V5.2.6",
