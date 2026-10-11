@@ -92,7 +92,7 @@ Existing features take precedence over new abstractions. Preserve current occupa
 
 1. **Gate:** full in-flight gate-mutation context isolation, denied-entry/no-response user journeys, supervisor shift reconciliation, cross-role smoke and real-device offline reliability
 2. **Finance:** broader concurrent partial-settlement/reversal/refund test matrix, imported bank statement provenance, Tally CSV acceptance against a representative ledger and audit review
-3. **Services 3.1:** quoted extra-work approval, booking modifications, dispute/revisit continuity and provider behavior validation
+3. **Services 3.1:** **engineering scope closed at V4.90.18.10** on develop. Provider/resident field UAT and real-device acceptance remain **unverified**; finance/invoice/payment/settlement expansion is **not authorized**. See [Services 3.1 scope closure](AARAAGATE-V4.90.18-SERVICES-3.1-CLOSURE.md).
 4. **Resident/Guard/Admin UX:** 320px / 200%-text, TalkBack/keyboard, reduced-motion and dark/light checks with real Android devices and Admin browser acceptance
 5. **Society Copilot:** multilingual grounded-answer quality set, citation/no-evidence adversarial tests, owner/occupant privacy review and explicit approval flows
 6. **Governance:** exact final-head performance evidence, independent closure review and refreshed non-production quality/competitor score before any consolidated staging candidate

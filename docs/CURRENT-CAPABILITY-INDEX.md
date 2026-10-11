@@ -22,6 +22,8 @@ Current repository behavior includes provider operator identity, onboarding appl
 
 This does **not** claim live KYC-provider verification, real bank payout execution, payment-provider certification, GPS/masked calling, hosted production readiness or real-world provider acceptance.
 
+**Services 3.1 completion boundary:** V4.90.18 implementation closes at .10 on develop. Separate-bill request, acknowledgement and non-payable draft **do not** issue an invoice or authorize payment or settlement. Independent Finance, Privacy and UX work must be separately scoped/approved. Field UAT remains unverified. See [Services 3.1 scope closure](AARAAGATE-V4.90.18-SERVICES-3.1-CLOSURE.md).
+
 ## Resident experience
 
 Persistent bottom navigation remains **Home, Gate, Services, Community, Profile**. Quick Actions remain **Staff, Billing, Amenities, Helpdesk**, avoiding duplication. The AI Assistant remains a contextual Home entry point rather than a navigation tab.

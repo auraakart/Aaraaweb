@@ -260,6 +260,13 @@ jobs:
         run: node scripts/v4.34-cross-app-journey-contract.mjs
       - name: Check V4 release evidence contract
         run: node scripts/check-v4-release-evidence.mjs
+      - name: Enforce closed Services 3.1 milestone boundary
+        env:
+          AARAAGATE_PR_TITLE: ${{ github.event.pull_request.title }}
+          AARAAGATE_PR_HEAD: ${{ github.head_ref }}
+        run: |
+          node scripts/check-services-3.1-closure.mjs --self-test
+          node scripts/check-services-3.1-closure.mjs
       - name: Test release delay prevention controls
         run: node --test scripts/release-delay-controls.test.mjs scripts/coverage-thresholds.test.mjs
       - name: Check V4.80.12 main review routing
