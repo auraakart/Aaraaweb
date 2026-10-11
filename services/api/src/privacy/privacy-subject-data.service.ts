@@ -103,9 +103,11 @@ export class PrivacySubjectDataService {
         ORDER BY e."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
       !societyId?this.prisma.$queryRaw(Prisma.sql`
-        SELECT "id","bookingId","quoteId","amountPaise"::text AS "amountPaise","status","createdAt"
-        FROM "ConsumerServiceExtraWorkBillingRequest"
-        WHERE "userId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1000
+        SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",
+          r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt"
+        FROM "ConsumerServiceExtraWorkBillingRequest" r
+        LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+        WHERE r."userId"=${userId}::uuid ORDER BY r."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
       !societyId?this.prisma.$queryRaw(Prisma.sql`
         SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"

@@ -77,3 +77,57 @@ describe('V4.90.18.8 — separate bill request is not a payment',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('V4.90.18.9 — provider bill-request receipt, not an invoice',()=>{
+  const requestId='66666666-6666-4666-8666-666666666666';
+  const acknowledge={id:'77777777-7777-4777-8777-777777777777',billingRequestId:requestId,
+    bookingId,providerId:approved.providerId};
+  it('requires provider ownership before reading the billing request',async()=>{
+    const {svc,tx}=setup([[]]);
+    await expect(svc.acknowledgeExtraWorkBillRequest('provider-user',bookingId,requestId))
+      .rejects.toThrow('Provider booking not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('rejects foreign or missing billing request before writing any event',async()=>{
+    const {svc,tx}=setup([[booking],[]]);
+    await expect(svc.acknowledgeExtraWorkBillRequest('provider-user',bookingId,requestId))
+      .rejects.toThrow('Provider bill request not found');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('records one provider acknowledgement with no payment, repricing or invoice',async()=>{
+    const {svc,tx}=setup([[booking],[{id:requestId}],[],[acknowledge]]);
+    await expect(svc.acknowledgeExtraWorkBillRequest('provider-user',bookingId,requestId))
+      .resolves.toEqual(acknowledge);
+    const queries=tx.$queryRaw.mock.calls.map(x=>sqlText(x[0]));
+    expect(queries.slice(0,3).every(x=>x.includes('FOR UPDATE'))).toBe(true);
+    expect(queries[3]).toContain('INSERT INTO "ConsumerServiceExtraWorkBillAcknowledgement"');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const sql=[...queries,...tx.$executeRaw.mock.calls.map(x=>sqlText(x[0]))].join('\n');
+    expect(sql).toContain('PROVIDER_ACKNOWLEDGED_EXTRA_WORK_BILL_REQUEST');
+    expect(sql).not.toContain('INSERT INTO "ConsumerServicePayment"');
+    expect(sql).not.toContain('INSERT INTO "Invoice"');
+    expect(sql).not.toContain('SET "servicePricePaise"');
+  });
+  it('returns the original immutable acknowledgement for a retry even after completion',async()=>{
+    const {svc,tx}=setup([[booking],[{id:requestId}],[acknowledge]]);
+    await expect(svc.acknowledgeExtraWorkBillRequest('provider-user',bookingId,requestId))
+      .resolves.toEqual(acknowledge);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('rejects first-time acknowledgement after booking cancellation',async()=>{
+    const {svc,tx}=setup([[{...booking,status:'CANCELLED'}],[{id:requestId}],[]]);
+    await expect(svc.acknowledgeExtraWorkBillRequest('provider-user',bookingId,requestId))
+      .rejects.toThrow('Cancelled booking');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('includes acknowledgement timestamp only in owner-scoped read',async()=>{
+    const {svc,prisma}=setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(svc.listConsumerExtraWorkBillRequests('other-resident',bookingId))
+      .rejects.toThrow('Booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+});
