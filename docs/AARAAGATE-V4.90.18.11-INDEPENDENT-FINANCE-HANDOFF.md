@@ -1,6 +1,6 @@
 # V4.90.18.11 — Independent Finance handoff (read-only)
 
-**Status:** One-off approved Finance follow-on. Services 3.1 remains CLOSED at V4.90.18.10.
+**Status:** Merged as PR #1196 into develop at 1f434bfc5ced9439933a372391d9e6f0c6d9046b; one-off authorization consumed. Services 3.1 remains CLOSED at V4.90.18.10.
 **Baseline:** develop cd751be4916c1e34d8b3664e1ac5c03672f44ff6.
 **Authorization:** User explicitly requested V4.90.18.11 on 2026-10-11.
 **Stop condition:** One provider-authenticated GET evidence read-model, focused tests, hard-stop guard and this document. No automatic .12.
@@ -21,4 +21,4 @@ Provider/booking/request cross-authorization, original user consent, exact appro
 
 ## Explicit exclusions and completion boundary
 
-Product/Finance/Legal/Security decisions on legal seller, GST, invoice numbering, independent payment authorization, tax, refunds/chargebacks, ledger postings and payout/settlement are **not approved or implemented**. Follow-on .12 is blocked pending independent authorization. No field UAT or production claim. This .11 is complete once the read-only contract and tests merge to develop.
+Product/Finance/Legal/Security decisions on legal seller, GST, invoice numbering, independent payment authorization, tax, refunds/chargebacks, ledger postings and payout/settlement are **not approved or implemented**. Follow-on .12 is blocked pending independent authorization. No field UAT or production claim. The .11 read-only contract and tests are merged into develop, with all required CI passing. **The consumed .11 exception is no longer reusable**; closure CI now rejects a new PR even with the original title and feature branch.

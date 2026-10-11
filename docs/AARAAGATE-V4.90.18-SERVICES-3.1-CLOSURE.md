@@ -45,9 +45,11 @@ Every newly approved workstream needs a **single accountable owner, objective, i
 
 ## Repo gate and exceptions
 
-**Exception:** V4.90.18.11 — ONE_APPROVED_READ_ONLY_FINANCE_HANDOFF. On 2026-10-11 the owner explicitly authorized only a bounded independent Finance evidence endpoint, its tests, documentation and closure exception. This is **not** authorization for invoice issuance, payment orders, tax, payouts, migrations, resident data expansion or UI redesign. The exception matches one exact PR title and branch only; see [V4.90.18.11](AARAAGATE-V4.90.18.11-INDEPENDENT-FINANCE-HANDOFF.md).
+**Exception:** V4.90.18.11 — ONE_APPROVED_READ_ONLY_FINANCE_HANDOFF. On 2026-10-11 the owner explicitly authorized only a bounded independent Finance evidence endpoint, its tests, documentation and closure exception. PR [#1196](https://github.com/auraakart/Aaraaweb/pull/1196) merged the approved one-off on develop at commit 1f434bfc5ced9439933a372391d9e6f0c6d9046b. This is **not** authorization for invoice issuance, payment orders, tax, payouts, migrations, resident data expansion or UI redesign; see [V4.90.18.11](AARAAGATE-V4.90.18.11-INDEPENDENT-FINANCE-HANDOFF.md).
 
-Required Repository structure CI runs the Services 3.1 closure check, rejecting new PR titles/head branch labels above .10 except the exact owner-authorized one-time .11 Finance handoff. This **narrow version guard** does not replace semantic PR review: a renamed PR that introduces invoices, payments, settlements or broad Privacy/UI features without a separately authorized workstream is equally out of scope.
+**Exception state:** CONSUMED_AND_RETIRED_PR_1196. The one-off exception is now **permanently disabled** in repository CI. Reusing its exact PR title and branch, or naming any subsequent V4.90.18.11+ feature, is rejected. This is a post-merge control correction, not a Services 3.1 reopening.
+
+Required Repository structure CI runs the Services 3.1 closure check, rejecting all future PR titles/head branch labels above .10, including any reuse of the already-consumed .11 approval. This **narrow version guard** does not replace semantic PR review: a renamed PR that introduces invoices, payments, settlements or broad Privacy/UI features without a separately authorized workstream is equally out of scope.
 
 Correctness or security hotfixes of existing Services behavior are permitted as separately scoped bugfixes with exact-head regression gates and unchanged no-charge/no-reprice rules. They do **not** reopen feature development.
 
