@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-const script = fileURLToPath(new URL('./partner-ownership-migration-smoke.mjs', import.meta.url));
+const script = fileURLToPath(new URL('../services/api/scripts/partner-ownership-migration-smoke.mjs', import.meta.url));
 function fixture(mode, optedIn = true) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v5-psql-adapter-'));
   const log = path.join(dir, 'calls.jsonl');
