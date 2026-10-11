@@ -76,9 +76,22 @@
     {
       "id": "V5.2",
       "name": "Audience RBAC and tenant isolation",
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "V5.1"
+      ],
+      "currentSlice": "V5.2.1",
+      "slices": [
+        {
+          "id": "V5.2.1",
+          "name": "Revalidate society authority for bearer and refresh sessions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "evidence": [
+            "services/api/src/auth/session.service.spec.ts",
+            "services/api/src/occupancy-authority.regression.spec.ts"
+          ],
+          "baselineSha": "c2b80e16edb4e0f6f13f1d39a621d2ca0ef6bcdd"
+        }
       ]
     },
     {

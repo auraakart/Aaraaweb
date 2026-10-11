@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { AppRole, AuthPrincipal } from './auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthStateStore } from './auth-state.store';
+import { AuthContextService } from './auth-context.service';
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -11,7 +12,11 @@ const replayKey = (refreshTokenHash: string) => `auth:refresh-used:${refreshToke
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: PrismaService, private readonly state: AuthStateStore) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly state: AuthStateStore,
+    private readonly contexts: AuthContextService,
+  ) {}
 
   async create(userId: string, societyId: string | undefined, roles: AppRole[]) {
     const now = Date.now();
@@ -45,11 +50,7 @@ export class SessionService {
       return { userId: session.userId, societyId: undefined, roles: [] };
     }
 
-    const memberships = await this.prisma.societyMembership.findMany({
-      where: { userId: session.userId, societyId: session.societyId, active: true },
-      select: { role: true },
-    });
-    return { userId: session.userId, societyId: session.societyId, roles: memberships.map(m => m.role as AppRole) };
+    return this.contexts.resolve(session.userId, session.societyId);
   }
 
   async refresh(sessionId: string, refreshToken: string) {
@@ -74,6 +75,10 @@ export class SessionService {
     ) {
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
+
+    // Refresh must revalidate the same operational authority as bearer access.
+    // Commercial partner ownership never substitutes for society membership.
+    if (session.societyId) await this.contexts.resolve(session.userId, session.societyId);
 
     const replayTtlSeconds = Math.max(1, Math.ceil((session.refreshExpiresAt.getTime() - Date.now()) / 1000));
     const claimed = await this.state.setIfAbsentJson(replayKey(refreshTokenHash), { sessionId }, replayTtlSeconds);
