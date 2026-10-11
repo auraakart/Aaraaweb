@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProviderVerificationStatus, ServiceBookingStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +17,12 @@ type BookingProposalRow = {
   id: string; bookingId: string; providerId: string; proposedFrom: Date; proposedUntil: Date; note: string | null;
   status: string; createdByUserId: string; respondedByUserId: string | null; respondedAt: Date | null; createdAt: Date;
 };
+type ExtraWorkQuoteRow = {
+  id:string; bookingId:string; providerId:string; scopeDescription:string;
+  amountPaise:string; idempotencyKey:string; status:'PENDING'|'APPROVED'|'DECLINED'|'WITHDRAWN';
+  createdByUserId:string; respondedByUserId:string|null; responseReason:string|null;
+  createdAt:Date; respondedAt:Date|null;
+};
 type ConsumerBookingRow = {
   id: string; userId: string; providerId: string; offeringId: string; status: ServiceBookingStatus;
   addressSnapshot: { postalCode?: unknown } | null;
@@ -29,6 +35,10 @@ type ServiceDisputeRow = {
   id: string; bookingId: string; userId: string; providerId: string; reasonCode: string; detail: string; status: string;
   resolutionNote: string | null; resolvedByUserId: string | null; resolvedAt: Date | null; createdAt: Date; updatedAt: Date;
   providerName?: string; offeringName?: string;
+};
+type DisputeEvidenceRow = {
+  id:string;disputeId:string;actorType:'RESIDENT'|'PROVIDER';
+  note:string;reference:string|null;idempotencyKey?:string;createdAt:Date;
 };
 type AvailabilityExceptionRow = {
   id: string; offeringId: string; serviceDate: Date; closed: boolean; slotCapacity: number | null; note: string | null;
@@ -185,20 +195,45 @@ export class ProviderMarketplaceCompletionService {
   }
 
   async proposeBookingTime(userId:string,bookingId:string,proposedFrom:Date,proposedUntil:Date,note?:string){
-    if(proposedFrom<=new Date()||proposedUntil<=proposedFrom) throw new BadRequestException('Proposed service window is invalid');
+    if(!Number.isFinite(proposedFrom.getTime())||!Number.isFinite(proposedUntil.getTime())||
+        proposedFrom<=new Date()||proposedUntil<=proposedFrom) {
+      throw new BadRequestException('Proposed service window is invalid');
+    }
     const provider=await this.operators.resolveProvider(userId);
-    const rows=await this.prisma.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
-      SELECT "id","status" FROM "ConsumerServiceBooking" WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
-    `);
-    if(!rows[0]) throw new NotFoundException('Provider booking not found');
-    if(rows[0].status!==ServiceBookingStatus.REQUESTED) throw new BadRequestException('Only requested bookings can receive a provider counter-proposal');
-    try{
-      const result=await this.prisma.$queryRaw<BookingProposalRow[]>(Prisma.sql`
-        INSERT INTO "ProviderBookingProposal" ("id","bookingId","providerId","proposedFrom","proposedUntil","note","createdByUserId")
-        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
-        RETURNING *
-      `); return result[0];
-    }catch{throw new BadRequestException('A pending proposal already exists for this booking');}
+    try {
+      return await this.prisma.$transaction(async tx=>{
+        // Serialize with resident acceptance and booking cancellation. Both
+        // paths already lock the same booking row before changing its state.
+        const rows=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+          SELECT "id","status" FROM "ConsumerServiceBooking"
+          WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+        `);
+        if(!rows[0]) throw new NotFoundException('Provider booking not found');
+        if(rows[0].status!==ServiceBookingStatus.REQUESTED) {
+          throw new BadRequestException('Only requested bookings can receive a provider counter-proposal');
+        }
+        const pending=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+          SELECT "id" FROM "ProviderBookingProposal"
+          WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING' LIMIT 1
+        `);
+        if(pending.length) throw new BadRequestException('A pending proposal already exists for this booking');
+        const inserted=await tx.$queryRaw<BookingProposalRow[]>(Prisma.sql`
+          INSERT INTO "ProviderBookingProposal"
+            ("id","bookingId","providerId","proposedFrom","proposedUntil","note","createdByUserId")
+          VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,
+            ${proposedFrom},${proposedUntil},${note?.trim()||null},${userId}::uuid)
+          RETURNING *
+        `);
+        return inserted[0];
+      });
+    } catch(error) {
+      // Do not mask authorization, database errors or status-transition faults.
+      if(typeof error==='object' && error!==null && 'code' in error &&
+          String((error as {code?:unknown}).code)==='23505') {
+        throw new BadRequestException('A pending proposal already exists for this booking');
+      }
+      throw error;
+    }
   }
 
   async listConsumerProposals(userId:string,bookingId:string){
@@ -248,6 +283,460 @@ export class ProviderMarketplaceCompletionService {
     });
   }
 
+
+  async proposeExtraWorkQuote(userId:string,bookingId:string,scope:string,amountPaise:number,idempotencyKey:string){
+    const description=scope.trim(),key=idempotencyKey?.trim();
+    if(!key||key.length<8||key.length>120){
+      throw new BadRequestException('Extra work quote idempotency key must be between 8 and 120 characters');
+    }
+    if(description.length<10||description.length>1500){
+      throw new BadRequestException('Extra work scope must be between 10 and 1500 characters');
+    }
+    if(!Number.isSafeInteger(amountPaise)||amountPaise<=0||amountPaise>100_000_000){
+      throw new BadRequestException('Extra work amount must be a positive safe whole number of paise within the limit');
+    }
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+      `);
+      if(!bookings.length)throw new NotFoundException('Provider booking not found');
+      // Retry identity remains valid after APPROVE/DECLINE and booking closure.
+      const existing=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "bookingId"=${bookingId}::uuid AND "idempotencyKey"=${key} LIMIT 1
+      `);
+      if(existing.length){
+        if(existing[0].scopeDescription!==description||existing[0].amountPaise!==String(amountPaise)){
+          throw new ConflictException('Quote retry identity is already bound to different scope or amount');
+        }
+        return existing[0];
+      }
+      if(bookings[0].status!==ServiceBookingStatus.IN_PROGRESS){
+        throw new BadRequestException('Extra work quotes require a service already in progress');
+      }
+      const pending=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "bookingId"=${bookingId}::uuid AND "status"='PENDING' LIMIT 1
+      `);
+      if(pending.length)throw new ConflictException('Respond to the pending extra work quote before creating another');
+      const created=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        INSERT INTO "ConsumerServiceExtraWorkQuote"
+          ("id","bookingId","providerId","scopeDescription","amountPaise","idempotencyKey","createdByUserId")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${provider.providerId}::uuid,
+          ${description},${amountPaise},${key},${userId}::uuid)
+        RETURNING "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+      `);
+      return created[0];
+    });
+  }
+
+
+  // A provider may retract an unaccepted quotation, including after the booking
+  // closes. Never retract a resident-approved/declined quote. Lock the same
+  // booking row used by the resident decision before checking the quote state.
+  async withdrawExtraWorkQuote(userId:string,bookingId:string,quoteId:string,reason:string){
+    const normalizedReason=reason?.trim()??'';
+    if(normalizedReason.length<3||normalizedReason.length>500){
+      throw new BadRequestException('Quote withdrawal reason must be between 3 and 500 characters');
+    }
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid
+        FOR UPDATE
+      `);
+      if(!bookings.length)throw new NotFoundException('Provider booking not found');
+      const quotes=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid
+        FOR UPDATE
+      `);
+      const quote=quotes[0];
+      if(!quote)throw new NotFoundException('Provider quotation not found');
+      if(quote.status==='WITHDRAWN'){
+        if(quote.responseReason!==normalizedReason){
+          throw new ConflictException('Withdrawal retry must retain the original reason');
+        }
+        return quote; // Lost-response recovery: immutable original receipt.
+      }
+      if(quote.status!=='PENDING'){
+        throw new ConflictException('Resident-decided quotations cannot be withdrawn');
+      }
+      const changed=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        UPDATE "ConsumerServiceExtraWorkQuote"
+        SET "status"='WITHDRAWN',"respondedByUserId"=${userId}::uuid,
+          "responseReason"=${normalizedReason},"respondedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid AND "status"='PENDING'
+        RETURNING "id","bookingId","providerId","scopeDescription","idempotencyKey",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+      `);
+      if(!changed.length)throw new ConflictException('Quotation decision changed concurrently');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'PROVIDER_WITHDREW_EXTRA_WORK_QUOTE',
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${`Quote ${quoteId}: ${normalizedReason}`},CURRENT_TIMESTAMP)
+      `);
+      // Reversal of consent is not possible. No booking price/payment changes.
+      return changed[0];
+    });
+  }
+
+  async listProviderExtraWorkQuotes(userId:string,bookingId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    const bookings=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceBooking" WHERE "id"=${bookingId}::uuid
+        AND "providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    if(!bookings.length)throw new NotFoundException('Provider booking not found');
+    return this.prisma.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+      SELECT "id","bookingId","providerId","scopeDescription","amountPaise"::text AS "amountPaise",
+        "status","createdByUserId","respondedByUserId","responseReason","createdAt","respondedAt"
+      FROM "ConsumerServiceExtraWorkQuote" WHERE "bookingId"=${bookingId}::uuid
+        AND "providerId"=${provider.providerId}::uuid ORDER BY "createdAt" DESC,"id" DESC LIMIT 30
+    `);
+  }
+
+  async listConsumerExtraWorkQuotes(userId:string,bookingId:string){
+    await this.assertConsumerBooking(userId,bookingId);
+    return this.prisma.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+      SELECT "id","bookingId","scopeDescription","amountPaise"::text AS "amountPaise",
+        "status","respondedByUserId","responseReason","createdAt","respondedAt"
+      FROM "ConsumerServiceExtraWorkQuote"
+      WHERE "bookingId"=${bookingId}::uuid ORDER BY "createdAt" DESC,"id" DESC LIMIT 30
+    `);
+  }
+
+  async respondToExtraWorkQuote(userId:string,bookingId:string,quoteId:string,
+    decision:'APPROVE'|'DECLINE',reason?:string){
+    const normalizedReason=reason?.trim()??'';
+    if(decision==='DECLINE'&&(normalizedReason.length<3||normalizedReason.length>500)){
+      throw new BadRequestException('Declining an extra work quote requires a reason between 3 and 500 characters');
+    }
+    return this.prisma.$transaction(async tx=>{
+      const booking=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking" WHERE "id"=${bookingId}::uuid
+          AND "userId"=${userId}::uuid FOR UPDATE
+      `);
+      if(!booking.length)throw new NotFoundException('Booking not found');
+      // Lock the original booking first, then the quote (the same lock order as
+      // provider withdrawal). Check saved consent before booking status: a
+      // response may have been lost just before the service was completed.
+      const quote=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        SELECT "id","bookingId","providerId","scopeDescription",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid FOR UPDATE
+      `);
+      if(!quote.length)throw new NotFoundException('Extra work quote not found');
+      const status=decision==='APPROVE'?'APPROVED':'DECLINED';
+      if(quote[0].status!=='PENDING'){
+        if(quote[0].status===status && quote[0].respondedByUserId===userId &&
+          (decision==='APPROVE' ? quote[0].responseReason==null
+            : quote[0].responseReason===normalizedReason)){
+          return quote[0]; // Exact lost-response recovery; no duplicate event.
+        }
+        throw new ConflictException('Extra work quote has already been decided or withdrawn');
+      }
+      if(booking[0].status!==ServiceBookingStatus.IN_PROGRESS){
+        throw new BadRequestException('Extra work quote cannot be decided after service is no longer in progress');
+      }
+      const changed=await tx.$queryRaw<ExtraWorkQuoteRow[]>(Prisma.sql`
+        UPDATE "ConsumerServiceExtraWorkQuote" SET "status"=${status},
+          "respondedByUserId"=${userId}::uuid,
+          "responseReason"=${decision==='DECLINE'?normalizedReason:null},
+          "respondedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "status"='PENDING'
+        RETURNING "id","bookingId","providerId","scopeDescription",
+          "amountPaise"::text AS "amountPaise","status","createdByUserId",
+          "respondedByUserId","responseReason","createdAt","respondedAt"
+      `);
+      if(!changed.length)throw new ConflictException('Extra work quote was already decided');
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          ${decision==='APPROVE'?'CUSTOMER_APPROVED_EXTRA_WORK_QUOTE':'CUSTOMER_DECLINED_EXTRA_WORK_QUOTE'},
+          ${ServiceBookingStatus.IN_PROGRESS}::"ServiceBookingStatus",
+          ${ServiceBookingStatus.IN_PROGRESS}::"ServiceBookingStatus",
+          ${`Quote ${quoteId}: ${decision==='APPROVE'?quote[0].amountPaise+' paise explicitly approved':normalizedReason}`},CURRENT_TIMESTAMP)
+      `);
+      // Consent is not settlement: original booking price and Payment records
+      // are intentionally untouched. Charging requires a separate authorized flow.
+      return changed[0];
+    });
+  }
+
+
+  // A resident initiates a *separate bill request*, not a payment intent.
+  // Lock booking then quote to serialize with approval/withdrawal; one immutable
+  // request per consented quote makes lost-response retries safe.
+  async requestExtraWorkBill(userId:string,bookingId:string,quoteId:string){
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "userId"=${userId}::uuid FOR UPDATE
+      `);
+      if(!bookings[0])throw new NotFoundException('Booking not found');
+      const quotes=await tx.$queryRaw<Array<{id:string;providerId:string;status:string;respondedByUserId:string|null;amountPaise:string}>>(Prisma.sql`
+        SELECT "id","providerId","status","respondedByUserId","amountPaise"::text AS "amountPaise"
+        FROM "ConsumerServiceExtraWorkQuote"
+        WHERE "id"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid FOR UPDATE
+      `);
+      const quote=quotes[0];
+      if(!quote||quote.status!=='APPROVED'||quote.respondedByUserId!==userId)
+        throw new BadRequestException('Only your expressly approved extra-work quote can be billed separately');
+      const existing=await tx.$queryRaw<Array<{id:string;bookingId:string;quoteId:string;userId:string;amountPaise:string;status:string}>>(Prisma.sql`
+        SELECT "id","bookingId","quoteId","userId","amountPaise"::text AS "amountPaise","status"
+        FROM "ConsumerServiceExtraWorkBillingRequest"
+        WHERE "quoteId"=${quoteId}::uuid AND "bookingId"=${bookingId}::uuid FOR UPDATE
+      `);
+      if(existing[0]){
+        if(existing[0].userId!==userId||existing[0].amountPaise!==quote.amountPaise)
+          throw new ConflictException('Separate bill request evidence conflicts with approved quote');
+        return existing[0]; // No duplicate timeline event on lost response.
+      }
+      if(bookings[0].status===ServiceBookingStatus.CANCELLED)
+        throw new BadRequestException('Cancelled booking cannot request extra-work billing');
+      const rows=await tx.$queryRaw<Array<{id:string;bookingId:string;quoteId:string;userId:string;amountPaise:string;status:string}>>(Prisma.sql`
+        INSERT INTO "ConsumerServiceExtraWorkBillingRequest"
+          ("id","bookingId","quoteId","userId","providerId","amountPaise")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${quoteId}::uuid,${userId}::uuid,
+          ${quote.providerId}::uuid,${BigInt(quote.amountPaise)})
+        RETURNING "id","bookingId","quoteId","userId","amountPaise"::text AS "amountPaise","status"
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'RESIDENT_REQUESTED_EXTRA_WORK_BILL',
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${`Quote ${quoteId}: separate bill requested; no payment or invoice issued`},CURRENT_TIMESTAMP)
+      `);
+      return rows[0];
+    });
+  }
+
+
+  // A provider confirms *receipt* of the resident's separate-bill request.
+  // This is not invoice issuance, provider acceptance of a payable charge, or a payment.
+  async acknowledgeExtraWorkBillRequest(userId:string,bookingId:string,requestId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      // Keep booking-first lock order used for all quote and bill-request writes.
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+      `);
+      if(!bookings[0])throw new NotFoundException('Provider booking not found');
+      const requests=await tx.$queryRaw<Array<{id:string;bookingId:string;providerId:string;quoteId:string}>>(Prisma.sql`
+        SELECT "id","bookingId","providerId","quoteId" FROM "ConsumerServiceExtraWorkBillingRequest"
+        WHERE "id"=${requestId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+      `);
+      if(!requests[0])throw new NotFoundException('Provider bill request not found');
+      const existing=await tx.$queryRaw<Array<{id:string;billingRequestId:string;bookingId:string;providerId:string;createdAt:Date}>>(Prisma.sql`
+        SELECT "id","billingRequestId","bookingId","providerId","createdAt"
+        FROM "ConsumerServiceExtraWorkBillAcknowledgement"
+        WHERE "billingRequestId"=${requestId}::uuid FOR UPDATE
+      `);
+      if(existing[0])return existing[0]; // Identical retry, no duplicate audit event.
+      if(bookings[0].status===ServiceBookingStatus.CANCELLED)
+        throw new BadRequestException('Cancelled booking cannot acknowledge a new bill request');
+      const rows=await tx.$queryRaw<Array<{id:string;billingRequestId:string;bookingId:string;providerId:string;createdAt:Date}>>(Prisma.sql`
+        INSERT INTO "ConsumerServiceExtraWorkBillAcknowledgement"
+          ("id","billingRequestId","bookingId","providerId")
+        VALUES (${randomUUID()}::uuid,${requestId}::uuid,${bookingId}::uuid,${provider.providerId}::uuid)
+        RETURNING "id","billingRequestId","bookingId","providerId","createdAt"
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'PROVIDER_ACKNOWLEDGED_EXTRA_WORK_BILL_REQUEST',
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${bookings[0].status}::"ServiceBookingStatus",
+          ${`Separate extra-work bill request ${requestId} acknowledged; no invoice or payment issued`},CURRENT_TIMESTAMP)
+      `);
+      return rows[0];
+    });
+  }
+
+  // This snapshot is preparatory only, with no invoice, payment or tax side effects.
+  // Always lock booking before bill request; return original receipt on retry.
+  async prepareExtraWorkBillingDraft(userId:string,bookingId:string,requestId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    return this.prisma.$transaction(async tx=>{
+      const bookings=await tx.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceBooking"
+        WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid FOR UPDATE
+      `);
+      if(!bookings[0])throw new NotFoundException('Provider booking not found');
+      const requests=await tx.$queryRaw<Array<{
+        id:string;bookingId:string;quoteId:string;userId:string;providerId:string;amountPaise:string;
+      }>>(Prisma.sql`
+        SELECT r."id",r."bookingId",r."quoteId",r."userId",r."providerId",
+          r."amountPaise"::text AS "amountPaise"
+        FROM "ConsumerServiceExtraWorkBillingRequest" r
+        JOIN "ConsumerServiceExtraWorkQuote" q ON q."id"=r."quoteId"
+          AND q."bookingId"=r."bookingId" AND q."providerId"=r."providerId"
+          AND q."status"='APPROVED' AND q."amountPaise"=r."amountPaise"
+        WHERE r."id"=${requestId}::uuid AND r."bookingId"=${bookingId}::uuid
+          AND r."providerId"=${provider.providerId}::uuid
+        FOR UPDATE OF r
+      `);
+      const request=requests[0];
+      if(!request)throw new NotFoundException('Approved separate bill request not found');
+      const acknowledgements=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "ConsumerServiceExtraWorkBillAcknowledgement"
+        WHERE "billingRequestId"=${requestId}::uuid AND "bookingId"=${bookingId}::uuid
+          AND "providerId"=${provider.providerId}::uuid LIMIT 1
+      `);
+      if(!acknowledgements[0])throw new BadRequestException('Provider must acknowledge the resident bill request first');
+      const previous=await tx.$queryRaw<Array<{
+        id:string;billingRequestId:string;bookingId:string;quoteId:string;providerId:string;
+        userId:string;amountPaise:string;currency:string;status:string;createdAt:Date;
+      }>>(Prisma.sql`
+        SELECT "id","billingRequestId","bookingId","quoteId","providerId","userId",
+          "amountPaise"::text AS "amountPaise","currency","status","createdAt"
+        FROM "ConsumerServiceExtraWorkBillingDraft"
+        WHERE "billingRequestId"=${requestId}::uuid FOR UPDATE
+      `);
+      if(previous[0]){
+        if(previous[0].amountPaise!==request.amountPaise||
+          previous[0].userId!==request.userId||previous[0].quoteId!==request.quoteId||
+          previous[0].providerId!==provider.providerId){
+          throw new ConflictException('Existing billing draft conflicts with approved request evidence');
+        }
+        return previous[0];
+      }
+      if(bookings[0].status===ServiceBookingStatus.CANCELLED)
+        throw new BadRequestException('Cancelled booking cannot prepare a new billing draft');
+      const drafts=await tx.$queryRaw<Array<{id:string;billingRequestId:string;amountPaise:string;status:string}>>(Prisma.sql`
+        INSERT INTO "ConsumerServiceExtraWorkBillingDraft"
+          ("id","billingRequestId","bookingId","quoteId","providerId","userId","amountPaise")
+        VALUES (${randomUUID()}::uuid,${requestId}::uuid,${bookingId}::uuid,${request.quoteId}::uuid,
+          ${provider.providerId}::uuid,${request.userId}::uuid,${BigInt(request.amountPaise)})
+        RETURNING "id","billingRequestId","amountPaise"::text AS "amountPaise","status"
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceBookingEvent"
+          ("id","bookingId","actorUserId","action","fromStatus","toStatus","note","occurredAt")
+        VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,
+          'PROVIDER_PREPARED_NONPAYABLE_EXTRA_WORK_DRAFT',
+          ${bookings[0].status}::"ServiceBookingStatus",${bookings[0].status}::"ServiceBookingStatus",
+          ${`Request ${requestId}: non-payable billing draft; no tax invoice or payment`},CURRENT_TIMESTAMP)
+      `);
+      return drafts[0];
+    });
+  }
+
+  // Independent Finance handoff: evidence-only read, never tax, invoice or money movement.
+  async getExtraWorkFinanceHandoff(userId:string,bookingId:string,requestId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    const bookings=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceBooking"
+      WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    if(!bookings[0])throw new NotFoundException('Provider booking not found');
+    const rows=await this.prisma.$queryRaw<Array<{
+      id:string;quoteId:string;amountPaise:string;quoteAmountPaise:string;
+      quoteStatus:string;sameConsentingResident:boolean;acknowledgementId:string|null;
+      draftId:string|null;draftAmountPaise:string|null;draftCurrency:string|null;draftStatus:string|null;
+    }>>(Prisma.sql`
+      SELECT r."id",r."quoteId",r."amountPaise"::text AS "amountPaise",
+        q."amountPaise"::text AS "quoteAmountPaise",q."status" AS "quoteStatus",
+        (q."respondedByUserId"=r."userId") AS "sameConsentingResident",
+        a."id" AS "acknowledgementId",
+        d."id" AS "draftId",d."amountPaise"::text AS "draftAmountPaise",
+        d."currency" AS "draftCurrency",d."status" AS "draftStatus"
+      FROM "ConsumerServiceExtraWorkBillingRequest" r
+      JOIN "ConsumerServiceExtraWorkQuote" q
+        ON q."id"=r."quoteId" AND q."bookingId"=r."bookingId"
+        AND q."providerId"=r."providerId"
+      JOIN "ConsumerServiceBooking" b
+        ON b."id"=r."bookingId" AND b."userId"=r."userId"
+      LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a
+        ON a."billingRequestId"=r."id" AND a."providerId"=r."providerId"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d
+        ON d."billingRequestId"=r."id" AND d."providerId"=r."providerId"
+      WHERE r."id"=${requestId}::uuid AND r."bookingId"=${bookingId}::uuid
+        AND r."providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    const row=rows[0];
+    if(!row)throw new NotFoundException('Provider bill request not found');
+    const blockers:string[]=[];
+    if(row.quoteStatus!=='APPROVED'||row.sameConsentingResident!==true)
+      blockers.push('RESIDENT_QUOTE_APPROVAL_REQUIRED');
+    if(row.quoteAmountPaise!==row.amountPaise)
+      blockers.push('APPROVED_QUOTE_AMOUNT_MISMATCH');
+    if(!row.acknowledgementId)blockers.push('PROVIDER_ACKNOWLEDGEMENT_MISSING');
+    if(!row.draftId)blockers.push('NONPAYABLE_DRAFT_MISSING');
+    else if(row.draftAmountPaise!==row.amountPaise||row.draftCurrency!=='INR'||row.draftStatus!=='DRAFT')
+      blockers.push('NONPAYABLE_DRAFT_CONFLICT');
+    return {
+      bookingId,requestId,quoteId:row.quoteId,nonPayableDraftId:row.draftId,
+      amountPaise:row.amountPaise,currency:'INR',
+      evidenceState:blockers.length?'INCOMPLETE':'COMPLETE',
+      blockers,
+      handoffState:blockers.length?'EVIDENCE_INCOMPLETE':'FINANCE_POLICY_APPROVAL_REQUIRED',
+      financePolicyApproval:'NOT_GRANTED',invoiceStatus:'NOT_ISSUED',
+      paymentOrderStatus:'NOT_CREATED',settlementStatus:'NOT_AUTHORIZED',
+    };
+  }
+
+  async listConsumerExtraWorkBillRequests(userId:string,bookingId:string){
+    await this.assertConsumerBooking(userId,bookingId);
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",r."status",r."createdAt",
+        a."createdAt" AS "providerAcknowledgedAt",d."createdAt" AS "nonPayableDraftPreparedAt"
+      FROM "ConsumerServiceExtraWorkBillingRequest" r
+      LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
+      WHERE r."bookingId"=${bookingId}::uuid AND r."userId"=${userId}::uuid
+      ORDER BY r."createdAt" DESC,r."id" DESC LIMIT 100
+    `);
+  }
+
+  async listProviderExtraWorkBillRequests(userId:string,bookingId:string){
+    const provider=await this.operators.resolveProvider(userId);
+    const booking=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceBooking"
+      WHERE "id"=${bookingId}::uuid AND "providerId"=${provider.providerId}::uuid LIMIT 1
+    `);
+    if(!booking[0])throw new NotFoundException('Provider booking not found');
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",
+        r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt",
+        d."createdAt" AS "nonPayableDraftPreparedAt"
+      FROM "ConsumerServiceExtraWorkBillingRequest" r
+      LEFT JOIN "ConsumerServiceExtraWorkBillAcknowledgement" a ON a."billingRequestId"=r."id"
+      LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
+      WHERE r."bookingId"=${bookingId}::uuid AND r."providerId"=${provider.providerId}::uuid
+      ORDER BY r."createdAt" DESC,r."id" DESC LIMIT 100
+    `);
+  }
+
   async addCompletionEvidence(userId:string,bookingId:string,evidenceType:'NOTE'|'REFERENCE',reference?:string,note?:string){
     const provider=await this.operators.resolveProvider(userId);
     const rows=await this.prisma.$queryRaw<Array<{id:string;status:ServiceBookingStatus}>>(Prisma.sql`
@@ -278,6 +767,96 @@ export class ProviderMarketplaceCompletionService {
         VALUES (${randomUUID()}::uuid,${bookingId}::uuid,${userId}::uuid,${booking.providerId}::uuid,${reasonCode.trim()},${detail.trim()}) RETURNING *
       `); return rows[0];
     }catch{throw new BadRequestException('An open dispute already exists for this booking');}
+  }
+
+  async listConsumerDisputes(userId:string,bookingId:string){
+    // Check consumer ownership before returning any case history or notes.
+    await this.assertConsumerBooking(userId,bookingId);
+    return this.prisma.$queryRaw<ServiceDisputeRow[]>(Prisma.sql`
+      SELECT "id","bookingId","reasonCode","detail","status","resolutionNote",
+             "resolvedAt","createdAt","updatedAt"
+      FROM "ConsumerServiceDispute"
+      WHERE "bookingId"=${bookingId}::uuid AND "userId"=${userId}::uuid
+      ORDER BY "createdAt" DESC,"id" DESC LIMIT 30
+    `);
+  }
+
+
+  /** Every read and write is authorized against the original dispute owner. */
+  async listDisputeEvidence(userId:string,disputeId:string,actorType:'RESIDENT'|'PROVIDER',bookingId?:string){
+    const provider=actorType==='PROVIDER'?await this.operators.resolveProvider(userId):null;
+    const disputes=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceDispute"
+      WHERE "id"=${disputeId}::uuid
+        ${actorType==='RESIDENT'
+          ?Prisma.sql`AND "userId"=${userId}::uuid AND "bookingId"=${bookingId}::uuid`
+          :Prisma.sql`AND "providerId"=${provider!.providerId}::uuid`}
+      LIMIT 1
+    `);
+    if(!disputes.length)throw new NotFoundException('Service dispute not found');
+    return this.prisma.$queryRaw<DisputeEvidenceRow[]>(Prisma.sql`
+      SELECT "id","disputeId","actorType","note","reference","createdAt"
+      FROM "ConsumerServiceDisputeEvidence" WHERE "disputeId"=${disputeId}::uuid
+      ORDER BY "createdAt" DESC,"id" DESC LIMIT 100
+    `);
+  }
+
+  async addDisputeEvidence(userId:string,disputeId:string,actorType:'RESIDENT'|'PROVIDER',
+    note:string,idempotencyKey:string,reference?:string,bookingId?:string){
+    const normalizedNote=note?.trim()??'';
+    const normalizedReference=reference?.trim()||null;
+    const key=idempotencyKey?.trim()??'';
+    if(normalizedNote.length<5||normalizedNote.length>2000)
+      throw new BadRequestException('Evidence note must be 5–2000 characters');
+    if(normalizedReference && normalizedReference.length>400)
+      throw new BadRequestException('Evidence reference must be at most 400 characters');
+    if(key.length<8||key.length>120)
+      throw new BadRequestException('Evidence retry identity must be 8–120 characters');
+    const provider=actorType==='PROVIDER'?await this.operators.resolveProvider(userId):null;
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<Array<{id:string;status:string}>>(Prisma.sql`
+        SELECT "id","status" FROM "ConsumerServiceDispute"
+        WHERE "id"=${disputeId}::uuid
+          ${actorType==='RESIDENT'
+            ?Prisma.sql`AND "userId"=${userId}::uuid AND "bookingId"=${bookingId}::uuid`
+            :Prisma.sql`AND "providerId"=${provider!.providerId}::uuid`}
+        FOR UPDATE
+      `);
+      if(!rows.length)throw new NotFoundException('Service dispute not found');
+      const previous=await tx.$queryRaw<DisputeEvidenceRow[]>(Prisma.sql`
+        SELECT "id","disputeId","actorType","note","reference","idempotencyKey","createdAt"
+        FROM "ConsumerServiceDisputeEvidence" WHERE "disputeId"=${disputeId}::uuid
+          AND "actorUserId"=${userId}::uuid AND "idempotencyKey"=${key} LIMIT 1
+      `);
+      if(previous.length){
+        if(previous[0].note!==normalizedNote||previous[0].reference!==normalizedReference||
+           previous[0].actorType!==actorType)
+          throw new ConflictException('Evidence retry identity is bound to another note');
+        return previous[0]; // Exact replay, even if case closed after submission.
+      }
+      if(!['OPEN','UNDER_REVIEW'].includes(rows[0].status))
+        throw new BadRequestException('Evidence can be added only while a dispute is open');
+      const created=await tx.$queryRaw<DisputeEvidenceRow[]>(Prisma.sql`
+        INSERT INTO "ConsumerServiceDisputeEvidence"
+          ("id","disputeId","actorUserId","actorType","note","reference","idempotencyKey")
+        VALUES (${randomUUID()}::uuid,${disputeId}::uuid,${userId}::uuid,
+          ${actorType},${normalizedNote},${normalizedReference},${key})
+        RETURNING "id","disputeId","actorType","note","reference","createdAt"
+      `);
+      return created[0];
+    });
+  }
+
+  async listPlatformDisputeEvidence(disputeId:string){
+    const rows=await this.prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id" FROM "ConsumerServiceDispute" WHERE "id"=${disputeId}::uuid LIMIT 1
+    `);
+    if(!rows.length)throw new NotFoundException('Service dispute not found');
+    return this.prisma.$queryRaw<DisputeEvidenceRow[]>(Prisma.sql`
+      SELECT "id","disputeId","actorType","note","reference","createdAt"
+      FROM "ConsumerServiceDisputeEvidence" WHERE "disputeId"=${disputeId}::uuid
+      ORDER BY "createdAt" DESC,"id" DESC LIMIT 100
+    `);
   }
 
   async listMyDisputes(userId:string){

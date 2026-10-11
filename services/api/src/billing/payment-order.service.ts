@@ -9,6 +9,8 @@ export class PaymentOrderService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPayment(societyId: string, userId: string, invoiceId: string, idempotencyKey: string) {
+    // Re-check the domain boundary even when a controller DTO was validated.
+    if (!idempotencyKey.trim()) throw new BadRequestException('Idempotency key is required');
     const authorized = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT i."id" FROM "MaintenanceInvoice" i
       WHERE i."id"=${invoiceId}::uuid AND i."societyId"=${societyId}::uuid
@@ -110,6 +112,7 @@ export class PaymentOrderService {
 
   async createAmenityDepositPayment(societyId:string,userId:string,bookingId:string,idempotencyKey:string) {
     const normalizedKey=idempotencyKey.trim();
+    if (!normalizedKey) throw new BadRequestException('Idempotency key is required');
     return this.prisma.$transaction(async(tx)=>{
       const bookings=await tx.$queryRaw<Array<{
         id:string;userId:string;status:string;depositPaise:number;depositStatus:string;depositDueAt:Date|null;paymentOpen:boolean;

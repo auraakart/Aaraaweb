@@ -190,7 +190,6 @@ export class ConsumerBookingsService {
 
   async createBooking(userId: string, input: ConsumerBookingInput) {
     const now = new Date();
-    if (input.scheduledFrom <= now) throw new BadRequestException('Scheduled start must be in the future');
     if (input.scheduledUntil <= input.scheduledFrom) throw new BadRequestException('Scheduled end must be after scheduled start');
 
     const locationType = input.homeId ? 'HOME' : input.locationType;
@@ -201,6 +200,11 @@ export class ConsumerBookingsService {
     }
 
     const idempotencyKey = input.idempotencyKey?.trim() || null;
+    // A no-key submission is always new; fail early. A keyed attempt must
+    // first be allowed to recover a previously committed booking.
+    if (!idempotencyKey && input.scheduledFrom <= now) {
+      throw new BadRequestException('Scheduled start must be in the future');
+    }
     const notes = input.notes?.trim() || null;
     return this.prisma.$transaction(async (tx) => {
       if (idempotencyKey) {
@@ -222,6 +226,13 @@ export class ConsumerBookingsService {
           if (!samePayload) throw new ConflictException('Idempotency key is already used for another service booking');
           return existing[0];
         }
+      }
+
+      // A lost booking response may be retried after the reserved slot began.
+      // Recover only an exact stored same-key request; never create a new
+      // booking for a historical start time.
+      if (input.scheduledFrom <= now) {
+        throw new BadRequestException('Scheduled start must be in the future');
       }
 
       const location = await this.resolveBookingLocation(tx, userId, locationType, locationId);

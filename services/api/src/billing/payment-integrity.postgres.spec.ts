@@ -274,4 +274,57 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     await expect(billing.residentSummary(societyId, ownerId, randomUUID())).resolves.toMatchObject(empty);
   });
 
+  it('blocks a departed tenant from replaying a previously authorized payment retry', async () => {
+    const issued = await invoice();
+    const key = randomUUID();
+    const initial = await orders.createPayment(societyId, tenantId, issued.id, key) as { id: string };
+    const where = { societyId, unitId, userId: tenantId };
+    try {
+      await prisma.unitOccupancy.updateMany({ where, data: {
+        effectiveFrom: new Date(Date.now() - 2 * 86_400_000),
+        effectiveTo: new Date(Date.now() - 86_400_000),
+      } });
+      await expect(orders.createPayment(societyId, tenantId, issued.id, key))
+        .rejects.toBeInstanceOf(NotFoundException);
+      expect(await prisma.payment.count({ where: { invoiceId: issued.id } })).toBe(1);
+      expect(await prisma.paymentEvent.count({ where: {
+        paymentId: initial.id, type: 'ORDER_CREATED',
+      } })).toBe(1);
+      // Active verified ownership is independent of the departed tenant.
+      const another = await invoice(secondUnitId);
+      await expect(orders.createPayment(societyId, ownerId, another.id, randomUUID()))
+        .resolves.toMatchObject({ invoiceId: another.id });
+    } finally {
+      await prisma.unitOccupancy.updateMany({ where, data: {
+        effectiveFrom: new Date(Date.now() - 1000), effectiveTo: null,
+      } });
+    }
+  });
+
+  it('does not leak owner-only unit payment evidence to a tenant of another unit', async () => {
+    const ownerOnly = await invoice(secondUnitId);
+    const paid = await orders.createPayment(societyId, ownerId, ownerOnly.id, randomUUID()) as { id: string };
+    await prisma.$transaction([
+      prisma.payment.update({ where: { id: paid.id }, data: { status: 'CAPTURED' } }),
+      prisma.maintenanceInvoice.update({ where: { id: ownerOnly.id }, data: { status: 'PAID' } }),
+    ]);
+    const billing = new BillingService(prisma);
+    await expect(billing.listPayable(societyId, tenantId, secondUnitId)).resolves.toEqual([]);
+    await expect(billing.listPaymentsMine(societyId, tenantId, secondUnitId)).resolves.toEqual([]);
+    await expect(billing.getReceipt(societyId, tenantId, paid.id))
+      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(billing.getReceipt(societyId, ownerId, paid.id))
+      .resolves.toMatchObject({ paymentId: paid.id });
+  });
+
+  it('rejects cross-society key replay even when the same owner controls both properties', async () => {
+    const other = await invoice(otherUnitId, otherSocietyId);
+    const key = randomUUID();
+    const original = await orders.createPayment(otherSocietyId, ownerId, other.id, key) as { id: string };
+    await expect(orders.createPayment(societyId, ownerId, other.id, key))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(await prisma.payment.count({ where: { invoiceId: other.id } })).toBe(1);
+    expect(await prisma.paymentEvent.count({ where: { paymentId: original.id, type: 'ORDER_CREATED' } })).toBe(1);
+  });
+
 });

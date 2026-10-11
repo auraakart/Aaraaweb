@@ -32,6 +32,23 @@ describe('ConsumerRebookingService', () => {
     expect(createBooking).toHaveBeenCalledWith('user', expect.objectContaining({ homeId: 'home', offeringId: 'offering' }));
   });
 
+  it('passes the stable retry idempotency key into the authoritative booking engine', async () => {
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'booking', userId: 'user', homeId: null, societyUnitId: 'unit-1', offeringId: 'offering', status: ServiceBookingStatus.COMPLETED }]),
+    } as unknown as RebookingPrisma;
+    const createBooking = vi.fn().mockResolvedValue({ id: 'new-booking' });
+    const service = new ConsumerRebookingService(prisma, { createBooking } as unknown as RebookingBookings);
+
+    await service.rebook('user', 'booking', { ...input, idempotencyKey: 'retry-key-1234' });
+
+    expect(createBooking).toHaveBeenCalledWith('user', expect.objectContaining({
+      locationType: 'SOCIETY_UNIT',
+      locationId: 'unit-1',
+      offeringId: 'offering',
+      idempotencyKey: 'retry-key-1234',
+    }));
+  });
+
   it('rejects rebooking a non-completed booking', async () => {
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 'booking', userId: 'user', homeId: 'home', societyUnitId: null, offeringId: 'offering', status: ServiceBookingStatus.CONFIRMED }]),
