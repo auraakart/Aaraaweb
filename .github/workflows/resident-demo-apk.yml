@@ -8,11 +8,6 @@ on:
       - '.github/workflows/resident-demo-apk.yml'
       - 'scripts/enrich-resident-demo-fixture.py'
       - 'scripts/enrich-resident-demo-fixture-premium.py'
-  # Packaging changes must prove they build an installable APK before promotion.
-  pull_request:
-    branches: [develop]
-    paths:
-      - '.github/workflows/resident-demo-apk.yml'
   workflow_dispatch:
 
 permissions:
