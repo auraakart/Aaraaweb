@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EntitlementService } from './entitlement.service';
 import { ProductFeature, ProductTier } from './entitlement.types';
+import { Prisma } from '@prisma/client';
 
 type SocietyEntitlement = {
   productTier: ProductTier;
@@ -61,5 +62,17 @@ describe('EntitlementService', () => {
     const svc = service(null);
     await expect(svc.isEnabled('society-x', ProductFeature.VISITOR_MANAGEMENT)).resolves.toBe(false);
     await expect(svc.current('society-x')).resolves.toBeNull();
+  });
+
+  it('uses an explicit transaction client while retaining the legacy feature overrides', async () => {
+    const svc = service(null);
+    const tx = { society: { findFirst: vi.fn().mockResolvedValue({
+      productTier: ProductTier.STARTER,
+      featureOverrides: { [ProductFeature.AI_ASSISTANT]: true, [ProductFeature.NOTICES]: false },
+    }) } };
+    const result = await svc.current('society-a', tx as unknown as Pick<Prisma.TransactionClient, 'society'>);
+    expect(result?.enabledFeatures).toContain(ProductFeature.AI_ASSISTANT);
+    expect(result?.enabledFeatures).not.toContain(ProductFeature.NOTICES);
+    expect(tx.society.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'society-a', status: 'ACTIVE' } }));
   });
 });

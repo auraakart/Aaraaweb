@@ -45,10 +45,10 @@ export class SocietiesController {
   @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_READ)
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentTenant() societyId: string) {
     if (id !== societyId) throw new ForbiddenException('Society path does not match authenticated tenant');
-    return this.prisma.society.findUniqueOrThrow({
+    return this.prisma.withTenantContext(societyId, tx => tx.society.findUniqueOrThrow({
       where: { id: societyId },
       select: { ...legacySocietySelect, buildings: true, gates: true },
-    });
+    }));
   }
 
   @Post()
