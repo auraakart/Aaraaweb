@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.3",
+      "currentSlice": "V5.2.4",
       "slices": [
         {
           "id": "V5.2.1",
@@ -113,11 +113,24 @@
         {
           "id": "V5.2.3",
           "name": "Gate assignment tenant transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "6a364bf6880396524902229421aa215d545b513d",
           "evidence": [
             "services/api/src/gates/gate-assignment.service.spec.ts",
             "services/api/src/gates/gate-assignment.postgres.spec.ts"
+          ],
+          "pullRequest": 1214,
+          "validatedRuntimeSha": "1b988d8ea4b732a4a2c605bb418f7ef8b256cd1a",
+          "mergeSha": "360537eaf2d3ffd167a4c597826b30c87bef0203"
+        },
+        {
+          "id": "V5.2.4",
+          "name": "Community poll participation and results tenant transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "360537eaf2d3ffd167a4c597826b30c87bef0203",
+          "evidence": [
+            "services/api/src/governance/governance-poll-participation.controller.spec.ts",
+            "services/api/src/governance/governance-poll-participation.postgres.spec.ts"
           ]
         }
       ]
