@@ -16,6 +16,7 @@ model User {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
+  partnerMemberships        PartnerMembership[]
   unitOwnerships            UnitOwnership[]
   unitOccupancies           UnitOccupancy[]
   visitors                  Visitor[]
@@ -49,6 +50,10 @@ model Society {
   status               SocietyStatus              @default(ACTIVE)
   productTier          ProductTier                @default(STARTER)
   featureOverrides     Json                       @default("{}")
+  partnerId            String                     @default("00000000-0000-4000-8000-000000000001") @db.Uuid
+  ownershipVersion     Int                        @default(1)
+  partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  entitlementCompatibility SocietyEntitlementCompatibility?
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
   memberships          SocietyMembership[]
@@ -89,6 +94,59 @@ model Society {
   payments             Payment[]
   paymentEvents        PaymentEvent[]
   householdChanges     HouseholdChangeRequest[]
+
+  @@index([partnerId, status])
+}
+
+// Commercial ownership is separate from society operational authorization.
+model Partner {
+  id          String              @id @default(uuid()) @db.Uuid
+  slug        String              @unique
+  displayName String
+  status      PartnerStatus       @default(DRAFT)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
+  societies   Society[]
+  memberships PartnerMembership[]
+}
+
+model PartnerMembership {
+  id        String      @id @default(uuid()) @db.Uuid
+  partnerId String      @db.Uuid
+  userId    String      @db.Uuid
+  role      PartnerRole
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  partner   Partner     @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, userId, role])
+  @@index([partnerId, userId, active])
+}
+
+// Cutover evidence, not a replacement live entitlement resolver or invoice.
+model SocietyEntitlementCompatibility {
+  societyId        String      @id @db.Uuid
+  sourceProductTier ProductTier
+  sourceOverrides  Json
+  enabledFeatures  Json
+  sourceMigration  String
+  capturedAt       DateTime    @default(now()) @db.Timestamptz(6)
+  society          Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+enum PartnerStatus {
+  DRAFT
+  ACTIVE
+  RESTRICTED
+  TERMINATED
+}
+
+enum PartnerRole {
+  OWNER
+  BRAND_MANAGER
+  COMMERCIAL_ADMIN
+  SUPPORT
 }
 
 model SocietyMembership {

@@ -294,7 +294,9 @@ jobs:
       - name: Test dependency audit failure handling
         run: node --test scripts/check-dependency-risk-budget.test.mjs
       - name: Check V4.81.1 tenant isolation and observability readiness
-        run: node scripts/check-v4.81.1-tenant-observability-readiness.mjs
+        run: |
+          node --test scripts/tenant-index-contract.test.mjs
+          node scripts/check-v4.81.1-tenant-observability-readiness.mjs
       - name: Check V4.81.2 maintainability and tenant hardening
         run: node scripts/check-v4.81.2-maintainability-tenant-hardening.mjs
       - name: Check V4.81.3 main validation reuse
@@ -453,6 +455,15 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Verify V5 tenant-access inventory
+        run: node services/api/scripts/tenant-access-inventory.mjs --check
+      - name: V5 partner ownership historical upgrade and replay
+        env:
+          AARAAGATE_PARTNER_MIGRATION_CI: '1'
+        run: |
+          node --test scripts/partner-ownership-migration-smoke.test.mjs
+          node services/api/scripts/partner-ownership-migration-smoke.mjs
+          pnpm --filter @aaraagate/api exec vitest run src/societies/societies-compatibility.postgres.spec.ts
       - name: Lint API
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API

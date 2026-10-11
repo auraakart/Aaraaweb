@@ -6,7 +6,7 @@
 **Repository:** auraakart/Aaraaweb
 **Reviewed develop snapshot:** `4e3bc2e4af4e3f597557d119586d7ce60462d348`
 **Snapshot commit:** `fix(android): reduce demo APK and verify Android package integrity (#1206)`, 11 October 2026 at 13:42 IST
-**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation in progress; remaining milestones planned. Staging/main promotion is separate; main requires explicit owner approval.
+**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation merged with protected checks; V5.0.2 inventory and V5.1.0 ownership/compatibility foundation implemented pending their protected checks; later milestones remain planned. Staging/main promotion is separate; main requires explicit owner approval.
 **Scope:** Engineering, automated tests, local/test-environment demonstrations and build artifacts. Productionization excluded.
 
 ## 1. Recommended product and architecture decision
@@ -104,7 +104,7 @@ Extend `services/api/prisma/schema.prisma` and additive migration files. Names b
 |---|---|---|
 | Partner | UUID id; unique slug; displayName; status; timestamps | Platform-owned portfolio operator; built-in Aaraagate partner |
 | PartnerMembership | partnerId, userId, scoped role, active; unique partner/user/role | Explicit partner administration, independent of SocietyMembership |
-| Society extension | nullable partnerId initially; backfilled built-in owner; ownershipVersion | Commercial association; enforce NOT NULL only after audited backfill |
+| Society extension | required partnerId with constant built-in default; ownershipVersion | V5.1.0 additive default preserves old-server INSERTs; atomic fixture-reconciled cutover |
 | SocietyPartnerTransfer | societyId, old/new partner, approvedBy, effectiveAt, reason, status | Controlled transfer and immutable history |
 | BrandProfile | id, partnerId, unique slug, displayName, status | Ownership and editable profile identity |
 | BrandRevision | brandId, monotonic version, schemaVersion, validated config JSON, digest, state, actor, timestamps | Immutable draft/validated/published/retired snapshots; unique brand/version |
@@ -414,3 +414,9 @@ Promotion policy: focused PRs to develop; no per-slice staging/main promotion. C
 Local Node 22 and pnpm 10.15 validation: frozen dependency install and Prisma client generation; API lint, typecheck and build; 45 targeted tests across branding/session/permissions/entitlements; API route-contract and product-branding checks; repository-integrity, secret-pattern, main-validation-reuse and maintainability-hygiene checks. The compiled HTTP smoke exercises real Nest routing and BearerGuard with deterministic session/persistence fakes; it is wired after the API build in canonical CI. PostgreSQL isolation tests and full protected CI remain separate required evidence. V5.0.1 makes no database/RLS change and does not claim completion of V5.0 tenant-query inventory.
 
 Protected CI status is recorded on the feature PR rather than fabricated here. No staging/main promotion is performed for this slice.
+
+### V5.0.2 and V5.1.0 implementation record
+
+V5.0.1 passed all protected checks and merged through PR #1209 at develop 8e87dbf8f809215db92e14dfd727c42ac7f76553. The tenant-access inventory is complete as a reproducible static source register: 249 tables, 2,123 access sites and 872 handlers, with authority classes, maintainers, exceptions and a prioritized isolation conversion queue. It demonstrates remaining isolation work, including no runtime tenant-context calls or migrated RLS policy statements; it is not a security certification. See [inventory and work queue](architecture/V5-TENANT-ACCESS-INVENTORY.md).
+
+V5.1.0 adds built-in Aaraagate commercial ownership, separate partner roles and immutable legacy entitlement cutover evidence. It retains the live entitlement resolver, old-server INSERT defaults and society response contracts. Tests cover all 189 prior migrations, 64 compatibility fixtures, constraints, replay, deletion and atomic failure rollback. Snapshot evidence is not a subscription grant. See [schema, acceptance and rollback contract](architecture/V5-PARTNER-OWNERSHIP-COMPATIBILITY.md). Ownership history, transfer administration and actual legacy licensing conversion remain gated follow-up work. Staging/main and hosted migration execution are excluded.
