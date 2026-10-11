@@ -1,12 +1,12 @@
 # Aaraagate V5 Multi Brand and White Label Development Roadmap
 
-**Document version:** 5.0.0  
-**Workstream:** Aaraagate V5, a bounded non-production development program  
-**Review date:** 11 October 2026, Asia/Kolkata  
-**Repository:** auraakart/Aaraaweb  
-**Reviewed develop snapshot:** `4e3bc2e4af4e3f597557d119586d7ce60462d348`  
-**Snapshot commit:** `fix(android): reduce demo APK and verify Android package integrity (#1206)`, 11 October 2026 at 13:42 IST  
-**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation in progress; remaining milestones planned. Staging/main promotion is separate; main requires explicit owner approval.  
+**Document version:** 5.0.0
+**Workstream:** Aaraagate V5, a bounded non-production development program
+**Review date:** 11 October 2026, Asia/Kolkata
+**Repository:** auraakart/Aaraaweb
+**Reviewed develop snapshot:** `4e3bc2e4af4e3f597557d119586d7ce60462d348`
+**Snapshot commit:** `fix(android): reduce demo APK and verify Android package integrity (#1206)`, 11 October 2026 at 13:42 IST
+**Status:** Development authorized by the owner on 11 October 2026. V5.0.1 foundation in progress; remaining milestones planned. Staging/main promotion is separate; main requires explicit owner approval.
 **Scope:** Engineering, automated tests, local/test-environment demonstrations and build artifacts. Productionization excluded.
 
 ## 1. Recommended product and architecture decision
