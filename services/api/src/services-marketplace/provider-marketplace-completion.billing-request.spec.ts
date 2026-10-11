@@ -77,7 +77,7 @@ describe('V4.90.18.8 — separate bill request is not a payment',()=>{
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });
- 
+
 describe('V4.90.18.9 — provider bill-request receipt, not an invoice',()=>{
   const requestId='66666666-6666-4666-8666-666666666666';
   const acknowledge={id:'77777777-7777-4777-8777-777777777777',billingRequestId:requestId,
