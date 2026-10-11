@@ -20,7 +20,7 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Unsafe disposable performance-seed calls | 11 |
 | Recognized SQL utility sites | 59 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 71 |
+| Runtime calls to `withTenantContext` | 78 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -146,3 +146,9 @@ Four procedure/privacy handlers establish society context. Writes reject the lat
 ## V5.2.13 existing election hold and readiness conversion
 
 Hold list/open/close and readiness use society context. Both close routes reuse one scoped close helper. Existing locks, parent checks, version sequencing, author separation and readiness blockers remain intact. Runtime context calls increase from 67 to 71. Native PostgreSQL and protected CI remain required before merge.
+
+## V5.2.14 existing ballot review, draft and decision conversion
+
+Seven operations in `governance-election-ballot-draft.controller.ts` now establish society context. Options and latest decisions require the transaction client; there is no global-client fallback. Existing explicit society predicates, policy/snapshot joins, society row locks, actor separation and terminal decision rules remain. This establishes transaction-local scope, not repeatable-read isolation or activated database RLS.
+
+Unit coverage checks all seven entry points and rejects foreign parents, stale snapshots, invalid options, prohibited authors and terminal decisions. Native PostgreSQL coverage verifies two societies, review sequence concurrency, one accepted concurrent approval, complete rollback of draft/options on later insertion failure, disabled latest policy and append-only decision evidence. Test-only cleanup deletes generated fixtures with transactional trigger restoration. Runtime context calls increase from 71 to 78. ISO-01 through ISO-07 remain open beyond these converted governance paths.

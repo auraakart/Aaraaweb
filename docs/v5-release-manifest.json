@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.13",
+      "currentSlice": "V5.2.14",
       "slices": [
         {
           "id": "V5.2.1",
@@ -256,11 +256,25 @@
         {
           "id": "V5.2.13",
           "name": "Scope existing election hold lifecycle and readiness transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "9f2deeaf0209add86490b12ebb492f59971be96e",
           "evidence": [
             "services/api/src/governance/governance-election-hold-readiness.transactions.spec.ts",
             "services/api/src/governance/governance-election-hold-readiness.postgres.spec.ts"
+          ],
+          "pullRequest": 1224,
+          "mergeSha": "6e32d0ee572dd1f6652ba1502554c417b55bff8d",
+          "validatedRuntimeSha": "9e8335a242725e8170623f90e6d2611de81b248f",
+          "ciRun": 38163180918
+        },
+        {
+          "id": "V5.2.14",
+          "name": "Scope existing ballot review, draft and decision evidence transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "6e32d0ee572dd1f6652ba1502554c417b55bff8d",
+          "evidence": [
+            "services/api/src/governance/governance-election-ballot-evidence.transactions.spec.ts",
+            "services/api/src/governance/governance-election-ballot-evidence.postgres.spec.ts"
           ]
         }
       ]
