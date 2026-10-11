@@ -59,3 +59,7 @@ Do not force merges or bulk-upgrade the lockfiles in this documentation-only sco
 - Product/device/field acceptance: **open** and independently gated.
 - No V4.91.6 by default, no Services 3.1 expansion, no invoice/settlement functionality or productionization.
 - Staging/main: untouched; main changes require the user's explicit approval.
+
+## Release-identity alignment ahead of protected promotion
+
+**Source:** V4.91.1–V4.91.5 functionality and review evidence remain as documented above. The root, API, Admin, Resident and Guard identities previously remained at V4.89.14 despite the V4.91 engineering milestones. The separate release-control PR aligns all five to `4.91.5` (Resident/Guard `4.91.5+49105`) before staging promotion so API responses, release artifacts and screenshots can be traced to one coherent build. Version alignment alone is not field acceptance, hosted readiness, provider certification or permission to bypass main review. Promote only the exact green `develop` tree and preserve the protected staging + independently reviewed main PR gates.
