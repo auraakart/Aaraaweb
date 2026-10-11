@@ -47,9 +47,9 @@ requireTokens('V4.86.1 Assistant premium UX',assistant,[
   "title: 'Quick actions'",
   "label: const Text('Create complaint')",
   "'Based on ' + sources.join(' · ')",
-  'ResidentVoiceCopy.languageLabels.entries',
+  "static const _assistantSpeechLanguageCode = 'en'",
 ]);
-for(const stale of ['Ask by voice','Prepare complaint','_factsView(']){
+for(const stale of ['Ask by voice','Prepare complaint','_factsView(','ResidentVoiceCopy.languageLabels.entries','DropdownButton<String>',"decoration: const InputDecoration(labelText: 'Language')"]){
   if(assistant.includes(stale)) throw new Error(`V4.86.1 Assistant regression: stale UI token remains: ${stale}`);
 }
 

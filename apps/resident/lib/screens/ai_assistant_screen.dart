@@ -48,7 +48,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   int _preferenceLoadEpoch = 0;
   late final ResidentSpeech _speech;
   bool _listening = false;
-  String _voiceLanguage = 'en';
+  // English-only Assistant; independent Helpdesk locales remain unchanged.
+  static const _assistantSpeechLanguageCode = 'en';
   String? _voiceStatus;
 
   static const _quickActions = <({String label, String prompt, IconData icon})>[
@@ -131,26 +132,26 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (_busy || _listening) return;
     setState(() {
       _listening = true;
-      _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantListening');
+      _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantListening');
       _error = null;
     });
     try {
-      final text = await _speech.listenOnce(languageCode: _voiceLanguage);
+      final text = await _speech.listenOnce(languageCode: _assistantSpeechLanguageCode);
       if (!mounted) return;
       if (text == null || text.trim().isEmpty) {
-        setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnavailable'));
+        setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnavailable'));
         return;
       }
       setState(() {
         _lastSubmittedMessage = null;
         _controller.text = text.trim();
         _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
-        _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantReview');
+        _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantReview');
       });
     } on ResidentSpeechUnavailable {
-      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnsupported'));
+      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnsupported'));
     } catch (_) {
-      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_voiceLanguage, 'assistantUnavailable'));
+      if (mounted) setState(() => _voiceStatus = ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantUnavailable'));
     } finally {
       if (mounted) setState(() => _listening = false);
     }
@@ -205,26 +206,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   Widget _overviewCard(ThemeData theme) {
     final scheme = theme.colorScheme;
-    final languagePicker = InputDecorator(
-      decoration: const InputDecoration(labelText: 'Language'),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _voiceLanguage,
-          isExpanded: true,
-          onChanged: _busy || _listening ? null : (value) => setState(() => _voiceLanguage = value ?? 'en'),
-          items: [
-            for (final entry in ResidentVoiceCopy.languageLabels.entries)
-              DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-          ],
-        ),
-      ),
-    );
     final speakButton = OutlinedButton.icon(
       onPressed: _busy || _listening ? null : _listenForAssistant,
       icon: Icon(_listening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded),
       label: Text(_listening
-          ? ResidentVoiceCopy.text(_voiceLanguage, 'assistantListening')
-          : ResidentVoiceCopy.text(_voiceLanguage, 'assistantAction')),
+          ? ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantListening')
+          : ResidentVoiceCopy.text(_assistantSpeechLanguageCode, 'assistantAction')),
     );
 
     return Column(
@@ -282,30 +269,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final scale = MediaQuery.textScalerOf(context).scale(1.0);
-                  final stacked = constraints.maxWidth < 430 || scale > 1.25;
-                  if (stacked) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        languagePicker,
-                        const SizedBox(height: AaraagateTokens.space2),
-                        speakButton,
-                      ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(child: languagePicker),
-                      const SizedBox(width: AaraagateTokens.space3),
-                      speakButton,
-                    ],
-                  );
-                },
-              ),
+              speakButton,
               if (_voiceStatus != null) ...[
                 const SizedBox(height: AaraagateTokens.space2),
                 Row(
