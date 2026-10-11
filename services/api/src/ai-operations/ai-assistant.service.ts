@@ -229,7 +229,7 @@ export class AiAssistantService {
         const excerpt=String(item.excerpt??'').trim();
         return String(item.documentId??'').trim().length>0
           && Number.isInteger(item.version) && item.version>0
-          && title.isNotEmpty && excerpt.isNotEmpty
+          && title.length>0 && excerpt.length>0
           && title.toLowerCase()!==excerpt.toLowerCase();
       });
       return this.auditedResponse(
