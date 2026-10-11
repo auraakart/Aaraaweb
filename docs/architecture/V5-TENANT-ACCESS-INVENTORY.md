@@ -1,6 +1,6 @@
 # V5.0.2 tenant-access inventory and V5.2 work queue
 
-Version: 1.5, 2026-10-11. Current review baseline: develop `12d861fe02d6b056ceab415ed86822d0e8ac7ec9`, with the V5.2.7 community-circle transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
+Version: 1.6, 2026-10-11. Current review baseline: develop `12d861fe02d6b056ceab415ed86822d0e8ac7ec9`, with the V5.2.7 community-circle transaction changes included in the generated register. Original ownership inventory baseline: `8e87dbf8f809215db92e14dfd727c42ac7f76553`. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
 
 ## Coverage and reproduction
 
@@ -13,14 +13,14 @@ The companion `v5-tenant-access-inventory.json` contains every discovered table,
 | Tables, including SQL-only tables | 249 |
 | API runtime/script source files | 397 |
 | Migration SQL files | 190 |
-| Database access sites | 2,121 |
-| Raw SQL / ORM sites | 1,606 / 515 |
+| Database access sites | 2,122 |
+| Raw SQL / ORM sites | 1,607 / 515 |
 | Controller route handlers | 872 |
 | Unsafe runtime SQL calls discovered | 0 |
 | Unsafe disposable performance-seed calls | 11 |
-| Recognized SQL utility sites | 58 |
+| Recognized SQL utility sites | 59 |
 | Indirect SQL expression requiring manual resolution | 1 |
-| Runtime calls to `withTenantContext` | 37 |
+| Runtime calls to `withTenantContext` | 48 |
 | RLS enable/force/policy statements in migrations | 0 |
 
 Scope token presence is a review aid, not proof of a predicate, current membership, or same-tenant parent relationship. AST extraction targets known Prisma model delegates, including literal bracket access, and raw query/execute calls. It resolves local SQL variables to a bounded depth. DDL extraction targets this repository's quoted table declarations and ALTER-added fields. Unknown SQL forms, computed delegates, imported SQL construction, nested authorization, external database clients, hosted roles/grants/policies and actual runtime reachability require separate review. Tests/generated code are excluded. Searches outside API source/scripts found source-contract checks rather than runtime Prisma access; browser/mobile API calls are downstream surfaces, not database access sites.
@@ -56,7 +56,7 @@ Every table has a boundary and maintainer responsibility in the JSON register; n
 | ISO-06 | P0 | all scoped table batches; runtime DB role/RLS policies | Explicit table-by-table policy matrix, applicable bypass-role audit, USING/WITH CHECK and missing-context negatives; no blanket RLS activation before conversion |
 | ISO-07 | P1 | disposable performance-seed.mjs (11 Unsafe calls), SQL utility/advisory locks | Fixture-only execution safeguards, no runtime promotion, controlled identifier construction and trigger restoration; lock keys appropriate to society/user/provider scope |
 
-The `withTenantContext` helper sets a transaction-local database value. Thirty-seven runtime calls now cover branding configuration, society details, gate assignments, community-poll participation, community events, the resident directory and community circles. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
+The `withTenantContext` helper sets a transaction-local database value. Forty-eight runtime calls now cover branding configuration, society details, gate assignments, community-poll participation, community events, the resident directory, community circles and core committee/meeting workflows. No migrated RLS policies exist yet, so current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
 
 Definition of Done for this inventory: exhaustive static register for the supported repository source forms; table/route/query evidence and authority classes; explicit exceptions/limitations; maintainer responsibilities; prioritized V5.2 conversion queue; deterministic stale check in canonical CI. Definition of Done for isolation is separate: runtime-role, pooled-connection, nested-write, worker, storage/cache and cross-audience tests tied to each converted batch. Changes to source or DDL forms require extractor review as well as regeneration.
 
@@ -104,3 +104,14 @@ Fifteen community-circle operations now establish tenant context. Resident autho
 The scheduled `deleteExpired` method remains a documented bounded platform exception (100 rows, FOR UPDATE SKIP LOCKED); it is not a resident API. Scheduler authorization/context conversion remains ISO-03 work. Unit tests reject global-client access, revoked residency and foreign parents. A disposable PostgreSQL fixture exercises two societies, duplicate-name races, membership privacy, foreign messages/moderation, report deduplication, request approval, closed/expired lifecycle, join/leave retries and revoked residency. Canonical API CI must execute the fixture before merge.
 
 Local circle/controller/scheduler validation passed 43 tests. API lint/typecheck/build, inventory regeneration, API route/PostgreSQL parameter contracts, V4.82 circle trust contract, branding and secret scan passed. The optional V4.86 adoption script has a pre-existing stale Easy Mode source-token assertion in unchanged apps/resident/lib/main.dart; it is not a changed-slice validation failure. Native PostgreSQL remains required in protected CI. Runtime context calls increase from 22 to 37. This bounded conversion does not enable RLS, close ISO-04/ISO-03 or certify complete V5 isolation. Rollback is a reviewed revert. Staging/main promotion remains excluded.
+
+
+## V5.2.8 governance core transactions and evidence atomicity
+
+V5.2.7 merged through PR #1218 at `2d2dd11d1c844a4d793ef24284668c63a0585d82` after canonical CI run [38156639668](https://github.com/auraakart/Aaraaweb/actions/runs/38156639668) passed on `c10c14fb4bfd1b439a1f5a71023c50ecd01cc938`. Full API regression passed 1,706 tests (15 explicitly skipped); the new community-circle PostgreSQL fixture executed successfully. All required merge gates passed.
+
+Eleven committee/meeting operations now establish society-scoped transactions. Parent and linked agenda/resolution checks, mutation, append-only evidence and meeting aggregate reads use the same supplied client. Public meeting reads delegate to a client-required internal helper, avoiding nested transactions during mutation response reads. Meeting creation/outcomes, agenda, resolutions and action creation now roll back when evidence fails; action updates retain existing atomicity and row locking. Committee tenure creation adds a society/member advisory lock before its overlap query so concurrent first-tenure requests cannot both pass an empty history. Existing response fields, date/quorum/status checks, identity lookup rules, controller permissions, feature entitlements and SQL scope predicates remain unchanged.
+
+Unit tests reject global-client fallbacks, foreign parents and linked children, and propagate evidence failure. A disposable PostgreSQL fixture covers two societies, same-society foreign meetings, first-tenure races, lifecycle/evidence consistency and six failed-evidence rollbacks. It also proves evidence deletion remains forbidden. Fixture cleanup temporarily disables only its append-only delete trigger under a table lock within transactional DDL, deletes only generated society fixtures, and restores the trigger before commit; this is test-only and never a runtime path.
+
+Local focused governance validation: 35 tests passed; native PostgreSQL fixture skipped without DATABASE_URL and must execute in canonical CI before merge. API lint/typecheck/build, inventory regeneration and API/PostgreSQL parameter, repository, branding and secret contracts passed. Runtime context calls increase from 37 to 48. No schema/RLS, partner audience or client contract changes. Remaining governance artifact/election controllers and other isolation batches remain open; this is not complete V5 isolation. Rollback is a reviewed revert. Staging/main promotion remains excluded.
