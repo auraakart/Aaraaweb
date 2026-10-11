@@ -17,16 +17,27 @@
       "id": "V5.0",
       "name": "Baseline contracts and architecture",
       "status": "IN_PROGRESS",
-      "currentSlice": "V5.0.1",
+      "currentSlice": "V5.0.2",
       "slices": [
         {
           "id": "V5.0.1",
           "name": "Read-only default-brand and authenticated context configuration",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/branding/branding.service.spec.ts",
             "services/api/src/branding/branding.controller.spec.ts",
             "services/api/scripts/branding-http-smoke.mjs"
+          ],
+          "pullRequest": 1209
+        },
+        {
+          "id": "V5.0.2",
+          "name": "Reproducible tenant-access inventory and isolation conversion queue",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "evidence": [
+            "docs/architecture/V5-TENANT-ACCESS-INVENTORY.md",
+            "docs/architecture/v5-tenant-access-inventory.json",
+            "services/api/scripts/tenant-access-inventory.mjs"
           ]
         }
       ]
@@ -34,9 +45,26 @@
     {
       "id": "V5.1",
       "name": "Partner ownership and compatibility schema",
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "V5.0"
+      ],
+      "currentSlice": "V5.1.0",
+      "slices": [
+        {
+          "id": "V5.1.0",
+          "name": "Default partner ownership and immutable legacy entitlement cutover evidence",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "evidence": [
+            "docs/architecture/V5-PARTNER-OWNERSHIP-COMPATIBILITY.md",
+            "services/api/scripts/partner-ownership-migration-smoke.mjs",
+            "services/api/src/societies/societies-compatibility.postgres.spec.ts"
+          ]
+        }
+      ],
+      "remaining": [
+        "Ownership history and audited transfer contract",
+        "Legacy subscription grant conversion after licensing authority is specified"
       ]
     },
     {
@@ -95,5 +123,6 @@
     "Branding does not grant authorization",
     "No productionization",
     "No staging/main per-slice promotion"
-  ]
+  ],
+  "implementationBaselineSha": "8e87dbf8f809215db92e14dfd727c42ac7f76553"
 }

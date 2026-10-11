@@ -453,6 +453,14 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+      - name: Verify V5 tenant-access inventory
+        run: node services/api/scripts/tenant-access-inventory.mjs --check
+      - name: V5 partner ownership historical upgrade and replay
+        env:
+          AARAAGATE_PARTNER_MIGRATION_CI: '1'
+        run: |
+          node services/api/scripts/partner-ownership-migration-smoke.mjs
+          pnpm --filter @aaraagate/api exec vitest run src/societies/societies-compatibility.postgres.spec.ts
       - name: Lint API
         run: pnpm --filter @aaraagate/api lint
       - name: Typecheck API
