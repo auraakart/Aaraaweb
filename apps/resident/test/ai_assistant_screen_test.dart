@@ -47,6 +47,16 @@ class FakeApiClient extends ApiClient {
   }
 }
 
+class PendingAssistantApiClient extends FakeApiClient {
+  final reply = Completer<dynamic>();
+
+  @override
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) {
+    posts.add(path);
+    return reply.future;
+  }
+}
+
 class FakeResidentSpeech implements ResidentSpeech {
   FakeResidentSpeech(this.transcript);
 
@@ -591,4 +601,62 @@ void main() {
     expect(find.text('What is my maintenance due and when should I pay it?'), findsOneWidget);
     expect(api.posts, isEmpty);
   });
+  testWidgets('old property microphone transcript is discarded on unit switch', (tester) async {
+    final api = FakeApiClient();
+    final speech = PendingResidentSpeech();
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('voice-context'), apiClient: api, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.tap(find.text('Speak'));
+    await tester.pump();
+    expect(find.text('Listening…'), findsWidgets);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('voice-context'), apiClient: api, unitId: 'unit-B', speech: speech,
+    )));
+    await tester.pump();
+    expect(speech.stopCalls, greaterThan(0));
+    speech.result.complete('Prior property private question');
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(find.text('Prior property private question'), findsNothing);
+    expect(find.text('Listening…'), findsNothing);
+    expect(api.posts, isEmpty);
+  });
+
+  testWidgets('old authenticated API result cannot appear after client swap for same unit', (tester) async {
+    final oldApi = PendingAssistantApiClient();
+    final newApi = FakeApiClient();
+    final speech = FakeResidentSpeech(null);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('answer-context'), apiClient: oldApi, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.enterText(find.byType(TextField), 'Show my open complaints');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pump();
+    expect(oldApi.posts, ['/api/v1/ai-operations/assistant/query']);
+    await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
+      key: const ValueKey('answer-context'), apiClient: newApi, unitId: 'unit-A', speech: speech,
+    )));
+    await tester.pump();
+    oldApi.reply.complete({
+      'intent': 'RESIDENT_STATUS',
+      'answer': 'Private old-session answer',
+      'sources': ['Old session'],
+      'grounded': true,
+      'mutationPerformed': false,
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Private old-session answer'), findsNothing);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(newApi.posts, isEmpty);
+    await tester.enterText(find.byType(TextField), 'Show my maintenance dues');
+    await tester.ensureVisible(find.text('Ask'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask'));
+    await tester.pumpAndSettle();
+    expect(newApi.posts, ['/api/v1/ai-operations/assistant/query']);
+  });
+
 }

@@ -36,3 +36,9 @@ English-only Assistant and focused 320px/200%-text, repeat-voice and no-auto-sub
 ## V4.91.2 Finance authorization regression follow-on
 
 Scoped PostgreSQL tests extend existing invoice/payment-order authority rather than rewriting or adding a payment engine: departed-tenant same-key retry is denied despite historical payment, owner-only unit receipt and history are hidden from a tenant of another unit, and one owner cannot replay another society's payment key through a mismatched society context. Require the actual migrated PostgreSQL CI gate; a locally skipped test is not acceptance. Other accounting reconciliations/refund matrix and security penetration/device testing remain unverified.
+
+## V4.91.3 — Assistant property/session asynchronous recovery defect
+
+**Identified:** Resident Assistant cleared state on a property/client change but an already-running microphone capture or answer request could still finish later and populate the next session. The request guard compared only `unitId`, not the actual authenticated `apiClient` identity; changing user while retaining the same unit was especially vulnerable to stale answer display.
+
+**Bounded correction:** invalidate all pending voice and query completions on `unitId`, `demoMode`, `apiClient` or `preferenceScope` change; release busy/listening UI; stop speech; capture the original API client before dispatch and drop old-session successes, failures and finalizers. Protect asynchronous preference-write error rollback from overriding a new session. New widget tests exercise late voice and same-unit API-client swaps and confirm a new request remains usable. No server authorization or language features change. Device/role-wide acceptance remains unverified.
