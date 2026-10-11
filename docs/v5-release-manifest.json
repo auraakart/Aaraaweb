@@ -33,12 +33,15 @@
         {
           "id": "V5.0.2",
           "name": "Reproducible tenant-access inventory and isolation conversion queue",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "docs/architecture/V5-TENANT-ACCESS-INVENTORY.md",
             "docs/architecture/v5-tenant-access-inventory.json",
             "services/api/scripts/tenant-access-inventory.mjs"
-          ]
+          ],
+          "pullRequest": 1210,
+          "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+          "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
         }
       ]
     },
@@ -54,12 +57,15 @@
         {
           "id": "V5.1.0",
           "name": "Default partner ownership and immutable legacy entitlement cutover evidence",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "docs/architecture/V5-PARTNER-OWNERSHIP-COMPATIBILITY.md",
             "services/api/scripts/partner-ownership-migration-smoke.mjs",
             "services/api/src/societies/societies-compatibility.postgres.spec.ts"
-          ]
+          ],
+          "pullRequest": 1210,
+          "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+          "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
         }
       ],
       "remaining": [
@@ -124,5 +130,15 @@
     "No productionization",
     "No staging/main per-slice promotion"
   ],
-  "implementationBaselineSha": "8e87dbf8f809215db92e14dfd727c42ac7f76553"
+  "implementationBaselineSha": "8e87dbf8f809215db92e14dfd727c42ac7f76553",
+  "validationEvidence": {
+    "pullRequest": 1210,
+    "runtimeHeadSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+    "developMergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91",
+    "workflowRun": "https://github.com/auraakart/Aaraaweb/actions/runs/38132938204",
+    "protectedGates": "PASSED",
+    "nativePostgresUpgrade": "189 prior migrations; 64 compatibility fixtures; replay; atomic failure rollback; constraints; legacy response contract",
+    "apiAdminFlutter": "Full validation passed",
+    "stagingMainPromotion": "NONE"
+  }
 }

@@ -1,6 +1,6 @@
 # V5.0.2 tenant-access inventory and V5.2 work queue
 
-Version: 1.0, 2026-10-11. Review baseline: develop `8e87dbf8f809215db92e14dfd727c42ac7f76553`, with the V5.1.0 additive ownership changes included in the generated register. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
+Version: 1.1, 2026-10-11. Review baseline: develop `8e87dbf8f809215db92e14dfd727c42ac7f76553`, with the V5.1.0 additive ownership changes included in the generated register. This completes the source-access inventory deliverable. Authorization hardening remains V5.2 work; this register is not an isolation certification.
 
 ## Coverage and reproduction
 
@@ -59,3 +59,7 @@ Every table has a boundary and maintainer responsibility in the JSON register; n
 The existing `withTenantContext` helper sets a transaction-local database value, but this snapshot contains no runtime calls or migrated RLS policies. Consequently, current service/guard predicates remain the protection mechanism. Preserve them throughout conversion. Global scheduler and platform operations require narrowly authorized exceptions rather than forcing every table to carry partnerId. Never copy partnerId onto all operational rows; derive current ownership through Society.
 
 Definition of Done for this inventory: exhaustive static register for the supported repository source forms; table/route/query evidence and authority classes; explicit exceptions/limitations; maintainer responsibilities; prioritized V5.2 conversion queue; deterministic stale check in canonical CI. Definition of Done for isolation is separate: runtime-role, pooled-connection, nested-write, worker, storage/cache and cross-audience tests tied to each converted batch. Changes to source or DDL forms require extractor review as well as regeneration.
+
+## Protected validation closure
+
+Implemented and merged through [PR #1210](https://github.com/auraakart/Aaraaweb/pull/1210). Runtime head f2a28dda4c5c2531d3ac2c95be62341010b0b2a3 passed [canonical CI](https://github.com/auraakart/Aaraaweb/actions/runs/38132938204); develop merge 2ee24a4ab6f302e0d767df3c31f18229883baf91. Native PostgreSQL 16 clean deployment, historical upgrade, 64 compatibility fixtures, replay, atomic failure rollback, constraints and legacy society response checks passed. API/Admin/Flutter full suites and required merge gates passed. The test harness uses explicit PostgreSQL connection fields and Node adapter tests live with the repository's Node tests. The tenant-index checker recognizes society-leading primary keys without requiring duplicate indexes, with non-leading/commented-key regression coverage. Staging/main and hosted environments remain untouched.
