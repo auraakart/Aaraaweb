@@ -40,8 +40,8 @@ function selfTest() {
   assert.equal(closedLabelViolation(['V4.90.19.1 — distinct future milestone']), null);
   assert.equal(closedLabelViolation(['v4.90.18.11 — invoice']), 'v4.90.18.11');
   assert.equal(closedLabelViolation([ONE_OFF_TITLE,ONE_OFF_BRANCH]), null);
-  assert.equal(closedLabelViolation([ONE_OFF_TITLE,'feature/v4.90.18.11-invoice']), 'v4.90.18.11');
-  assert.equal(closedLabelViolation([ONE_OFF_TITLE+' + money',ONE_OFF_BRANCH]), 'v4.90.18.11');
+  assert.equal(closedLabelViolation([ONE_OFF_TITLE,'feature/v4.90.18.11-invoice']), 'V4.90.18.11');
+  assert.equal(closedLabelViolation([ONE_OFF_TITLE+' + money',ONE_OFF_BRANCH]), 'V4.90.18.11');
   assert.equal(closedLabelViolation(['V4.90.18.12 — payout',ONE_OFF_BRANCH]), 'V4.90.18.12');
   assert.equal(closedLabelViolation(['feature/V4.90.18.124-payout']), 'V4.90.18.124');
   assert.equal(closedLabelViolation(['V4.90.18.1000']), 'V4.90.18.1000');
