@@ -91,9 +91,9 @@ void main() {
     expect(find.text('Create complaint'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
     expect(api.posts, isEmpty);
-    speech.result.complete('பராமரிப்பு கட்டணம் என்ன');
+    speech.result.complete('What is my maintenance due?');
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'பராமரிப்பு கட்டணம் என்ன');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'What is my maintenance due?');
     expect(tester.widget<FilledButton>(find.ancestor(of: find.text('Ask'), matching: find.byWidgetPredicate((w) => w is FilledButton)).first).onPressed, isNotNull);
     expect(api.posts, isEmpty);
   });
@@ -118,6 +118,8 @@ void main() {
     expect(find.text('Book amenities'), findsOneWidget);
     expect(find.text('Society updates'), findsOneWidget);
     expect(find.text('Speak'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(find.text('Language'), findsNothing);
     expect(find.text('Create complaint'), findsNothing);
     expect(find.text('Prepare complaint for review'), findsNothing);
     expect(find.text('Available for you'), findsNothing);
@@ -159,29 +161,45 @@ void main() {
     expect(api.posts, isEmpty);
   });
 
-  testWidgets('assistant captures a second Tamil recording without submitting either draft', (tester) async {
+  testWidgets('English-only Assistant hides the language picker and keeps repeat voice drafts review-only', (tester) async {
     final api = FakeApiClient();
-    final speech = FakeResidentSpeech('முதல் கேள்வி');
+    final speech = FakeResidentSpeech('First question');
     await tester.pumpWidget(MaterialApp(home: AiAssistantScreen(
       apiClient: api, unitId: '22222222-2222-4222-8222-222222222222', speech: speech,
     )));
-    await tester.tap(find.byType(DropdownButton<String>));
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(find.text('Language'), findsNothing);
+    await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('தமிழ்').last);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('பேசுங்கள்'));
-    await tester.tap(find.text('பேசுங்கள்'));
-    await tester.pumpAndSettle();
-    expect(speech.languageCode, 'ta');
-    expect(find.text('முதல் கேள்வி'), findsOneWidget);
-    speech.transcript = 'இரண்டாவது கேள்வி';
-    await tester.tap(find.text('பேசுங்கள்'));
+    expect(speech.languageCode, 'en');
+    expect(find.text('First question'), findsOneWidget);
+    speech.transcript = 'Second question';
+    await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
     expect(speech.listenCalls, 2);
-    expect(speech.languageCode, 'ta');
-    expect(find.text('இரண்டாவது கேள்வி'), findsOneWidget);
-    expect(find.text('முதல் கேள்வி'), findsNothing);
+    expect(speech.languageCode, 'en');
+    expect(find.text('Second question'), findsOneWidget);
+    expect(find.text('First question'), findsNothing);
     expect(api.posts, isEmpty);
+  });
+
+  testWidgets('English-only Assistant speech works at narrow width with 200 percent text', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final speech = FakeResidentSpeech('What are my dues?');
+    await tester.pumpWidget(MaterialApp(home: MediaQuery(
+      data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+      child: AiAssistantScreen(apiClient: FakeApiClient(),
+        unitId: '22222222-2222-4222-8222-222222222222', speech: speech),
+    )));
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    await tester.ensureVisible(find.text('Speak'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(speech.languageCode, 'en');
+    expect(find.text('What are my dues?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
 
