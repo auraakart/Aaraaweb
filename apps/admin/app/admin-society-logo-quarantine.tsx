@@ -65,7 +65,7 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
     }finally{setBusy(false)}
   }
 
-  const confirm=async(asset:SocietyLogoAsset)=>{
+  const verifyLogo=async(asset:SocietyLogoAsset)=>{
     if(busy||asset.status!=='PENDING')return
     setBusy(true);setError('');setNotice('')
     try{
@@ -113,7 +113,7 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
         <span> · {new Date(item.createdAt).toLocaleDateString()}</span>
         {item.status==='VERIFIED'&&<span> · Safety verified</span>}
         {item.status==='PENDING'&&<button type="button" disabled={busy}
-          onClick={()=>void confirm(item)}>Verify after link expiry</button>}
+          onClick={()=>void verifyLogo(item)}>Verify after link expiry</button>}
       </li>)}</ul>}
     <p className="brand-editor-help">
       Verified means safe for future review, not published. Pending/rejected images are
