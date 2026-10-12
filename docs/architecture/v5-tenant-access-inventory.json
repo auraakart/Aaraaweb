@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "6d160731e3e0ba8fbb3be0d39559e902d019d72f676beb7079d8ed74dba483a4",
+  "sourceDigest": "8b8b3a7c885f8047d1e2efddd98a18ae92a9596e1ce17c9728baaad6c91dc50a",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 59,
-    "runtimeTenantContextCalls": 99,
+    "runtimeTenantContextCalls": 105,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -355,6 +355,30 @@
     {
       "file": "services/api/src/privacy/privacy-consent.service.ts",
       "line": 121
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 32
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 51
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 73
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 106
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 135
+    },
+    {
+      "file": "services/api/src/privacy/privacy-incident.service.ts",
+      "line": 166
     },
     {
       "file": "services/api/src/privacy/privacy-registry.service.ts",
@@ -1926,17 +1950,17 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-consent.service.ts","line":135,"method":"find","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyConsentRecord"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-consent.service.ts","line":145,"method":"assertActiveDataCategory","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-consent.service.ts","line":154,"method":"assertSocietyRelationship","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":32,"method":"getGrievanceContact","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyGrievanceContact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":51,"method":"upsertGrievanceContact","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyGrievanceContact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":71,"method":"listIncidents","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":107,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":119,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":143,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":151,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":166,"method":"history","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":176,"method":"findIncident","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":188,"method":"assertActiveCategoryCodes","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":199,"method":"assertActiveSocietyMember","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":32,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyGrievanceContact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":52,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyGrievanceContact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":73,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":109,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":121,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":145,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":153,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":169,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncidentEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":180,"method":"findIncident","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":193,"method":"assertActiveCategoryCodes","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-incident.service.ts","line":205,"method":"assertActiveSocietyMember","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-registry.service.ts","line":30,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-registry.service.ts","line":45,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy-registry.service.ts","line":63,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyDataCategory"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
