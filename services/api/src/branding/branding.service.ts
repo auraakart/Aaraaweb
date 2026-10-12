@@ -5,7 +5,7 @@ import { PrismaMembershipRepository } from '../auth/prisma-membership.repository
 import { EntitlementService } from '../entitlements/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BrandBootstrap, BrandContextConfig } from './branding.types';
-import { SocietyBrandPresentation, societyBrandDigest, validateSocietyBrandPresentation } from './branding-contract';
+import { societyBrandDigest, validateSocietyBrandPresentation } from './branding-contract';
 
 @Injectable()
 export class BrandingService {
