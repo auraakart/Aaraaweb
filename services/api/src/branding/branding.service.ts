@@ -112,6 +112,18 @@ export class BrandingService {
     });
   }
 
+  /** Never trust a client-supplied ID as ownership or a safety certificate. */
+  private async requireVerifiedLogo(societyId: string, logoAssetId: string, tx: Prisma.TransactionClient) {
+    const asset = await tx.societyBrandLogoAsset.findFirst({
+      where: {
+        id: logoAssetId, societyId, status: 'VERIFIED',
+        sha256: { not: null }, verifiedAt: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!asset) throw new ConflictException('Branding logo must be a verified asset owned by this society');
+  }
+
   async createDraft(societyId: string, userId: string, input: { expectedVersion: number; config: unknown }) {
     if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0)
       throw new ConflictException('Expected society branding version is invalid');
@@ -125,6 +137,7 @@ export class BrandingService {
       });
       if ((latest?.version ?? 0) !== input.expectedVersion)
         throw new ConflictException('Society branding was modified; reload revisions');
+      if (config.logoAssetId) await this.requireVerifiedLogo(societyId, config.logoAssetId, tx);
       return tx.societyBrandRevision.create({
         data: { societyId, createdById: userId, version: input.expectedVersion + 1, config: config as Prisma.InputJsonValue, digest },
         select: { id: true, version: true, config: true, digest: true, publishedAt: true },
@@ -155,6 +168,7 @@ export class BrandingService {
       const config = validateSocietyBrandPresentation(draft.config);
       if (societyBrandDigest(config) !== draft.digest)
         throw new ConflictException('Branding revision failed integrity verification');
+      if (config.logoAssetId) await this.requireVerifiedLogo(societyId, config.logoAssetId, tx);
       const result = await tx.societyBrandRevision.updateMany({
         where: { id: draft.id, societyId, publishedAt: null },
         data: { publishedAt: new Date() },
