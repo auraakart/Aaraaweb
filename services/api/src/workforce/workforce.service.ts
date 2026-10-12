@@ -320,8 +320,53 @@ export class WorkforceService {
     const hostUserId = residentUserIds[0];
     if (!hostUserId) throw new BadRequestException('Destination household does not have an active resident');
 
+    // Successful notifications must use the occupants revalidated inside
+    // the write transaction, not those seen in the preflight read.
+    let authorizedResidentUserIds = residentUserIds;
     try {
       const request = await this.prisma.$transaction(async (tx) => {
+        const gates = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+          SELECT "id" FROM "Gate"
+          WHERE "id"=${gateId}::uuid AND "societyId"=${societyId}::uuid AND "active"=TRUE
+          LIMIT 1 FOR SHARE
+        `);
+        if (!gates.length) throw new BadRequestException('Gate does not belong to authenticated society or is inactive');
+        const currentAssignments = await tx.$queryRaw<Array<{
+          id:string; workerId:string; startDate:Date|null; endDate:Date|null; schedule:Prisma.JsonValue;
+        }>>(Prisma.sql`
+          SELECT wa."id",wa."workerId",wa."startDate",wa."endDate",wa."schedule"
+          FROM "WorkforceAssignment" wa
+          WHERE wa."id"=${assignmentId}::uuid AND wa."societyId"=${societyId}::uuid
+            AND wa."active"=TRUE AND wa."status"='APPROVED'
+          LIMIT 1 FOR UPDATE OF wa
+        `);
+        const currentAssignment = currentAssignments[0];
+        if (!currentAssignment) throw new NotFoundException('Approved workforce assignment not found');
+        if (currentAssignment.startDate && now < currentAssignment.startDate)
+          throw new BadRequestException('Workforce assignment has not started yet');
+        if (currentAssignment.endDate && now > currentAssignment.endDate)
+          throw new BadRequestException('Workforce assignment has expired');
+        if (!this.isScheduleAllowed(currentAssignment.schedule, now))
+          throw new BadRequestException('Worker is outside the approved schedule');
+        const verifiedWorkers = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+          SELECT "id" FROM "DomesticWorker"
+          WHERE "id"=${currentAssignment.workerId}::uuid AND "societyId"=${societyId}::uuid
+            AND "active"=TRUE AND "verification"='VERIFIED'
+          LIMIT 1 FOR SHARE
+        `);
+        if (!verifiedWorkers.length)
+          throw new BadRequestException('Domestic worker is not currently verified for gate entry');
+        const currentOccupants = await tx.unitOccupancy.findMany({
+          where: {
+            societyId, unitId: assignment.household.unitId, active:true, gateNotificationEnabled:true,
+            effectiveFrom:{lte:now}, OR:[{effectiveTo:null},{effectiveTo:{gt:now}}],
+          },
+          select:{userId:true},
+          orderBy:[{primaryGateContact:'desc'},{escalationOrder:'asc'},{createdAt:'asc'}],
+        });
+        const currentHost = currentOccupants[0]?.userId;
+        if (!currentHost) throw new BadRequestException('Destination household does not have an active resident');
+        authorizedResidentUserIds = currentOccupants.map(occupant => occupant.userId);
         const indiaDate = new Date(`${this.indiaDate(now)}T00:00:00.000Z`);
         const activeLeave = await tx.workforceLeave.findFirst({
           where: {
@@ -349,7 +394,7 @@ export class WorkforceService {
           data: {
             societyId,
             unitId: assignment.household.unitId,
-            requestedById: hostUserId,
+            requestedById: currentHost,
             subjectType: AccessSubjectType.DOMESTIC_HELP,
             subjectName: assignment.worker.name,
             subjectPhone: assignment.worker.phone,
@@ -386,7 +431,7 @@ export class WorkforceService {
         });
         return created;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      return { request, residentUserIds };
+      return { request, residentUserIds: authorizedResidentUserIds };
     } catch (error) {
       const receipt = await this.prisma.gateMutationReceipt.findUnique({
         where: { societyId_idempotencyKey: { societyId, idempotencyKey: key } },
