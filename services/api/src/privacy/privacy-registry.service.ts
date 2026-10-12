@@ -31,7 +31,7 @@ export class PrivacyRegistryService {
       SELECT * FROM "PrivacyDataCategory"
       WHERE "societyId"=${societyId}::uuid
       ORDER BY "active" DESC, "name" ASC
-    `);
+    `));
   }
 
   async createCategory(societyId: string, actorUserId: string, input: DataCategoryInput) {
@@ -87,7 +87,7 @@ export class PrivacyRegistryService {
       SELECT * FROM "PrivacyProcessorRegister"
       WHERE "societyId"=${societyId}::uuid
       ORDER BY "active" DESC, "name" ASC
-    `);
+    `));
   }
 
   async createProcessor(societyId: string, actorUserId: string, input: ProcessorInput) {
@@ -145,7 +145,7 @@ export class PrivacyRegistryService {
       JOIN "User" actor ON actor."id"=pre."actorUserId"
       WHERE pre."societyId"=${societyId}::uuid AND pre."entityType"=${entityType} AND pre."entityId"=${entityId}::uuid
       ORDER BY pre."createdAt" ASC
-    `);
+    `));
   }
 
   private async assertActiveCategoryCodes(tx: Prisma.TransactionClient, societyId: string, codes: string[]) {
