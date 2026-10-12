@@ -9,10 +9,12 @@ export type SocietyBrandPresentation = {
   displayName?: string;
   colors?: { primary: string; primaryDeep: string };
   support?: { email?: string; phone?: string };
+  logoAssetId?: string;
 };
 
-const allowedRoot = new Set(['displayName', 'colors', 'support']);
+const allowedRoot = new Set(['displayName', 'colors', 'support', 'logoAssetId']);
 const allowedColors = new Set(['primary', 'primaryDeep']);
+const logoUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hexColor = /^#[0-9A-Fa-f]{6}$/;
 const supportPhone = /^\+[1-9][0-9]{7,14}$/;
 const supportEmail = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -67,6 +69,14 @@ export function validateSocietyBrandPresentation(value: unknown): SocietyBrandPr
       support.phone = phone;
     }
     config.support = support;
+  }
+  // Opaque verified-asset ID only. No URL, data URI, bucket key or MIME override.
+  // Append to canonical field order to preserve existing published digest hashes.
+  if ('logoAssetId' in value) {
+    if (typeof value.logoAssetId !== 'string' || !logoUuid.test(value.logoAssetId)) {
+      throw new BadRequestException('Invalid society branding logo asset identifier');
+    }
+    config.logoAssetId = value.logoAssetId.toLowerCase();
   }
   return config;
 }
