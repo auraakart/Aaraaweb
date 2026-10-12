@@ -134,45 +134,45 @@ export class PrivacyIncidentService {
   async updateStatus(societyId: string, actorUserId: string, incidentId: string, status: IncidentStatus, note?: string) {
     return this.prisma.withTenantContext(societyId, async tx => {
       const current = await this.findIncident(tx, societyId, incidentId, true);
-    if (!current) throw new NotFoundException('Privacy/security incident not found');
-    if (current.status === 'CLOSED') {
-      if (status === 'CLOSED') return current;
-      throw new BadRequestException('Closed privacy/security incidents cannot be reopened');
-    }
-    const cleanNote = note?.trim() || 'Privacy/security incident status updated';
-    const closedAt = status === 'CLOSED' ? new Date() : null;
+      if (!current) throw new NotFoundException('Privacy/security incident not found');
+      if (current.status === 'CLOSED') {
+        if (status === 'CLOSED') return current;
+        throw new BadRequestException('Closed privacy/security incidents cannot be reopened');
+      }
+      const cleanNote = note?.trim() || 'Privacy/security incident status updated';
+      const closedAt = status === 'CLOSED' ? new Date() : null;
 
-      const rows = await tx.$queryRaw<IncidentRow[]>(Prisma.sql`
-        UPDATE "PrivacySecurityIncident"
-        SET "status" = ${status}, "closedAt" = ${closedAt}, "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${incidentId}::uuid AND "societyId" = ${societyId}::uuid AND "status" = ${current.status}
-        RETURNING *
-      `);
-      const updated = rows[0];
-      if (!updated) throw new BadRequestException('Privacy/security incident changed; refresh and retry');
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "PrivacySecurityIncidentEvent" (
-          "societyId", "incidentId", "actorUserId", "eventType", "summary", "metadataJson"
-        ) VALUES (
-          ${societyId}::uuid, ${incidentId}::uuid, ${actorUserId}::uuid,
-          'STATUS_CHANGED', ${cleanNote}, ${JSON.stringify({ from: current.status, to: status })}::jsonb
-        )
-      `);
-      return updated;
+        const rows = await tx.$queryRaw<IncidentRow[]>(Prisma.sql`
+          UPDATE "PrivacySecurityIncident"
+          SET "status" = ${status}, "closedAt" = ${closedAt}, "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = ${incidentId}::uuid AND "societyId" = ${societyId}::uuid AND "status" = ${current.status}
+          RETURNING *
+        `);
+        const updated = rows[0];
+        if (!updated) throw new BadRequestException('Privacy/security incident changed; refresh and retry');
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "PrivacySecurityIncidentEvent" (
+            "societyId", "incidentId", "actorUserId", "eventType", "summary", "metadataJson"
+          ) VALUES (
+            ${societyId}::uuid, ${incidentId}::uuid, ${actorUserId}::uuid,
+            'STATUS_CHANGED', ${cleanNote}, ${JSON.stringify({ from: current.status, to: status })}::jsonb
+          )
+        `);
+        return updated;
     });
   }
 
   async history(societyId: string, incidentId: string) {
     return this.prisma.withTenantContext(societyId, async tx => {
       const incident = await this.findIncident(tx, societyId, incidentId);
-    if (!incident) throw new NotFoundException('Privacy/security incident not found');
-    return tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-      SELECT e.*, actor."name" AS "actorName"
-      FROM "PrivacySecurityIncidentEvent" e
-      JOIN "User" actor ON actor."id" = e."actorUserId"
-      WHERE e."societyId" = ${societyId}::uuid AND e."incidentId" = ${incidentId}::uuid
-      ORDER BY e."createdAt" ASC
-    `);
+      if (!incident) throw new NotFoundException('Privacy/security incident not found');
+      return tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+        SELECT e.*, actor."name" AS "actorName"
+        FROM "PrivacySecurityIncidentEvent" e
+        JOIN "User" actor ON actor."id" = e."actorUserId"
+        WHERE e."societyId" = ${societyId}::uuid AND e."incidentId" = ${incidentId}::uuid
+        ORDER BY e."createdAt" ASC
+      `);
     });
   }
 
