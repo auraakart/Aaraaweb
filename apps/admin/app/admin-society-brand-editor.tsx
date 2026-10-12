@@ -42,7 +42,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     branding:{schemaVersion:1,revision:'editor-preview',
       brand:{id:'aaraagate',displayName:draft.displayName,colors:draft.colors}},
   },session.societyId):null
-  if(draft&&!preview)validation='Both theme colors must support accessible white text (WCAG AA)'
+  if(draft&&!preview)validation='Unable to generate a safe branding preview'
   const create=async(event:FormEvent)=>{
     event.preventDefault()
     if(!draft||!preview||busy)return
@@ -101,7 +101,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     setError('')
   }
   const previewStyle:CSSProperties=preview?{
-    background:preview.primaryDeep,color:'#FFFFFF',
+    background:preview.primaryDeep,color:preview.onPrimaryDeep,
     borderColor:preview.primary,
   }:{}
   return <>
@@ -117,7 +117,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <label>Display name<input value={name} maxLength={80} required onChange={e=>setName(e.target.value)} /></label>
         <label>Primary color (hex)<input value={primary} maxLength={7} required onChange={e=>setPrimary(e.target.value)} placeholder="#155E75"/></label>
         <label>Deep primary (hex)<input value={primaryDeep} maxLength={7} required onChange={e=>setPrimaryDeep(e.target.value)} placeholder="#164E63"/></label>
-        <p className="brand-editor-help">Six-digit hex only. Both backgrounds must support readable white text. Success, error and gate-status colors are not editable.</p>
+        <p className="brand-editor-help">Six-digit hex only. Foreground text automatically uses accessible black or white contrast. Success, error and gate-status colors are not editable.</p>
         {validation&&<p role="alert" className="error">{validation}</p>}
         <button className="primary" disabled={busy||loading||!!validation} type="submit">{busy?'Saving…':'Save as new draft'}</button>
       </form>
