@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.23",
+      "currentSlice": "V5.2.24",
       "slices": [
         {
           "id": "V5.2.1",
@@ -423,7 +423,7 @@
         {
           "id": "V5.2.23",
           "name": "Tenant-context privacy incident and grievance access with locked incident lifecycle",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "1404bf7576dbe48e460d8a6180af7e84e22fae03",
           "evidence": [
             "services/api/src/privacy/privacy-incident.service.spec.ts",
@@ -431,6 +431,23 @@
           ],
           "limitations": [
             "Society-scoped incident and grievance workflows only; no separate society-less incident endpoint. Transaction-local society context does not activate database RLS. Incident disclosure policies, regulatory processes, external processors and production integrations are not broadened. Existing controller permissions and audit event types retained."
+          ],
+          "pullRequest": 1234,
+          "mergeSha": "7a87758a88b7f3cbc06a6a83c51c20515cb3aa93",
+          "validatedRuntimeSha": "b21721c175caa58a5126e160a4d9d4ea6c4ce013",
+          "ciRun": 38202811530
+        },
+        {
+          "id": "V5.2.24",
+          "name": "Targeted workforce leave tenant isolation and concurrent overlap closure",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "7a87758a88b7f3cbc06a6a83c51c20515cb3aa93",
+          "evidence": [
+            "services/api/src/workforce/workforce-leave.service.spec.ts",
+            "services/api/src/workforce/workforce-leave.postgres.spec.ts"
+          ],
+          "limitations": [
+            "V5.2.24 is a targeted workforce-leave slice informed by inspection of existing workforce services; not a claim that all inventory findings are closed. Workforce ratings, suspensions, general staffing, gate integration, and cross-partner controls need separate review. Transaction-local society context does not activate RLS. No schema, API, permission, independent-home, hardware integration, staging/main promotion or productionization change."
           ]
         }
       ]
