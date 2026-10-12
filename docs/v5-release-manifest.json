@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.24",
+      "currentSlice": "V5.2.25",
       "slices": [
         {
           "id": "V5.2.1",
@@ -440,7 +440,7 @@
         {
           "id": "V5.2.24",
           "name": "Targeted workforce leave tenant isolation and concurrent overlap closure",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "7a87758a88b7f3cbc06a6a83c51c20515cb3aa93",
           "evidence": [
             "services/api/src/workforce/workforce-leave.service.spec.ts",
@@ -448,6 +448,24 @@
           ],
           "limitations": [
             "V5.2.24 is a targeted workforce-leave slice informed by inspection of existing workforce services; not a claim that all inventory findings are closed. Workforce ratings, suspensions, general staffing, gate integration, and cross-partner controls need separate review. Transaction-local society context does not activate RLS. No schema, API, permission, independent-home, hardware integration, staging/main promotion or productionization change."
+          ],
+          "pullRequest": 1235,
+          "mergeSha": "630ee09b720c88bd17a5471d82b66b2f58bec976",
+          "validatedRuntimeSha": "304357d3c675af613e8e44acb5b3f1b2beb03a6b",
+          "ciRun": 38208802762
+        },
+        {
+          "id": "V5.2.25",
+          "name": "Tenant-scope workforce rating and suspension actions with serialized status transitions and audit rollback",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "630ee09b720c88bd17a5471d82b66b2f58bec976",
+          "evidence": [
+            "services/api/src/workforce/workforce-rating.service.spec.ts",
+            "services/api/src/workforce/workforce-suspension.service.spec.ts",
+            "services/api/src/workforce/workforce-rating-suspension.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Scope is ratings and suspension only; not all workforce routes. Explicit society and active-occupancy guards retained; tenant context does not enable RLS. Worker and assignment suspension events retain existing audit table semantics. No controller permission, API, database schema, hardware integration, staging/main branch, or productionization change."
           ]
         }
       ]
