@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.3",
+      "currentSlice": "V5.3.4",
       "slices": [
         {
           "id": "V5.3.1",
@@ -593,7 +593,7 @@
         {
           "id": "V5.3.3",
           "name": "Shared Dart runtime society-brand contract and Resident/Guard theme adapters",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "e6cdcd8149eadd7ee325bf18277af0bb8af67f9e",
           "evidence": [
             "packages/branding_runtime/lib/branding_runtime.dart",
@@ -602,6 +602,23 @@
           ],
           "limitations": [
             "This slice supplies a common validated presentation model and optional theme adapters; the current MaterialApp defaults remain unchanged until an authenticated context loader is explicitly wired in the next slice. No storage/caching, logos, native APK label/icon, partner host, billing, entitlements or operational authority changes."
+          ],
+          "pullRequest": 1244,
+          "mergeSha": "a6e396c0ed99214612eb58e92ffd16c0ae6bdf3b",
+          "validatedRuntimeSha": "63bac915ee0100a9c0b3ace04cf157a6d455eb03",
+          "ciRun": 38237600054
+        },
+        {
+          "id": "V5.3.4",
+          "name": "Resident authenticated society brand loader and stale-context-safe theme lifecycle",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "a6e396c0ed99214612eb58e92ffd16c0ae6bdf3b",
+          "evidence": [
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/resident/test/resident_branding_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "No persistent or cross-society offline brand cache. Failed config request uses the exact default Aaraagate theme; no login denial/entitlement effects. Demo, independent-home and signed-out contexts never fetch. Guard runtime fetching, Admin browser CSS, asset upload and rollback remain separate V5.3 slices."
           ]
         }
       ]
