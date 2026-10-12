@@ -17,6 +17,7 @@ function setup(role: AppRole | null = AppRole.SOCIETY_ADMIN) {
     societyMembership: { findMany: vi.fn().mockResolvedValue(role ? [{ userId, societyId, role, active: true }] : []) },
     $queryRaw: vi.fn().mockResolvedValue([{ id: societyId }]),
     society: { findFirst: vi.fn().mockResolvedValue({ id: societyId }) },
+    societyBrandLogoAsset: { findFirst: vi.fn().mockResolvedValue({id:'44444444-4444-4444-8444-444444444444'}) },
     societyBrandRevision: {
       findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: revisionId, version: 1, config, digest: societyBrandDigest(config), publishedAt: null }),
@@ -105,6 +106,42 @@ describe('V5.3.2 society brand revision workflow', () => {
     });
     await expect(service.publish(societyId, userId, revisionId, 0)).rejects.toBeInstanceOf(ConflictException);
     expect(tx.societyBrandRevision.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing, unverified and other-society logos when allocating a draft', async () => {
+    const logoAssetId='44444444-4444-4444-8444-444444444444';
+    const branded={...config,logoAssetId};
+    const {service,tx}=setup();
+    tx.societyBrandLogoAsset.findFirst.mockResolvedValueOnce(null);
+    await expect(service.createDraft(societyId,userId,{expectedVersion:0,config:branded}))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.societyBrandRevision.create).not.toHaveBeenCalled();
+    await service.createDraft(societyId,userId,{expectedVersion:0,config:branded});
+    expect(tx.societyBrandLogoAsset.findFirst).toHaveBeenCalledWith({
+      where:{
+        id:logoAssetId,societyId,status:'VERIFIED',
+        sha256:{not:null},verifiedAt:{not:null},
+      },select:{id:true},
+    });
+  });
+
+  it('revalidates logo ownership and safety before publishing an immutable revision', async () => {
+    const logoAssetId='44444444-4444-4444-8444-444444444444';
+    const branded={...config,logoAssetId};
+    const {service,tx}=setup();
+    tx.societyBrandRevision.findFirst.mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({id:revisionId,version:1,config:branded,digest:societyBrandDigest(branded)});
+    tx.societyBrandLogoAsset.findFirst.mockResolvedValue(null);
+    await expect(service.publish(societyId,userId,revisionId,0))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.societyBrandRevision.updateMany).not.toHaveBeenCalled();
+    tx.societyBrandRevision.findFirst.mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({id:revisionId,version:1,config:branded,digest:societyBrandDigest(branded)});
+    tx.societyBrandLogoAsset.findFirst.mockResolvedValue({id:logoAssetId});
+    await expect(service.publish(societyId,userId,revisionId,0)).resolves.toMatchObject({
+      version:1,published:true,
+    });
+    expect(tx.societyBrandRevision.updateMany).toHaveBeenCalledOnce();
   });
 
   it('serves draft history only to a current society manager', async () => {
