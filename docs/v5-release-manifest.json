@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.21",
+      "currentSlice": "V5.2.22",
       "slices": [
         {
           "id": "V5.2.1",
@@ -387,7 +387,7 @@
         {
           "id": "V5.2.21",
           "name": "Tenant-scope privacy self-service requests, consent context, and operator subject audiences",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "44fa81a086dcdbae5ddfce6e2cde29421dc33eca",
           "evidence": [
             "services/api/src/privacy/privacy-self.service.spec.ts",
@@ -396,6 +396,24 @@
           ],
           "limitations": [
             "No change to public controller guards or society-selection semantics. Requests without a society retain an unscoped transaction; the globally unique per-user request key remains unchanged across contexts. Platform society-null queue stays unscoped and filtered. This establishes tenant context, not database RLS or proof of statutory privacy compliance. Other subject-data and worker isolation, RLS and productionization remain open."
+          ],
+          "pullRequest": 1232,
+          "mergeSha": "254b0533e64b4838c9bd6f2c6f6e413f73a91537",
+          "validatedRuntimeSha": "afeff38840bdd1b7e2c0e21d1a5d2a15eae9515f",
+          "ciRun": 38200747698
+        },
+        {
+          "id": "V5.2.22",
+          "name": "Tenant-scope privacy subject-data exports and erasure planning/execution while preserving independent-home workflows",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "254b0533e64b4838c9bd6f2c6f6e413f73a91537",
+          "evidence": [
+            "services/api/src/privacy/privacy-subject-data.service.spec.ts",
+            "services/api/src/privacy/privacy-subject-data.erasure-race.spec.ts",
+            "services/api/src/privacy/privacy-subject-data.postgres.spec.ts"
+          ],
+          "limitations": [
+            "RLS remains disabled; setting tenant transaction context is a migration toward defense in depth and explicit SQL society/subject predicates remain mandatory. Erasure preflight and locked execution remain separate transactions; rechecks and row locks in the execution transaction are retained. No change to data minimisation categories, legal-hold/retention rules, endpoints, permissions, cross-society login guards or productionization."
           ]
         }
       ]
