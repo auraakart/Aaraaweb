@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.13",
+      "currentSlice": "V5.3.14",
       "slices": [
         {
           "id": "V5.3.1",
@@ -777,7 +777,7 @@
         {
           "id": "V5.3.13",
           "name": "Admin private PNG logo acquisition and malware-review workflow",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2e9d72f44047c47650d4731e378bd1a0465051cb",
           "evidence": [
             "apps/admin/lib/admin-society-logo.ts",
@@ -787,6 +787,27 @@
           "limitations": [
             "Logo remains quarantined. Immutable revision linkage, protected image-delivery endpoint and mobile/Admin rendering are not enabled in this slice.",
             "Direct signed PUT requires a configured private object store with Admin-origin CORS; no infrastructure setup, public logo URL, identity/entitlement change, staging or main promotion."
+          ],
+          "pullRequest": 1255,
+          "mergeSha": "b3880b0aa22c0445cc0e2447130ba1eb1c61a6e1",
+          "ciRun": 38292807830
+        },
+        {
+          "id": "V5.3.14",
+          "name": "Versioned branding revision accepts same-society VERIFIED logo reference only",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "b3880b0aa22c0445cc0e2447130ba1eb1c61a6e1",
+          "evidence": [
+            "services/api/src/branding/branding-contract.ts",
+            "services/api/src/branding/branding.service.ts",
+            "services/api/src/branding/branding-publish.service.spec.ts",
+            "services/api/src/branding/branding-contract.spec.ts",
+            "apps/admin/lib/admin-society-brand-editor.ts"
+          ],
+          "limitations": [
+            "Server validates logo ownership and verified status at draft/publish; no public/bootstrap/context image URL and no image bytes or rendering yet.",
+            "Admin/Flutter consumer image delivery and preview require a separate secured V5.3.15 slice.",
+            "No new tenant, roles, entitlements, storage migration or staging/main promotion."
           ]
         }
       ]

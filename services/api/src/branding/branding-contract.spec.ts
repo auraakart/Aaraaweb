@@ -45,6 +45,27 @@ describe('V5.3.1 strict runtime society-brand contract', () => {
     expect(societyBrandDigest({displayName:'Elsewhere'})).not.toBe(societyBrandDigest(a));
   });
 
+  it('accepts only a canonical opaque logo ID and preserves historical digests', () => {
+    const logo='AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
+    const withLogo=validateSocietyBrandPresentation({
+      logoAssetId:logo,displayName:'Lake Heights',
+    });
+    expect(withLogo).toEqual({
+      displayName:'Lake Heights',logoAssetId:logo.toLowerCase(),
+    });
+    expect(societyBrandDigest(withLogo)).toBe(societyBrandDigest({
+      displayName:'Lake Heights',logoAssetId:logo.toLowerCase(),
+    }));
+    expect(societyBrandDigest({displayName:'Lake Heights'})).not.toBe(societyBrandDigest(withLogo));
+    for(const bad of [
+      {logoAssetId:'not-an-id'},
+      {logoAssetId:'https://cdn.invalid/logo.png'},
+      {logoAssetId:'a'.repeat(64)},
+      {logoAssetId:null},
+      {logoAssetId:logo,logoUrl:'https://cdn.invalid'},
+    ])expect(()=>validateSocietyBrandPresentation(bad)).toThrow(BadRequestException);
+  });
+
   it('always selects a WCAG contrast-safe primary text foreground', () => {
     expect(onBrandColor('#FFFFFF')).toBe('#000000');
     expect(onBrandColor('#000000')).toBe('#FFFFFF');
