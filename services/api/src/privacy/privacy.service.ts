@@ -294,7 +294,7 @@ export class PrivacyService {
   }
 
   listCases(societyId: string) {
-    return this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT pc.*, subject."name" AS "subjectName", subject."phone" AS "subjectPhone",
              assignee."name" AS "assignedToName"
       FROM "PrivacyRequestCase" pc
@@ -305,7 +305,7 @@ export class PrivacyService {
         CASE pc."status" WHEN 'OPEN' THEN 0 WHEN 'IN_REVIEW' THEN 1 WHEN 'WAITING' THEN 2 ELSE 3 END,
         pc."createdAt" DESC
       LIMIT 250
-    `);
+    `));
   }
 
   async createCase(
@@ -319,15 +319,15 @@ export class PrivacyService {
       dueAt?: string;
     },
   ) {
-    await this.assertSocietySubjectRelationship(societyId, input.subjectUserId);
-    if (input.assignedToUserId) {
-      await this.assertActiveSocietyMember(societyId, input.assignedToUserId, 'Privacy case assignee');
-    }
     const summary = input.requestSummary.trim();
     if (!summary) throw new BadRequestException('Privacy request summary is required');
     const dueAt = input.dueAt ? new Date(input.dueAt) : null;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.assertSocietySubjectRelationship(tx, societyId, input.subjectUserId);
+      if (input.assignedToUserId) {
+        await this.assertActiveSocietyMember(tx, societyId, input.assignedToUserId, 'Privacy case assignee');
+      }
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         INSERT INTO "PrivacyRequestCase" (
           "societyId", "subjectUserId", "requestType", "requestSummary",
@@ -535,20 +535,26 @@ export class PrivacyService {
   }
 
   async history(societyId: string | undefined, caseId: string) {
-    const current = await this.findCase(societyId, caseId);
-    if (!current) throw new NotFoundException('Privacy request case not found');
-    return this.prisma.$queryRaw(Prisma.sql`
-      SELECT pe.*, actor."name" AS "actorName"
-      FROM "PrivacyRequestEvent" pe
-      JOIN "User" actor ON actor."id" = pe."actorUserId"
-      WHERE pe."societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
-        AND pe."caseId" = ${caseId}::uuid
-      ORDER BY pe."createdAt" ASC
-    `);
+    const operation = async (tx: Prisma.TransactionClient) => {
+      const current = await this.findCase(societyId, caseId, tx);
+      if (!current) throw new NotFoundException('Privacy request case not found');
+      return tx.$queryRaw(Prisma.sql`
+        SELECT pe.*, actor."name" AS "actorName"
+        FROM "PrivacyRequestEvent" pe
+        JOIN "User" actor ON actor."id" = pe."actorUserId"
+        WHERE pe."societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
+          AND pe."caseId" = ${caseId}::uuid
+        ORDER BY pe."createdAt" ASC
+      `);
+    };
+    // Independent-home cases intentionally have no society context.
+    return societyId
+      ? this.prisma.withTenantContext(societyId, operation)
+      : this.prisma.$transaction(operation);
   }
 
-  private async findCase(societyId: string | undefined, caseId: string) {
-    const rows = await this.prisma.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
+  private async findCase(societyId: string | undefined, caseId: string, tx?: Prisma.TransactionClient) {
+    const rows = await (tx ?? this.prisma).$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT *
       FROM "PrivacyRequestCase"
       WHERE "id" = ${caseId}::uuid
@@ -564,8 +570,8 @@ export class PrivacyService {
     return candidate.code === '23505' || candidate.code === 'P2002' || candidate.meta?.code === '23505';
   }
 
-  private async assertSocietySubjectRelationship(societyId: string, userId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+  private async assertSocietySubjectRelationship(tx: Prisma.TransactionClient, societyId: string, userId: string) {
+    const rows = await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
       SELECT relationship."userId"
       FROM (
         SELECT sm."userId"
@@ -587,8 +593,8 @@ export class PrivacyService {
     }
   }
 
-  private async assertActiveSocietyMember(societyId: string, userId: string, label: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  private async assertActiveSocietyMember(tx: Prisma.TransactionClient, societyId: string, userId: string, label: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT sm."id"
       FROM "SocietyMembership" sm
       WHERE sm."societyId" = ${societyId}::uuid
