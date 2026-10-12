@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.6",
+      "currentSlice": "V5.3.7",
       "slices": [
         {
           "id": "V5.3.1",
@@ -646,7 +646,7 @@
         {
           "id": "V5.3.6",
           "name": "Admin scoped runtime society-brand palette and client metadata",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2cfc35c033efd86e489f214622e461e976eead1d",
           "evidence": [
             "apps/admin/lib/admin-society-brand.ts",
@@ -655,6 +655,23 @@
           ],
           "limitations": [
             "Branding is applied to the authenticated AdminConsole shell only and never to SSR root metadata or unauthenticated login. Dynamic colors must meet AA white-text contrast; unsafe colors use built-in default. Does not add admin brand editing UX, asset upload, verified hosts, partner white label, a persistent offline cache, RLS or productionization."
+          ],
+          "pullRequest": 1247,
+          "mergeSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "validatedRuntimeSha": "f887df1527ab005f7c7563f6319232749a285762"
+        },
+        {
+          "id": "V5.3.7",
+          "name": "Society-brand Admin editor with permission-scoped drafts, preview, and atomic publishing",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "evidence": [
+            "apps/admin/app/society-brand-editor.tsx",
+            "apps/admin/lib/admin-brand-editor-model.ts",
+            "apps/admin/scripts/v5.3.7-society-brand-editor-regression.mjs"
+          ],
+          "limitations": [
+            "Uses existing authenticated society-management API; server permission SOCIETY_CONFIGURATION_MANAGE unchanged. Accessible color preview uses Admin shell AA contrast constraints; runtime defaults remain Aaraagate. No asset upload, cross-society editor, partner host, entitlement override, native app identity, productionization or staging/main promotion."
           ]
         }
       ]
