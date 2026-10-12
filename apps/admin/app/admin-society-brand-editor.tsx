@@ -69,6 +69,23 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     }catch(e){setError((e instanceof Error?e.message:'Publish failed')+' — reload history to resolve a version conflict.')}
     finally{setBusy(false)}
   }
+  const restore=async(item:SocietyBrandRevision)=>{
+    if(busy||!published||item.id===published.id||!item.publishedAt)return
+    if(!await operatorConfirm('Restore the appearance of version '+item.version+' as a NEW published society branding revision? The current revision remains in history.'))return
+    setBusy(true);setError('');setNotice('')
+    try{
+      const result=await api<{version:number}>(
+        '/branding/manage/revisions/'+encodeURIComponent(item.id)+'/restore',{
+          method:'POST',body:JSON.stringify({
+            expectedVersion:latestVersion,expectedPublishedVersion:published.version,
+          }),
+        },session)
+      await refresh()
+      onPublished()
+      setNotice('Restored version '+item.version+' as published version '+result.version+'. Previous revisions remain immutable.')
+    }catch(e){setError((e instanceof Error?e.message:'Restore failed')+' — reload revisions before retrying.')}
+    finally{setBusy(false)}
+  }
   const copy=(item:SocietyBrandRevision)=>{
     setName(item.config.displayName??session.societyName)
     setPrimary(item.config.colors?.primary??'#155E75')
@@ -112,6 +129,8 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
             <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}</p></div>
           <div className="buttons">
             <button type="button" disabled={busy} onClick={()=>copy(item)}>Use values for new draft</button>
+            {item.publishedAt&&item.id!==published?.id&&
+              <button type="button" disabled={busy} onClick={()=>void restore(item)}>Restore as new revision</button>}
             {!item.publishedAt&&item.version>(published?.version??0)&&
               <button type="button" className="primary" disabled={busy} onClick={()=>void publish(item)}>Publish</button>}
           </div>
