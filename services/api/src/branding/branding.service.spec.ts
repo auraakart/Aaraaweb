@@ -5,6 +5,7 @@ import { PrismaMembershipRepository } from '../auth/prisma-membership.repository
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductFeature, ProductTier } from '../entitlements/entitlement.types';
 import { BrandingService } from './branding.service';
+import { societyBrandDigest } from './branding-contract';
 
 const societyId = '11111111-1111-4111-8111-111111111111';
 const principal = { userId: 'user-a', societyId, roles: [AppRole.TENANT] };
@@ -15,6 +16,7 @@ function fixture() {
     $queryRaw: vi.fn().mockResolvedValue([]),
     withTenantContext: vi.fn(),
     society: { findFirst: vi.fn().mockResolvedValue({ id: societyId, name: 'Society A' }) },
+    societyBrandRevision: { findFirst: vi.fn().mockResolvedValue(null) },
   };
   prisma.withTenantContext.mockImplementation(async (_id, callback) => callback(prisma));
   const entitlements = { current: vi.fn().mockResolvedValue({
@@ -119,6 +121,7 @@ describe('BrandingService V5 default compatibility', () => {
       societyMembership: { findMany: vi.fn().mockResolvedValue([{ userId: principal.userId, societyId, role: AppRole.TENANT, active: true }]) },
       $queryRaw: vi.fn().mockResolvedValue([]),
       society: { findFirst: vi.fn().mockResolvedValue({ id: societyId, name: 'Transaction society' }) },
+      societyBrandRevision: { findFirst: vi.fn().mockResolvedValue(null) },
     };
     prisma.withTenantContext.mockImplementation(async (_id, callback) => callback(tx));
     await expect(service.context(principal)).resolves.toHaveProperty('society.name', 'Transaction society');
@@ -127,6 +130,49 @@ describe('BrandingService V5 default compatibility', () => {
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.society.findFirst).not.toHaveBeenCalled();
     expect(entitlements.current).toHaveBeenCalledWith(societyId, tx);
+  });
+
+  it('renders a published, matching digest for this society without widening features', async () => {
+    const { service, prisma, entitlements } = fixture();
+    const config = { displayName: 'Palm Grove', colors: { primary: '#155E75', primaryDeep: '#164E63' } };
+    prisma.societyBrandRevision.findFirst.mockResolvedValue({
+      version: 3, config, digest: societyBrandDigest(config),
+    });
+    const result = await service.context(principal);
+    expect(result.branding).toEqual({
+      schemaVersion: 1, revision: `society-${societyId}-v3`,
+      brand: { id:'aaraagate', displayName:'Palm Grove',
+        colors:{ primary:'#155E75', primaryDeep:'#164E63' } },
+    });
+    expect(prisma.societyBrandRevision.findFirst).toHaveBeenCalledWith({
+      where: { societyId, publishedAt: {not:null} },
+      orderBy: [{publishedAt:'desc'},{version:'desc'}],
+      select: {version:true,config:true,digest:true},
+    });
+    expect(result.entitlements?.enabledFeatures).toContain(ProductFeature.AI_ASSISTANT);
+    expect(entitlements.current).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses exact default presentation when a revision is corrupt or digest mismatched', async () => {
+    const { service, prisma } = fixture();
+    const baseline = service.bootstrap();
+    prisma.societyBrandRevision.findFirst.mockResolvedValue({
+      version: 8, config: {displayName:'Injected',featureOverrides:{AI_ASSISTANT:true}},digest:'x'.repeat(64),
+    });
+    await expect(service.context(principal)).resolves.toHaveProperty('branding', baseline);
+    prisma.societyBrandRevision.findFirst.mockResolvedValue({
+      version: 9, config: {displayName:'Mismatch'},digest:'0'.repeat(64),
+    });
+    await expect(service.context(principal)).resolves.toHaveProperty('branding', baseline);
+  });
+
+  it('never queries published branding for unauthenticated, revoked or independent identity', async () => {
+    const { service, prisma } = fixture();
+    await expect(service.context(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+    await service.context({userId:principal.userId,roles:[]});
+    prisma.societyMembership.findMany.mockResolvedValue([]);
+    await expect(service.context(principal)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.societyBrandRevision.findFirst).not.toHaveBeenCalled();
   });
 
   it('does not open a society transaction for independent context or public bootstrap', async () => {

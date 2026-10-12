@@ -17,7 +17,12 @@ const { validationPipeOptions } = require('../dist/validation-pipe.options.js');
 const societyId = '11111111-1111-4111-8111-111111111111';
 let metadataReads = 0;
 const prisma = {
-  withTenantContext: async (id, callback) => { return callback(prisma); },
+  withTenantContext: async (_id, callback) => callback(prisma),
+  societyBrandRevision: { findFirst: async ({where}) => {
+    assert.equal(where.societyId, societyId);
+    assert.deepEqual(where.publishedAt, {not:null});
+    return null; // Default-brand HTTP behavior without a published society override.
+  } },
   society: { findFirst: async ({ where }) => {
     metadataReads++;
     assert.equal(where.id, societyId);

@@ -547,9 +547,27 @@
     {
       "id": "V5.3",
       "name": "Runtime society branding",
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "V5.2"
+      ],
+      "currentSlice": "V5.3.1",
+      "slices": [
+        {
+          "id": "V5.3.1",
+          "name": "Runtime society branding contract, immutable revision persistence and authenticated read resolution",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "2b49e67ee6fb6db30b684f4dafb64406bc8cde92",
+          "evidence": [
+            "services/api/src/branding/branding-contract.ts",
+            "services/api/src/branding/branding-contract.spec.ts",
+            "services/api/src/branding/branding-context.postgres.spec.ts",
+            "services/api/prisma/migrations/20261012143000_v53_society_brand_revisions/migration.sql"
+          ],
+          "limitations": [
+            "This slice does not expose draft/publish or image upload endpoints. The public bootstrap remains Aaraagate. Only validated, published society presentation can override the authenticated context response; no partner/distribution/host selection is introduced. No entitlements, roles, CSS/HTML, physical gate or finance behavior changed. RLS, productionization, staging/main promotion remain separate."
+          ]
+        }
       ]
     },
     {

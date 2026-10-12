@@ -26,6 +26,7 @@ model User {
   sessions                  Session[]
   pushDeviceTokens          DevicePushToken[]
   workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
+  societyBrandRevisionsCreated SocietyBrandRevision[] @relation("SocietyBrandRevisionCreator")
   workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
   workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
   helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
@@ -54,6 +55,7 @@ model Society {
   ownershipVersion     Int                        @default(1)
   partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   entitlementCompatibility SocietyEntitlementCompatibility?
+  societyBrandRevisions SocietyBrandRevision[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
   memberships          SocietyMembership[]
@@ -125,6 +127,24 @@ model PartnerMembership {
 }
 
 // Cutover evidence, not a replacement live entitlement resolver or invoice.
+// Immutable configuration snapshots; publishing changes publishedAt only once.
+model SocietyBrandRevision {
+  id            String   @id @default(uuid()) @db.Uuid
+  societyId     String   @db.Uuid
+  version       Int
+  schemaVersion Int      @default(1)
+  config        Json
+  digest        String
+  publishedAt   DateTime? @db.Timestamptz(6)
+  createdById   String   @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("SocietyBrandRevisionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, version])
+  @@index([societyId, publishedAt(sort: Desc), version(sort: Desc)])
+}
+
 model SocietyEntitlementCompatibility {
   societyId        String      @id @db.Uuid
   sourceProductTier ProductTier
