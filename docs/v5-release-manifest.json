@@ -551,12 +551,12 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.1",
+      "currentSlice": "V5.3.2",
       "slices": [
         {
           "id": "V5.3.1",
           "name": "Runtime society branding contract, immutable revision persistence and authenticated read resolution",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2b49e67ee6fb6db30b684f4dafb64406bc8cde92",
           "evidence": [
             "services/api/src/branding/branding-contract.ts",
@@ -566,6 +566,24 @@
           ],
           "limitations": [
             "This slice does not expose draft/publish or image upload endpoints. The public bootstrap remains Aaraagate. Only validated, published society presentation can override the authenticated context response; no partner/distribution/host selection is introduced. No entitlements, roles, CSS/HTML, physical gate or finance behavior changed. RLS, productionization, staging/main promotion remain separate."
+          ],
+          "pullRequest": 1242,
+          "mergeSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "validatedRuntimeSha": "452c1a05a1ddaf8845a0c9a3eddde3547205d8b2",
+          "ciRun": 38228058750
+        },
+        {
+          "id": "V5.3.2",
+          "name": "Society-admin published branding draft/rollback workflow with current membership and version locking",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "evidence": [
+            "services/api/src/branding/branding-publication.service.spec.ts",
+            "services/api/src/branding/branding-publication.postgres.spec.ts",
+            "services/api/src/branding/branding.controller.spec.ts"
+          ],
+          "limitations": [
+            "No user interface, image upload, partner host selection, public draft preview, billing or capability changes. Publishing only alters immutable branding revisions. Additive V5.3.1 schema reused, no new schema/migration, no RLS activation, staging/main or productionization changes."
           ]
         }
       ]
