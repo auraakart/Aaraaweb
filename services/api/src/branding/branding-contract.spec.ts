@@ -18,9 +18,23 @@ describe('V5.3.1 strict runtime society-brand contract', () => {
     {css:'body {display:none}'}, {features:['MAINTENANCE']}, {roles:['SUPER_ADMIN']},
     {partnerId:'00000000-0000-4000-8000-000000000001'}, {logoUrl:'https://example.com'},
     {displayName:'Hello',supportEmail:'help@example.com'},
+    {support:{}}, {support:{email:'invalid'}}, {support:{email:'help@x.com',secret:'x'}},
+    {support:{phone:'9876543210'}}, {support:{phone:'+000000000'}},
+    {support:{email:'help@sample.com',url:'https://example.com'}},
     {displayName:'Hello',colors:[]},
   ])('rejects unsupported, unsafe or capability-bearing values %#', input => {
     expect(() => validateSocietyBrandPresentation(input)).toThrow(BadRequestException);
+  });
+
+  it('accepts normalized contact-only metadata without granting features or accepting URLs', () => {
+    const data = validateSocietyBrandPresentation({
+      displayName:'Lake Heights',support:{email:'  Help@Example.COM ',phone:' +919876543210 '},
+    });
+    expect(data).toEqual({displayName:'Lake Heights',
+      support:{email:'help@example.com',phone:'+919876543210'}});
+    const reordered=validateSocietyBrandPresentation({support:{phone:'+919876543210',email:'help@example.com'},displayName:'Lake Heights'});
+    expect(societyBrandDigest(reordered)).toBe(societyBrandDigest(data));
+    expect(societyBrandDigest({displayName:'Lake Heights'})).not.toBe(societyBrandDigest(data));
   });
 
   it('produces the same digest regardless of input key order and hex case', () => {
