@@ -1,3 +1,4 @@
+import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import 'package:flutter/material.dart';
 
 class AaraagateTokens {
@@ -50,16 +51,16 @@ class AaraagateTheme {
   static const Color ink = Color(0xFF17323A);
   static const Color line = Color(0xFFD5E8EB);
 
-  static ThemeData light() {
+  static ThemeData light({SocietyBrandTokens? societyBrand}) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: brandDeep,
+      seedColor: societyBrand == null ? brandDeep : Color(societyBrand.primaryDeepArgb),
       brightness: Brightness.light,
       surface: Colors.white,
     ).copyWith(
-      primary: brandDeep,
+      primary: societyBrand == null ? brandDeep : Color(societyBrand.primaryDeepArgb),
       // White on brandDeep is below 4.5:1 for small button labels.
-      onPrimary: const Color(0xFF001014),
-      secondary: brand,
+      onPrimary: societyBrand == null ? const Color(0xFF001014) : Color(societyBrand.onPrimaryDeepArgb),
+      secondary: societyBrand == null ? brand : Color(societyBrand.primaryArgb),
       surface: Colors.white,
       surfaceContainerLowest: Colors.white,
       surfaceContainerLow: const Color(0xFFF8FCFD),
@@ -78,14 +79,15 @@ class AaraagateTheme {
     );
   }
 
-  static ThemeData dark() {
+  static ThemeData dark({SocietyBrandTokens? societyBrand}) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: brand,
+      seedColor: societyBrand == null ? brand : Color(societyBrand.primaryArgb),
       brightness: Brightness.dark,
       surface: const Color(0xFF152126),
     ).copyWith(
-      primary: const Color(0xFF55D5E1),
-      secondary: brand,
+      primary: societyBrand == null ? const Color(0xFF55D5E1) : Color(societyBrand.primaryArgb),
+      onPrimary: societyBrand == null ? null : Color(societyBrand.onPrimaryArgb),
+      secondary: societyBrand == null ? brand : Color(societyBrand.primaryDeepArgb),
       surface: const Color(0xFF152126),
       surfaceContainerLowest: const Color(0xFF101A1E),
       surfaceContainerLow: const Color(0xFF18262B),
