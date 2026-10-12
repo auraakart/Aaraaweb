@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.15",
+      "currentSlice": "V5.2.16",
       "slices": [
         {
           "id": "V5.2.1",
@@ -284,13 +284,30 @@
         {
           "id": "V5.2.15",
           "name": "Verify PostgreSQL pooled tenant context concurrency and SQL-error rollback",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "91d1ffd839df925deb98b591ea44ab1a83decea5",
           "evidence": [
             "services/api/src/prisma/prisma.tenant-context.integration.spec.ts"
           ],
           "limitations": [
             "Test-only database context regression slice. No runtime RLS policies, tenant enforcement, new permissions or partner audience activation. ISO-01 through ISO-07 remain open."
+          ],
+          "mergeSha": "c4b32e493cd22eaf9dfdc4c831d4d6b28f19135d",
+          "pullRequest": 1226,
+          "validatedRuntimeSha": "08f50d3771606d28944fc9b80a712249a3fe23da",
+          "ciRun": 38195067713
+        },
+        {
+          "id": "V5.2.16",
+          "name": "Scope existing privacy consent records, representative validation and append-only history to society transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "c4b32e493cd22eaf9dfdc4c831d4d6b28f19135d",
+          "evidence": [
+            "services/api/src/privacy/privacy-consent.service.spec.ts",
+            "services/api/src/privacy/privacy-consent.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No consent feature redesign, API changes, new permissions, schema/RLS policy or partner audience. This closes the consent subpath only; privacy requests, workers, other isolation batches and RLS remain open."
           ]
         }
       ]
