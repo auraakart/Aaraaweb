@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.19",
+      "currentSlice": "V5.2.20",
       "slices": [
         {
           "id": "V5.2.1",
@@ -351,7 +351,7 @@
         {
           "id": "V5.2.19",
           "name": "Transaction-local lock and revalidation of privacy case status, legal hold, and retention review",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "e946b953adacd5250b55ea265293ae58af48854b",
           "evidence": [
             "services/api/src/privacy/privacy-retention-enforcement.spec.ts",
@@ -360,6 +360,24 @@
           ],
           "limitations": [
             "Only status, legal-hold and retention-review lifecycle mutations are converted. Privacy program readiness, reporting, erasure, worker paths, and database RLS remain separate slices. Independent-home case workflows remain unscoped without fabricated society IDs. No schema, API contract, new authorization, partner activation or productionization changes."
+          ],
+          "pullRequest": 1230,
+          "mergeSha": "5dfbced4cf80d51f0d63f730d73fc970d1cc16a0",
+          "validatedRuntimeSha": "675d6203ba529bb8c6e9c4d26e520ecbdbcb4408",
+          "ciRun": 38198822233
+        },
+        {
+          "id": "V5.2.20",
+          "name": "Scope privacy program readiness, evidence reporting and per-case readiness to society transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "5dfbced4cf80d51f0d63f730d73fc970d1cc16a0",
+          "evidence": [
+            "services/api/src/privacy/privacy.program-readiness.spec.ts",
+            "services/api/src/privacy/privacy-readiness.spec.ts",
+            "services/api/src/privacy/privacy-reporting.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only programReadiness, programEvidence and caseReadiness are converted. Reporting still uses default PostgreSQL READ COMMITTED transaction semantics; no repeatable-read guarantee or RLS activation. Other privacy context, self-service, erasure, worker and multi-partner isolation slices remain open. No schema, API, permission or productionization change."
           ]
         }
       ]
