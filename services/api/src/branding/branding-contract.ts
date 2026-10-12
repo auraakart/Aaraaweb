@@ -8,11 +8,14 @@ import { createHash } from 'node:crypto';
 export type SocietyBrandPresentation = {
   displayName?: string;
   colors?: { primary: string; primaryDeep: string };
+  support?: { email?: string; phone?: string };
 };
 
-const allowedRoot = new Set(['displayName', 'colors']);
+const allowedRoot = new Set(['displayName', 'colors', 'support']);
 const allowedColors = new Set(['primary', 'primaryDeep']);
 const hexColor = /^#[0-9A-Fa-f]{6}$/;
+const supportPhone = /^\+[1-9][0-9]{7,14}$/;
+const supportEmail = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -41,6 +44,29 @@ export function validateSocietyBrandPresentation(value: unknown): SocietyBrandPr
       primary: String(value.colors.primary).toUpperCase(),
       primaryDeep: String(value.colors.primaryDeep).toUpperCase(),
     };
+  }
+  if ('support' in value) {
+    const details = value.support;
+    if (!object(details) || !Object.keys(details).length ||
+      Object.keys(details).some(k => k !== 'email' && k !== 'phone')) {
+      throw new BadRequestException('Invalid branding support contacts');
+    }
+    const support: { email?: string; phone?: string } = {};
+    if ('email' in details) {
+      if (typeof details.email !== 'string') throw new BadRequestException('Invalid branding support email');
+      const email = details.email.trim().toLowerCase();
+      if (email.length > 254 || !supportEmail.test(email) || /\.\./.test(email)) {
+        throw new BadRequestException('Invalid branding support email');
+      }
+      support.email = email;
+    }
+    if ('phone' in details) {
+      if (typeof details.phone !== 'string') throw new BadRequestException('Invalid branding support phone');
+      const phone = details.phone.trim();
+      if (!supportPhone.test(phone)) throw new BadRequestException('Invalid branding support phone');
+      support.phone = phone;
+    }
+    config.support = support;
   }
   return config;
 }
