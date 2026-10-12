@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.18",
+      "currentSlice": "V5.2.19",
       "slices": [
         {
           "id": "V5.2.1",
@@ -334,7 +334,7 @@
         {
           "id": "V5.2.18",
           "name": "Tenant-context privacy case intake, operator lists and parent-gated history, retaining independent-home requests",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "65b3419f54d9c99168cdec80e6be0833a3f0b25c",
           "evidence": [
             "services/api/src/privacy/privacy.service.spec.ts",
@@ -342,6 +342,24 @@
           ],
           "limitations": [
             "Only society case intake, listing and case/event history are converted; self-service and platform privacy cases remain independent-home-capable. Status, legal-hold, retention, subject-data erasure, readiness and reporting paths require separate review. No schema/RLS, permission, brand, endpoint or productionization change."
+          ],
+          "pullRequest": 1229,
+          "mergeSha": "e946b953adacd5250b55ea265293ae58af48854b",
+          "validatedRuntimeSha": "066c7369ef867768e45fea7857a906e93a75aae2",
+          "ciRun": 38198067407
+        },
+        {
+          "id": "V5.2.19",
+          "name": "Transaction-local lock and revalidation of privacy case status, legal hold, and retention review",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "e946b953adacd5250b55ea265293ae58af48854b",
+          "evidence": [
+            "services/api/src/privacy/privacy-retention-enforcement.spec.ts",
+            "services/api/src/privacy/privacy.service.spec.ts",
+            "services/api/src/privacy/privacy-case-lifecycle.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only status, legal-hold and retention-review lifecycle mutations are converted. Privacy program readiness, reporting, erasure, worker paths, and database RLS remain separate slices. Independent-home case workflows remain unscoped without fabricated society IDs. No schema, API contract, new authorization, partner activation or productionization changes."
           ]
         }
       ]
