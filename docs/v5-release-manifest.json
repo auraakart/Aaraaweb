@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.17",
+      "currentSlice": "V5.2.18",
       "slices": [
         {
           "id": "V5.2.1",
@@ -317,7 +317,7 @@
         {
           "id": "V5.2.17",
           "name": "Scope privacy registry categories, processors, and evidence to tenant transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "d2f3daa2f3af65b7ba3bed1947ef3c9294129045",
           "evidence": [
             "services/api/src/privacy/privacy-registry.service.spec.ts",
@@ -325,6 +325,23 @@
           ],
           "limitations": [
             "No schema/RLS policy or entitlement/permission changes. Preserves category and processor workflows, response behavior and append-only audit evidence. Other privacy, worker and isolation areas remain open."
+          ],
+          "pullRequest": 1228,
+          "mergeSha": "65b3419f54d9c99168cdec80e6be0833a3f0b25c",
+          "validatedRuntimeSha": "393c0e3a33cfedc708f2678dd3aef1e8d36171b9",
+          "ciRun": 38197415670
+        },
+        {
+          "id": "V5.2.18",
+          "name": "Tenant-context privacy case intake, operator lists and parent-gated history, retaining independent-home requests",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "65b3419f54d9c99168cdec80e6be0833a3f0b25c",
+          "evidence": [
+            "services/api/src/privacy/privacy.service.spec.ts",
+            "services/api/src/privacy/privacy-case-intake.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only society case intake, listing and case/event history are converted; self-service and platform privacy cases remain independent-home-capable. Status, legal-hold, retention, subject-data erasure, readiness and reporting paths require separate review. No schema/RLS, permission, brand, endpoint or productionization change."
           ]
         }
       ]
