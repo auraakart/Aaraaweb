@@ -19,7 +19,7 @@ void main() {
     expect(tokens?.supportEmail,'guard@example.com');
     expect(tokens?.supportPhone,'+919876543210');
     expect(SocietyBrandTokens.tryParseContext(response,societyId:'other-society'),isNull);
-    (response['branding']!['brand']!['support'] as Map)['url']='https://untrusted.example';
+    (((response['branding'] as Map)['brand'] as Map)['support'] as Map)['url']='https://untrusted.example';
     expect(SocietyBrandTokens.tryParseContext(response,societyId:societyId),isNull);
   });
 
