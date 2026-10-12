@@ -4,6 +4,26 @@ import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import 'package:aaraagate_guard/theme/aaraagate_guard_theme.dart';
 
 void main() {
+  test('accepts scoped contact metadata without widening guard gate permissions', () {
+    const societyId='11111111-1111-4111-8111-111111111111';
+    final response={
+      'society':{'id':societyId},
+      'branding':{
+        'schemaVersion':1,'revision':'society-$societyId-v4',
+        'brand':{'id':'aaraagate','displayName':'Society A',
+          'colors':{'primary':'#155E75','primaryDeep':'#164E63'},
+          'support':{'email':'guard@example.com','phone':'+919876543210'}},
+      },
+    };
+    final tokens=SocietyBrandTokens.tryParseContext(response,societyId:societyId);
+    expect(tokens?.supportEmail,'guard@example.com');
+    expect(tokens?.supportPhone,'+919876543210');
+    expect(SocietyBrandTokens.tryParseContext(response,societyId:'other-society'),isNull);
+    (response['branding']!['brand']!['support'] as Map)['url']='https://untrusted.example';
+    expect(SocietyBrandTokens.tryParseContext(response,societyId:societyId),isNull);
+  });
+
+
   test('keeps existing Guard dark/light identity and minimum touch target', () {
     expect(AaraagateGuardTheme.light().colorScheme.primary,const Color(0xFF05879A));
     expect(AaraagateGuardTheme.dark().colorScheme.primary,const Color(0xFF55D5E1));
