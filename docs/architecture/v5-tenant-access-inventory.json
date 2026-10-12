@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "032eac21b4b7b4c5db5fdb922a9740c32e2e5fc0aaae3f96471ee67d417b1072",
+  "sourceDigest": "84d37516a7c7808a2e9bcfc5e6033e8dafc07892eea4cf62f4e2f406177b10f6",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -17,12 +17,12 @@
     "SQL table parsing targets repository quoted DDL; new DDL forms need extractor review"
   ],
   "summary": {
-    "tables": 249,
-    "sourceFilesScanned": 397,
-    "migrationFilesScanned": 190,
-    "accessSites": 2133,
+    "tables": 250,
+    "sourceFilesScanned": 398,
+    "migrationFilesScanned": 191,
+    "accessSites": 2134,
     "rawSqlSites": 1616,
-    "ormSites": 517,
+    "ormSites": 518,
     "routeHandlers": 872,
     "unsafeSqlSites": 11,
     "runtimeUnsafeSqlSites": 0,
@@ -34,7 +34,7 @@
   "tenantContextCalls": [
     {
       "file": "services/api/src/branding/branding.service.ts",
-      "line": 38
+      "line": 39
     },
     {
       "file": "services/api/src/gates/gate-assignment.service.ts",
@@ -746,6 +746,7 @@
     {"name":"Session","model":"Session","fields":["accessTokenHash","createdAt","expiresAt","id","refreshExpiresAt","refreshTokenHash","revocationReason","revokedAt","society","societyId","user","userId"],"origins":["services/api/prisma/migrations/20260901180000_baseline_core/migration.sql","services/api/prisma/schema.prisma"],"boundary":"IDENTITY_AUTH_GLOBAL","modules":["migration-resident-commit.service.ts","onboarding-readiness.service.ts","platform-entitlements.controller.ts","privacy-subject-data.service.ts","reports-analytics.service.ts","residents.controller.ts","session.service.ts","society-roles.controller.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":18,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"Society","model":"Society","fields":["code","createdAt","entitlementCompatibility","featureOverrides","id","name","ownershipVersion","partner","partnerId","productTier","status","updatedAt"],"origins":["services/api/prisma/migrations/20260901180000_baseline_core/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_ROOT","modules":["billing.service.ts","branding.service.ts","consumer-bookings.service.ts","consumer-service-location.service.ts","entitlement.service.ts","facilities-alerts.service.ts","facilities-preventive.service.ts","governance-election-ballot-draft.controller.ts","governance-election-foundation.controller.ts","governance-election-hold.controller.ts","governance-election-privacy.controller.ts","governance-election-procedure.controller.ts","platform-entitlements.controller.ts","reports-analytics.service.ts","societies.controller.ts","sos-fallback.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":32,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyBankAccount","model":null,"fields":["accountName","active","bankName","code","createdAt","id","ifsc","ledgerAccountId","maskedAccountNumber","openingBalancePaise","societyId","updatedAt"],"origins":["services/api/prisma/migrations/20260917143000_v3_bank_reconciliation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["bank-position.service.ts","bank-reconciliation.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":9,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
+    {"name":"SocietyBrandRevision","model":"SocietyBrandRevision","fields":["config","createdAt","createdBy","createdById","digest","id","publishedAt","schemaVersion","society","societyId","version"],"origins":["services/api/prisma/migrations/20261012143000_v53_society_brand_revisions/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["branding.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":1,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyDocument","model":null,"fields":["archivedAt","audience","category","createdAt","description","fileName","id","mimeType","publishedAt","publishedByUserId","sizeBytes","societyId","status","storageKey","supersededByDocumentId","supersedesDocumentId","title","unitId","updatedAt","uploadedByUserId","version"],"origins":["services/api/prisma/migrations/20260914093000_v2_society_documents_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["documents.service.ts","notice-attachments.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":18,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyDocumentEvent","model":null,"fields":["actorUserId","createdAt","documentId","eventType","fromStatus","id","note","societyId","toStatus"],"origins":["services/api/prisma/migrations/20260914093000_v2_society_documents_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["documents.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":6,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyDocumentKnowledge","model":null,"fields":["contentHash","contentText","documentId","indexedAt","indexedByUserId","societyId"],"origins":["services/api/prisma/migrations/20260929090000_v4790_society_knowledge_ai/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["documents.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":4,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
@@ -1302,7 +1303,8 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":103,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AmenityBooking"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":112,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":122,"method":"process","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"tx.society","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":43,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.society","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":44,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandRevision","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":49,"method":"callback","operation":"findFirst","kind":"ORM","tables":["SocietyBrandRevision"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/documents/documents.service.ts","line":32,"method":"listManagement","operation":"$queryRaw","kind":"RAW_SQL","tables":["Building","SocietyDocument","SocietyDocumentKnowledge","Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.unit","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/documents/documents.service.ts","line":46,"method":"managementContext","operation":"findMany","kind":"ORM","tables":["Unit"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/documents/documents.service.ts","line":54,"method":"listPublishedForUser","operation":"$queryRaw","kind":"RAW_SQL","tables":["Unit","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
