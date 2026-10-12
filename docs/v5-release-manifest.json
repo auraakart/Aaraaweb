@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.20",
+      "currentSlice": "V5.2.21",
       "slices": [
         {
           "id": "V5.2.1",
@@ -369,7 +369,7 @@
         {
           "id": "V5.2.20",
           "name": "Scope privacy program readiness, evidence reporting and per-case readiness to society transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "5dfbced4cf80d51f0d63f730d73fc970d1cc16a0",
           "evidence": [
             "services/api/src/privacy/privacy.program-readiness.spec.ts",
@@ -378,6 +378,24 @@
           ],
           "limitations": [
             "Only programReadiness, programEvidence and caseReadiness are converted. Reporting still uses default PostgreSQL READ COMMITTED transaction semantics; no repeatable-read guarantee or RLS activation. Other privacy context, self-service, erasure, worker and multi-partner isolation slices remain open. No schema, API, permission or productionization change."
+          ],
+          "pullRequest": 1231,
+          "mergeSha": "44fa81a086dcdbae5ddfce6e2cde29421dc33eca",
+          "validatedRuntimeSha": "0bd3c613f5cad82dffff4529997b3f4fb0fc4bdd",
+          "ciRun": 38199991943
+        },
+        {
+          "id": "V5.2.21",
+          "name": "Tenant-scope privacy self-service requests, consent context, and operator subject audiences",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "44fa81a086dcdbae5ddfce6e2cde29421dc33eca",
+          "evidence": [
+            "services/api/src/privacy/privacy-self.service.spec.ts",
+            "services/api/src/privacy/privacy-operator-context.spec.ts",
+            "services/api/src/privacy/privacy-self-context.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No change to public controller guards or society-selection semantics. Requests without a society retain an unscoped transaction; the globally unique per-user request key remains unchanged across contexts. Platform society-null queue stays unscoped and filtered. This establishes tenant context, not database RLS or proof of statutory privacy compliance. Other subject-data and worker isolation, RLS and productionization remain open."
           ]
         }
       ]
