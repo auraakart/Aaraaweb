@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.4",
+      "currentSlice": "V5.3.5",
       "slices": [
         {
           "id": "V5.3.1",
@@ -611,7 +611,7 @@
         {
           "id": "V5.3.4",
           "name": "Resident authenticated society brand loader and stale-context-safe theme lifecycle",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "a6e396c0ed99214612eb58e92ffd16c0ae6bdf3b",
           "evidence": [
             "apps/resident/lib/theme/resident_branding_controller.dart",
@@ -619,6 +619,24 @@
           ],
           "limitations": [
             "No persistent or cross-society offline brand cache. Failed config request uses the exact default Aaraagate theme; no login denial/entitlement effects. Demo, independent-home and signed-out contexts never fetch. Guard runtime fetching, Admin browser CSS, asset upload and rollback remain separate V5.3 slices."
+          ],
+          "pullRequest": 1245,
+          "mergeSha": "292bd0f125f4fc4c92c67e35adde8a34204d0545",
+          "validatedRuntimeSha": "aba0e60fbae8dba87f3518de8abb323a5e0f2a42",
+          "ciRun": 38238402826
+        },
+        {
+          "id": "V5.3.5",
+          "name": "Guard runtime society-brand fetch and session-scoped presentation lifecycle",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "292bd0f125f4fc4c92c67e35adde8a34204d0545",
+          "evidence": [
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/guard/test/guard_branding_lifecycle_test.dart",
+            "apps/guard/lib/data/guard_api.dart"
+          ],
+          "limitations": [
+            "Uses existing API authenticated society context; presentation only. No persistent offline cross-society branding cache; demo/default, login failures or network errors retain built-in Guard theme and never block gate operations. Native app identity, logos, signed assets, web CSS/metadata and brand editor remain separate."
           ]
         }
       ]
