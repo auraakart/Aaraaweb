@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.8",
+      "currentSlice": "V5.3.9",
       "slices": [
         {
           "id": "V5.3.1",
@@ -682,7 +682,7 @@
         {
           "id": "V5.3.8",
           "name": "Immutable society branding appearance restoration using versioned draft and publish lifecycle",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "789738bec522cb3e9381de430a0ed33867bfd744",
           "evidence": [
             "apps/admin/lib/admin-society-brand-editor.ts",
@@ -691,6 +691,25 @@
           ],
           "limitations": [
             "Restore is a two-request opt-in workflow that leaves an unpublished draft if interrupted after draft creation; the UI surfaces that explicitly and requires reload. Existing server publication conflict checks remain authoritative. Only prior published society revisions are restorable; drafts and newer/current revisions cannot be treated as rollback targets. No new server authorization, schema, partner portal, media upload, native binary changes, productionization, RLS or staging/main promotion."
+          ],
+          "pullRequest": 1250,
+          "mergeSha": "1991645d6375a483b9a748d7e6fa59f9352cc180",
+          "validatedRuntimeSha": "0ac1f5a7a6606af19b39737cbfac36a9b15b0057",
+          "ciRun": 38259341072
+        },
+        {
+          "id": "V5.3.9",
+          "name": "Admin society palette accessibility parity with Resident and Guard using adaptive foreground tokens",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "1991645d6375a483b9a748d7e6fa59f9352cc180",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand.ts",
+            "apps/admin/app/admin-console.tsx",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/scripts/v5.3.9-brand-contrast-regression.mjs"
+          ],
+          "limitations": [
+            "Presentation-only Admin consistency: does not add image/logo storage, custom hostnames, offline brand persistence, partner distributions or native Android identity. No changes to backend brand publication, society RBAC, legal issuer, payment, guard gates, RLS or productionization. Scoped CSS variables never apply to login/SSR metadata and staging/main are unchanged."
           ]
         }
       ]
