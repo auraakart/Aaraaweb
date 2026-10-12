@@ -19,10 +19,12 @@ describe('WorkforceService tenant isolation', () => {
   });
 
   it('does not reveal a household outside the authenticated society', async () => {
-    const prisma = {
-      household: { findFirst: vi.fn().mockResolvedValue(null) },
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      household: { findFirst: vi.fn() },
       unitOccupancy: { findFirst: vi.fn() },
     };
+    const prisma = {withTenantContext: vi.fn(async (_id: string, operation: (client: typeof tx) => Promise<unknown>) => operation(tx))};
     const service = new WorkforceService(prisma as unknown as PrismaService, accessStub);
 
     await expect(
@@ -33,8 +35,10 @@ describe('WorkforceService tenant isolation', () => {
         role: 'MAID',
       }),
     ).rejects.toThrow('Household not found');
-    expect(prisma.household.findFirst).toHaveBeenCalledWith({ where: { id: 'household-b', societyId: 'society-a' } });
-    expect(prisma.unitOccupancy.findFirst).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.household.findFirst).not.toHaveBeenCalled();
+    expect(tx.unitOccupancy.findFirst).not.toHaveBeenCalled();
+    expect(prisma.withTenantContext).toHaveBeenCalledWith('society-a',expect.any(Function));
   });
 
   it('rejects foreign society assignment before reviewer read or update', async () => {
