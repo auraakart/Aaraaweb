@@ -59,8 +59,7 @@ describe('PrivacyService', () => {
   });
 
   it('blocks completion of an erasure case while legal hold is active', async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([
         {
           id: 'case-1',
           societyId: 'society-1',
@@ -68,19 +67,19 @@ describe('PrivacyService', () => {
           status: 'IN_REVIEW',
           legalHold: true,
         },
-      ]),
-    };
+      ]), $executeRaw: vi.fn() };
+    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_id: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new PrivacyService(prisma as unknown as PrismaService);
 
     await expect(service.updateStatus('society-1', 'admin-1', 'case-1', 'COMPLETED')).rejects.toThrow(
       'Erasure case cannot be completed while legal hold is active',
     );
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('requires a retention reason when enabling legal hold', async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([
         {
           id: 'case-1',
           societyId: 'society-1',
@@ -88,13 +87,15 @@ describe('PrivacyService', () => {
           status: 'OPEN',
           legalHold: false,
         },
-      ]),
-    };
+      ]), $executeRaw: vi.fn() };
+    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_id: string, cb: (client: typeof tx) => unknown) => cb(tx)) };
     const service = new PrivacyService(prisma as unknown as PrismaService);
 
     await expect(service.updateLegalHold('society-1', 'admin-1', 'case-1', true)).rejects.toThrow(
       'Retention reason is required when legal hold is enabled',
     );
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('lists cases only inside the current society', async () => {
