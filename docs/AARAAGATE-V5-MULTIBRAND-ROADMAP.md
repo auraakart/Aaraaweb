@@ -648,3 +648,17 @@ Reuse the existing `PrivacySubjectDataService` and shared `PrismaService.withTen
 Unit tests require the scoped transaction client, no global raw-query fallback, denial of foreign/other-subject exports, erasure-plan blockers and fresh in-transaction legal-hold and active-relationship checks. Native PostgreSQL tests cover two societies and independent-home cases, authorized completed ACCESS data exports, refusal of foreign/other-subject exports, isolated privacy-case records, erasure blockers and non-destructive refusal. Existing output fields and controller role/identity checks are preserved.
 
 Deterministic tenant-access inventory regeneration and full protected CI are required. Tenant context does **not** by itself enforce PostgreSQL RLS; RLS policy enabling, further worker/service isolation, external integrations and productionization are separate. No schema, API, permission, staging or main branch modification. Roll back by reviewed revert.
+
+## V5.2.22 protected closure
+
+PR [#1233](https://github.com/auraakart/Aaraaweb/pull/1233) merged into develop at `1404bf7576dbe48e460d8a6180af7e84e22fae03` after final [CI 38201724033](https://github.com/auraakart/Aaraaweb/actions/runs/38201724033) passed for head `e6ef9f81410b01e6562be4e954fa0d7963d21453`.
+
+## V5.2.23 privacy incident and grievance society context
+
+The existing `PrivacyIncidentService` now uses `PrismaService.withTenantContext` for grievance contact retrieval/upsert, incident listings, incident creation, status transitions and event history. The existing incident-category and active-assignee validation occurs inside the **same tenant transaction** as incident creation and append-only evidence insertion; the category and membership records are read with `FOR SHARE` to keep those references stable during creation. SQL still explicitly filters by society. Existing DTOs, controller permissions, validation error messages, event types and response shapes are not changed.
+
+Incident status updates now acquire the society-scoped parent row using `SELECT ... FOR UPDATE` **before** verifying whether an incident is closed and before writing the conditional update and append-only evidence. The prior 'already CLOSED' idempotency and refusal to reopen are preserved; concurrent status changes serialize on the parent row. Incident history checks the society-scoped parent and loads its audit events using one tenant client, with fail-closed behavior for foreign incidents.
+
+Unit tests prove no global Prisma fallback, same-transaction category/assignee checks, audit insertion failure propagation, row locks, terminal idempotency, foreign parent denial and grief contact tenant context. Native PostgreSQL tests verify two societies, distinct categories/assignees/incidents, foreign access rejection, audit write rollback on oversized event note, closed-state idempotency, contact upsert isolation and existing append-only triggers. Fixture-only cleanup transactionally restores audit triggers.
+
+Regenerate and check the V5 deterministic tenant-access inventory, and require the canonical protected CI gates before develop merge. This scope is **society privacy incident/grievance only**: independent-home privacy requests are unaffected and no society-less incident route is introduced. Tenant context is not PostgreSQL RLS. No new incident disclosure protocol, regulatory certification, schema/DTO/auth change, staging/main promotion or productionization. Roll back via reviewed revert.

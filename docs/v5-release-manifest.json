@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.22",
+      "currentSlice": "V5.2.23",
       "slices": [
         {
           "id": "V5.2.1",
@@ -405,7 +405,7 @@
         {
           "id": "V5.2.22",
           "name": "Tenant-scope privacy subject-data exports and erasure planning/execution while preserving independent-home workflows",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "254b0533e64b4838c9bd6f2c6f6e413f73a91537",
           "evidence": [
             "services/api/src/privacy/privacy-subject-data.service.spec.ts",
@@ -414,6 +414,23 @@
           ],
           "limitations": [
             "RLS remains disabled; setting tenant transaction context is a migration toward defense in depth and explicit SQL society/subject predicates remain mandatory. Erasure preflight and locked execution remain separate transactions; rechecks and row locks in the execution transaction are retained. No change to data minimisation categories, legal-hold/retention rules, endpoints, permissions, cross-society login guards or productionization."
+          ],
+          "pullRequest": 1233,
+          "mergeSha": "1404bf7576dbe48e460d8a6180af7e84e22fae03",
+          "validatedRuntimeSha": "e6ef9f81410b01e6562be4e954fa0d7963d21453",
+          "ciRun": 38201724033
+        },
+        {
+          "id": "V5.2.23",
+          "name": "Tenant-context privacy incident and grievance access with locked incident lifecycle",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "1404bf7576dbe48e460d8a6180af7e84e22fae03",
+          "evidence": [
+            "services/api/src/privacy/privacy-incident.service.spec.ts",
+            "services/api/src/privacy/privacy-incident.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Society-scoped incident and grievance workflows only; no separate society-less incident endpoint. Transaction-local society context does not activate database RLS. Incident disclosure policies, regulatory processes, external processors and production integrations are not broadened. Existing controller permissions and audit event types retained."
           ]
         }
       ]
