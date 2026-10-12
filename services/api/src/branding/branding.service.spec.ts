@@ -45,6 +45,11 @@ describe('BrandingService V5 default compatibility', () => {
     expect(entitlements.current).not.toHaveBeenCalled();
   });
 
+  it('does not include custom support contact information in public bootstrap', () => {
+    const {service}=fixture();
+    expect(service.bootstrap().brand).not.toHaveProperty('support');
+  });
+
   it('prevents a caller from modifying the shared default for subsequent requests', () => {
     const { service } = fixture();
     const first = service.bootstrap();
