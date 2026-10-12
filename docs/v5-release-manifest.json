@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.10",
+      "currentSlice": "V5.3.11",
       "slices": [
         {
           "id": "V5.3.1",
@@ -719,7 +719,7 @@
         {
           "id": "V5.3.10",
           "name": "Resident and Guard foreground society-brand refresh with stale-response and offline safeguards",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "a2c60abe402a4fc62ab55373af752f3a230b4273",
           "evidence": [
             "apps/resident/lib/theme/resident_branding_controller.dart",
@@ -729,6 +729,26 @@
           ],
           "limitations": [
             "Only presentation on authenticated foreground resume; no periodic push channel, persistent cross-society cache, image/logo asset, distribution-specific branding or native Android packaging. Offline refresh failures preserve only a previously validated theme for the exact current session; signing out or switching societies synchronously clears it. No auth, gate data, server entitlement, schema, production infrastructure, RLS or staging/main change."
+          ],
+          "pullRequest": 1252,
+          "mergeSha": "9ab658deb10e7cf021c2d15feccc392302045ea2",
+          "validatedRuntimeSha": "359fb4976035305240400adc37122cf2a6ac14c7",
+          "ciRun": 38268036530
+        },
+        {
+          "id": "V5.3.11",
+          "name": "Safe runtime society-branded support contacts across API, shared Dart and Admin editor",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "9ab658deb10e7cf021c2d15feccc392302045ea2",
+          "evidence": [
+            "services/api/src/branding/branding-contract.spec.ts",
+            "services/api/src/branding/branding.service.spec.ts",
+            "apps/admin/scripts/v5.3.11-brand-support-regression.mjs",
+            "apps/resident/test/society_brand_runtime_test.dart",
+            "apps/guard/test/society_brand_runtime_test.dart"
+          ],
+          "limitations": [
+            "Only authenticated society support email and E.164 phone; no arbitrary URLs, mail sending or call triggering, partner distribution, media upload/logo rendering or independent-home society branding. Cosmetic fields never become authorization, legal issuer or entitlement values. Existing default public bootstrap and native application identity unchanged. RLS, infrastructure and staging/main promotion excluded."
           ]
         }
       ]
