@@ -158,6 +158,18 @@ describe('BrandingService V5 default compatibility', () => {
     expect(entitlements.current).toHaveBeenCalledTimes(1);
   });
 
+  it('delivers validated published support contacts only inside authenticated society context', async () => {
+    const { service, prisma } = fixture();
+    const config = { displayName:'Lake Society', support:{email:'help@example.com',phone:'+919876543210'} };
+    prisma.societyBrandRevision.findFirst.mockResolvedValue({
+      version: 4,config,digest:societyBrandDigest(config),
+    });
+    const result = await service.context(principal);
+    expect(result.branding.brand.support).toEqual({email:'help@example.com',phone:'+919876543210'});
+    expect(service.bootstrap().brand.support).toBeUndefined();
+    expect((await service.context({userId:principal.userId,roles:[]})).society).toBeNull();
+  });
+
   it('uses exact default presentation when a revision is corrupt or digest mismatched', async () => {
     const { service, prisma } = fixture();
     const baseline = service.bootstrap();
