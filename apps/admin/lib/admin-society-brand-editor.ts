@@ -51,3 +51,21 @@ export function draftBrandConfig(displayName: string, primary: string, primaryDe
   if (!hex.test(a) || !hex.test(b)) throw new Error('Brand colors must be six-digit hex values')
   return {displayName:name,colors:{primary:a,primaryDeep:b}}
 }
+
+/** Restore publishes a new immutable version. Never update a historical revision. */
+export function planBrandRestore(revisions: readonly SocietyBrandRevision[], revisionId: string) {
+  const current=currentPublishedBrand(revisions)
+  const previous=revisions.find(item=>item.id===revisionId)
+  if (!current || !previous || !previous.publishedAt ||
+      previous.id===current.id || previous.version>=current.version) {
+    throw new Error('Only an earlier published revision can be restored')
+  }
+  return {
+    expectedVersion:Math.max(...revisions.map(item=>item.version)),
+    expectedPublishedVersion:current.version,
+    config:{
+      ...(previous.config.displayName!==undefined?{displayName:previous.config.displayName}:{}),
+      ...(previous.config.colors?{colors:{...previous.config.colors}}:{}),
+    },
+  }
+}
