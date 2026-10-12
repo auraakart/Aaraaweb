@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.14",
+      "currentSlice": "V5.2.15",
       "slices": [
         {
           "id": "V5.2.1",
@@ -270,11 +270,27 @@
         {
           "id": "V5.2.14",
           "name": "Scope existing ballot review, draft and decision evidence transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "6e32d0ee572dd1f6652ba1502554c417b55bff8d",
           "evidence": [
             "services/api/src/governance/governance-election-ballot-evidence.transactions.spec.ts",
             "services/api/src/governance/governance-election-ballot-evidence.postgres.spec.ts"
+          ],
+          "pullRequest": 1225,
+          "mergeSha": "91d1ffd839df925deb98b591ea44ab1a83decea5",
+          "validatedRuntimeSha": "7cb01012149c37288c8062027d61432374b12271",
+          "ciRun": 38164444258
+        },
+        {
+          "id": "V5.2.15",
+          "name": "Verify PostgreSQL pooled tenant context concurrency and SQL-error rollback",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "91d1ffd839df925deb98b591ea44ab1a83decea5",
+          "evidence": [
+            "services/api/src/prisma/prisma.tenant-context.integration.spec.ts"
+          ],
+          "limitations": [
+            "Test-only database context regression slice. No runtime RLS policies, tenant enforcement, new permissions or partner audience activation. ISO-01 through ISO-07 remain open."
           ]
         }
       ]
