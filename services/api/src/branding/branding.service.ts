@@ -162,4 +162,73 @@ export class BrandingService {
       return { id: draft.id, version: draft.version, revision: `society-${societyId}-v${draft.version}`, published: true };
     });
   }
+
+  /**
+   * Revert presentation by creating and publishing a NEW immutable revision.
+   * Never mutate or republish an older snapshot. Both optimistic versions are
+   * checked after the society row lock to serialize with drafts and publishing.
+   */
+  async restorePublished(
+    societyId: string,
+    userId: string,
+    sourceRevisionId: string,
+    input: { expectedVersion: number; expectedPublishedVersion: number },
+  ) {
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 ||
+        !Number.isSafeInteger(input.expectedPublishedVersion) || input.expectedPublishedVersion < 1) {
+      throw new ConflictException('Expected society branding versions are invalid');
+    }
+    return this.prisma.withTenantContext(societyId, async tx => {
+      await this.requireEditor(societyId, userId, tx);
+      await this.lockSociety(societyId, tx);
+
+      const [latest, current] = await Promise.all([
+        tx.societyBrandRevision.findFirst({
+          where: { societyId }, orderBy: { version: 'desc' }, select: { version: true },
+        }),
+        tx.societyBrandRevision.findFirst({
+          where: { societyId, publishedAt: { not: null } },
+          orderBy: [{ publishedAt: 'desc' }, { version: 'desc' }],
+          select: { id: true, version: true },
+        }),
+      ]);
+      if ((latest?.version ?? 0) !== input.expectedVersion ||
+          (current?.version ?? 0) !== input.expectedPublishedVersion)
+        throw new ConflictException('Society branding changed; reload revisions before restoring');
+
+      const source = await tx.societyBrandRevision.findFirst({
+        where: { societyId, id: sourceRevisionId, publishedAt: { not: null } },
+        select: { id: true, version: true, config: true, digest: true },
+      });
+      if (!source) throw new NotFoundException('Published society branding revision not found');
+      if (source.id === current?.id)
+        throw new ConflictException('Selected society branding revision is already published');
+
+      const config = validateSocietyBrandPresentation(source.config);
+      if (societyBrandDigest(config) !== source.digest)
+        throw new ConflictException('Source branding revision failed integrity verification');
+
+      const restored = await tx.societyBrandRevision.create({
+        data: {
+          societyId,
+          createdById: userId,
+          version: input.expectedVersion + 1,
+          config: config as Prisma.InputJsonValue,
+          digest: societyBrandDigest(config),
+        },
+        select: { id: true, version: true },
+      });
+      const result = await tx.societyBrandRevision.updateMany({
+        where: { id: restored.id, societyId, publishedAt: null },
+        data: { publishedAt: new Date() },
+      });
+      if (result.count !== 1)
+        throw new ConflictException('Restored branding revision could not be published');
+      return {
+        id: restored.id, version: restored.version,
+        revision: `society-${societyId}-v${restored.version}`,
+        restoredFromRevisionId: source.id, published: true,
+      };
+    });
+  }
 }
