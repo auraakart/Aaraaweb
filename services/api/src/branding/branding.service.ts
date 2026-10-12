@@ -66,6 +66,7 @@ export class BrandingService {
             branding.revision = `society-${societyId}-v${published.version}`;
             if (config.displayName) branding.brand.displayName = config.displayName;
             if (config.colors) branding.brand.colors = { ...config.colors };
+            if (config.support) branding.brand.support = { ...config.support };
           }
         } catch {
           // Malformed unpublished data never becomes executable styles or flags.
