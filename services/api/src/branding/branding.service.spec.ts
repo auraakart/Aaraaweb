@@ -50,6 +50,20 @@ describe('BrandingService V5 default compatibility', () => {
     expect(service.bootstrap().brand).not.toHaveProperty('support');
   });
 
+  it('keeps future verified logo references out of current mobile presentation payloads', async () => {
+    const {service,prisma}=fixture();
+    const config={displayName:'Society Garden',
+      logoAssetId:'44444444-4444-4444-8444-444444444444'};
+    prisma.societyBrandRevision.findFirst.mockResolvedValue({
+      version:3,config,digest:societyBrandDigest(config),
+    });
+    const response=await service.context(principal);
+    expect(response.branding.revision).toBe(`society-${societyId}-v3`);
+    expect(response.branding.brand.displayName).toBe('Society Garden');
+    expect(response.branding.brand).not.toHaveProperty('logoAssetId');
+    expect(response.branding.brand).not.toHaveProperty('logoUrl');
+  });
+
   it('prevents a caller from modifying the shared default for subsequent requests', () => {
     const { service } = fixture();
     const first = service.bootstrap();
