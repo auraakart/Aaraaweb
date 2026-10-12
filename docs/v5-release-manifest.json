@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.26",
+      "currentSlice": "V5.2.27",
       "slices": [
         {
           "id": "V5.2.1",
@@ -475,7 +475,7 @@
         {
           "id": "V5.2.26",
           "name": "Core workforce reviewer and resident mutation isolation with tenant-context gate visibility",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "4c6f9b4749bca0225e35c15fdedcf8047e8d8a09",
           "evidence": [
             "services/api/src/workforce/workforce.service.spec.ts",
@@ -483,6 +483,23 @@
           ],
           "limitations": [
             "Scope is core workforce review, deactivation, resident status and gate eligibility list; no replacement of existing serializable gate mutation path. Remaining workforce creation, payroll recording, attendance, cross-partner enforcement, broader RLS and productionization reviewed separately. Explicit society and UnitOccupancy filters preserved."
+          ],
+          "pullRequest": 1237,
+          "mergeSha": "043a879d6facd77e09677fe1c3893eb60fc6e9c4",
+          "validatedRuntimeSha": "6b60b3d58184211a4087018f315fac9351af81a9",
+          "ciRun": 38213821926
+        },
+        {
+          "id": "V5.2.27",
+          "name": "Cross-society operational RBAC fail-closed checks and partner authority separation",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "043a879d6facd77e09677fe1c3893eb60fc6e9c4",
+          "evidence": [
+            "services/api/src/auth/auth-context-boundary.spec.ts",
+            "services/api/src/auth/auth-context-partner-boundary.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Does not create partner portal or commercial partner APIs. Existing society membership and auth repository remain authoritative, session and gate SoD remain unchanged. This adds fail-closed request-boundary checks and two-partner PostgreSQL evidence; RLS and productionization out of scope."
           ]
         }
       ]
