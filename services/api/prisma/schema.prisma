@@ -27,6 +27,7 @@ model User {
   pushDeviceTokens          DevicePushToken[]
   workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
   societyBrandRevisionsCreated SocietyBrandRevision[] @relation("SocietyBrandRevisionCreator")
+  societyBrandLogoAssetsCreated SocietyBrandLogoAsset[] @relation("SocietyBrandLogoCreator")
   workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
   workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
   helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
@@ -56,6 +57,7 @@ model Society {
   partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   entitlementCompatibility SocietyEntitlementCompatibility?
   societyBrandRevisions SocietyBrandRevision[]
+  societyBrandLogoAssets SocietyBrandLogoAsset[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
   memberships          SocietyMembership[]
@@ -128,6 +130,24 @@ model PartnerMembership {
 
 // Cutover evidence, not a replacement live entitlement resolver or invoice.
 // Immutable configuration snapshots; publishing changes publishedAt only once.
+model SocietyBrandLogoAsset {
+  id                 String    @id @default(uuid()) @db.Uuid
+  societyId          String    @db.Uuid
+  createdById        String    @db.Uuid
+  storageKey         String    @unique
+  contentType        String
+  contentLengthBytes Int
+  uploadExpiresAt    DateTime  @db.Timestamptz(6)
+  status             String    @default("PENDING")
+  sha256             String?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  verifiedAt         DateTime? @db.Timestamptz(6)
+  society            Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy          User      @relation("SocietyBrandLogoCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, status])
+}
+
 model SocietyBrandRevision {
   id            String   @id @default(uuid()) @db.Uuid
   societyId     String   @db.Uuid
