@@ -118,7 +118,6 @@ export class WorkforceService {
       endDate?: Date;
     },
   ) {
-    const household = await this.assertOwnHousehold(societyId, userId, input.householdId);
     const name = input.name.trim();
     const phone = this.normalizePhone(input.phone);
     if (!name) throw new BadRequestException('Worker name is required');
@@ -127,7 +126,15 @@ export class WorkforceService {
       throw new BadRequestException('End date must be after start date');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      // Serialize household workforce mutations and recheck the current occupant.
+      const locked = await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+        SELECT "id" FROM "Household"
+        WHERE "id"=${input.householdId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1 FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Household not found');
+      const household = await this.assertOwnHousehold(societyId, userId, input.householdId, tx);
       const worker = await tx.domesticWorker.upsert({
         where: { societyId_phone: { societyId, phone } },
         create: { societyId, name, phone, role: input.role },
@@ -441,12 +448,13 @@ export class WorkforceService {
   }
 
   async attendanceMine(societyId: string, userId: string, assignmentId: string, fromInput?: string, toInput?: string) {
-    const assignment = await this.prisma.workforceAssignment.findFirst({
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const assignment = await tx.workforceAssignment.findFirst({
       where: { id: assignmentId, societyId },
       include: { household: true, worker: true },
     });
     if (!assignment) throw new NotFoundException('Household staff assignment not found');
-    await this.assertOwnHousehold(societyId, userId, assignment.householdId);
+    await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
 
     const today = this.indiaDate(new Date());
     const to = this.parseDateOnly(toInput ?? today, 'to');
@@ -460,7 +468,7 @@ export class WorkforceService {
     if (spanDays > 93) throw new BadRequestException('Attendance history is limited to 93 days per request');
 
     const [days, leaves] = await Promise.all([
-      this.prisma.$queryRaw<Array<{
+      tx.$queryRaw<Array<{
         date: Date;
         firstEntryAt: Date;
         lastExitAt: Date | null;
@@ -489,7 +497,7 @@ export class WorkforceService {
         GROUP BY (ar."enteredAt" AT TIME ZONE 'Asia/Kolkata')::date
         ORDER BY "date" DESC
       `),
-      this.prisma.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date; reason: string | null }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ id: string; startsOn: Date; endsOn: Date; reason: string | null }>>(Prisma.sql`
         SELECT "id","startsOn","endsOn","reason"
         FROM "WorkforceLeave"
         WHERE "societyId"=${societyId}::uuid
@@ -541,10 +549,11 @@ export class WorkforceService {
       leaves,
       boundary: 'Attendance is derived only from authoritative gate check-in/check-out records. A scheduled evidence gap means no gate record was found for an expected workday; it is not labelled absence.',
     };
+    });
   }
 
   async paymentRecordsMine(societyId: string, userId: string) {
-    return this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.*, dw."name" AS "workerName", dw."role" AS "workerRole", h."unitId"
       FROM "WorkforcePaymentRecord" p
       JOIN "WorkforceAssignment" wa ON wa."id"=p."assignmentId" AND wa."societyId"=p."societyId"
@@ -562,7 +571,7 @@ export class WorkforceService {
         )
       ORDER BY p."paymentDate" DESC,p."createdAt" DESC
       LIMIT 500
-    `);
+    `));
   }
 
   async createPaymentRecordMine(
@@ -578,13 +587,6 @@ export class WorkforceService {
       idempotencyKey: string;
     },
   ) {
-    const assignment = await this.prisma.workforceAssignment.findFirst({
-      where: { id: input.assignmentId, societyId },
-      include: { household: true },
-    });
-    if (!assignment) throw new NotFoundException('Household staff assignment not found');
-    await this.assertOwnHousehold(societyId, userId, assignment.householdId);
-
     const kind = input.kind.trim().toUpperCase();
     if (!['SALARY', 'ADVANCE', 'BONUS', 'REIMBURSEMENT', 'ADJUSTMENT'].includes(kind)) {
       throw new BadRequestException('Unsupported staff payment record type');
@@ -604,9 +606,22 @@ export class WorkforceService {
       throw new BadRequestException('Staff payment idempotency key must be between 8 and 120 characters');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async tx => {
       const lockKey = `${societyId}:${userId}:staff-payment:${idempotencyKey}`;
       await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))::text`);
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "WorkforceAssignment"
+        WHERE "id"=${input.assignmentId}::uuid AND "societyId"=${societyId}::uuid
+        LIMIT 1 FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Household staff assignment not found');
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: input.assignmentId, societyId },
+        select: { householdId: true },
+      });
+      if (!assignment) throw new NotFoundException('Household staff assignment not found');
+      await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
+
       const existing = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         SELECT * FROM "WorkforcePaymentRecord"
         WHERE "societyId"=${societyId}::uuid AND "recordedById"=${userId}::uuid AND "idempotencyKey"=${idempotencyKey}
