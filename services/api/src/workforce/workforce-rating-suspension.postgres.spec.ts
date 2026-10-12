@@ -82,7 +82,7 @@ withDatabase('V5.2.25 workforce ratings and suspension isolation on PostgreSQL',
         control.suspendWorker(a.society,a.worker,reviewer,'Worker suspension'),
       ]);
       expect(concurrent.every(x=>x.verification==='SUSPENDED')).toBe(true);
-      expect((await control.history(a.society)).filter(x=>(x as {action:string}).action==='SUSPEND')).toHaveLength(1);
+      expect((await control.history(a.society) as Array<{action:string}>).filter(x=>x.action==='SUSPEND')).toHaveLength(1);
       await control.reinstateWorker(a.society,a.worker,reviewer);
       await control.suspendAssignment(a.society,a.assignment,reviewer,'Assignment suspension');
       await control.suspendWorker(a.society,a.worker,reviewer,'Verification suspended');
