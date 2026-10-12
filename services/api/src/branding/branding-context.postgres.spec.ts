@@ -8,6 +8,7 @@ import { EntitlementService } from '../entitlements/entitlement.service';
 import { ProductFeature } from '../entitlements/entitlement.types';
 import { PrismaService, TENANT_CONTEXT_SETTING } from '../prisma/prisma.service';
 import { BrandingService } from './branding.service';
+import { societyBrandDigest } from './branding-contract';
 
 const withDatabase = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -39,6 +40,37 @@ withDatabase('V5 configuration tenant transaction on PostgreSQL', () => {
       expect(config.society).toEqual({ id: societyA, name: 'Configuration A' });
       expect(config.entitlements?.enabledFeatures).toContain(ProductFeature.AI_ASSISTANT);
       expect(config.entitlements?.enabledFeatures).not.toContain(ProductFeature.NOTICES);
+      const firstPresentation = {displayName:'Configuration A Branding',
+        colors:{primary:'#155E75',primaryDeep:'#164E63'}};
+      const first = await prisma.societyBrandRevision.create({data:{
+        societyId:societyA,version:1,createdById:member,
+        config:firstPresentation,digest:societyBrandDigest(firstPresentation),
+        publishedAt:new Date('2026-10-10T00:00:00.000Z'),
+      }});
+      const secondPresentation = {displayName:'Configuration B Branding'};
+      await prisma.societyBrandRevision.create({data:{
+        societyId:societyB,version:1,createdById:member,
+        config:secondPresentation,digest:societyBrandDigest(secondPresentation),
+        publishedAt:new Date('2026-10-10T00:00:00.000Z'),
+      }});
+      const rendered = await service.context(principal);
+      expect(rendered.branding.brand.displayName).toBe('Configuration A Branding');
+      expect(rendered.branding.brand.colors.primary).toBe('#155E75');
+      expect(rendered.branding.revision).toBe(`society-${societyA}-v1`);
+      await expect(prisma.societyBrandRevision.update({
+        where:{id:first.id},data:{config:{displayName:'Tampered'}},
+      })).rejects.toThrow();
+      const draftPresentation = {displayName:'Not Published'};
+      const draft = await prisma.societyBrandRevision.create({data:{
+        societyId:societyA,version:2,createdById:member,
+        config:draftPresentation,digest:societyBrandDigest(draftPresentation),
+      }});
+      expect((await service.context(principal)).branding.brand.displayName).toBe('Configuration A Branding');
+      await prisma.societyBrandRevision.update({where:{id:draft.id},data:{publishedAt:new Date()}});
+      expect((await service.context(principal)).branding.brand.displayName).toBe('Not Published');
+      await expect(prisma.societyBrandRevision.update({
+        where:{id:draft.id},data:{publishedAt:null},
+      })).rejects.toThrow();
       await expect(service.context({ ...principal, societyId: societyB, roles: [AppRole.SUPER_ADMIN] }))
         .rejects.toBeInstanceOf(ForbiddenException);
 
