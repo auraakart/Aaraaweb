@@ -32,10 +32,13 @@ withDatabase('V5.2.22 tenant-context privacy data export and erasure plans on Po
       `);
       await prisma.$executeRaw(Prisma.sql`
         INSERT INTO "PrivacyRequestCase"
-          ("id","societyId","subjectUserId","requestType","requestSummary","status","legalHold","retentionDecision","createdByUserId")
+          ("id","societyId","subjectUserId","requestType","requestSummary","status","legalHold",
+           "retentionDecision","retentionDecisionReason","retentionReviewedAt","retentionReviewedByUserId","createdByUserId")
         VALUES
-          (${erasureCaseA}::uuid,${societyA}::uuid,${subjectA}::uuid,'ERASURE','Erase A','IN_REVIEW',false,'ALLOW',${actor}::uuid),
-          (${personalErasure}::uuid,NULL,${subjectA}::uuid,'ERASURE','Erase personal','IN_REVIEW',false,'ALLOW',${actor}::uuid)
+          (${erasureCaseA}::uuid,${societyA}::uuid,${subjectA}::uuid,'ERASURE','Erase A','IN_REVIEW',false,
+           'ALLOW','Checked existing retention duties',CURRENT_TIMESTAMP,${actor}::uuid,${actor}::uuid),
+          (${personalErasure}::uuid,NULL,${subjectA}::uuid,'ERASURE','Erase personal','IN_REVIEW',false,
+           'ALLOW','Checked existing retention duties',CURRENT_TIMESTAMP,${actor}::uuid,${actor}::uuid)
       `);
 
       const exportA=await subjectData.exportMine(subjectA,societyA,accessCaseA);
