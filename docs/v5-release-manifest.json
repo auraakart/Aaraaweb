@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.2",
+      "currentSlice": "V5.3.3",
       "slices": [
         {
           "id": "V5.3.1",
@@ -575,7 +575,7 @@
         {
           "id": "V5.3.2",
           "name": "Society-brand authoring, optimistic revision control and atomic publication",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
           "evidence": [
             "services/api/src/branding/branding-publish.service.spec.ts",
@@ -584,6 +584,24 @@
           ],
           "limitations": [
             "Only society presentation fields; no brand asset upload, media URL, custom CSS, partner distribution or portal host. No new entitlement or identity grants; management requires current operational SOCIETY_CONFIGURATION_MANAGE permission. Publishing is an immutable draft timestamp transition and history remains capped at 100 rows; rollback via future new revision, not mutating published record. No productionization, RLS or staging/main promotion."
+          ],
+          "pullRequest": 1243,
+          "mergeSha": "e6cdcd8149eadd7ee325bf18277af0bb8af67f9e",
+          "validatedRuntimeSha": "1f3d1e1ac5166115f3d598a1039b53e39f8e6c77",
+          "ciRun": 38236648327
+        },
+        {
+          "id": "V5.3.3",
+          "name": "Shared Dart runtime society-brand contract and Resident/Guard theme adapters",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "e6cdcd8149eadd7ee325bf18277af0bb8af67f9e",
+          "evidence": [
+            "packages/branding_runtime/lib/branding_runtime.dart",
+            "apps/resident/test/society_brand_runtime_test.dart",
+            "apps/guard/test/society_brand_runtime_test.dart"
+          ],
+          "limitations": [
+            "This slice supplies a common validated presentation model and optional theme adapters; the current MaterialApp defaults remain unchanged until an authenticated context loader is explicitly wired in the next slice. No storage/caching, logos, native APK label/icon, partner host, billing, entitlements or operational authority changes."
           ]
         }
       ]
