@@ -53,7 +53,7 @@ for(const token of [
   '/branding/manage/logos','/branding/manage/logos/uploads','/confirm',
   'validateSocietyLogoFile','parseSocietyLogoUploadIntent',
   "credentials:'omit'","redirect:'error'","referrerPolicy:'no-referrer'",
-  'body:file','Uploaded privately','never shown to residents',
+  'body:file','uploaded privately','never shown to residents',
 ])assert.ok(ui.includes(token),'Missing logo quarantine guard: '+token)
 assert.ok(editor.includes('<AdminSocietyLogoQuarantine key={session.societyId} session={session}/>'))
 assert.ok(!ui.includes('dangerouslySetInnerHTML'))
