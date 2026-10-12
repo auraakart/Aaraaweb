@@ -27,7 +27,7 @@ export class PrivacyRegistryService {
   constructor(private readonly prisma: PrismaService) {}
 
   listCategories(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT * FROM "PrivacyDataCategory"
       WHERE "societyId"=${societyId}::uuid
       ORDER BY "active" DESC, "name" ASC
@@ -41,7 +41,7 @@ export class PrivacyRegistryService {
     const retentionTrigger = input.retentionTrigger.trim();
     if (!name || !purpose || !retentionTrigger) throw new BadRequestException('Name, purpose and retention trigger are required');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "PrivacyDataCategory" (
           "societyId", "code", "name", "purpose", "legalBasis", "retentionTrigger", "retentionDays",
@@ -59,7 +59,7 @@ export class PrivacyRegistryService {
   }
 
   async setCategoryActive(societyId: string, actorUserId: string, categoryId: string, active: boolean) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; code: string }>>(Prisma.sql`
         UPDATE "PrivacyDataCategory"
         SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
@@ -83,7 +83,7 @@ export class PrivacyRegistryService {
   }
 
   listProcessors(societyId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT * FROM "PrivacyProcessorRegister"
       WHERE "societyId"=${societyId}::uuid
       ORDER BY "active" DESC, "name" ASC
@@ -97,7 +97,7 @@ export class PrivacyRegistryService {
     const codes = [...new Set(input.dataCategoryCodes.map((value) => this.normaliseCode(value)))];
     if (codes.length === 0) throw new BadRequestException('At least one data category is required');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       await this.assertActiveCategoryCodes(tx, societyId, codes);
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO "PrivacyProcessorRegister" (
@@ -115,7 +115,7 @@ export class PrivacyRegistryService {
   }
 
   async setProcessorActive(societyId: string, actorUserId: string, processorId: string, active: boolean) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.withTenantContext(societyId, async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
         UPDATE "PrivacyProcessorRegister"
         SET "active"=${active}, "updatedAt"=CURRENT_TIMESTAMP
@@ -139,7 +139,7 @@ export class PrivacyRegistryService {
   }
 
   history(societyId: string, entityType: 'DATA_CATEGORY' | 'PROCESSOR', entityId: string) {
-    return this.prisma.$queryRaw(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
       SELECT pre.*, actor."name" AS "actorName"
       FROM "PrivacyRegistryEvent" pre
       JOIN "User" actor ON actor."id"=pre."actorUserId"
