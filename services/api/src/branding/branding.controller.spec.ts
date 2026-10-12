@@ -74,10 +74,20 @@ describe('V5.3.2 brand editor HTTP authority', () => {
     expect(history).toHaveBeenCalledWith('society-a','actor-a');
   });
 
+  it('uses only authenticated society and actor when restoring published presentation',()=>{
+    const restorePublished=vi.fn();
+    const controller=new BrandingManageController({restorePublished} as unknown as BrandingService);
+    const request={auth:{userId:'actor-a',societyId:'society-a',roles:[]},header:()=>'society-b'};
+    const input={expectedVersion:2,expectedPublishedVersion:1};
+    controller.restore(request,'revision-a',input);
+    expect(restorePublished).toHaveBeenCalledExactlyOnceWith('society-a','actor-a','revision-a',input);
+  });
+
   it.each([
     BrandingManageController.prototype.create,
     BrandingManageController.prototype.history,
     BrandingManageController.prototype.publish,
+    BrandingManageController.prototype.restore,
   ])('disables response caching for editor operations', handler => {
     expect(Reflect.getMetadata(HEADERS_METADATA, handler))
       .toContainEqual({ name: 'Cache-Control', value: 'no-store' });
