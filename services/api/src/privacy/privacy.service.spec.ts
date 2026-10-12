@@ -5,7 +5,7 @@ import { PrivacyService } from './privacy.service';
 describe('PrivacyService', () => {
   it('rejects a privacy subject with no current or historical society relationship', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn() };
-    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_societyId: string, callback: (tx: typeof tx) => Promise<unknown>) => callback(tx)) };
+    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_societyId: string, callback: (client: typeof tx) => Promise<unknown>) => callback(tx)) };
     const service = new PrivacyService(prisma as unknown as PrismaService);
 
     await expect(
@@ -99,7 +99,7 @@ describe('PrivacyService', () => {
 
   it('lists cases only inside the current society', async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([]) };
-    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_societyId: string, callback: (tx: typeof tx) => Promise<unknown>) => callback(tx)) };
+    const prisma = { $queryRaw: vi.fn(), withTenantContext: vi.fn(async (_societyId: string, callback: (client: typeof tx) => Promise<unknown>) => callback(tx)) };
     const service = new PrivacyService(prisma as unknown as PrismaService);
 
     await service.listCases('society-1');
