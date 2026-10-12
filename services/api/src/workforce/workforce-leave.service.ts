@@ -28,7 +28,7 @@ export class WorkforceLeaveService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listMine(societyId: string, userId: string) {
-    return this.prisma.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
       SELECT wl.*
       FROM "WorkforceLeave" wl
       JOIN "WorkforceAssignment" wa ON wa."id" = wl."assignmentId"
@@ -45,12 +45,12 @@ export class WorkforceLeaveService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
       ORDER BY wl."startsOn" DESC, wl."createdAt" DESC
-    `);
+    `));
   }
 
   async listSocietyActive(societyId: string, on = this.indiaDate(new Date())) {
     this.assertDateOnly(on, 'on');
-    return this.prisma.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
       SELECT wl.*
       FROM "WorkforceLeave" wl
       WHERE wl."societyId" = ${societyId}::uuid
@@ -58,7 +58,7 @@ export class WorkforceLeaveService {
         AND wl."startsOn" <= ${on}::date
         AND wl."endsOn" >= ${on}::date
       ORDER BY wl."startsOn" ASC, wl."createdAt" ASC
-    `);
+    `));
   }
 
   async createMine(
@@ -71,9 +71,11 @@ export class WorkforceLeaveService {
     if (input.endsOn < input.startsOn) throw new BadRequestException('Leave end date must be on or after start date');
     if (this.daysBetween(input.startsOn, input.endsOn) > 90) throw new BadRequestException('Workforce leave cannot exceed 90 days');
 
-    await this.assertOwnedAssignment(societyId, userId, input.assignmentId);
+    return this.prisma.withTenantContext(societyId, async tx => {
+      // Serialize overlapping requests on the assignment row before querying leaves.
+      await this.assertOwnedAssignment(tx, societyId, userId, input.assignmentId);
 
-    const overlap = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    const overlap = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
       FROM "WorkforceLeave"
       WHERE "societyId" = ${societyId}::uuid
@@ -86,7 +88,7 @@ export class WorkforceLeaveService {
     if (overlap.length) throw new BadRequestException('An active workforce leave already overlaps this date range');
 
     const reason = input.reason?.trim() || null;
-    const rows = await this.prisma.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
+    const rows = await tx.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
       INSERT INTO "WorkforceLeave" (
         "societyId", "assignmentId", "createdById", "startsOn", "endsOn", "reason"
       ) VALUES (
@@ -100,10 +102,12 @@ export class WorkforceLeaveService {
       RETURNING *
     `);
     return rows[0];
+    });
   }
 
   async cancelMine(societyId: string, userId: string, leaveId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; assignmentId: string }>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const rows = await tx.$queryRaw<Array<{ id: string; assignmentId: string }>>(Prisma.sql`
       SELECT wl."id", wl."assignmentId"
       FROM "WorkforceLeave" wl
       JOIN "WorkforceAssignment" wa ON wa."id" = wl."assignmentId"
@@ -122,22 +126,26 @@ export class WorkforceLeaveService {
         )
         AND wl."active" = true
       LIMIT 1
+      FOR UPDATE OF wl
     `);
     if (!rows.length) throw new NotFoundException('Active workforce leave not found');
 
-    const updated = await this.prisma.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
+    const updated = await tx.$queryRaw<WorkforceLeaveRow[]>(Prisma.sql`
       UPDATE "WorkforceLeave"
       SET "active" = false, "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${leaveId}::uuid
         AND "societyId" = ${societyId}::uuid
+        AND "active" = true
       RETURNING *
     `);
     return updated[0];
+    });
   }
 
   async assertNoActiveLeave(societyId: string, assignmentId: string, now = new Date()) {
     const on = this.indiaDate(now);
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
       FROM "WorkforceLeave"
       WHERE "societyId" = ${societyId}::uuid
@@ -148,13 +156,15 @@ export class WorkforceLeaveService {
       LIMIT 1
     `);
     if (rows.length) throw new BadRequestException('Worker is on approved leave today');
+    });
   }
 
   async activeAssignmentIds(societyId: string, assignmentIds: string[], now = new Date()) {
     if (!assignmentIds.length) return new Set<string>();
     const on = this.indiaDate(now);
     const ids = Prisma.join(assignmentIds.map((id) => Prisma.sql`${id}::uuid`));
-    const rows = await this.prisma.$queryRaw<ActiveLeaveRow[]>(Prisma.sql`
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const rows = await tx.$queryRaw<ActiveLeaveRow[]>(Prisma.sql`
       SELECT DISTINCT "assignmentId"
       FROM "WorkforceLeave"
       WHERE "societyId" = ${societyId}::uuid
@@ -164,10 +174,11 @@ export class WorkforceLeaveService {
         AND "assignmentId" IN (${ids})
     `);
     return new Set(rows.map((row) => row.assignmentId));
+    });
   }
 
-  private async assertOwnedAssignment(societyId: string, userId: string, assignmentId: string) {
-    const rows = await this.prisma.$queryRaw<AssignmentOwnershipRow[]>(Prisma.sql`
+  private async assertOwnedAssignment(tx: Prisma.TransactionClient, societyId: string, userId: string, assignmentId: string) {
+    const rows = await tx.$queryRaw<AssignmentOwnershipRow[]>(Prisma.sql`
       SELECT wa."id" AS "assignmentId"
       FROM "WorkforceAssignment" wa
       JOIN "Household" h ON h."id" = wa."householdId"
@@ -184,6 +195,7 @@ export class WorkforceLeaveService {
             AND (uo."effectiveTo" IS NULL OR uo."effectiveTo" > CURRENT_TIMESTAMP)
         )
       LIMIT 1
+      FOR UPDATE OF wa
     `);
     if (!rows.length) throw new NotFoundException('Active workforce assignment not found');
   }
