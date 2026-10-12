@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "e116e24f0987ece37c7e39f36ca28ab92966447c03df60872ce9d55dcf32ff52",
+  "sourceDigest": "f2c63be0b1f50953fd32e84e214c47e27045ff14088a5d0c3d4e141811e0e7bd",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -17,21 +17,41 @@
     "SQL table parsing targets repository quoted DDL; new DDL forms need extractor review"
   ],
   "summary": {
-    "tables": 250,
-    "sourceFilesScanned": 398,
-    "migrationFilesScanned": 191,
-    "accessSites": 2142,
-    "rawSqlSites": 1617,
-    "ormSites": 525,
-    "routeHandlers": 875,
+    "tables": 251,
+    "sourceFilesScanned": 401,
+    "migrationFilesScanned": 192,
+    "accessSites": 2151,
+    "rawSqlSites": 1618,
+    "ormSites": 533,
+    "routeHandlers": 878,
     "unsafeSqlSites": 11,
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 59,
-    "runtimeTenantContextCalls": 131,
+    "runtimeTenantContextCalls": 136,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
+    {
+      "file": "services/api/src/branding/brand-logo.service.ts",
+      "line": 49
+    },
+    {
+      "file": "services/api/src/branding/brand-logo.service.ts",
+      "line": 65
+    },
+    {
+      "file": "services/api/src/branding/brand-logo.service.ts",
+      "line": 93
+    },
+    {
+      "file": "services/api/src/branding/brand-logo.service.ts",
+      "line": 122
+    },
+    {
+      "file": "services/api/src/branding/brand-logo.service.ts",
+      "line": 131
+    },
     {
       "file": "services/api/src/branding/branding.service.ts",
       "line": 41
@@ -756,8 +776,9 @@
     {"name":"ServiceProviderTrustProfile","model":null,"fields":["createdAt","providerId","qualityNote","qualityTier","reviewedAt","reviewedByUserId","updatedAt"],"origins":["services/api/prisma/migrations/20260911114500_external_services_trust_promotion/migration.sql"],"boundary":"SHARED_PROVIDER_CATALOGUE_AND_PRIVATE_ADMIN","modules":["consumer-provider-experience.service.ts","provider-trust-review.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":3,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"ServiceRating","model":"ServiceRating","fields":["booking","bookingId","comment","createdAt","id","provider","providerId","residentUser","residentUserId","score","society","societyId"],"origins":["services/api/prisma/migrations/20260901191500_add_services_marketplace/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["service-booking-rating.service.ts","service-provider-society-trust.service.ts","services-marketplace.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":4,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"Session","model":"Session","fields":["accessTokenHash","createdAt","expiresAt","id","refreshExpiresAt","refreshTokenHash","revocationReason","revokedAt","society","societyId","user","userId"],"origins":["services/api/prisma/migrations/20260901180000_baseline_core/migration.sql","services/api/prisma/schema.prisma"],"boundary":"IDENTITY_AUTH_GLOBAL","modules":["migration-resident-commit.service.ts","onboarding-readiness.service.ts","platform-entitlements.controller.ts","privacy-subject-data.service.ts","reports-analytics.service.ts","residents.controller.ts","session.service.ts","society-roles.controller.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":18,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
-    {"name":"Society","model":"Society","fields":["code","createdAt","entitlementCompatibility","featureOverrides","id","name","ownershipVersion","partner","partnerId","productTier","status","updatedAt"],"origins":["services/api/prisma/migrations/20260901180000_baseline_core/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_ROOT","modules":["billing.service.ts","branding.service.ts","consumer-bookings.service.ts","consumer-service-location.service.ts","entitlement.service.ts","facilities-alerts.service.ts","facilities-preventive.service.ts","governance-election-ballot-draft.controller.ts","governance-election-foundation.controller.ts","governance-election-hold.controller.ts","governance-election-privacy.controller.ts","governance-election-procedure.controller.ts","platform-entitlements.controller.ts","reports-analytics.service.ts","societies.controller.ts","sos-fallback.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":34,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
+    {"name":"Society","model":"Society","fields":["code","createdAt","entitlementCompatibility","featureOverrides","id","name","ownershipVersion","partner","partnerId","productTier","status","updatedAt"],"origins":["services/api/prisma/migrations/20260901180000_baseline_core/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_ROOT","modules":["billing.service.ts","brand-logo.service.ts","branding.service.ts","consumer-bookings.service.ts","consumer-service-location.service.ts","entitlement.service.ts","facilities-alerts.service.ts","facilities-preventive.service.ts","governance-election-ballot-draft.controller.ts","governance-election-foundation.controller.ts","governance-election-hold.controller.ts","governance-election-privacy.controller.ts","governance-election-procedure.controller.ts","platform-entitlements.controller.ts","reports-analytics.service.ts","societies.controller.ts","sos-fallback.service.ts",null],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":36,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyBankAccount","model":null,"fields":["accountName","active","bankName","code","createdAt","id","ifsc","ledgerAccountId","maskedAccountNumber","openingBalancePaise","societyId","updatedAt"],"origins":["services/api/prisma/migrations/20260917143000_v3_bank_reconciliation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["bank-position.service.ts","bank-reconciliation.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":9,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
+    {"name":"SocietyBrandLogoAsset","model":"SocietyBrandLogoAsset","fields":["contentLengthBytes","contentType","createdAt","createdBy","createdById","id","sha256","society","societyId","status","storageKey","uploadExpiresAt","verifiedAt"],"origins":["services/api/prisma/migrations/20261012233000_v5312_society_brand_logo_assets/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["brand-logo.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":7,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyBrandRevision","model":"SocietyBrandRevision","fields":["config","createdAt","createdBy","createdById","digest","id","publishedAt","schemaVersion","society","societyId","version"],"origins":["services/api/prisma/migrations/20261012143000_v53_society_brand_revisions/migration.sql","services/api/prisma/schema.prisma"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["branding.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":7,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyDocument","model":null,"fields":["archivedAt","audience","category","createdAt","description","fileName","id","mimeType","publishedAt","publishedByUserId","sizeBytes","societyId","status","storageKey","supersededByDocumentId","supersedesDocumentId","title","unitId","updatedAt","uploadedByUserId","version"],"origins":["services/api/prisma/migrations/20260914093000_v2_society_documents_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["documents.service.ts","notice-attachments.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":18,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
     {"name":"SocietyDocumentEvent","model":null,"fields":["actorUserId","createdAt","documentId","eventType","fromStatus","id","note","societyId","toStatus"],"origins":["services/api/prisma/migrations/20260914093000_v2_society_documents_foundation/migration.sql"],"boundary":"SOCIETY_SCOPED_OR_HYBRID","modules":["documents.service.ts"],"reviewOwner":"API module maintainer; Principal Architect for cross-module paths","accessSiteCount":6,"disposition":"SEMANTIC_AUTHORIZATION_REVIEW_REQUIRED_IN_V5_2"},
@@ -1315,6 +1336,15 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":103,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["AmenityBooking"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":112,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/billing/payment-webhook.processor.ts","line":122,"method":"process","operation":"$executeRaw","kind":"RAW_SQL","tables":["PaymentWebhookReceipt"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.society","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":31,"method":"authorize","operation":"findFirst","kind":"ORM","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":51,"method":"callback","operation":"findMany","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":68,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":69,"method":"callback","operation":"count","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":78,"method":"callback","operation":"create","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":95,"method":"callback","operation":"findFirst","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":124,"method":"callback","operation":"updateMany","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":133,"method":"callback","operation":"updateMany","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx.societyBrandLogoAsset","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/brand-logo.service.ts","line":138,"method":"callback","operation":"findFirst","kind":"ORM","tables":["SocietyBrandLogoAsset"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.society","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":46,"method":"callback","operation":"findFirst","kind":"ORM","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.societyBrandRevision","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":51,"method":"callback","operation":"findFirst","kind":"ORM","tables":["SocietyBrandRevision"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.society","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/branding/branding.service.ts","line":90,"method":"requireEditor","operation":"findFirst","kind":"ORM","tables":["Society"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":["select"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -3152,6 +3182,9 @@
     {"file":"services/api/src/billing/billing.controller.ts","line":150,"method":"webhookReceipts","route":"@Get('payments/admin/webhook-receipts')","boundaryEvidence":["@Controller('billing')","@UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)","@RequiresFeature(ProductFeature.PAYMENTS)","@RequiresPermissions(AppPermission.PAYMENT_RECONCILE)"],"scopeSignals":["societyId"]},
     {"file":"services/api/src/billing/billing.controller.ts","line":157,"method":"replayWebhook","route":"@Post('payments/admin/webhook-receipts/:receiptId/replay')","boundaryEvidence":["@Controller('billing')","@UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)","@RequiresFeature(ProductFeature.PAYMENTS)","@RequiresPermissions(AppPermission.PAYMENT_RECONCILE)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/billing/billing.controller.ts","line":180,"method":"webhook","route":"@Post('gateway-adapter')","boundaryEvidence":["@Controller('billing/payment-webhooks')"],"scopeSignals":[]},
+    {"file":"services/api/src/branding/brand-logo.controller.ts","line":21,"method":"list","route":"@Get()","boundaryEvidence":["@Controller('branding/manage/logos')","@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)","@RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)"],"scopeSignals":["societyId","userId"]},
+    {"file":"services/api/src/branding/brand-logo.controller.ts","line":27,"method":"upload","route":"@Post('uploads')","boundaryEvidence":["@Controller('branding/manage/logos')","@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)","@RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)"],"scopeSignals":["societyId","userId"]},
+    {"file":"services/api/src/branding/brand-logo.controller.ts","line":33,"method":"confirm","route":"@Post(':assetId/confirm')","boundaryEvidence":["@Controller('branding/manage/logos')","@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)","@RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)"],"scopeSignals":["societyId","userId"]},
     {"file":"services/api/src/branding/branding.controller.ts","line":22,"method":"bootstrap","route":"@Get('bootstrap')","boundaryEvidence":["@Controller('branding')"],"scopeSignals":[]},
     {"file":"services/api/src/branding/branding.controller.ts","line":35,"method":"config","route":"@Get('config')","boundaryEvidence":["@Controller('context')","@UseGuards(BearerGuard)"],"scopeSignals":[]},
     {"file":"services/api/src/branding/branding.controller.ts","line":58,"method":"history","route":"@Get('revisions')","boundaryEvidence":["@Controller('branding/manage')","@UseGuards(BearerGuard, TenantGuard, PermissionsGuard)","@RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)"],"scopeSignals":["societyId","userId"]},
