@@ -66,7 +66,7 @@ class AaraagateResidentApp extends StatefulWidget {
   State<AaraagateResidentApp> createState() => _AaraagateResidentAppState();
 }
 
-class _AaraagateResidentAppState extends State<AaraagateResidentApp> {
+class _AaraagateResidentAppState extends State<AaraagateResidentApp> with WidgetsBindingObserver {
   late final ResidentBrandingController _branding;
 
   @override
@@ -96,10 +96,17 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> {
         }
       },
     );
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _branding.refresh();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _branding.dispose();
     super.dispose();
   }
