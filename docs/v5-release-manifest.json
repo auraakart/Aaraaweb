@@ -76,7 +76,7 @@
     {
       "id": "V5.2",
       "name": "Audience RBAC and tenant isolation",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETED",
       "dependsOn": [
         "V5.1"
       ],
@@ -527,7 +527,7 @@
         {
           "id": "V5.2.29",
           "name": "Final gate check-in authorization revalidation and V5.2 audience isolation regression/closure evidence",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "84093ace89bfc4e795e7ba043c727b5058cddaab",
           "evidence": [
             "services/api/src/workforce/workforce-gate-revalidation.spec.ts",
@@ -536,7 +536,11 @@
           ],
           "limitations": [
             "RLS remains disabled and is a separately tracked defense-in-depth enablement, not asserted here. Existing worker attendance/payments still rely on explicit society and occupancy predicates. No partner portal, external payment providers, physical access hardware, or productionization. Staging/main stay untouched. Final milestone status must be reconciled after protected CI merge."
-          ]
+          ],
+          "pullRequest": 1240,
+          "mergeSha": "3b9a2b2dcdeedf62f6ffc6fb3c614c4f6359a937",
+          "validatedRuntimeSha": "e095da5fc7c1449d414a3cfc89036f433ecd806d",
+          "ciRun": 38220433996
         }
       ]
     },
