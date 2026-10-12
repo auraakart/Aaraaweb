@@ -43,7 +43,7 @@ describe('V4 privacy fulfilment closure',()=>{
   });
 
   it('blocks account-wide anonymisation while any active account relationship exists',async()=>{
-    const {service}=serviceWith([
+    const {service,prisma}=serviceWith([
       [{id:'11111111-1111-4111-8111-111111111111',societyId:null,subjectUserId:'33333333-3333-4333-8333-333333333333',requestType:'ERASURE',status:'IN_REVIEW',legalHold:false,retentionDecision:'ALLOW'}],
       [{count:2}],
     ]);
