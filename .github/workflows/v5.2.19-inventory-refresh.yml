@@ -1,0 +1,36 @@
+name: V5.2.19 temporary tenant inventory refresh
+on:
+  push:
+    branches:
+      - mastermind/v5.2.19-privacy-case-state-transactions
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: mastermind/v5.2.19-privacy-case-state-transactions
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+          pnpm install --frozen-lockfile
+      - name: Regenerate and check deterministic inventory
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          node services/api/scripts/tenant-access-inventory.mjs --check
+      - name: Commit generated inventory to feature branch only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/architecture/v5-tenant-access-inventory.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(v5.2.19): regenerate deterministic tenant-access inventory"
+            git push origin HEAD:mastermind/v5.2.19-privacy-case-state-transactions
+          fi
