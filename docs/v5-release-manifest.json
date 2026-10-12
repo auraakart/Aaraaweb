@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.6",
+      "currentSlice": "V5.3.7",
       "slices": [
         {
           "id": "V5.3.1",
@@ -646,7 +646,7 @@
         {
           "id": "V5.3.6",
           "name": "Admin scoped runtime society-brand palette and client metadata",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2cfc35c033efd86e489f214622e461e976eead1d",
           "evidence": [
             "apps/admin/lib/admin-society-brand.ts",
@@ -655,6 +655,24 @@
           ],
           "limitations": [
             "Branding is applied to the authenticated AdminConsole shell only and never to SSR root metadata or unauthenticated login. Dynamic colors must meet AA white-text contrast; unsafe colors use built-in default. Does not add admin brand editing UX, asset upload, verified hosts, partner white label, a persistent offline cache, RLS or productionization."
+          ],
+          "pullRequest": 1247,
+          "mergeSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "validatedRuntimeSha": "f887df1527ab005f7c7563f6319232749a285762",
+          "ciRun": 38242329936
+        },
+        {
+          "id": "V5.3.7",
+          "name": "Admin society-brand editor with safe preview, versioned drafts and publish actions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand-editor.ts",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/scripts/v5.3.7-brand-editor-regression.mjs"
+          ],
+          "limitations": [
+            "Only existing SOCIETY_CONFIGURATION_MANAGE management API routes are used. Operational permissions, finance, legal issuer, default login branding, native Android identity, partner portal, media upload, domain binding and RLS remain unchanged. The editor is exposed only to society/super administrators with backend reauthorization; individual tabs are not new authority. No staging/main promotion or productionization."
           ]
         }
       ]
