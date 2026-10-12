@@ -31,7 +31,7 @@ export class PrivacyConsentService {
       WHERE c."societyId" = ${societyId}::uuid
       ORDER BY c."createdAt" DESC
       LIMIT 250
-    `);
+    `));
   }
 
   async record(
@@ -65,7 +65,6 @@ export class PrivacyConsentService {
       if (representativeUserId === input.subjectUserId) {
         throw new BadRequestException('Minor-data representative must be different from the subject');
       }
-    } else if (representativeUserId) {
     }
 
     return this.prisma.withTenantContext(societyId, async tx => {
@@ -128,7 +127,8 @@ export class PrivacyConsentService {
       JOIN "User" actor ON actor."id" = e."actorUserId"
       WHERE e."societyId" = ${societyId}::uuid AND e."consentId" = ${consentId}::uuid
       ORDER BY e."createdAt" ASC
-    `);
+      `);
+    });
   }
 
   private async find(tx: Prisma.TransactionClient, societyId: string, consentId: string, forUpdate = false) {
