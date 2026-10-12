@@ -23,7 +23,7 @@ assert.throws(()=>parseSocietyBrandRevisions([item(a,1,null,{colors:{primary:'#1
 const draft=draftBrandConfig('Society A','#155E75','#164E63')
 assert.ok(parseAdminSocietyBrand({society:{id:a},branding:{schemaVersion:1,revision:'preview',brand:{id:'aaraagate',...draft}}},a))
 assert.equal(parseAdminSocietyBrand({society:{id:a},branding:{schemaVersion:1,revision:'preview',brand:{id:'aaraagate',...draft}}},b),null)
-assert.equal(parseAdminSocietyBrand({society:{id:a},branding:{schemaVersion:1,revision:'preview',brand:{id:'aaraagate',displayName:'Unsafe',colors:{primary:'#FFFFFF',primaryDeep:'#164E63'}}}},a),null)
+assert.equal(parseAdminSocietyBrand({society:{id:a},branding:{schemaVersion:1,revision:'preview',brand:{id:'aaraagate',displayName:'Light palette',colors:{primary:'#FFFFFF',primaryDeep:'#164E63'}}}},a)?.onPrimaryDeep,'#FFFFFF')
 const editor=readFileSync(new URL('../app/admin-society-brand-editor.tsx',import.meta.url),'utf8')
 const access=readFileSync(new URL('../lib/admin-access.ts',import.meta.url),'utf8')
 const consoleSource=readFileSync(new URL('../app/admin-console.tsx',import.meta.url),'utf8')
