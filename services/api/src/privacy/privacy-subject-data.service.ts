@@ -17,17 +17,18 @@ type PrivacyCase = {
 export class PrivacySubjectDataService {
   constructor(private readonly prisma:PrismaService){}
 
-  async exportMine(userId:string,societyId:string|undefined,caseId:string){
-    const privacyCase=await this.subjectCase(userId,societyId,caseId);
+  exportMine(userId:string,societyId:string|undefined,caseId:string){
+    return this.withPrivacyDataTransaction(societyId, async tx => {
+    const privacyCase=await this.subjectCase(userId,societyId,caseId,tx);
     if(privacyCase.requestType!=='ACCESS') throw new BadRequestException('Only completed ACCESS requests can generate a data export');
     if(privacyCase.status!=='COMPLETED') throw new BadRequestException('Data export becomes available after the ACCESS request is completed');
 
     const [account,relationships,access,helpdesk,services,payments,privacyRequests,consumerHomes,consumerBookings,providerApplications,bookingProposals,completionEvidence,serviceDisputes,disputeEvidence,extraWorkBillingRequests,offeringEvents]=await Promise.all([
-      this.prisma.$queryRaw(Prisma.sql`
+      tx.$queryRaw(Prisma.sql`
         SELECT "id","phone","email","name","status","createdAt","updatedAt"
         FROM "User" WHERE "id"=${userId}::uuid LIMIT 1
       `),
-      societyId?this.prisma.$queryRaw(Prisma.sql`
+      societyId?tx.$queryRaw(Prisma.sql`
         SELECT
           (SELECT COALESCE(jsonb_agg(jsonb_build_object('role',"role",'active',"active",'createdAt',"createdAt")),'[]'::jsonb)
              FROM "SocietyMembership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid) AS memberships,
@@ -36,73 +37,73 @@ export class PrivacySubjectDataService {
           (SELECT COALESCE(jsonb_agg(jsonb_build_object('unitId',"unitId",'relation',"relation",'active',"active",'effectiveFrom',"effectiveFrom",'effectiveTo',"effectiveTo")),'[]'::jsonb)
              FROM "UnitOccupancy" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid) AS occupancies
       `):Promise.resolve([]),
-      societyId?this.prisma.$queryRaw(Prisma.sql`
+      societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","unitId","subjectType","subjectName","subjectPhone","purpose","status","validFrom","validUntil","enteredAt","exitedAt","createdAt","updatedAt"
         FROM "AccessRequest" WHERE "societyId"=${societyId}::uuid AND "requestedById"=${userId}::uuid
         ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      societyId?this.prisma.$queryRaw(Prisma.sql`
+      societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","unitId","title","description","category","priority","status","resolvedAt","closedAt","createdAt","updatedAt"
         FROM "HelpdeskTicket" WHERE "societyId"=${societyId}::uuid AND "createdById"=${userId}::uuid
         ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      societyId?this.prisma.$queryRaw(Prisma.sql`
+      societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","unitId","providerId","offeringId","status","scheduledFrom","scheduledUntil","servicePricePaise","commissionPaise","notes","createdAt","updatedAt"
         FROM "ServiceBooking" WHERE "societyId"=${societyId}::uuid AND "residentUserId"=${userId}::uuid
         ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      societyId?this.prisma.$queryRaw(Prisma.sql`
+      societyId?tx.$queryRaw(Prisma.sql`
         SELECT p."id",p."invoiceId",p."amountPaise",p."status",p."provider",p."createdAt",p."completedAt"
         FROM "Payment" p WHERE p."societyId"=${societyId}::uuid AND p."payerUserId"=${userId}::uuid
         ORDER BY p."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      this.prisma.$queryRaw(Prisma.sql`
+      tx.$queryRaw(Prisma.sql`
         SELECT "id","societyId","requestType","status","requestSummary","legalHold","retentionDecision","dueAt","closedAt","createdAt","updatedAt"
         FROM "PrivacyRequestCase" WHERE "subjectUserId"=${userId}::uuid
           AND "societyId" IS NOT DISTINCT FROM ${societyId??null}::uuid
         ORDER BY "createdAt" DESC LIMIT 250
       `),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","label","addressLine1","addressLine2","locality","city","state","postalCode","latitude","longitude","active","createdAt","updatedAt"
         FROM "ConsumerHome" WHERE "userId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 250
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","homeId","societyUnitId","providerId","offeringId","offeringName","providerName","addressSnapshot","status",
                "scheduledFrom","scheduledUntil","servicePricePaise","notes","createdAt","updatedAt"
         FROM "ConsumerServiceBooking" WHERE "userId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","providerId","businessName","contactName","phone","email","description","requestedCategoryIds","evidenceRefs","status",
                "reviewNote","submittedAt","reviewedAt","createdAt","updatedAt"
         FROM "ProviderOnboardingApplication" WHERE "applicantUserId"=${userId}::uuid ORDER BY "createdAt" DESC LIMIT 100
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT p."id",p."bookingId",p."providerId",p."proposedFrom",p."proposedUntil",p."note",p."status",p."createdAt",p."respondedAt"
         FROM "ProviderBookingProposal" p
         LEFT JOIN "ConsumerServiceBooking" b ON b."id"=p."bookingId"
         WHERE b."userId"=${userId}::uuid OR p."createdByUserId"=${userId}::uuid OR p."respondedByUserId"=${userId}::uuid
         ORDER BY p."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT e."id",e."bookingId",e."providerId",e."evidenceType",e."reference",e."note",e."occurredAt"
         FROM "ConsumerServiceCompletionEvidence" e
         LEFT JOIN "ConsumerServiceBooking" b ON b."id"=e."bookingId"
         WHERE b."userId"=${userId}::uuid OR e."actorUserId"=${userId}::uuid
         ORDER BY e."occurredAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT d."id",d."bookingId",d."providerId",d."reasonCode",d."detail",d."status",d."resolutionNote",d."resolvedAt",d."createdAt",d."updatedAt"
         FROM "ConsumerServiceDispute" d
         WHERE d."userId"=${userId}::uuid OR d."resolvedByUserId"=${userId}::uuid
         ORDER BY d."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT e."id",e."disputeId",e."actorType",e."note",e."reference",e."createdAt"
         FROM "ConsumerServiceDisputeEvidence" e JOIN "ConsumerServiceDispute" d ON d."id"=e."disputeId"
         WHERE d."userId"=${userId}::uuid OR e."actorUserId"=${userId}::uuid
         ORDER BY e."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT r."id",r."bookingId",r."quoteId",r."amountPaise"::text AS "amountPaise",
           r."status",r."createdAt",a."createdAt" AS "providerAcknowledgedAt",
           d."createdAt" AS "nonPayableDraftPreparedAt"
@@ -111,7 +112,7 @@ export class PrivacySubjectDataService {
         LEFT JOIN "ConsumerServiceExtraWorkBillingDraft" d ON d."billingRequestId"=r."id"
         WHERE r."userId"=${userId}::uuid ORDER BY r."createdAt" DESC LIMIT 1000
       `):Promise.resolve([]),
-      !societyId?this.prisma.$queryRaw(Prisma.sql`
+      !societyId?tx.$queryRaw(Prisma.sql`
         SELECT "id","offeringId","providerId","action","snapshotJson","occurredAt"
         FROM "ServiceOfferingProviderEvent" WHERE "actorUserId"=${userId}::uuid ORDER BY "occurredAt" DESC LIMIT 1000
       `):Promise.resolve([]),
@@ -143,21 +144,26 @@ export class PrivacySubjectDataService {
         'Records about other people are included only when they form part of a request initiated by the data subject.',
       ],
     };
+    });
   }
 
-  async erasurePlan(societyId:string|undefined,caseId:string){
-    const privacyCase=await this.caseByScope(societyId,caseId);
+  erasurePlan(societyId:string|undefined,caseId:string){
+    return this.withPrivacyDataTransaction(societyId, tx => this.erasurePlanOnClient(tx,societyId,caseId));
+  }
+
+  private async erasurePlanOnClient(tx:Prisma.TransactionClient,societyId:string|undefined,caseId:string){
+    const privacyCase=await this.caseByScope(societyId,caseId,tx);
     if(privacyCase.requestType!=='ERASURE') throw new BadRequestException('Erasure plan is only available for ERASURE cases');
     const userId=privacyCase.subjectUserId;
     const [activeSocietyRelations,activeGlobalRelations]=await Promise.all([
-      societyId?this.prisma.$queryRaw<Array<{count:number}>>(Prisma.sql`
+      societyId?tx.$queryRaw<Array<{count:number}>>(Prisma.sql`
         SELECT (
           (SELECT COUNT(*) FROM "SocietyMembership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true)
           +(SELECT COUNT(*) FROM "UnitOwnership" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
           +(SELECT COUNT(*) FROM "UnitOccupancy" WHERE "societyId"=${societyId}::uuid AND "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
         )::int AS count
       `):Promise.resolve([{count:0}]),
-      !societyId?this.prisma.$queryRaw<Array<{count:number}>>(Prisma.sql`
+      !societyId?tx.$queryRaw<Array<{count:number}>>(Prisma.sql`
         SELECT (
           (SELECT COUNT(*) FROM "SocietyMembership" WHERE "userId"=${userId}::uuid AND "active"=true)
           +(SELECT COUNT(*) FROM "UnitOwnership" WHERE "userId"=${userId}::uuid AND "active"=true AND ("effectiveTo" IS NULL OR "effectiveTo">CURRENT_TIMESTAMP))
@@ -200,7 +206,7 @@ export class PrivacySubjectDataService {
     const plan=await this.erasurePlan(societyId,caseId);
     if(!plan.executable) throw new BadRequestException(`Erasure cannot execute: ${plan.blockers.join(', ')||'case is closed'}`);
 
-    return this.prisma.$transaction(async tx=>{
+    return this.withPrivacyDataTransaction(societyId, async tx=>{
       const cases=await tx.$queryRaw<PrivacyCase[]>(Prisma.sql`
         SELECT "id","societyId","subjectUserId","requestType","status","legalHold","retentionDecision"
         FROM "PrivacyRequestCase"
@@ -343,8 +349,19 @@ export class PrivacySubjectDataService {
     });
   }
 
-  private async subjectCase(userId:string,societyId:string|undefined,caseId:string){
-    const rows=await this.prisma.$queryRaw<PrivacyCase[]>(Prisma.sql`
+
+  private withPrivacyDataTransaction<T>(
+    societyId: string | undefined,
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    // Independent-home privacy requests have no society and must not be assigned a synthetic one.
+    return societyId
+      ? this.prisma.withTenantContext(societyId, operation)
+      : this.prisma.$transaction(operation);
+  }
+
+  private async subjectCase(userId:string,societyId:string|undefined,caseId:string,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<PrivacyCase[]>(Prisma.sql`
       SELECT "id","societyId","subjectUserId","requestType","status","legalHold","retentionDecision"
       FROM "PrivacyRequestCase"
       WHERE "id"=${caseId}::uuid AND "subjectUserId"=${userId}::uuid
@@ -354,8 +371,8 @@ export class PrivacySubjectDataService {
     return rows[0];
   }
 
-  private async caseByScope(societyId:string|undefined,caseId:string){
-    const rows=await this.prisma.$queryRaw<PrivacyCase[]>(Prisma.sql`
+  private async caseByScope(societyId:string|undefined,caseId:string,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<PrivacyCase[]>(Prisma.sql`
       SELECT "id","societyId","subjectUserId","requestType","status","legalHold","retentionDecision"
       FROM "PrivacyRequestCase"
       WHERE "id"=${caseId}::uuid AND "societyId" IS NOT DISTINCT FROM ${societyId??null}::uuid LIMIT 1
