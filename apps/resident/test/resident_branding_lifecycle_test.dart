@@ -133,4 +133,68 @@ void main() {
     controller.dispose();
     signal.dispose();
   });
+
+  test('foreground refresh picks up a published society revision without session change',() async {
+    final signal=SessionSignal();
+    var calls=0;
+    final controller=ResidentBrandingController(
+      scopeChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(_){calls++;return Future.value(brand(societyA,calls==1?'Old name':'Published update'));},
+    );
+    signal.switchTo(identity('session-a',societyA));
+    await settle();
+    expect(controller.current?.displayName,'Old name');
+    controller.refresh();
+    await settle();
+    expect(controller.current?.displayName,'Published update');
+    expect(calls,2);
+    controller.dispose();signal.dispose();
+  });
+
+  test('failed foreground refresh retains same-session appearance but sign-out clears it',() async {
+    final signal=SessionSignal();
+    var calls=0;
+    final controller=ResidentBrandingController(
+      scopeChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(_){
+        calls++;
+        return calls==1?Future.value(brand(societyA,'Verified')):Future.error(StateError('offline'));
+      },
+    );
+    signal.switchTo(identity('session-a',societyA));
+    await settle();
+    controller.refresh();
+    await settle();
+    expect(controller.current?.displayName,'Verified');
+    signal.switchTo(null);
+    expect(controller.current,isNull);
+    controller.refresh();
+    expect(calls,2);
+    controller.dispose();signal.dispose();
+  });
+
+  test('late foreground response cannot repaint newly selected society',() async {
+    final signal=SessionSignal();
+    final pending=Completer<Object?>();
+    var aCalls=0;
+    final controller=ResidentBrandingController(
+      scopeChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(session) {
+        if(session.societyId==societyB)return Future.value(brand(societyB,'Society B'));
+        aCalls++;
+        return aCalls==1?Future.value(brand(societyA,'Society A')):pending.future;
+      },
+    );
+    signal.switchTo(identity('session-a',societyA));
+    await settle();
+    controller.refresh();
+    signal.switchTo(identity('session-b',societyB));
+    await settle();
+    expect(controller.current?.displayName,'Society B');
+    pending.complete(brand(societyA,'Late old brand'));
+    await settle();
+    expect(controller.current?.displayName,'Society B');
+    controller.dispose();signal.dispose();
+  });
+
 }
