@@ -551,12 +551,12 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.1",
+      "currentSlice": "V5.3.2",
       "slices": [
         {
           "id": "V5.3.1",
           "name": "Runtime society branding contract, immutable revision persistence and authenticated read resolution",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "2b49e67ee6fb6db30b684f4dafb64406bc8cde92",
           "evidence": [
             "services/api/src/branding/branding-contract.ts",
@@ -566,6 +566,24 @@
           ],
           "limitations": [
             "This slice does not expose draft/publish or image upload endpoints. The public bootstrap remains Aaraagate. Only validated, published society presentation can override the authenticated context response; no partner/distribution/host selection is introduced. No entitlements, roles, CSS/HTML, physical gate or finance behavior changed. RLS, productionization, staging/main promotion remain separate."
+          ],
+          "pullRequest": 1242,
+          "mergeSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "validatedRuntimeSha": "452c1a05a1ddaf8845a0c9a3eddde3547205d8b2",
+          "ciRun": 38228058750
+        },
+        {
+          "id": "V5.3.2",
+          "name": "Society-brand authoring, optimistic revision control and atomic publication",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "evidence": [
+            "services/api/src/branding/branding-publish.service.spec.ts",
+            "services/api/src/branding/branding-publish.postgres.spec.ts",
+            "services/api/src/branding/branding.controller.spec.ts"
+          ],
+          "limitations": [
+            "Only society presentation fields; no brand asset upload, media URL, custom CSS, partner distribution or portal host. No new entitlement or identity grants; management requires current operational SOCIETY_CONFIGURATION_MANAGE permission. Publishing is an immutable draft timestamp transition and history remains capped at 100 rows; rollback via future new revision, not mutating published record. No productionization, RLS or staging/main promotion."
           ]
         }
       ]
