@@ -49,6 +49,11 @@ class SocietyBrandPublishDto {
   @IsInt() @Min(0) expectedPublishedVersion!: number;
 }
 
+class SocietyBrandRestoreDto {
+  @IsInt() @Min(1) expectedVersion!: number;
+  @IsInt() @Min(1) expectedPublishedVersion!: number;
+}
+
 @Controller('branding/manage')
 @UseGuards(BearerGuard, TenantGuard, PermissionsGuard)
 @RequiresPermissions(AppPermission.SOCIETY_CONFIGURATION_MANAGE)
@@ -65,6 +70,16 @@ export class BrandingManageController {
   @Header('Cache-Control', 'no-store')
   create(@Req() request: AuthenticatedRequest, @Body() input: SocietyBrandDraftDto) {
     return this.branding.createDraft(request.auth!.societyId!, request.auth!.userId, input);
+  }
+
+  @Post('revisions/:revisionId/restore')
+  @Header('Cache-Control', 'no-store')
+  restore(
+    @Req() request: AuthenticatedRequest,
+    @Param('revisionId', ParseUUIDPipe) revisionId: string,
+    @Body() input: SocietyBrandRestoreDto,
+  ) {
+    return this.branding.restorePublished(request.auth!.societyId!, request.auth!.userId, revisionId, input);
   }
 
   @Post('drafts/:revisionId/publish')
