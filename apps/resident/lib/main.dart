@@ -23,6 +23,7 @@ import 'screens/updates_screen.dart';
 import 'screens/workforce_screen.dart';
 import 'preferences/resident_experience_preferences.dart';
 import 'theme/aaraagate_theme.dart';
+import 'theme/resident_branding_controller.dart';
 
 const _demoFeatures = <String>{
   'VISITOR_MANAGEMENT',
@@ -49,23 +50,71 @@ Future<void> main() async {
   authController.bootstrap();
 }
 
-class AaraagateResidentApp extends StatelessWidget {
-  AaraagateResidentApp({super.key, required this.apiBaseUrl, required this.authController, ResidentExperiencePreferences? experiencePreferences})
-      : experiencePreferences = experiencePreferences ?? ResidentExperiencePreferences();
+class AaraagateResidentApp extends StatefulWidget {
+  AaraagateResidentApp({
+    super.key,
+    required this.apiBaseUrl,
+    required this.authController,
+    ResidentExperiencePreferences? experiencePreferences,
+  }) : experiencePreferences = experiencePreferences ?? ResidentExperiencePreferences();
+
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
 
   @override
+  State<AaraagateResidentApp> createState() => _AaraagateResidentAppState();
+}
+
+class _AaraagateResidentAppState extends State<AaraagateResidentApp> {
+  late final ResidentBrandingController _branding;
+
+  @override
+  void initState() {
+    super.initState();
+    _branding = ResidentBrandingController(
+      scopeChanges: widget.authController,
+      currentSession: () {
+        final auth = widget.authController;
+        final session = auth.session;
+        if (auth.step != ResidentAuthStep.signedIn || session == null ||
+            session.isIndependentHome || auth.isDemoSession || session.societyId == null) {
+          return null;
+        }
+        return ResidentBrandSession(
+          sessionId: session.sessionId,
+          societyId: session.societyId!,
+          accessToken: session.accessToken,
+        );
+      },
+      fetchContext: (session) async {
+        final api = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
+        try {
+          return await api.get('/api/v1/context/config');
+        } finally {
+          api.close();
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _branding.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: experiencePreferences,
+        animation: Listenable.merge([widget.experiencePreferences, _branding]),
         builder: (context, _) {
-          final easyMode = experiencePreferences.easyMode;
+          final easyMode = widget.experiencePreferences.easyMode;
+          final societyBrand = _branding.current;
           return MaterialApp(
-            title: 'Aaraagate',
+            title: societyBrand?.displayName ?? 'Aaraagate',
             debugShowCheckedModeBanner: false,
-            theme: AaraagateTheme.light(),
-            darkTheme: AaraagateTheme.dark(),
+            theme: AaraagateTheme.light(societyBrand: societyBrand),
+            darkTheme: AaraagateTheme.dark(societyBrand: societyBrand),
             themeMode: ThemeMode.system,
             builder: (context, child) {
               final media = MediaQuery.of(context);
@@ -74,7 +123,11 @@ class AaraagateResidentApp extends StatelessWidget {
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: _ResidentSessionGate(apiBaseUrl: apiBaseUrl, authController: authController, experiencePreferences: experiencePreferences),
+            home: _ResidentSessionGate(
+              apiBaseUrl: widget.apiBaseUrl,
+              authController: widget.authController,
+              experiencePreferences: widget.experiencePreferences,
+            ),
           );
         },
       );
