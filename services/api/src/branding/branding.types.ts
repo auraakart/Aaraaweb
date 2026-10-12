@@ -6,6 +6,7 @@ export interface BrandBootstrap {
     id: string;
     displayName: string;
     colors: { primary: string; primaryDeep: string };
+    support?: { email?: string; phone?: string };
   };
 }
 

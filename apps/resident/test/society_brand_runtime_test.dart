@@ -18,6 +18,18 @@ Map<String, dynamic> contextFor(String societyId, {String? revision}) => {
 };
 
 void main() {
+  test('parses safe support contacts for the selected society and rejects injected URLs', () {
+    const societyId='11111111-1111-4111-8111-111111111111';
+    final response=contextFor(societyId);
+    (response['branding']['brand'] as Map)['support']={'email':'help@example.com','phone':'+919876543210'};
+    final parsed=SocietyBrandTokens.tryParseContext(response,societyId:societyId);
+    expect(parsed?.supportEmail,'help@example.com');
+    expect(parsed?.supportPhone,'+919876543210');
+    (response['branding']['brand']['support'] as Map)['logoUrl']='https://untrusted.example';
+    expect(SocietyBrandTokens.tryParseContext(response,societyId:societyId),isNull);
+  });
+
+
   test('parses only selected society and supported revision contract', () {
     const societyId = '11111111-1111-4111-8111-111111111111';
     final response = contextFor(societyId);

@@ -17,6 +17,8 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
   const[name,setName]=useState(session.societyName)
   const[primary,setPrimary]=useState('#155E75')
   const[primaryDeep,setPrimaryDeep]=useState('#164E63')
+  const[supportEmail,setSupportEmail]=useState('')
+  const[supportPhone,setSupportPhone]=useState('')
   const refresh=useCallback(async()=>{
     const response=await api<unknown>('/branding/manage/revisions',{},session)
     setRevisions(parseSocietyBrandRevisions(response))
@@ -33,7 +35,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
   const latestVersion=revisions[0]?.version??0
   let draft:ReturnType<typeof draftBrandConfig>|null=null
   let validation=''
-  try{draft=draftBrandConfig(name,primary,primaryDeep)}
+  try{draft=draftBrandConfig(name,primary,primaryDeep,supportEmail,supportPhone)}
   catch(e){validation=e instanceof Error?e.message:'Invalid brand configuration'}
   // Reuse the already audited Admin palette parser: unsafe white-text contrast
   // never gets inserted into a runtime CSS custom property.
@@ -97,6 +99,8 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     setName(item.config.displayName??session.societyName)
     setPrimary(item.config.colors?.primary??'#155E75')
     setPrimaryDeep(item.config.colors?.primaryDeep??'#164E63')
+    setSupportEmail(item.config.support?.email??'')
+    setSupportPhone(item.config.support?.phone??'')
     setNotice('Values copied for a new draft; the original revision remains immutable.')
     setError('')
   }
@@ -117,13 +121,16 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <label>Display name<input value={name} maxLength={80} required onChange={e=>setName(e.target.value)} /></label>
         <label>Primary color (hex)<input value={primary} maxLength={7} required onChange={e=>setPrimary(e.target.value)} placeholder="#155E75"/></label>
         <label>Deep primary (hex)<input value={primaryDeep} maxLength={7} required onChange={e=>setPrimaryDeep(e.target.value)} placeholder="#164E63"/></label>
+        <label>Support email (optional)<input type="email" value={supportEmail} maxLength={254} onChange={e=>setSupportEmail(e.target.value)} placeholder="help@example.org" /></label>
+        <label>Support phone (optional)<input type="tel" value={supportPhone} maxLength={16} onChange={e=>setSupportPhone(e.target.value)} placeholder="+919876543210" /></label>
+        <p className="brand-editor-help">Support details are displayed as contact information only; they never affect authorization, payments or support workflow ownership.</p>
         <p className="brand-editor-help">Six-digit hex only. Foreground text automatically uses accessible black or white contrast. Success, error and gate-status colors are not editable.</p>
         {validation&&<p role="alert" className="error">{validation}</p>}
         <button className="primary" disabled={busy||loading||!!validation} type="submit">{busy?'Saving…':'Save as new draft'}</button>
       </form>
       <section className="panel brand-editor-preview">
         <h2>Live preview (not yet published)</h2>
-        <div className="brand-editor-swatch" style={previewStyle}><strong>{preview?.displayName??'Preview unavailable'}</strong><span>Resident · Guard · Admin</span><span>Example navigation and primary action</span></div>
+        <div className="brand-editor-swatch" style={previewStyle}><strong>{preview?.displayName??'Preview unavailable'}</strong><span>Resident · Guard · Admin</span><span>Example navigation and primary action</span>{draft?.support&&<span>Support: {[draft.support.email,draft.support.phone].filter(Boolean).join(' · ')}</span>}</div>
         <p>Currently published: <strong>{published?'Version '+published.version:'Built-in Aaraagate default'}</strong></p>
         <p>Next draft version: <strong>{latestVersion+1}</strong></p>
       </section>
@@ -133,7 +140,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
       {loading?<p>Loading revisions…</p>:revisions.length===0?<p>No society-specific revisions. The default Aaraagate brand remains active.</p>:
         <ul>{revisions.map(item=><li key={item.id}>
           <div><strong>Version {item.version}</strong> · {item.publishedAt?item.id===published?.id?'Current published':'Previously published':'Draft'}
-            <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}</p></div>
+            <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}{item.config.support?' · Support: '+[item.config.support.email,item.config.support.phone].filter(Boolean).join(' / '):''}</p></div>
           <div className="buttons">
             <button type="button" disabled={busy} onClick={()=>copy(item)}>Use values for new draft</button>
             {item.publishedAt&&published&&item.version<published.version&&<button type="button" disabled={busy} onClick={()=>void restore(item)}>Restore as new revision</button>}

@@ -8,6 +8,8 @@ class SocietyBrandTokens {
     required this.displayName,
     required this.primaryArgb,
     required this.primaryDeepArgb,
+    this.supportEmail,
+    this.supportPhone,
   });
 
   final String societyId;
@@ -15,12 +17,16 @@ class SocietyBrandTokens {
   final String displayName;
   final int primaryArgb;
   final int primaryDeepArgb;
+  final String? supportEmail;
+  final String? supportPhone;
 
   int get onPrimaryArgb => _onColor(primaryArgb);
   int get onPrimaryDeepArgb => _onColor(primaryDeepArgb);
 
   static final RegExp _color = RegExp(r'^#[0-9A-Fa-f]{6}$');
   static final RegExp _version = RegExp(r'^v[1-9][0-9]*$');
+  static final RegExp _supportPhone = RegExp(r'^\+[1-9][0-9]{7,14}$');
+  static final RegExp _supportEmail = RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
 
   /// Discard a stale, cross-society or corrupt network/offline response.
   /// The caller must already have an authenticated society session.
@@ -36,7 +42,7 @@ class SocietyBrandTokens {
     final revision = branding['revision'];
     final brand = branding['brand'];
     if (revision is! String || brand is! Map || brand['id'] != 'aaraagate') return null;
-    if (brand.keys.any((key) => !{'id', 'displayName', 'colors'}.contains(key))) return null;
+    if (brand.keys.any((key) => !{'id', 'displayName', 'colors', 'support'}.contains(key))) return null;
     final name = brand['displayName'];
     if (name is! String || name.trim().isEmpty || name.trim().length > 80 ||
         RegExp(r'[<>\x00-\x1f\x7f]').hasMatch(name)) return null;
@@ -46,6 +52,26 @@ class SocietyBrandTokens {
     final primary = colors['primary'], deep = colors['primaryDeep'];
     if (primary is! String || deep is! String ||
         !_color.hasMatch(primary) || !_color.hasMatch(deep)) return null;
+    String? email;
+    String? phone;
+    if (brand.containsKey('support')) {
+      final support = brand['support'];
+      if (support is! Map || support.isEmpty ||
+          support.keys.any((key) => !{'email', 'phone'}.contains(key))) return null;
+      if (support.containsKey('email')) {
+        final candidate = support['email'];
+        if (candidate is! String || candidate.length > 254 ||
+            candidate.trim() != candidate ||
+            candidate != candidate.toLowerCase() ||
+            !_supportEmail.hasMatch(candidate) || candidate.contains('..')) return null;
+        email = candidate;
+      }
+      if (support.containsKey('phone')) {
+        final candidate = support['phone'];
+        if (candidate is! String || !_supportPhone.hasMatch(candidate)) return null;
+        phone = candidate;
+      }
+    }
     if (revision != 'aaraagate-default-v1') {
       final prefix = 'society-$societyId-';
       if (!revision.startsWith(prefix) || !_version.hasMatch(revision.substring(prefix.length))) return null;
@@ -56,6 +82,8 @@ class SocietyBrandTokens {
       displayName: name.trim(),
       primaryArgb: _parseColor(primary),
       primaryDeepArgb: _parseColor(deep),
+      supportEmail: email,
+      supportPhone: phone,
     );
   }
 
