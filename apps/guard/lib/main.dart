@@ -37,7 +37,7 @@ class AaraagateGuardApp extends StatefulWidget {
   State<AaraagateGuardApp> createState() => _AaraagateGuardAppState();
 }
 
-class _AaraagateGuardAppState extends State<AaraagateGuardApp> {
+class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindingObserver {
   late final GuardBrandingController _branding;
 
   @override
@@ -50,10 +50,17 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> {
         sessionAccessToken: session.accessToken,
       ),
     );
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _branding.refresh();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _branding.dispose();
     super.dispose();
   }

@@ -50,16 +50,31 @@ class ResidentBrandingController extends ChangeNotifier {
     if (session != null) unawaited(_fetch(session, generation));
   }
 
-  Future<void> _fetch(ResidentBrandSession session, int generation) async {
+  /// Foreground refresh preserves the last verified same-session appearance on network failure.
+  void refresh() {
+    if (_disposed) return;
+    final session = currentSession();
+    if (session?.identity != _identity) {
+      _onScopeChanged();
+      return;
+    }
+    if (session == null) return;
+    unawaited(_fetch(session, ++_epoch, keepCurrentOnFailure: true));
+  }
+
+  Future<void> _fetch(ResidentBrandSession session, int generation, {bool keepCurrentOnFailure = false}) async {
     SocietyBrandTokens? next;
+    var transportFailed = false;
     try {
       final response = await fetchContext(session);
       next = SocietyBrandTokens.tryParseContext(response, societyId: session.societyId);
     } catch (_) {
+      transportFailed = true;
       // Presentation network failure cannot interfere with signing in,
       // society switching, independent-home privacy or gate operations.
     }
     if (_disposed || generation != _epoch || _identity != session.identity) return;
+    if (keepCurrentOnFailure && transportFailed) return;
     current = next;
     notifyListeners();
   }

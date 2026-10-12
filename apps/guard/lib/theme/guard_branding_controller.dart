@@ -5,6 +5,9 @@ import '../data/guard_session_store.dart';
 
 /// Cosmetic state only. A session/society switch clears the previous theme
 /// synchronously; late or rejected responses can never cross the boundary.
+String identityFor(GuardSession session) =>
+    '${session.sessionId}:${session.userId}:${session.societyId}:${session.accessToken}';
+
 class GuardBrandingController extends ChangeNotifier {
   GuardBrandingController({
     required this.sessionChanges,
@@ -26,9 +29,7 @@ class GuardBrandingController extends ChangeNotifier {
   void _onSessionChange() {
     if (_disposed) return;
     final session = currentSession();
-    final identity = session == null
-        ? null
-        : '${session.sessionId}:${session.userId}:${session.societyId}:${session.accessToken}';
+    final identity = session == null ? null : identityFor(session);
     if (identity == _identity) return;
     _identity = identity;
     final generation = ++_generation;
@@ -37,15 +38,31 @@ class GuardBrandingController extends ChangeNotifier {
     if (session != null) unawaited(_fetch(session, generation));
   }
 
-  Future<void> _fetch(GuardSession session, int generation) async {
+  /// Re-resolve presentation after app resume, not gate/session permissions.
+  void refresh() {
+    if (_disposed) return;
+    final session = currentSession();
+    final identity = session == null ? null : identityFor(session);
+    if (identity != _identity) {
+      _onSessionChange();
+      return;
+    }
+    if (session == null) return;
+    unawaited(_fetch(session, ++_generation, keepCurrentOnFailure: true));
+  }
+
+  Future<void> _fetch(GuardSession session, int generation, {bool keepCurrentOnFailure = false}) async {
     SocietyBrandTokens? next;
+    var transportFailed = false;
     try {
       final response = await fetchContext(session);
       next = SocietyBrandTokens.tryParseContext(response, societyId: session.societyId);
     } catch (_) {
+      transportFailed = true;
       // Cosmetic errors may never block guard login, scans, gate events or offline sync.
     }
-    if (_disposed || generation != _generation) return;
+    if (_disposed || generation != _generation || _identity != identityFor(session)) return;
+    if (keepCurrentOnFailure && transportFailed) return;
     current = next;
     notifyListeners();
   }

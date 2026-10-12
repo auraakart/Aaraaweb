@@ -105,4 +105,68 @@ void main(){
     expect(fetches,0);
     signal.dispose();
   });
+
+  test('foreground refresh adopts newly published colors without logging out the guard',() async {
+    final signal=SessionSignal();
+    var calls=0;
+    final controller=GuardBrandingController(
+      sessionChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(_){calls++;return Future.value(context(societyA,calls==1?'Old guard brand':'New guard brand'));},
+    );
+    signal.use(active('session-a',societyA));
+    await settle();
+    expect(controller.current?.displayName,'Old guard brand');
+    controller.refresh();
+    await settle();
+    expect(controller.current?.displayName,'New guard brand');
+    expect(calls,2);
+    controller.dispose();signal.dispose();
+  });
+
+  test('network failure on resume preserves valid same-session guard theme only',() async {
+    final signal=SessionSignal();
+    var calls=0;
+    final controller=GuardBrandingController(
+      sessionChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(_){
+        calls++;
+        return calls==1?Future.value(context(societyA,'Verified')):Future.error(StateError('offline'));
+      },
+    );
+    signal.use(active('session-a',societyA));
+    await settle();
+    controller.refresh();
+    await settle();
+    expect(controller.current?.displayName,'Verified');
+    signal.use(null);
+    expect(controller.current,isNull);
+    controller.refresh();
+    expect(calls,2);
+    controller.dispose();signal.dispose();
+  });
+
+  test('late guard foreground refresh never crosses to another authenticated society',() async {
+    final signal=SessionSignal();
+    final pending=Completer<Object?>();
+    var aCalls=0;
+    final controller=GuardBrandingController(
+      sessionChanges:signal,currentSession:()=>signal.session,
+      fetchContext:(session){
+        if(session.societyId==societyB)return Future.value(context(societyB,'Current society'));
+        aCalls++;
+        return aCalls==1?Future.value(context(societyA,'Old current')):pending.future;
+      },
+    );
+    signal.use(active('session-a',societyA));
+    await settle();
+    controller.refresh();
+    signal.use(active('session-b',societyB));
+    await settle();
+    expect(controller.current?.displayName,'Current society');
+    pending.complete(context(societyA,'Late wrong society'));
+    await settle();
+    expect(controller.current?.displayName,'Current society');
+    controller.dispose();signal.dispose();
+  });
+
 }

@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.9",
+      "currentSlice": "V5.3.10",
       "slices": [
         {
           "id": "V5.3.1",
@@ -700,7 +700,7 @@
         {
           "id": "V5.3.9",
           "name": "Admin society palette accessibility parity with Resident and Guard using adaptive foreground tokens",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "1991645d6375a483b9a748d7e6fa59f9352cc180",
           "evidence": [
             "apps/admin/lib/admin-society-brand.ts",
@@ -710,6 +710,25 @@
           ],
           "limitations": [
             "Presentation-only Admin consistency: does not add image/logo storage, custom hostnames, offline brand persistence, partner distributions or native Android identity. No changes to backend brand publication, society RBAC, legal issuer, payment, guard gates, RLS or productionization. Scoped CSS variables never apply to login/SSR metadata and staging/main are unchanged."
+          ],
+          "pullRequest": 1251,
+          "mergeSha": "a2c60abe402a4fc62ab55373af752f3a230b4273",
+          "validatedRuntimeSha": "ccf07beaa3a04db4eb7a0f1bd2a6f6fcf1e579bd",
+          "ciRun": 38267019860
+        },
+        {
+          "id": "V5.3.10",
+          "name": "Resident and Guard foreground society-brand refresh with stale-response and offline safeguards",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "a2c60abe402a4fc62ab55373af752f3a230b4273",
+          "evidence": [
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/resident/test/resident_branding_lifecycle_test.dart",
+            "apps/guard/test/guard_branding_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Only presentation on authenticated foreground resume; no periodic push channel, persistent cross-society cache, image/logo asset, distribution-specific branding or native Android packaging. Offline refresh failures preserve only a previously validated theme for the exact current session; signing out or switching societies synchronously clears it. No auth, gate data, server entitlement, schema, production infrastructure, RLS or staging/main change."
           ]
         }
       ]
