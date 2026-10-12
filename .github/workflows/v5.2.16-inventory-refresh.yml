@@ -1,0 +1,38 @@
+name: V5.2.16 temporary inventory refresh
+on:
+  push:
+    branches:
+      - mastermind/v5.2.16-privacy-consent-context
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: mastermind/v5.2.16-privacy-consent-context
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install pinned workspace dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+          pnpm install --frozen-lockfile
+      - name: Regenerate and validate existing tenant-access register
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          node services/api/scripts/tenant-access-inventory.mjs --check
+      - name: Commit generated inventory to feature branch only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/architecture/v5-tenant-access-inventory.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(v5.2.16): regenerate deterministic tenant-access inventory"
+            git push origin HEAD:mastermind/v5.2.16-privacy-consent-context
+          fi
