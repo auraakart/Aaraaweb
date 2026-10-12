@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.28",
+      "currentSlice": "V5.2.29",
       "slices": [
         {
           "id": "V5.2.1",
@@ -509,7 +509,7 @@
         {
           "id": "V5.2.28",
           "name": "Workforce creation, private payment and attendance data access isolation",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "e684fe728f85250bb5bc8ac91b09578b7a596743",
           "evidence": [
             "services/api/src/workforce/workforce-payment-context.spec.ts",
@@ -518,6 +518,24 @@
           ],
           "limitations": [
             "Scope is workforce household creation, payment record/attendance visibility and idempotent recording only; contract and existing gate serializable path remain unchanged. Commercial partner RBAC and independent-home requests not extended; tenant context does not activate RLS. Productionization and staging/main changes excluded."
+          ],
+          "pullRequest": 1239,
+          "mergeSha": "84093ace89bfc4e795e7ba043c727b5058cddaab",
+          "validatedRuntimeSha": "7b4a714cb016fc07948a3b76a7ce87dc0da7114c",
+          "ciRun": 38219450606
+        },
+        {
+          "id": "V5.2.29",
+          "name": "Final gate check-in authorization revalidation and V5.2 audience isolation regression/closure evidence",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "84093ace89bfc4e795e7ba043c727b5058cddaab",
+          "evidence": [
+            "services/api/src/workforce/workforce-gate-revalidation.spec.ts",
+            "services/api/src/workforce/workforce.service.spec.ts",
+            "docs/architecture/V5.2-AUDIENCE-ISOLATION-CLOSURE.md"
+          ],
+          "limitations": [
+            "RLS remains disabled and is a separately tracked defense-in-depth enablement, not asserted here. Existing worker attendance/payments still rely on explicit society and occupancy predicates. No partner portal, external payment providers, physical access hardware, or productionization. Staging/main stay untouched. Final milestone status must be reconciled after protected CI merge."
           ]
         }
       ]
