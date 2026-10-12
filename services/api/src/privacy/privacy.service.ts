@@ -165,29 +165,33 @@ export class PrivacyService {
     ]).then(([subjects, assignees]) => ({ subjects, assignees }));
   }
 
-  async programReadiness(societyId:string){
+  programReadiness(societyId: string) {
+    return this.prisma.withTenantContext(societyId, tx => this.programReadinessOnClient(tx, societyId));
+  }
+
+  private async programReadinessOnClient(tx: Prisma.TransactionClient, societyId: string) {
     const [categories,processors,cases,incidents,grievance]=await Promise.all([
-      this.prisma.$queryRaw<Array<{active:number;missingLegalBasis:number;missingRetention:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:number;missingLegalBasis:number;missingRetention:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "active",
           COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("legalBasis",'')),'') IS NULL)::int AS "missingLegalBasis",
           COUNT(*) FILTER (WHERE "retentionDays" IS NULL OR "retentionDays"<=0)::int AS "missingRetention"
         FROM "PrivacyDataCategory" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
       `),
-      this.prisma.$queryRaw<Array<{active:number;missingAgreement:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:number;missingAgreement:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "active",
           COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE("agreementReference",'')),'') IS NULL)::int AS "missingAgreement"
         FROM "PrivacyProcessorRegister" WHERE "societyId"=${societyId}::uuid AND "active"=TRUE
       `),
-      this.prisma.$queryRaw<Array<{overdue:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{overdue:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "overdue" FROM "PrivacyRequestCase"
         WHERE "societyId"=${societyId}::uuid AND "status" NOT IN ('COMPLETED','REJECTED','CANCELLED')
           AND "dueAt" IS NOT NULL AND "dueAt"<CURRENT_TIMESTAMP
       `),
-      this.prisma.$queryRaw<Array<{open:number}>>(Prisma.sql`
+      tx.$queryRaw<Array<{open:number}>>(Prisma.sql`
         SELECT COUNT(*)::int AS "open" FROM "PrivacySecurityIncident"
         WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
       `),
-      this.prisma.$queryRaw<Array<{active:boolean}>>(Prisma.sql`
+      tx.$queryRaw<Array<{active:boolean}>>(Prisma.sql`
         SELECT "active" FROM "PrivacyGrievanceContact" WHERE "societyId"=${societyId}::uuid LIMIT 1
       `),
     ]);
@@ -224,35 +228,38 @@ export class PrivacyService {
     };
   }
 
-  async programEvidence(societyId:string){
+  programEvidence(societyId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
     const [readiness,consents,cases,incidents,registryEvents]=await Promise.all([
-      this.programReadiness(societyId),
-      this.prisma.$queryRaw<Array<{granted:number;withdrawn:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='GRANTED')::int AS "granted",COUNT(*) FILTER (WHERE "status"='WITHDRAWN')::int AS "withdrawn" FROM "PrivacyConsentRecord" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{open:number;completed:number;erasure:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED','REJECTED','CANCELLED'))::int AS "open",COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",COUNT(*) FILTER (WHERE "requestType"='ERASURE')::int AS "erasure" FROM "PrivacyRequestCase" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{open:number;closed:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"<>'CLOSED')::int AS "open",COUNT(*) FILTER (WHERE "status"='CLOSED')::int AS "closed" FROM "PrivacySecurityIncident" WHERE "societyId"=${societyId}::uuid`),
-      this.prisma.$queryRaw<Array<{count:number}>>(Prisma.sql`SELECT COUNT(*)::int AS "count" FROM "PrivacyRegistryEvent" WHERE "societyId"=${societyId}::uuid`),
+      this.programReadinessOnClient(tx, societyId),
+      tx.$queryRaw<Array<{granted:number;withdrawn:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"='GRANTED')::int AS "granted",COUNT(*) FILTER (WHERE "status"='WITHDRAWN')::int AS "withdrawn" FROM "PrivacyConsentRecord" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{open:number;completed:number;erasure:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status" NOT IN ('COMPLETED','REJECTED','CANCELLED'))::int AS "open",COUNT(*) FILTER (WHERE "status"='COMPLETED')::int AS "completed",COUNT(*) FILTER (WHERE "requestType"='ERASURE')::int AS "erasure" FROM "PrivacyRequestCase" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{open:number;closed:number}>>(Prisma.sql`SELECT COUNT(*) FILTER (WHERE "status"<>'CLOSED')::int AS "open",COUNT(*) FILTER (WHERE "status"='CLOSED')::int AS "closed" FROM "PrivacySecurityIncident" WHERE "societyId"=${societyId}::uuid`),
+      tx.$queryRaw<Array<{count:number}>>(Prisma.sql`SELECT COUNT(*)::int AS "count" FROM "PrivacyRegistryEvent" WHERE "societyId"=${societyId}::uuid`),
     ]);
     return {generatedAt:new Date().toISOString(),readiness,consentEvidence:consents[0]??{granted:0,withdrawn:0},caseEvidence:cases[0]??{open:0,completed:0,erasure:0},incidentEvidence:incidents[0]??{open:0,closed:0},registryEventCount:registryEvents[0]?.count??0,exportAndErasureWorkflowAvailable:true,legalHoldAndRetentionReviewRequiredForErasure:true,certificationClaim:false,boundary:'This audit pack is repository and society workflow evidence only. It is not a DPDP, GDPR, legal, security or statutory certification and does not replace counsel or independent audit.'};
+    });
   }
 
-  async caseReadiness(societyId: string, caseId: string) {
-    const current = await this.findCase(societyId, caseId);
+  caseReadiness(societyId: string, caseId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const current = await this.findCase(societyId, caseId, tx);
     if (!current) throw new NotFoundException('Privacy request case not found');
 
     const [categoryRows, processorRows, incidentRows, grievanceRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacyDataCategory"
         WHERE "societyId"=${societyId}::uuid AND "active"=true
       `),
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacyProcessorRegister"
         WHERE "societyId"=${societyId}::uuid AND "active"=true
       `),
-      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
         SELECT COUNT(*)::int AS "count" FROM "PrivacySecurityIncident"
         WHERE "societyId"=${societyId}::uuid AND "status"<>'CLOSED'
       `),
-      this.prisma.$queryRaw<Array<{ active: boolean }>>(Prisma.sql`
+      tx.$queryRaw<Array<{ active: boolean }>>(Prisma.sql`
         SELECT "active" FROM "PrivacyGrievanceContact"
         WHERE "societyId"=${societyId}::uuid LIMIT 1
       `),
@@ -291,6 +298,7 @@ export class PrivacyService {
       },
       boundary: 'Operational readiness evidence only; this does not determine statutory rights, legal validity or jurisdiction-specific compliance.',
     };
+    });
   }
 
   listCases(societyId: string) {
