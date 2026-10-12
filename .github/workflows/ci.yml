@@ -464,7 +464,29 @@ jobs:
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
       - name: Verify V5 tenant-access inventory
-        run: node services/api/scripts/tenant-access-inventory.mjs --check
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          node --input-type=module <<'DIAGNOSTIC'
+          import fs from 'node:fs'
+          import {execFileSync} from 'node:child_process'
+          const p='docs/architecture/v5-tenant-access-inventory.json'
+          const old=JSON.parse(execFileSync('git',['show','HEAD:'+p],{encoding:'utf8',maxBuffer:15000000}))
+          const next=JSON.parse(fs.readFileSync(p,'utf8'))
+          const targets=['services/api/src/branding/branding.service.ts']
+          const delta={
+            sourceDigest:next.sourceDigest,summary:next.summary,
+            changedPaths:targets,
+            tables:next.tables.filter(x=>JSON.stringify(x)!==JSON.stringify(old.tables.find(y=>y.name===x.name))),
+            accesses:next.accesses.filter(x=>targets.includes(x.file)),
+            routes:next.routes.filter(x=>targets.includes(x.file)),
+            tenantContextCalls:next.tenantContextCalls.filter(x=>targets.includes(x.file)),
+            policySignals:next.policySignals,
+            targetSha:execFileSync('git',['hash-object',p],{encoding:'utf8'}).trim(),
+          }
+          console.log('V5314_INVENTORY_DELTA='+JSON.stringify(delta))
+          DIAGNOSTIC
+          git checkout -- docs/architecture/v5-tenant-access-inventory.json
+          node services/api/scripts/tenant-access-inventory.mjs --check
       - name: V5 partner ownership historical upgrade and replay
         env:
           AARAAGATE_PARTNER_MIGRATION_CI: '1'
