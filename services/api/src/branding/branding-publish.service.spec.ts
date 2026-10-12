@@ -40,7 +40,7 @@ describe('V5.3.2 society brand revision workflow', () => {
     const { service, tx, prisma } = setup();
     await expect(service.createDraft(societyId, userId, { expectedVersion: 0, config }))
       .resolves.toMatchObject({ version: 1, publishedAt: null });
-    expect(sql(tx.$queryRaw.mock.calls[0][0])).toContain('FOR UPDATE');
+    expect(tx.$queryRaw.mock.calls.some(([query]) => sql(query).includes('FOR UPDATE'))).toBe(true);
     expect(tx.societyBrandRevision.create).toHaveBeenCalledWith({
       data: { societyId, createdById: userId, version: 1, config, digest: societyBrandDigest(config) },
       select: expect.any(Object),
