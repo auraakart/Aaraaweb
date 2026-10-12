@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.11",
+      "currentSlice": "V5.3.12",
       "slices": [
         {
           "id": "V5.3.1",
@@ -738,7 +738,7 @@
         {
           "id": "V5.3.11",
           "name": "Safe runtime society-branded support contacts across API, shared Dart and Admin editor",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "9ab658deb10e7cf021c2d15feccc392302045ea2",
           "evidence": [
             "services/api/src/branding/branding-contract.spec.ts",
@@ -749,6 +749,26 @@
           ],
           "limitations": [
             "Only authenticated society support email and E.164 phone; no arbitrary URLs, mail sending or call triggering, partner distribution, media upload/logo rendering or independent-home society branding. Cosmetic fields never become authorization, legal issuer or entitlement values. Existing default public bootstrap and native application identity unchanged. RLS, infrastructure and staging/main promotion excluded."
+          ],
+          "pullRequest": 1253,
+          "mergeSha": "46752895a4662ddd470a17c6acc6c568bb52673b"
+        },
+        {
+          "id": "V5.3.12",
+          "name": "Private society PNG logo acquisition, bounded parser, ClamAV quarantine and society permissions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "46752895a4662ddd470a17c6acc6c568bb52673b",
+          "evidence": [
+            "services/api/src/branding/society-logo-validation.ts",
+            "services/api/src/branding/society-logo-validation.spec.ts",
+            "services/api/src/branding/brand-logo.service.ts",
+            "services/api/src/branding/brand-logo.service.spec.ts",
+            "services/api/prisma/migrations/20261012233000_v5312_society_brand_logo_assets/migration.sql"
+          ],
+          "limitations": [
+            "No logo publication, Admin/Flutter rendering, public image URL or native Android binary changes; asset revision binding is a separate V5.3.13 slice.",
+            "Real upload confirmation requires configured private object storage and ClamAV; infrastructure, productionization and hosted data remain outside scope.",
+            "Staging and main untouched; this slice requires protected CI gates before develop merge."
           ]
         }
       ]
