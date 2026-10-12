@@ -13,7 +13,7 @@ describe('PrivacyConsentService', () => {
   }
 
   it('requires representative evidence when recording minor-data consent', async () => {
-    const { prisma, service } = setup();
+    const { service } = setup();
 
     await expect(service.record('society-1', 'actor-1', {
       subjectUserId: 'subject-1',
@@ -37,7 +37,7 @@ describe('PrivacyConsentService', () => {
   });
 
   it('withdraws a granted consent and appends evidence', async () => {
-    const { prisma, tx, service } = setup();
+    const { tx, service } = setup();
     tx.$queryRaw.mockResolvedValueOnce([{ id: 'consent-1', societyId: 'society-1', status: 'GRANTED' }]).mockResolvedValueOnce([{ id: 'consent-1', societyId: 'society-1', status: 'WITHDRAWN' }]);
 
     const result = await service.withdraw('society-1', 'actor-1', 'consent-1', 'Subject withdrew consent');
