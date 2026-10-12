@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "8b8b3a7c885f8047d1e2efddd98a18ae92a9596e1ce17c9728baaad6c91dc50a",
+  "sourceDigest": "ca8fe9171e668c161b985ce455b332506b404d5ca85bcb6de4b44764da5d6933",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 59,
-    "runtimeTenantContextCalls": 105,
+    "runtimeTenantContextCalls": 111,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -451,6 +451,30 @@
     {
       "file": "services/api/src/societies/societies.controller.ts",
       "line": 48
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 31
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 53
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 74
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 109
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 147
+    },
+    {
+      "file": "services/api/src/workforce/workforce-leave.service.ts",
+      "line": 166
     }
   ],
   "policySignals": [],
@@ -2762,15 +2786,15 @@
     {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":73,"method":"callback","operation":"updateMany","kind":"ORM","tables":["Visitor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.visitorPass","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":75,"method":"callback","operation":"updateMany","kind":"ORM","tables":["VisitorPass"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx.visitor","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/visitors/visitor.service.ts","line":76,"method":"callback","operation":"findUniqueOrThrow","kind":"ORM","tables":["Visitor"],"queryScopeSignals":[],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"GLOBAL_OR_INDIRECT_SCOPE_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":31,"method":"listMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":53,"method":"listSocietyActive","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":76,"method":"createMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":89,"method":"createMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":106,"method":"cancelMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":128,"method":"cancelMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":140,"method":"assertNoActiveLeave","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":157,"method":"activeAssignmentIds","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":170,"method":"assertOwnedAssignment","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":31,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":53,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":78,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":91,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":110,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceLeave"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":133,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":148,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":167,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceLeave"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-leave.service.ts","line":181,"method":"assertOwnedAssignment","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-rating.service.ts","line":37,"method":"listMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment","WorkforceRating"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-rating.service.ts","line":69,"method":"rateMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["Household","UnitOccupancy","WorkforceAssignment"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/workforce/workforce-rating.service.ts","line":92,"method":"rateMine","operation":"$queryRaw","kind":"RAW_SQL","tables":["WorkforceRating"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
