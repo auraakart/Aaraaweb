@@ -98,6 +98,13 @@ class GuardApi {
     }
   }
 
+  /// Pins the original credential for an in-flight cosmetic request. Never
+  /// let a new society's mutable accessToken substitute for the old session.
+  Future<dynamic> brandingContext({required String sessionAccessToken}) =>
+      _send('GET', '/context/config', extraHeaders: {
+        HttpHeaders.authorizationHeader: 'Bearer $sessionAccessToken',
+      });
+
   Future<dynamic> operation(String method, String path, {Map<String, dynamic>? body}) =>
       _send(method, '/guard-operations/$path', body: body);
 
