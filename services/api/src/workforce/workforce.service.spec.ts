@@ -137,6 +137,11 @@ describe('WorkforceService gate attendance', () => {
   it('checks active attendance inside a serializable transaction', async () => {
     const created = { id: 'request-a', societyId: 'society-a', unitId: 'unit-a', metadata: { workforceAssignmentId: 'assignment-a' } };
     const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{id:'gate-a'}])
+        .mockResolvedValueOnce([{id:'assignment-a',workerId:'worker-a',startDate:null,endDate:null,schedule:{}}])
+        .mockResolvedValueOnce([{id:'worker-a'}]),
+      unitOccupancy: {findMany:vi.fn().mockResolvedValue([{userId:'resident-a'}])},
       workforceLeave: { findFirst: vi.fn().mockResolvedValue(null) },
       accessRequest: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(created) },
       gateMutationReceipt: { create: vi.fn() },
@@ -168,6 +173,11 @@ describe('WorkforceService gate attendance', () => {
 
   it('rejects approved leave again inside the check-in transaction', async () => {
     const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{id:'gate-a'}])
+        .mockResolvedValueOnce([{id:'assignment-a',workerId:'worker-a',startDate:null,endDate:null,schedule:{}}])
+        .mockResolvedValueOnce([{id:'worker-a'}]),
+      unitOccupancy: {findMany:vi.fn().mockResolvedValue([{userId:'resident-a'}])},
       workforceLeave: { findFirst: vi.fn().mockResolvedValue({ id: 'leave-a' }) },
       accessRequest: { findFirst: vi.fn(), create: vi.fn() },
       gateMutationReceipt: { create: vi.fn() },
