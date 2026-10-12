@@ -3,6 +3,7 @@ import './globals.css'
 import './brand-tokens.css'
 import './admin-navigation.css'
 import './admin-shell.css'
+import './society-brand-editor.css'
 import './property-workspace.css'
 
 export const metadata: Metadata = {
