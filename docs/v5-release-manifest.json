@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.16",
+      "currentSlice": "V5.2.17",
       "slices": [
         {
           "id": "V5.2.1",
@@ -300,7 +300,7 @@
         {
           "id": "V5.2.16",
           "name": "Scope existing privacy consent records, representative validation and append-only history to society transactions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "c4b32e493cd22eaf9dfdc4c831d4d6b28f19135d",
           "evidence": [
             "services/api/src/privacy/privacy-consent.service.spec.ts",
@@ -308,6 +308,23 @@
           ],
           "limitations": [
             "No consent feature redesign, API changes, new permissions, schema/RLS policy or partner audience. This closes the consent subpath only; privacy requests, workers, other isolation batches and RLS remain open."
+          ],
+          "pullRequest": 1227,
+          "mergeSha": "d2f3daa2f3af65b7ba3bed1947ef3c9294129045",
+          "validatedRuntimeSha": "a0054eceaab8105fa2e9109bf63f0296b8e7bb43",
+          "ciRun": 38196375573
+        },
+        {
+          "id": "V5.2.17",
+          "name": "Scope privacy registry categories, processors, and evidence to tenant transactions",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "d2f3daa2f3af65b7ba3bed1947ef3c9294129045",
+          "evidence": [
+            "services/api/src/privacy/privacy-registry.service.spec.ts",
+            "services/api/src/privacy/privacy-registry.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No schema/RLS policy or entitlement/permission changes. Preserves category and processor workflows, response behavior and append-only audit evidence. Other privacy, worker and isolation areas remain open."
           ]
         }
       ]

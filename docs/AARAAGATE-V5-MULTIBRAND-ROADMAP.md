@@ -572,3 +572,15 @@ Four existing `PrivacyConsentService` operations (list, record, withdraw and his
 Unit tests prohibit global-client fallback, check foreign consent rejection, representative validation, shared client use, idempotent repeat withdrawal and error propagation. A disposable native PostgreSQL fixture covers two societies, foreign subject/representative and parent isolation, append-only evidence, concurrent withdrawals, and real oversized-event rollback. Canonical API CI must run this fixture; PostgreSQL triggers are restored in test-only transactional cleanup. The tenant-access inventory must be regenerated using the existing script and checked for drift because source access sites changed.
 
 This is an ISO-03/ISO-04 privacy subpath and not all privacy or V5.2 tenant isolation. Controller guards, response shapes, migrations, feature gates, owner/tenant rights and brand configuration are unchanged. Runtime context calls increase by four, from 78 to 82. No RLS activation, staging/main promotion or productionization. Rollback via reviewed revert after protected checks.
+
+## V5.2.16 protected closure
+
+PR [#1227](https://github.com/auraakart/Aaraaweb/pull/1227) merged into develop at `d2f3daa2f3af65b7ba3bed1947ef3c9294129045`. Canonical [CI 38196375573](https://github.com/auraakart/Aaraaweb/actions/runs/38196375573) passed on validated head `a0054eceaab8105fa2e9109bf63f0296b8e7bb43`, including native PostgreSQL, full API validation, inventory check and protected merge gates.
+
+## V5.2.17 privacy registry society transactions
+
+All seven existing `PrivacyRegistryService` methods (category/processor list, create and activation, and registry history) establish society-scoped transactions through `PrismaService.withTenantContext`. Parent/category checks, writes and append-only evidence remain on the supplied transaction client. Existing society SQL predicates, `FOR SHARE` category locks, actor/permission checks in the controller, normalization, audit-event semantics and returned values are preserved. Neither RLS nor partner access is enabled.
+
+Unit tests require the supplied tenant client for each read/write path, prohibit global-client fallback, cover foreign category/processor changes, category validation, evidence insertion failures and history society predicates. The native PostgreSQL fixture covers two societies, foreign category reference rejection, cross-society activation denial, scoped processor creation, disabled categories, append-only evidence, and duplicate-category failure without extra audit events. Fixture cleanup restores append-only triggers transactionally.
+
+The deterministic tenant-access inventory must be regenerated using the existing script and remain green in canonical CI. There is no database migration, API/DTO/UI or permission change; no staging/main promotion or productionization. The V5.2 isolation queue and worker/RLS conversion remain open, and this slice can be reverted independently following review.
