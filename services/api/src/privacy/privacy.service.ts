@@ -382,7 +382,8 @@ export class PrivacyService {
     status: PrivacyCaseStatus,
     note?: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+    const current = await this.findCase(societyId, caseId, tx, true);
     if (!current) throw new NotFoundException('Privacy request case not found');
     if (TERMINAL_STATUSES.includes(current.status)) {
       if (current.status === status) return current;
@@ -399,7 +400,6 @@ export class PrivacyService {
     const closedAt = TERMINAL_STATUSES.includes(status) ? new Date() : null;
     const cleanNote = note?.trim() || 'Privacy case status updated';
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "status" = ${status},
@@ -437,7 +437,8 @@ export class PrivacyService {
     legalHold: boolean,
     retentionReason?: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+    const current = await this.findCase(societyId, caseId, tx, true);
     if (!current) throw new NotFoundException('Privacy request case not found');
     if (TERMINAL_STATUSES.includes(current.status)) {
       throw new BadRequestException('Closed privacy request cases cannot change legal-hold state');
@@ -445,7 +446,6 @@ export class PrivacyService {
     const reason = retentionReason?.trim() || null;
     if (legalHold && !reason) throw new BadRequestException('Retention reason is required when legal hold is enabled');
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "legalHold" = ${legalHold},
@@ -487,7 +487,8 @@ export class PrivacyService {
     decision: 'ALLOW' | 'BLOCK',
     reasonRaw: string,
   ) {
-    const current = await this.findCase(societyId, caseId);
+    return this.withPrivacyCaseTransaction(societyId, async (tx) => {
+    const current = await this.findCase(societyId, caseId, tx, true);
     if (!current) throw new NotFoundException('Privacy request case not found');
     if (current.requestType !== 'ERASURE') {
       throw new BadRequestException('Retention review is only valid for erasure cases');
@@ -501,7 +502,6 @@ export class PrivacyService {
       throw new BadRequestException('Retention review cannot allow erasure while legal hold is active');
     }
 
-    return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
         UPDATE "PrivacyRequestCase"
         SET "retentionDecision" = ${decision},
@@ -553,13 +553,29 @@ export class PrivacyService {
       : this.prisma.$transaction(operation);
   }
 
-  private async findCase(societyId: string | undefined, caseId: string, tx?: Prisma.TransactionClient) {
+  private withPrivacyCaseTransaction<T>(
+    societyId: string | undefined,
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    // Independent-home privacy cases intentionally carry no society UUID.
+    return societyId
+      ? this.prisma.withTenantContext(societyId, operation)
+      : this.prisma.$transaction(operation);
+  }
+
+  private async findCase(
+    societyId: string | undefined,
+    caseId: string,
+    tx?: Prisma.TransactionClient,
+    forUpdate = false,
+  ) {
     const rows = await (tx ?? this.prisma).$queryRaw<PrivacyCaseRow[]>(Prisma.sql`
       SELECT *
       FROM "PrivacyRequestCase"
       WHERE "id" = ${caseId}::uuid
         AND "societyId" IS NOT DISTINCT FROM ${societyId ?? null}::uuid
       LIMIT 1
+      ${forUpdate ? Prisma.sql`FOR UPDATE` : Prisma.empty}
     `);
     return rows[0] ?? null;
   }
