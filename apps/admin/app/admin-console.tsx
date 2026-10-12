@@ -38,6 +38,8 @@ export function AdminConsole(){
   const brandStyle:CSSProperties|undefined=activeBrand?{
     '--brand':activeBrand.primaryDeep,
     '--brand-bright':activeBrand.primary,
+    '--brand-on':activeBrand.onPrimaryDeep,
+    '--brand-ink':activeBrand.navigationInk,
   } as CSSProperties:undefined
   useEffect(()=>{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw){setRestoring(false);return}try{const stored=JSON.parse(raw)as Session;refreshAdminSession(stored).then(fresh=>{if(!adminRoles.has(fresh.role)||viewsForRole(fresh.role).length===0)throw new Error('Stored role no longer has console access');setSession(fresh)}).catch(()=>sessionStorage.removeItem('aaraagate.admin.session')).finally(()=>setRestoring(false))}catch{sessionStorage.removeItem('aaraagate.admin.session');setRestoring(false)}},[])
   const accept=(next:Session)=>{const allowed=viewsForRole(next.role);if(!adminRoles.has(next.role)||allowed.length===0)throw new Error('This role does not have Admin or operations-console access');sessionStorage.setItem('aaraagate.admin.session',JSON.stringify(next));setView(allowed[0]);setSession(next)}

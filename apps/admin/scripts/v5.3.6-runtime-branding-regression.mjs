@@ -10,10 +10,11 @@ const payload=(societyId=a,colors={primary:'#155E75',primaryDeep:'#164E63'},disp
   }},
 });
 const accepted=parseAdminSocietyBrand(payload(),a);
-assert.deepEqual(accepted,{displayName:'Courtyard Homes',primary:'#155E75',primaryDeep:'#164E63'});
+assert.deepEqual(accepted,{displayName:'Courtyard Homes',primary:'#155E75',primaryDeep:'#164E63',onPrimaryDeep:'#FFFFFF',navigationInk:'#164E63'});
 assert.equal(parseAdminSocietyBrand(payload(b),a),null,'foreign selected society must not inject theme');
-assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#FFF000',primaryDeep:'#164E63'}),a),null,'white-text contrast must remain AA');
-assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#155E75',primaryDeep:'#FFFFFF'}),a),null,'nav contrast must remain AA');
+assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#FFF000',primaryDeep:'#164E63'}),a)?.onPrimaryDeep,'#FFFFFF','an accent may be pale without hiding primary control labels');
+assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#155E75',primaryDeep:'#FFFFFF'}),a)?.onPrimaryDeep,'#000000');
+assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#155E75',primaryDeep:'#FFFFFF'}),a)?.navigationInk,'#17323A');
 assert.equal(parseAdminSocietyBrand(payload(a,{primary:'#155E75; background:red',primaryDeep:'#164E63'}),a),null,'arbitrary CSS is forbidden');
 assert.equal(parseAdminSocietyBrand({...payload(),society:null},a),null);
 assert.equal(parseAdminSocietyBrand({...payload(),branding:{...payload().branding,schemaVersion:2}},a),null);
