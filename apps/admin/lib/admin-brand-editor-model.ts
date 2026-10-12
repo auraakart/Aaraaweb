@@ -21,7 +21,7 @@ export function parseBrandHistory(payload:unknown):BrandRevision[] {
   const versions=new Set<number>()
   for(const raw of payload){
     const row=object(raw),config=object(row?.config),colors=object(config?.colors)
-    if(!row||typeof row.id!=='string'||!idPattern.test(row.id)||!Number.isSafeInteger(row.version)||Number(row.version)<1||
+    if(!row||typeof row.id!=='string'||!idPattern.test(row.id)||typeof row.version!=='number'||!Number.isSafeInteger(row.version)||row.version<1||
       versions.has(Number(row.version))||!config||typeof row.createdAt!=='string'||
       !(row.publishedAt===null||typeof row.publishedAt==='string'))throw new Error('Society branding history is invalid')
     if(config.displayName!==undefined&&(typeof config.displayName!=='string'||config.displayName.length>80))throw new Error('Society branding history is invalid')
