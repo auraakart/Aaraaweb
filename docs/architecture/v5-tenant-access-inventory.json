@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "2f402df1ba7a8d38b74330358c0c7d5e34014c6ba9ce6ede91060ec385dd57aa",
+  "sourceDigest": "f0af34bfc131a72a9bf92f9f39e8d0aefa2d964c98a7cc3212a75135e6e72619",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -28,7 +28,7 @@
     "runtimeUnsafeSqlSites": 0,
     "unresolvedSqlSites": 1,
     "utilitySqlSites": 59,
-    "runtimeTenantContextCalls": 89,
+    "runtimeTenantContextCalls": 92,
     "migrationPolicySignals": 0
   },
   "tenantContextCalls": [
@@ -383,6 +383,18 @@
     {
       "file": "services/api/src/privacy/privacy-registry.service.ts",
       "line": 142
+    },
+    {
+      "file": "services/api/src/privacy/privacy.service.ts",
+      "line": 297
+    },
+    {
+      "file": "services/api/src/privacy/privacy.service.ts",
+      "line": 326
+    },
+    {
+      "file": "services/api/src/privacy/privacy.service.ts",
+      "line": 552
     },
     {
       "file": "services/api/src/societies/societies.controller.ts",
@@ -1964,7 +1976,7 @@
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":247,"method":"caseReadiness","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyProcessorRegister"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":251,"method":"caseReadiness","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacySecurityIncident"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":255,"method":"caseReadiness","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyGrievanceContact"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":297,"method":"listCases","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":297,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":331,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":347,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacyRequestEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":364,"method":"listPlatformCases","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
@@ -1974,10 +1986,10 @@
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":467,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacyRequestEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":505,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":521,"method":"callback","operation":"$executeRaw","kind":"RAW_SQL","tables":["PrivacyRequestEvent"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":540,"method":"history","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":551,"method":"findCase","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":568,"method":"assertSocietySubjectRelationship","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
-    {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":591,"method":"assertActiveSocietyMember","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":541,"method":"callback","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestEvent","User"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"(tx ?? this.prisma)","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":557,"method":"findCase","operation":"$queryRaw","kind":"RAW_SQL","tables":["PrivacyRequestCase"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":574,"method":"assertSocietySubjectRelationship","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership","UnitOccupancy","UnitOwnership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
+    {"receiver":"tx","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/privacy/privacy.service.ts","line":597,"method":"assertActiveSocietyMember","operation":"$queryRaw","kind":"RAW_SQL","tables":["SocietyMembership"],"queryScopeSignals":["societyId","userId"],"enclosingScopeSignals":["societyId","userId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.building","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/properties/properties.service.ts","line":23,"method":"listBuildings","operation":"findMany","kind":"ORM","tables":["Building"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":["include"],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma.building","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/properties/properties.service.ts","line":31,"method":"createBuilding","operation":"create","kind":"ORM","tables":["Building"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
     {"receiver":"this.prisma","queryPurpose":"TABLE_OR_INDIRECTION","file":"services/api/src/properties/properties.service.ts","line":36,"method":"listFloors","operation":"$queryRaw","kind":"RAW_SQL","tables":["PropertyFloor"],"queryScopeSignals":["societyId"],"enclosingScopeSignals":["societyId"],"nestedRelationSignals":[],"disposition":"SCOPE_SIGNAL_REQUIRES_SEMANTIC_REVIEW"},
