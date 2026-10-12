@@ -6,6 +6,7 @@ import {operatorConfirm} from '../lib/operator-dialog'
 import {parseAdminSocietyBrand} from '../lib/admin-society-brand'
 import {currentPublishedBrand, draftBrandConfig, parseSocietyBrandRevisions, planBrandRestore, type SocietyBrandRevision} from '../lib/admin-society-brand-editor'
 import {Header} from './admin-ui-primitives'
+import {AdminSocietyLogoQuarantine} from './admin-society-logo-quarantine'
 
 type Props={session:Session;onPublished:()=>void}
 export function AdminSocietyBrandEditor({session,onPublished}:Props){
@@ -135,6 +136,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <p>Next draft version: <strong>{latestVersion+1}</strong></p>
       </section>
     </div>
+    <AdminSocietyLogoQuarantine key={session.societyId} session={session}/>
     <section className="panel brand-editor-history">
       <h2>Immutable revision history</h2>
       {loading?<p>Loading revisions…</p>:revisions.length===0?<p>No society-specific revisions. The default Aaraagate brand remains active.</p>:
