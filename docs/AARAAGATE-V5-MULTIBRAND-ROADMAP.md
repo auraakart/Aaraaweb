@@ -690,3 +690,15 @@ Suspension worker/assignment list and history reads use society-context transact
 Unit tests cover tenant context on reads/writes, ownership and status refusals, locked transitions, no duplicate terminal events, worker verification guard, and audit failure propagation. A disposable native PostgreSQL two-society fixture covers rating and summary isolation, foreign member/assignment/worker denial, two simultaneous suspension attempts, worker/assignment reinstatement prerequisites, same-society audit history, and actual rollback after rejected audit foreign key. Targeted inventory regeneration and full protected CI must pass before develop merge.
 
 **Not included:** enabling database RLS, changing controller roles/entitlements, physical gate device integration, broad workforce business logic, provider integration, productionization or promotion to staging/main. Remaining general workforce and partner-isolation gaps stay open. No schema or endpoint changes.
+
+## V5.2.25 protected closure
+
+PR [#1236](https://github.com/auraakart/Aaraaweb/pull/1236) merged at `4c6f9b4749bca0225e35c15fdedcf8047e8d8a09` after final [CI 38210861496](https://github.com/auraakart/Aaraaweb/actions/runs/38210861496) passed on head `a83a3dab8066ef37cf61b585079dd8b6a88f108c`.
+
+## V5.2.26 core workforce authorization and gate-facing reads
+
+Reuse existing `WorkforceService` and `PrismaService.withTenantContext`. An assignment reviewer decision and resident deactivation are each performed in one selected-society transaction: `SELECT ... FOR UPDATE` locks the active assignment before loading its status and checking either PENDING review or the resident's **current UnitOccupancy**, then mutates with an explicit society predicate. Review approval retains its existing worker verification workflow; review is terminal for any non-PENDING status. Deactivation still requires the actual current occupant (not a non-resident owner) and preserves the existing response shape.
+
+Resident workforce status now checks UnitOccupancy and reads attendance/leave/payment summaries on one society transaction client. Gate eligibility listing uses the same tenant context while keeping active/verified worker, date, and schedule filters. The established serializable gate check-in/out and idempotency/notifications paths are **not rewritten** in this slice. This is not a claim that every gate or workforce SQL path is isolated.
+
+Unit regression asserts locked state decisions, foreign society refusal, current occupancy before deactivation, same-client status reads and gate eligibility scopes. Disposable native PostgreSQL validates simultaneous reviewer decisions, foreign tenant/reviewer access refusal, current resident deactivation and immediate gate ineligibility. Deterministic tenant inventory refresh and canonical protected CI required. Future work: workforce creation/payment and remaining access paths, partner RBAC, final integration audit. No database migration, API, staging/main or productionization change.

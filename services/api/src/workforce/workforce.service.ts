@@ -45,7 +45,8 @@ export class WorkforceService {
 
   async residentStatusMine(societyId: string, userId: string, unitId: string) {
     const now = new Date();
-    const occupancy = await this.prisma.unitOccupancy.findFirst({
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const occupancy = await tx.unitOccupancy.findFirst({
       where: {
         societyId, userId, unitId, active: true,
         effectiveFrom: { lte: now },
@@ -55,7 +56,7 @@ export class WorkforceService {
     });
     if (!occupancy) throw new NotFoundException('Household workforce not found');
 
-    const assignments = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    const assignments = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT wa."id",dw."name",dw."role",dw."verification",wa."status",wa."schedule",wa."startDate",wa."endDate",
         EXISTS(
           SELECT 1 FROM "WorkforceLeave" wl
@@ -101,6 +102,7 @@ export class WorkforceService {
       onLeaveCount: assignments.filter((item) => item.onLeaveToday === true).length,
       staff: assignments,
     };
+    });
   }
 
   async addWorker(
@@ -155,17 +157,25 @@ export class WorkforceService {
   }
 
   async deactivateMine(societyId: string, userId: string, assignmentId: string) {
-    const assignment = await this.prisma.workforceAssignment.findFirst({
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "WorkforceAssignment"
+        WHERE "id"=${assignmentId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+        LIMIT 1 FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Active workforce assignment not found');
+    const assignment = await tx.workforceAssignment.findFirst({
       where: { id: assignmentId, societyId, active: true },
       include: { household: true },
     });
     if (!assignment) throw new NotFoundException('Active workforce assignment not found');
-    await this.assertOwnHousehold(societyId, userId, assignment.householdId);
+    await this.assertOwnHousehold(societyId, userId, assignment.householdId, tx);
 
-    return this.prisma.workforceAssignment.update({
-      where: { id: assignment.id },
+    return tx.workforceAssignment.update({
+      where: { id: assignment.id, societyId },
       data: { active: false },
       include: { worker: true },
+    });
     });
   }
 
@@ -193,7 +203,14 @@ export class WorkforceService {
   }
 
   async review(societyId: string, assignmentId: string, decision: 'APPROVED' | 'REJECTED') {
-    const assignment = await this.prisma.workforceAssignment.findFirst({
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "WorkforceAssignment"
+        WHERE "id"=${assignmentId}::uuid AND "societyId"=${societyId}::uuid AND "active"=true
+        LIMIT 1 FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Active workforce assignment not found');
+    const assignment = await tx.workforceAssignment.findFirst({
       where: { id: assignmentId, societyId, active: true },
       include: { worker: true },
     });
@@ -202,12 +219,11 @@ export class WorkforceService {
       throw new BadRequestException('Only pending workforce assignments can be reviewed');
     }
 
-    return this.prisma.$transaction(async (tx) => {
       if (decision === 'APPROVED' && assignment.worker.verification !== 'VERIFIED') {
-        await tx.domesticWorker.update({ where: { id: assignment.workerId }, data: { verification: 'VERIFIED' } });
+        await tx.domesticWorker.update({ where: { id: assignment.workerId, societyId }, data: { verification: 'VERIFIED' } });
       }
       return tx.workforceAssignment.update({
-        where: { id: assignment.id },
+        where: { id: assignment.id, societyId },
         data: { status: decision },
         include: { worker: true, household: { include: { unit: { include: { building: true } } } } },
       });
@@ -215,7 +231,8 @@ export class WorkforceService {
   }
 
   async listGateEligible(societyId: string, query?: string, now = new Date()) {
-    const assignments = await this.prisma.workforceAssignment.findMany({
+    return this.prisma.withTenantContext(societyId, async tx => {
+    const assignments = await tx.workforceAssignment.findMany({
       where: {
         societyId,
         active: true,
@@ -237,6 +254,7 @@ export class WorkforceService {
       if (!normalizedQuery) return true;
       return assignment.worker.name.toLowerCase().includes(normalizedQuery)
         || assignment.worker.phone.toLowerCase().includes(normalizedQuery);
+    });
     });
   }
 
@@ -716,11 +734,11 @@ export class WorkforceService {
     return `${values.year}-${values.month}-${values.day}`;
   }
 
-  private async assertOwnHousehold(societyId: string, userId: string, householdId: string) {
-    const household = await this.prisma.household.findFirst({ where: { id: householdId, societyId } });
+  private async assertOwnHousehold(societyId: string, userId: string, householdId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const household = await tx.household.findFirst({ where: { id: householdId, societyId } });
     if (!household) throw new NotFoundException('Household not found');
     const now = new Date();
-    const link = await this.prisma.unitOccupancy.findFirst({
+    const link = await tx.unitOccupancy.findFirst({
       where: { societyId, userId, unitId: household.unitId, active: true, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
       select: { id: true },
     });

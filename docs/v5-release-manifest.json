@@ -80,7 +80,7 @@
       "dependsOn": [
         "V5.1"
       ],
-      "currentSlice": "V5.2.25",
+      "currentSlice": "V5.2.26",
       "slices": [
         {
           "id": "V5.2.1",
@@ -457,7 +457,7 @@
         {
           "id": "V5.2.25",
           "name": "Tenant-scope workforce rating and suspension actions with serialized status transitions and audit rollback",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "630ee09b720c88bd17a5471d82b66b2f58bec976",
           "evidence": [
             "services/api/src/workforce/workforce-rating.service.spec.ts",
@@ -466,6 +466,23 @@
           ],
           "limitations": [
             "Scope is ratings and suspension only; not all workforce routes. Explicit society and active-occupancy guards retained; tenant context does not enable RLS. Worker and assignment suspension events retain existing audit table semantics. No controller permission, API, database schema, hardware integration, staging/main branch, or productionization change."
+          ],
+          "pullRequest": 1236,
+          "mergeSha": "4c6f9b4749bca0225e35c15fdedcf8047e8d8a09",
+          "validatedRuntimeSha": "a83a3dab8066ef37cf61b585079dd8b6a88f108c",
+          "ciRun": 38210861496
+        },
+        {
+          "id": "V5.2.26",
+          "name": "Core workforce reviewer and resident mutation isolation with tenant-context gate visibility",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "4c6f9b4749bca0225e35c15fdedcf8047e8d8a09",
+          "evidence": [
+            "services/api/src/workforce/workforce.service.spec.ts",
+            "services/api/src/workforce/workforce-core-tenant.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Scope is core workforce review, deactivation, resident status and gate eligibility list; no replacement of existing serializable gate mutation path. Remaining workforce creation, payroll recording, attendance, cross-partner enforcement, broader RLS and productionization reviewed separately. Explicit society and UnitOccupancy filters preserved."
           ]
         }
       ]
