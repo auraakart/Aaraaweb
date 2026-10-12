@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.12",
+      "currentSlice": "V5.3.13",
       "slices": [
         {
           "id": "V5.3.1",
@@ -756,7 +756,7 @@
         {
           "id": "V5.3.12",
           "name": "Private society PNG logo acquisition, bounded parser, ClamAV quarantine and society permissions",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "46752895a4662ddd470a17c6acc6c568bb52673b",
           "evidence": [
             "services/api/src/branding/society-logo-validation.ts",
@@ -769,6 +769,24 @@
             "No logo publication, Admin/Flutter rendering, public image URL or native Android binary changes; asset revision binding is a separate V5.3.13 slice.",
             "Real upload confirmation requires configured private object storage and ClamAV; infrastructure, productionization and hosted data remain outside scope.",
             "Staging and main untouched; this slice requires protected CI gates before develop merge."
+          ],
+          "pullRequest": 1254,
+          "mergeSha": "2e9d72f44047c47650d4731e378bd1a0465051cb",
+          "ciRun": 38291636399
+        },
+        {
+          "id": "V5.3.13",
+          "name": "Admin private PNG logo acquisition and malware-review workflow",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "2e9d72f44047c47650d4731e378bd1a0465051cb",
+          "evidence": [
+            "apps/admin/lib/admin-society-logo.ts",
+            "apps/admin/app/admin-society-logo-quarantine.tsx",
+            "apps/admin/scripts/v5.3.13-private-logo-regression.mjs"
+          ],
+          "limitations": [
+            "Logo remains quarantined. Immutable revision linkage, protected image-delivery endpoint and mobile/Admin rendering are not enabled in this slice.",
+            "Direct signed PUT requires a configured private object store with Admin-origin CORS; no infrastructure setup, public logo URL, identity/entitlement change, staging or main promotion."
           ]
         }
       ]
