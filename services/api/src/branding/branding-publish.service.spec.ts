@@ -32,7 +32,8 @@ function setup(role: AppRole | null = AppRole.SOCIETY_ADMIN) {
     new PrismaMembershipRepository(prisma as unknown as PrismaService));
   return { tx, prisma, service };
 }
-const sql = (v: unknown) => (v as { strings: readonly string[] }).strings.join(' ');
+const sql = (v: unknown) =>
+  Array.isArray(v) ? v.join(' ') : ((v as { sql?: string }).sql ?? '');
 
 describe('V5.3.2 society brand revision workflow', () => {
   it('creates the first immutable draft after locked version check', async () => {
@@ -52,7 +53,8 @@ describe('V5.3.2 society brand revision workflow', () => {
       const { service, tx } = setup(role);
       await expect(service.createDraft(societyId, userId, { expectedVersion: 0, config }))
         .rejects.toBeInstanceOf(ForbiddenException);
-      expect(tx.$queryRaw).not.toHaveBeenCalled();
+      // A dedicated-auditor authority read is allowed; no mutation lock is.
+      expect(tx.$queryRaw.mock.calls.every(([query]) => !sql(query).includes('FOR UPDATE'))).toBe(true);
       expect(tx.societyBrandRevision.create).not.toHaveBeenCalled();
     }
   });
