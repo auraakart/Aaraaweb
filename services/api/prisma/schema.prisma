@@ -27,6 +27,7 @@ model User {
   pushDeviceTokens          DevicePushToken[]
   workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
   societyBrandRevisionsCreated SocietyBrandRevision[] @relation("SocietyBrandRevisionCreator")
+  societyBrandRevisionsPublished SocietyBrandRevision[] @relation("SocietyBrandRevisionPublisher")
   workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
   workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
   helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
@@ -136,10 +137,12 @@ model SocietyBrandRevision {
   config        Json
   digest        String
   publishedAt   DateTime? @db.Timestamptz(6)
+  publishedById String?  @db.Uuid
   createdById   String   @db.Uuid
   createdAt     DateTime @default(now()) @db.Timestamptz(6)
   society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
   createdBy     User     @relation("SocietyBrandRevisionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  publishedBy   User?    @relation("SocietyBrandRevisionPublisher", fields: [publishedById], references: [id], onDelete: Restrict)
 
   @@unique([societyId, version])
   @@index([societyId, publishedAt(sort: Desc), version(sort: Desc)])
