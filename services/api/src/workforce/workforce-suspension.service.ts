@@ -63,7 +63,7 @@ export class WorkforceSuspensionService {
       }
 
       const updated = await tx.domesticWorker.update({
-        where: { id: worker.id },
+        where: { id: worker.id, societyId },
         data: { verification: DomesticWorkerVerificationStatus.SUSPENDED },
       });
       await this.recordEvent(tx, societyId, actorUserId, 'SUSPEND', normalizedReason, worker.id, null);
@@ -107,7 +107,7 @@ export class WorkforceSuspensionService {
       }
 
       const updated = await tx.workforceAssignment.update({
-        where: { id: assignment.id },
+        where: { id: assignment.id, societyId },
         data: { status: WorkforceAssignmentStatus.SUSPENDED },
       });
       await this.recordEvent(tx, societyId, actorUserId, 'SUSPEND', normalizedReason, null, assignment.id);
@@ -128,12 +128,15 @@ export class WorkforceSuspensionService {
       if (assignment.status !== WorkforceAssignmentStatus.SUSPENDED) {
         throw new BadRequestException('Only suspended workforce assignments can be reinstated');
       }
-      if (assignment.worker.verification !== DomesticWorkerVerificationStatus.VERIFIED || !assignment.worker.active) {
+      // Prevent a concurrent worker suspension between verification and reinstatement.
+      await this.lockWorker(tx, societyId, assignment.workerId);
+      const worker = await tx.domesticWorker.findFirst({ where: { id: assignment.workerId, societyId, active: true } });
+      if (!worker || worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) {
         throw new BadRequestException('Domestic worker must be active and verified before assignment reinstatement');
       }
 
       const updated = await tx.workforceAssignment.update({
-        where: { id: assignment.id },
+        where: { id: assignment.id, societyId },
         data: { status: WorkforceAssignmentStatus.APPROVED },
         include: { worker: true },
       });
