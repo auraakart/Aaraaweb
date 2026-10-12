@@ -85,7 +85,7 @@ export class WorkforceSuspensionService {
       }
 
       const updated = await tx.domesticWorker.update({
-        where: { id: worker.id },
+        where: { id: worker.id, societyId },
         data: { verification: DomesticWorkerVerificationStatus.VERIFIED },
       });
       await this.recordEvent(tx, societyId, actorUserId, 'REINSTATE', normalizedReason, worker.id, null);
