@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState, type CSSProperties, type FormEvent} fr
 import {api, type Session} from '../lib/admin-client'
 import {operatorConfirm} from '../lib/operator-dialog'
 import {parseAdminSocietyBrand} from '../lib/admin-society-brand'
-import {currentPublishedBrand, draftBrandConfig, parseSocietyBrandRevisions, type SocietyBrandRevision} from '../lib/admin-society-brand-editor'
+import {currentPublishedBrand, draftBrandConfig, parseSocietyBrandRevisions, planBrandRestore, type SocietyBrandRevision} from '../lib/admin-society-brand-editor'
 import {Header} from './admin-ui-primitives'
 
 type Props={session:Session;onPublished:()=>void}
@@ -69,6 +69,30 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     }catch(e){setError((e instanceof Error?e.message:'Publish failed')+' — reload history to resolve a version conflict.')}
     finally{setBusy(false)}
   }
+  const restore=async(item:SocietyBrandRevision)=>{
+    if(busy)return
+    let plan:ReturnType<typeof planBrandRestore>
+    try{plan=planBrandRestore(revisions,item.id)}
+    catch(e){setError(e instanceof Error?e.message:'Cannot restore this revision');return}
+    if(!await operatorConfirm('Restore appearance from published version '+item.version+' by creating and publishing a NEW revision?'))return
+    setBusy(true);setError('');setNotice('')
+    let savedDraftId:string|undefined
+    try{
+      const draft=await api<{id:string;version:number}>('/branding/manage/drafts',{
+        method:'POST',body:JSON.stringify({expectedVersion:plan.expectedVersion,config:plan.config}),
+      },session)
+      savedDraftId=draft.id
+      await api('/branding/manage/drafts/'+encodeURIComponent(draft.id)+'/publish',{
+        method:'POST',body:JSON.stringify({expectedPublishedVersion:plan.expectedPublishedVersion}),
+      },session)
+      await refresh()
+      onPublished()
+      setNotice('Previous appearance restored as new published version '+draft.version+'. Revision history remains immutable.')
+    }catch(e){
+      setError((e instanceof Error?e.message:'Restore failed')+
+        (savedDraftId?' — a new draft may remain unpublished. Reload revisions to inspect it.':' — reload versions before retrying.'))
+    }finally{setBusy(false)}
+  }
   const copy=(item:SocietyBrandRevision)=>{
     setName(item.config.displayName??session.societyName)
     setPrimary(item.config.colors?.primary??'#155E75')
@@ -112,6 +136,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
             <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}</p></div>
           <div className="buttons">
             <button type="button" disabled={busy} onClick={()=>copy(item)}>Use values for new draft</button>
+            {item.publishedAt&&published&&item.version<published.version&&<button type="button" disabled={busy} onClick={()=>void restore(item)}>Restore as new revision</button>}
             {!item.publishedAt&&item.version>(published?.version??0)&&
               <button type="button" className="primary" disabled={busy} onClick={()=>void publish(item)}>Publish</button>}
           </div>
