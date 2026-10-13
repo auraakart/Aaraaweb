@@ -17,6 +17,9 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
+  partnerLicensePlansCreated PartnerLicensePlanRevision[] @relation("PartnerLicensePlanCreator")
+  partnerLicenseGrantsCreated PartnerLicenseGrant[] @relation("PartnerLicenseGrantCreator")
+  partnerLicenseEventsCreated PartnerLicenseEvent[] @relation("PartnerLicenseEventActor")
   unitOwnerships            UnitOwnership[]
   unitOccupancies           UnitOccupancy[]
   visitors                  Visitor[]
@@ -112,6 +115,7 @@ model Partner {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   societies   Society[]
   memberships PartnerMembership[]
+  licenseGrants PartnerLicenseGrant[]
 }
 
 model PartnerMembership {
@@ -173,6 +177,72 @@ model SocietyEntitlementCompatibility {
   sourceMigration  String
   capturedAt       DateTime    @default(now()) @db.Timestamptz(6)
   society          Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+// Commercial-only revisions; these tables do NOT grant live society features.
+model PartnerLicensePlanRevision {
+  id                   String               @id @default(uuid()) @db.Uuid
+  code                 String
+  version              Int
+  featureAllowlist     Json
+  maximumSocieties     Int
+  maximumDomains       Int                  @default(0)
+  maximumDistributions Int                  @default(0)
+  createdById          String               @db.Uuid
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
+  createdBy            User                 @relation("PartnerLicensePlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  grants               PartnerLicenseGrant[]
+
+  @@unique([code, version])
+}
+
+model PartnerLicenseGrant {
+  id             String                     @id @default(uuid()) @db.Uuid
+  partnerId      String                     @db.Uuid
+  planRevisionId String                     @db.Uuid
+  status         PartnerLicenseGrantStatus  @default(DRAFT)
+  startsAt       DateTime                   @db.Timestamptz(6)
+  endsAt         DateTime                   @db.Timestamptz(6)
+  graceUntil     DateTime?                  @db.Timestamptz(6)
+  idempotencyKey String                     @db.Uuid
+  version        Int                        @default(1)
+  createdById    String                     @db.Uuid
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                   @updatedAt @db.Timestamptz(6)
+  partner        Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  planRevision   PartnerLicensePlanRevision @relation(fields: [planRevisionId], references: [id], onDelete: Restrict)
+  createdBy      User                       @relation("PartnerLicenseGrantCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events         PartnerLicenseEvent[]
+
+  @@unique([partnerId, idempotencyKey])
+  @@index([partnerId, status, endsAt])
+}
+
+model PartnerLicenseEvent {
+  id             String                  @id @default(uuid()) @db.Uuid
+  grantId        String                  @db.Uuid
+  actorId        String                  @db.Uuid
+  type           PartnerLicenseEventType
+  idempotencyKey String                  @db.Uuid
+  detail         Json                    @default("{}")
+  occurredAt     DateTime                @default(now()) @db.Timestamptz(6)
+  grant          PartnerLicenseGrant     @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor          User                    @relation("PartnerLicenseEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, idempotencyKey])
+  @@index([grantId, occurredAt])
+}
+
+enum PartnerLicenseGrantStatus {
+  DRAFT
+  GRANTED
+  REVOKED
+}
+
+enum PartnerLicenseEventType {
+  DRAFT_CREATED
+  GRANTED
+  REVOKED
 }
 
 enum PartnerStatus {
