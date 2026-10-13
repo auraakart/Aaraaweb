@@ -52,7 +52,7 @@
       "dependsOn": [
         "V5.0"
       ],
-      "currentSlice": "V5.1.0",
+      "currentSlice": "V5.1.1",
       "slices": [
         {
           "id": "V5.1.0",
@@ -66,6 +66,20 @@
           "pullRequest": 1210,
           "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
           "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
+        },
+        {
+          "id": "V5.1.1",
+          "name": "Immutable ownership proposals and independent scoped approval with atomic transfer history",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "evidence": [
+            "services/api/src/entitlements/society-ownership-transfer.service.ts",
+            "services/api/src/entitlements/society-ownership-transfer.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013124000_v511_ownership_transfer_history/migration.sql"
+          ],
+          "limitations": [
+            "Both operators require active SUPER_ADMIN memberships in the selected society; no commercial partner role elevates authority.",
+            "No live licensing activation, entitlement conversion, partner onboarding or staging/main promotion."
+          ]
         }
       ],
       "remaining": [
@@ -1063,7 +1077,7 @@
         {
           "id": "V5.4.5.2",
           "name": "Fail-closed idempotency replay across partner revocation, ownership and approval changes",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "db0d195fb3355f4d1494fa1a77c7709b454a8d1e",
           "evidence": [
             "packages/types/src/partner-license-allocation-simulation.mjs",
@@ -1074,7 +1088,10 @@
             "Pure snapshot simulation only; no server authorization, ownership transfer history, allocation transaction or license activation.",
             "Legacy features and essential gate/SOS behavior are unchanged. V5.1 ownership transfer/audit and PostgreSQL allocator remain prerequisites.",
             "No staging/main changes or production integration."
-          ]
+          ],
+          "pullRequest": 1268,
+          "mergeSha": "b7d6b6fffc105afcd316c03ffe1f0d3c8f5a4b1e",
+          "ciRun": 38393104389
         }
       ]
     },

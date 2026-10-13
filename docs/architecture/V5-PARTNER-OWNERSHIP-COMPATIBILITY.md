@@ -47,3 +47,45 @@ Slice Done means the above gates pass at the exact PR head, the migration and sc
 ## Protected validation closure
 
 Implemented and merged through [PR #1210](https://github.com/auraakart/Aaraaweb/pull/1210). Runtime head f2a28dda4c5c2531d3ac2c95be62341010b0b2a3 passed [canonical CI](https://github.com/auraakart/Aaraaweb/actions/runs/38132938204); develop merge 2ee24a4ab6f302e0d767df3c31f18229883baf91. Native PostgreSQL 16 clean deployment, historical upgrade, 64 compatibility fixtures, replay, atomic failure rollback, constraints and legacy society response checks passed. API/Admin/Flutter full suites and required merge gates passed. The test harness uses explicit PostgreSQL connection fields and Node adapter tests live with the repository's Node tests. The tenant-index checker recognizes society-leading primary keys without requiring duplicate indexes, with non-leading/commented-key regression coverage. Staging/main and hosted environments remain untouched.
+
+## V5.1.1 — Immutable proposals and independent approval
+
+The existing EntitlementsModule now exposes platform-only ownership proposal and
+approval routes under `/platform/societies/:societyId/ownership-transfers`.
+Both operators must use the selected society session and have a current ACTIVE
+user and SUPER_ADMIN SocietyMembership in that society. PartnerMembership is
+never authority. Initiator and approver must be different people; both are
+revalidated at approval under row locks. This deliberately does not invent a
+global platform identity or onboard/activate a partner.
+
+Immutable proposals freeze source/destination, source ownership version, reason,
+initiator, time and society-scoped idempotency key. Independent approval creates
+an immutable receipt and increments ownershipVersion exactly once in the same
+transaction. Society row locking serializes proposals/approvals; guarded writes,
+unique receipts and version checks reject stale competing requests. Replays
+revalidate current authority, partner status and current ownership before
+returning prior evidence. A replay by another approver or after later transfer
+fails closed. There is no editable pending status; stale proposals remain audit
+history and a fresh proposal requires a fresh key.
+
+Database checks reject self-approval, foreign-society/version receipts and
+inactive actors/partners. A Society ownership update requires exact matching
+approval; a deferred constraint rejects an approval committed without its owner
+change. UPDATE/DELETE of proposals and receipts is forbidden. Their restrictive
+FKs intentionally retain society/user/partner history once a proposal exists;
+ordinary deletion cannot erase it. A future retention/legal-erasure policy must
+resolve this explicitly, without silently dropping history. Database owners can
+still bypass triggers; this is integrity enforcement, not DBA tamper resistance.
+
+Ownership changes preserve Society.productTier, featureOverrides, society
+memberships, sessions, published branding and essential gate/SOS access. Partner
+portfolio reads already bind every request to current Society.partnerId, so the
+former commercial owner loses portfolio visibility immediately; no cached
+commercial owner is used to authorize operations. No licensing grant becomes
+effective. Transfer back is a new approved transfer, never history rewriting.
+
+Acceptance: native PostgreSQL migration, immutability, concurrent exact approval,
+stale proposal, revoked initiator/approver replay, inactive partner, unauthorized
+DB write, orphan receipt and injected downstream rollback tests; focused route
+and service negatives; canonical full protected CI. No hosted migration,
+productionization, staging/main promotion or live licensing cutover.
