@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.17",
+      "currentSlice": "V5.3.18",
       "slices": [
         {
           "id": "V5.3.1",
@@ -856,7 +856,7 @@
         {
           "id": "V5.3.17",
           "name": "Session-scoped Resident/Guard PNG logo display with secure reuse and fallback",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "a5273722731112af1df5ccb5291dd73612db4c33",
           "evidence": [
             "packages/branding_runtime/lib/society_logo_fetcher.dart",
@@ -869,6 +869,24 @@
             "Mobile in-memory image only; no public/CDN URL, image persistence, new packages, native APK identity, hardware or productionization changes.",
             "Already authenticated and scoped GET /context/logo remains the sole server authority; a missing/invalid logo leaves built-in Aaraagate presentation.",
             "No role, entitlement, finance, guard workflow, staging or main changes."
+          ],
+          "pullRequest": 1259,
+          "mergeSha": "89758faaa1eae30d0d2c0039fcc84ea02a82de1b"
+        },
+        {
+          "id": "V5.3.18",
+          "name": "Mobile published-logo transport security and response timeout hardening",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "89758faaa1eae30d0d2c0039fcc84ea02a82de1b",
+          "evidence": [
+            "packages/branding_runtime/lib/society_logo_fetcher.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Remote mobile logo delivery requires HTTPS; cleartext localhost/loopback/Android emulator hosts remain permitted for local development only.",
+            "Response size, MIME, published-society authorization, PNG digest and file integrity continue to be validated by the existing backend; mobile maintains in-memory scope isolation.",
+            "No staging/main changes, production host configuration, native APK identity, role/permission/entitlement, gate or finance logic changes."
           ]
         }
       ]
