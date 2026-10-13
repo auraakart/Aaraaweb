@@ -943,7 +943,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.5",
+      "currentSlice": "V5.4.5.1",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1030,7 +1030,7 @@
         {
           "id": "V5.4.5",
           "name": "Atomic partner license capacity allocation, idempotent lifecycle and safety-preserving grace contract",
-          "status": "PLANNED",
+          "status": "IN_PROGRESS",
           "dependsOn": [
             "V5.1 audited ownership transfer rules"
           ],
@@ -1038,6 +1038,23 @@
             "Not activated: plan approval authority, legacy feature parity, cross-partner ownership, idempotent concurrency and essential gate/SOS grace must be proven before any GRANTED license.",
             "Do not change live EntitlementService.current or relax DRAFT-only database checks without reviewed compatibility cutover.",
             "No production DNS, hosted integrations, staging/main release or live partner onboarding."
+          ]
+        },
+        {
+          "id": "V5.4.5.1",
+          "name": "Pure optimistic partner allocation and legacy-entitlement cutover safety simulator",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "e5d0ee529754b8cc4e3f90750115b184d3cc6a4c",
+          "evidence": [
+            "packages/types/src/partner-license-allocation-simulation.mjs",
+            "scripts/partner-license-allocation-simulation.test.mjs",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Pure deterministic rehearsal only: no PostgreSQL reservation, distributed locks, live license activation or society entitlements writes.",
+            "V5.1 audited ownership transfer/history is not yet closed. Do not use the simulator to authorize society or partner access.",
+            "All existing DRAFT-only DB constraints, current gate/SOS and legacy feature authority remain unchanged.",
+            "V5.4.5 requires transactional capacity/idempotency and transfer/compatibility approval before its final closure; no staging/main promotion."
           ]
         }
       ]
