@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const directory = await mkdtemp(path.join(tmpdir(), 'aaraagate-admin-ui-'))
 const entry = fileURLToPath(new URL('./fixture.tsx', import.meta.url))
+const licensingEntry = fileURLToPath(new URL('./licensing-fixture.tsx', import.meta.url))
 const migrationsEntry = fileURLToPath(new URL('./migrations-fixture.tsx', import.meta.url))
 await writeFile(path.join(directory, 'index.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin UI contract fixture</title><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>')
 await writeFile(path.join(directory, 'migrations.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin migration visual fixture</title><link rel="stylesheet" href="/migrations-fixture.css"></head><body><div id="root"></div><script src="/migrations-fixture.js"></script></body></html>')
+await writeFile(path.join(directory, 'licensing.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Licensing control-plane fixture</title><link rel="stylesheet" href="/licensing-fixture.css"></head><body><div id="root"></div><script src="/licensing-fixture.js"></script></body></html>')
 const build = await context({
-  entryPoints: [entry, migrationsEntry], bundle: true, outdir: directory, jsx: 'automatic', sourcemap: true,
+  entryPoints: [entry, migrationsEntry, licensingEntry], bundle: true, outdir: directory, jsx: 'automatic', sourcemap: true,
   define: {
     'process.env.NODE_ENV': '"test"',
     'process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL': '"http://127.0.0.1:4318"',

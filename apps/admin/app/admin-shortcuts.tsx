@@ -62,6 +62,7 @@ export function AdminShortcuts(){
       add(property,{href:'/migration',label:'Migration center',description:'Validate imports, track onboarding and export evidence'})
       add(property,{href:'/onboarding',label:'Society onboarding',description:'Guided setup readiness across property, migration, roles and policy'})
       add(property,{href:'/roles',label:'People & roles',description:'Administrative memberships and access'})
+      add(property,{href:'/licensing',label:'Partner licensing',description:'Commercial approval, society opt-in and allocation'})
       add(property,{href:'/parking',label:'Parking',description:'Parking inventory and assignments'})
     }
     if(governanceRoles.has(role)){
