@@ -1099,7 +1099,7 @@
         {
           "id": "V5.4.5.3",
           "name": "PostgreSQL serialized immutable DRAFT capacity reservations with legacy feature parity",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
           "evidence": [
             "services/api/src/entitlements/partner-capacity-reservation.service.ts",
@@ -1110,7 +1110,10 @@
             "Real persisted development reservations, not live grant activation or entitlement cutover.",
             "DRAFT-only grant constraint, existing legacy tier/override authority and gate/SOS access preserved.",
             "Commercial approval/opt-in lifecycle, domain activation and Admin control-plane views remain pending. No staging/main promotion."
-          ]
+          ],
+          "pullRequest": 1270,
+          "mergeSha": "573ea908378a5d8704c0148ee31043f5f1468101",
+          "ciRun": 38400319041
         }
       ]
     },
