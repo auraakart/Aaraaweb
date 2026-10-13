@@ -943,7 +943,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.2",
+      "currentSlice": "V5.4.3",
       "slices": [
         {
           "id": "V5.4.1",
@@ -967,7 +967,7 @@
         {
           "id": "V5.4.2",
           "name": "Shared hostname canonicalization, reserved-domain denial and verified-only presentation candidate contract",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "47e18e96e9302a7c1e57396d2bcd14fe703d46b9",
           "evidence": [
             "packages/config/src/partner-domain-contract.mjs",
@@ -979,6 +979,29 @@
             "No live DNS lookups, TXT challenge verification, partner portal routing, TLS, cookie changes or domain activation.",
             "A registered/verified hostname supplies a cosmetic routing candidate only; it cannot grant partner/society permissions or access to data.",
             "Existing legacy entitlements and society isolation remain unchanged; CI and safe partner-scoped API integration are separate gates."
+          ],
+          "pullRequest": 1263,
+          "mergeSha": "4964e497de2a9b868d8c94dfa138d69bf91742e0",
+          "ciRun": 38348292805
+        },
+        {
+          "id": "V5.4.3",
+          "name": "Commercial plan revisions and DRAFT-only partner license grant/audit persistence with Super Admin endpoints",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "4964e497de2a9b868d8c94dfa138d69bf91742e0",
+          "evidence": [
+            "services/api/prisma/schema.prisma",
+            "services/api/prisma/migrations/20261013073000_v543_partner_license_persistence/migration.sql",
+            "services/api/src/entitlements/partner-license-persistence.service.ts",
+            "services/api/src/entitlements/platform-partner-license.controller.ts",
+            "services/api/src/entitlements/partner-license-persistence.spec.ts",
+            "services/api/src/entitlements/partner-license-persistence.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Commercial revisions and audit events are immutable at the DB layer. New grants are DRAFT only; DB constraint rejects GRANTED or REVOKED until separately reviewed V5.4.5 activation.",
+            "Only existing platform SUPER_ADMIN sessions may create plan revisions or grant drafts. No partner portal authorization or partner self-service is enabled.",
+            "Existing Society.productTier, featureOverrides and EntitlementService.current remain authoritative. No change to gate, SOS, billing, finance or resident feature access.",
+            "No real-world pricing/grants, migrations applied to live environments, production infrastructure or staging/main promotion."
           ]
         }
       ]
