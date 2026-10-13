@@ -113,3 +113,26 @@ test('approved hypothetical opt-in preserves already-enabled SOS and visitor acc
   assert.throws(()=>assessLegacyLicenseCutover({...base,
     currentFeatures:['SOS','SOS']}),/duplicate feature/);
 });
+
+test('V5.4.5.2 never replays stale, revoked, cross-partner or unapproved receipts',()=>{
+  const base=simulatePartnerCapacityReservation(initial(),request()).state;
+  for(const [overrides,pattern] of [
+    [{ownerPartnerId:partnerB},/Cross-partner/],
+    [{partnerId:partnerB,ownerPartnerId:partnerB},/Cross-partner/],
+    [{planRevisionId:partnerB},/Plan revision/],
+    [{ownershipVersion:3},/Ownership version/],
+    [{partnerStatus:'RESTRICTED'},/Inactive partner/],
+    [{licensePhase:'GRACE'},/no new allocations/],
+    [{licensePhase:'EXPIRED'},/no new allocations/],
+    [{auditedOwnershipTransfer:false},/Audited ownership/],
+    [{explicitCommercialApproval:false},/Commercial allocation/],
+  ]){
+    assert.throws(()=>simulatePartnerCapacityReservation(base,request(overrides)),pattern);
+  }
+  assert.equal(simulatePartnerCapacityReservation(base,request()).outcome,'REPLAYED');
+});
+
+test('V5.4.5.2 rejects orphan receipts in a forged commercial snapshot',()=>{
+  const forged={...initial(),receipts:[{key:receipt,identity:'fabricated',societyId:societyB}]};
+  assert.throws(()=>simulatePartnerCapacityReservation(forged,request()),/Orphan idempotency receipt/);
+});
