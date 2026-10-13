@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Header, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { PartnerRole } from '@prisma/client';
 import { IsBoolean, IsEnum, IsUUID } from 'class-validator';
-import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerMemberLifecycleService } from './partner-member-lifecycle.service';
 class PartnerInviteDto {
   @IsUUID() userId!:string;
@@ -11,7 +12,7 @@ class PartnerInviteDto {
 class PartnerInvitationDecisionDto { @IsBoolean() accept!:boolean; }
 class PartnerRoleChangeDto { @IsEnum(PartnerRole) role!:PartnerRole; }
 @Controller('partners')
-@UseGuards(BearerGuard)
+@UseGuards(PartnerBearerGuard)
 export class PartnerMemberLifecycleController {
   constructor(private readonly members:PartnerMemberLifecycleService){}
   @Get('my-invitations') @Header('Cache-Control','no-store')

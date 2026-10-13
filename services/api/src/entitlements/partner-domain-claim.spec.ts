@@ -2,7 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PartnerDomainClaimAction, PartnerRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { BearerGuard } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerDomainClaimService } from './partner-domain-claim.service';
 import { PartnerDomainClaimController } from './partner-domain-claim.controller';
 
@@ -26,7 +26,7 @@ function harness(){
 }
 describe('V5.4.11 partner hostname claim is inert and actor scoped',()=>{
  it('uses a bearer session and never grants a society role',()=>{
-   expect(Reflect.getMetadata(GUARDS_METADATA,PartnerDomainClaimController)).toContain(BearerGuard);
+   expect(Reflect.getMetadata(GUARDS_METADATA,PartnerDomainClaimController)).toContain(PartnerBearerGuard);
  });
  it('registers a bounded pending claim with hashed proof and immutable audit',async()=>{
    const {tx,service}=harness();

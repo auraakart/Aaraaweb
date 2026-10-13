@@ -115,7 +115,7 @@ export class AuthController {
     // A partner identity receives no societyId, AppRole or operational permission.
     // Every partner action still reloads current membership/invitation authority.
     return {verified:true,contextType:'PARTNER' as const,
-      session:await this.sessions.create(user.id,undefined,[])};
+      session:await this.sessions.create(user.id,undefined,[],{audience:'PARTNER'})};
   }
 
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
