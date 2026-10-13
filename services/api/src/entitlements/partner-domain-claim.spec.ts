@@ -2,7 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PartnerDomainClaimAction, PartnerRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { PartnerBearerGuard } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerDomainClaimService } from './partner-domain-claim.service';
 import { PartnerDomainClaimController } from './partner-domain-claim.controller';
 
