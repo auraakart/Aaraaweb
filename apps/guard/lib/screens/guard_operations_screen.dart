@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../guard_controller.dart';
 import '../localization/guard_strings.dart';
@@ -9,8 +10,9 @@ import '../widgets/guard_operation_ui.dart';
 part 'guard_operations_components.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
-  const GuardOperationsScreen({super.key, required this.controller});
+  const GuardOperationsScreen({super.key, required this.controller, this.societyLogoBytes});
   final GuardController controller;
+  final Uint8List? societyLogoBytes;
 
   @override
   State<GuardOperationsScreen> createState() => _GuardOperationsScreenState();
@@ -142,6 +144,17 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.societyLogoBytes == null ? null : Padding(
+          padding: const EdgeInsets.all(6),
+          child: Semantics(
+            label: 'Published society logo',
+            child: Image.memory(
+              widget.societyLogoBytes!, fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.shield_rounded),
+            ),
+          ),
+        ),
         title: Text(strings.get('gateOperations')),
         actions: [IconButton(onPressed: c.busy ? null : c.signOut, tooltip: strings.get('signOut'), icon: const Icon(Icons.logout_rounded))],
       ),
