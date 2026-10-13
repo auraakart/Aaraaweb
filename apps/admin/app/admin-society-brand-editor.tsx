@@ -4,9 +4,11 @@ import {useCallback, useEffect, useState, type CSSProperties, type FormEvent} fr
 import {api, type Session} from '../lib/admin-client'
 import {operatorConfirm} from '../lib/operator-dialog'
 import {parseAdminSocietyBrand} from '../lib/admin-society-brand'
-import {currentPublishedBrand, draftBrandConfig, parseSocietyBrandRevisions, planBrandRestore, type SocietyBrandRevision} from '../lib/admin-society-brand-editor'
+import {currentPublishedBrand, draftBrandConfig, parseSocietyBrandRevisions, planBrandRestore, selectVerifiedLogoForDraft, type SocietyBrandRevision} from '../lib/admin-society-brand-editor'
 import {Header} from './admin-ui-primitives'
 import {AdminSocietyLogoQuarantine} from './admin-society-logo-quarantine'
+import {AdminPublishedSocietyLogo} from './admin-published-society-logo'
+import type {SocietyLogoAsset} from '../lib/admin-society-logo'
 
 type Props={session:Session;onPublished:()=>void}
 export function AdminSocietyBrandEditor({session,onPublished}:Props){
@@ -20,6 +22,11 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
   const[primaryDeep,setPrimaryDeep]=useState('#164E63')
   const[supportEmail,setSupportEmail]=useState('')
   const[supportPhone,setSupportPhone]=useState('')
+  const[selectedLogoId,setSelectedLogoId]=useState('')
+  const[verifiedLogos,setVerifiedLogos]=useState<SocietyLogoAsset[]>([])
+  const onLogoAssetsChanged=useCallback((assets:SocietyLogoAsset[])=>{
+    setVerifiedLogos(assets.filter(asset=>asset.status==='VERIFIED'))
+  },[])
   const refresh=useCallback(async()=>{
     const response=await api<unknown>('/branding/manage/revisions',{},session)
     setRevisions(parseSocietyBrandRevisions(response))
@@ -34,9 +41,10 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
   },[session])
   const published=currentPublishedBrand(revisions)
   const latestVersion=revisions[0]?.version??0
-  let draft:ReturnType<typeof draftBrandConfig>|null=null
+  let draft:ReturnType<typeof selectVerifiedLogoForDraft>|null=null
   let validation=''
-  try{draft=draftBrandConfig(name,primary,primaryDeep,supportEmail,supportPhone)}
+  try{draft=selectVerifiedLogoForDraft(
+    draftBrandConfig(name,primary,primaryDeep,supportEmail,supportPhone),selectedLogoId,verifiedLogos)}
   catch(e){validation=e instanceof Error?e.message:'Invalid brand configuration'}
   // Reuse the already audited Admin palette parser: unsafe white-text contrast
   // never gets inserted into a runtime CSS custom property.
@@ -102,6 +110,7 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
     setPrimaryDeep(item.config.colors?.primaryDeep??'#164E63')
     setSupportEmail(item.config.support?.email??'')
     setSupportPhone(item.config.support?.phone??'')
+    setSelectedLogoId(item.config.logoAssetId??'')
     setNotice('Values copied for a new draft; the original revision remains immutable.')
     setError('')
   }
@@ -124,6 +133,13 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <label>Deep primary (hex)<input value={primaryDeep} maxLength={7} required onChange={e=>setPrimaryDeep(e.target.value)} placeholder="#164E63"/></label>
         <label>Support email (optional)<input type="email" value={supportEmail} maxLength={254} onChange={e=>setSupportEmail(e.target.value)} placeholder="help@example.org" /></label>
         <label>Support phone (optional)<input type="tel" value={supportPhone} maxLength={16} onChange={e=>setSupportPhone(e.target.value)} placeholder="+919876543210" /></label>
+        <label>Verified society logo (optional)
+          <select value={selectedLogoId} onChange={e=>setSelectedLogoId(e.target.value)} disabled={busy||loading}>
+            <option value="">Use built-in Aaraagate logo</option>
+            {verifiedLogos.map(asset=><option key={asset.id} value={asset.id}>Verified PNG · {asset.id.slice(0,8)}</option>)}
+          </select>
+        </label>
+        <p className="brand-editor-help">Only VERIFIED private images from the selected society can enter a new revision. The server rechecks ownership at draft and publication.</p>
         <p className="brand-editor-help">Support details are displayed as contact information only; they never affect authorization, payments or support workflow ownership.</p>
         <p className="brand-editor-help">Six-digit hex only. Foreground text automatically uses accessible black or white contrast. Success, error and gate-status colors are not editable.</p>
         {validation&&<p role="alert" className="error">{validation}</p>}
@@ -133,16 +149,17 @@ export function AdminSocietyBrandEditor({session,onPublished}:Props){
         <h2>Live preview (not yet published)</h2>
         <div className="brand-editor-swatch" style={previewStyle}><strong>{preview?.displayName??'Preview unavailable'}</strong><span>Resident · Guard · Admin</span><span>Example navigation and primary action</span>{draft?.support&&<span>Support: {[draft.support.email,draft.support.phone].filter(Boolean).join(' · ')}</span>}</div>
         <p>Currently published: <strong>{published?'Version '+published.version:'Built-in Aaraagate default'}</strong></p>
+        <AdminPublishedSocietyLogo session={session} revision={published?.id??'default'} enabled={!!published?.config.logoAssetId}/>
         <p>Next draft version: <strong>{latestVersion+1}</strong></p>
       </section>
     </div>
-    <AdminSocietyLogoQuarantine key={session.societyId} session={session}/>
+    <AdminSocietyLogoQuarantine key={session.societyId} session={session} onAssetsChanged={onLogoAssetsChanged}/>
     <section className="panel brand-editor-history">
       <h2>Immutable revision history</h2>
       {loading?<p>Loading revisions…</p>:revisions.length===0?<p>No society-specific revisions. The default Aaraagate brand remains active.</p>:
         <ul>{revisions.map(item=><li key={item.id}>
           <div><strong>Version {item.version}</strong> · {item.publishedAt?item.id===published?.id?'Current published':'Previously published':'Draft'}
-            <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}{item.config.support?' · Support: '+[item.config.support.email,item.config.support.phone].filter(Boolean).join(' / '):''}</p></div>
+            <p>{item.config.displayName??'Default display name'}{item.config.colors?' · '+item.config.colors.primary+' / '+item.config.colors.primaryDeep:''}{item.config.support?' · Support: '+[item.config.support.email,item.config.support.phone].filter(Boolean).join(' / '):''}{item.config.logoAssetId?' · Verified logo '+item.config.logoAssetId.slice(0,8):''}</p></div>
           <div className="buttons">
             <button type="button" disabled={busy} onClick={()=>copy(item)}>Use values for new draft</button>
             {item.publishedAt&&published&&item.version<published.version&&<button type="button" disabled={busy} onClick={()=>void restore(item)}>Restore as new revision</button>}
