@@ -12,7 +12,8 @@ ALTER TABLE "PartnerDomainClaim"
   ADD CONSTRAINT "PartnerDomainClaim_rotation_bound" CHECK ("challengeRotationCount" BETWEEN 0 AND 10);
 ALTER TABLE "PartnerDomainClaimEvent"
   ADD COLUMN "idempotencyKey" UUID,
-  ADD COLUMN "reason" VARCHAR(500);
+  ADD COLUMN "reason" VARCHAR(500),
+  ADD COLUMN "resultVersion" INTEGER;
 CREATE UNIQUE INDEX "PartnerDomainClaimEvent_claimId_idempotencyKey_key"
   ON "PartnerDomainClaimEvent"("claimId","idempotencyKey");
 COMMIT;
