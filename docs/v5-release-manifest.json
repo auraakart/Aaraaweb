@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.16",
+      "currentSlice": "V5.3.17",
       "slices": [
         {
           "id": "V5.3.1",
@@ -835,7 +835,7 @@
         {
           "id": "V5.3.16",
           "name": "Verified Admin society-logo selection in immutable revisions and authenticated published preview",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "0dc44e1d1332b535b78f3c41ab4760051c816ce8",
           "evidence": [
             "apps/admin/lib/admin-society-brand-editor.ts",
@@ -848,6 +848,27 @@
             "Only verified metadata is selectable; backend independently checks society ownership and verification on draft/publication.",
             "Browser uses current authenticated PNG bytes and ephemeral blob URL; mobile Resident/Guard image presentation is V5.3.17.",
             "No native app identity/host, partner role, gate/finance changes, staging/main promotion or production infrastructure."
+          ],
+          "pullRequest": 1258,
+          "mergeSha": "a5273722731112af1df5ccb5291dd73612db4c33",
+          "ciRun": 38332035672
+        },
+        {
+          "id": "V5.3.17",
+          "name": "Session-scoped Resident/Guard PNG logo display with secure reuse and fallback",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "a5273722731112af1df5ccb5291dd73612db4c33",
+          "evidence": [
+            "packages/branding_runtime/lib/society_logo_fetcher.dart",
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Mobile in-memory image only; no public/CDN URL, image persistence, new packages, native APK identity, hardware or productionization changes.",
+            "Already authenticated and scoped GET /context/logo remains the sole server authority; a missing/invalid logo leaves built-in Aaraagate presentation.",
+            "No role, entitlement, finance, guard workflow, staging or main changes."
           ]
         }
       ]
