@@ -5,6 +5,18 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./partner-domain": "./src/partner-domain-contract.mjs"
+    "./partner-domain": "./src/partner-domain-contract.mjs",
+    "./partner-domain-loader": {
+      "types": "./src/partner-domain-loader.d.cts",
+      "require": "./src/partner-domain-loader.cjs",
+      "default": "./src/partner-domain-loader.cjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "partner-domain-loader": [
+        "src/partner-domain-loader.d.cts"
+      ]
+    }
   }
 }

@@ -25,7 +25,8 @@
     "firebase-admin": "^13.4.0",
     "redis": "^5.8.2",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "@aaraagate/config": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

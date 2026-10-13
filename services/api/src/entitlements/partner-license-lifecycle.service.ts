@@ -11,8 +11,8 @@ export type LicenseApprovalInput = LicenseContextInput & { reason: string; essen
 export type LicenseConsentInput = LicenseContextInput & { decision: 'OPT_IN' | 'WITHDRAW'; expectedFeatures: ProductFeature[] };
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const features=new Set<string>(Object.values(ProductFeature));
-const sameFeatures=(a:unknown,b:ProductFeature[])=>Array.isArray(a)&&a.length===b.length&&new Set(a).size===a.length&&a.every(f=>b.includes(f));
-const canonical=(v:unknown):string=>JSON.stringify(v===null||typeof v!=='object'?v:Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,JSON.parse(canonical(x))])));
+export const sameLicenseFeatures=(a:unknown,b:ProductFeature[])=>Array.isArray(a)&&a.length===b.length&&new Set(a).size===a.length&&a.every(f=>b.includes(f));
+export const canonicalLicenseJson=(v:unknown):string=>JSON.stringify(v===null||typeof v!=='object'?v:Array.isArray(v)?v.map(x=>JSON.parse(canonicalLicenseJson(x))):Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,JSON.parse(canonicalLicenseJson(x))])));
 
 /** Immutable commercial approval + explicit society consent; operational
  * entitlement resolution remains exactly the legacy tier/override resolver. */
@@ -98,14 +98,14 @@ export class PartnerLicenseLifecycleService {
       const legacy=await this.legacy(tx,societyId);
       if(input.decision==='OPT_IN'){
         if(!['ACTIVE','NOT_STARTED'].includes(this.phase(g))||g.approval?.revocation)throw new ConflictException('License opt-in unavailable');
-        if(!sameFeatures(input.expectedFeatures,legacy.enabledFeatures))throw new ConflictException('Legacy feature expectation changed');
+        if(!sameLicenseFeatures(input.expectedFeatures,legacy.enabledFeatures))throw new ConflictException('Legacy feature expectation changed');
         this.compatible(g.planRevision.featureAllowlist,legacy.enabledFeatures);
       }
       const latest=await tx.societyLicenseConsent.findFirst({where:{societyId,grantId:g.id,ownershipVersion:owner.ownershipVersion},orderBy:{sequence:'desc'}});
       const previous=await tx.societyLicenseConsent.findUnique({where:{societyId_idempotencyKey:{societyId,idempotencyKey:input.idempotencyKey}}});
       if(previous){
         if(previous.id!==latest?.id||previous.actorId!==principal.userId||previous.grantId!==g.id||previous.grantVersion!==g.version||previous.ownershipVersion!==owner.ownershipVersion||previous.decision!==input.decision||
-          (input.decision==='OPT_IN'&&(previous.productTier!==legacy.productTier||canonical(previous.featureOverrides)!==canonical(legacy.featureOverrides)||!sameFeatures(previous.enabledFeatures,legacy.enabledFeatures))))throw new ConflictException('Consent request key changed or superseded');
+          (input.decision==='OPT_IN'&&(previous.productTier!==legacy.productTier||canonicalLicenseJson(previous.featureOverrides)!==canonicalLicenseJson(legacy.featureOverrides)||!sameLicenseFeatures(previous.enabledFeatures,legacy.enabledFeatures))))throw new ConflictException('Consent request key changed or superseded');
         return {id:previous.id,decision:previous.decision,sequence:previous.sequence};
       }
       if(latest?.decision===input.decision)throw new ConflictException('Consent decision already current; replay the original request');
@@ -123,7 +123,7 @@ export class PartnerLicenseLifecycleService {
       if(!g.approval||g.approval.revocation||g.approval.grantVersion!==g.version||this.phase(g)!=='ACTIVE')throw new ConflictException('Approved active license unavailable');
       const c=await tx.societyLicenseConsent.findFirst({where:{societyId,grantId:g.id,ownershipVersion:owner.ownershipVersion},orderBy:{sequence:'desc'}});
       const legacy=await this.legacy(tx,societyId);
-      if(!c||c.id!==input.consentId||c.decision!=='OPT_IN'||c.grantVersion!==g.version||c.productTier!==legacy.productTier||canonical(c.featureOverrides)!==canonical(legacy.featureOverrides)||!sameFeatures(c.enabledFeatures,legacy.enabledFeatures))throw new ConflictException('Current compatible society opt-in required');
+      if(!c||c.id!==input.consentId||c.decision!=='OPT_IN'||c.grantVersion!==g.version||c.productTier!==legacy.productTier||canonicalLicenseJson(c.featureOverrides)!==canonicalLicenseJson(legacy.featureOverrides)||!sameLicenseFeatures(c.enabledFeatures,legacy.enabledFeatures))throw new ConflictException('Current compatible society opt-in required');
       this.compatible(g.planRevision.featureAllowlist,legacy.enabledFeatures);
       const replay=await tx.societyLicenseAllocation.findUnique({where:{approvalId_idempotencyKey:{approvalId:g.approval.id,idempotencyKey:input.idempotencyKey}}});
       if(replay){

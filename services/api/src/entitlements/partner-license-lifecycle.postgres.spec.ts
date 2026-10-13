@@ -7,6 +7,7 @@ import { EntitlementService } from './entitlement.service';
 import { ProductFeature, ProductTier } from './entitlement.types';
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
 import { PartnerLicenseLifecycleService } from './partner-license-lifecycle.service';
+import { PartnerLicenseOverviewService } from './partner-license-overview.service';
 import { SocietyOwnershipTransferService } from './society-ownership-transfer.service';
 const withDatabase=process.env.DATABASE_URL?describe:describe.skip;
 async function fixture(prisma:PrismaService,capacity=1){
@@ -143,4 +144,42 @@ withDatabase('V5.4.5.4 approved licensing and opt-in PostgreSQL boundary',()=>{
    }
   }finally{await p.$disconnect();}
  });
+ it('projects only own-society licensing with fresh roles and no partner-wide usage for society admins',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p),s=f.societies[0],views=new PartnerLicenseOverviewService(f.ownership,f.entitlements);
+   const admin=f.principal(f.admin,s,AppRole.SOCIETY_ADMIN);
+   expect((await views.overview(admin,s)).licenses).toHaveLength(0);
+   expect((await views.overview(f.principal(f.checker),s)).licenses[0].capabilities.canApprove).toBe(true);
+   expect((await views.overview(f.principal(f.maker),s)).licenses[0].capabilities.canApprove).toBe(false);
+   const c=await f.consent();
+   expect((await views.overview(admin,s)).licenses[0]).toMatchObject({approvalState:'PENDING',capabilities:{canWithdraw:true}});
+   await f.approve();
+   const pending=await views.overview(admin,s);
+   expect(pending.licenses[0]).toMatchObject({used:null,consent:{id:c.id},capabilities:{canApprove:false,canActivate:false,canRevoke:false}});
+   expect(JSON.stringify(pending)).not.toContain(f.maker);
+   await p.societyMembership.create({data:{societyId:s,userId:f.checker,role:'SOCIETY_ADMIN'}});
+   await p.societyMembership.updateMany({where:{societyId:s,userId:f.checker,role:'SUPER_ADMIN'},data:{active:false}});
+   const downgraded=await views.overview(f.principal(f.checker),s);
+   expect(downgraded.licenses[0].used).toBeNull();expect(downgraded.licenses[0].capabilities.canRevoke).toBe(false);
+  }finally{await p.$disconnect();}
+ });
+ it('binds test domain candidates to activated license and exact society, then denies revocation',async()=>{
+  const p=new PrismaService(),keys=['NODE_ENV','AARAGATE_ENABLE_TEST_DOMAIN_PREVIEW','AARAGATE_TEST_PARTNER_DOMAINS','AARAGATE_PLATFORM_HOSTNAMES'];
+  const prior=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+  try{
+   const f=await fixture(p,2),s=f.societies[0],views=new PartnerLicenseOverviewService(f.ownership,f.entitlements);
+   process.env.NODE_ENV='test';process.env.AARAGATE_ENABLE_TEST_DOMAIN_PREVIEW='true';process.env.AARAGATE_PLATFORM_HOSTNAMES='[]';
+   process.env.AARAGATE_TEST_PARTNER_DOMAINS=JSON.stringify([{hostname:'license.partner.community',partnerId:f.partnerId,brandId:s,status:'VERIFIED',verifiedAt:new Date(Date.now()-60000).toISOString(),verifiedUntil:new Date(Date.now()+3600000).toISOString()}]);
+   await f.approve();const c=await f.consent();
+   await expect(views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).rejects.toThrow(/unavailable/);
+   await f.service.activate(f.principal(f.checker),s,{...f.context(),consentId:c.id});
+   expect(await views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).toMatchObject({societyId:s,partnerId:f.partnerId,candidateOnly:true,routingActivated:false});
+   const other=f.societies[1],c2=await f.consent(other);
+   await f.service.activate(f.principal(f.checker,other),other,{...f.context(),consentId:c2.id});
+   await expect(views.domainPreview(f.principal(f.admin,other,AppRole.SOCIETY_ADMIN),other,'license.partner.community')).rejects.toThrow(/unavailable/);
+   await f.service.revoke(f.principal(f.checker),s,{...f.context(),reason:'Revoke test domain authority'});
+   await expect(views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).rejects.toThrow(/unavailable/);
+  }finally{for(const key of keys){if(prior[key]===undefined)delete process.env[key];else process.env[key]=prior[key];}await p.$disconnect();}
+ });
+
 });

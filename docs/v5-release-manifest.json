@@ -960,7 +960,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.5.4",
+      "currentSlice": "V5.4.6",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1118,7 +1118,7 @@
         {
           "id": "V5.4.5.4",
           "name": "Independent commercial approval, explicit legacy opt-in/withdrawal and approved licensed allocation",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "ea5b9f566afda52dda1324e64a4aedb231e91bd7",
           "evidence": [
             "services/api/src/entitlements/partner-license-lifecycle.service.ts",
@@ -1129,6 +1129,25 @@
             "Approved licensing authority is additive immutable approval/revocation history; historical DRAFT proposals remain immutable.",
             "Explicit consent/withdrawal and allocation preserve current tier/raw overrides/features, including existing gate/SOS through grace, expiry and revocation.",
             "No hosted migrations, partner onboarding, pricing/payment integration, production DNS/TLS or staging/main promotion."
+          ],
+          "pullRequest": 1272,
+          "mergeSha": "cc020bd4e46964db0d48440e69951cfbf90bc765",
+          "ciRun": 38404087250
+        },
+        {
+          "id": "V5.4.6",
+          "name": "Current-society Admin licensing controls and authorized cosmetic test-domain inspection",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "cc020bd4e46964db0d48440e69951cfbf90bc765",
+          "evidence": [
+            "apps/admin/app/licensing/page.tsx",
+            "services/api/src/entitlements/partner-license-overview.service.ts",
+            "apps/admin/tests/admin-ui/licensing.spec.mjs"
+          ],
+          "limitations": [
+            "Domain inspection requires explicit test/development flag and configured registry, approved active allocation and exact society/partner binding. No production routing/DNS/verification claims.",
+            "Society administrators see their approved or consented plans, own consent/allocation and no partner-wide usage/platform actions.",
+            "No new partner onboarding, pricing/payment integration, hosted migration, branded binary or staging/main promotion."
           ]
         }
       ]
