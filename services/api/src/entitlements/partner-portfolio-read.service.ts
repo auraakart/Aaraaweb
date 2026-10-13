@@ -11,6 +11,19 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PartnerPortfolioReadService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Discover only the authenticated user's current commercial workspaces. */
+  workspaces(userId: string) {
+    return this.prisma.partnerMembership.findMany({
+      where: {
+        userId, active: true, user: { is: { status: 'ACTIVE' } },
+        role: { in: [PartnerRole.OWNER, PartnerRole.BRAND_MANAGER, PartnerRole.COMMERCIAL_ADMIN] },
+        partner: { is: { status: 'ACTIVE' } },
+      },
+      select: { id: true, role: true, partner: { select: { id: true, displayName: true } } },
+      orderBy: { id: 'asc' }, take: 51,
+    }).then(rows => ({ memberships: rows.slice(0, 50), hasMore: rows.length > 50 }));
+  }
+
   private async withVisiblePartner<T>(
     userId: string,
     partnerId: string,
@@ -21,6 +34,7 @@ export class PartnerPortfolioReadService {
       const membership = await tx.partnerMembership.findFirst({
         where: {
           userId, partnerId, active: true,
+          user: { is: { status: 'ACTIVE' } },
           role: { in: [...roles] },
           partner: { is: { status: 'ACTIVE' } },
         },

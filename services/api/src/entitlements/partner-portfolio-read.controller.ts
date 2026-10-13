@@ -11,6 +11,12 @@ import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 export class PartnerPortfolioReadController {
   constructor(private readonly portfolioReader: PartnerPortfolioReadService) {}
 
+  @Get('workspaces')
+  @Header('Cache-Control', 'no-store')
+  workspaces(@Req() request: AuthenticatedRequest) {
+    return this.portfolioReader.workspaces(request.auth!.userId);
+  }
+
   @Get(':partnerId/portfolio')
   @Header('Cache-Control', 'no-store')
   portfolio(

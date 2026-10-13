@@ -959,7 +959,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.7",
+      "currentSlice": "V5.4.8",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1172,6 +1172,21 @@
           "validatedRuntimeSha": "cadb6414fdf5660546d9f4b4a2cb78194fe92a39",
           "mergeSha": "906d595119bccc58f3ecd3e800720fc9a587acd0",
           "ciRun": 38408729069
+        },
+        {
+          "id": "V5.4.8",
+          "name": "Authenticated workspace discovery and scoped read-only partner portal",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "92288e0461999107b3aaf2bcd44954c5b6ca49d9",
+          "evidence": [
+            "services/api/src/entitlements/partner-portfolio-read.postgres.spec.ts",
+            "apps/admin/app/partners/page.tsx",
+            "apps/admin/tests/admin-ui/partner.spec.mjs"
+          ],
+          "limitations": [
+            "Existing bearer session required; no dedicated partner login/onboarding or member writes.",
+            "No host routing, production integration or staging/main promotion."
+          ]
         }
       ],
       "scopedAcceptance": {

@@ -22,6 +22,7 @@ function harness(member: {id:string}|null) {
     ])},
   };
   const prisma={
+    partnerMembership:tx.partnerMembership,
     $transaction:vi.fn(async (run:(input:typeof tx)=>Promise<unknown>)=>run(tx)),
     societyMembership:{findMany:vi.fn()},
   };
@@ -29,6 +30,17 @@ function harness(member: {id:string}|null) {
 }
 
 describe('V5.4.4 scoped partner control-plane reads',()=>{
+  it('discovers only current active user memberships without identity contacts or society roles',async()=>{
+    const {tx,service}=harness({id:'m1'});
+    tx.partnerMembership.findMany.mockResolvedValue([]);
+    await expect(service.workspaces(user)).resolves.toEqual({memberships:[],hasMore:false});
+    expect(tx.partnerMembership.findMany).toHaveBeenCalledWith({
+      where:{userId:user,active:true,user:{is:{status:'ACTIVE'}},role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN]},partner:{is:{status:'ACTIVE'}}},
+      select:{id:true,role:true,partner:{select:{id:true,displayName:true}}},orderBy:{id:'asc'},take:51,
+    });
+    expect(tx.society.findMany).not.toHaveBeenCalled();
+  });
+
   it('requires a bearer session; never grants an AppRole via partner membership',()=>{
     const guards=Reflect.getMetadata(GUARDS_METADATA,PartnerPortfolioReadController) as unknown[];
     expect(guards).toContain(BearerGuard);
@@ -45,6 +57,7 @@ describe('V5.4.4 scoped partner control-plane reads',()=>{
     expect(tx.partnerMembership.findFirst).toHaveBeenCalledWith({
       where:{
         userId:user,partnerId:partnerA,active:true,
+        user:{is:{status:'ACTIVE'}},
         role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN]},
         partner:{is:{status:'ACTIVE'}},
       },select:{id:true},
