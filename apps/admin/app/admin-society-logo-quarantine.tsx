@@ -8,7 +8,7 @@ import {
 } from '../lib/admin-society-logo'
 
 /** Private asset review only. This component never adds a logo to a published brand revision. */
-export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
+export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Session;onAssetsChanged?:(assets:SocietyLogoAsset[])=>void}) {
   const [assets,setAssets]=useState<SocietyLogoAsset[]>([])
   const [file,setFile]=useState<File|null>(null)
   const [loading,setLoading]=useState(true)
@@ -19,8 +19,10 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
 
   const refresh=useCallback(async()=>{
     const rows=await api<unknown>('/branding/manage/logos',{},session)
-    setAssets(parseSocietyLogoAssets(rows))
-  },[session])
+    const valid=parseSocietyLogoAssets(rows)
+    setAssets(valid)
+    onAssetsChanged?.(valid)
+  },[session,onAssetsChanged])
 
   useEffect(()=>{
     let active=true
@@ -31,11 +33,11 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
     setLastExpires(null)
     setLoading(true)
     void api<unknown>('/branding/manage/logos',{},session)
-      .then(value=>{if(active)setAssets(parseSocietyLogoAssets(value))})
+      .then(value=>{if(active){const valid=parseSocietyLogoAssets(value);setAssets(valid);onAssetsChanged?.(valid)}})
       .catch(e=>{if(active)setError(e instanceof Error?e.message:'Unable to load private logo assets')})
       .finally(()=>{if(active)setLoading(false)})
     return()=>{active=false}
-  },[session])
+  },[session,onAssetsChanged])
 
   const upload=async()=>{
     if(!file||busy)return
@@ -73,7 +75,7 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
         method:'POST',body:'{}',
       },session)
       await refresh()
-      setNotice('Logo verified by the server and malware scanner. Logo publication is not enabled yet.')
+      setNotice('Logo verified by the server and malware scanner. Select it in a new branding revision to publish.')
     }catch(e){
       setError((e instanceof Error?e.message:'Logo verification failed')+
         '. Confirmation requires the signed upload link to have expired and a clean PNG scan.')
@@ -88,8 +90,8 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
   return <section className="panel brand-editor-history" aria-labelledby="society-logo-title">
     <h2 id="society-logo-title">Private society logo review</h2>
     <p className="brand-editor-help">
-      PNG only, 512 KiB maximum, 64–1024 pixels. Logo files remain private and cannot
-      replace Aaraagate branding until a separate authorized publication workflow is enabled.
+      PNG only, 512 KiB maximum, 64–1024 pixels. Logo files remain private. Only VERIFIED images may be selected
+      for a new immutable branding revision in the society editor.
     </p>
     <label>Choose PNG logo for safety review
       <input type="file" accept="image/png,.png" onChange={onFile} disabled={busy}/>
@@ -116,7 +118,7 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
           onClick={()=>void verifyLogo(item)}>Verify after link expiry</button>}
       </li>)}</ul>}
     <p className="brand-editor-help">
-      Verified means safe for future review, not published. Pending/rejected images are
+      Verified means approved for selection, not already published. Pending/rejected images are
       never shown to residents, guards or unauthenticated visitors.
     </p>
   </section>

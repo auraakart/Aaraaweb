@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.15",
+      "currentSlice": "V5.3.16",
       "slices": [
         {
           "id": "V5.3.1",
@@ -816,7 +816,7 @@
         {
           "id": "V5.3.15",
           "name": "Authenticated current-published society logo PNG delivery with integrity verification",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "03ee8bc8952f9ced1451c1341d694288015ea79f",
           "evidence": [
             "services/api/src/branding/brand-logo-read.service.ts",
@@ -827,6 +827,27 @@
             "Returns bytes only under current society authentication and verified immutable publication, no signed GET/public CDN or direct arbitrary ID access.",
             "No Resident/Guard/Admin image consumption in this slice; V5.3.16 required for scoped UI with default fallback.",
             "Private store configuration and real-world infrastructure remain outside scope; no main/staging promotion."
+          ],
+          "pullRequest": 1257,
+          "mergeSha": "0dc44e1d1332b535b78f3c41ab4760051c816ce8",
+          "ciRun": 38330170071
+        },
+        {
+          "id": "V5.3.16",
+          "name": "Verified Admin society-logo selection in immutable revisions and authenticated published preview",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "0dc44e1d1332b535b78f3c41ab4760051c816ce8",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand-editor.ts",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/app/admin-society-logo-quarantine.tsx",
+            "apps/admin/app/admin-published-society-logo.tsx",
+            "apps/admin/scripts/v5.3.16-logo-publish-preview-regression.mjs"
+          ],
+          "limitations": [
+            "Only verified metadata is selectable; backend independently checks society ownership and verification on draft/publication.",
+            "Browser uses current authenticated PNG bytes and ephemeral blob URL; mobile Resident/Guard image presentation is V5.3.17.",
+            "No native app identity/host, partner role, gate/finance changes, staging/main promotion or production infrastructure."
           ]
         }
       ]
