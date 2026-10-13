@@ -960,7 +960,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.5.3",
+      "currentSlice": "V5.4.5.4",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1114,6 +1114,22 @@
           "pullRequest": 1270,
           "mergeSha": "573ea908378a5d8704c0148ee31043f5f1468101",
           "ciRun": 38400319041
+        },
+        {
+          "id": "V5.4.5.4",
+          "name": "Independent commercial approval, explicit legacy opt-in/withdrawal and approved licensed allocation",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "ea5b9f566afda52dda1324e64a4aedb231e91bd7",
+          "evidence": [
+            "services/api/src/entitlements/partner-license-lifecycle.service.ts",
+            "services/api/src/entitlements/partner-license-lifecycle.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013134000_v5454_license_approval_optin/migration.sql"
+          ],
+          "limitations": [
+            "Approved licensing authority is additive immutable approval/revocation history; historical DRAFT proposals remain immutable.",
+            "Explicit consent/withdrawal and allocation preserve current tier/raw overrides/features, including existing gate/SOS through grace, expiry and revocation.",
+            "No hosted migrations, partner onboarding, pricing/payment integration, production DNS/TLS or staging/main promotion."
+          ]
         }
       ]
     },

@@ -66,6 +66,25 @@ export class SocietyOwnershipTransferService {
     });
   }
 
+  /** Explicit society-level opt-in needs a current society configuration operator. */
+  async withConsentAuthority<T>(principal: AuthPrincipal, societyId: string,
+    operation: (tx: Prisma.TransactionClient, current: { partnerId: string; ownershipVersion: number }) => Promise<T>): Promise<T> {
+    if (!uuid.test(societyId) || !uuid.test(principal.userId) || principal.societyId !== societyId ||
+        !principal.roles.some(role => role === AppRole.SOCIETY_ADMIN || role === AppRole.SUPER_ADMIN)) {
+      throw new ForbiddenException('License consent authority unavailable');
+    }
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT set_config(${TENANT_CONTEXT_SETTING}, ${societyId}, true)`;
+      const current = await this.society(tx, societyId);
+      const rows = await tx.$queryRaw<{ id: string }[]>`SELECT u."id" FROM "User" u
+        JOIN "SocietyMembership" m ON m."userId"=u."id" WHERE u."id"=${principal.userId}::uuid
+        AND u."status"='ACTIVE' AND m."societyId"=${societyId}::uuid AND m."active"=true
+        AND m."role" IN ('SUPER_ADMIN','SOCIETY_ADMIN') FOR SHARE OF u,m`;
+      if (!rows.length) throw new ForbiddenException('License consent authority unavailable');
+      return operation(tx,current);
+    });
+  }
+
   async propose(principal: AuthPrincipal, societyId: string, input: OwnershipProposal) {
     this.scope(principal, societyId);
     if (!uuid.test(input.toPartnerId) || !uuid.test(input.idempotencyKey) ||
