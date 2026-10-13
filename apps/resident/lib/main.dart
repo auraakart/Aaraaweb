@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:aaraagate_branding_runtime/society_logo_fetcher.dart';
 import 'auth/auth_repository.dart';
 import 'auth/auth_screen.dart';
 import 'auth/resident_auth_controller.dart';
@@ -87,6 +89,8 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
           accessToken: session.accessToken,
         );
       },
+      fetchLogo: (session) => fetchPublishedSocietyLogo(
+        baseUrl: widget.apiBaseUrl, accessToken: session.accessToken),
       fetchContext: (session) async {
         final api = ApiClient(baseUrl: widget.apiBaseUrl, accessToken: session.accessToken);
         try {
@@ -134,6 +138,7 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
               apiBaseUrl: widget.apiBaseUrl,
               authController: widget.authController,
               experiencePreferences: widget.experiencePreferences,
+              societyLogoBytes: _branding.logoBytes,
             ),
           );
         },
@@ -141,10 +146,11 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
 }
 
 class _ResidentSessionGate extends StatefulWidget {
-  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences});
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes});
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
+  final Uint8List? societyLogoBytes;
   @override
   State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
 }
@@ -209,6 +215,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
         return ResidentHomeShell(
           key: ValueKey('${session.sessionId}:${session.activeUnitId ?? ''}'),
           controller: _dataController!,
+          societyLogoBytes: widget.societyLogoBytes,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: widget.authController.isActivePropertyOwner,
@@ -226,8 +233,9 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes});
   final ResidentDataController controller;
+  final Uint8List? societyLogoBytes;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
@@ -325,6 +333,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
         final pages = <Widget>[
           HomeScreen(
             controller: controller,
+            societyLogoBytes: widget.societyLogoBytes,
             showGate: showGate,
             showStaff: showStaff,
             showServices: showServices,

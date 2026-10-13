@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aaraagate_branding_runtime/society_logo_fetcher.dart';
 import 'data/guard_api.dart';
 import 'data/guard_session_store.dart';
 import 'data/guard_preferences.dart';
@@ -46,6 +47,8 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindi
     _branding = GuardBrandingController(
       sessionChanges: widget.controller,
       currentSession: () => widget.controller.session,
+      fetchLogo: (session) => fetchPublishedSocietyLogo(
+        baseUrl: widget.controller.api.baseUrl, accessToken: session.accessToken),
       fetchContext: (session) => widget.controller.api.brandingContext(
         sessionAccessToken: session.accessToken,
       ),
@@ -85,7 +88,7 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindi
           if (!widget.controller.signedIn) return GuardLoginScreen(controller: widget.controller);
           return Stack(
             children: [
-              GuardOperationsScreen(controller: widget.controller),
+              GuardOperationsScreen(controller: widget.controller, societyLogoBytes: _branding.logoBytes),
               Positioned(
                 right: 18,
                 bottom: 24,

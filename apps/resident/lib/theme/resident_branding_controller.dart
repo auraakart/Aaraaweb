@@ -24,6 +24,7 @@ class ResidentBrandingController extends ChangeNotifier {
     required this.scopeChanges,
     required this.currentSession,
     required this.fetchContext,
+    this.fetchLogo,
   }) {
     scopeChanges.addListener(_onScopeChanged);
     _onScopeChanged();
@@ -32,8 +33,10 @@ class ResidentBrandingController extends ChangeNotifier {
   final Listenable scopeChanges;
   final ResidentBrandSession? Function() currentSession;
   final Future<Object?> Function(ResidentBrandSession) fetchContext;
+  final Future<Uint8List?> Function(ResidentBrandSession)? fetchLogo;
 
   SocietyBrandTokens? current;
+  Uint8List? logoBytes;
   String? _identity;
   int _epoch = 0;
   bool _disposed = false;
@@ -46,7 +49,8 @@ class ResidentBrandingController extends ChangeNotifier {
     _identity = identity;
     final generation = ++_epoch;
     current = null;
-    notifyListeners(); // Remove the old society theme immediately.
+    logoBytes = null;
+    notifyListeners(); // Clear old society theme and image immediately.
     if (session != null) unawaited(_fetch(session, generation));
   }
 
@@ -75,7 +79,24 @@ class ResidentBrandingController extends ChangeNotifier {
     }
     if (_disposed || generation != _epoch || _identity != session.identity) return;
     if (keepCurrentOnFailure && transportFailed) return;
+    if (next?.revision != current?.revision) logoBytes = null;
     current = next;
+    notifyListeners();
+    if (next != null && fetchLogo != null) {
+      unawaited(_loadLogo(session, generation));
+    }
+  }
+
+  Future<void> _loadLogo(ResidentBrandSession session, int generation) async {
+    Uint8List? bytes;
+    try {
+      bytes = await fetchLogo!(session);
+    } catch (_) {
+      // Logo transport is cosmetic; never break resident workflows or login.
+      bytes = null;
+    }
+    if (_disposed || generation != _epoch || _identity != session.identity) return;
+    logoBytes = bytes;
     notifyListeners();
   }
 
