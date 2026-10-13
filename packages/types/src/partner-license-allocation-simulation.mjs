@@ -1,5 +1,5 @@
 /**
- * V5.4.5.1 — deterministic commercial capacity/cutover rehearsal only.
+ * V5.4.5.1–2 — deterministic commercial capacity/cutover rehearsal only.
  *
  * Input authority is TEST SNAPSHOT DATA, not a bearer-authenticated principal
  * or a transactionally locked PostgreSQL row. The result is a proposed next
@@ -94,29 +94,33 @@ export function simulatePartnerCapacityReservation(state, request) {
     'Invalid idempotency receipts');
   ensure(new Set(state.receipts.map(row => row.key)).size === state.receipts.length,
     'Duplicate receipt keys');
-  const identity = requestIdentity(request);
-  const prior = state.receipts.find(row => row.key === request.idempotencyKey);
-  if (prior) {
-    ensure(prior.identity === identity && prior.societyId === request.societyId &&
-      state.allocatedSocietyIds.includes(request.societyId),
-    'Idempotency conflict');
-    return Object.freeze({
-      outcome: 'REPLAYED', allocationVersion: state.allocationVersion, state,
-    });
-  }
+  ensure(state.receipts.every(row => state.allocatedSocietyIds.includes(row.societyId)),
+    'Orphan idempotency receipt');
+  // Revalidate all safety preconditions before returning even a no-op replay.
+  // A past receipt must never bypass a revoked partner, transfer, or approval.
   ensure(state.partnerId === request.partnerId &&
     request.ownerPartnerId === request.partnerId, 'Cross-partner allocation denied');
   ensure(state.planRevisionId === request.planRevisionId, 'Plan revision conflict');
   ensure(request.ownershipVersion === request.expectedOwnershipVersion,
     'Ownership version conflict');
-  ensure(state.allocationVersion === request.expectedAllocationVersion,
-    'Allocation version conflict');
   ensure(request.partnerStatus === 'ACTIVE' && request.licensePhase === 'ACTIVE',
     'Inactive partner or license: no new allocations in grace or expiry');
   ensure(request.auditedOwnershipTransfer === true,
     'Audited ownership transfer is required');
   ensure(request.explicitCommercialApproval === true,
     'Commercial allocation approval is required');
+  const identity = requestIdentity(request);
+  const prior = state.receipts.find(row => row.key === request.idempotencyKey);
+  if (prior) {
+    ensure(prior.identity === identity && prior.societyId === request.societyId,
+      'Idempotency conflict');
+    return Object.freeze({
+      outcome: 'REPLAYED', allocationVersion: state.allocationVersion, state,
+    });
+  }
+  // Only new proposals, never matching replays, require the current generation.
+  ensure(state.allocationVersion === request.expectedAllocationVersion,
+    'Allocation version conflict');
   ensure(!state.allocatedSocietyIds.includes(request.societyId),
     'Society already allocated');
   ensure(state.allocatedSocietyIds.length < state.maximumSocieties,
