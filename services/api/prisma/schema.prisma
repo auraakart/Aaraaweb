@@ -17,6 +17,10 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
+  partnerInvitations        PartnerInvitation[] @relation("PartnerInvitee")
+  partnerInvitationsSent    PartnerInvitation[] @relation("PartnerInviteAuthor")
+  partnerMemberEvents       PartnerMembershipEvent[] @relation("PartnerEventSubject")
+  partnerMemberEventsActor  PartnerMembershipEvent[] @relation("PartnerEventActor")
   ownershipRequests         SocietyOwnershipTransferRequest[] @relation("OwnershipInitiator")
   ownershipApprovals        SocietyOwnershipTransfer[] @relation("OwnershipApprover")
   capacityReservations      PartnerLicenseCapacityReservation[] @relation("CapacityReservationActor")
@@ -129,11 +133,61 @@ model Partner {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   societies   Society[]
   memberships PartnerMembership[]
+  invitations PartnerInvitation[]
+  memberEvents PartnerMembershipEvent[]
   licenseGrants PartnerLicenseGrant[]
   ownershipRequestsFrom SocietyOwnershipTransferRequest[] @relation("OwnershipRequestFrom")
   ownershipRequestsTo SocietyOwnershipTransferRequest[] @relation("OwnershipRequestTo")
 }
 
+enum PartnerInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+enum PartnerMemberAction {
+  INVITED
+  ACCEPTED
+  DECLINED
+  INVITATION_REVOKED
+  ROLE_CHANGED
+  MEMBER_REVOKED
+}
+model PartnerInvitation {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  userId String @db.Uuid
+  invitedById String @db.Uuid
+  role PartnerRole
+  status PartnerInvitationStatus @default(PENDING)
+  idempotencyKey String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  respondedAt DateTime? @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  invitee User @relation("PartnerInvitee", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy User @relation("PartnerInviteAuthor", fields: [invitedById], references: [id], onDelete: Restrict)
+  @@unique([partnerId, idempotencyKey])
+  @@index([userId, status, expiresAt])
+  @@index([partnerId, userId, status])
+}
+model PartnerMembershipEvent {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  subjectUserId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerMemberAction
+  beforeRole PartnerRole?
+  afterRole PartnerRole?
+  invitationId String? @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  subject User @relation("PartnerEventSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  actor User @relation("PartnerEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([partnerId, createdAt])
+}
 model PartnerMembership {
   id        String      @id @default(uuid()) @db.Uuid
   partnerId String      @db.Uuid
