@@ -76,4 +76,31 @@ void main(){
     expect(branding.logoBytes,isNull);
     branding.dispose();scope.dispose();
   });
+  test('published logo bearer fetch rejects remote HTTP and URL injection', () async {
+    for (final address in [
+      'http://public.example.org/api/v1/context/logo',
+      'http://192.168.1.5:3000/api/v1/context/logo',
+      'ftp://example.org/api/v1/context/logo',
+      'https://user:secret@example.org/api/v1/context/logo',
+      'https://example.org/api/v1/context/logo?asset=other',
+      'https://example.org/api/v1/context/logo#fragment',
+      'https://example.org/api/v1/context/other',
+    ]) {
+      expect(allowedPublishedLogoUri(Uri.parse(address)), false,
+          reason: 'Bearer token must not travel to $address');
+    }
+    for (final address in [
+      'https://api.example.org/api/v1/context/logo',
+      'http://localhost:3000/api/v1/context/logo',
+      'http://127.0.0.1:3000/api/v1/context/logo',
+      'http://10.0.2.2:3000/api/v1/context/logo',
+    ]) {
+      expect(allowedPublishedLogoUri(Uri.parse(address)), true);
+    }
+    // Invalid remote HTTP origins must short-circuit before network activity.
+    expect(await fetchPublishedSocietyLogo(
+      baseUrl:'http://public.example.org',accessToken:'sensitive-test-token',
+    ), isNull);
+  });
+
 }
