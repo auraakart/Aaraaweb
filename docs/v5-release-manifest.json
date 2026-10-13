@@ -943,7 +943,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.5.1",
+      "currentSlice": "V5.4.5.2",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1043,7 +1043,7 @@
         {
           "id": "V5.4.5.1",
           "name": "Pure optimistic partner allocation and legacy-entitlement cutover safety simulator",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "e5d0ee529754b8cc4e3f90750115b184d3cc6a4c",
           "evidence": [
             "packages/types/src/partner-license-allocation-simulation.mjs",
@@ -1055,6 +1055,25 @@
             "V5.1 audited ownership transfer/history is not yet closed. Do not use the simulator to authorize society or partner access.",
             "All existing DRAFT-only DB constraints, current gate/SOS and legacy feature authority remain unchanged.",
             "V5.4.5 requires transactional capacity/idempotency and transfer/compatibility approval before its final closure; no staging/main promotion."
+          ],
+          "pullRequest": 1267,
+          "mergeSha": "db0d195fb3355f4d1494fa1a77c7709b454a8d1e",
+          "ciRun": 38362661393
+        },
+        {
+          "id": "V5.4.5.2",
+          "name": "Fail-closed idempotency replay across partner revocation, ownership and approval changes",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "db0d195fb3355f4d1494fa1a77c7709b454a8d1e",
+          "evidence": [
+            "packages/types/src/partner-license-allocation-simulation.mjs",
+            "scripts/partner-license-allocation-simulation.test.mjs",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Pure snapshot simulation only; no server authorization, ownership transfer history, allocation transaction or license activation.",
+            "Legacy features and essential gate/SOS behavior are unchanged. V5.1 ownership transfer/audit and PostgreSQL allocator remain prerequisites.",
+            "No staging/main changes or production integration."
           ]
         }
       ]
