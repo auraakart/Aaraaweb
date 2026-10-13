@@ -15,7 +15,7 @@ function setup() {
   partnerMembership:{findFirst:vi.fn().mockResolvedValue({id:'33333333-3333-4333-8333-333333333333'})},
   partnerInvitation:{findFirst:vi.fn().mockResolvedValue(null)},
  };
- const sessions=new SessionService(prisma as never,{getJson:vi.fn().mockResolvedValue(null)} as never,{resolve:vi.fn()} as never);
+ const sessions=new SessionService(prisma as never,{getJson:vi.fn().mockResolvedValue(null),setIfAbsentJson:vi.fn().mockResolvedValue(true)} as never,{resolve:vi.fn()} as never);
  const request:{auth?:unknown;header:(name:string)=>string|undefined}={header:name=>name==='authorization'?'Bearer token':undefined};
  const context={switchToHttp:()=>({getRequest:()=>request})} as never;
  return {prisma,sessions,request,context};
@@ -89,7 +89,7 @@ describe('V5.4.16 persisted partner session isolation',()=>{
   prisma.session.updateMany.mockResolvedValue({count:1});
   await expect(sessions.refresh(userId,old)).resolves.toHaveProperty('accessToken');
   prisma.partnerInvitation.findFirst.mockResolvedValue(null);
-  await expect(sessions.refresh(userId,'not-the-current-refresh')).rejects.toBeInstanceOf(UnauthorizedException);
+  await expect(sessions.refresh(userId,old)).rejects.toBeInstanceOf(UnauthorizedException);
  });
  it('refuses partner refresh after membership revocation before consuming rotation',async()=>{
   const {prisma,sessions}=setup(),old='revoked-refresh';
