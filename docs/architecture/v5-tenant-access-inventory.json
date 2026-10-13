@@ -3,7 +3,7 @@
   "program": "V5",
   "coverage": "COMPLETE_STATIC_REGISTER",
   "assurance": "NOT_A_SECURITY_PROOF",
-  "sourceDigest": "80afe48e4b48f55057a722e6264879a6ef03ee8e9c3f62647565db186fa8d2fe",
+  "sourceDigest": "c4f7caaadf8243d8ccb03ee5a91387ae6d857505518ddd2b6e26a46427aa152e",
   "method": "TypeScript AST ORM/raw SQL/controller extraction plus ordered Prisma schema/migration table register",
   "exclusions": [
     "test/spec sources",
@@ -18,7 +18,7 @@
   ],
   "summary": {
     "tables": 251,
-    "sourceFilesScanned": 403,
+    "sourceFilesScanned": 404,
     "migrationFilesScanned": 192,
     "accessSites": 2155,
     "rawSqlSites": 1618,
