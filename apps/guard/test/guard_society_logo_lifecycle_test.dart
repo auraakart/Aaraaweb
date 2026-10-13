@@ -89,4 +89,55 @@ void main(){
     ), isNull);
   });
 
+
+  test('guard published-logo rollback clears old bytes and restores by new revision', () async {
+    final scope = Scope();
+    final pending = <Completer<Uint8List?>>[];
+    var version = 1;
+    final branding = GuardBrandingController(
+      sessionChanges: scope,
+      currentSession: () => scope.session,
+      fetchContext: (session) async {
+        final response = context(session.societyId);
+        final snapshot = response['branding'] as Map<String, dynamic>;
+        snapshot['revision'] = 'society-${session.societyId}-v$version';
+        (snapshot['brand'] as Map<String, dynamic>)['displayName'] =
+            version == 2 ? 'Interim gate brand' : 'Original gate brand';
+        return response;
+      },
+      fetchLogo: (_) {
+        final next = Completer<Uint8List?>();
+        pending.add(next);
+        return next.future;
+      },
+    );
+    scope.use(auth('guard-one', a));
+    await settle();
+    pending[0].complete(Uint8List.fromList([1]));
+    await settle();
+    expect(branding.logoBytes, Uint8List.fromList([1]));
+
+    version = 2;
+    branding.refresh();
+    await settle();
+    expect(branding.current?.displayName, 'Interim gate brand');
+    expect(branding.logoBytes, isNull);
+    pending[1].complete(Uint8List.fromList([2]));
+    await settle();
+    expect(branding.logoBytes, Uint8List.fromList([2]));
+
+    version = 3; // New published revision restores original styling/logo.
+    branding.refresh();
+    await settle();
+    expect(branding.current?.displayName, 'Original gate brand');
+    expect(branding.logoBytes, isNull);
+    pending[2].complete(Uint8List.fromList([1]));
+    await settle();
+    expect(branding.logoBytes, Uint8List.fromList([1]));
+    scope.use(null);
+    expect(branding.logoBytes, isNull);
+    branding.dispose();
+    scope.dispose();
+  });
+
 }
