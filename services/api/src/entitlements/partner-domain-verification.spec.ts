@@ -12,7 +12,7 @@ const challenge='f'.repeat(64);
 const hash=createHash('sha256').update(challenge).digest('hex');
 function harness(){
  const claim={id:claimId,partnerId:partner,hostname:'brand.partner.in',status:PartnerDomainClaimStatus.PENDING,
-   createdAt:new Date(Date.now()-60000),challengeHash:hash,version:1,verificationAttempts:0,lastVerificationAttemptAt:null};
+   createdAt:new Date(Date.now()-60000),challengeHash:hash,version:1,verificationAttempts:0,lastVerificationAttemptAt:null as Date|null};
  const tx={
   $queryRaw:vi.fn().mockResolvedValue([{id:partner,status:'ACTIVE'}]),
   partnerMembership:{findFirst:vi.fn().mockResolvedValue({id:'owner'})},
