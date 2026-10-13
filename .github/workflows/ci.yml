@@ -463,15 +463,8 @@ jobs:
         run: pnpm --filter @aaraagate/api prisma:generate
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
-      # Temporary V5.4.3 diagnostic: NEVER merge this into develop.
-      # Capture the generated inventory delta and fail closed before auto-merge.
-      - name: Generate exact V5.4.3 inventory delta (diagnostic, fail closed)
-        run: |
-          node services/api/scripts/tenant-access-inventory.mjs --write
-          echo 'V543_INVENTORY_DIFF_BEGIN'
-          git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
-          echo 'V543_INVENTORY_DIFF_END'
-          exit 1
+      - name: Verify V5 tenant-access inventory
+        run: node services/api/scripts/tenant-access-inventory.mjs --check
       - name: V5 partner ownership historical upgrade and replay
         env:
           AARAAGATE_PARTNER_MIGRATION_CI: '1'
