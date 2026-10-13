@@ -2,7 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PartnerInvitationStatus, PartnerMemberAction, PartnerRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { PartnerBearerGuard } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerMemberLifecycleController } from './partner-member-lifecycle.controller';
 import { PartnerMemberLifecycleService } from './partner-member-lifecycle.service';
 const actor='11111111-1111-4111-8111-111111111111', partner='22222222-2222-4222-8222-222222222222';
