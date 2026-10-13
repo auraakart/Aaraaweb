@@ -1,9 +1,14 @@
 import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
-import { IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsInt, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { PartnerDomainVerificationService } from './partner-domain-verification.service';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PartnerDomainClaimService } from './partner-domain-claim.service';
 
+class PartnerDomainLifecycleDto {
+  @IsInt() @Min(1) expectedVersion!:number;
+  @IsUUID() idempotencyKey!:string;
+  @IsString() @MaxLength(500) reason!:string;
+}
 class PartnerDomainProofDto {
   @IsString() @Matches(/^[0-9a-f]{64}$/) challenge!:string;
 }
@@ -19,6 +24,14 @@ export class PartnerDomainClaimController {
   @Get() @Header('Cache-Control','no-store')
   list(@Req() req:AuthenticatedRequest,@Param('partnerId',ParseUUIDPipe) partnerId:string) {
     return this.claims.list(req.auth!.userId,partnerId);
+  }
+  @Post(':claimId/revoke') @Header('Cache-Control','no-store')
+  revoke(@Req() req:AuthenticatedRequest,@Param('partnerId',ParseUUIDPipe) partnerId:string,@Param('claimId',ParseUUIDPipe) claimId:string,@Body() dto:PartnerDomainLifecycleDto) {
+    return this.claims.revoke(req.auth!.userId,partnerId,claimId,dto);
+  }
+  @Post(':claimId/reissue') @Header('Cache-Control','no-store')
+  reissue(@Req() req:AuthenticatedRequest,@Param('partnerId',ParseUUIDPipe) partnerId:string,@Param('claimId',ParseUUIDPipe) claimId:string,@Body() dto:PartnerDomainLifecycleDto) {
+    return this.claims.reissue(req.auth!.userId,partnerId,claimId,dto);
   }
   @Post(':claimId/verify') @Header('Cache-Control','no-store')
   verify(@Req() req:AuthenticatedRequest,@Param('partnerId',ParseUUIDPipe) partnerId:string,@Param('claimId',ParseUUIDPipe) claimId:string,@Body() dto:PartnerDomainProofDto) {

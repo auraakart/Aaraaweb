@@ -79,4 +79,78 @@ export class PartnerDomainClaimService {
       throw error;
     }
   }
+
+  /** Serial, current owner authority and claim state — never a hostname-based role. */
+  private async ownedClaim(tx:Prisma.TransactionClient,actorId:string,partnerId:string,claimId:string){
+    await this.authority(tx,actorId,partnerId);
+    await tx.$queryRaw`SELECT "id" FROM "PartnerDomainClaim" WHERE "id"=${claimId}::uuid AND "partnerId"=${partnerId}::uuid FOR UPDATE`;
+    const claim=await tx.partnerDomainClaim.findFirst({where:{id:claimId,partnerId}});
+    if(!claim)throw new NotFoundException('Partner domain claim unavailable');
+    return claim;
+  }
+  private lifecycleInput(input:{expectedVersion:number;idempotencyKey:string;reason:string}){
+    if(!Number.isSafeInteger(input.expectedVersion)||input.expectedVersion<1||
+       typeof input.idempotencyKey!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.idempotencyKey)||
+       typeof input.reason!=='string'||input.reason.trim().length<3||input.reason.trim().length>500)
+       throw new BadRequestException('Invalid domain lifecycle request');
+    return input.reason.trim();
+  }
+  private async replay(tx:Prisma.TransactionClient,claimId:string,key:string){
+    return tx.partnerDomainClaimEvent.findFirst({where:{claimId,idempotencyKey:key},select:{actorId:true,action:true,reason:true}});
+  }
+  async revoke(actorId:string,partnerId:string,claimId:string,input:{expectedVersion:number;idempotencyKey:string;reason:string}){
+    const reason=this.lifecycleInput(input);
+    return this.prisma.$transaction(async tx=>{
+      const claim=await this.ownedClaim(tx,actorId,partnerId,claimId);
+      const existing=await this.replay(tx,claimId,input.idempotencyKey);
+      if(existing){
+        if(existing.action!==PartnerDomainClaimAction.REVOKED||existing.actorId!==actorId||
+           existing.reason!==reason||claim.status!=='REVOKED')
+          throw new ConflictException('Domain action replay changed or superseded');
+        return {id:claimId,status:'REVOKED' as const,replayed:true};
+      }
+      if(claim.version!==input.expectedVersion||claim.status==='REVOKED')
+        throw new ConflictException('Domain claim version changed');
+      await tx.partnerDomainClaim.update({where:{id:claimId},data:{
+        status:'REVOKED',verifiedAt:null,verifiedUntil:null,version:{increment:1},
+      }});
+      await tx.partnerDomainClaimEvent.create({data:{
+        claimId,actorId,action:PartnerDomainClaimAction.REVOKED,idempotencyKey:input.idempotencyKey,reason,
+      }});
+      return {id:claimId,status:'REVOKED' as const,replayed:false};
+    });
+  }
+  async reissue(actorId:string,partnerId:string,claimId:string,input:{expectedVersion:number;idempotencyKey:string;reason:string}){
+    const reason=this.lifecycleInput(input);
+    return this.prisma.$transaction(async tx=>{
+      const claim=await this.ownedClaim(tx,actorId,partnerId,claimId);
+      const existing=await this.replay(tx,claimId,input.idempotencyKey);
+      if(existing){
+        if(existing.action!==PartnerDomainClaimAction.CHALLENGE_REISSUED||existing.actorId!==actorId||
+           existing.reason!==reason||claim.status!=='PENDING')
+          throw new ConflictException('Domain action replay changed or superseded');
+        return {id:claimId,status:'PENDING' as const,challenge:null,replayed:true};
+      }
+      if(claim.version!==input.expectedVersion||claim.challengeRotationCount>=10)
+        throw new ConflictException('Domain claim version or rotation limit reached');
+      const now=new Date();
+      // At least one minute between reissues; persistent lifetime cap avoids
+      // resetting DNS proof retries indefinitely.
+      if(claim.challengeIssuedAt.getTime()>now.getTime()||
+         now.getTime()-claim.challengeIssuedAt.getTime()<60_000)
+        throw new ConflictException('Domain challenge rotation cooldown');
+      const challenge=randomBytes(32).toString('hex');
+      await tx.partnerDomainClaim.update({where:{id:claimId},data:{
+        status:'PENDING',challengeHash:createHash('sha256').update(challenge).digest('hex'),
+        challengeIssuedAt:now,challengeRotationCount:{increment:1},
+        verificationAttempts:0,lastVerificationAttemptAt:null,
+        verifiedAt:null,verifiedUntil:null,version:{increment:1},
+      }});
+      await tx.partnerDomainClaimEvent.create({data:{
+        claimId,actorId,action:PartnerDomainClaimAction.CHALLENGE_REISSUED,
+        idempotencyKey:input.idempotencyKey,reason,
+      }});
+      return {id:claimId,status:'PENDING' as const,challenge,replayed:false};
+    });
+  }
 }

@@ -35,8 +35,8 @@ export class PartnerDomainVerificationService {
     const claim=await tx.partnerDomainClaim.findFirst({where:{id:claimId,partnerId}});
     if(!claim)throw new NotFoundException('Partner domain claim unavailable');
     if(claim.status!==PartnerDomainClaimStatus.PENDING)throw new ConflictException('Domain claim already processed');
-    if(claim.createdAt.getTime()>now.getTime() ||
-       now.getTime()-claim.createdAt.getTime()>=CLAIM_TTL_MS)
+    if(claim.challengeIssuedAt.getTime()>now.getTime() ||
+       now.getTime()-claim.challengeIssuedAt.getTime()>=CLAIM_TTL_MS)
       throw new ConflictException('Domain challenge expired');
     return claim;
   }

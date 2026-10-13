@@ -12,7 +12,7 @@ const challenge='f'.repeat(64);
 const hash=createHash('sha256').update(challenge).digest('hex');
 function harness(){
  const claim={id:claimId,partnerId:partner,hostname:'brand.partner.in',status:PartnerDomainClaimStatus.PENDING,
-   createdAt:new Date(Date.now()-60000),challengeHash:hash,version:1,verificationAttempts:0,lastVerificationAttemptAt:null as Date|null};
+   createdAt:new Date(Date.now()-60000),challengeIssuedAt:new Date(Date.now()-60000),challengeHash:hash,version:1,verificationAttempts:0,lastVerificationAttemptAt:null as Date|null};
  const tx={
   $queryRaw:vi.fn().mockResolvedValue([{id:partner,status:'ACTIVE'}]),
   partnerMembership:{findFirst:vi.fn().mockResolvedValue({id:'owner'})},
@@ -86,7 +86,7 @@ describe('V5.4.12 non-routing DNS TXT proof',()=>{
   expect(h.tx.partnerDomainClaimEvent.create).not.toHaveBeenCalled();
  });
  it('prevents expired challenges, rapid retries and stale verification races',async()=>{
-  const a=harness();a.claim.createdAt=new Date(Date.now()-8*24*60*60*1000);
+  const a=harness();a.claim.challengeIssuedAt=new Date(Date.now()-8*24*60*60*1000);
   await expect(a.service.verify(actor,partner,claimId,challenge)).rejects.toBeInstanceOf(ConflictException);
   const b=harness();b.claim.lastVerificationAttemptAt=new Date();
   await expect(b.service.verify(actor,partner,claimId,challenge)).rejects.toBeInstanceOf(ConflictException);
