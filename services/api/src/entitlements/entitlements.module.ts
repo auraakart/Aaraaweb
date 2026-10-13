@@ -16,12 +16,14 @@ import { PlatformPartnerLicenseController } from './platform-partner-license.con
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
 import { PartnerMemberLifecycleController } from './partner-member-lifecycle.controller';
 import { PartnerMemberLifecycleService } from './partner-member-lifecycle.service';
+import { PartnerDomainRegistryController } from './partner-domain-registry.controller';
+import { PartnerDomainRegistryService } from './partner-domain-registry.service';
 import { PartnerPortfolioReadController } from './partner-portfolio-read.controller';
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
-  controllers: [PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController],
-  providers: [PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService],
+  controllers: [PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController, PartnerDomainRegistryController],
+  providers: [PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainRegistryService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}

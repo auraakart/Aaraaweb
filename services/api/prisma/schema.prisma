@@ -17,6 +17,8 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
+  partnerDomainRequests     PartnerDomainRegistration[] @relation("PartnerDomainRequester")
+  partnerDomainEvents       PartnerDomainEvent[] @relation("PartnerDomainActor")
   partnerInvitations        PartnerInvitation[] @relation("PartnerInvitee")
   partnerInvitationsSent    PartnerInvitation[] @relation("PartnerInviteAuthor")
   partnerMemberEvents       PartnerMembershipEvent[] @relation("PartnerEventSubject")
@@ -133,6 +135,8 @@ model Partner {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   societies   Society[]
   memberships PartnerMembership[]
+  domains PartnerDomainRegistration[]
+  domainEvents PartnerDomainEvent[]
   invitations PartnerInvitation[]
   memberEvents PartnerMembershipEvent[]
   licenseGrants PartnerLicenseGrant[]
@@ -140,6 +144,51 @@ model Partner {
   ownershipRequestsTo SocietyOwnershipTransferRequest[] @relation("OwnershipRequestTo")
 }
 
+enum PartnerDomainStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+enum PartnerDomainAction {
+  CHALLENGE_CREATED
+  DNS_VERIFIED
+  REVOKED
+}
+model PartnerDomainRegistration {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  requestedById String @db.Uuid
+  hostname String @unique @db.VarChar(253)
+  status PartnerDomainStatus @default(PENDING)
+  revision Int @default(1)
+  idempotencyKey String @db.Uuid
+  challengeHash String @db.Char(64)
+  challengeExpiresAt DateTime @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  verifiedUntil DateTime? @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  requester User @relation("PartnerDomainRequester",fields:[requestedById],references:[id],onDelete:Restrict)
+  events PartnerDomainEvent[]
+  @@unique([partnerId,idempotencyKey])
+  @@index([partnerId,status])
+}
+model PartnerDomainEvent {
+  id String @id @default(uuid()) @db.Uuid
+  domainId String @db.Uuid
+  partnerId String @db.Uuid
+  actorId String @db.Uuid
+  revision Int
+  action PartnerDomainAction
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  domain PartnerDomainRegistration @relation(fields:[domainId],references:[id],onDelete:Restrict)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  actor User @relation("PartnerDomainActor",fields:[actorId],references:[id],onDelete:Restrict)
+  @@unique([domainId,revision])
+  @@index([partnerId,createdAt])
+}
 enum PartnerInvitationStatus {
   PENDING
   ACCEPTED
