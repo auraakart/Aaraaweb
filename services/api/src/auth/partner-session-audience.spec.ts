@@ -1,4 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionService } from './session.service';
 import { BearerGuard } from './bearer.guard';
@@ -55,5 +56,62 @@ describe('V5.4.16 persisted partner session isolation',()=>{
   const {prisma,sessions}=setup();
   prisma.session.findUnique.mockResolvedValue({id:userId,userId,societyId:null,audience:'INVALID',revokedAt:null,expiresAt:new Date(Date.now()+120000),user:{status:'ACTIVE'},society:null});
   await expect(sessions.getPrincipal('token')).rejects.toBeInstanceOf(UnauthorizedException);
+ });
+ it('keeps ordinary independently created sessions STANDARD without commercial flags',async()=>{
+  const {prisma,sessions}=setup();
+  await sessions.create(userId,undefined,[]);
+  expect(prisma.session.create).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({audience:'STANDARD',societyId:null})}));
+ });
+ it('rejects partner audience when caller supplies only a society role',async()=>{
+  const {sessions}=setup();
+  await expect(sessions.create(userId,undefined,['SOCIETY_ADMIN' as never],{audience:'PARTNER'})).rejects.toBeInstanceOf(UnauthorizedException);
+ });
+ it('rotates dedicated PARTNER refresh only while commercial authority remains active',async()=>{
+  const {prisma,sessions}=setup(),old='partner-refresh';
+  prisma.session.findUnique.mockResolvedValue({
+   id:userId,userId,societyId:null,audience:'PARTNER',revokedAt:null,
+   refreshTokenHash:createHash('sha256').update(old).digest('hex'),
+   refreshExpiresAt:new Date(Date.now()+120000),user:{status:'ACTIVE'},society:null,
+  });
+  prisma.session.updateMany.mockResolvedValue({count:1});
+  await expect(sessions.refresh(userId,old)).resolves.toHaveProperty('accessToken');
+  expect(prisma.session.updateMany).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({id:userId,revokedAt:null})}));
+ });
+ it('allows pending invitee to refresh but denies a revoked invite and membership',async()=>{
+  const {prisma,sessions}=setup(),old='invited-refresh';
+  prisma.session.findUnique.mockResolvedValue({
+   id:userId,userId,societyId:null,audience:'PARTNER',revokedAt:null,
+   refreshTokenHash:createHash('sha256').update(old).digest('hex'),
+   refreshExpiresAt:new Date(Date.now()+120000),user:{status:'ACTIVE'},society:null,
+  });
+  prisma.partnerMembership.findFirst.mockResolvedValue(null);
+  prisma.partnerInvitation.findFirst.mockResolvedValue({id:'invite'});
+  prisma.session.updateMany.mockResolvedValue({count:1});
+  await expect(sessions.refresh(userId,old)).resolves.toHaveProperty('accessToken');
+  prisma.partnerInvitation.findFirst.mockResolvedValue(null);
+  await expect(sessions.refresh(userId,'not-the-current-refresh')).rejects.toBeInstanceOf(UnauthorizedException);
+ });
+ it('refuses partner refresh after membership revocation before consuming rotation',async()=>{
+  const {prisma,sessions}=setup(),old='revoked-refresh';
+  prisma.session.findUnique.mockResolvedValue({
+   id:userId,userId,societyId:null,audience:'PARTNER',revokedAt:null,
+   refreshTokenHash:createHash('sha256').update(old).digest('hex'),
+   refreshExpiresAt:new Date(Date.now()+120000),user:{status:'ACTIVE'},society:null,
+  });
+  prisma.partnerMembership.findFirst.mockResolvedValue(null);
+  await expect(sessions.refresh(userId,old)).rejects.toBeInstanceOf(UnauthorizedException);
+  expect(prisma.session.updateMany).not.toHaveBeenCalled();
+ });
+ it('denies bad audience and cross-society partner refresh',async()=>{
+  const {prisma,sessions}=setup(),old='invalid-refresh',base={
+   id:userId,userId,revokedAt:null,
+   refreshTokenHash:createHash('sha256').update(old).digest('hex'),
+   refreshExpiresAt:new Date(Date.now()+120000),user:{status:'ACTIVE'},society:null,
+  };
+  prisma.session.findUnique.mockResolvedValue({...base,societyId:null,audience:'UNKNOWN'});
+  await expect(sessions.refresh(userId,old)).rejects.toBeInstanceOf(UnauthorizedException);
+  prisma.session.findUnique.mockResolvedValue({...base,societyId:userId,audience:'PARTNER',society:{status:'ACTIVE'}});
+  await expect(sessions.refresh(userId,old)).rejects.toBeInstanceOf(UnauthorizedException);
+  expect(prisma.session.updateMany).not.toHaveBeenCalled();
  });
 });
