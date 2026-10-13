@@ -2,7 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { NotFoundException } from '@nestjs/common';
 import { PartnerRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { PartnerBearerGuard } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerPortfolioReadController } from './partner-portfolio-read.controller';
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
