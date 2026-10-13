@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:aaraagate_branding_runtime/branding_runtime.dart';
 import '../data/guard_session_store.dart';
@@ -13,6 +14,7 @@ class GuardBrandingController extends ChangeNotifier {
     required this.sessionChanges,
     required this.currentSession,
     required this.fetchContext,
+    this.fetchLogo,
   }) {
     sessionChanges.addListener(_onSessionChange);
     _onSessionChange();
@@ -21,10 +23,12 @@ class GuardBrandingController extends ChangeNotifier {
   final Listenable sessionChanges;
   final GuardSession? Function() currentSession;
   final Future<Object?> Function(GuardSession) fetchContext;
+  final Future<Uint8List?> Function(GuardSession)? fetchLogo;
   String? _identity;
   int _generation = 0;
   bool _disposed = false;
   SocietyBrandTokens? current;
+  Uint8List? logoBytes;
 
   void _onSessionChange() {
     if (_disposed) return;
@@ -34,6 +38,7 @@ class GuardBrandingController extends ChangeNotifier {
     _identity = identity;
     final generation = ++_generation;
     current = null;
+    logoBytes = null;
     notifyListeners();
     if (session != null) unawaited(_fetch(session, generation));
   }
@@ -63,7 +68,24 @@ class GuardBrandingController extends ChangeNotifier {
     }
     if (_disposed || generation != _generation || _identity != identityFor(session)) return;
     if (keepCurrentOnFailure && transportFailed) return;
+    if (next?.revision != current?.revision) logoBytes = null;
     current = next;
+    notifyListeners();
+    if (next != null && fetchLogo != null) {
+      unawaited(_loadLogo(session, generation));
+    }
+  }
+
+  Future<void> _loadLogo(GuardSession session, int generation) async {
+    Uint8List? bytes;
+    try {
+      bytes = await fetchLogo!(session);
+    } catch (_) {
+      // A logo failure cannot affect gate operations, offline queue or sign-in.
+      bytes = null;
+    }
+    if (_disposed || generation != _generation || _identity != identityFor(session)) return;
+    logoBytes = bytes;
     notifyListeners();
   }
 
