@@ -70,7 +70,7 @@
         {
           "id": "V5.1.1",
           "name": "Immutable ownership proposals and independent scoped approval with atomic transfer history",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/society-ownership-transfer.service.ts",
             "services/api/src/entitlements/society-ownership-transfer.postgres.spec.ts",
@@ -79,7 +79,10 @@
           "limitations": [
             "Both operators require active SUPER_ADMIN memberships in the selected society; no commercial partner role elevates authority.",
             "No live licensing activation, entitlement conversion, partner onboarding or staging/main promotion."
-          ]
+          ],
+          "pullRequest": 1269,
+          "mergeSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
+          "ciRun": 38399142929
         }
       ],
       "remaining": [
@@ -957,7 +960,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.5.2",
+      "currentSlice": "V5.4.5.3",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1092,6 +1095,22 @@
           "pullRequest": 1268,
           "mergeSha": "b7d6b6fffc105afcd316c03ffe1f0d3c8f5a4b1e",
           "ciRun": 38393104389
+        },
+        {
+          "id": "V5.4.5.3",
+          "name": "PostgreSQL serialized immutable DRAFT capacity reservations with legacy feature parity",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
+          "evidence": [
+            "services/api/src/entitlements/partner-capacity-reservation.service.ts",
+            "services/api/src/entitlements/partner-capacity-reservation.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013130000_v5453_capacity_reservations/migration.sql"
+          ],
+          "limitations": [
+            "Real persisted development reservations, not live grant activation or entitlement cutover.",
+            "DRAFT-only grant constraint, existing legacy tier/override authority and gate/SOS access preserved.",
+            "Commercial approval/opt-in lifecycle, domain activation and Admin control-plane views remain pending. No staging/main promotion."
+          ]
         }
       ]
     },
