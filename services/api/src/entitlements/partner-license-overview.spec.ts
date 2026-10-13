@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRole } from '../auth/auth.types';
 import { ProductFeature } from './entitlement.types';
+import { PartnerLicenseOverviewController } from './partner-license-overview.controller';
 import { PartnerLicenseOverviewService } from './partner-license-overview.service';
 const societyId=randomUUID(),partnerId=randomUUID(),maker=randomUUID(),checker=randomUUID(),grantId=randomUUID(),approvalId=randomUUID(),consentId=randomUUID();
 const principal={userId:checker,societyId,roles:[AppRole.SUPER_ADMIN]},enabled=[ProductFeature.VISITOR_MANAGEMENT,ProductFeature.NOTICES,ProductFeature.SOS];
@@ -66,4 +67,13 @@ describe('V5.4.6 scoped licensing overview and test-only domain candidate',()=>{
   f.grant.approval.revocation=null;previewEnv([...registry(),...registry().map(r=>({...r,hostname:'second.partner.community'}))]);
   await expect(f.service.domainPreview(principal,societyId,'homes.partner.community')).rejects.toThrow(/unavailable/);
  });
+ it('resolves test context only from raw Host and ignores forwarded host spoofing',async()=>{
+  previewEnv();const f=fixture(),controller=new PartnerLicenseOverviewController(f.service);
+  const good={auth:principal,header:(name:string)=>name==='host'?'homes.partner.community':'evil.partner.community'};
+  expect(await controller.domainContext(good as never,societyId)).toMatchObject({hostname:'homes.partner.community',resolutionSource:'RAW_HOST',routingActivated:false});
+  const forged={auth:principal,header:(name:string)=>name==='host'?'evil.partner.community':'homes.partner.community'};
+  await expect(controller.domainContext(forged as never,societyId)).rejects.toThrow(/unavailable/);
+  expect(()=>controller.domainContext({auth:principal,header:(name:string)=>name==='host'?undefined:'homes.partner.community'} as never,societyId)).toThrow(/unavailable/);
+ });
+
 });
