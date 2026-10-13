@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Header, MaxLength, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
-import { IsString, IsUUID } from 'class-validator';
+import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { IsString, IsUUID, MaxLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { PartnerDomainClaimService } from './partner-domain-claim.service';
 
