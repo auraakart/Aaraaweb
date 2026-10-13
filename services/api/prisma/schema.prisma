@@ -20,6 +20,10 @@ model User {
   ownershipRequests         SocietyOwnershipTransferRequest[] @relation("OwnershipInitiator")
   ownershipApprovals        SocietyOwnershipTransfer[] @relation("OwnershipApprover")
   capacityReservations      PartnerLicenseCapacityReservation[] @relation("CapacityReservationActor")
+  licensesApproved          PartnerLicenseApproval[] @relation("LicenseApprover")
+  licensesRevoked           PartnerLicenseRevocation[] @relation("LicenseRevoker")
+  licenseConsents            SocietyLicenseConsent[] @relation("LicenseConsentActor")
+  licensesAllocated         SocietyLicenseAllocation[] @relation("LicenseAllocationActor")
   partnerLicensePlansCreated PartnerLicensePlanRevision[] @relation("PartnerLicensePlanCreator")
   partnerLicenseGrantsCreated PartnerLicenseGrant[] @relation("PartnerLicenseGrantCreator")
   partnerLicenseEventsCreated PartnerLicenseEvent[] @relation("PartnerLicenseEventActor")
@@ -65,6 +69,10 @@ model Society {
   ownershipRequests    SocietyOwnershipTransferRequest[]
   ownershipTransfers   SocietyOwnershipTransfer[]
   capacityReservations PartnerLicenseCapacityReservation[]
+  licenseApprovals     PartnerLicenseApproval[]
+  licenseRevocations   PartnerLicenseRevocation[]
+  licenseConsents      SocietyLicenseConsent[]
+  licensedAllocations  SocietyLicenseAllocation[]
   societyBrandRevisions SocietyBrandRevision[]
   societyBrandLogoAssets SocietyBrandLogoAsset[]
   createdAt            DateTime                   @default(now())
@@ -261,6 +269,8 @@ model PartnerLicenseGrant {
 
   @@unique([partnerId, idempotencyKey])
   @@index([partnerId, status, endsAt])
+  approval       PartnerLicenseApproval?
+  societyConsents SocietyLicenseConsent[]
 }
 
 // Persisted development reservation, NOT a live license or operational grant.
@@ -298,6 +308,85 @@ model PartnerLicenseEvent {
 
   @@unique([grantId, idempotencyKey])
   @@index([grantId, occurredAt])
+}
+
+// Approved license authority is separate from its immutable DRAFT proposal.
+model PartnerLicenseApproval {
+  id               String @id @default(uuid()) @db.Uuid
+  grantId          String @unique @db.Uuid
+  grantVersion     Int
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  approvedById     String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  essentialPolicy  String @default("PRESERVE_LEGACY")
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  grant            PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy       User @relation("LicenseApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  revocation       PartnerLicenseRevocation?
+  allocations      SocietyLicenseAllocation[]
+
+  @@index([societyId, createdAt])
+}
+
+model PartnerLicenseRevocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @unique @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseRevoker", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, createdAt])
+}
+
+model SocietyLicenseConsent {
+  id                   String @id @default(uuid()) @db.Uuid
+  sequence             Int @unique @default(autoincrement())
+  societyId            String @db.Uuid
+  ownershipVersion     Int
+  grantId              String @db.Uuid
+  grantVersion         Int
+  actorId              String @db.Uuid
+  decision             String @db.VarChar(16)
+  idempotencyKey       String @db.Uuid
+  productTier          ProductTier
+  featureOverrides     Json
+  enabledFeatures      Json
+  compatibilityMigration String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  society              Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  grant                PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor                User @relation("LicenseConsentActor", fields: [actorId], references: [id], onDelete: Restrict)
+  allocation           SocietyLicenseAllocation?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, grantId, ownershipVersion, sequence(sort: Desc)])
+}
+
+model SocietyLicenseAllocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  consentId        String @unique @db.Uuid
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  consent          SocietyLicenseConsent @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseAllocationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([approvalId, idempotencyKey])
+  @@index([societyId, ownershipVersion])
 }
 
 enum PartnerLicenseGrantStatus {

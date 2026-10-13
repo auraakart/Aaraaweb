@@ -1,3 +1,5 @@
+import { PartnerLicenseLifecycleController } from './partner-license-lifecycle.controller';
+import { PartnerLicenseLifecycleService } from './partner-license-lifecycle.service';
 import { PartnerCapacityReservationService } from './partner-capacity-reservation.service';
 import { PlatformCapacityReservationController } from './platform-capacity-reservation.controller';
 import { PlatformOwnershipTransferController } from './platform-ownership-transfer.controller';
@@ -14,8 +16,8 @@ import { PartnerPortfolioReadController } from './partner-portfolio-read.control
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
-  controllers: [PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController],
-  providers: [PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService],
+  controllers: [PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController],
+  providers: [PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}
