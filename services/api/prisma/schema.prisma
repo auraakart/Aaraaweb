@@ -232,6 +232,7 @@ model PartnerDomainClaimEvent {
   actorId String @db.Uuid
   action PartnerDomainClaimAction
   idempotencyKey String? @db.Uuid
+  resultVersion Int?
   reason String? @db.VarChar(500)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   claim PartnerDomainClaim @relation(fields:[claimId],references:[id],onDelete:Restrict)
