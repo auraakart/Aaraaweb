@@ -86,7 +86,6 @@
         }
       ],
       "remaining": [
-        "Ownership history and audited transfer contract",
         "Legacy subscription grant conversion after licensing authority is specified"
       ]
     },
@@ -1156,7 +1155,7 @@
         {
           "id": "V5.4.7",
           "name": "Immutable proposal terms, raw Host test-domain context and legacy rollback regression closure",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "ab7874246de843c6406321d360ade13ec3228fea",
           "evidence": [
             "docs/architecture/V5.4-NONPRODUCTION-CLOSURE.md",
@@ -1168,8 +1167,23 @@
             "Rollback regression exercises unchanged legacy readers and DRAFT writers against the additive schema; no deployed rollback drill.",
             "Authenticated raw Host context is test/development-only and cosmetic. No public partner login, production routing, DNS/TLS or dedicated partner onboarding UI.",
             "Broader V5 remains in development; branded Android automation and full-program regression closure remain planned."
-          ]
+          ],
+          "pullRequest": 1274,
+          "validatedRuntimeSha": "cadb6414fdf5660546d9f4b4a2cb78194fe92a39",
+          "mergeSha": "906d595119bccc58f3ecd3e800720fc9a587acd0",
+          "ciRun": 38408729069
         }
+      ],
+      "scopedAcceptance": {
+        "name": "Approved licensing backend, Admin controls and cosmetic test-domain context",
+        "status": "COMPLETED_NONPRODUCTION",
+        "evidence": "docs/architecture/V5.4-NONPRODUCTION-CLOSURE.md",
+        "ciRun": 38408729069
+      },
+      "remaining": [
+        "Dedicated scoped partner portal components and partner member lifecycle acceptance",
+        "Versioned domain registry/verifier integration and local multi-host SSR/session isolation acceptance before activating routes",
+        "Distribution approval contract required before V5.5 branded Android builds"
       ]
     },
     {
