@@ -103,4 +103,58 @@ void main(){
     ), isNull);
   });
 
+
+  test('logo rollback adopts a NEW published revision and never shows prior bytes', () async {
+    final scope = Scope();
+    final pending = <Completer<Uint8List?>>[];
+    var version = 1;
+    final branding = ResidentBrandingController(
+      scopeChanges: scope,
+      currentSession: () => scope.session,
+      fetchContext: (session) async {
+        final response = context(session.societyId);
+        final snapshot = response['branding'] as Map<String, dynamic>;
+        snapshot['revision'] = 'society-${session.societyId}-v$version';
+        (snapshot['brand'] as Map<String, dynamic>)['displayName'] =
+            version == 2 ? 'Temporary appearance' : 'Original appearance';
+        return response;
+      },
+      fetchLogo: (_) {
+        final next = Completer<Uint8List?>();
+        pending.add(next);
+        return next.future;
+      },
+    );
+    scope.use(auth('resident-one', a));
+    await settle();
+    pending[0].complete(Uint8List.fromList([1]));
+    await settle();
+    expect(branding.current?.displayName, 'Original appearance');
+    expect(branding.logoBytes, Uint8List.fromList([1]));
+
+    version = 2;
+    branding.refresh();
+    await settle();
+    expect(branding.current?.displayName, 'Temporary appearance');
+    expect(branding.logoBytes, isNull,
+        reason: 'A new published revision must clear prior image bytes');
+    pending[1].complete(Uint8List.fromList([2]));
+    await settle();
+    expect(branding.logoBytes, Uint8List.fromList([2]));
+
+    // The server restores v1 appearance by publishing immutable v3.
+    version = 3;
+    branding.refresh();
+    await settle();
+    expect(branding.current?.displayName, 'Original appearance');
+    expect(branding.logoBytes, isNull);
+    pending[2].complete(Uint8List.fromList([1]));
+    await settle();
+    expect(branding.logoBytes, Uint8List.fromList([1]));
+    scope.use(null);
+    expect(branding.logoBytes, isNull);
+    branding.dispose();
+    scope.dispose();
+  });
+
 }
