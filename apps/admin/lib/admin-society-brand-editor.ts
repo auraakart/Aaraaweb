@@ -1,3 +1,19 @@
+import type {SocietyLogoAsset} from './admin-society-logo'
+
+/** An opaque UUID is usable only after it appeared in this society's verified list.
+ * The API independently rechecks membership and ownership at draft and publish. */
+export function selectVerifiedLogoForDraft(
+  config: ReturnType<typeof draftBrandConfig>,
+  selectedId: string,
+  societyAssets: readonly SocietyLogoAsset[],
+) {
+  if (!selectedId) return config
+  const asset=societyAssets.find(item=>item.id===selectedId && item.status==='VERIFIED' &&
+    !!item.sha256 && !!item.verifiedAt)
+  if (!asset) throw new Error('Select an available, verified society logo before saving')
+  return {...config,logoAssetId:asset.id.toLowerCase()}
+}
+
 /** Untrusted management response is presentation-only and cannot grant any permissions. */
 export type SocietyBrandRevision = Readonly<{
   id: string
