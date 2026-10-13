@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.14",
+      "currentSlice": "V5.3.15",
       "slices": [
         {
           "id": "V5.3.1",
@@ -795,7 +795,7 @@
         {
           "id": "V5.3.14",
           "name": "Versioned branding revision accepts same-society VERIFIED logo reference only",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "b3880b0aa22c0445cc0e2447130ba1eb1c61a6e1",
           "evidence": [
             "services/api/src/branding/branding-contract.ts",
@@ -808,6 +808,25 @@
             "Server validates logo ownership and verified status at draft/publish; no public/bootstrap/context image URL and no image bytes or rendering yet.",
             "Admin/Flutter consumer image delivery and preview require a separate secured V5.3.15 slice.",
             "No new tenant, roles, entitlements, storage migration or staging/main promotion."
+          ],
+          "pullRequest": 1256,
+          "mergeSha": "03ee8bc8952f9ced1451c1341d694288015ea79f",
+          "ciRun": 38293928578
+        },
+        {
+          "id": "V5.3.15",
+          "name": "Authenticated current-published society logo PNG delivery with integrity verification",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "03ee8bc8952f9ced1451c1341d694288015ea79f",
+          "evidence": [
+            "services/api/src/branding/brand-logo-read.service.ts",
+            "services/api/src/branding/brand-logo-read.controller.ts",
+            "services/api/src/branding/brand-logo-read.service.spec.ts"
+          ],
+          "limitations": [
+            "Returns bytes only under current society authentication and verified immutable publication, no signed GET/public CDN or direct arbitrary ID access.",
+            "No Resident/Guard/Admin image consumption in this slice; V5.3.16 required for scoped UI with default fallback.",
+            "Private store configuration and real-world infrastructure remain outside scope; no main/staging promotion."
           ]
         }
       ]

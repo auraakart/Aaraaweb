@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BrandingController, BrandingContextController, BrandingManageController } from './branding.controller';
 import { BrandingService } from './branding.service';
 import { BrandLogoController } from './brand-logo.controller';
+import { BrandLogoReadController } from './brand-logo-read.controller';
+import { PublishedBrandLogoService } from './brand-logo-read.service';
 import { BrandLogoService, SOCIETY_LOGO_SCANNER } from './brand-logo.service';
 import { PrivateObjectStorageModule } from '../storage/private-object-storage.module';
 import { PRIVATE_OBJECT_STORAGE, ObjectStoragePort } from '../services-marketplace/object-storage.port';
@@ -13,9 +15,9 @@ import { PrismaMembershipRepository } from '../auth/prisma-membership.repository
 
 @Module({
   imports: [AuthModule, EntitlementsModule, PrivateObjectStorageModule],
-  controllers: [BrandingController, BrandingContextController, BrandingManageController, BrandLogoController],
+  controllers: [BrandingController, BrandingContextController, BrandingManageController, BrandLogoController, BrandLogoReadController],
   providers: [
-    PrismaService, BrandingService, BrandLogoService, PrismaMembershipRepository,
+    PrismaService, BrandingService, BrandLogoService, PublishedBrandLogoService, PrismaMembershipRepository,
     {
       provide: SOCIETY_LOGO_SCANNER,
       inject: [PRIVATE_OBJECT_STORAGE],
