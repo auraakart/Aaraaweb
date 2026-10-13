@@ -1,5 +1,6 @@
-import { Body, Controller, ExecutionContext, Get, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Header, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsNotEmpty, IsPhoneNumber, IsString, IsUUID, Length } from 'class-validator';
+import { PartnerInvitationStatus, PartnerRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperationalUsageService } from '../analytics/operational-usage.service';
 import { AuthService } from './auth.service';
@@ -90,6 +91,31 @@ export class AuthController {
       selectionToken: selectionGrant.token,
       selectionExpiresAt: selectionGrant.expiresAt,
     };
+  }
+
+  /** Dedicated, society-less commercial login using the existing one-time OTP store. */
+  @Post('partner/otp/verify')
+  @Header('Cache-Control', 'no-store')
+  async verifyPartnerOtp(@Body() dto: VerifyOtpDto) {
+    const proof = await this.authService.verifyOtp(dto.challengeId, dto.code);
+    if (!proof.verified || !proof.phone) throw new UnauthorizedException('Invalid or expired OTP');
+    const user = await this.prisma.user.findUnique({ where: { phone: proof.phone }, select: { id: true, status: true } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Partner access unavailable');
+    const [membership, invitation] = await Promise.all([
+      this.prisma.partnerMembership.findFirst({
+        where: {userId:user.id, active:true, role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN,PartnerRole.SUPPORT]},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+      this.prisma.partnerInvitation.findFirst({
+        where: {userId:user.id,status:PartnerInvitationStatus.PENDING,expiresAt:{gt:new Date()},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+    ]);
+    if (!membership && !invitation) throw new UnauthorizedException('Partner access unavailable');
+    // A partner identity receives no societyId, AppRole or operational permission.
+    // Every partner action still reloads current membership/invitation authority.
+    return {verified:true,contextType:'PARTNER' as const,
+      session:await this.sessions.create(user.id,undefined,[])};
   }
 
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
