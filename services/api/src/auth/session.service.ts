@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { PartnerInvitationStatus, PartnerRole } from '@prisma/client';
 import { AppRole, AuthPrincipal } from './auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthStateStore } from './auth-state.store';
@@ -18,15 +19,24 @@ export class SessionService {
     private readonly contexts: AuthContextService,
   ) {}
 
-  async create(userId: string, societyId: string | undefined, roles: AppRole[]) {
+  async create(userId: string, societyId: string | undefined, roles: AppRole[], options?: {audience:'PARTNER'}) {
+    if (options?.audience === 'PARTNER' && (societyId || roles.length)) throw new UnauthorizedException('Partner session cannot carry society authority');
     const now = Date.now();
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = randomBytes(48).toString('hex');
     const id = randomUUID();
     const expiresAt = new Date(now + ACCESS_TTL_MS);
     const refreshExpiresAt = new Date(now + REFRESH_TTL_MS);
-    await this.prisma.session.create({ data: { id, userId, societyId: societyId ?? null, accessTokenHash: hash(accessToken), refreshTokenHash: hash(refreshToken), expiresAt, refreshExpiresAt } });
+    await this.prisma.session.create({ data: { id, userId, societyId: societyId ?? null, audience: options?.audience ?? 'STANDARD', accessTokenHash: hash(accessToken), refreshTokenHash: hash(refreshToken), expiresAt, refreshExpiresAt } });
     return { sessionId: id, accessToken, refreshToken, expiresAt: expiresAt.toISOString(), refreshExpiresAt: refreshExpiresAt.toISOString(), roles };
+  }
+
+  private async currentPartnerAccess(userId:string):Promise<boolean> {
+    const [member,invite] = await Promise.all([
+      this.prisma.partnerMembership.findFirst({where:{userId,active:true,role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN,PartnerRole.SUPPORT]},partner:{is:{status:'ACTIVE'}}},select:{id:true}}),
+      this.prisma.partnerInvitation.findFirst({where:{userId,status:PartnerInvitationStatus.PENDING,expiresAt:{gt:new Date()},partner:{is:{status:'ACTIVE'}}},select:{id:true}}),
+    ]);
+    return Boolean(member || invite);
   }
 
   async getPrincipal(accessToken: string): Promise<AuthPrincipal> {
@@ -42,6 +52,14 @@ export class SessionService {
       (session.societyId && session.society?.status !== 'ACTIVE')
     ) {
       throw new UnauthorizedException('Session is invalid or expired');
+    }
+
+    if (session.audience !== 'STANDARD' && session.audience !== 'PARTNER' && session.audience !== undefined)
+      throw new UnauthorizedException('Invalid session audience');
+    if (session.audience === 'PARTNER') {
+      if (session.societyId || !(await this.currentPartnerAccess(session.userId)))
+        throw new UnauthorizedException('Partner session authorization expired');
+      return { userId:session.userId, societyId:undefined, roles:[], audience:'PARTNER' };
     }
 
     // Independent-home sessions are intentionally society-less and must never
@@ -75,6 +93,12 @@ export class SessionService {
     ) {
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
+
+    if (session.audience !== 'STANDARD' && session.audience !== 'PARTNER' && session.audience !== undefined)
+      throw new UnauthorizedException('Invalid session audience');
+    if (session.audience === 'PARTNER' &&
+      (session.societyId || !(await this.currentPartnerAccess(session.userId))))
+      throw new UnauthorizedException('Partner session authorization expired');
 
     // Refresh must revalidate the same operational authority as bearer access.
     // Commercial partner ownership never substitutes for society membership.

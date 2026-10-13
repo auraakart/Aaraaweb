@@ -1,5 +1,6 @@
 import { Controller, Get, Header, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
-import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 /**
@@ -7,7 +8,7 @@ import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
  * request. Do not reuse SocietyMembership RolesGuard or trust a client role.
  */
 @Controller('partners')
-@UseGuards(BearerGuard)
+@UseGuards(PartnerBearerGuard)
 export class PartnerPortfolioReadController {
   constructor(private readonly portfolioReader: PartnerPortfolioReadService) {}
 

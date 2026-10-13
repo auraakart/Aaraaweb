@@ -959,7 +959,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.8",
+      "currentSlice": "V5.4.15",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1191,6 +1191,76 @@
           "validatedRuntimeSha": "50df115cb1f0717b22ec33300b9ccbf8fdff800f",
           "mergeSha": "cbe82d9e2a5ca4095321447ea9aa0d1342fa2ff3",
           "ciRun": 38417736630
+        },
+        {
+          "id": "V5.4.9",
+          "name": "Audited partner member invite, role and revocation lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-member-lifecycle.service.ts"
+          ],
+          "pullRequest": 1278,
+          "mergeSha": "91f6f23b2123ced321c6af2d9af9f82aaf56ef51"
+        },
+        {
+          "id": "V5.4.10",
+          "name": "Partner member console and invitation acceptance",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "apps/admin/app/partners/members/page.tsx"
+          ],
+          "pullRequest": 1279,
+          "mergeSha": "a557f4131eb382f3dd10a7397b4270825b35a522"
+        },
+        {
+          "id": "V5.4.11",
+          "name": "Audited non-routing domain-claim registry",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.11-PARTNER-DOMAIN-CLAIM-REGISTRY.md"
+          ],
+          "pullRequest": 1280,
+          "mergeSha": "52753cf7ac7efd9940c513e6cda0e3f190e6e59c"
+        },
+        {
+          "id": "V5.4.12",
+          "name": "Development-only DNS TXT verification and license capacity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.12-DOMAIN-PROOF.md"
+          ],
+          "pullRequest": 1281,
+          "mergeSha": "a54ed46cb959e22cf78bd16b713a32baa5005fec"
+        },
+        {
+          "id": "V5.4.13",
+          "name": "Audited claim revocation and challenge reissue",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.13-DOMAIN-LIFECYCLE.md"
+          ],
+          "pullRequest": 1282,
+          "mergeSha": "847ebf24cfc198491a3b63a06df51cbc891edfef"
+        },
+        {
+          "id": "V5.4.14",
+          "name": "Partner OTP sign-in and browser-session separation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.14-PARTNER-OTP-LOGIN.md"
+          ],
+          "pullRequest": 1283,
+          "mergeSha": "992d0f58752936eed198b58221c99343b5dd76de"
+        },
+        {
+          "id": "V5.4.15",
+          "name": "Local Host/Origin preview and cross-host negatives",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.15-HOST-ORIGIN-BOUNDARY.md"
+          ],
+          "pullRequest": 1284,
+          "mergeSha": "675b04a2c5f48aa2fa4f14543a419c8e24a7571f"
         }
       ],
       "scopedAcceptance": {
@@ -1200,9 +1270,9 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "Dedicated partner login/onboarding and audited partner member lifecycle writes/acceptance",
-        "Versioned domain registry/verifier integration and local multi-host SSR/session isolation acceptance before activating routes",
-        "Distribution approval contract required before V5.5 branded Android builds"
+        "V5.4.16 persisted partner session audience and cross-surface API separation (in progress)",
+        "Authenticated host-bound SSR sessions, trusted proxy and cookie isolation (not implemented)",
+        "Partner domain lifecycle operator experience and V5.5 distribution approval"
       ]
     },
     {

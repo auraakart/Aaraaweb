@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { IsInt, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { PartnerDomainVerificationService } from './partner-domain-verification.service';
-import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { AuthenticatedRequest } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/partner-bearer.guard';
 import { PartnerDomainClaimService } from './partner-domain-claim.service';
 
 class PartnerDomainLifecycleDto {
@@ -18,7 +19,7 @@ class RegisterPartnerDomainDto {
 }
 /** Authenticated owner scope; never reads caller-provided partner roles. */
 @Controller('partners/:partnerId/domains')
-@UseGuards(BearerGuard)
+@UseGuards(PartnerBearerGuard)
 export class PartnerDomainClaimController {
   constructor(private readonly claims:PartnerDomainClaimService, private readonly verifier:PartnerDomainVerificationService) {}
   @Get() @Header('Cache-Control','no-store')

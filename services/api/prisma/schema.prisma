@@ -1191,6 +1191,7 @@ model Session {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @db.Uuid
   societyId        String?   @db.Uuid
+  audience         String    @default("STANDARD") @db.VarChar(16)
   accessTokenHash  String    @unique
   refreshTokenHash String    @unique
   expiresAt        DateTime

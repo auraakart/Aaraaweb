@@ -18,7 +18,7 @@ describe('V5.4.14 dedicated partner OTP login',()=>{
  it('accepts a current owner and creates society-less non-elevated session',async()=>{
   const {prisma,sessions,controller}=harness();
   await expect(controller.verifyPartnerOtp(dto)).resolves.toMatchObject({verified:true,contextType:'PARTNER',session:{sessionId:'session'}});
-  expect(sessions.create).toHaveBeenCalledWith(userId,undefined,[]);
+  expect(sessions.create).toHaveBeenCalledWith(userId,undefined,[],{audience:'PARTNER'});
   expect(prisma.partnerMembership.findFirst).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({
    userId,active:true,role:{in:expect.arrayContaining([PartnerRole.OWNER,PartnerRole.COMMERCIAL_ADMIN])},
    partner:{is:{status:'ACTIVE'}},
@@ -31,7 +31,7 @@ describe('V5.4.14 dedicated partner OTP login',()=>{
   expect(prisma.partnerInvitation.findFirst).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({
    userId,status:PartnerInvitationStatus.PENDING,expiresAt:{gt:expect.any(Date)},partner:{is:{status:'ACTIVE'}},
   })}));
-  expect(sessions.create).toHaveBeenCalledWith(userId,undefined,[]);
+  expect(sessions.create).toHaveBeenCalledWith(userId,undefined,[],{audience:'PARTNER'});
  });
  it('rejects users with only society membership or revoked partner role',async()=>{
   const {prisma,sessions,controller}=harness();prisma.partnerMembership.findFirst.mockResolvedValue(null);
