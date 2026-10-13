@@ -547,7 +547,7 @@
     {
       "id": "V5.3",
       "name": "Runtime society branding",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETED",
       "dependsOn": [
         "V5.2"
       ],
@@ -895,7 +895,7 @@
         {
           "id": "V5.3.19",
           "name": "Accessible society-logo presentation and immutable published-revision restore parity",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "a7cd59749dd0cf35f022d258ae904ae47887ddc5",
           "evidence": [
             "apps/resident/lib/main.dart",
@@ -911,17 +911,56 @@
             "Restoring an earlier appearance publishes a NEW immutable revision; backend verified-asset and owner permission gates are not bypassed.",
             "No native identity, partner branding distribution, new infrastructure, external image URL, role, entitlement, finance or gate workflow changes.",
             "No staging/main promotion. Full V5.3 closure requires CI and cross-society/rollback evidence."
-          ]
+          ],
+          "pullRequest": 1261,
+          "mergeSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+          "ciRun": 38344686338
         }
-      ]
+      ],
+      "closure": {
+        "scope": "NON_PRODUCTION_ENGINEERING_ONLY",
+        "lastMergedPr": 1261,
+        "developBaselineSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+        "evidence": [
+          "services/api/src/branding/brand-logo-read.service.spec.ts",
+          "services/api/src/branding/branding-publish.service.spec.ts",
+          "apps/admin/scripts/v5.3.16-logo-publish-preview-regression.mjs",
+          "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+          "apps/guard/test/guard_society_logo_lifecycle_test.dart",
+          "docs/architecture/V5.3-NONPRODUCTION-CLOSURE.md"
+        ],
+        "limits": [
+          "CI green is repository-based and does not prove live private-object-store/ClamAV/DNS/TLS/device rollout.",
+          "Partner-owned domains, licensing, Android distributions, and productionization remain future milestones."
+        ]
+      }
     },
     {
       "id": "V5.4",
       "name": "Partner portal licensing and domain contracts",
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "V5.2",
         "V5.3"
+      ],
+      "currentSlice": "V5.4.1",
+      "slices": [
+        {
+          "id": "V5.4.1",
+          "name": "Pure partner commercial license contract: bounded UTC/grace/capacity checks and non-granting feature ceilings",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+          "evidence": [
+            "services/api/src/entitlements/partner-license-contract.ts",
+            "services/api/src/entitlements/partner-license-contract.spec.ts",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Policy calculation is not connected to existing production entitlements or login/guard actions; legacy Society.productTier and boolean overrides remain authoritative.",
+            "Capacity computation is a preview, not a reservation or enforcement; transactional licensing grant models, idempotency and platform role checks remain pending.",
+            "Commercial price/grace terms are not assumed; no partners/domains activated, no production infrastructure or staging/main change."
+          ]
+        }
       ]
     },
     {
