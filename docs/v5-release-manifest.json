@@ -1176,7 +1176,7 @@
         {
           "id": "V5.4.8",
           "name": "Authenticated workspace discovery and scoped read-only partner portal",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "92288e0461999107b3aaf2bcd44954c5b6ca49d9",
           "evidence": [
             "services/api/src/entitlements/partner-portfolio-read.postgres.spec.ts",
@@ -1186,7 +1186,11 @@
           "limitations": [
             "Existing bearer session required; no dedicated partner login/onboarding or member writes.",
             "No host routing, production integration or staging/main promotion."
-          ]
+          ],
+          "pullRequest": 1276,
+          "validatedRuntimeSha": "50df115cb1f0717b22ec33300b9ccbf8fdff800f",
+          "mergeSha": "cbe82d9e2a5ca4095321447ea9aa0d1342fa2ff3",
+          "ciRun": 38417736630
         }
       ],
       "scopedAcceptance": {
@@ -1196,7 +1200,7 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "Dedicated scoped partner portal components and partner member lifecycle acceptance",
+        "Dedicated partner login/onboarding and audited partner member lifecycle writes/acceptance",
         "Versioned domain registry/verifier integration and local multi-host SSR/session isolation acceptance before activating routes",
         "Distribution approval contract required before V5.5 branded Android builds"
       ]
