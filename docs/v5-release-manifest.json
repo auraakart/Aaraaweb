@@ -943,7 +943,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.4",
+      "currentSlice": "V5.4.5",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1010,7 +1010,7 @@
         {
           "id": "V5.4.4",
           "name": "PartnerMembership-scoped read-only portfolio and non-PII member role views",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "9a87387eea75ab74e0385c776fd7fddffe10c9cb",
           "evidence": [
             "services/api/src/entitlements/partner-portfolio-read.service.ts",
@@ -1022,6 +1022,22 @@
             "Portfolio returns limited society display metadata; member listings omit user identity, contact, operational PII and cross-partner rows.",
             "Partner status/ownership transfers and service workers remain separate V5.1/5.4.5 controls; no production routing or grants.",
             "No staging/main promotion, real DNS or partner distributions."
+          ],
+          "pullRequest": 1265,
+          "mergeSha": "9a6ec8641b471aba1019a5c1f5d6d9a04edcd828",
+          "ciRun": 38350305887
+        },
+        {
+          "id": "V5.4.5",
+          "name": "Atomic partner license capacity allocation, idempotent lifecycle and safety-preserving grace contract",
+          "status": "PLANNED",
+          "dependsOn": [
+            "V5.1 audited ownership transfer rules"
+          ],
+          "limitations": [
+            "Not activated: plan approval authority, legacy feature parity, cross-partner ownership, idempotent concurrency and essential gate/SOS grace must be proven before any GRANTED license.",
+            "Do not change live EntitlementService.current or relax DRAFT-only database checks without reviewed compatibility cutover.",
+            "No production DNS, hosted integrations, staging/main release or live partner onboarding."
           ]
         }
       ]
