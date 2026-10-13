@@ -60,7 +60,7 @@ export default function LicensingPage(){
   finally{if(key===licensingSessionKey(readLicensingSession()))setBusy(false)}
  }
  if(!loading&&!session)return <PageShell><PageHeader title="Licensing access required" description="Sign in as the selected society’s administrator or platform operator." actions={<a href="/">Return to Admin</a>}/></PageShell>
- return <PageShell><PageHeader title="Partner licensing" context={session?.societyName} description="Review commercial approval, society opt-in and license allocation." actions={<><a href="/">Admin console</a><SecondaryButton disabled={busy||loading||!session} onClick={()=>session&&valid()&&void load(session)}>Refresh</SecondaryButton></>}/>
+ return <PageShell><PageHeader title="Partner licensing" context={session?.societyName} description="Review commercial approval, society opt-in and license allocation." actions={<><a href="/">Admin console</a><a href="/partners">Partner workspace</a><SecondaryButton disabled={busy||loading||!session} onClick={()=>session&&valid()&&void load(session)}>Refresh</SecondaryButton></>}/>
   {error&&<ErrorState title="Licensing needs attention" description={error}/>}{success&&<p role="status">{success}</p>}
   <ReadinessPanel title="Resident continuity" status={{label:'Existing features preserved',tone:'info'}} boundary="Commercial expiry, withdrawal or revocation does not disable existing resident features or gate/SOS access."/>
   {loading?<p role="status">Loading licensing…</p>:overview?<><PageShell.Columns>

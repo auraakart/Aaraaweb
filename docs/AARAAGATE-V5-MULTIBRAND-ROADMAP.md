@@ -859,3 +859,16 @@ The existing Admin brand editor adds optional contact fields to its validated dr
 Independent approval/consent/allocation (PR #1272), selected-society Admin controls (PR #1273), and immutable proposal/legacy compatibility/test-host regressions (PR #1274) are merged to develop. Final runtime `cadb6414fdf5660546d9f4b4a2cb78194fe92a39` passed [protected CI 38408729069](https://github.com/auraakart/Aaraaweb/actions/runs/38408729069), with 2082 API tests (15 intentional skips), all 12 native licensing lifecycle cases and all 36 Admin browser tests passing. Final develop merge is `906d595119bccc58f3ecd3e800720fc9a587acd0`.
 
 [Scoped nonproduction acceptance](architecture/V5.4-NONPRODUCTION-CLOSURE.md) is complete. V5.4 remains in progress for dedicated partner portal/member lifecycle, versioned domain registry/verifier integration, local multi-host SSR/session isolation and distribution approval. V5.5 branded Android automation and V5.6 whole-program closure remain planned. Existing legacy feature authority is retained. No staging/main promotion or hosted/production acceptance is claimed.
+
+
+## V5.4.8 authenticated partner workspace, 2026-10-13
+
+The existing PartnerMembership-scoped read API now discovers the bearer user's
+active commercial workspaces without contact data. The reused Admin `/partners`
+view loads only server-returned workspace IDs and current role-authorized portfolio
+and member projections. Every resource read reauthorizes current membership,
+partner and user status. Browser context changes cancel/discard stale responses.
+Native PostgreSQL and browser acceptance accompany this slice; protected CI and
+merge evidence are required before closure. Dedicated partner login and audited
+member lifecycle writes remain open, alongside domain registry/multi-host acceptance
+and distribution approval. No productionization or staging/main promotion.
