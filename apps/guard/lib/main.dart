@@ -88,7 +88,7 @@ class _AaraagateGuardAppState extends State<AaraagateGuardApp> with WidgetsBindi
           if (!widget.controller.signedIn) return GuardLoginScreen(controller: widget.controller);
           return Stack(
             children: [
-              GuardOperationsScreen(controller: widget.controller, societyLogoBytes: _branding.logoBytes),
+              GuardOperationsScreen(controller: widget.controller, societyLogoBytes: _branding.logoBytes, societyDisplayName: societyBrand?.displayName),
               Positioned(
                 right: 18,
                 bottom: 24,
