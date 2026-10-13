@@ -8,7 +8,7 @@ import {
 } from '../lib/admin-society-logo'
 
 /** Private asset review only. This component never adds a logo to a published brand revision. */
-export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
+export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Session;onAssetsChanged?:(assets:SocietyLogoAsset[])=>void}) {
   const [assets,setAssets]=useState<SocietyLogoAsset[]>([])
   const [file,setFile]=useState<File|null>(null)
   const [loading,setLoading]=useState(true)
@@ -19,8 +19,10 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
 
   const refresh=useCallback(async()=>{
     const rows=await api<unknown>('/branding/manage/logos',{},session)
-    setAssets(parseSocietyLogoAssets(rows))
-  },[session])
+    const valid=parseSocietyLogoAssets(rows)
+    setAssets(valid)
+    onAssetsChanged?.(valid)
+  },[session,onAssetsChanged])
 
   useEffect(()=>{
     let active=true
@@ -31,11 +33,11 @@ export function AdminSocietyLogoQuarantine({session}:{session:Session}) {
     setLastExpires(null)
     setLoading(true)
     void api<unknown>('/branding/manage/logos',{},session)
-      .then(value=>{if(active)setAssets(parseSocietyLogoAssets(value))})
+      .then(value=>{if(active){const valid=parseSocietyLogoAssets(value);setAssets(valid);onAssetsChanged?.(valid)}})
       .catch(e=>{if(active)setError(e instanceof Error?e.message:'Unable to load private logo assets')})
       .finally(()=>{if(active)setLoading(false)})
     return()=>{active=false}
-  },[session])
+  },[session,onAssetsChanged])
 
   const upload=async()=>{
     if(!file||busy)return
