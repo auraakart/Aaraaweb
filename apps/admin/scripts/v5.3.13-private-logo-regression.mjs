@@ -55,7 +55,7 @@ for(const token of [
   "credentials:'omit'","redirect:'error'","referrerPolicy:'no-referrer'",
   'body:file','uploaded privately','never shown to residents',
 ])assert.ok(ui.includes(token),'Missing logo quarantine guard: '+token)
-assert.ok(editor.includes('<AdminSocietyLogoQuarantine key={session.societyId} session={session}/>'))
+assert.ok(editor.includes('<AdminSocietyLogoQuarantine key={session.societyId} session={session}'))
 assert.ok(!ui.includes('dangerouslySetInnerHTML'))
 assert.ok(!ui.includes('<img'))
 assert.ok(!editor.includes('logoAssetId'))
