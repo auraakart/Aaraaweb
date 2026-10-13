@@ -37,8 +37,8 @@ describe('V5.4.13 domain lifecycle safely revokes and reissues',()=>{
   expect(tx.partnerDomainClaimEvent.create).toHaveBeenCalledWith({data:expect.objectContaining({action:PartnerDomainClaimAction.REVOKED,actorId:actor,idempotencyKey:key})});
  });
  it('revoke replay never writes again; changed actor or action fails',async()=>{
-  const {tx,claim,service}=harness();claim.status='REVOKED';
-  tx.partnerDomainClaimEvent.findFirst.mockResolvedValue({actorId:actor,action:PartnerDomainClaimAction.REVOKED,reason:input.reason});
+  const {tx,claim,service}=harness();claim.status='REVOKED';claim.version=2;
+  tx.partnerDomainClaimEvent.findFirst.mockResolvedValue({actorId:actor,action:PartnerDomainClaimAction.REVOKED,reason:input.reason,resultVersion:2});
   await expect(service.revoke(actor,partner,claimId,input)).resolves.toMatchObject({replayed:true});
   await expect(service.reissue(actor,partner,claimId,input)).rejects.toBeInstanceOf(ConflictException);
   expect(tx.partnerDomainClaim.update).not.toHaveBeenCalled();
@@ -54,8 +54,8 @@ describe('V5.4.13 domain lifecycle safely revokes and reissues',()=>{
   expect(tx.partnerDomainClaimEvent.create).toHaveBeenCalledWith({data:expect.objectContaining({action:PartnerDomainClaimAction.CHALLENGE_REISSUED,reason:input.reason})});
  });
  it('same key replay never rediscloses rotated token',async()=>{
-  const {tx,claim,service}=harness();claim.status='PENDING';
-  tx.partnerDomainClaimEvent.findFirst.mockResolvedValue({actorId:actor,action:PartnerDomainClaimAction.CHALLENGE_REISSUED,reason:input.reason});
+  const {tx,claim,service}=harness();claim.status='PENDING';claim.version=2;
+  tx.partnerDomainClaimEvent.findFirst.mockResolvedValue({actorId:actor,action:PartnerDomainClaimAction.CHALLENGE_REISSUED,reason:input.reason,resultVersion:2});
   await expect(service.reissue(actor,partner,claimId,input)).resolves.toMatchObject({challenge:null,replayed:true});
   expect(tx.partnerDomainClaim.update).not.toHaveBeenCalled();
  });
