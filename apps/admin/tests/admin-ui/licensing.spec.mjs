@@ -36,8 +36,10 @@ test('licensing discards late old-society responses after context switch',async(
  await page.waitForFunction(()=>typeof window.resolveFirstLicensingOverview==='function')
  await page.evaluate(()=>window.changeLicensingContext())
  await expect(page.getByText('Second society',{exact:true})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'SECOND PLAN'})).toBeVisible()
  await page.evaluate(()=>window.resolveFirstLicensingOverview())
  await expect(page.getByText('First society',{exact:true})).toHaveCount(0)
+ await expect(page.getByRole('heading',{name:'FIRST PLAN'})).toHaveCount(0)
  await expect(page.getByRole('button',{name:'Approve commercial license'})).toBeVisible()
 })
 test('licensing controls stay accessible at mobile width',async({page})=>{
