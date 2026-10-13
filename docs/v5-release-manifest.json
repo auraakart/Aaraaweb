@@ -943,12 +943,12 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.1",
+      "currentSlice": "V5.4.2",
       "slices": [
         {
           "id": "V5.4.1",
           "name": "Pure partner commercial license contract: bounded UTC/grace/capacity checks and non-granting feature ceilings",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
           "evidence": [
             "services/api/src/entitlements/partner-license-contract.ts",
@@ -959,6 +959,26 @@
             "Policy calculation is not connected to existing production entitlements or login/guard actions; legacy Society.productTier and boolean overrides remain authoritative.",
             "Capacity computation is a preview, not a reservation or enforcement; transactional licensing grant models, idempotency and platform role checks remain pending.",
             "Commercial price/grace terms are not assumed; no partners/domains activated, no production infrastructure or staging/main change."
+          ],
+          "pullRequest": 1262,
+          "mergeSha": "47e18e96e9302a7c1e57396d2bcd14fe703d46b9",
+          "ciRun": 38346208795
+        },
+        {
+          "id": "V5.4.2",
+          "name": "Shared hostname canonicalization, reserved-domain denial and verified-only presentation candidate contract",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "47e18e96e9302a7c1e57396d2bcd14fe703d46b9",
+          "evidence": [
+            "packages/config/src/partner-domain-contract.mjs",
+            "scripts/partner-domain-contract.test.mjs",
+            ".github/workflows/ci.yml",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "No live DNS lookups, TXT challenge verification, partner portal routing, TLS, cookie changes or domain activation.",
+            "A registered/verified hostname supplies a cosmetic routing candidate only; it cannot grant partner/society permissions or access to data.",
+            "Existing legacy entitlements and society isolation remain unchanged; CI and safe partner-scoped API integration are separate gates."
           ]
         }
       ]
