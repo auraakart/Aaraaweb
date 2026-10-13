@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../data/resident_data_controller.dart';
 import '../data/resident_home_highlights.dart';
@@ -11,6 +12,7 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
     required this.controller,
+    this.societyLogoBytes,
     required this.showGate,
     required this.showStaff,
     required this.showServices,
@@ -30,6 +32,7 @@ class HomeScreen extends StatelessWidget {
   });
 
   final ResidentDataController controller;
+  final Uint8List? societyLogoBytes;
   final bool showGate;
   final bool showStaff;
   final bool showServices;
@@ -83,6 +86,24 @@ class HomeScreen extends StatelessWidget {
             AaraagateTokens.space8,
           ),
           children: [
+            if (societyLogoBytes != null) ...[
+              Semantics(
+                label: 'Published society logo',
+                child: Row(children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                    child: Image.memory(
+                      societyLogoBytes!, width: 52, height: 52, fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.apartment_rounded, size: 52),
+                    ),
+                  ),
+                  const SizedBox(width: AaraagateTokens.space3),
+                  Text('Your society', style: theme.textTheme.titleMedium),
+                ]),
+              ),
+              const SizedBox(height: AaraagateTokens.space4),
+            ],
             if (showAi) ...[
               _AssistantEntryCard(
                 summary: _assistantSummary(pending, highlights),
