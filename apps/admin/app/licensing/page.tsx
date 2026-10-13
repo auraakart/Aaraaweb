@@ -71,7 +71,7 @@ export default function LicensingPage(){
    <DetailPanel title="Selected license" state={selected?'ready':'empty'}>{selected&&<>
     <h3>{selected.planCode.replaceAll('_',' ')}</h3><StatusPill label={selected.approvalState} tone={selected.approvalState==='REVOKED'?'warning':selected.approvalState==='APPROVED'?'success':'neutral'}/>{' '}<StatusPill label={selected.phase}/>
     <p>{new Date(selected.startsAt).toLocaleString('en-IN')} – {new Date(selected.endsAt).toLocaleString('en-IN')}</p>
-    {platform&&<p>Approved allocation capacity: {selected.used===null?'Not approved':`${selected.used} of ${selected.maximumSocieties} societies`}</p>}
+    {platform&&selected.used!==null&&<p>Approved allocation capacity: {selected.used} of {selected.maximumSocieties} societies</p>}
     <p>Society opt-in: {selected.consent?.decision==='OPT_IN'?'Recorded':selected.consent?'Withdrawn':'Not recorded'} · Allocation: {selected.allocation?.active?'Active':selected.allocation?'Paused':'Not activated'}</p>
     {selected.consent?.decision==='OPT_IN'&&!selected.snapshotMatches&&<p>Society configuration changed. Withdraw the previous opt-in and review a new one before activation.</p>}
     <p>Current {overview.society.productTier.toLowerCase()} features: {overview.society.enabledFeatures.map(f=>f.replaceAll('_',' ').toLowerCase()).join(', ')}.</p>

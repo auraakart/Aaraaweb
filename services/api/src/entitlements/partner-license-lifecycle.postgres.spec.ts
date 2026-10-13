@@ -7,6 +7,7 @@ import { EntitlementService } from './entitlement.service';
 import { ProductFeature, ProductTier } from './entitlement.types';
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
 import { PartnerLicenseLifecycleService } from './partner-license-lifecycle.service';
+import { PartnerCapacityReservationService } from './partner-capacity-reservation.service';
 import { PartnerLicenseOverviewService } from './partner-license-overview.service';
 import { SocietyOwnershipTransferService } from './society-ownership-transfer.service';
 const withDatabase=process.env.DATABASE_URL?describe:describe.skip;
@@ -177,9 +178,41 @@ withDatabase('V5.4.5.4 approved licensing and opt-in PostgreSQL boundary',()=>{
    const other=f.societies[1],c2=await f.consent(other);
    await f.service.activate(f.principal(f.checker,other),other,{...f.context(),consentId:c2.id});
    await expect(views.domainPreview(f.principal(f.admin,other,AppRole.SOCIETY_ADMIN),other,'license.partner.community')).rejects.toThrow(/unavailable/);
+   const foreign=await fixture(p),foreignSociety=foreign.societies[0];
+   await foreign.approve();const foreignConsent=await foreign.consent();
+   await foreign.service.activate(foreign.principal(foreign.checker),foreignSociety,{...foreign.context(),consentId:foreignConsent.id});
+   const foreignViews=new PartnerLicenseOverviewService(foreign.ownership,foreign.entitlements);
+   await expect(foreignViews.domainPreview(foreign.principal(foreign.admin,foreignSociety,AppRole.SOCIETY_ADMIN),foreignSociety,'license.partner.community')).rejects.toThrow(/unavailable/);
+   const registered=process.env.AARAGATE_TEST_PARTNER_DOMAINS;
+   process.env.AARAGATE_TEST_PARTNER_DOMAINS='[]';
+   await expect(views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).rejects.toThrow(/unavailable/);
+   process.env.AARAGATE_TEST_PARTNER_DOMAINS=registered;
+   expect((await views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).candidateOnly).toBe(true);
    await f.service.revoke(f.principal(f.checker),s,{...f.context(),reason:'Revoke test domain authority'});
    await expect(views.domainPreview(f.principal(f.admin,s,AppRole.SOCIETY_ADMIN),s,'license.partner.community')).rejects.toThrow(/unavailable/);
   }finally{for(const key of keys){if(prior[key]===undefined)delete process.env[key];else process.env[key]=prior[key];}await p.$disconnect();}
+ });
+
+ it('freezes unapproved proposal terms and rehearses rollback to legacy resolver/draft reservation behavior',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p),s=f.societies[0],other=f.societies[1],before=await f.entitlements.current(s);
+   const migration='20261011113000_v5_partner_ownership_compatibility';
+   await p.societyEntitlementCompatibility.create({data:{societyId:s,sourceProductTier:'STARTER',sourceOverrides:{},enabledFeatures:before!.enabledFeatures,sourceMigration:migration}});
+   await expect(p.partnerLicenseGrant.update({where:{id:f.draft.id},data:{endsAt:new Date(Date.now()+2*86400000)}})).rejects.toThrow(/immutable/);
+   await f.approve();const c=await f.consent();
+   await f.service.activate(f.principal(f.checker),s,{...f.context(),consentId:c.id});
+   expect((await p.societyLicenseConsent.findUniqueOrThrow({where:{id:c.id}})).compatibilityMigration).toBe(migration);
+   expect((await p.societyEntitlementCompatibility.findUniqueOrThrow({where:{societyId:s}})).enabledFeatures).toEqual(before!.enabledFeatures);
+   // Pre-activation readers/writers still see unchanged legacy entitlements and
+   // a DRAFT proposal; creating a rehearsal receipt cannot create an active license.
+   expect(await f.entitlements.current(s)).toEqual(before);
+   expect((await f.persistence.listPartnerDrafts(f.partnerId)).find(x=>x.id===f.draft.id)?.status).toBe('DRAFT');
+   const oldWriter=new PartnerCapacityReservationService(f.ownership,f.entitlements);
+   expect(await oldWriter.reserve(f.principal(f.checker,other),other,{...f.context(),expectedFeatures:(await f.entitlements.current(other))!.enabledFeatures})).toMatchObject({mode:'DRAFT_RESERVATION'});
+   expect(await p.societyLicenseAllocation.count({where:{approval:{grantId:f.draft.id}}})).toBe(1);
+   const otherConsent=await f.consent(other);
+   await expect(f.service.activate(f.principal(f.checker,other),other,{...f.context(),consentId:otherConsent.id})).rejects.toThrow(/capacity exhausted/);
+  }finally{await p.$disconnect();}
  });
 
 });

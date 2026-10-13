@@ -960,7 +960,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.6",
+      "currentSlice": "V5.4.7",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1047,14 +1047,14 @@
         {
           "id": "V5.4.5",
           "name": "Atomic partner license capacity allocation, idempotent lifecycle and safety-preserving grace contract",
-          "status": "IN_PROGRESS",
+          "status": "COMPLETED_NONPRODUCTION",
           "dependsOn": [
             "V5.1 audited ownership transfer rules"
           ],
           "limitations": [
-            "Not activated: plan approval authority, legacy feature parity, cross-partner ownership, idempotent concurrency and essential gate/SOS grace must be proven before any GRANTED license.",
-            "Do not change live EntitlementService.current or relax DRAFT-only database checks without reviewed compatibility cutover.",
-            "No production DNS, hosted integrations, staging/main release or live partner onboarding."
+            "Immutable independent approval, explicit society consent and serialized allocation are implemented and protected-CI validated in V5.4.5.4. Historical proposal status remains DRAFT; approval records provide additive authority.",
+            "Legacy EntitlementService.current remains authoritative, preserving gate/SOS and all current features through commercial expiry, withdrawal and revocation.",
+            "No hosted migration, pricing/payment integration, production DNS/TLS or staging/main promotion."
           ]
         },
         {
@@ -1137,7 +1137,7 @@
         {
           "id": "V5.4.6",
           "name": "Current-society Admin licensing controls and authorized cosmetic test-domain inspection",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "cc020bd4e46964db0d48440e69951cfbf90bc765",
           "evidence": [
             "apps/admin/app/licensing/page.tsx",
@@ -1148,6 +1148,26 @@
             "Domain inspection requires explicit test/development flag and configured registry, approved active allocation and exact society/partner binding. No production routing/DNS/verification claims.",
             "Society administrators see their approved or consented plans, own consent/allocation and no partner-wide usage/platform actions.",
             "No new partner onboarding, pricing/payment integration, hosted migration, branded binary or staging/main promotion."
+          ],
+          "pullRequest": 1273,
+          "mergeSha": "ab7874246de843c6406321d360ade13ec3228fea",
+          "ciRun": 38407077962
+        },
+        {
+          "id": "V5.4.7",
+          "name": "Immutable proposal terms, raw Host test-domain context and legacy rollback regression closure",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "ab7874246de843c6406321d360ade13ec3228fea",
+          "evidence": [
+            "docs/architecture/V5.4-NONPRODUCTION-CLOSURE.md",
+            "services/api/src/entitlements/partner-license-lifecycle.postgres.spec.ts",
+            "services/api/src/entitlements/partner-license-overview.spec.ts",
+            "services/api/prisma/migrations/20261013142000_v547_immutable_license_proposals/migration.sql"
+          ],
+          "limitations": [
+            "Rollback regression exercises unchanged legacy readers and DRAFT writers against the additive schema; no deployed rollback drill.",
+            "Authenticated raw Host context is test/development-only and cosmetic. No public partner login, production routing, DNS/TLS or dedicated partner onboarding UI.",
+            "Broader V5 remains in development; branded Android automation and full-program regression closure remain planned."
           ]
         }
       ]
