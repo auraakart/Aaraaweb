@@ -17,11 +17,13 @@ import { PartnerLicensePersistenceService } from './partner-license-persistence.
 import { PartnerMemberLifecycleController } from './partner-member-lifecycle.controller';
 import { PartnerMemberLifecycleService } from './partner-member-lifecycle.service';
 import { PartnerPortfolioReadController } from './partner-portfolio-read.controller';
+import { PartnerDomainClaimController } from './partner-domain-claim.controller';
+import { PartnerDomainClaimService } from './partner-domain-claim.service';
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
-  controllers: [PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController],
-  providers: [PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService],
+  controllers: [PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController, PartnerDomainClaimController],
+  providers: [PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}

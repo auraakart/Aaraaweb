@@ -17,6 +17,8 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
+  partnerDomainClaims       PartnerDomainClaim[] @relation("DomainClaimCreator")
+  partnerDomainEvents       PartnerDomainClaimEvent[] @relation("DomainClaimEventActor")
   partnerInvitations        PartnerInvitation[] @relation("PartnerInvitee")
   partnerInvitationsSent    PartnerInvitation[] @relation("PartnerInviteAuthor")
   partnerMemberEvents       PartnerMembershipEvent[] @relation("PartnerEventSubject")
@@ -133,6 +135,7 @@ model Partner {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   societies   Society[]
   memberships PartnerMembership[]
+  domainClaims PartnerDomainClaim[]
   invitations PartnerInvitation[]
   memberEvents PartnerMembershipEvent[]
   licenseGrants PartnerLicenseGrant[]
@@ -188,6 +191,43 @@ model PartnerMembershipEvent {
   actor User @relation("PartnerEventActor", fields: [actorId], references: [id], onDelete: Restrict)
   @@index([partnerId, createdAt])
 }
+// V5.4.11: registration is an inert pending claim, never route authority.
+enum PartnerDomainClaimStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+enum PartnerDomainClaimAction {
+  REGISTERED
+}
+model PartnerDomainClaim {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  hostname String @unique @db.VarChar(253)
+  status PartnerDomainClaimStatus @default(PENDING)
+  challengeHash String @db.Char(64)
+  idempotencyKey String @db.Uuid
+  version Int @default(1)
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  createdBy User @relation("DomainClaimCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  events PartnerDomainClaimEvent[]
+  @@unique([partnerId,idempotencyKey])
+  @@index([partnerId,status])
+}
+model PartnerDomainClaimEvent {
+  id String @id @default(uuid()) @db.Uuid
+  claimId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerDomainClaimAction
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  claim PartnerDomainClaim @relation(fields:[claimId],references:[id],onDelete:Restrict)
+  actor User @relation("DomainClaimEventActor",fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([claimId,createdAt])
+}
+
 model PartnerMembership {
   id        String      @id @default(uuid()) @db.Uuid
   partnerId String      @db.Uuid

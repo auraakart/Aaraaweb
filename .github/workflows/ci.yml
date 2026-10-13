@@ -464,7 +464,13 @@ jobs:
       - name: Apply Prisma migrations to clean PostgreSQL
         run: pnpm --filter @aaraagate/api prisma:migrate:deploy
       - name: Verify V5 tenant-access inventory
-        run: node services/api/scripts/tenant-access-inventory.mjs --check
+        run: |
+          node services/api/scripts/tenant-access-inventory.mjs --write
+          if ! git diff --quiet -- docs/architecture/v5-tenant-access-inventory.json; then
+            echo "::error::V5 tenant-access inventory is stale; regenerate and commit the reviewed diff."
+            git diff --no-ext-diff --unified=0 -- docs/architecture/v5-tenant-access-inventory.json
+            exit 1
+          fi
       - name: V5 partner ownership historical upgrade and replay
         env:
           AARAAGATE_PARTNER_MIGRATION_CI: '1'
