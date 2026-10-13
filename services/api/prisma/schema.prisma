@@ -199,6 +199,7 @@ enum PartnerDomainClaimStatus {
 }
 enum PartnerDomainClaimAction {
   REGISTERED
+  VERIFIED
 }
 model PartnerDomainClaim {
   id String @id @default(uuid()) @db.Uuid
@@ -208,6 +209,10 @@ model PartnerDomainClaim {
   challengeHash String @db.Char(64)
   idempotencyKey String @db.Uuid
   version Int @default(1)
+  verificationAttempts Int @default(0)
+  lastVerificationAttemptAt DateTime? @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  verifiedUntil DateTime? @db.Timestamptz(6)
   createdById String @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
