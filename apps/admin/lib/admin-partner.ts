@@ -9,11 +9,31 @@ const text=(v:unknown)=>{if(typeof v!=='string'||!v.trim()||v.length>200||/[\x00
 const flag=(v:unknown)=>{if(typeof v!=='boolean')throw new Error('Invalid partner pagination');return v}
 const list=(v:unknown)=>{if(!Array.isArray(v)||v.length>50)throw new Error('Invalid partner list');return v}
 const role=(v:unknown):PartnerRole=>{if(v!=='OWNER'&&v!=='BRAND_MANAGER'&&v!=='COMMERCIAL_ADMIN')throw new Error('Invalid workspace role');return v}
-export function partnerSessionKey(s:Session|null){return s?`${s.sessionId}:${s.societyId}:${s.role}`:''}
+export function partnerSessionKey(s:Session|null){return s?`${s.sessionId}:${s.societyId}:${s.role}:${s.audience??'SOCIETY'}`:''}
+export const partnerStorageKey='aaraagate.partner.session'
+/** Parse a dedicated partner session without assigning any society authority. */
+export function partnerSessionFrom(value:unknown):Session{
+ const root=object(value),session=object(root.session)
+ if(root.contextType!=='PARTNER'||root.verified!==true)throw new Error('Partner login context unavailable')
+ const sessionId=id(session.sessionId)
+ if(typeof session.accessToken!=='string'||!/^[a-f0-9]{64}$/.test(session.accessToken)||
+   typeof session.refreshToken!=='string'||!/^[a-f0-9]{96}$/.test(session.refreshToken))
+   throw new Error('Partner login returned invalid credentials')
+ return {sessionId,accessToken:session.accessToken,refreshToken:session.refreshToken,societyId:'',role:'PARTNER',societyName:'Partner workspace',audience:'PARTNER'}
+}
+
 export function readPartnerSession():Session|null{
- try{const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return null;const s=object(JSON.parse(raw));id(s.sessionId);id(s.societyId)
- if(typeof s.accessToken!=='string'||!s.accessToken||typeof s.refreshToken!=='string'||!s.refreshToken||typeof s.role!=='string'||!s.role)return null
- return s as unknown as Session}catch{return null}
+ try{
+  const dedicated=sessionStorage.getItem(partnerStorageKey)
+  if(dedicated){const s=object(JSON.parse(dedicated));id(s.sessionId)
+   if(s.audience!=='PARTNER'||s.societyId!==''||s.role!=='PARTNER'||typeof s.accessToken!=='string'||!s.accessToken||typeof s.refreshToken!=='string'||!s.refreshToken)return null
+   return s as unknown as Session
+  }
+  const raw=sessionStorage.getItem('aaraagate.admin.session');if(!raw)return null
+  const s=object(JSON.parse(raw));id(s.sessionId);id(s.societyId)
+  if(s.audience==='PARTNER'||typeof s.accessToken!=='string'||!s.accessToken||typeof s.refreshToken!=='string'||!s.refreshToken||typeof s.role!=='string'||!s.role)return null
+  return s as unknown as Session
+ }catch{return null}
 }
 export function parseWorkspaces(value:unknown){
  const root=object(value),result=new Map<string,Workspace>(),seen=new Set<string>()

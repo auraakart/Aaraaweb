@@ -5,21 +5,24 @@ export type Session={
   societyId:string;
   role:string;
   societyName:string;
+  audience?:'PARTNER';
 };
 export type Membership={societyId:string;role:string;society?:{name?:string;code?:string};};
 
 const base=(process.env.NEXT_PUBLIC_AARAGATE_API_BASE_URL??'http://localhost:3000').replace(/\/$/,'');
 const storageKey='aaraagate.admin.session';
+const partnerStorageKey='aaraagate.partner.session';
+const keyFor=(session:Session)=>session.audience==='PARTNER'?partnerStorageKey:storageKey;
 const refreshes=new Map<string,Promise<Session>>();
-function contextKey(session:Session){return `${session.societyId}:${session.role}`}
+function contextKey(session:Session){return `${session.audience??'SOCIETY'}:${session.societyId}:${session.role}`}
 function storedFor(session:Session):Session{
   if(typeof sessionStorage==='undefined')return session;
-  try{const raw=sessionStorage.getItem(storageKey);if(!raw)return session;const stored=JSON.parse(raw) as Session;return stored.societyId===session.societyId&&stored.role===session.role&&stored.accessToken&&stored.refreshToken?stored:session}catch{return session}
+  try{const raw=sessionStorage.getItem(keyFor(session));if(!raw)return session;const stored=JSON.parse(raw) as Session;return stored.audience===session.audience&&stored.societyId===session.societyId&&stored.role===session.role&&stored.accessToken&&stored.refreshToken?stored:session}catch{return session}
 }
-function save(session:Session){if(typeof sessionStorage!=='undefined')sessionStorage.setItem(storageKey,JSON.stringify(session))}
+function save(session:Session){if(typeof sessionStorage!=='undefined')sessionStorage.setItem(keyFor(session),JSON.stringify(session))}
 function clearIfCurrent(session:Session){
   if(typeof sessionStorage==='undefined')return;
-  try{const raw=sessionStorage.getItem(storageKey);if(!raw)return;const stored=JSON.parse(raw) as Session;if(stored.societyId===session.societyId&&stored.role===session.role&&stored.sessionId===session.sessionId)sessionStorage.removeItem(storageKey)}catch{/* best-effort */}
+  try{const raw=sessionStorage.getItem(keyFor(session));if(!raw)return;const stored=JSON.parse(raw) as Session;if(stored.audience===session.audience&&stored.societyId===session.societyId&&stored.role===session.role&&stored.sessionId===session.sessionId)sessionStorage.removeItem(keyFor(session))}catch{/* best-effort */}
 }
 function message(body:unknown,status:number){
   if(body&&typeof body==='object'&&'message' in body){const value=(body as {message:unknown}).message;return Array.isArray(value)?value.map(String).join(', '):String(value)}
