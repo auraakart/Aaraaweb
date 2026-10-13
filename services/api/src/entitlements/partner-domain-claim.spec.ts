@@ -21,7 +21,7 @@ function harness(){
    },
    partnerDomainClaimEvent:{create:vi.fn().mockResolvedValue({id:key})},
  };
- const db={$transaction:vi.fn(async(fn:(tx:typeof tx)=>Promise<unknown>)=>fn(tx))};
+ const db={$transaction:vi.fn(async(fn:(transaction:typeof tx)=>Promise<unknown>)=>fn(tx))};
  return {tx,db,service:new PartnerDomainClaimService(db as never)};
 }
 describe('V5.4.11 partner hostname claim is inert and actor scoped',()=>{
