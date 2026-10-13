@@ -1,3 +1,5 @@
+import { PlatformOwnershipTransferController } from './platform-ownership-transfer.controller';
+import { SocietyOwnershipTransferService } from './society-ownership-transfer.service';
 import { Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentEntitlementsController } from './current-entitlements.controller';
@@ -10,8 +12,8 @@ import { PartnerPortfolioReadController } from './partner-portfolio-read.control
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
-  controllers: [PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController],
-  providers: [PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService],
+  controllers: [PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController],
+  providers: [SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}

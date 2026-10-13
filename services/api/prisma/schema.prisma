@@ -17,6 +17,8 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
+  ownershipRequests         SocietyOwnershipTransferRequest[] @relation("OwnershipInitiator")
+  ownershipApprovals        SocietyOwnershipTransfer[] @relation("OwnershipApprover")
   partnerLicensePlansCreated PartnerLicensePlanRevision[] @relation("PartnerLicensePlanCreator")
   partnerLicenseGrantsCreated PartnerLicenseGrant[] @relation("PartnerLicenseGrantCreator")
   partnerLicenseEventsCreated PartnerLicenseEvent[] @relation("PartnerLicenseEventActor")
@@ -59,6 +61,8 @@ model Society {
   ownershipVersion     Int                        @default(1)
   partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   entitlementCompatibility SocietyEntitlementCompatibility?
+  ownershipRequests    SocietyOwnershipTransferRequest[]
+  ownershipTransfers   SocietyOwnershipTransfer[]
   societyBrandRevisions SocietyBrandRevision[]
   societyBrandLogoAssets SocietyBrandLogoAsset[]
   createdAt            DateTime                   @default(now())
@@ -116,6 +120,8 @@ model Partner {
   societies   Society[]
   memberships PartnerMembership[]
   licenseGrants PartnerLicenseGrant[]
+  ownershipRequestsFrom SocietyOwnershipTransferRequest[] @relation("OwnershipRequestFrom")
+  ownershipRequestsTo SocietyOwnershipTransferRequest[] @relation("OwnershipRequestTo")
 }
 
 model PartnerMembership {
@@ -130,6 +136,41 @@ model PartnerMembership {
 
   @@unique([partnerId, userId, role])
   @@index([partnerId, userId, active])
+}
+
+// Immutable proposals and applied two-person approvals; never operational roles.
+model SocietyOwnershipTransferRequest {
+  id                     String @id @default(uuid()) @db.Uuid
+  societyId              String @db.Uuid
+  fromPartnerId          String @db.Uuid
+  toPartnerId            String @db.Uuid
+  expectedOwnershipVersion Int
+  initiatedById          String @db.Uuid
+  idempotencyKey         String @db.Uuid
+  reason                 String @db.VarChar(500)
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  fromPartner            Partner @relation("OwnershipRequestFrom", fields: [fromPartnerId], references: [id], onDelete: Restrict)
+  toPartner              Partner @relation("OwnershipRequestTo", fields: [toPartnerId], references: [id], onDelete: Restrict)
+  initiatedBy            User @relation("OwnershipInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  transfer               SocietyOwnershipTransfer?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
+}
+
+model SocietyOwnershipTransfer {
+  id                     String @id @default(uuid()) @db.Uuid
+  requestId              String @unique @db.Uuid
+  societyId              String @db.Uuid
+  ownershipVersion       Int
+  approvedById           String @db.Uuid
+  appliedAt              DateTime @default(now()) @db.Timestamptz(6)
+  request                SocietyOwnershipTransferRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy             User @relation("OwnershipApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, ownershipVersion])
 }
 
 // Cutover evidence, not a replacement live entitlement resolver or invoice.
