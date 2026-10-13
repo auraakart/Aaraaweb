@@ -58,5 +58,9 @@ for(const token of [
 assert.ok(editor.includes('<AdminSocietyLogoQuarantine key={session.societyId} session={session}'))
 assert.ok(!ui.includes('dangerouslySetInnerHTML'))
 assert.ok(!ui.includes('<img'))
-assert.ok(!editor.includes('logoAssetId'))
+// New immutable revision selection is permissible only for verified society assets.
+assert.ok(editor.includes('selectVerifiedLogoForDraft'))
+assert.ok(editor.includes('verifiedLogos'))
+assert.ok(ui.includes('onAssetsChanged?.(valid)'))
+assert.ok(!ui.includes('URL.createObjectURL'))
 console.log('V5.3.13 private Admin PNG upload, guarded signed PUT and quarantine metadata: PASS')

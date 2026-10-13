@@ -75,7 +75,7 @@ export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Se
         method:'POST',body:'{}',
       },session)
       await refresh()
-      setNotice('Logo verified by the server and malware scanner. Logo publication is not enabled yet.')
+      setNotice('Logo verified by the server and malware scanner. Select it in a new branding revision to publish.')
     }catch(e){
       setError((e instanceof Error?e.message:'Logo verification failed')+
         '. Confirmation requires the signed upload link to have expired and a clean PNG scan.')
@@ -90,8 +90,8 @@ export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Se
   return <section className="panel brand-editor-history" aria-labelledby="society-logo-title">
     <h2 id="society-logo-title">Private society logo review</h2>
     <p className="brand-editor-help">
-      PNG only, 512 KiB maximum, 64–1024 pixels. Logo files remain private and cannot
-      replace Aaraagate branding until a separate authorized publication workflow is enabled.
+      PNG only, 512 KiB maximum, 64–1024 pixels. Logo files remain private. Only VERIFIED images may be selected
+      for a new immutable branding revision in the society editor.
     </p>
     <label>Choose PNG logo for safety review
       <input type="file" accept="image/png,.png" onChange={onFile} disabled={busy}/>
@@ -118,7 +118,7 @@ export function AdminSocietyLogoQuarantine({session,onAssetsChanged}:{session:Se
           onClick={()=>void verifyLogo(item)}>Verify after link expiry</button>}
       </li>)}</ul>}
     <p className="brand-editor-help">
-      Verified means safe for future review, not published. Pending/rejected images are
+      Verified means approved for selection, not already published. Pending/rejected images are
       never shown to residents, guards or unauthenticated visitors.
     </p>
   </section>
