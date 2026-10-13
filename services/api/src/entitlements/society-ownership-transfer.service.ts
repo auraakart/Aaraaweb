@@ -53,6 +53,19 @@ export class SocietyOwnershipTransferService {
     }
   }
 
+  /** Reuse the same locked live authority for commercial reservation work.
+   * The callback cannot treat partner ownership as an operational role. */
+  async withAuthorizedSociety<T>(principal: AuthPrincipal, societyId: string,
+    operation: (tx: Prisma.TransactionClient, current: { partnerId: string; ownershipVersion: number }) => Promise<T>): Promise<T> {
+    this.scope(principal, societyId);
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT set_config(${TENANT_CONTEXT_SETTING}, ${societyId}, true)`;
+      const current = await this.society(tx, societyId);
+      await this.authority(tx, principal.userId, societyId);
+      return operation(tx, current);
+    });
+  }
+
   async propose(principal: AuthPrincipal, societyId: string, input: OwnershipProposal) {
     this.scope(principal, societyId);
     if (!uuid.test(input.toPartnerId) || !uuid.test(input.idempotencyKey) ||
