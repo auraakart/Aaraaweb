@@ -10,7 +10,6 @@ const partner='22222222-2222-4222-8222-222222222222';
 const claimId='33333333-3333-4333-8333-333333333333';
 const challenge='f'.repeat(64);
 const hash=createHash('sha256').update(challenge).digest('hex');
-const now=new Date();
 function harness(){
  const claim={id:claimId,partnerId:partner,hostname:'brand.partner.in',status:PartnerDomainClaimStatus.PENDING,
    createdAt:new Date(Date.now()-60000),challengeHash:hash,version:1,verificationAttempts:0,lastVerificationAttemptAt:null};
