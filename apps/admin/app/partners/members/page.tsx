@@ -30,7 +30,7 @@ export default function PartnerMembersPage(){
    if(!workspace||!canReadMembers(workspace))return
    const list=parsePartnerMembers(await api<unknown>(`/partners/${workspace.id}/members`,init,s))
    if(!current())return
-   setMembers(list);setRoleDrafts(Object.fromEntries(list.map(member=>[member.id,member.role])))
+   setMembers(list);setRoleDrafts(Object.fromEntries(list.map(member=>[member.id,member.role])) as Record<string,MemberRole>)
   }catch(e){if(current())setError(errorText(e))}
   finally{if(current())setLoading(false)}
  },[])
