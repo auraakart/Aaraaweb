@@ -96,7 +96,7 @@ export class PartnerDomainClaimService {
     return input.reason.trim();
   }
   private async replay(tx:Prisma.TransactionClient,claimId:string,key:string){
-    return tx.partnerDomainClaimEvent.findFirst({where:{claimId,idempotencyKey:key},select:{actorId:true,action:true,reason:true}});
+    return tx.partnerDomainClaimEvent.findFirst({where:{claimId,idempotencyKey:key},select:{actorId:true,action:true,reason:true,resultVersion:true}});
   }
   async revoke(actorId:string,partnerId:string,claimId:string,input:{expectedVersion:number;idempotencyKey:string;reason:string}){
     const reason=this.lifecycleInput(input);
@@ -105,7 +105,7 @@ export class PartnerDomainClaimService {
       const existing=await this.replay(tx,claimId,input.idempotencyKey);
       if(existing){
         if(existing.action!==PartnerDomainClaimAction.REVOKED||existing.actorId!==actorId||
-           existing.reason!==reason||claim.status!=='REVOKED')
+           existing.reason!==reason||claim.status!=='REVOKED'||existing.resultVersion!==claim.version)
           throw new ConflictException('Domain action replay changed or superseded');
         return {id:claimId,status:'REVOKED' as const,replayed:true};
       }
@@ -115,7 +115,7 @@ export class PartnerDomainClaimService {
         status:'REVOKED',verifiedAt:null,verifiedUntil:null,version:{increment:1},
       }});
       await tx.partnerDomainClaimEvent.create({data:{
-        claimId,actorId,action:PartnerDomainClaimAction.REVOKED,idempotencyKey:input.idempotencyKey,reason,
+        claimId,actorId,action:PartnerDomainClaimAction.REVOKED,idempotencyKey:input.idempotencyKey,reason,resultVersion:claim.version+1,
       }});
       return {id:claimId,status:'REVOKED' as const,replayed:false};
     });
@@ -127,7 +127,7 @@ export class PartnerDomainClaimService {
       const existing=await this.replay(tx,claimId,input.idempotencyKey);
       if(existing){
         if(existing.action!==PartnerDomainClaimAction.CHALLENGE_REISSUED||existing.actorId!==actorId||
-           existing.reason!==reason||claim.status!=='PENDING')
+           existing.reason!==reason||claim.status!=='PENDING'||existing.resultVersion!==claim.version)
           throw new ConflictException('Domain action replay changed or superseded');
         return {id:claimId,status:'PENDING' as const,challenge:null,replayed:true};
       }
@@ -148,7 +148,7 @@ export class PartnerDomainClaimService {
       }});
       await tx.partnerDomainClaimEvent.create({data:{
         claimId,actorId,action:PartnerDomainClaimAction.CHALLENGE_REISSUED,
-        idempotencyKey:input.idempotencyKey,reason,
+        idempotencyKey:input.idempotencyKey,reason,resultVersion:claim.version+1,
       }});
       return {id:claimId,status:'PENDING' as const,challenge,replayed:false};
     });
