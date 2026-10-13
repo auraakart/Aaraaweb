@@ -943,7 +943,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.3",
+      "currentSlice": "V5.4.4",
       "slices": [
         {
           "id": "V5.4.1",
@@ -987,7 +987,7 @@
         {
           "id": "V5.4.3",
           "name": "Commercial plan revisions and DRAFT-only partner license grant/audit persistence with Super Admin endpoints",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "4964e497de2a9b868d8c94dfa138d69bf91742e0",
           "evidence": [
             "services/api/prisma/schema.prisma",
@@ -1002,6 +1002,26 @@
             "Only existing platform SUPER_ADMIN sessions may create plan revisions or grant drafts. No partner portal authorization or partner self-service is enabled.",
             "Existing Society.productTier, featureOverrides and EntitlementService.current remain authoritative. No change to gate, SOS, billing, finance or resident feature access.",
             "No real-world pricing/grants, migrations applied to live environments, production infrastructure or staging/main promotion."
+          ],
+          "pullRequest": 1264,
+          "mergeSha": "9a87387eea75ab74e0385c776fd7fddffe10c9cb",
+          "ciRun": 38349491663
+        },
+        {
+          "id": "V5.4.4",
+          "name": "PartnerMembership-scoped read-only portfolio and non-PII member role views",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "9a87387eea75ab74e0385c776fd7fddffe10c9cb",
+          "evidence": [
+            "services/api/src/entitlements/partner-portfolio-read.service.ts",
+            "services/api/src/entitlements/partner-portfolio-read.controller.ts",
+            "services/api/src/entitlements/partner-portfolio-read.spec.ts"
+          ],
+          "limitations": [
+            "Only ACTIVE PartnerMembership plus ACTIVE Partner authorizes reads; no AppRole or society membership elevation, partner writes or support impersonation.",
+            "Portfolio returns limited society display metadata; member listings omit user identity, contact, operational PII and cross-partner rows.",
+            "Partner status/ownership transfers and service workers remain separate V5.1/5.4.5 controls; no production routing or grants.",
+            "No staging/main promotion, real DNS or partner distributions."
           ]
         }
       ]
