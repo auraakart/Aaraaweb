@@ -10,9 +10,10 @@ import '../widgets/guard_operation_ui.dart';
 part 'guard_operations_components.dart';
 
 class GuardOperationsScreen extends StatefulWidget {
-  const GuardOperationsScreen({super.key, required this.controller, this.societyLogoBytes});
+  const GuardOperationsScreen({super.key, required this.controller, this.societyLogoBytes, this.societyDisplayName});
   final GuardController controller;
   final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
 
   @override
   State<GuardOperationsScreen> createState() => _GuardOperationsScreenState();
@@ -147,11 +148,14 @@ class _GuardOperationsScreenState extends State<GuardOperationsScreen> {
         leading: widget.societyLogoBytes == null ? null : Padding(
           padding: const EdgeInsets.all(6),
           child: Semantics(
-            label: 'Published society logo',
-            child: Image.memory(
-              widget.societyLogoBytes!, fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) =>
-                const Icon(Icons.shield_rounded),
+            image: true,
+            label: 'Logo of ${widget.societyDisplayName ?? 'your society'}',
+            child: ExcludeSemantics(
+              child: Image.memory(
+                widget.societyLogoBytes!, fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.shield_rounded),
+              ),
             ),
           ),
         ),

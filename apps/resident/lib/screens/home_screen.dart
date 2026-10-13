@@ -13,6 +13,7 @@ class HomeScreen extends StatelessWidget {
     super.key,
     required this.controller,
     this.societyLogoBytes,
+    this.societyDisplayName,
     required this.showGate,
     required this.showStaff,
     required this.showServices,
@@ -33,6 +34,7 @@ class HomeScreen extends StatelessWidget {
 
   final ResidentDataController controller;
   final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
   final bool showGate;
   final bool showStaff;
   final bool showServices;
@@ -88,19 +90,28 @@ class HomeScreen extends StatelessWidget {
           children: [
             if (societyLogoBytes != null) ...[
               Semantics(
-                label: 'Published society logo',
-                child: Row(children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
-                    child: Image.memory(
-                      societyLogoBytes!, width: 52, height: 52, fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.apartment_rounded, size: 52),
+                container: true,
+                image: true,
+                label: 'Logo of ${societyDisplayName ?? 'your society'}',
+                child: ExcludeSemantics(
+                  child: Row(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+                      child: Image.memory(
+                        societyLogoBytes!, width: 52, height: 52, fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.apartment_rounded, size: 52),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: AaraagateTokens.space3),
-                  Text('Your society', style: theme.textTheme.titleMedium),
-                ]),
+                    const SizedBox(width: AaraagateTokens.space3),
+                    Expanded(child: Text(
+                      societyDisplayName ?? 'Your society',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    )),
+                  ]),
+                ),
               ),
               const SizedBox(height: AaraagateTokens.space4),
             ],

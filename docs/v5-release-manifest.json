@@ -551,7 +551,7 @@
       "dependsOn": [
         "V5.2"
       ],
-      "currentSlice": "V5.3.18",
+      "currentSlice": "V5.3.19",
       "slices": [
         {
           "id": "V5.3.1",
@@ -876,7 +876,7 @@
         {
           "id": "V5.3.18",
           "name": "Mobile published-logo transport security and response timeout hardening",
-          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "89758faaa1eae30d0d2c0039fcc84ea02a82de1b",
           "evidence": [
             "packages/branding_runtime/lib/society_logo_fetcher.dart",
@@ -887,6 +887,30 @@
             "Remote mobile logo delivery requires HTTPS; cleartext localhost/loopback/Android emulator hosts remain permitted for local development only.",
             "Response size, MIME, published-society authorization, PNG digest and file integrity continue to be validated by the existing backend; mobile maintains in-memory scope isolation.",
             "No staging/main changes, production host configuration, native APK identity, role/permission/entitlement, gate or finance logic changes."
+          ],
+          "pullRequest": 1260,
+          "mergeSha": "a7cd59749dd0cf35f022d258ae904ae47887ddc5",
+          "ciRun": 38344096891
+        },
+        {
+          "id": "V5.3.19",
+          "name": "Accessible society-logo presentation and immutable published-revision restore parity",
+          "status": "IMPLEMENTED_PENDING_PROTECTED_CI",
+          "baselineSha": "a7cd59749dd0cf35f022d258ae904ae47887ddc5",
+          "evidence": [
+            "apps/resident/lib/main.dart",
+            "apps/resident/lib/screens/home_screen.dart",
+            "apps/guard/lib/main.dart",
+            "apps/guard/lib/screens/guard_operations_screen.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart",
+            "apps/admin/lib/admin-society-brand-editor.ts"
+          ],
+          "limitations": [
+            "Branding name/logos are cosmetic, session/society scoped and only obtained through existing authorized presentation flows.",
+            "Restoring an earlier appearance publishes a NEW immutable revision; backend verified-asset and owner permission gates are not bypassed.",
+            "No native identity, partner branding distribution, new infrastructure, external image URL, role, entitlement, finance or gate workflow changes.",
+            "No staging/main promotion. Full V5.3 closure requires CI and cross-society/rollback evidence."
           ]
         }
       ]
