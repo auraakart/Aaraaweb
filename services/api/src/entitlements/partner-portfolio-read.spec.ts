@@ -2,7 +2,7 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { NotFoundException } from '@nestjs/common';
 import { PartnerRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { BearerGuard } from '../auth/bearer.guard';
+import { PartnerBearerGuard } from '../auth/bearer.guard';
 import { PartnerPortfolioReadController } from './partner-portfolio-read.controller';
 import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
@@ -43,7 +43,7 @@ describe('V5.4.4 scoped partner control-plane reads',()=>{
 
   it('requires a bearer session; never grants an AppRole via partner membership',()=>{
     const guards=Reflect.getMetadata(GUARDS_METADATA,PartnerPortfolioReadController) as unknown[];
-    expect(guards).toContain(BearerGuard);
+    expect(guards).toContain(PartnerBearerGuard);
     expect(guards).not.toHaveLength(0);
   });
 
