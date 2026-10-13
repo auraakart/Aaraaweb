@@ -60,7 +60,7 @@ function setup() {
     })},
     societyBrandLogoAsset:{findFirst:vi.fn().mockResolvedValue(asset)},
   };
-  const prisma={withTenantContext:vi.fn(async(_id:string,op:(tx:typeof tx)=>Promise<unknown>)=>op(tx))};
+  const prisma={withTenantContext:vi.fn(async(_id:string,op:(client:typeof tx)=>Promise<unknown>)=>op(tx))};
   const storage={
     headObject:vi.fn().mockResolvedValue({contentType:'image/png',contentLengthBytes:bytes.length}),
     getObjectBytes:vi.fn().mockResolvedValue(bytes),
