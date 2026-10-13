@@ -6,10 +6,12 @@ import { FeatureGuard } from './feature.guard';
 import { PlatformEntitlementsController } from './platform-entitlements.controller';
 import { PlatformPartnerLicenseController } from './platform-partner-license.controller';
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
+import { PartnerPortfolioReadController } from './partner-portfolio-read.controller';
+import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
-  controllers: [PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController],
-  providers: [PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService],
+  controllers: [PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController],
+  providers: [PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}

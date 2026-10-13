@@ -1,0 +1,31 @@
+import { Controller, Get, Header, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
+import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
+
+/**
+ * Partner roles are reloaded by the service from PartnerMembership on every
+ * request. Do not reuse SocietyMembership RolesGuard or trust a client role.
+ */
+@Controller('partners')
+@UseGuards(BearerGuard)
+export class PartnerPortfolioReadController {
+  constructor(private readonly portfolioReader: PartnerPortfolioReadService) {}
+
+  @Get(':partnerId/portfolio')
+  @Header('Cache-Control', 'no-store')
+  portfolio(
+    @Req() request: AuthenticatedRequest,
+    @Param('partnerId', ParseUUIDPipe) partnerId: string,
+  ) {
+    return this.portfolioReader.portfolio(request.auth!.userId, partnerId);
+  }
+
+  @Get(':partnerId/members')
+  @Header('Cache-Control', 'no-store')
+  members(
+    @Req() request: AuthenticatedRequest,
+    @Param('partnerId', ParseUUIDPipe) partnerId: string,
+  ) {
+    return this.portfolioReader.members(request.auth!.userId, partnerId);
+  }
+}
