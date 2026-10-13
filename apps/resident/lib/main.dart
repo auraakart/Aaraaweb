@@ -139,6 +139,7 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
               authController: widget.authController,
               experiencePreferences: widget.experiencePreferences,
               societyLogoBytes: _branding.logoBytes,
+              societyDisplayName: societyBrand?.displayName,
             ),
           );
         },
@@ -146,11 +147,12 @@ class _AaraagateResidentAppState extends State<AaraagateResidentApp> with Widget
 }
 
 class _ResidentSessionGate extends StatefulWidget {
-  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes});
+  const _ResidentSessionGate({required this.apiBaseUrl, required this.authController, required this.experiencePreferences, this.societyLogoBytes, this.societyDisplayName});
   final String apiBaseUrl;
   final ResidentAuthController authController;
   final ResidentExperiencePreferences experiencePreferences;
   final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
   @override
   State<_ResidentSessionGate> createState() => _ResidentSessionGateState();
 }
@@ -216,6 +218,7 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
           key: ValueKey('${session.sessionId}:${session.activeUnitId ?? ''}'),
           controller: _dataController!,
           societyLogoBytes: widget.societyLogoBytes,
+          societyDisplayName: widget.societyDisplayName,
           consumerApiClient: consumerApiClient,
           onSignOut: _signOut,
           canManageFamilyMembers: widget.authController.isActivePropertyOwner,
@@ -233,9 +236,10 @@ class _ResidentSessionGateState extends State<_ResidentSessionGate> {
 }
 
 class ResidentHomeShell extends StatefulWidget {
-  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes});
+  const ResidentHomeShell({super.key, required this.controller, required this.consumerApiClient, required this.onSignOut, required this.canManageFamilyMembers, required this.propertyContexts, required this.currentSocietyId, required this.currentUnitId, required this.assistantPreferenceScope, required this.onSwitchProperty, required this.easyMode, required this.onEasyModeChanged, this.societyLogoBytes, this.societyDisplayName});
   final ResidentDataController controller;
   final Uint8List? societyLogoBytes;
+  final String? societyDisplayName;
   final ApiClient consumerApiClient;
   final Future<void> Function() onSignOut;
   final bool canManageFamilyMembers;
@@ -334,6 +338,7 @@ class _ResidentHomeShellState extends State<ResidentHomeShell> {
           HomeScreen(
             controller: controller,
             societyLogoBytes: widget.societyLogoBytes,
+          societyDisplayName: widget.societyDisplayName,
             showGate: showGate,
             showStaff: showStaff,
             showServices: showServices,
