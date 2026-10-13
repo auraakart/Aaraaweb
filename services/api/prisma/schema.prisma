@@ -200,6 +200,8 @@ enum PartnerDomainClaimStatus {
 enum PartnerDomainClaimAction {
   REGISTERED
   VERIFIED
+  REVOKED
+  CHALLENGE_REISSUED
 }
 model PartnerDomainClaim {
   id String @id @default(uuid()) @db.Uuid
@@ -210,6 +212,8 @@ model PartnerDomainClaim {
   idempotencyKey String @db.Uuid
   version Int @default(1)
   verificationAttempts Int @default(0)
+  challengeRotationCount Int @default(0)
+  challengeIssuedAt DateTime @default(now()) @db.Timestamptz(6)
   lastVerificationAttemptAt DateTime? @db.Timestamptz(6)
   verifiedAt DateTime? @db.Timestamptz(6)
   verifiedUntil DateTime? @db.Timestamptz(6)
@@ -227,10 +231,14 @@ model PartnerDomainClaimEvent {
   claimId String @db.Uuid
   actorId String @db.Uuid
   action PartnerDomainClaimAction
+  idempotencyKey String? @db.Uuid
+  resultVersion Int?
+  reason String? @db.VarChar(500)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   claim PartnerDomainClaim @relation(fields:[claimId],references:[id],onDelete:Restrict)
   actor User @relation("DomainClaimEventActor",fields:[actorId],references:[id],onDelete:Restrict)
   @@index([claimId,createdAt])
+  @@unique([claimId,idempotencyKey])
 }
 
 model PartnerMembership {
