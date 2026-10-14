@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.28",
+      "currentSlice": "V5.5.29",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1848,7 +1848,7 @@
         {
           "id": "V5.5.28",
           "name": "TEST AAB pinned jarsigner and keytool signer fingerprint and structural-member signing reports",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-aab-signing.mjs",
             "scripts/android-test-aab-signing.test.mjs",
@@ -1857,11 +1857,28 @@
           "limitations": [
             "Reports from pinned local JDK tools are not independent runner attestation. Synthetic fixtures are not cryptographically signed Android bundles.",
             "No actual APK/AAB generated, worker dispatch, secret signing, device installation or productionization."
+          ],
+          "pullRequest": 1319,
+          "mergeSha": "2761922291bf4fce083d0e9afc546c20da6cf151",
+          "ciRun": 38620432410
+        },
+        {
+          "id": "V5.5.29",
+          "name": "Real base Resident/Guard TEST debug APK generation and local Android package/signature smoke",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "scripts/v5-test-android-smoke.sh",
+            "docs/architecture/V5.5.29-REAL-BASE-ANDROID-TEST-SMOKE.md"
+          ],
+          "limitations": [
+            "Requires genuine post-merge workflow success for both roles before real APK generation can be counted complete.",
+            "Default debug app only, not reviewed partner distribution, externally attested builder, production signer, AAB or on-device installation."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.28 TEST AAB signer report checks after protected CI",
+        "Merge V5.5.29 after protected CI and verify actual one-time Resident/Guard debug APK workflow reports",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
