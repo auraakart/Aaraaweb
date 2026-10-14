@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.26",
+      "currentSlice": "V5.5.27",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1814,7 +1814,7 @@
         {
           "id": "V5.5.26",
           "name": "Account for all TEST APK/AAB ZIP32 local bytes, descriptors and structurally framed APK Signing Block",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-archive-inspector.mjs",
             "scripts/android-test-archive-inspector.test.mjs",
@@ -1823,11 +1823,28 @@
           "limitations": [
             "Structural envelope checks are not APK cryptographic signing verification or trusted runner attestation.",
             "Synthetic regression fixtures only; no real APK/AAB built, signed, dispatched or published."
+          ],
+          "pullRequest": 1317,
+          "mergeSha": "3cfb3ff22ef84da73d247239b65f6f4b7a93caf8",
+          "ciRun": 38614540277
+        },
+        {
+          "id": "V5.5.27",
+          "name": "Pinned read-only TEST AAB bundletool validation and base manifest identity inspection",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-aab-inspection.mjs",
+            "scripts/android-test-aab-inspection.test.mjs",
+            "docs/architecture/V5.5.27-PINNED-AAB-INSPECTION.md"
+          ],
+          "limitations": [
+            "Uses synthetic AAB ZIP bytes and fake Java command implementation; not actual bundletool or true signed AAB evidence.",
+            "No external attestation, trusted runner execution, AAB signature verification, build dispatch, or publishing."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.26 canonical archive-layout regressions after protected CI",
+        "Validate and merge V5.5.27 pinned AAB tool and manifest regression gates after protected CI",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
