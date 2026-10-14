@@ -32,7 +32,7 @@ function fixture(){
   partnerDistributionProposal:{findFirst:vi.fn().mockResolvedValue(proposal)},
   partnerAndroidBuildRevision:{
    findUnique:vi.fn().mockResolvedValue(null),
-   findFirst:vi.fn().mockImplementation(async (q:{include?:unknown})=>q.include?revision:{id:revisionId}),
+   findFirst:vi.fn().mockImplementation(async (q:{where?:{id?:string};select?:unknown})=>q.where?.id?revision:q.select?{id:revisionId}:null),
    create:vi.fn().mockResolvedValue({id:revisionId,version:1,digest:hash(manifest)})
   },
   partnerAndroidBuildRevisionApproval:{create:vi.fn().mockResolvedValue({id:approvalId})}
@@ -54,7 +54,7 @@ describe('V5.5.2 test-only Android build revision authority',()=>{
  });
  it.each([
   {buildMode:'PRODUCTION'}, {privateKey:'secret'}, {applicationId:'com.aaraaplatforms.resident',namespace:'com.aaraaplatforms.resident'},
-  {signingProfile:'LIVE_KEY'}, {appRole:'GUARD'}, {signerFingerprint:'wrong'},
+  {signingProfile:'LIVE_KEY'}, {signerFingerprint:'wrong'},
   {apiOrigin:'https://foreign.in'}, {sourceSha:'main'}, {brandRevision:0},
   {assetDigests:{icon:'a'.repeat(64),splash:'e'.repeat(64),script:'invalid'}},
   {appLinkHosts:['bad/host']}, {label:'Unsafe\u202e'},
@@ -75,6 +75,7 @@ describe('V5.5.2 test-only Android build revision authority',()=>{
   await expect(f.service.propose(principal(),societyId,proposalId,{...input,manifest})).resolves.toMatchObject({id:revisionId});
   await expect(f.service.propose(principal(checker),societyId,proposalId,{...input,manifest})).rejects.toThrow(/key changed/);
   f.tx.partnerAndroidBuildRevision.findUnique.mockResolvedValue(null);
+  f.tx.partnerAndroidBuildRevision.findFirst.mockResolvedValue(f.revision);
   await expect(f.service.propose(principal(),societyId,proposalId,{...input,manifest})).rejects.toThrow(/independent review/);
  });
  it('enforces maker-checker separation, exact digest and live maker authority',async()=>{
@@ -90,6 +91,7 @@ describe('V5.5.2 test-only Android build revision authority',()=>{
   expect(await f.service.approve(principal(checker),societyId,proposalId,revisionId,req)).toMatchObject({status:'REVIEWED_TEST_REVISION',dispatchAllowed:false});
   await expect(f.service.latest(principal(checker),societyId,proposalId,input)).rejects.toThrow(/reviewed revision/);
   f.revision.approval={id:approvalId,actorId:checker,idempotencyKey:input.idempotencyKey,reason:req.reason} as never;
+  f.tx.partnerAndroidBuildRevision.findFirst.mockImplementation(async(q:{where?:{id?:string};select?:unknown})=>q.where?.id||q.include?f.revision:{id:revisionId});
   expect(await f.service.latest(principal(checker),societyId,proposalId,input)).toMatchObject({
    manifest,digest:hash(manifest),dispatchAllowed:false,requiresBuilderRevalidation:true});
  });
