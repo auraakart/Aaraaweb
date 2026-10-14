@@ -142,6 +142,7 @@ export class PartnerAndroidBuildWorkerConsumptionService {
     include:{claim:{include:{reservation:true}}}
    });
    if(!used||used.actorId!==principal.userId||
+      used.workerId!==input.workerId||used.claim.workerId!==input.workerId||
       used.claim.actorId!==principal.userId||
       used.claim.reservation.proposalId!==proposalId||
       used.claim.reservation.revisionId!==input.revisionId||
