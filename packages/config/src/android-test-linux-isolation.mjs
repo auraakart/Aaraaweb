@@ -35,8 +35,11 @@ function parseMountInfo(text){
      !/^\d+:\d+$/.test(left[2]))
    fail('Unrecognized Linux mount record');
   const [,,device,root,path,options]=left;
-  if(!abs(path)||!isAbsolute(root)||!options||
-     !supportedFs.has(right[0])&&!['proc','sysfs','tmpfs','cgroup2'].includes(right[0]))
+  // Mountinfo contains unrelated, valid kernel mounts (including `/`,
+  // devpts, mqueue, tmpfs, etc.). Strict allowlisting belongs only to
+  // the FOUR expected SDK mountpoints below, not the whole mount table.
+  if(!isAbsolute(path)||!isAbsolute(root)||!options||
+     !/^[a-zA-Z0-9_.-]{1,64}$/.test(right[0]))
    fail('Unrecognized Linux mountpoint or filesystem');
   mounts.push({path,root,device,options:options.split(','),fsType:right[0],source:right[1]});
   if(mounts.length>8192)fail('Excessive Linux mounts');
