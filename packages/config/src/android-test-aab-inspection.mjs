@@ -102,9 +102,11 @@ export async function inspectPinnedTestAndroidAab(plan,reservation,location,pins
    fail('Pinned AAB tool or artifact mutated or emitted diagnostics');
   return stdout.trim();
  };
- const valid=await run(['validate','--bundle='+artifact]);
- if(valid!==''&&valid!=='App Bundle is valid.')
-  fail('Unexpected bundletool validation report');
+ // A successful bundletool validate can print a multiline module inventory.
+ // Trust only its zero exit status, with bounded output and stderr rejection.
+ const report=await run(['validate','--bundle='+artifact]);
+ if(/(?:^|\n)\s*(?:error:|exception:|warning:)/im.test(report))
+  fail('Pinned bundletool validation reported an error');
  const pathsToQuery={
   package:'/manifest/@package',
   versionCode:'/manifest/@android:versionCode',

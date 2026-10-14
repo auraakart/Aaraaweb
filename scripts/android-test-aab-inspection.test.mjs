@@ -60,7 +60,7 @@ for(const [name,mutation] of [
  assert.throws(()=>parseTestAndroidAabManifestValues(mutation(values),
   {applicationId:packageName,versionCode:101}));
 });
-async function setup(role='GUARD',result=values){
+async function setup(role='GUARD',result=values,validationReport=''){
  const root=await mkdtemp(join(tmpdir(),'aaraagate-v5527-'));
  const m={schemaVersion:1,buildMode:'TEST',appRole:role,
   distributionId:'11111111-1111-4111-8111-111111111111',
@@ -82,7 +82,7 @@ async function setup(role='GUARD',result=values){
   '#!'+process.execPath,
   'const args=process.argv.slice(2);',
   'if(args[0]!=="-jar"||!args[1].endsWith("/bundletool.jar"))process.exit(11);',
-  'if(args[2]==="validate")process.exit(0);',
+  'if(args[2]==="validate"){process.stdout.write('+JSON.stringify(validationReport)+');process.exit(0);}',
   'if(args[2]!=="dump"||args[3]!=="manifest")process.exit(12);',
   'const x=args.find(x=>x.startsWith("--xpath="))?.slice(8);',
   'const out='+JSON.stringify(result)+';',
@@ -136,6 +136,23 @@ test('V5.5.27 rejects symlink bundletool JAR regardless of matching digest',asyn
   const alias=join(f.root,'aliased.jar');
   await symlink(f.jar,alias);
   f.pins.bundletool.jar=alias;
+  await assert.rejects(inspectPinnedTestAndroidAab(
+   f.plan,f.reservation,f.location,f.pins));
+ }finally{await rm(f.root,{recursive:true,force:true});}
+});
+
+test('V5.5.27 accepts bounded genuine-style bundletool validation inventory',async()=>{
+ const report='App Bundle information\n------------\nFeature modules:\n Feature module: base\n File: base/dex/classes.dex\n';
+ const f=await setup('GUARD',values,report);
+ try{
+  const got=await inspectPinnedTestAndroidAab(f.plan,f.reservation,f.location,f.pins);
+  assert.equal(got.localPinnedBundletoolValidationReportedPassed,true);
+  assert.equal(got.testAabSignerVerified,false);
+ }finally{await rm(f.root,{recursive:true,force:true});}
+});
+test('V5.5.27 refuses tool diagnostics even with zero exit status',async()=>{
+ const f=await setup('GUARD',values,'Error: corrupted bundle');
+ try{
   await assert.rejects(inspectPinnedTestAndroidAab(
    f.plan,f.reservation,f.location,f.pins));
  }finally{await rm(f.root,{recursive:true,force:true});}
