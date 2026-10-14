@@ -24,7 +24,7 @@ const principal=(userId=maker)=>({userId,societyId,roles:[AppRole.SUPER_ADMIN]})
 const input={grantId:randomUUID(),allocationId,expectedGrantVersion:1,expectedOwnershipVersion:1,idempotencyKey:randomUUID()};
 function fixture(){
  vi.stubEnv('AARAGATE_TEST_BUILD_API_ORIGINS',JSON.stringify([initial.apiOrigin]));
- const proposal={id:proposalId,allocationId,manifest:initial,approval:{id:approvalId,revocation:null}};
+ const proposal={id:proposalId,allocationId,manifest:initial,digest:hash(initial),approval:{id:approvalId,revocation:null}};
  const revision={id:revisionId,proposalId,version:1,manifest,digest:hash(manifest),actorId:maker,approval:null as unknown};
  const scope={allocationId,partnerId,approvalId,maximumDistributions:1,legacy:{}};
  const tx={
