@@ -344,3 +344,6 @@ test('V5.5.17 refuses mismatched reservation and attempted dispatch without them
 
 // V5.5.18: live loopback mTLS/Ed25519 TEST worker identity-only transport tests.
 import './android-test-mtls-transport.test.mjs';
+
+// V5.5.19: fail-closed local Linux TEST runner isolation read-only mount policy.
+import './android-test-linux-isolation.test.mjs';

@@ -21,7 +21,8 @@
     "./android-test-runner-evidence": "./src/android-test-runner-evidence.mjs",
     "./android-test-sdk-tree": "./src/android-test-sdk-tree.mjs",
     "./android-test-android12-themes": "./src/android-test-android12-themes.mjs",
-    "./android-test-mtls-transport": "./src/android-test-mtls-transport.mjs"
+    "./android-test-mtls-transport": "./src/android-test-mtls-transport.mjs",
+    "./android-test-linux-isolation": "./src/android-test-linux-isolation.mjs"
   },
   "typesVersions": {
     "*": {
