@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.15",
+      "currentSlice": "V5.5.16",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1627,7 +1627,7 @@
         {
           "id": "V5.5.15",
           "name": "Atomically accept Ed25519-signed TEST runner response once with immutable live authority and replay ledger",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-runner-evidence-acceptance.service.ts",
             "services/api/src/entitlements/partner-android-runner-evidence-acceptance.spec.ts",
@@ -1637,11 +1637,28 @@
           "limitations": [
             "Accepting a signature and replay barrier does not prove authenticated transport, executed OCI image or genuine SDK measurement.",
             "No live builder, APK/AAB, signer verification, productionization, new HTTP route, or staging/main promotion."
+          ],
+          "pullRequest": 1306,
+          "mergeSha": "1f28184466f02d6debc462f403ae8b64aef4d685",
+          "ciRun": 38587090379
+        },
+        {
+          "id": "V5.5.16",
+          "name": "Exhaustive independently pinned Flutter/Android SDK, JDK and native template filesystem byte inventory",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-sdk-tree.mjs",
+            "scripts/android-test-sdk-tree.test.mjs",
+            "docs/architecture/V5.5.16-ANDROID-PINNED-SDK-INVENTORY.md"
+          ],
+          "limitations": [
+            "Local entire-tree hashes alone do not authenticate the transport, attest actual OCI runtime, certify immutable mounts or grant build dispatch.",
+            "No Android wrapper generation, Gradle execution, APK/AAB, signer verification, API/database migration, staging or main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate V5.5.15 single-use signed worker proof and merge after protected CI; then authenticated runner transport, complete SDK/template attestations",
+        "Validate and merge V5.5.16 full local SDK/template byte inventory after protected CI",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
