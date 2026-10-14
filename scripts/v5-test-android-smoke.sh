@@ -30,11 +30,14 @@ PY
 fi
 [[ -s "$APK" ]] || { echo 'Missing TEST debug APK' >&2; exit 1; }
 unzip -tq "$APK" > /dev/null
-zipinfo -1 "$APK" | grep -Fxq 'AndroidManifest.xml'
-zipinfo -1 "$APK" | grep -Fxq 'classes.dex'
-zipinfo -1 "$APK" | grep -Fxq 'lib/arm64-v8a/libflutter.so'
-if [[ -z "$ANDROID_SDK_ROOT" ]]; then echo 'Android SDK missing' >&2; exit 1; fi
-TOOLS="$(find "$ANDROID_SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+mkdir -p dist
+zipinfo -1 "$APK" > "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
+grep -Fxq 'AndroidManifest.xml' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
+grep -Fxq 'classes.dex' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
+grep -Fxq 'lib/arm64-v8a/libflutter.so' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+if [[ -z "$SDK" ]]; then echo 'Android SDK missing' >&2; exit 1; fi
+TOOLS="$(find "$SDK/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
 [[ -n "$TOOLS" && -x "$TOOLS/aapt" && -x "$TOOLS/apksigner" ]] || {
   echo 'Missing Android inspection executables' >&2; exit 1;
 }
