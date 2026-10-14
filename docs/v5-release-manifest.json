@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.23",
+      "currentSlice": "V5.5.24",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1765,7 +1765,7 @@
         {
           "id": "V5.5.23",
           "name": "Offline bounded TEST APK/AAB ZIP archive inspection with complete member CRC verification and no signing claims",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-archive-inspector.mjs",
             "scripts/android-test-archive-inspector.test.mjs",
@@ -1774,11 +1774,28 @@
           "limitations": [
             "Zip32 structure and decompression CRC verification are not Android package/version/ABI/certificate verification; strict ZIP policy may reject valid ZIP64, commented, split or nonstandard Android artifacts until reviewed.",
             "No real runner, APK/AAB generation, signing, deployment, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1314,
+          "mergeSha": "eadbcc05754008f99c0cb9f781a44eb58605dc7b",
+          "ciRun": 38604317631
+        },
+        {
+          "id": "V5.5.24",
+          "name": "Pure TEST Android Resident/Guard and Partner A/B co-installation namespace, signing reference and App Link host collision prevention",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-install-isolation.mjs",
+            "scripts/android-test-install-isolation.test.mjs",
+            "docs/architecture/V5.5.24-ANDROID-PARTNER-COINSTALLATION.md"
+          ],
+          "limitations": [
+            "Plan-level package/provider/App Link/signing-reference collision prevention is not proof of real installed packages, checked Android certificates or independent app storage isolation.",
+            "No real device install, signing, APK/AAB generation, productionization, staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.23 offline APK/AAB archive structure and CRC inspection after protected CI",
+        "Validate and merge V5.5.24 pre-installation package/content-provider/App Links/cross-partner signer collision check",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",

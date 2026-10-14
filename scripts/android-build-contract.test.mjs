@@ -583,3 +583,6 @@ for(const [name,change] of [
 
 // V5.5.23: offline bounded synthetic APK/AAB ZIP file structure and CRC verification.
 import './android-test-archive-inspector.test.mjs';
+
+// V5.5.24: fail-closed role and cross-partner TEST Android co-installation namespaces.
+import './android-test-install-isolation.test.mjs';
