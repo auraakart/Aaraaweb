@@ -91,7 +91,7 @@ describe('V5.5.2 test-only Android build revision authority',()=>{
   expect(await f.service.approve(principal(checker),societyId,proposalId,revisionId,req)).toMatchObject({status:'REVIEWED_TEST_REVISION',dispatchAllowed:false});
   await expect(f.service.latest(principal(checker),societyId,proposalId,input)).rejects.toThrow(/reviewed revision/);
   f.revision.approval={id:approvalId,actorId:checker,idempotencyKey:input.idempotencyKey,reason:req.reason} as never;
-  f.tx.partnerAndroidBuildRevision.findFirst.mockImplementation(async(q:{where?:{id?:string};select?:unknown})=>q.where?.id||q.include?f.revision:{id:revisionId});
+  f.tx.partnerAndroidBuildRevision.findFirst.mockImplementation(async(q:{where?:{id?:string};select?:unknown;include?:unknown})=>q.where?.id||q.include?f.revision:{id:revisionId});
   expect(await f.service.latest(principal(checker),societyId,proposalId,input)).toMatchObject({
    manifest,digest:hash(manifest),dispatchAllowed:false,requiresBuilderRevalidation:true});
  });
