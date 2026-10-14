@@ -1,12 +1,17 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { realpath, lstat, readFile } from 'node:fs/promises';
+import { realpath, lstat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { androidBuildManifestDigest } from './android-build-contract.mjs';
 
 const exec=promisify(execFile), tools=['flutter','java','node','pnpm'];
-const hash=data=>createHash('sha256').update(data).digest('hex');
+const fileSha=async path=>{
+ const h=createHash('sha256');
+ for await(const chunk of createReadStream(path))h.update(chunk);
+ return h.digest('hex');
+};
 const sha40=/^[0-9a-f]{40}$/, sha64=/^[0-9a-f]{64}$/;
 const strict=(v,names)=>v && typeof v==='object' && !Array.isArray(v) &&
  Object.keys(v).sort().join(',')===names.slice().sort().join(',');
@@ -59,9 +64,9 @@ export async function verifyPinnedTestAndroidToolchain(plan,checkout,pins) {
  for(const tool of tools){
   const path=pins.executables[tool],stat=await lstat(path);
   if(await realpath(path)!==path || !stat.isFile() || stat.isSymbolicLink() ||
-     stat.size<1 || stat.size>25*1024*1024 || !(stat.mode & 0o111))
+     stat.size<1 || stat.size>384*1024*1024 || !(stat.mode & 0o111))
    fail('Untrusted TEST executable type or link');
-  const before=hash(await readFile(path));
+  const before=await fileSha(path);
   if(before!==pins.sha256[tool]) fail('TEST executable does not match independent SHA pin');
   const {stdout,stderr}=await exec(path,args[tool],{
    env,timeout:7000,maxBuffer:32768,encoding:'utf8',windowsHide:true
@@ -81,7 +86,7 @@ export async function verifyPinnedTestAndroidToolchain(plan,checkout,pins) {
    observed=/^(\d+\.\d+\.\d+)$/.exec(stdout.trim())?.[1];
   }
   if(observed!==v[tool])fail('TEST executable version differs from independent pin');
-  if(hash(await readFile(path))!==before)fail('TEST executable modified during version check');
+  if(await fileSha(path)!==before)fail('TEST executable modified during version check');
   receipts[tool]=Object.freeze({version:observed,sha256:before});
  }
  return Object.freeze({
