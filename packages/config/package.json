@@ -12,7 +12,8 @@
       "default": "./src/partner-domain-loader.cjs"
     },
     "./android-build-contract": "./src/android-build-contract.mjs",
-    "./android-test-overlay": "./src/android-test-overlay.mjs"
+    "./android-test-overlay": "./src/android-test-overlay.mjs",
+    "./android-test-native-wrapper": "./src/android-test-native-wrapper.mjs"
   },
   "typesVersions": {
     "*": {

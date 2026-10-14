@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { planTestAndroidNativeWrapperPatch } from '../packages/config/src/android-test-native-wrapper.mjs';
 import { materializeTestAndroidResourceOverlay } from '../packages/config/src/android-test-overlay.mjs';
 import { androidBuildManifestDigest,planTestAndroidBuild,checkAndroidAssetBytes,recordTestAndroidProvenance } from '../packages/config/src/android-build-contract.mjs';
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -111,4 +112,53 @@ test('TEST overlay refuses wrong PNG header even if the supplied bytes digest is
   revisionId:'66666666-6666-4666-8666-666666666666',versionCode:1,
   digest:plan.manifestDigest,status:'RESERVED_TEST_ONLY',testOnly:true,dispatchAllowed:false};
  await assert.rejects(materializeTestAndroidResourceOverlay(plan,reservation,{icon:fake,splash:fake}),/PNG/);
+});
+
+
+// V5.5.6 strict pure Kotlin wrapper patch tests: no build, dispatch or native file writes.
+const kotlinTemplate=role=>{
+ const p='com.aaraaplatforms.aaraagate_'+role.toLowerCase();
+ return {
+  gradleKts:'plugins {\n id("com.android.application")\n id("kotlin-android")\n id("dev.flutter.flutter-gradle-plugin")\n}\nandroid {\n namespace = "'+p+'"\n compileSdk = flutter.compileSdkVersion\n defaultConfig {\n applicationId = "'+p+'"\n minSdk = flutter.minSdkVersion\n versionCode = flutter.versionCode\n versionName = flutter.versionName\n }\n}\n',
+  manifestXml:'<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n <application android:label="aaraagate_'+role.toLowerCase()+'" android:icon="@mipmap/ic_launcher" android:name="'+ '$'+'{applicationName}">\n <activity android:name=".MainActivity" android:exported="true">\n <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>\n </activity>\n </application>\n</manifest>\n',
+  mainActivityKotlin:'package '+p+'\nimport io.flutter.embedding.android.FlutterActivity\nclass MainActivity: FlutterActivity() {}\n'
+ };
+};
+for(const role of ['RESIDENT','GUARD'])test('V5.5.6 '+role+' Kotlin native TEST patch plans scoped package and launcher branding',()=>{
+ const {plan,reservation}=overlayFixture(role),source=kotlinTemplate(role),before=clone(source);
+ const patch=planTestAndroidNativeWrapperPatch(plan,reservation,source);
+ assert.equal(patch.dispatchAllowed,false);assert.equal(patch.artifactProduced,false);
+ assert.equal(patch.versionCode,101);assert.equal(patch.requiresTrustedWorker,true);
+ assert.match(patch.files['android/app/build.gradle.kts'],/versionCode = 101/);
+ assert.ok(patch.files['android/app/build.gradle.kts'].includes('applicationId = "'+plan.manifest.applicationId+'"'));
+ assert.ok(patch.files['android/app/src/main/AndroidManifest.xml'].includes('@drawable/aaraagate_test_icon'));
+ assert.ok(patch.files['android/app/src/main/AndroidManifest.xml'].includes('android:host="app.fixture.in"'));
+ assert.ok(patch.files['android/app/src/main/res/drawable/launch_background.xml'].includes('@drawable/aaraagate_test_splash'));
+ const path='android/app/src/main/kotlin/'+plan.manifest.applicationId.replaceAll('.','/')+'/MainActivity.kt';
+ assert.ok(patch.files[path].startsWith('package '+plan.manifest.applicationId+'\n'));
+ assert.equal(Object.isFrozen(patch.files),true);assert.deepEqual(source,before);
+});
+for(const [label,change] of [
+ ['extra template input',x=>x.generated.extra='unsafe'],
+ ['incorrect Flutter namespace',x=>x.generated.gradleKts=x.generated.gradleKts.replace('com.aaraaplatforms.aaraagate_resident','in.foreign.default')],
+ ['missing plugin',x=>x.generated.gradleKts=x.generated.gradleKts.replace('dev.flutter.flutter-gradle-plugin','other.plugin')],
+ ['duplicate version code',x=>x.generated.gradleKts+='versionCode = flutter.versionCode\n'],
+ ['wrong default icon',x=>x.generated.manifestXml=x.generated.manifestXml.replace('@mipmap/ic_launcher','@mipmap/foreign')],
+ ['explicit cleartext',x=>x.generated.manifestXml=x.generated.manifestXml.replace('<application','<application android:usesCleartextTraffic="true"')],
+ ['XML DTD',x=>x.generated.manifestXml='<!DOCTYPE manifest [ <!ENTITY xx SYSTEM "file:///etc/passwd"> ]>'+x.generated.manifestXml],
+ ['unexpected Kotlin package',x=>x.generated.mainActivityKotlin=x.generated.mainActivityKotlin.replace('com.aaraaplatforms.aaraagate_resident','in.foreign.launcher')],
+ ['stale reservation',x=>x.reservation.versionCode=0],
+ ['mutable plan',x=>x.plan={...x.plan,manifest:{...x.plan.manifest,applicationId:'in.unknown.test'}}]
+])test('V5.5.6 rejects '+label,()=>{
+ const f=overlayFixture(),x={plan:f.plan,reservation:f.reservation,generated:kotlinTemplate('RESIDENT')};
+ change(x);assert.throws(()=>planTestAndroidNativeWrapperPatch(x.plan,x.reservation,x.generated));
+});
+test('V5.5.6 escapes XML entities in reviewed TEST brand labels',()=>{
+ const {m,c}=fixture();m.label='Partner & Friends "TEST"';
+ c.distributions[0].approvedInputs.label=m.label;
+ c.distributions[0].approvedDigest=androidBuildManifestDigest(c.distributions[0].approvedInputs);
+ const plan=planTestAndroidBuild(m,c);
+ const reservation={id:'55555555-5555-4555-8555-555555555555',revisionId:'66666666-6666-4666-8666-666666666666',versionCode:3,digest:plan.manifestDigest,status:'RESERVED_TEST_ONLY',testOnly:true,dispatchAllowed:false};
+ const patch=planTestAndroidNativeWrapperPatch(plan,reservation,kotlinTemplate('RESIDENT'));
+ assert.ok(patch.files['android/app/src/main/AndroidManifest.xml'].includes('Partner &amp; Friends &quot;TEST&quot;'));
 });
