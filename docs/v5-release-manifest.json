@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.2",
+      "currentSlice": "V5.5.3",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1402,7 +1402,7 @@
         {
           "id": "V5.5.2",
           "name": "Persist immutable reviewed TEST Android revisions without dispatch, with update identity/signer continuity",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-build-revision.service.ts",
             "services/api/src/entitlements/partner-android-build-revision.spec.ts",
@@ -1412,15 +1412,33 @@
           "limitations": [
             "Review records are non-dispatchable and do not certify source, signed assets, actual app links or build artifacts.",
             "Keep initial distribution identity immutable; default demo workflow and staging/main are unchanged."
+          ],
+          "pullRequest": 1293,
+          "mergeSha": "d720e26c06be2c18897eabe146d2d2e769c17c38",
+          "ciRun": 38541594633
+        },
+        {
+          "id": "V5.5.3",
+          "name": "Monotonic TEST Android versionCode reservation and immutable non-dispatchable build-job ledger",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-build-reservation.service.ts",
+            "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts",
+            "services/api/prisma/migrations/20261014154000_v553_android_build_version_reservations/migration.sql"
+          ],
+          "limitations": [
+            "Reservations are not dispatch/completion authority; the trusted builder and authenticated worker checkpoint remain outstanding.",
+            "Default Resident/Guard update identity, real signing, generated APK/AAB and production external providers are untouched."
           ]
         }
       ],
       "remaining": [
-        "Protected CI and native PostgreSQL acceptance for V5.5.2",
-        "Atomic versionCode allocator and idempotent build job ledger with approval revalidation",
-        "Disposable pinned Flutter wrapper generation, native resource and manifest verification",
-        "On-demand TEST APK/AAB build with signing, archive checks and provenance",
-        "Default and Partner A/B update and isolation artifact acceptance"
+        "Validate and merge V5.5.3 after required full CI/native PostgreSQL checks",
+        "Add trusted builder checkpoints at dispatch/completion with current licensing and approval revalidation",
+        "Generate native resources/config only in a disposable pinned Flutter wrapper",
+        "On-demand bounded TEST APK/AAB workflow, real signatures/archives and immutable provenance",
+        "Default and representative Partner A/B update/isolation artifact acceptance"
       ]
     },
     {
