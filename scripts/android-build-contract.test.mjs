@@ -5,6 +5,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { planTestAndroidNativeWrapperPatch } from '../packages/config/src/android-test-native-wrapper.mjs';
+import { materializeTestAndroidNativeWorkspace } from '../packages/config/src/android-test-native-workspace.mjs';
 import { materializeTestAndroidResourceOverlay } from '../packages/config/src/android-test-overlay.mjs';
 import { androidBuildManifestDigest,planTestAndroidBuild,checkAndroidAssetBytes,recordTestAndroidProvenance } from '../packages/config/src/android-build-contract.mjs';
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -161,4 +162,63 @@ test('V5.5.6 escapes XML entities in reviewed TEST brand labels',()=>{
  const reservation={id:'55555555-5555-4555-8555-555555555555',revisionId:'66666666-6666-4666-8666-666666666666',versionCode:3,digest:plan.manifestDigest,status:'RESERVED_TEST_ONLY',testOnly:true,dispatchAllowed:false};
  const patch=planTestAndroidNativeWrapperPatch(plan,reservation,kotlinTemplate('RESIDENT'));
  assert.ok(patch.files['android/app/src/main/AndroidManifest.xml'].includes('Partner &amp; Friends &quot;TEST&quot;'));
+});
+
+
+// V5.5.9: staging only in a fresh disposable directory, never invoking Flutter.
+const independentTemplateDigests = generated => Object.fromEntries(
+ Object.entries(generated).map(([name,contents])=>[name,createHash('sha256').update(contents,'utf8').digest('hex')])
+);
+for(const role of ['RESIDENT','GUARD'])test('V5.5.9 '+role+' stages only TEST native resources, verified Kotlin patch and bounded evidence',async()=>{
+ const {plan,reservation,png}=overlayFixture(role);
+ const generated=kotlinTemplate(role);
+ const before=clone(generated),digests=independentTemplateDigests(generated);
+ const stage=await materializeTestAndroidNativeWorkspace(plan,reservation,{icon:png,splash:png},generated,digests);
+ try{
+  assert.equal(stage.testOnly,true);assert.equal(stage.dispatchAllowed,false);
+  assert.equal(stage.artifactProduced,false);assert.equal(stage.cleanupRequired,true);
+  assert.equal(stage.root.startsWith(tmpdir()),true);
+  assert.equal(stage.manifest.generatedWrapperPresent,false);
+  assert.equal(stage.manifest.workerExecutionAllowed,false);
+  assert.equal(stage.manifest.archiveVerified,false);
+  assert.equal(stage.manifest.signerVerified,false);
+  assert.equal(stage.manifest.versionCode,101);
+  assert.equal(Object.keys(stage.patchFiles).length,4);
+  const metadata=JSON.parse(await readFile(join(stage.root,'.aaraagate','test-native-staging.json'),'utf8'));
+  assert.equal(metadata.manifestDigest,plan.manifestDigest);
+  assert.equal(metadata.sourceSha,plan.manifest.sourceSha);
+  assert.deepEqual(metadata.templateDigests,digests);
+  for(const [relative,info] of Object.entries(stage.patchFiles)){
+   const contents=await readFile(join(stage.root,...relative.split('/')));
+   assert.equal(createHash('sha256').update(contents).digest('hex'),info.sha256);
+   assert.equal(contents.length,info.bytes);
+  }
+  for(const name of ['aaraagate_test_icon.png','aaraagate_test_splash.png']){
+   const bytes=await readFile(join(stage.root,'android','app','src','main','res','drawable-nodpi',name));
+   assert.deepEqual(new Uint8Array(bytes),png);
+  }
+  const kotlinPath='android/app/src/main/kotlin/'+plan.manifest.applicationId.replaceAll('.','/')+'/MainActivity.kt';
+  assert.equal(stage.patchFiles[kotlinPath].bytes>20,true);
+  assert.notEqual(stage.obsoleteActivityPath,kotlinPath);
+  assert.deepEqual(generated,before);
+ }finally{
+  await rm(stage.root,{recursive:true,force:true});
+ }
+ await assert.rejects(readFile(join(stage.root,'.aaraagate','test-native-staging.json'),'utf8'));
+});
+for(const [reason,mutate] of [
+ ['tampered generated template',x=>{x.generated.manifestXml=x.generated.manifestXml.replace('android:label=','android:debuggable="true" android:label=');}],
+ ['untrusted expected digest',x=>{x.digests.gradleKts='0'.repeat(64);}],
+ ['missing independent digest',x=>{delete x.digests.gradleKts;}],
+ ['extra template field',x=>{x.generated.extra='unchecked';}],
+ ['changed version reservation',x=>{x.reservation.versionCode=0;}],
+ ['altered approved icon',x=>{x.png[12]++;}],
+ ['changed TEST source',x=>{x.plan={...x.plan,manifest:{...x.plan.manifest,sourceSha:'0'.repeat(40)}};}],
+ ['foreign role directory',x=>{x.plan={...x.plan,appDirectory:'apps/foreign'};}],
+])test('V5.5.9 fails closed before leaving a workspace on '+reason,async()=>{
+ const f=overlayFixture(),generated=kotlinTemplate('RESIDENT');
+ const x={...f,generated,digests:independentTemplateDigests(generated)};
+ mutate(x);
+ await assert.rejects(materializeTestAndroidNativeWorkspace(
+  x.plan,x.reservation,{icon:x.png,splash:x.png},x.generated,x.digests));
 });

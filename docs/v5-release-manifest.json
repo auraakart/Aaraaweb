@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.8",
+      "currentSlice": "V5.5.9",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1507,7 +1507,7 @@
         {
           "id": "V5.5.8",
           "name": "Append-only TEST worker claim consumption and fresh completion authority without executable dispatch",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-worker-consumption.service.ts",
             "services/api/src/entitlements/partner-android-worker-consumption.spec.ts",
@@ -1517,15 +1517,31 @@
           "limitations": [
             "No external worker service transport, Flutter/Gradle execution, signed APK/AAB, persisted signed artifact or production credentials.",
             "Worker assertion and consumption provide replay barriers, not an execution permit; completion check remains non-verifying until trusted archive proof is separately implemented."
+          ],
+          "pullRequest": 1299,
+          "mergeSha": "3741c64131b9d4238d07390090b8114b9a96c3d3"
+        },
+        {
+          "id": "V5.5.9",
+          "name": "Disposable TEST native resource plus Kotlin patch staging with independently expected template SHA digests",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-native-workspace.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.9-ANDROID-NATIVE-STAGING.md"
+          ],
+          "limitations": [
+            "Stages native resources and Kotlin patch data in a new temporary directory; it does not generate a Flutter project, integrate styles, invoke Gradle/Flutter, or produce an APK/AAB.",
+            "An expected template digest cannot prove trusted origin by itself; it must originate from the separately authenticated pinned runner."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.8 internal single-use consumption and completion checkpoint through protected CI",
-        "Trusted externally authenticated TEST runner connection with pinned source/lock/toolchain and bounded ephemeral invocation/cancellation",
-        "Generate verified Flutter 3.47 Kotlin wrapper and patch native Android identity/assets and themes",
-        "Build independently inspected TEST APK/AAB, validate signing/package/version/ABI and retain immutable SHA-256 provenance",
-        "Partner A/B and default brand isolation, regression and V5.6 closure"
+        "Validate and merge V5.5.9 isolated native staging under protected CI",
+        "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
+        "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
+        "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
+        "Partner A/B installation isolation and V5.6 release acceptance"
       ]
     },
     {
