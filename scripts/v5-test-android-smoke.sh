@@ -94,9 +94,9 @@ if ! grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$SIGNI
   grep -E '^Verified using|^Number of signers:' "$SIGNING" | tee -a "$INFO" || true
   fail 'APK v2 signature scheme not verified'
 fi
-if ! grep -Fq 'Signer #1 certificate SHA-256 digest:' "$SIGNING"; then
-  fail 'No signer leaf certificate SHA-256 digest reported'
-fi
+SIGNER_SUMMARY="dist/aaraagate-$ROLE-test-signing-summary.json"
+node scripts/v5-test-apksigner-report.mjs "$SIGNING" > "$SIGNER_SUMMARY" ||
+  fail 'No unique verified v2 signer and 64-character certificate SHA-256 digest'
 log "INSPECTION_PASSED role=$ROLE sha256=$(sha256sum "$APK" | cut -d' ' -f1)"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {

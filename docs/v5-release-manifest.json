@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.31",
+      "currentSlice": "V5.5.32",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1900,7 +1900,7 @@
         {
           "id": "V5.5.31",
           "name": "Diagnose real Resident/Guard TEST APK acceptance failures with explicit stages and retained evidence",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_ANDROID_SMOKE_FAILED",
           "evidence": [
             "scripts/v5-test-android-smoke.sh",
             ".github/workflows/v5-test-android-smoke.yml",
@@ -1909,11 +1909,33 @@
           "limitations": [
             "Base APKs compiled in earlier PR but package/SDK/signing acceptance failed without an identified assertion.",
             "Passing canonical CI does not independently establish real smoke acceptance or attested partner distribution."
+          ],
+          "pullRequest": 1322,
+          "mergeSha": "637a49eb37f2e4b5862b422e541ab26264a5aa7b",
+          "ciRun": 38639898894,
+          "androidSmokeRun": 38639898755,
+          "androidSmokeResult": "BOTH_BASE_APKS_BUILT; V2_VERIFIED; SDK37_SIGNER_LABEL_MISMATCH"
+        },
+        {
+          "id": "V5.5.32",
+          "name": "Support Android Build Tools 37 real v2 signer report and gate develop merge on both TEST Android APK smoke jobs",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "scripts/v5-test-apksigner-report.mjs",
+            "scripts/v5-test-apksigner-report.test.mjs",
+            "scripts/v5-test-android-smoke.sh",
+            ".github/workflows/ci.yml",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.32-REAL-ANDROID-SIGNER-CI-GATES.md"
+          ],
+          "limitations": [
+            "Base Resident/Guard debug binaries only, not independently attested V5 builder or commercial partner-branded distribution.",
+            "Milestone remains pending until both real Android smoke jobs and protected gate pass."
           ]
         }
       ],
       "remaining": [
-        "V5.5.31 identify the exact APK acceptance assertion, fix narrow mismatch, confirm both real Android TEST smoke matrix jobs green",
+        "V5.5.32 verify both actual Android debug smoke jobs green and protected merge gate blocked on any failure",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
