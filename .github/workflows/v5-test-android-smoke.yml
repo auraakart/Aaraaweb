@@ -6,6 +6,11 @@ on:
     paths:
       - '.github/workflows/v5-test-android-smoke.yml'
       - 'scripts/v5-test-android-smoke.sh'
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/v5-test-android-smoke.yml'
+      - 'scripts/v5-test-android-smoke.sh'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   base-debug-apk:
     name: TEST base debug APK - ${{ matrix.app }}
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
