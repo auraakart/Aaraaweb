@@ -51,9 +51,10 @@ export class PartnerAndroidBuildRevisionService {
   if(typeof value!=='string'||value.trim().length<3||value.trim().length>500)throw new BadRequestException('Invalid revision review reason');
   return value.trim();
  }
- private bound(p:{manifest:Prisma.JsonValue;approval:{id:string;revocation:unknown}|null},
+ private bound(p:{manifest:Prisma.JsonValue;digest:string;approval:{id:string;revocation:unknown}|null},
   proposalId:string,partnerId:string,societyId:string,m:Record<string,unknown>) {
   if(!p.approval||p.approval.revocation)throw new NotFoundException('Current distribution approval unavailable');
+  if(p.digest!==hash(p.manifest))throw new ConflictException('Initial distribution digest changed');
   const original=p.manifest as Record<string,unknown>;
   if(m.distributionId!==proposalId||m.approvalId!==p.approval.id||m.partnerId!==partnerId||m.societyId!==societyId||
    m.applicationId!==original.applicationId||m.namespace!==original.namespace||m.appRole!==original.appRole||
