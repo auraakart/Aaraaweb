@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.4",
+      "currentSlice": "V5.5.5",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1438,7 +1438,7 @@
         {
           "id": "V5.5.4",
           "name": "Isolated disposable TEST Android native resource overlay with explicit non-dispatchable metadata",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-overlay.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1447,14 +1447,31 @@
           "limitations": [
             "Overlay only; no Flutter create/build or APK/AAB, no source checkout, no manifest/Gradle patch, no credential signing.",
             "Brand/asset, source/lock and signer verifications remain builder responsibilities; TEST assets must already come from verified sanitized pipeline."
+          ],
+          "pullRequest": 1295,
+          "mergeSha": "aaa4b77a6d90bd5c352b144d5feb098b8e286fe4",
+          "ciRun": 38548511220
+        },
+        {
+          "id": "V5.5.5",
+          "name": "Live TEST Android build reservation authority checkpoints before dispatch and completion (non-executing)",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-build-reservation.service.ts",
+            "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
+            "docs/architecture/V5.5.5-ANDROID-BUILDER-AUTHORITY-CHECKPOINTS.md"
+          ],
+          "limitations": [
+            "Read-only checks are not a worker session or executable build authorization; checkout, native asset, toolchain and signer checks still required.",
+            "No APK/AAB, trusted worker credentials, new API route, workflow change, artifact record, or production promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.4 isolated native overlay with protected CI",
-        "Trusted builder dispatch/completion reauthorization against current distribution, reviewed revision and reserved version",
-        "Generate validated Flutter Android platform wrapper in an ephemeral project, patch native identity/Gradle safely, verify resource mapping",
-        "Bounded TEST APK/AAB workflow, test signer/archives checks, SHA provenance and cleanup",
+        "Validate and merge V5.5.5 read-only reauthorization checkpoints with protected CI",
+        "Implement isolated authenticated worker dispatch and real-time completion invocation (never reuse an earlier checkpoint)",
+        "Generate verified Flutter Android wrapper and safe native manifest/Gradle identity/resources patch in ephemeral workspace",
+        "Bounded TEST APK/AAB build, signing/archive/package/ABI integrity verification and SHA-256 provenance with cleanup",
         "Default and Partner A/B install/update/isolation tests, V5.6 regression and closure"
       ]
     },

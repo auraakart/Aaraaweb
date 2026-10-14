@@ -71,4 +71,64 @@ export class PartnerAndroidBuildReservationService {
    throw error;
   }
  }
+
+ /** Read-only, fail-closed live authority checkpoint for a future isolated
+  * TEST builder. Must be called independently before dispatch and completion:
+  * an earlier successful checkpoint is never a build permit. The owning
+  * trusted worker must separately validate checkout, approved native bytes,
+  * toolchain, signer, archives and any completion evidence. */
+ async checkpoint(principal:AuthPrincipal,societyId:string,proposalId:string,reservationId:string,
+  input:ReservationContext & {versionCode:number;stage:'BEFORE_DISPATCH'|'BEFORE_COMPLETION'}) {
+  if(!uuid.test(proposalId)||!uuid.test(reservationId)||!uuid.test(input.revisionId)||
+     !hex.test(input.expectedDigest)||!Number.isSafeInteger(input.versionCode)||
+     input.versionCode<1||input.versionCode>2100000000||
+     !['BEFORE_DISPATCH','BEFORE_COMPLETION'].includes(input.stage))
+   throw new BadRequestException('Invalid Android TEST checkpoint reference');
+  return this.licenses.withActiveAllocation(principal,societyId,input,async(tx,scope)=>{
+   // Serialize against proposal-level distribution changes and reservations.
+   // The licensing helper rechecks live ownership, grant, opt-in and allocation.
+   await tx.$queryRaw`SELECT "id" FROM "PartnerDistributionProposal" WHERE "id"=${proposalId}::uuid FOR UPDATE`;
+   const proposal=await tx.partnerDistributionProposal.findFirst({
+    where:{id:proposalId,allocationId:scope.allocationId},
+    include:{approval:{include:{revocation:true}}}
+   });
+   if(!proposal?.approval||proposal.approval.revocation)
+    throw new NotFoundException('Active TEST distribution approval unavailable');
+   if(proposal.digest!==hash(proposal.manifest))
+    throw new ConflictException('Initial distribution input digest changed');
+   const revision=await tx.partnerAndroidBuildRevision.findFirst({
+    where:{proposalId},orderBy:{version:'desc'},include:{approval:true}
+   });
+   if(!revision?.approval||revision.id!==input.revisionId)
+    throw new ConflictException('Latest independently reviewed Android revision required');
+   if(revision.digest!==input.expectedDigest||revision.digest!==hash(revision.manifest))
+    throw new ConflictException('Reviewed Android manifest digest changed');
+   const reservation=await tx.partnerAndroidBuildReservation.findFirst({
+    where:{id:reservationId,proposalId},
+    select:{id:true,proposalId:true,revisionId:true,versionCode:true,digest:true}
+   });
+   if(!reservation||reservation.proposalId!==proposalId||
+      reservation.revisionId!==revision.id||reservation.digest!==revision.digest||
+      reservation.versionCode!==input.versionCode)
+    throw new ConflictException('Android version reservation is stale or foreign');
+   const approved=proposal.manifest as Record<string,unknown>;
+   const manifest=revision.manifest as Record<string,unknown>;
+   if(manifest.schemaVersion!==1||manifest.buildMode!=='TEST'||
+      !['RESIDENT','GUARD'].includes(String(manifest.appRole))||
+      manifest.distributionId!==proposalId||manifest.approvalId!==proposal.approval.id||
+      manifest.partnerId!==scope.partnerId||manifest.societyId!==societyId||
+      !['applicationId','namespace','appRole','label','sourceSha','configDigest','apiOrigin','signingProfile']
+       .every(k=>manifest[k]===approved[k])||
+      typeof manifest.signerFingerprint!=='string'||!hex.test(manifest.signerFingerprint))
+    throw new ConflictException('Android TEST identity or immutable inputs drifted');
+   // No token, queued execution, artifact or claim of source/signer verification.
+   return {stage:input.stage,checkpoint:'CURRENT_TEST_AUTHORITY_ONLY' as const,
+    distributionId:proposalId,revisionId:revision.id,reservationId:reservation.id,
+    manifestDigest:revision.digest,versionCode:reservation.versionCode,
+    appRole:manifest.appRole,applicationId:manifest.applicationId,
+    testOnly:true as const,dispatchAllowed:false as const,artifactVerified:false as const,
+    requiresIndependentWorkerVerification:true as const};
+  });
+ }
+
 }

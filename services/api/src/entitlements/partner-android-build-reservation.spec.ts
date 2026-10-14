@@ -91,3 +91,75 @@ describe('V5.5.3 monotonic Android versionCode TEST reservation',()=>{
   expect(f.run).not.toHaveBeenCalled();
  });
 });
+
+
+describe('V5.5.5 read-only TEST builder live-authority checkpoints',()=>{
+ const context=(stage:'BEFORE_DISPATCH'|'BEFORE_COMPLETION'='BEFORE_DISPATCH')=>({
+  ...input,versionCode:1,stage
+ });
+ function prepared(){
+  const f=fixture();
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job});
+  return f;
+ }
+ it.each(['BEFORE_DISPATCH','BEFORE_COMPLETION'] as const)('revalidates %s without granting execution',async stage=>{
+  const f=prepared(),v=await f.service.checkpoint(principal(),societyId,proposalId,jobId,context(stage));
+  expect(v).toMatchObject({stage,checkpoint:'CURRENT_TEST_AUTHORITY_ONLY',revisionId,
+   reservationId:jobId,versionCode:1,testOnly:true,dispatchAllowed:false,
+   artifactVerified:false,requiresIndependentWorkerVerification:true});
+  expect(f.run).toHaveBeenCalledOnce();
+  expect(f.tx.partnerAndroidBuildReservation.create).not.toHaveBeenCalled();
+ });
+ it('refuses invalid references before any license lookup',async()=>{
+  const f=prepared();
+  await expect(f.service.checkpoint(principal(),societyId,'bad',jobId,context())).rejects.toThrow();
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,'bad',context())).rejects.toThrow();
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,{...context(),stage:'BUILD' as never})).rejects.toThrow();
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,{...context(),versionCode:0})).rejects.toThrow();
+  expect(f.run).not.toHaveBeenCalled();
+ });
+ it('denies missing, foreign and changed versionCode receipts',async()=>{
+  const f=prepared();
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue(null);
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/reservation/);
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job,proposalId:randomUUID()});
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/reservation/);
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job,versionCode:2});
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/reservation/);
+  f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job,revisionId:randomUUID()});
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/reservation/);
+ });
+ it('refuses a superseded or unreviewed latest revision',async()=>{
+  const f=prepared();f.revision.approval=null;
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/reviewed/);
+  f.revision.approval={id:randomUUID()};
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,{...context(),revisionId:randomUUID()})).rejects.toThrow(/reviewed/);
+ });
+ it('refuses revoked approval and forged proposal or revision digests',async()=>{
+  const f=prepared();f.proposal.approval.revocation={id:randomUUID()};
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/approval/);
+  f.proposal.approval.revocation=null;f.proposal.digest='0'.repeat(64);
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/digest/);
+  f.proposal.digest=digest(original);f.revision.digest='0'.repeat(64);
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/digest/);
+ });
+ it('rejects changes in immutable package/source/brand/signer fields',async()=>{
+  const f=prepared();
+  for(const [key,value] of [['applicationId','in.foreign.other'],['sourceSha','b'.repeat(40)],
+   ['configDigest','0'.repeat(64)],['signingProfile','TEST_FOREIGN'],['appRole','GUARD'],
+   ['signerFingerprint','bad']] as const){
+   const changed={...manifest,[key]:value};
+   f.revision.manifest=changed;
+   f.revision.digest=digest(changed);
+   f.tx.partnerAndroidBuildReservation.findFirst.mockResolvedValue({...f.job,digest:f.revision.digest});
+   await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,
+    {...context(),expectedDigest:f.revision.digest})).rejects.toThrow(/identity/);
+  }
+ });
+ it('propagates license allocation/consent revocation at both stages',async()=>{
+  const f=prepared();f.run.mockRejectedValue(new Error('Current consent withdrawn'));
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context())).rejects.toThrow(/withdrawn/);
+  await expect(f.service.checkpoint(principal(),societyId,proposalId,jobId,context('BEFORE_COMPLETION'))).rejects.toThrow(/withdrawn/);
+  expect(f.tx.partnerAndroidBuildReservation.create).not.toHaveBeenCalled();
+ });
+});
