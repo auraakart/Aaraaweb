@@ -347,3 +347,68 @@ import './android-test-mtls-transport.test.mjs';
 
 // V5.5.19: fail-closed local Linux TEST runner isolation read-only mount policy.
 import './android-test-linux-isolation.test.mjs';
+
+// V5.5.20: final Android 12 native overlay and Android 7+ compatibility.
+import { verifyFinalTestAndroid12NativeOverlay } from '../packages/config/src/android-test-final-native-inventory.mjs';
+for(const role of ['RESIDENT','GUARD'])test('V5.5.20 '+role+' verifies complete native input bytes and SDK 24/36 compatibility',async()=>{
+ const f=overlayFixture(role),g=kotlinTemplate(role);
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ let themed;
+ try{
+  themed=await materializeTestAndroid12ThemeWorkspace(f.plan,f.reservation,stage);
+  const receipt=await verifyFinalTestAndroid12NativeOverlay(f.plan,f.reservation,themed);
+  assert.equal(receipt.appRole,role);
+  assert.equal(receipt.applicationId,'in.fixture.partner.'+role.toLowerCase());
+  assert.equal(receipt.minSdk,24);
+  assert.equal(receipt.targetSdk,36);
+  assert.equal(receipt.compileSdk,36);
+  assert.equal(receipt.verifiedFileCount,13);
+  assert.equal(receipt.finalNativeOverlayVerified,true);
+  assert.match(receipt.nativeOverlayDigest,/^[0-9a-f]{64}$/);
+  assert.equal(receipt.flutterWrapperGenerated,false);
+  assert.equal(receipt.dispatchAllowed,false);
+  assert.equal(receipt.artifactProduced,false);
+  const gradle=await readFile(join(themed.root,'android/app/build.gradle.kts'),'utf8');
+  assert.match(gradle,/minSdk = 24/);
+  assert.match(gradle,/targetSdk = 36/);
+  assert.match(gradle,/compileSdk = 36/);
+ }finally{
+  if(themed)await rm(themed.root,{recursive:true,force:true});
+  await rm(stage.root,{recursive:true,force:true});
+ }
+});
+test('V5.5.20 replaces Flutter-generated target SDK when present rather than duplicating it',()=>{
+ const f=overlayFixture(),g=kotlinTemplate('RESIDENT');
+ g.gradleKts=g.gradleKts.replace('minSdk = flutter.minSdkVersion',
+  'minSdk = flutter.minSdkVersion\n targetSdk = flutter.targetSdkVersion');
+ const patch=planTestAndroidNativeWrapperPatch(f.plan,f.reservation,g);
+ assert.equal((patch.files['android/app/build.gradle.kts'].match(/targetSdk = 36/g)||[]).length,1);
+});
+for(const [name,change] of [
+ ['tampered package Gradle',async x=>appendFile(join(x.themed.root,'android/app/build.gradle.kts'),'\n// unexpected')],
+ ['tampered Kotlin package',async x=>appendFile(join(x.themed.root,
+   'android/app/src/main/kotlin/in/fixture/partner/resident/MainActivity.kt'),'\n// unexpected')],
+ ['tampered v31 splash theme',async x=>appendFile(join(x.themed.root,'android/app/src/main/res/values-v31/styles.xml'),'<!-- unwanted -->')],
+ ['extra signed-looking file',async x=>writeFile(join(x.themed.root,'android/app/fake-release.jks'),'forbidden')],
+ ['changed PNG bytes',async x=>appendFile(join(x.themed.root,
+   'android/app/src/main/res/drawable-nodpi/aaraagate_test_icon.png'),Buffer.from([1]))],
+ ['changed receipt',async x=>writeFile(join(x.themed.root,'.aaraagate/test-android12-themes.json'),'{}')],
+ ['foreign reserved version',async x=>{x.reservation={...x.reservation,versionCode:102};}],
+ ['wrong source digest',async x=>{x.plan={...x.plan,manifest:{...x.plan.manifest,sourceSha:'0'.repeat(40)}};}],
+ ['untrusted dispatch flag',async x=>{x.themed={...x.themed,dispatchAllowed:true};}]
+])test('V5.5.20 rejects '+name+' before any APK build',async()=>{
+ const f=overlayFixture('RESIDENT'),g=kotlinTemplate('RESIDENT');
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ let themed;
+ try{
+  themed=await materializeTestAndroid12ThemeWorkspace(f.plan,f.reservation,stage);
+  const x={...f,themed};
+  await change(x);
+  await assert.rejects(verifyFinalTestAndroid12NativeOverlay(x.plan,x.reservation,x.themed));
+ }finally{
+  if(themed)await rm(themed.root,{recursive:true,force:true});
+  await rm(stage.root,{recursive:true,force:true});
+ }
+});
