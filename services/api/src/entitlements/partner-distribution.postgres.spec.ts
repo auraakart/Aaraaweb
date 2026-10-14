@@ -1,11 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppRole } from '../auth/auth.types';
 import { EntitlementService } from './entitlement.service';
 import { ProductFeature } from './entitlement.types';
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
-import { PartnerLicenseLifecycleService } from './partner-license-lifecycle.service';
+import { PartnerLicenseLifecycleService, canonicalLicenseJson } from './partner-license-lifecycle.service';
+import { PartnerAndroidBuildRevisionService } from './partner-android-build-revision.service';
 import { SocietyOwnershipTransferService } from './society-ownership-transfer.service';
 import { PartnerDistributionService } from './partner-distribution.service';
 import { LegacySubscriptionConversionService } from './legacy-subscription-conversion.service';
@@ -82,6 +83,56 @@ withDatabase('distribution and legacy subscription native PostgreSQL',()=>{
    await p.partner.update({where:{id:f.partnerId},data:{status:'RESTRICTED'}});
    await expect(f.conversion.convert(f.principal(),f.societyId,input)).rejects.toThrow(/context changed/);
    expect(await f.entitlements.current(f.societyId)).toEqual(f.before);
+  }finally{await p.$disconnect();}
+ });
+
+ it('persists independent reviewed Android revisions, signer continuity and raw database boundaries',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p),android=new PartnerAndroidBuildRevisionService(f.licenses);
+   const initial=await f.service.propose(f.principal(f.maker),f.societyId,{...f.context(),manifest:f.manifest});
+   const initialApproval=await f.service.approve(f.principal(),f.societyId,initial.id,{...f.context(),expectedDigest:initial.digest,reason:'Review distribution identity'});
+   const build={schemaVersion:1,distributionId:initial.id,approvalId:initialApproval.id,
+    partnerId:f.partnerId,societyId:f.societyId,brandRevision:1,sourceSha:f.manifest.sourceSha,
+    lockDigest:'c'.repeat(64),applicationId:f.manifest.applicationId,namespace:f.manifest.namespace,
+    appRole:f.manifest.appRole,label:f.manifest.label,buildMode:'TEST',
+    apiOrigin:f.manifest.apiOrigin,configDigest:f.manifest.configDigest,
+    assetDigests:{icon:'d'.repeat(64),splash:'e'.repeat(64)},firebaseClientRef:'TEST_CLIENT',
+    appLinkHosts:[],signingProfile:f.manifest.signingProfile,signerFingerprint:'f'.repeat(64)};
+   const request={...f.context(),manifest:build};
+   const one=await android.propose(f.principal(f.maker),f.societyId,initial.id,request);
+   expect(one).toMatchObject({version:1,dispatchAllowed:false});
+   expect(await android.propose(f.principal(f.maker),f.societyId,initial.id,request)).toEqual(one);
+   await expect(android.propose(f.principal(f.checker),f.societyId,initial.id,
+    {...f.context(),manifest:{...build,sourceSha:'b'.repeat(40)}})).rejects.toThrow(/review/);
+   const review={...f.context(),expectedDigest:one.digest,reason:'Independent Android review'};
+   await expect(android.approve(f.principal(f.maker),f.societyId,initial.id,one.id,review)).rejects.toThrow(/Independent/);
+   await expect(p.partnerAndroidBuildRevisionApproval.create({data:{
+    revisionId:one.id,actorId:f.maker,idempotencyKey:randomUUID(),reason:'Raw self review'
+   }})).rejects.toThrow(/Independent/);
+   const accepted=await android.approve(f.principal(),f.societyId,initial.id,one.id,review);
+   expect(await android.approve(f.principal(),f.societyId,initial.id,one.id,review)).toEqual(accepted);
+   expect(await android.latest(f.principal(),f.societyId,initial.id,f.context())).toMatchObject({
+    version:1,manifest:build,dispatchAllowed:false,requiresBuilderRevalidation:true});
+   await expect(p.partnerAndroidBuildRevision.update({where:{id:one.id},data:{version:10}})).rejects.toThrow(/immutable/);
+   await expect(android.propose(f.principal(f.maker),f.societyId,initial.id,{
+    ...f.context(),manifest:{...build,signerFingerprint:'0'.repeat(64)}
+   })).rejects.toThrow(/signer/);
+   const two=await android.propose(f.principal(f.maker),f.societyId,initial.id,{
+    ...f.context(),manifest:{...build,sourceSha:'b'.repeat(40),lockDigest:'2'.repeat(64)}
+   });
+   expect(two.version).toBe(2);
+   const bad={...build,partnerId:randomUUID()};
+   const hash=createHash('sha256').update(canonicalLicenseJson(bad)).digest('hex');
+   await expect(p.partnerAndroidBuildRevision.create({data:{
+    proposalId:initial.id,version:3,actorId:f.maker,idempotencyKey:randomUUID(),manifest:bad,digest:hash
+   }})).rejects.toThrow(/identity/);
+   await expect(android.latest(f.principal(),f.societyId,initial.id,f.context())).rejects.toThrow(/reviewed/);
+   await android.approve(f.principal(),f.societyId,initial.id,two.id,{
+    ...f.context(),expectedDigest:two.digest,reason:'Review update revision'
+   });
+   expect((await android.latest(f.principal(),f.societyId,initial.id,f.context())).version).toBe(2);
+   await f.service.revoke(f.principal(),f.societyId,initial.id,{idempotencyKey:randomUUID(),reason:'Revoke test identity'});
+   await expect(android.latest(f.principal(),f.societyId,initial.id,f.context())).rejects.toThrow(/approval/);
   }finally{await p.$disconnect();}
  });
 });

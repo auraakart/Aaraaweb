@@ -16,6 +16,8 @@ model User {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   distributionProposals     PartnerDistributionProposal[]
+  androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
+  androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
   legacySubscriptions       SocietyLegacySubscription[]
@@ -1803,6 +1805,34 @@ model GateNotificationAttempt {
 }
 
 // Immutable test-build identity approval; never an app/session audience or build dispatch.
+model PartnerAndroidBuildRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  proposalId     String   @db.Uuid
+  version        Int
+  manifest       Json
+  digest         String   @db.VarChar(64)
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionCreator", fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerAndroidBuildRevisionApproval?
+
+  @@unique([proposalId, version])
+  @@unique([proposalId, idempotencyKey])
+}
+
+model PartnerAndroidBuildRevisionApproval {
+  id             String   @id @default(uuid()) @db.Uuid
+  revisionId     String   @unique @db.Uuid
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  reason         String   @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  revision       PartnerAndroidBuildRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionReviewer", fields: [actorId], references: [id], onDelete: Restrict)
+}
+
 model PartnerDistributionProposal {
   id             String @id @default(uuid()) @db.Uuid
   allocationId   String @db.Uuid
@@ -1815,6 +1845,7 @@ model PartnerDistributionProposal {
   allocation     SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
   actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   approval       PartnerDistributionApproval?
+  androidBuildRevisions PartnerAndroidBuildRevision[]
   @@unique([allocationId, idempotencyKey])
 }
 model PartnerDistributionApproval {

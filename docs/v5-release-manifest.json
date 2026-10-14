@@ -1389,28 +1389,38 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.1",
+      "currentSlice": "V5.5.2",
       "slices": [
         {
           "id": "V5.5.1",
-          "name": "Pure test Android build manifest, identity and provenance validation contracts",
-          "status": "IN_PROGRESS",
-          "baselineSha": "165f645a92724684578c898c15b110c2d1b066d9",
+          "name": "Immutable TEST Android build planning, identity and non-dispatchable provenance contracts",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1292,
+          "mergeSha": "aa35252c69f0ff2b48b968ab6908887bd980c26f",
+          "ciRun": 38522438582
+        },
+        {
+          "id": "V5.5.2",
+          "name": "Persist immutable reviewed TEST Android revisions without dispatch, with update identity/signer continuity",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
           "evidence": [
-            "docs/architecture/V5.5.1-ANDROID-BUILD-CONTRACT.md",
-            "scripts/android-build-contract.test.mjs"
+            "services/api/src/entitlements/partner-android-build-revision.service.ts",
+            "services/api/src/entitlements/partner-android-build-revision.spec.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts",
+            "services/api/prisma/migrations/20261014143000_v552_android_build_revisions/migration.sql"
           ],
           "limitations": [
-            "53 local contract tests passed; protected CI/merge acceptance pending.",
-            "Pure simulation snapshots only: no authoritative dispatch, persisted identity revisions/version allocator, wrapper build, signing or APK/AAB artifacts."
+            "Review records are non-dispatchable and do not certify source, signed assets, actual app links or build artifacts.",
+            "Keep initial distribution identity immutable; default demo workflow and staging/main are unchanged."
           ]
         }
       ],
       "remaining": [
-        "Authorized immutable build-ready revisions and persistent monotonic versionCode/job allocation",
-        "Reusable disposable native wrapper/resource generation and approved byte-level assets",
-        "Bounded TEST Resident/Guard APK/AAB builds, signing cleanup, artifact validation and provenance",
-        "Default artifact identity/update continuity and representative Partner A/B acceptance"
+        "Protected CI and native PostgreSQL acceptance for V5.5.2",
+        "Atomic versionCode allocator and idempotent build job ledger with approval revalidation",
+        "Disposable pinned Flutter wrapper generation, native resource and manifest verification",
+        "On-demand TEST APK/AAB build with signing, archive checks and provenance",
+        "Default and Partner A/B update and isolation artifact acceptance"
       ]
     },
     {
