@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.29",
+      "currentSlice": "V5.5.30",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1865,7 +1865,7 @@
         {
           "id": "V5.5.29",
           "name": "Real base Resident/Guard TEST debug APK generation and local Android package/signature smoke",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_RUNTIME_SMOKE_NOT_OBSERVED",
           "evidence": [
             ".github/workflows/v5-test-android-smoke.yml",
             "scripts/v5-test-android-smoke.sh",
@@ -1874,11 +1874,27 @@
           "limitations": [
             "Requires genuine post-merge workflow success for both roles before real APK generation can be counted complete.",
             "Default debug app only, not reviewed partner distribution, externally attested builder, production signer, AAB or on-device installation."
+          ],
+          "pullRequest": 1320,
+          "mergeSha": "7fb6d2fdbbf58ca5a5044c4a12650811bc572a23",
+          "ciRun": 38621685554
+        },
+        {
+          "id": "V5.5.30",
+          "name": "Enable same-repo PR-scoped actual Resident/Guard Android debug TEST build when automated develop merges suppress downstream push workflows",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.29-REAL-BASE-ANDROID-TEST-SMOKE.md"
+          ],
+          "limitations": [
+            "Code-level TEST smoke must not be marked as real APK completion unless both Android matrix jobs pass and hashes are recorded.",
+            "Genuine base debug builds are not trusted partner distribution artifacts or independent OCI runtime attestation."
           ]
         }
       ],
       "remaining": [
-        "Merge V5.5.29 after protected CI and verify actual one-time Resident/Guard debug APK workflow reports",
+        "Validate V5.5.30 PR-scoped actual Resident and Guard Android debug build jobs and record successful APK SHA-256 evidence",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
