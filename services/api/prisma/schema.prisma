@@ -17,6 +17,7 @@ model User {
   updatedAt                 DateTime                   @updatedAt
   distributionProposals     PartnerDistributionProposal[]
   androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
+  androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1805,6 +1806,23 @@ model GateNotificationAttempt {
 }
 
 // Immutable test-build identity approval; never an app/session audience or build dispatch.
+model PartnerAndroidBuildReservation {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @db.Uuid
+  revisionId     String @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  versionCode    Int
+  digest         String @db.VarChar(64)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields:[proposalId], references:[id], onDelete:Restrict)
+  revision       PartnerAndroidBuildRevision @relation(fields:[revisionId], references:[id], onDelete:Restrict)
+  actor          User @relation("AndroidBuildReservationCreator", fields:[actorId], references:[id], onDelete:Restrict)
+  @@unique([proposalId, versionCode])
+  @@unique([proposalId, idempotencyKey])
+  @@index([revisionId, createdAt])
+}
+
 model PartnerAndroidBuildRevision {
   id             String   @id @default(uuid()) @db.Uuid
   proposalId     String   @db.Uuid
@@ -1817,6 +1835,7 @@ model PartnerAndroidBuildRevision {
   proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
   actor          User @relation("AndroidBuildRevisionCreator", fields: [actorId], references: [id], onDelete: Restrict)
   approval       PartnerAndroidBuildRevisionApproval?
+  reservations   PartnerAndroidBuildReservation[]
 
   @@unique([proposalId, version])
   @@unique([proposalId, idempotencyKey])
@@ -1846,6 +1865,7 @@ model PartnerDistributionProposal {
   actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   approval       PartnerDistributionApproval?
   androidBuildRevisions PartnerAndroidBuildRevision[]
+  androidBuildReservations PartnerAndroidBuildReservation[]
   @@unique([allocationId, idempotencyKey])
 }
 model PartnerDistributionApproval {

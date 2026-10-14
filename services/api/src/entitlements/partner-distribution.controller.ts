@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PartnerDistributionService } from './partner-distribution.service';
 import { PartnerAndroidBuildRevisionService } from './partner-android-build-revision.service';
+import { PartnerAndroidBuildReservationService } from './partner-android-build-reservation.service';
 import { LegacySubscriptionConversionService } from './legacy-subscription-conversion.service';
 class ContextDto {
  @IsUUID() grantId!:string;
@@ -16,6 +17,10 @@ class ContextDto {
 }
 class ProposalDto extends ContextDto { @IsObject() manifest!:Record<string,unknown> }
 class AndroidBuildRevisionDto extends ContextDto { @IsObject() manifest!:Record<string,unknown> }
+class AndroidBuildReserveDto extends ContextDto {
+ @IsUUID() revisionId!:string;
+ @IsString() @Matches(/^[0-9a-f]{64}$/) expectedDigest!:string;
+}
 class ApprovalDto extends ContextDto {
  @IsString() @Matches(/^[0-9a-f]{64}$/) expectedDigest!:string;
  @IsString() @MinLength(3) @MaxLength(500) reason!:string;
@@ -28,7 +33,7 @@ class RevokeDto {
 @UseGuards(BearerGuard,RolesGuard)
 @Roles(AppRole.SUPER_ADMIN)
 export class PartnerDistributionController {
- constructor(private readonly distributions:PartnerDistributionService,private readonly subscriptions:LegacySubscriptionConversionService,private readonly androidRevisions:PartnerAndroidBuildRevisionService) {}
+ constructor(private readonly distributions:PartnerDistributionService,private readonly subscriptions:LegacySubscriptionConversionService,private readonly androidRevisions:PartnerAndroidBuildRevisionService,private readonly androidReservations:PartnerAndroidBuildReservationService) {}
  @Post('distributions') @Header('Cache-Control','no-store')
  propose(@Req() req:AuthenticatedRequest,@Param('societyId',ParseUUIDPipe) societyId:string,@Body() dto:ProposalDto){return this.distributions.propose(req.auth!,societyId,dto);}
  @Post('distributions/:proposalId/approvals') @Header('Cache-Control','no-store')
@@ -43,6 +48,8 @@ export class PartnerDistributionController {
  reviewAndroidRevision(@Req() req:AuthenticatedRequest,@Param('societyId',ParseUUIDPipe) societyId:string,@Param('proposalId',ParseUUIDPipe) proposalId:string,@Param('revisionId',ParseUUIDPipe) revisionId:string,@Body() dto:ApprovalDto){return this.androidRevisions.approve(req.auth!,societyId,proposalId,revisionId,dto);}
  @Post('distributions/:proposalId/android-revisions/latest-reviewed') @Header('Cache-Control','no-store')
  latestAndroidRevision(@Req() req:AuthenticatedRequest,@Param('societyId',ParseUUIDPipe) societyId:string,@Param('proposalId',ParseUUIDPipe) proposalId:string,@Body() dto:ContextDto){return this.androidRevisions.latest(req.auth!,societyId,proposalId,dto);}
+ @Post('distributions/:proposalId/android-build-reservations') @Header('Cache-Control','no-store')
+ reserveAndroidVersion(@Req() req:AuthenticatedRequest,@Param('societyId',ParseUUIDPipe) societyId:string,@Param('proposalId',ParseUUIDPipe) proposalId:string,@Body() dto:AndroidBuildReserveDto){return this.androidReservations.reserve(req.auth!,societyId,proposalId,dto);}
  @Post('legacy-subscriptions/conversions') @Header('Cache-Control','no-store')
  convert(@Req() req:AuthenticatedRequest,@Param('societyId',ParseUUIDPipe) societyId:string,@Body() dto:ContextDto){return this.subscriptions.convert(req.auth!,societyId,dto);}
 }
