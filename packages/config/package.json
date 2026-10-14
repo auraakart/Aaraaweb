@@ -11,7 +11,8 @@
       "require": "./src/partner-domain-loader.cjs",
       "default": "./src/partner-domain-loader.cjs"
     },
-    "./android-build-contract": "./src/android-build-contract.mjs"
+    "./android-build-contract": "./src/android-build-contract.mjs",
+    "./android-test-overlay": "./src/android-test-overlay.mjs"
   },
   "typesVersions": {
     "*": {
