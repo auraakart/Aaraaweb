@@ -1734,7 +1734,7 @@
           "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
           "evidence": [
             "packages/config/src/android-test-wrapper-assembly.mjs",
-            "scripts/android-test-wrapper-assembly.test.mjs",
+            "scripts/android-build-contract.test.mjs",
             "docs/architecture/V5.5.21-PINNED-FLUTTER-WRAPPER-ASSEMBLY.md"
           ],
           "limitations": [
