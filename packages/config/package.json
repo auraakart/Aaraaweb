@@ -10,7 +10,8 @@
       "types": "./src/partner-domain-loader.d.cts",
       "require": "./src/partner-domain-loader.cjs",
       "default": "./src/partner-domain-loader.cjs"
-    }
+    },
+    "./android-build-contract": "./src/android-build-contract.mjs"
   },
   "typesVersions": {
     "*": {

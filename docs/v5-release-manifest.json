@@ -1384,10 +1384,33 @@
     {
       "id": "V5.5",
       "name": "Branded Android build automation",
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "dependsOn": [
         "V5.3",
         "V5.4"
+      ],
+      "currentSlice": "V5.5.1",
+      "slices": [
+        {
+          "id": "V5.5.1",
+          "name": "Pure test Android build manifest, identity and provenance validation contracts",
+          "status": "IN_PROGRESS",
+          "baselineSha": "165f645a92724684578c898c15b110c2d1b066d9",
+          "evidence": [
+            "docs/architecture/V5.5.1-ANDROID-BUILD-CONTRACT.md",
+            "scripts/android-build-contract.test.mjs"
+          ],
+          "limitations": [
+            "53 local contract tests passed; protected CI/merge acceptance pending.",
+            "Pure simulation snapshots only: no authoritative dispatch, persisted identity revisions/version allocator, wrapper build, signing or APK/AAB artifacts."
+          ]
+        }
+      ],
+      "remaining": [
+        "Authorized immutable build-ready revisions and persistent monotonic versionCode/job allocation",
+        "Reusable disposable native wrapper/resource generation and approved byte-level assets",
+        "Bounded TEST Resident/Guard APK/AAB builds, signing cleanup, artifact validation and provenance",
+        "Default artifact identity/update continuity and representative Partner A/B acceptance"
       ]
     },
     {
