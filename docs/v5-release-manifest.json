@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.18",
+      "currentSlice": "V5.5.19",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1679,7 +1679,7 @@
         {
           "id": "V5.5.18",
           "name": "Authenticated TLS 1.3 mutual-certificate TEST worker identity-only transport with server SPKI pin and signed fresh nonce binding",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-mtls-transport.mjs",
             "scripts/android-test-mtls-transport.test.mjs",
@@ -1688,11 +1688,29 @@
           "limitations": [
             "Identity-only local test/client contract: no remotely provisioned isolated worker, real OCI image or mount attestation; does not enable build dispatch.",
             "No Flutter/Gradle invocation, actual APK/AAB, signer verification, API/DB integration, productionization, staging/main promotion."
+          ],
+          "pullRequest": 1309,
+          "mergeSha": "ca271f3d903cb08e63caf58cc83810c0f8e3b55b",
+          "ciRun": 38593459234
+        },
+        {
+          "id": "V5.5.19",
+          "name": "Fail-closed Linux TEST runner no-capabilities, no-new-privileges, seccomp and pinned read-only SDK mount policy",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-linux-isolation.mjs",
+            "scripts/android-test-linux-isolation.test.mjs",
+            "docs/architecture/V5.5.19-LINUX-RUNNER-ISOLATION.md"
+          ],
+          "limitations": [
+            "Kernel /proc observation in an independently trusted runner process is a local isolation preflight, not cryptographic attestation of an OCI image, host root of trust, or immutable executable mount state.",
+            "No external runner provisioned, real build dispatch, Android SDK/Flutter invocation, artifact/archive/signer verification or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate V5.5.18 pinned mTLS runner identity transport and merge green PR; separately provision and attest an actual isolated worker before enabling builds",
+        "Validate and merge V5.5.19 fail-closed runtime isolation policy with protected CI",
+        "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
