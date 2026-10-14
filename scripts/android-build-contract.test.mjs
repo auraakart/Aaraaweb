@@ -341,3 +341,6 @@ test('V5.5.17 refuses mismatched reservation and attempted dispatch without them
    {...f.plan,dispatchAllowed:true},f.reservation,stage));
  }finally{await rm(stage.root,{recursive:true,force:true});}
 });
+
+// V5.5.18: live loopback mTLS/Ed25519 TEST worker identity-only transport tests.
+import './android-test-mtls-transport.test.mjs';

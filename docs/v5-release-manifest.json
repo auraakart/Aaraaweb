@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.17",
+      "currentSlice": "V5.5.18",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1662,7 +1662,7 @@
         {
           "id": "V5.5.17",
           "name": "Compose reviewed Android 12 light/night splash themes and Flutter manifest theme wiring into disposable TEST overlay",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-android12-themes.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1671,11 +1671,28 @@
           "limitations": [
             "Composes an isolated non-dispatchable Android native input overlay; real Flutter wrapper generation/execution and independent final inventory still pending.",
             "No APK/AAB, real signer, live isolated runner transport, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1308,
+          "mergeSha": "f37a1c438fde31348c5a62c48d384f9c646e99a3",
+          "ciRun": 38591175792
+        },
+        {
+          "id": "V5.5.18",
+          "name": "Authenticated TLS 1.3 mutual-certificate TEST worker identity-only transport with server SPKI pin and signed fresh nonce binding",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-mtls-transport.mjs",
+            "scripts/android-test-mtls-transport.test.mjs",
+            "docs/architecture/V5.5.18-ANDROID-MTLS-WORKER-TRANSPORT.md"
+          ],
+          "limitations": [
+            "Identity-only local test/client contract: no remotely provisioned isolated worker, real OCI image or mount attestation; does not enable build dispatch.",
+            "No Flutter/Gradle invocation, actual APK/AAB, signer verification, API/DB integration, productionization, staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.17 Android 12 splash/native theme overlay after protected CI",
+        "Validate V5.5.18 pinned mTLS runner identity transport and merge green PR; separately provision and attest an actual isolated worker before enabling builds",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
