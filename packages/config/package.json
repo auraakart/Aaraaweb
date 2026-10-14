@@ -23,7 +23,8 @@
     "./android-test-android12-themes": "./src/android-test-android12-themes.mjs",
     "./android-test-mtls-transport": "./src/android-test-mtls-transport.mjs",
     "./android-test-linux-isolation": "./src/android-test-linux-isolation.mjs",
-    "./android-test-final-native-inventory": "./src/android-test-final-native-inventory.mjs"
+    "./android-test-final-native-inventory": "./src/android-test-final-native-inventory.mjs",
+    "./android-test-wrapper-assembly": "./src/android-test-wrapper-assembly.mjs"
   },
   "typesVersions": {
     "*": {

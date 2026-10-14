@@ -412,3 +412,6 @@ for(const [name,change] of [
   await rm(stage.root,{recursive:true,force:true});
  }
 });
+
+// V5.5.21: safe pinned Flutter Android generated-template overlay assembly, no compile.
+import './android-test-wrapper-assembly.test.mjs';
