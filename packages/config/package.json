@@ -19,7 +19,8 @@
     "./android-test-staging-inventory": "./src/android-test-staging-inventory.mjs",
     "./android-test-toolchain": "./src/android-test-toolchain.mjs",
     "./android-test-runner-evidence": "./src/android-test-runner-evidence.mjs",
-    "./android-test-sdk-tree": "./src/android-test-sdk-tree.mjs"
+    "./android-test-sdk-tree": "./src/android-test-sdk-tree.mjs",
+    "./android-test-android12-themes": "./src/android-test-android12-themes.mjs"
   },
   "typesVersions": {
     "*": {

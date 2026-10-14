@@ -276,3 +276,68 @@ import './android-test-runner-evidence.test.mjs';
 
 // V5.5.16: full local TEST SDK/template root hashes, no runner execution.
 import './android-test-sdk-tree.test.mjs';
+
+// V5.5.17: Compose Android 12 light/night splash/theme resources without build execution.
+import { materializeTestAndroid12ThemeWorkspace } from '../packages/config/src/android-test-android12-themes.mjs';
+for(const role of ['RESIDENT','GUARD'])test('V5.5.17 '+role+' composes isolated Android 12 theme/manifest assets',async()=>{
+ const f=overlayFixture(role),g=kotlinTemplate(role);
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ let themed;
+ try{
+  const original=await readFile(join(stage.root,'android/app/src/main/AndroidManifest.xml'),'utf8');
+  themed=await materializeTestAndroid12ThemeWorkspace(f.plan,f.reservation,stage);
+  assert.equal(themed.nativeStylesIntegrated,true);
+  assert.equal(themed.android12ThemeResourcesIntegrated,true);
+  assert.equal(themed.fileCount,13);
+  assert.equal(Object.keys(themed.files).length,12);
+  assert.equal(themed.flutterWrapperGenerated,false);
+  assert.equal(themed.dispatchAllowed,false);
+  assert.equal(themed.artifactProduced,false);
+  const manifest=await readFile(join(themed.root,'android/app/src/main/AndroidManifest.xml'),'utf8');
+  assert.match(manifest,/android:theme="@style\/LaunchTheme"/);
+  assert.match(manifest,/io.flutter.embedding.android.NormalTheme/);
+  assert.equal((manifest.match(/android:theme="@style\/LaunchTheme"/g)||[]).length,1);
+  assert.equal(await readFile(join(stage.root,'android/app/src/main/AndroidManifest.xml'),'utf8'),original);
+  for(const version of ['values','values-night','values-v31','values-night-v31']){
+   const contents=await readFile(join(themed.root,'android/app/src/main/res',version,'styles.xml'),'utf8');
+   assert.match(contents,/name="LaunchTheme"/);
+   assert.match(contents,/name="NormalTheme"/);
+   assert.match(contents,/@drawable\/launch_background/);
+   if(version.includes('v31')){
+    assert.match(contents,/android:windowSplashScreenAnimatedIcon/);
+    assert.match(contents,/@drawable\/aaraagate_test_icon/);
+   }else assert.doesNotMatch(contents,/windowSplashScreenAnimatedIcon/);
+  }
+  const output=JSON.parse(await readFile(join(themed.root,'.aaraagate/test-android12-themes.json'),'utf8'));
+  assert.equal(output.files['android/app/src/main/AndroidManifest.xml'].sha256,
+   createHash('sha256').update(manifest).digest('hex'));
+  assert.equal(output.dispatchAllowed,false);
+ }finally{
+  if(themed)await rm(themed.root,{recursive:true,force:true});
+  await rm(stage.root,{recursive:true,force:true});
+ }
+});
+for(const [label,mutate] of [
+ ['changed Android manifest',async s=>appendFile(join(s.root,'android/app/src/main/AndroidManifest.xml'),'\n<!--unreviewed-->')],
+ ['changed approved icon',async s=>appendFile(join(s.root,'android/app/src/main/res/drawable-nodpi/aaraagate_test_icon.png'),Buffer.from([1]))],
+ ['unsigned extra staging content',async s=>writeFile(join(s.root,'unreviewed.xml'),'x')],
+ ['untrusted staging receipt',async s=>writeFile(join(s.root,'.aaraagate/test-native-staging.json'),'{}')]
+])test('V5.5.17 refuses '+label,async()=>{
+ const f=overlayFixture(),g=kotlinTemplate('RESIDENT');
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ try{await mutate(stage);await assert.rejects(materializeTestAndroid12ThemeWorkspace(f.plan,f.reservation,stage));}
+ finally{await rm(stage.root,{recursive:true,force:true});}
+});
+test('V5.5.17 refuses mismatched reservation and attempted dispatch without theme output',async()=>{
+ const f=overlayFixture(),g=kotlinTemplate('RESIDENT');
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ try{
+  await assert.rejects(materializeTestAndroid12ThemeWorkspace(f.plan,
+   {...f.reservation,versionCode:102},stage));
+  await assert.rejects(materializeTestAndroid12ThemeWorkspace(
+   {...f.plan,dispatchAllowed:true},f.reservation,stage));
+ }finally{await rm(stage.root,{recursive:true,force:true});}
+});

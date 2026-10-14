@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.16",
+      "currentSlice": "V5.5.17",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1645,7 +1645,7 @@
         {
           "id": "V5.5.16",
           "name": "Exhaustive independently pinned Flutter/Android SDK, JDK and native template filesystem byte inventory",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-sdk-tree.mjs",
             "scripts/android-test-sdk-tree.test.mjs",
@@ -1654,11 +1654,28 @@
           "limitations": [
             "Local entire-tree hashes alone do not authenticate the transport, attest actual OCI runtime, certify immutable mounts or grant build dispatch.",
             "No Android wrapper generation, Gradle execution, APK/AAB, signer verification, API/database migration, staging or main promotion."
+          ],
+          "pullRequest": 1307,
+          "mergeSha": "367ff350a8df274b0f11947c3036af04282906f0",
+          "ciRun": 38589844952
+        },
+        {
+          "id": "V5.5.17",
+          "name": "Compose reviewed Android 12 light/night splash themes and Flutter manifest theme wiring into disposable TEST overlay",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-android12-themes.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.17-ANDROID12-THEME-OVERLAY.md"
+          ],
+          "limitations": [
+            "Composes an isolated non-dispatchable Android native input overlay; real Flutter wrapper generation/execution and independent final inventory still pending.",
+            "No APK/AAB, real signer, live isolated runner transport, productionization or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.16 full local SDK/template byte inventory after protected CI",
+        "Validate and merge V5.5.17 Android 12 splash/native theme overlay after protected CI",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
