@@ -16,7 +16,8 @@
     "./android-test-native-wrapper": "./src/android-test-native-wrapper.mjs",
     "./android-test-native-workspace": "./src/android-test-native-workspace.mjs",
     "./android-test-pinned-checkout": "./src/android-test-pinned-checkout.mjs",
-    "./android-test-staging-inventory": "./src/android-test-staging-inventory.mjs"
+    "./android-test-staging-inventory": "./src/android-test-staging-inventory.mjs",
+    "./android-test-toolchain": "./src/android-test-toolchain.mjs"
   },
   "typesVersions": {
     "*": {

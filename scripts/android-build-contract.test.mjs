@@ -267,3 +267,6 @@ test('V5.5.11 rejects mismatched reservations and attempted TEST dispatch',async
    f.reservation,{...stage,dispatchAllowed:true}));
  }finally{await rm(stage.root,{recursive:true,force:true});}
 });
+
+// V5.5.12: non-dispatching pinned TEST toolchain verification.
+import './android-test-toolchain.test.mjs';
