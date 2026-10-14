@@ -580,3 +580,6 @@ for(const [name,change] of [
    f.plan,f.reservation,f.themed,f.built,f.sdk,f.acceptance,f.pins));
  }finally{if(built)await rm(built.root,{recursive:true,force:true});await f.cleanup();}
 });
+
+// V5.5.23: offline bounded synthetic APK/AAB ZIP file structure and CRC verification.
+import './android-test-archive-inspector.test.mjs';
