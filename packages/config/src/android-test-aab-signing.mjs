@@ -34,10 +34,31 @@ export function parseTestAabJarSignerReports(verification,certificate,fingerprin
     certificate.length<100||certificate.length>128*1024||
     !SHA.test(fingerprint))
   fail('Invalid or oversized TEST AAB signing report');
- if(!/^\s*jar verified\.\s*$/m.test(verification)||
+ const clean=/^\s*jar verified\.\s*$/m.test(verification);
+ const pinnedSelfSigned=/^\s*jar verified, with signer errors\.\s*$/m.test(verification);
+ if((!clean&&!pinnedSelfSigned)||
     /\bjar is unsigned\b|\bunsigned entries\b|\bnot integrity-checked\b/i.test(verification)||
-    /^Error:|^jarsigner:|^Exception:/im.test(verification))
+    /\b(?:expired|revoked|disabled|weak signature|invalid signature|tampered)\b/i.test(verification)||
+    /^jarsigner:|^Exception:/im.test(verification))
   fail('Pinned jarsigner does not report a fully signed, verified AAB');
+ if(pinnedSelfSigned){
+  // An ephemeral pinned TEST certificate is often self-signed, so jarsigner
+  // reports a verified archive with a PKIX chain error. Only those two exact
+  // trust-chain diagnostics are allowed; any other signer error fails closed.
+  const sections=verification.split(/\nError:\s*\n/);
+  if(sections.length!==2)fail('Missing expected TEST self-signed chain diagnostic');
+  const errorLines=sections[1].split(/\nWarning:\s*\n/)[0].trim().split('\n')
+   .map(line=>line.trim()).filter(Boolean);
+  const allowed=[
+   /^This jar contains entries whose signer certificate is self-signed\.$/,
+   /^This jar contains entries whose certificate chain is invalid\. Reason: PKIX path building failed:.*$/
+  ];
+  if(!errorLines.length||errorLines.some(line=>!allowed.some(re=>re.test(line)))||
+     !errorLines.some(line=>allowed[0].test(line)))
+   fail('Unrecognized TEST JAR signer errors');
+ }else if(/^Error:/m.test(verification)){
+  fail('Unexpected pinned JAR verification diagnostic');
+ }
  // The critical structural members must have signature AND manifest bits.
  for(const member of ['BundleConfig.pb','base/manifest/AndroidManifest.xml','base/dex/classes.dex']){
   const rows=verification.split('\n').filter(line=>line.endsWith(' '+member));

@@ -121,3 +121,24 @@ for(const [label,change] of [
   x.plan,x.reservation,x.location,x.inspection,x.pins));}
  finally{await rm(x.root,{recursive:true,force:true});}
 });
+
+const pinnedSelfSignedReport=report.replace('jar verified.',
+ 'jar verified, with signer errors.\n\nError: \n'+
+ 'This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: unable to find certification path\n'+
+ 'This jar contains entries whose signer certificate is self-signed.\n\nWarning: \n'+
+ 'This jar contains signatures that do not include a timestamp.\n');
+test('V5.5.28 accepts pinned self-signed TEST certificate with only known chain diagnostics',()=>{
+ const r=parseTestAabJarSignerReports(pinnedSelfSignedReport,cert,fingerprint);
+ assert.equal(r.jarSignatureReportedVerified,true);
+ assert.equal(r.actualSignerCryptographicallyAttested,false);
+});
+test('V5.5.28 refuses unexpected TEST signer error even with a matching certificate pin',()=>{
+ assert.throws(()=>parseTestAabJarSignerReports(
+  pinnedSelfSignedReport.replace('Warning: ','This jar has an invalid signature\n\nWarning: '),
+  cert,fingerprint));
+});
+test('V5.5.28 refuses expired TEST signer report',()=>{
+ assert.throws(()=>parseTestAabJarSignerReports(
+  pinnedSelfSignedReport.replace('certificate is self-signed.','certificate is expired.'),
+  cert,fingerprint));
+});
