@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.9",
+      "currentSlice": "V5.5.10",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1524,7 +1524,7 @@
         {
           "id": "V5.5.9",
           "name": "Disposable TEST native resource plus Kotlin patch staging with independently expected template SHA digests",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-native-workspace.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1533,11 +1533,28 @@
           "limitations": [
             "Stages native resources and Kotlin patch data in a new temporary directory; it does not generate a Flutter project, integrate styles, invoke Gradle/Flutter, or produce an APK/AAB.",
             "An expected template digest cannot prove trusted origin by itself; it must originate from the separately authenticated pinned runner."
+          ],
+          "pullRequest": 1300,
+          "mergeSha": "ba2043ff2168057a4da13dc4e753730d9f7015aa",
+          "ciRun": 38570393795
+        },
+        {
+          "id": "V5.5.10",
+          "name": "Verify real local TEST Git checkout HEAD and dependency-lock bytes against immutable source pins",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-pinned-checkout.mjs",
+            "scripts/android-test-checkout.test.mjs",
+            "docs/architecture/V5.5.10-ANDROID-PINNED-CHECKOUT.md"
+          ],
+          "limitations": [
+            "Read-only local verification, not source acquisition or remote authenticity. Independently authenticated trusted worker and pinned toolchain/template remain outstanding.",
+            "No Flutter/Gradle invocation, signer/archive checks, executable dispatch, API or schema changes; staging/main and default demo stay untouched."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.9 isolated native staging under protected CI",
+        "Validate and merge V5.5.10 clean pinned local TEST checkout preflight under protected CI",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
