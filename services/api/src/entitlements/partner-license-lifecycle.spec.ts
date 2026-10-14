@@ -15,7 +15,7 @@ const context={grantId,expectedGrantVersion:1,expectedOwnershipVersion:1,idempot
 const approval={...context,reason:'Approved safe commercial license',essentialPolicy:'PRESERVE_LEGACY' as const};
 function fixture(){
  const g={id:grantId,partnerId,createdById:maker,version:1,status:'DRAFT',startsAt:new Date(Date.now()-60000),endsAt:new Date(Date.now()+3600000),graceUntil:null,
-  planRevision:{featureAllowlist:Object.values(ProductFeature),maximumSocieties:1},approval:null as unknown};
+  planRevision:{featureAllowlist:Object.values(ProductFeature),maximumSocieties:1,maximumDistributions:1},approval:null as unknown};
  const consent={id:consentId,societyId,grantId,grantVersion:1,ownershipVersion:1,actorId:checker,decision:'OPT_IN',sequence:1,idempotencyKey:context.idempotencyKey,productTier:'STARTER',featureOverrides:{},enabledFeatures:enabled};
  const tx={
   $queryRaw:vi.fn(async(p:TemplateStringsArray)=>p.join('').includes('FROM "Partner"')?[{status:'ACTIVE'}]:p.join('').includes('FROM "User"')?[{id:maker}]:p.join('').includes('aaraagate_v5454_used')?[{used:0}]:[]),
@@ -25,7 +25,7 @@ function fixture(){
   partnerLicenseRevocation:{create:vi.fn().mockResolvedValue({id:'revocation'})},
   societyLicenseConsent:{findFirst:vi.fn().mockResolvedValue(consent),findUnique:vi.fn().mockResolvedValue(null),create:vi.fn().mockResolvedValue({id:consentId,decision:'OPT_IN',sequence:1})},
   societyEntitlementCompatibility:{findUnique:vi.fn().mockResolvedValue({sourceMigration:'v5-cutover'})},
-  societyLicenseAllocation:{findUnique:vi.fn().mockResolvedValue(null),create:vi.fn().mockResolvedValue({id:'allocation'})},
+  societyLicenseAllocation:{findFirst:vi.fn().mockResolvedValue({id:grantId}),findUnique:vi.fn().mockResolvedValue(null),create:vi.fn().mockResolvedValue({id:'allocation'})},
   societyOwnershipTransfer:{findUnique:vi.fn()},
  };
  const run=vi.fn(async(_p:unknown,_id:string,cb:(client:typeof tx,owner:{partnerId:string;ownershipVersion:number})=>Promise<unknown>)=>cb(tx,{partnerId,ownershipVersion:1}));
@@ -101,4 +101,18 @@ describe('V5.4.5.4 immutable approval and legacy opt-in',()=>{
   f.tx.societyLicenseAllocation.findUnique.mockResolvedValueOnce({id:'receipt',actorId:maker,societyId,ownershipVersion:1,consentId});
   await expect(f.service.activate(principal,societyId,{...context,consentId})).rejects.toThrow(/key changed/);
  });
+ it('rechecks active allocation, latest consent and raw features before downstream commercial work',async()=>{
+  const f=fixture();f.g.approval=approved();const operation=vi.fn().mockResolvedValue('authorized');
+  const input={...context,allocationId:grantId};
+  expect(await f.service.withActiveAllocation(principal,societyId,input,operation)).toBe('authorized');
+  expect(operation).toHaveBeenCalledWith(f.tx,expect.objectContaining({maximumDistributions:1}));
+  f.tx.societyLicenseAllocation.findFirst.mockResolvedValueOnce(null);
+  await expect(f.service.withActiveAllocation(principal,societyId,input,operation)).rejects.toThrow(/allocation/);
+  f.tx.societyLicenseConsent.findFirst.mockResolvedValueOnce({...f.consent,decision:'WITHDRAW'});
+  await expect(f.service.withActiveAllocation(principal,societyId,input,operation)).rejects.toThrow(/opt-in/);
+  f.g.approval={...approved(),revocation:{id:'revoked'}};
+  await expect(f.service.withActiveAllocation(principal,societyId,input,operation)).rejects.toThrow(/active license/);
+  expect(operation).toHaveBeenCalledTimes(1);
+ });
+
 });

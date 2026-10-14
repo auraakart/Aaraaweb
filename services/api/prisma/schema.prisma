@@ -15,6 +15,10 @@ model User {
   status                    UserStatus                 @default(ACTIVE)
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
+  distributionProposals     PartnerDistributionProposal[]
+  distributionApprovals     PartnerDistributionApproval[]
+  distributionRevocations   PartnerDistributionRevocation[]
+  legacySubscriptions       SocietyLegacySubscription[]
   memberships               SocietyMembership[]
   partnerMemberships        PartnerMembership[]
   partnerDomainClaims       PartnerDomainClaim[] @relation("DomainClaimCreator")
@@ -336,6 +340,7 @@ model SocietyEntitlementCompatibility {
   sourceMigration  String
   capturedAt       DateTime    @default(now()) @db.Timestamptz(6)
   society          Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  subscriptions    SocietyLegacySubscription[]
 }
 
 // Commercial-only revisions; these tables do NOT grant live society features.
@@ -490,6 +495,8 @@ model SocietyLicenseAllocation {
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
   approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
   society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  distributionProposals PartnerDistributionProposal[]
+  legacySubscription SocietyLegacySubscription?
   consent          SocietyLicenseConsent @relation(fields: [consentId], references: [id], onDelete: Restrict)
   actor            User @relation("LicenseAllocationActor", fields: [actorId], references: [id], onDelete: Restrict)
 
@@ -1793,4 +1800,60 @@ model GateNotificationAttempt {
 
   @@unique([societyId, requestId, userId, channel], map: "GateNotificationAttempt_scope_request_user_channel_key")
   @@index([societyId, requestId, createdAt(sort: Desc)], map: "GateNotificationAttempt_scope_request_time_idx")
+}
+
+// Immutable test-build identity approval; never an app/session audience or build dispatch.
+model PartnerDistributionProposal {
+  id             String @id @default(uuid()) @db.Uuid
+  allocationId   String @db.Uuid
+  applicationId  String @unique @db.VarChar(150)
+  manifest       Json
+  digest         String @db.VarChar(64)
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  allocation     SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerDistributionApproval?
+  @@unique([allocationId, idempotencyKey])
+}
+model PartnerDistributionApproval {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  revocation     PartnerDistributionRevocation?
+}
+model PartnerDistributionRevocation {
+  id             String @id @default(uuid()) @db.Uuid
+  approvalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  approval       PartnerDistributionApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+}
+// Explicit grandfathered commercial representation of immutable historical rights.
+// Live operational features still use Society.productTier/featureOverrides.
+model SocietyLegacySubscription {
+  id                 String @id @default(uuid()) @db.Uuid
+  societyId          String @db.Uuid
+  allocationId       String @unique @db.Uuid
+  actorId            String @db.Uuid
+  idempotencyKey     String @db.Uuid
+  sourceMigration    String
+  productTier        ProductTier
+  featureOverrides   Json
+  enabledFeatures    Json
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  compatibility      SocietyEntitlementCompatibility @relation(fields: [societyId], references: [societyId], onDelete: Restrict)
+  allocation         SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor              User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
 }
