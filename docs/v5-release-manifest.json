@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.21",
+      "currentSlice": "V5.5.22",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1731,7 +1731,7 @@
         {
           "id": "V5.5.21",
           "name": "Safely assemble verified TEST Android native overlays onto an independently SHA-pinned Flutter 3.47 generated wrapper in a disposable workspace",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-wrapper-assembly.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1740,11 +1740,28 @@
           "limitations": [
             "Requires the already-generated Flutter 3.47 wrapper from an independently trusted runner; the assembly routine itself does not execute Flutter or assert that a remote runner is provisioned.",
             "No build dispatch, actual APK/AAB, signer verification, runtime image attestation, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1312,
+          "mergeSha": "2e64226c35d1c63c12aab6a0d634c03c6a228667",
+          "ciRun": 38599846431
+        },
+        {
+          "id": "V5.5.22",
+          "name": "Independently rescan and verify every assembled TEST Flutter Android wrapper byte and provenance against pinned template and approved overlay",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-assembled-verification.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.22-ANDROID-ASSEMBLED-VERIFICATION.md"
+          ],
+          "limitations": [
+            "The verification uses a synthetic template in unit tests; a genuinely provisioned Flutter 3.47 runner and independent OCI attestation are not yet available.",
+            "No build authorization, Flutter/Gradle execution, APK/AAB, signing, infrastructure provisioning or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.21 disposable assembled pinned-wrapper input with protected CI",
+        "Validate and merge V5.5.22 assembled TEST native byte/provenance recheck after all protected CI gates",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
