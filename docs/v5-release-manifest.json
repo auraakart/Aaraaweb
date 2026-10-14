@@ -48,7 +48,7 @@
     {
       "id": "V5.1",
       "name": "Partner ownership and compatibility schema",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETED",
       "dependsOn": [
         "V5.0"
       ],
@@ -87,21 +87,31 @@
         {
           "id": "V5.1.2",
           "name": "Explicit immutable grandfathered subscription conversion preserving historical/current legacy rights",
-          "status": "IN_PROGRESS",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
             "services/api/src/entitlements/legacy-subscription-conversion.service.ts",
             "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
           ],
           "limitations": [
-            "Protected PostgreSQL acceptance pending.",
+            "Protected PostgreSQL and full CI passed, including all four new native cases and 2173 API tests (15 intentional skips).",
             "Additive commercial representation only; legacy operational resolver remains authoritative. No automatic/live society migration, pricing or maintenance-billing changes."
-          ]
+          ],
+          "pullRequest": 1290,
+          "mergeSha": "771e10b00b1473b0a8cd517b4ff654e6c530de70",
+          "validatedRuntimeSha": "2c358159cf430755d35c81258dd9bfd1f7a09c06",
+          "ciRun": 38520943451
         }
       ],
-      "remaining": [
-        "Protected historical subscription conversion acceptance and scoped V5.1 closure review"
-      ]
+      "remaining": [],
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION",
+        "evidence": "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+        "ciRun": 38520943451,
+        "limitations": [
+          "Explicit historical conversion only; no live batch migration, pricing or operational resolver cutover. Existing legacy rights remain authoritative."
+        ]
+      }
     },
     {
       "id": "V5.2",
@@ -1344,16 +1354,20 @@
         {
           "id": "V5.4.20",
           "name": "Immutable test distribution proposals, independent approvals and revocations under active licensing",
-          "status": "IN_PROGRESS",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "0e88378725f7a40cf467c78cbe7c2e2c8afdbb3c",
           "evidence": [
             "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
             "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
           ],
           "limitations": [
-            "Protected PostgreSQL and full CI acceptance pending.",
+            "Protected PostgreSQL and full CI passed, including all four new native cases and 2173 API tests (15 intentional skips).",
             "TEST inputs only; V5.5 source/config/assets/signing/build provenance validation is separate. No production distribution, artifact generation or staging/main promotion."
-          ]
+          ],
+          "pullRequest": 1290,
+          "mergeSha": "771e10b00b1473b0a8cd517b4ff654e6c530de70",
+          "validatedRuntimeSha": "2c358159cf430755d35c81258dd9bfd1f7a09c06",
+          "ciRun": 38520943451
         }
       ],
       "scopedAcceptance": {
@@ -1364,7 +1378,7 @@
       },
       "remaining": [
         "Trusted reverse-proxy design and nonproduction transport acceptance; no production activation",
-        "Protected test distribution approval acceptance; V5.5 complete build-manifest and artifact validation"
+        "V5.5 full build manifests, identity revisions and approved artifact provenance; TEST approval alone never authorizes dispatch"
       ]
     },
     {

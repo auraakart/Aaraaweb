@@ -872,3 +872,7 @@ Native PostgreSQL and browser acceptance accompany this slice; protected CI and
 merge evidence are required before closure. Dedicated partner login and audited
 member lifecycle writes remain open, alongside domain registry/multi-host acceptance
 and distribution approval. No productionization or staging/main promotion.
+
+## V5.4.20 distribution controls and V5.1.2 acceptance, 2026-10-14
+
+PR #1290 merged into develop at `771e10b00b1473b0a8cd517b4ff654e6c530de70` after protected CI 38520943451 passed all four new distribution/conversion PostgreSQL cases, 2173 API tests (15 intentional skips), Admin/Flutter and required gates. The exact validated runtime head is `2c358159cf430755d35c81258dd9bfd1f7a09c06`. Initial immutable TEST identity approvals and explicit grandfathered commercial conversion are accepted; existing legacy operational rights and maintenance billing remain unchanged. [Scoped acceptance](architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md) closes V5.1 nonproduction engineering. V5.4 remains open for trusted-proxy transport acceptance; V5.5 needs build-ready manifest/identity revisions, generation, test signing and provenance before dispatch. No production or staging/main promotion.
