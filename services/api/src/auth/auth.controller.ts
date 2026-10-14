@@ -123,7 +123,26 @@ export class AuthController {
   @Header('Cache-Control', 'no-store, private')
   @Header('Vary', 'Host, Origin')
   async verifyHostPartnerOtp(@Body() dto: VerifyOtpDto, @Req() request: AuthenticatedRequest) {
-    return this.verifyPartnerOtp(dto, request);
+    const result = await this.verifyPartnerOtp(dto, request);
+    const hostContext = await this.hostPartnerContext(result.session.accessToken, request);
+    return { ...result, hostContext };
+  }
+
+  /** BFF/SSR session validation: never accept an unbound platform token. */
+  @Get('partner/host/session')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Vary', 'Host, Origin')
+  async hostPartnerSession(@Req() request: AuthenticatedRequest) {
+    const authorization = request.header('authorization');
+    if (!authorization?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required');
+    return this.hostPartnerContext(authorization.slice(7), request);
+  }
+
+  private async hostPartnerContext(accessToken: string, request: AuthenticatedRequest) {
+    const principal = await this.sessions.getPrincipal(accessToken, request);
+    if (principal.audience !== 'PARTNER' || !principal.hostPartnerId || principal.societyId || principal.roles.length)
+      throw new UnauthorizedException('Host-bound partner access required');
+    return { contextType: 'PARTNER_HOST' as const, partnerId: principal.hostPartnerId, hostname: request.header('host') };
   }
 
   @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
