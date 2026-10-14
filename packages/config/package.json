@@ -27,7 +27,8 @@
     "./android-test-wrapper-assembly": "./src/android-test-wrapper-assembly.mjs",
     "./android-test-assembled-verification": "./src/android-test-assembled-verification.mjs",
     "./android-test-archive-inspector": "./src/android-test-archive-inspector.mjs",
-    "./android-test-install-isolation": "./src/android-test-install-isolation.mjs"
+    "./android-test-install-isolation": "./src/android-test-install-isolation.mjs",
+    "./android-test-apk-inspection": "./src/android-test-apk-inspection.mjs"
   },
   "typesVersions": {
     "*": {
