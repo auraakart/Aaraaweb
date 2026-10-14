@@ -7,6 +7,7 @@ import { ProductFeature } from './entitlement.types';
 import { PartnerLicensePersistenceService } from './partner-license-persistence.service';
 import { PartnerLicenseLifecycleService, canonicalLicenseJson } from './partner-license-lifecycle.service';
 import { PartnerAndroidBuildRevisionService } from './partner-android-build-revision.service';
+import { PartnerAndroidBuildReservationService } from './partner-android-build-reservation.service';
 import { SocietyOwnershipTransferService } from './society-ownership-transfer.service';
 import { PartnerDistributionService } from './partner-distribution.service';
 import { LegacySubscriptionConversionService } from './legacy-subscription-conversion.service';
@@ -133,6 +134,52 @@ withDatabase('distribution and legacy subscription native PostgreSQL',()=>{
    expect((await android.latest(f.principal(),f.societyId,initial.id,f.context())).version).toBe(2);
    await f.service.revoke(f.principal(),f.societyId,initial.id,{idempotencyKey:randomUUID(),reason:'Revoke test identity'});
    await expect(android.latest(f.principal(),f.societyId,initial.id,f.context())).rejects.toThrow(/approval/);
+  }finally{await p.$disconnect();}
+ });
+
+ it('allocates durable distinct version codes and denies direct SQL skip/reuse, stale review and revoked scope',async()=>{
+  const p=new PrismaService();try{
+   const f=await fixture(p),android=new PartnerAndroidBuildRevisionService(f.licenses);
+   const jobs=new PartnerAndroidBuildReservationService(f.licenses);
+   const proposal=await f.service.propose(f.principal(f.maker),f.societyId,{...f.context(),manifest:f.manifest});
+   const approval=await f.service.approve(f.principal(),f.societyId,proposal.id,{
+    ...f.context(),expectedDigest:proposal.digest,reason:'Independent build distribution approval'
+   });
+   const build={schemaVersion:1,distributionId:proposal.id,approvalId:approval.id,partnerId:f.partnerId,societyId:f.societyId,
+    brandRevision:1,sourceSha:f.manifest.sourceSha,lockDigest:'c'.repeat(64),
+    applicationId:f.manifest.applicationId,namespace:f.manifest.namespace,appRole:f.manifest.appRole,
+    label:f.manifest.label,buildMode:'TEST',apiOrigin:f.manifest.apiOrigin,configDigest:f.manifest.configDigest,
+    assetDigests:{icon:'d'.repeat(64),splash:'e'.repeat(64)},firebaseClientRef:'TEST_CLIENT',
+    appLinkHosts:[],signingProfile:f.manifest.signingProfile,signerFingerprint:'f'.repeat(64)};
+   const revision=await android.propose(f.principal(f.maker),f.societyId,proposal.id,{...f.context(),manifest:build});
+   await android.approve(f.principal(),f.societyId,proposal.id,revision.id,{
+    ...f.context(),expectedDigest:revision.digest,reason:'Independent reviewed TEST revision'
+   });
+   const request={...f.context(),revisionId:revision.id,expectedDigest:revision.digest};
+   const first=await jobs.reserve(f.principal(),f.societyId,proposal.id,request);
+   expect(first).toMatchObject({versionCode:1,dispatchAllowed:false});
+   expect(await jobs.reserve(f.principal(),f.societyId,proposal.id,request)).toEqual(first);
+   await expect(jobs.reserve(f.principal(f.maker),f.societyId,proposal.id,request)).rejects.toThrow(/key changed/);
+   await expect(p.partnerAndroidBuildReservation.create({data:{
+    proposalId:proposal.id,revisionId:revision.id,actorId:f.checker,idempotencyKey:randomUUID(),
+    versionCode:1,digest:revision.digest
+   }})).rejects.toThrow();
+   await expect(p.partnerAndroidBuildReservation.create({data:{
+    proposalId:proposal.id,revisionId:revision.id,actorId:f.checker,idempotencyKey:randomUUID(),
+    versionCode:4,digest:revision.digest
+   }})).rejects.toThrow(/versionCode/);
+   const second=await jobs.reserve(f.principal(),f.societyId,proposal.id,{
+    ...f.context(),revisionId:revision.id,expectedDigest:revision.digest
+   });
+   expect(second.versionCode).toBe(2);
+   await expect(p.partnerAndroidBuildReservation.delete({where:{id:first.id}})).rejects.toThrow(/immutable/);
+   await f.service.revoke(f.principal(),f.societyId,proposal.id,{
+    idempotencyKey:randomUUID(),reason:'Withdraw TEST build approval'
+   });
+   await expect(jobs.reserve(f.principal(),f.societyId,proposal.id,{
+    ...f.context(),revisionId:revision.id,expectedDigest:revision.digest
+   })).rejects.toThrow(/approval/);
+   expect(await p.partnerAndroidBuildReservation.count({where:{proposalId:proposal.id}})).toBe(2);
   }finally{await p.$disconnect();}
  });
 });
