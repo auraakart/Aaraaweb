@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, appendFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { planTestAndroidNativeWrapperPatch } from '../packages/config/src/android-test-native-wrapper.mjs';
 import { materializeTestAndroidNativeWorkspace } from '../packages/config/src/android-test-native-workspace.mjs';
+import { verifyStagedTestAndroidInventory } from '../packages/config/src/android-test-staging-inventory.mjs';
 import { materializeTestAndroidResourceOverlay } from '../packages/config/src/android-test-overlay.mjs';
 import { androidBuildManifestDigest,planTestAndroidBuild,checkAndroidAssetBytes,recordTestAndroidProvenance } from '../packages/config/src/android-build-contract.mjs';
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -225,3 +226,44 @@ for(const [reason,mutate] of [
 
 // V5.5.10: actual pinned checkout and lock verification contract.
 import './android-test-checkout.test.mjs';
+
+// V5.5.11: local staged Android bytes are rechecked without dispatch.
+for(const role of ['RESIDENT','GUARD'])test('V5.5.11 rechecks exact '+role+' staged TEST native and PNG bytes',async()=>{
+ const f=overlayFixture(role),g=kotlinTemplate(role);
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ try{
+  const result=await verifyStagedTestAndroidInventory(f.plan,f.reservation,stage);
+  assert.equal(result.inventoryVerified,true);
+  assert.equal(result.verifiedFileCount,8);
+  assert.equal(result.artifactProduced,false);
+  assert.equal(result.dispatchAllowed,false);
+  assert.equal(result.signerVerified,false);
+  assert.equal(Object.keys(result.patchFiles).length,4);
+ }finally{await rm(stage.root,{recursive:true,force:true});}
+});
+for(const [label,modify] of [
+ ['changed Gradle patch',async(s)=>appendFile(join(s.root,'android/app/build.gradle.kts'),'\n// tampered')],
+ ['changed PNG bytes',async(s)=>appendFile(join(s.root,'android/app/src/main/res/drawable-nodpi/aaraagate_test_icon.png'),Buffer.from([0]))],
+ ['extra unexpected file',async(s)=>writeFile(join(s.root,'unreviewed.gradle'),'unsafe')],
+ ['modified inventory receipt',async(s)=>writeFile(join(s.root,'.aaraagate/test-native-staging.json'),'{}')]
+])test('V5.5.11 denies '+label,async()=>{
+ const f=overlayFixture(),g=kotlinTemplate('RESIDENT');
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ try{
+  await modify(stage);
+  await assert.rejects(verifyStagedTestAndroidInventory(f.plan,f.reservation,stage));
+ }finally{await rm(stage.root,{recursive:true,force:true});}
+});
+test('V5.5.11 rejects mismatched reservations and attempted TEST dispatch',async()=>{
+ const f=overlayFixture(),g=kotlinTemplate('RESIDENT');
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ try{
+  await assert.rejects(verifyStagedTestAndroidInventory(f.plan,
+   {...f.reservation,id:'77777777-7777-4777-8777-777777777777'},stage));
+  await assert.rejects(verifyStagedTestAndroidInventory(f.plan,
+   f.reservation,{...stage,dispatchAllowed:true}));
+ }finally{await rm(stage.root,{recursive:true,force:true});}
+});
