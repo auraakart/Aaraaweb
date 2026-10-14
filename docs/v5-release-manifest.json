@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.11",
+      "currentSlice": "V5.5.12",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1558,7 +1558,7 @@
         {
           "id": "V5.5.11",
           "name": "Recheck staged TEST native and PNG file inventory against pinned source, reservation and SHA receipts",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-staging-inventory.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1567,11 +1567,28 @@
           "limitations": [
             "Filesystem inventory check is not an authenticated builder, immutable mount or proof of trusted pin origin; recheck must happen at consumption under isolated worker.",
             "No Flutter generation, APK/AAB, signing, publication, DB/API migration, productionization or staging/main changes."
+          ],
+          "pullRequest": 1302,
+          "mergeSha": "2e82812a58123a26f9dda8967644b51f261dcfa1",
+          "ciRun": 38573990842
+        },
+        {
+          "id": "V5.5.12",
+          "name": "Pinned local TEST toolchain executable hashes and actual version responses",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-toolchain.mjs",
+            "scripts/android-test-toolchain.test.mjs",
+            "docs/architecture/V5.5.12-ANDROID-TOOLCHAIN-PREFLIGHT.md"
+          ],
+          "limitations": [
+            "Local hash/version validation does not authenticate runner or verify full SDK/template/container provenance.",
+            "No executable build permission, APK/AAB, signer verification, API/schema changes, productionization or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.11 staged TEST byte inventory under protected CI",
+        "Validate and merge V5.5.12 TEST toolchain preflight after protected CI",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
