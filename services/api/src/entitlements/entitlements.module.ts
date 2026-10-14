@@ -2,6 +2,7 @@ import { PartnerDistributionController } from './partner-distribution.controller
 import { PartnerDistributionService } from './partner-distribution.service';
 import { PartnerAndroidBuildRevisionService } from './partner-android-build-revision.service';
 import { PartnerAndroidBuildReservationService } from './partner-android-build-reservation.service';
+import { PartnerAndroidBuildWorkerClaimService } from './partner-android-worker-claim.service';
 import { LegacySubscriptionConversionService } from './legacy-subscription-conversion.service';
 import { PartnerLicenseOverviewController } from './partner-license-overview.controller';
 import { PartnerLicenseOverviewService } from './partner-license-overview.service';
@@ -29,7 +30,7 @@ import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
   controllers: [PartnerDistributionController, PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController, PartnerDomainClaimController],
-  providers: [PartnerDistributionService, PartnerAndroidBuildRevisionService, PartnerAndroidBuildReservationService, LegacySubscriptionConversionService, PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService, PartnerDomainVerificationService],
+  providers: [PartnerDistributionService, PartnerAndroidBuildRevisionService, PartnerAndroidBuildReservationService, PartnerAndroidBuildWorkerClaimService, LegacySubscriptionConversionService, PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService, PartnerDomainVerificationService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}
