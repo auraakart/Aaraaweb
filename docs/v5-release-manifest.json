@@ -1919,7 +1919,7 @@
         {
           "id": "V5.5.32",
           "name": "Support Android Build Tools 37 real v2 signer report and gate develop merge on both TEST Android APK smoke jobs",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_RUNTIME_SMOKE_GREEN",
           "evidence": [
             "scripts/v5-test-apksigner-report.mjs",
             "scripts/v5-test-apksigner-report.test.mjs",
@@ -1931,11 +1931,37 @@
           "limitations": [
             "Base Resident/Guard debug binaries only, not independently attested V5 builder or commercial partner-branded distribution.",
             "Milestone remains pending until both real Android smoke jobs and protected gate pass."
+          ],
+          "pullRequest": 1323,
+          "mergeSha": "82a42e1458d4b349f93f8575c2349806885d341e",
+          "ciRun": 38641846894,
+          "androidSmokeRun": 38641846894,
+          "androidSmokeResult": "RESIDENT_GUARD_REAL_BASE_DEBUG_APK_BUILT_INSPECTED_GREEN",
+          "evidenceArtifacts": [
+            {
+              "appRole": "RESIDENT",
+              "jobId": 116119476933,
+              "artifactId": 11931341996,
+              "sha256": "cd1cad7a42106efba9ca4e8b14461b53478d8cc918f07fc4f51dca598e041445",
+              "androidBuildTools": "37.0.0",
+              "signatureScheme": "v2",
+              "signerCount": 1,
+              "testOnly": true
+            },
+            {
+              "appRole": "GUARD",
+              "jobId": 116119476936,
+              "artifactId": 11930004613,
+              "sha256": "7c172ba08ba714af95a09ba39b218053aa44c853682faebd4a506a9fb294113e",
+              "androidBuildTools": "37.0.0",
+              "signatureScheme": "v2",
+              "signerCount": 1,
+              "testOnly": true
+            }
           ]
         }
       ],
       "remaining": [
-        "V5.5.32 verify both actual Android debug smoke jobs green and protected merge gate blocked on any failure",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
