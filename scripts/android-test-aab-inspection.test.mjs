@@ -78,18 +78,20 @@ async function setup(role='GUARD',result=values){
  await writeFile(artifact,fakeAab(),{mode:0o600});
  const jar=join(root,'bundletool.jar'),java=join(root,'java');
  await writeFile(jar,Buffer.from('SYNTHETIC bundletool bytes not real JAR'),{mode:0o600});
- const source='#!'+process.execPath+'\\n'+
-  'const args=process.argv.slice(2);\\n'+
-  'if(args[0]!=="-jar"||!args[1].endsWith("/bundletool.jar"))process.exit(11);\\n'+
-  'if(args[2]==="validate"){process.exit(0); }\\n'+
-  'if(args[2]!=="dump"||args[3]!=="manifest")process.exit(12);\\n'+
-  'const x=args.find(x=>x.startsWith("--xpath="))?.slice(8);\\n'+
-  'const out='+JSON.stringify(result)+';\\n'+
+ const source=[
+  '#!'+process.execPath,
+  'const args=process.argv.slice(2);',
+  'if(args[0]!=="-jar"||!args[1].endsWith("/bundletool.jar"))process.exit(11);',
+  'if(args[2]==="validate")process.exit(0);',
+  'if(args[2]!=="dump"||args[3]!=="manifest")process.exit(12);',
+  'const x=args.find(x=>x.startsWith("--xpath="))?.slice(8);',
+  'const out='+JSON.stringify(result)+';',
   'const fields={"/manifest/@package":"package",'+
-  '"/manifest/@android:versionCode":"versionCode",'+
-  '"/manifest/uses-sdk/@android:minSdkVersion":"minSdk",'+
-  '"/manifest/uses-sdk/@android:targetSdkVersion":"targetSdk"};\\n'+
-  'if(!fields[x])process.exit(13);process.stdout.write(out[fields[x]]+"\\n");\\n';
+   '"/manifest/@android:versionCode":"versionCode",'+
+   '"/manifest/uses-sdk/@android:minSdkVersion":"minSdk",'+
+   '"/manifest/uses-sdk/@android:targetSdkVersion":"targetSdk"};',
+  'if(!fields[x])process.exit(13);process.stdout.write(out[fields[x]]);'
+ ].join('\n')+'\n';
  await writeFile(java,source,{mode:0o700});
  await chmod(java,0o700);
  const pins={java:{executable:java,sha256:hash(Buffer.from(source))},
