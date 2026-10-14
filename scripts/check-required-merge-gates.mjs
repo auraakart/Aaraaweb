@@ -3,12 +3,16 @@ import fs from 'node:fs';
 const workflow=fs.readFileSync('.github/workflows/ci.yml','utf8');
 const required=[
   'name: Required merge gates',
-  'needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]',
+  'needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security, change-scope, android-test-smoke]',
   'REPOSITORY_STRUCTURE: ${{ needs.repository-structure.result }}',
   'API_VALIDATION: ${{ needs.api-validation.result }}',
   'ADMIN_VALIDATION: ${{ needs.admin-validation.result }}',
   'FLUTTER_VALIDATION: ${{ needs.flutter-validation.result }}',
   'DEPENDENCY_SECURITY: ${{ needs.dependency-security.result }}',
+  'run_android_smoke: ${{ steps.detect.outputs.run_android_smoke }}',
+  "uses: ./.github/workflows/v5-test-android-smoke.yml",
+  'ANDROID_SMOKE: ${{ needs.android-test-smoke.result }}',
+  'test "$ANDROID_SMOKE" = "success"',
   'All required merge gates passed.',
 ];
 const missing=required.filter(token=>!workflow.includes(token));

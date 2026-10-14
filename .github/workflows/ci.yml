@@ -28,6 +28,7 @@ jobs:
       run_resident: ${{ steps.detect.outputs.run_resident }}
       run_guard: ${{ steps.detect.outputs.run_guard }}
       run_dependency_audit: ${{ steps.detect.outputs.run_dependency_audit }}
+      run_android_smoke: ${{ steps.detect.outputs.run_android_smoke }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -77,6 +78,9 @@ jobs:
 
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           git diff --name-only "$BASE_SHA" "${{ github.sha }}" > /tmp/aaraagate-changed-files.txt
+          if grep -Eq '^(\.github/workflows/v5-test-android-smoke\.yml|scripts/v5-test-android-smoke\.sh|scripts/v5-test-apksigner-report(\.test)?\.mjs)$' /tmp/aaraagate-changed-files.txt; then
+            echo "run_android_smoke=true" >> "$GITHUB_OUTPUT"
+          fi
 
           if [ ! -s /tmp/aaraagate-changed-files.txt ]; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
@@ -262,6 +266,8 @@ jobs:
           bash -n scripts/check-hosted-staging-contract.sh
           bash -n scripts/check-staging-deployment-template.sh
           bash -n scripts/open-main-release-pr.sh
+      - name: Test version-aware TEST APK certificate report parser
+        run: node --test scripts/v5-test-apksigner-report.test.mjs
       - name: Scan tracked source for high-confidence secret patterns
         run: node scripts/check-secret-patterns.mjs
       - name: Check cross-role source contract
@@ -850,9 +856,15 @@ jobs:
           test "$FULL_RESULT" = "success"
 
 
+  android-test-smoke:
+    name: Android base TEST smoke acceptance
+    needs: [change-scope]
+    if: needs.change-scope.outputs.run_android_smoke == 'true'
+    uses: ./.github/workflows/v5-test-android-smoke.yml
+
   required-merge-gates:
     name: Required merge gates
-    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security]
+    needs: [repository-structure, api-validation, admin-validation, flutter-validation, dependency-security, change-scope, android-test-smoke]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -864,6 +876,8 @@ jobs:
           ADMIN_VALIDATION: ${{ needs.admin-validation.result }}
           FLUTTER_VALIDATION: ${{ needs.flutter-validation.result }}
           DEPENDENCY_SECURITY: ${{ needs.dependency-security.result }}
+          RUN_ANDROID_SMOKE: ${{ needs.change-scope.outputs.run_android_smoke }}
+          ANDROID_SMOKE: ${{ needs.android-test-smoke.result }}
         run: |
           printf '%s\n'             "Repository structure: $REPOSITORY_STRUCTURE"             "API validation: $API_VALIDATION"             "Admin validation: $ADMIN_VALIDATION"             "Flutter validation: $FLUTTER_VALIDATION"             "Dependency security: $DEPENDENCY_SECURITY"
 
@@ -871,6 +885,10 @@ jobs:
             test "$result" = "success"
           done
 
+          if [ "$RUN_ANDROID_SMOKE" = "true" ]; then
+            echo "Real TEST Resident/Guard Android smoke result: $ANDROID_SMOKE"
+            test "$ANDROID_SMOKE" = "success"
+          fi
           echo "All required merge gates passed."
 
 

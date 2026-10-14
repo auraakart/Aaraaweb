@@ -6,11 +6,7 @@ on:
     paths:
       - '.github/workflows/v5-test-android-smoke.yml'
       - 'scripts/v5-test-android-smoke.sh'
-  pull_request:
-    branches: [develop]
-    paths:
-      - '.github/workflows/v5-test-android-smoke.yml'
-      - 'scripts/v5-test-android-smoke.sh'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -70,5 +66,6 @@ jobs:
             dist/aaraagate-${{ matrix.app }}-test-apk-entry-list.txt
             dist/aaraagate-${{ matrix.app }}-test-aapt-badging.txt
             dist/aaraagate-${{ matrix.app }}-test-apksigner.txt
+            dist/aaraagate-${{ matrix.app }}-test-signing-summary.json
           if-no-files-found: warn
           retention-days: 1
