@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.12",
+      "currentSlice": "V5.5.13",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1575,7 +1575,7 @@
         {
           "id": "V5.5.12",
           "name": "Pinned local TEST toolchain executable hashes and actual version responses",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-toolchain.mjs",
             "scripts/android-test-toolchain.test.mjs",
@@ -1584,11 +1584,28 @@
           "limitations": [
             "Local hash/version validation does not authenticate runner or verify full SDK/template/container provenance.",
             "No executable build permission, APK/AAB, signer verification, API/schema changes, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1303,
+          "mergeSha": "40186f322e624d7b4430de5ae02bf417d9d3235b",
+          "ciRun": 38578193570
+        },
+        {
+          "id": "V5.5.13",
+          "name": "Ed25519-signed TEST worker consumption, native inventory, toolchain and image-claim binding",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-runner-evidence.mjs",
+            "scripts/android-test-runner-evidence.test.mjs",
+            "docs/architecture/V5.5.13-ANDROID-RUNNER-EVIDENCE.md"
+          ],
+          "limitations": [
+            "Signature proof alone is not remote runner authentication, verified OCI image, or durable replay protection; no execution permitted.",
+            "No real APK/AAB, Flutter/Gradle, signer verification, productionization, API/schema migration or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.12 TEST toolchain preflight after protected CI",
+        "Validate and merge V5.5.13 worker signature proof after required CI; next add durable nonce replay protection and trusted runner transport",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
