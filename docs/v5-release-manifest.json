@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.3",
+      "currentSlice": "V5.5.4",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1420,7 +1420,7 @@
         {
           "id": "V5.5.3",
           "name": "Monotonic TEST Android versionCode reservation and immutable non-dispatchable build-job ledger",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-build-reservation.service.ts",
             "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
@@ -1430,15 +1430,32 @@
           "limitations": [
             "Reservations are not dispatch/completion authority; the trusted builder and authenticated worker checkpoint remain outstanding.",
             "Default Resident/Guard update identity, real signing, generated APK/AAB and production external providers are untouched."
+          ],
+          "pullRequest": 1294,
+          "mergeSha": "ca3bb72e64d5602019362c95f795c3a2202bb824",
+          "ciRun": 38543744066
+        },
+        {
+          "id": "V5.5.4",
+          "name": "Isolated disposable TEST Android native resource overlay with explicit non-dispatchable metadata",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-overlay.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.4-ANDROID-TEST-NATIVE-OVERLAY.md"
+          ],
+          "limitations": [
+            "Overlay only; no Flutter create/build or APK/AAB, no source checkout, no manifest/Gradle patch, no credential signing.",
+            "Brand/asset, source/lock and signer verifications remain builder responsibilities; TEST assets must already come from verified sanitized pipeline."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.3 after required full CI/native PostgreSQL checks",
-        "Add trusted builder checkpoints at dispatch/completion with current licensing and approval revalidation",
-        "Generate native resources/config only in a disposable pinned Flutter wrapper",
-        "On-demand bounded TEST APK/AAB workflow, real signatures/archives and immutable provenance",
-        "Default and representative Partner A/B update/isolation artifact acceptance"
+        "Validate and merge V5.5.4 isolated native overlay with protected CI",
+        "Trusted builder dispatch/completion reauthorization against current distribution, reviewed revision and reserved version",
+        "Generate validated Flutter Android platform wrapper in an ephemeral project, patch native identity/Gradle safely, verify resource mapping",
+        "Bounded TEST APK/AAB workflow, test signer/archives checks, SHA provenance and cleanup",
+        "Default and Partner A/B install/update/isolation tests, V5.6 regression and closure"
       ]
     },
     {
