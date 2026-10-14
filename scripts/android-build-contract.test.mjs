@@ -412,3 +412,113 @@ for(const [name,change] of [
   await rm(stage.root,{recursive:true,force:true});
  }
 });
+
+// V5.5.21: assemble fully pinned Flutter 3.47 TEST native inputs, still no builder.
+import { mkdtemp as tempDir, mkdir as makeDirectory, readdir as readDirectory, lstat as fileStatus } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { materializeVerifiedTestAndroidWrapperInputs } from '../packages/config/src/android-test-wrapper-assembly.mjs';
+async function fixtureTemplateTree(role){
+ const root=await tempDir(join(tmpdir(),'aaraagate-generated-flutter-fixture-'));
+ const generated=kotlinTemplate(role),old='com/aaraaplatforms/aaraagate_'+role.toLowerCase();
+ const files={
+  'android/app/build.gradle.kts':generated.gradleKts,
+  'android/app/src/main/AndroidManifest.xml':generated.manifestXml,
+  ['android/app/src/main/kotlin/'+old+'/MainActivity.kt']:generated.mainActivityKotlin,
+  'android/settings.gradle.kts':'pluginManagement {\n repositories { google(); mavenCentral() }\n}\n'
+ };
+ for(const [p,body] of Object.entries(files)){
+  await makeDirectory(join(root,...p.split('/').slice(0,-1)),{recursive:true,mode:0o700});
+  await writeFile(join(root,...p.split('/')),body,{mode:0o600,flag:'wx'});
+ }
+ return root;
+}
+async function fixtureTemplateDigest(root){
+ let files=0,directories=0,bytes=0;
+ const h=createHash('sha256').update('aaraagate:v5.5.16:test-sdk-tree:v1\n');
+ async function walk(dir,rel){
+  const stat=await fileStatus(dir);
+  const mode=(stat.mode&0o777).toString(8).padStart(3,'0');
+  directories++;h.update('D\0'+(rel||'.')+'\0'+mode+'\n');
+  const children=(await readDirectory(dir,{withFileTypes:true}))
+   .sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0);
+  for(const child of children){
+   const p=rel?rel+'/'+child.name:child.name,full=join(dir,child.name);
+   if(child.isDirectory()){await walk(full,p);continue;}
+   const st=await fileStatus(full),dig=createHash('sha256');
+   for await(const chunk of createReadStream(full))dig.update(chunk);
+   files++;bytes+=st.size;
+   h.update('F\0'+p+'\0'+(st.mode&0o777).toString(8).padStart(3,'0')+
+    '\0'+st.size+'\0'+dig.digest('hex')+'\n');
+  }
+ }
+ await walk(root,'');
+ return {digest:h.digest('hex'),files,directories,bytes};
+}
+async function wrapperFixture(role='RESIDENT'){
+ const f=overlayFixture(role),g=kotlinTemplate(role);
+ const stage=await materializeTestAndroidNativeWorkspace(
+  f.plan,f.reservation,{icon:f.png,splash:f.png},g,independentTemplateDigests(g));
+ const themed=await materializeTestAndroid12ThemeWorkspace(f.plan,f.reservation,stage);
+ const generatedRoot=await fixtureTemplateTree(role);
+ const expected=await fixtureTemplateDigest(generatedRoot);
+ const workerId='TEST_WORKER_FIXTURE_01',runId='TEST_RUN_FIXTURE_01';
+ const acceptance={status:'SIGNED_TEST_EVIDENCE_ACCEPTED_NO_EXECUTION',
+  testOnly:true,workerSignatureVerified:true,serverReplayBarrierVerified:true,
+  dispatchAllowed:false,artifactProduced:false,manifestDigest:f.plan.manifestDigest,
+  workerId,runId};
+ const sdk={testOnly:true,sdkTemplateBytesVerified:true,completeLocalTreeHashesMatched:true,
+  dispatchAllowed:false,artifactProduced:false,manifestDigest:f.plan.manifestDigest,
+  sourceSha:f.plan.manifest.sourceSha,lockDigest:f.plan.manifest.lockDigest,
+  workerId,runId,verifiedTrees:{nativeTemplate:expected}};
+ const pins={generatedRoot,workerId,runId,nativeTemplateSha256:expected.digest,
+  flutterVersion:'3.47.0'};
+ const cleanup=async()=>Promise.all([
+  rm(stage.root,{recursive:true,force:true}),
+  rm(themed.root,{recursive:true,force:true}),
+  rm(generatedRoot,{recursive:true,force:true})
+ ]);
+ return {...f,stage,themed,generatedRoot,acceptance,sdk,pins,cleanup};
+}
+for(const role of ['RESIDENT','GUARD'])
+ test('V5.5.21 materializes '+role+' native inputs into separate verified Flutter template',async()=>{
+  const f=await wrapperFixture(role);let assembled;
+  try{
+   assembled=await materializeVerifiedTestAndroidWrapperInputs(
+    f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins);
+   assert.equal(assembled.nativeInputsMaterialized,true);
+   assert.equal(assembled.flutterWrapperGenerated,false);
+   assert.equal(assembled.dispatchAllowed,false);
+   assert.equal(assembled.artifactProduced,false);
+   assert.match(assembled.assemblyDigest,/^[a-f0-9]{64}$/);
+   assert.equal(assembled.receipt.minSdk,24);
+   assert.equal(assembled.receipt.targetSdk,36);
+   assert.equal(assembled.receipt.compileSdk,36);
+   assert.equal(assembled.receipt.appRole,role);
+   const gradle=await readFile(join(assembled.root,'android/app/build.gradle.kts'),'utf8');
+   assert.match(gradle,/applicationId = "in.fixture.partner./);
+   assert.match(gradle,/targetSdk = 36/);
+   const kotlin='android/app/src/main/kotlin/in/fixture/partner/'+role.toLowerCase()+'/MainActivity.kt';
+   assert.match(await readFile(join(assembled.root,kotlin),'utf8'),/package in.fixture.partner/);
+   const retained=await readFile(join(assembled.root,'android/settings.gradle.kts'),'utf8');
+   assert.match(retained,/pluginManagement/);
+   await assert.rejects(readFile(join(assembled.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_'+role.toLowerCase()+'/MainActivity.kt'),'utf8'));
+   assert.equal(await readFile(join(f.generatedRoot,'android/app/build.gradle.kts'),'utf8'),
+    kotlinTemplate(role).gradleKts);
+  }finally{if(assembled)await rm(assembled.root,{recursive:true,force:true});await f.cleanup();}
+ });
+for(const [label,change] of [
+ ['wrong generated Flutter pin',async f=>{f.pins.nativeTemplateSha256='0'.repeat(64);}],
+ ['mutated originally pinned Flutter file',async f=>{await appendFile(join(f.generatedRoot,'android/settings.gradle.kts'),'\n// changed');}],
+ ['extra Gradle file',async f=>{await writeFile(join(f.generatedRoot,'android/rogue.gradle'),'evil');}],
+ ['different worker',async f=>{f.pins.workerId='TEST_WORKER_FOREIGN';}],
+ ['unsupported flutter template version',async f=>{f.pins.flutterVersion='3.46.0';}],
+ ['unconsumed worker proof',async f=>{f.acceptance.serverReplayBarrierVerified=false;}],
+ ['attempted build dispatch',async f=>{f.plan={...f.plan,dispatchAllowed:true};}]
+])test('V5.5.21 refuses '+label+' before invoking a compiler',async()=>{
+ const f=await wrapperFixture();
+ try{
+  await change(f);
+  await assert.rejects(materializeVerifiedTestAndroidWrapperInputs(
+   f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins));
+ }finally{await f.cleanup();}
+});
