@@ -69,7 +69,16 @@ export function planTestAndroidNativeWrapperPatch(plan,reservation,generated){
  gradleKts=one(gradleKts,/\bversionCode\s*=\s*flutter\.versionCode\b/,
    'versionCode = '+reservation.versionCode,'versionCode');
  gradleKts=one(gradleKts,/\bcompileSdk\s*=\s*flutter\.compileSdkVersion\b/,'compileSdk = 36','compileSdk');
- gradleKts=one(gradleKts,/\bminSdk\s*=\s*flutter\.minSdkVersion\b/,'minSdk = 23','minSdk');
+ gradleKts=one(gradleKts,/\bminSdk\s*=\s*flutter\.minSdkVersion\b/,'minSdk = 24','minSdk');
+ // Fail closed on nonstandard or duplicate target-SDK declarations. Flutter
+ // generator versions may omit this line: inject a controlled explicit target.
+ if(/\btargetSdk\s*=/.test(gradleKts)){
+  gradleKts=one(gradleKts,/\btargetSdk\s*=\s*flutter\.targetSdkVersion\b/,
+   'targetSdk = 36','targetSdk');
+ }else{
+  gradleKts=one(gradleKts,/\bminSdk\s*=\s*24\b/,
+   'minSdk = 24\n targetSdk = 36','injected targetSdk');
+ }
  manifestXml=one(manifestXml,/android:label="[^"]*"/,'android:label="'+xml(m.label)+'"','label');
  manifestXml=one(manifestXml,/android:icon="@mipmap\/ic_launcher"/,
   'android:icon="@drawable/aaraagate_test_icon"','launcher icon');
