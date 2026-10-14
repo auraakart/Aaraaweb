@@ -77,7 +77,8 @@ describe('V5.5.3 monotonic Android versionCode TEST reservation',()=>{
  });
  it('enforces TEST identity and foreign context refusal without job creation',async()=>{
   const f=fixture();f.revision.manifest={...manifest,buildMode:'PRODUCTION'};
-  await expect(f.service.reserve(principal(),societyId,proposalId,input)).rejects.toThrow(/identity/);
+  f.revision.digest=digest(f.revision.manifest);
+  await expect(f.service.reserve(principal(),societyId,proposalId,{...input,expectedDigest:f.revision.digest})).rejects.toThrow(/identity/);
   f.revision.manifest={...manifest,partnerId:randomUUID()};
   f.revision.digest=digest(f.revision.manifest);
   await expect(f.service.reserve(principal(),societyId,proposalId,{...input,expectedDigest:f.revision.digest})).rejects.toThrow(/identity/);
