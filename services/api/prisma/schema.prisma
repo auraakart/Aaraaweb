@@ -19,6 +19,7 @@ model User {
   androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
   androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
   androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
+  androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1808,6 +1809,25 @@ model GateNotificationAttempt {
 
 // Immutable test-build identity approval; never an app/session audience or build dispatch.
 // Immutable claim is NEVER an executable build permit.
+// One append-only NON-EXECUTING consumption per TEST claim; not a process permit.
+model PartnerAndroidBuildWorkerConsumption {
+ id              String @id @default(uuid()) @db.Uuid
+ claimId         String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ manifestDigest  String @db.VarChar(64)
+ nonceDigest     String @db.VarChar(64)
+ sourceSha       String @db.VarChar(40)
+ lockDigest      String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ claim           PartnerAndroidBuildWorkerClaim @relation(fields:[claimId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidBuildConsumptionActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
 model PartnerAndroidBuildWorkerClaim {
   id              String @id @default(uuid()) @db.Uuid
   reservationId   String @unique @db.Uuid
@@ -1820,6 +1840,7 @@ model PartnerAndroidBuildWorkerClaim {
   issuedAt        DateTime @db.Timestamptz(6)
   expiresAt       DateTime @db.Timestamptz(6)
   createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  consumption     PartnerAndroidBuildWorkerConsumption?
   reservation     PartnerAndroidBuildReservation @relation(fields:[reservationId], references:[id], onDelete:Restrict)
   actor           User @relation("AndroidBuildWorkerClaimActor", fields:[actorId], references:[id], onDelete:Restrict)
   @@index([workerId, createdAt])

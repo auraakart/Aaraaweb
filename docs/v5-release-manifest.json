@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.7",
+      "currentSlice": "V5.5.8",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1489,7 +1489,7 @@
         {
           "id": "V5.5.7",
           "name": "Append-only single-use TEST Android worker claim ledger with short-lived authenticated assertion",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-worker-claim.service.ts",
             "services/api/src/entitlements/partner-android-worker-claim.spec.ts",
@@ -1499,15 +1499,33 @@
           "limitations": [
             "Internal service; no public worker route, executable dispatch, process launch, APK/AAB, signing or artifact verification.",
             "The separately authenticated isolated builder, single-use execution consumption and fresh completion checkpoint remain unimplemented."
+          ],
+          "pullRequest": 1298,
+          "mergeSha": "02d76a35c2826977094b24bc68adda19fc1bf43a",
+          "ciRun": 38559750327
+        },
+        {
+          "id": "V5.5.8",
+          "name": "Append-only TEST worker claim consumption and fresh completion authority without executable dispatch",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-worker-consumption.service.ts",
+            "services/api/src/entitlements/partner-android-worker-consumption.spec.ts",
+            "services/api/prisma/migrations/20261014194000_v558_android_worker_consumption/migration.sql",
+            "docs/architecture/V5.5.8-ANDROID-WORKER-CONSUMPTION.md"
+          ],
+          "limitations": [
+            "No external worker service transport, Flutter/Gradle execution, signed APK/AAB, persisted signed artifact or production credentials.",
+            "Worker assertion and consumption provide replay barriers, not an execution permit; completion check remains non-verifying until trusted archive proof is separately implemented."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.7 one-claim-per-version authenticated receipt with protected CI",
-        "Integrate separately authenticated isolated worker with one-time execution consumption and live completion reauthorization",
-        "Stage pinned Flutter Kotlin wrapper and sanitized native resources in verified throwaway checkout; complete splash/theme integration",
-        "Build TEST APK/AAB and verify signer/package/version/ABI, immutable SHA-256 provenance and cleanup",
-        "Partner A/B isolation, default-brand regression and V5.6 closure"
+        "Validate and merge V5.5.8 internal single-use consumption and completion checkpoint through protected CI",
+        "Trusted externally authenticated TEST runner connection with pinned source/lock/toolchain and bounded ephemeral invocation/cancellation",
+        "Generate verified Flutter 3.47 Kotlin wrapper and patch native Android identity/assets and themes",
+        "Build independently inspected TEST APK/AAB, validate signing/package/version/ABI and retain immutable SHA-256 provenance",
+        "Partner A/B and default brand isolation, regression and V5.6 closure"
       ]
     },
     {
