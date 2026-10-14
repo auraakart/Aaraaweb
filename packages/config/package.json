@@ -14,7 +14,8 @@
     "./android-build-contract": "./src/android-build-contract.mjs",
     "./android-test-overlay": "./src/android-test-overlay.mjs",
     "./android-test-native-wrapper": "./src/android-test-native-wrapper.mjs",
-    "./android-test-native-workspace": "./src/android-test-native-workspace.mjs"
+    "./android-test-native-workspace": "./src/android-test-native-workspace.mjs",
+    "./android-test-pinned-checkout": "./src/android-test-pinned-checkout.mjs"
   },
   "typesVersions": {
     "*": {
