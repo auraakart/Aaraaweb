@@ -21,6 +21,7 @@ model User {
   androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
   androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
   androidBuildRunnerChallenges PartnerAndroidRunnerChallenge[] @relation("AndroidRunnerChallengeActor")
+  androidBuildRunnerAcceptances PartnerAndroidRunnerEvidenceAcceptance[] @relation("AndroidRunnerAcceptanceActor")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1831,6 +1832,30 @@ model PartnerAndroidBuildWorkerConsumption {
 }
 
 
+
+model PartnerAndroidRunnerEvidenceAcceptance {
+ id                     String @id @default(uuid()) @db.Uuid
+ challengeId            String @unique @db.Uuid
+ actorId                String @db.Uuid
+ workerId               String @db.VarChar(64)
+ runId                  String @unique @db.VarChar(64)
+ nonceDigest            String @unique @db.VarChar(64)
+ imageDigest            String @db.VarChar(71)
+ manifestDigest         String @db.VarChar(64)
+ sourceSha              String @db.VarChar(40)
+ lockDigest             String @db.VarChar(64)
+ nativeInventoryDigest  String @db.VarChar(64)
+ toolchainReceiptDigest String @db.VarChar(64)
+ signatureDigest        String @unique @db.VarChar(64)
+ versionCode            Int
+ issuedAt               DateTime @db.Timestamptz(6)
+ expiresAt              DateTime @db.Timestamptz(6)
+ createdAt              DateTime @default(now()) @db.Timestamptz(6)
+ challenge              PartnerAndroidRunnerChallenge @relation(fields:[challengeId],references:[id],onDelete:Restrict)
+ actor                  User @relation("AndroidRunnerAcceptanceActor",fields:[actorId],references:[id],onDelete:Restrict)
+ @@index([workerId,createdAt])
+}
+
 model PartnerAndroidRunnerChallenge {
  id              String @id @default(uuid()) @db.Uuid
  consumptionId   String @unique @db.Uuid
@@ -1844,6 +1869,7 @@ model PartnerAndroidRunnerChallenge {
  issuedAt        DateTime @db.Timestamptz(6)
  expiresAt       DateTime @db.Timestamptz(6)
  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ acceptance PartnerAndroidRunnerEvidenceAcceptance?
  consumption     PartnerAndroidBuildWorkerConsumption @relation(fields:[consumptionId], references:[id], onDelete:Restrict)
  actor           User @relation("AndroidRunnerChallengeActor", fields:[actorId], references:[id], onDelete:Restrict)
  @@index([workerId, createdAt])

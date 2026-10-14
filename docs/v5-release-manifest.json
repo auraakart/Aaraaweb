@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.14",
+      "currentSlice": "V5.5.15",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1609,7 +1609,7 @@
         {
           "id": "V5.5.14",
           "name": "Durable server-minted one-use TEST runner challenge for each previously consumed worker claim",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-runner-challenge.service.ts",
             "services/api/src/entitlements/partner-android-runner-challenge.spec.ts",
@@ -1619,11 +1619,29 @@
           "limitations": [
             "Challenge issuance only; no signed-proof acceptance, verified image execution, transport authentication or APK/AAB.",
             "Internal-only, append-only, unique per consumption; no productionization or staging/main promotion."
+          ],
+          "pullRequest": 1305,
+          "mergeSha": "acd0329e6e097e0e7dbc4baba3224efaa136884d",
+          "ciRun": 38582432830
+        },
+        {
+          "id": "V5.5.15",
+          "name": "Atomically accept Ed25519-signed TEST runner response once with immutable live authority and replay ledger",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-runner-evidence-acceptance.service.ts",
+            "services/api/src/entitlements/partner-android-runner-evidence-acceptance.spec.ts",
+            "services/api/prisma/migrations/20261014235500_v5515_runner_evidence_acceptance/migration.sql",
+            "docs/architecture/V5.5.15-ANDROID-RUNNER-EVIDENCE-ACCEPTANCE.md"
+          ],
+          "limitations": [
+            "Accepting a signature and replay barrier does not prove authenticated transport, executed OCI image or genuine SDK measurement.",
+            "No live builder, APK/AAB, signer verification, productionization, new HTTP route, or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.14 durable TEST runner challenge issuance; next implement atomic signed-proof acceptance and transport",
+        "Validate V5.5.15 single-use signed worker proof and merge after protected CI; then authenticated runner transport, complete SDK/template attestations",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
