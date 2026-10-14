@@ -423,7 +423,7 @@ async function fixtureTemplateTree(role){
  const files={
   'android/app/build.gradle.kts':generated.gradleKts,
   'android/app/src/main/AndroidManifest.xml':generated.manifestXml,
-  'android/app/src/main/kotlin/'+old+'/MainActivity.kt':generated.mainActivityKotlin,
+  ['android/app/src/main/kotlin/'+old+'/MainActivity.kt']:generated.mainActivityKotlin,
   'android/settings.gradle.kts':'pluginManagement {\n repositories { google(); mavenCentral() }\n}\n'
  };
  for(const [p,body] of Object.entries(files)){
