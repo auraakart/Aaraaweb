@@ -20,6 +20,7 @@ model User {
   androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
   androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
   androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
+  androidBuildRunnerChallenges PartnerAndroidRunnerChallenge[] @relation("AndroidRunnerChallengeActor")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1823,8 +1824,28 @@ model PartnerAndroidBuildWorkerConsumption {
  issuedAt        DateTime @db.Timestamptz(6)
  expiresAt       DateTime @db.Timestamptz(6)
  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ runnerChallenge PartnerAndroidRunnerChallenge?
  claim           PartnerAndroidBuildWorkerClaim @relation(fields:[claimId], references:[id], onDelete:Restrict)
  actor           User @relation("AndroidBuildConsumptionActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
+
+model PartnerAndroidRunnerChallenge {
+ id              String @id @default(uuid()) @db.Uuid
+ consumptionId   String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ runId           String @unique @db.VarChar(64)
+ nonceDigest     String @unique @db.VarChar(64)
+ imageDigest     String @db.VarChar(71)
+ manifestDigest  String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ consumption     PartnerAndroidBuildWorkerConsumption @relation(fields:[consumptionId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidRunnerChallengeActor", fields:[actorId], references:[id], onDelete:Restrict)
  @@index([workerId, createdAt])
 }
 
