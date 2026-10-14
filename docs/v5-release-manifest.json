@@ -1294,15 +1294,33 @@
         {
           "id": "V5.4.18",
           "name": "Direct-host authenticated Next SSR and encrypted host-only cookie lifecycle",
-          "status": "IN_PROGRESS",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "9d064f24435e6ba1e04a8ad830118c723e86664a",
           "evidence": [
             "docs/architecture/V5.4.18-HOST-SSR-COOKIES.md"
           ],
           "limitations": [
-            "Locally validated; protected CI and develop integration pending.",
+            "Protected direct-host SSR/cookie acceptance passed; production remains disabled.",
             "Production disabled; direct raw Host only; no trusted reverse-proxy or public DNS/TLS activation.",
             "Actual Next HTTP acceptance uses a fixed local API double; browser HTTPS deployment acceptance remains excluded."
+          ],
+          "pullRequest": 1288,
+          "mergeSha": "07b69b4cbc298a82398238fc6422d3d55ba3c1cb",
+          "validatedRuntimeSha": "aca73bac4f90877dfec0c9d4a174d499018248c9",
+          "ciRun": 38516992907
+        },
+        {
+          "id": "V5.4.19",
+          "name": "Owner-scoped partner domain lifecycle console with proof expiry and context-safe retries",
+          "status": "IN_PROGRESS",
+          "baselineSha": "07b69b4cbc298a82398238fc6422d3d55ba3c1cb",
+          "evidence": [
+            "docs/V5.4.19-PARTNER-DOMAIN-CONSOLE.md"
+          ],
+          "limitations": [
+            "Protected browser and full CI acceptance pending.",
+            "Local Chromium archive download failed; no local browser-pass claim.",
+            "Existing test-only DNS verifier retained; no production routing, trusted proxy deployment or Android distribution approval."
           ]
         }
       ],
@@ -1313,8 +1331,8 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "Protected direct-host SSR/cookie acceptance and trusted reverse-proxy design; no production activation",
-        "Partner domain lifecycle operator experience and V5.5 distribution approval"
+        "Trusted reverse-proxy design and nonproduction transport acceptance; no production activation",
+        "Protected partner domain operator acceptance and V5.5 distribution approval"
       ]
     },
     {
