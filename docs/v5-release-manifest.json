@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.10",
+      "currentSlice": "V5.5.11",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1541,7 +1541,7 @@
         {
           "id": "V5.5.10",
           "name": "Verify real local TEST Git checkout HEAD and dependency-lock bytes against immutable source pins",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-pinned-checkout.mjs",
             "scripts/android-test-checkout.test.mjs",
@@ -1550,11 +1550,28 @@
           "limitations": [
             "Read-only local verification, not source acquisition or remote authenticity. Independently authenticated trusted worker and pinned toolchain/template remain outstanding.",
             "No Flutter/Gradle invocation, signer/archive checks, executable dispatch, API or schema changes; staging/main and default demo stay untouched."
+          ],
+          "pullRequest": 1301,
+          "mergeSha": "b8029d873a154dbf13406952ba43d8b0ad000c5b",
+          "ciRun": 38572555868
+        },
+        {
+          "id": "V5.5.11",
+          "name": "Recheck staged TEST native and PNG file inventory against pinned source, reservation and SHA receipts",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-staging-inventory.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.11-ANDROID-STAGING-INVENTORY.md"
+          ],
+          "limitations": [
+            "Filesystem inventory check is not an authenticated builder, immutable mount or proof of trusted pin origin; recheck must happen at consumption under isolated worker.",
+            "No Flutter generation, APK/AAB, signing, publication, DB/API migration, productionization or staging/main changes."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.10 clean pinned local TEST checkout preflight under protected CI",
+        "Validate and merge V5.5.11 staged TEST byte inventory under protected CI",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
         "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
