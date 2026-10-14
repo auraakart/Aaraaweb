@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.5",
+      "currentSlice": "V5.5.6",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1455,7 +1455,7 @@
         {
           "id": "V5.5.5",
           "name": "Live TEST Android build reservation authority checkpoints before dispatch and completion (non-executing)",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "services/api/src/entitlements/partner-android-build-reservation.service.ts",
             "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
@@ -1464,15 +1464,32 @@
           "limitations": [
             "Read-only checks are not a worker session or executable build authorization; checkout, native asset, toolchain and signer checks still required.",
             "No APK/AAB, trusted worker credentials, new API route, workflow change, artifact record, or production promotion."
+          ],
+          "pullRequest": 1296,
+          "mergeSha": "1d4758f5409fa0ae9621dc441b56f376e78b0782",
+          "ciRun": 38550926469
+        },
+        {
+          "id": "V5.5.6",
+          "name": "Fail-closed non-executing Kotlin Flutter TEST Android native wrapper patch plan",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-native-wrapper.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.6-ANDROID-NATIVE-WRAPPER-PATCH.md"
+          ],
+          "limitations": [
+            "Pure native patch data; no real generated Flutter wrapper, verified source checkout, worker or APK/AAB build.",
+            "Requires separate authenticated single-use worker, live dispatch/completion checkpoints, pinned template, sanitized resources, splash integration and actual test signer/archive verification."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.5 read-only reauthorization checkpoints with protected CI",
-        "Implement isolated authenticated worker dispatch and real-time completion invocation (never reuse an earlier checkpoint)",
-        "Generate verified Flutter Android wrapper and safe native manifest/Gradle identity/resources patch in ephemeral workspace",
-        "Bounded TEST APK/AAB build, signing/archive/package/ABI integrity verification and SHA-256 provenance with cleanup",
-        "Default and Partner A/B install/update/isolation tests, V5.6 regression and closure"
+        "Validate/merge V5.5.6 Kotlin TEST native patch planner under protected CI",
+        "Create authenticated isolated worker with single-use dispatch and repeated live authority checkpoints",
+        "Generate pinned Flutter 3.47 Kotlin wrapper in verified ephemeral checkout and integrate safe native patch, sanitized icon/splash and Android styles",
+        "Bounded TEST APK/AAB build with actual archive signer/package/version/ABI/SHA checks and append-only provenance",
+        "Partner A/B installation/isolation regression and V5.6 release readiness"
       ]
     },
     {
