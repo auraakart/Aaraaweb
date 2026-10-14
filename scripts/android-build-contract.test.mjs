@@ -270,3 +270,6 @@ test('V5.5.11 rejects mismatched reservations and attempted TEST dispatch',async
 
 // V5.5.12: non-dispatching pinned TEST toolchain verification.
 import './android-test-toolchain.test.mjs';
+
+// V5.5.13: signed TEST worker evidence binds consumption, source, assets and toolchain.
+import './android-test-runner-evidence.test.mjs';
