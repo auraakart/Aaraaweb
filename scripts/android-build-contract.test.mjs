@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { materializeTestAndroidResourceOverlay } from '../packages/config/src/android-test-overlay.mjs';
 import { androidBuildManifestDigest,planTestAndroidBuild,checkAndroidAssetBytes,recordTestAndroidProvenance } from '../packages/config/src/android-build-contract.mjs';
 const clone=v=>JSON.parse(JSON.stringify(v));
 const distributionId='11111111-1111-4111-8111-111111111111',approvalId='22222222-2222-4222-8222-222222222222',partnerId='33333333-3333-4333-8333-333333333333',societyId='44444444-4444-4444-8444-444444444444';
@@ -47,3 +51,64 @@ for(const [name,mutate] of [
  ['unreserved version',e=>e.reservationConsumed=false],['bad version',e=>e.versionCode=0],['unverified archive',e=>e.archiveVerified=false],['demo fixture',e=>e.demoFixturesPresent=true],['wrong signer',e=>e.signerFingerprint='0'.repeat(64)],
  ['wrong source',e=>e.sourceSha='0'.repeat(40)],['unpinned Flutter',e=>e.toolchain.flutter='3.48.0'],['secret evidence',e=>e.password='hidden'],['duplicate APK',e=>e.artifacts[1].kind='APK'],['missing AAB',e=>e.artifacts.pop()],['secret artifact',e=>e.artifacts[0].token='hidden'],
 ])test(`rejects provenance ${name}`,()=>{const {m,c}=fixture(),plan=planTestAndroidBuild(m,c),e=evidence(plan);mutate(e);assert.throws(()=>recordTestAndroidProvenance(plan,e));});
+
+// V5.5.4: isolated native inputs without generated platform wrapper mutation.
+const validPng=()=>{
+ const png=new Uint8Array(33);
+ png.set([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82],0);
+ png[19]=1;png[23]=1;png[24]=8;png[25]=6;
+ return png;
+};
+function overlayFixture(role='RESIDENT') {
+ const {m,c}=fixture(role);
+ const png=validPng(),d=createHash('sha256').update(png).digest('hex');
+ m.assetDigests.icon=d;m.assetDigests.splash=d;
+ c.verifiedAssets.forEach(a=>{a.digest=d;});
+ const plan=planTestAndroidBuild(m,c);
+ const reservation={id:'55555555-5555-4555-8555-555555555555',
+  revisionId:'66666666-6666-4666-8666-666666666666',versionCode:101,
+  digest:plan.manifestDigest,status:'RESERVED_TEST_ONLY',testOnly:true,dispatchAllowed:false};
+ return {plan,reservation,png};
+}
+for(const role of ['RESIDENT','GUARD'])test(`TEST ${role} native overlay is disposable, non-dispatchable and uses a fixed file inventory`,async()=>{
+ const {plan,reservation,png}=overlayFixture(role);
+ const overlay=await materializeTestAndroidResourceOverlay(plan,reservation,{icon:png,splash:png});
+ try {
+  assert.equal(overlay.testOnly,true);assert.equal(overlay.dispatchAllowed,false);
+  assert.equal(overlay.artifactProduced,false);assert.equal(overlay.appDirectory,`apps/${role.toLowerCase()}`);
+  assert.equal(overlay.root.startsWith(tmpdir()),true);
+  const metadata=JSON.parse(await readFile(join(overlay.root,'.aaraagate','test-build-input.json'),'utf8'));
+  assert.equal(metadata.applicationId,plan.manifest.applicationId);
+  assert.equal(metadata.versionCode,101);assert.equal(metadata.archiveVerified,false);
+  assert.equal(metadata.requiresNativeManifestPatch,true);
+  assert.equal(metadata.dispatchAllowed,false);assert.equal(metadata.artifactProduced,false);
+  assert.deepEqual(new Uint8Array(await readFile(join(overlay.root,'android','app','src','main','res','drawable-nodpi','aaraagate_test_icon.png'))),png);
+  assert.deepEqual(new Uint8Array(await readFile(join(overlay.root,'android','app','src','main','res','drawable-nodpi','aaraagate_test_splash.png'))),png);
+ } finally {await rm(overlay.root,{recursive:true,force:true});}
+ await assert.rejects(readFile(join(overlay.root,'.aaraagate','test-build-input.json'),'utf8'));
+});
+for(const [label,mutate] of [
+ ['missing reservation',x=>x.reservation=null],
+ ['unreserved version',x=>x.reservation.versionCode=0],
+ ['version overflow',x=>x.reservation.versionCode=2100000001],
+ ['untrusted digest',x=>x.reservation.digest='0'.repeat(64)],
+ ['foreign revision',x=>x.reservation.revisionId='invalid'],
+ ['already dispatched',x=>x.reservation.dispatchAllowed=true],
+ ['release mode',x=>x.plan={...x.plan,manifest:{...x.plan.manifest,buildMode:'RELEASE'}}],
+ ['false source',x=>x.plan={...x.plan,manifest:{...x.plan.manifest,sourceSha:'0'.repeat(40)}}],
+ ['app checkout drift',x=>x.plan={...x.plan,appDirectory:'apps/unknown'}],
+ ['tampered icon bytes',x=>x.png[20]++],
+ ['incomplete bytes',x=>x.png=new Uint8Array(12)]
+])test(`TEST overlay rejects ${label}`,async()=>{
+ const x=overlayFixture();mutate(x);
+ await assert.rejects(materializeTestAndroidResourceOverlay(x.plan,x.reservation,{icon:x.png,splash:x.png}));
+});
+test('TEST overlay refuses wrong PNG header even if the supplied bytes digest is internally consistent',async()=>{
+ const {m,c}=fixture(),fake=new Uint8Array(34).fill(3),digest=createHash('sha256').update(fake).digest('hex');
+ m.assetDigests.icon=digest;m.assetDigests.splash=digest;
+ c.verifiedAssets.forEach(a=>{a.digest=digest});
+ const plan=planTestAndroidBuild(m,c),reservation={id:'55555555-5555-4555-8555-555555555555',
+  revisionId:'66666666-6666-4666-8666-666666666666',versionCode:1,
+  digest:plan.manifestDigest,status:'RESERVED_TEST_ONLY',testOnly:true,dispatchAllowed:false};
+ await assert.rejects(materializeTestAndroidResourceOverlay(plan,reservation,{icon:fake,splash:fake}),/PNG/);
+});
