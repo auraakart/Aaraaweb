@@ -137,4 +137,24 @@ export class PartnerLicenseLifecycleService {
       return {id:a.id,status:'ACTIVE_ALLOCATION' as const,consentId:c.id};
     });
   }
+  /** Current, locked allocation authority reused by distribution and conversion.
+   * A persisted receipt alone is never current commercial authorization. */
+  async withActiveAllocation<T>(principal:AuthPrincipal,societyId:string,
+    input:LicenseContextInput & {allocationId:string},
+    operation:(tx:Prisma.TransactionClient, context:{allocationId:string;approvalId:string;partnerId:string;maximumDistributions:number;legacy:{productTier:import('@prisma/client').ProductTier;featureOverrides:Prisma.JsonValue;enabledFeatures:ProductFeature[]}})=>Promise<T>):Promise<T> {
+    this.validate(input);
+    if(!uuid.test(input.allocationId))throw new BadRequestException('Invalid allocation reference');
+    return this.ownership.withAuthorizedSociety(principal,societyId,async(tx,owner)=>{
+      const g=await this.grant(tx,societyId,owner,input);
+      if(!g.approval||g.approval.revocation||g.approval.grantVersion!==g.version||this.phase(g)!=='ACTIVE')throw new ConflictException('Approved active license unavailable');
+      const c=await tx.societyLicenseConsent.findFirst({where:{societyId,grantId:g.id,ownershipVersion:owner.ownershipVersion},orderBy:{sequence:'desc'}});
+      const legacy=await this.legacy(tx,societyId);
+      if(!c||c.decision!=='OPT_IN'||c.grantVersion!==g.version||c.productTier!==legacy.productTier||canonicalLicenseJson(c.featureOverrides)!==canonicalLicenseJson(legacy.featureOverrides)||!sameLicenseFeatures(c.enabledFeatures,legacy.enabledFeatures))throw new ConflictException('Current compatible society opt-in required');
+      this.compatible(g.planRevision.featureAllowlist,legacy.enabledFeatures);
+      const allocation=await tx.societyLicenseAllocation.findFirst({where:{id:input.allocationId,societyId,ownershipVersion:owner.ownershipVersion,approvalId:g.approval.id,consentId:c.id},select:{id:true}});
+      if(!allocation)throw new NotFoundException('Current allocation unavailable');
+      return operation(tx,{allocationId:allocation.id,approvalId:g.approval.id,partnerId:owner.partnerId,maximumDistributions:g.planRevision.maximumDistributions,legacy});
+    });
+  }
+
 }

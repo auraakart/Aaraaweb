@@ -89,3 +89,7 @@ stale proposal, revoked initiator/approver replay, inactive partner, unauthorize
 DB write, orphan receipt and injected downstream rollback tests; focused route
 and service negatives; canonical full protected CI. No hosted migration,
 productionization, staging/main promotion or live licensing cutover.
+
+## V5.1.2 explicit grandfathered commercial conversion
+
+See [distribution and legacy conversion contract](V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md). Implementation uses approved current licensing, explicit opt-in, same-society allocation and exact historical/current feature equality. The additive subscription preserves historical rights; legacy operational tier/overrides remain authoritative. Protected PostgreSQL/full CI acceptance is pending. No live batch migration or commercial policy is inferred.

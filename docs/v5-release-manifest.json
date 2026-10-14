@@ -52,7 +52,7 @@
       "dependsOn": [
         "V5.0"
       ],
-      "currentSlice": "V5.1.1",
+      "currentSlice": "V5.1.2",
       "slices": [
         {
           "id": "V5.1.0",
@@ -83,10 +83,24 @@
           "pullRequest": 1269,
           "mergeSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
           "ciRun": 38399142929
+        },
+        {
+          "id": "V5.1.2",
+          "name": "Explicit immutable grandfathered subscription conversion preserving historical/current legacy rights",
+          "status": "IN_PROGRESS",
+          "evidence": [
+            "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+            "services/api/src/entitlements/legacy-subscription-conversion.service.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Protected PostgreSQL acceptance pending.",
+            "Additive commercial representation only; legacy operational resolver remains authoritative. No automatic/live society migration, pricing or maintenance-billing changes."
+          ]
         }
       ],
       "remaining": [
-        "Legacy subscription grant conversion after licensing authority is specified"
+        "Protected historical subscription conversion acceptance and scoped V5.1 closure review"
       ]
     },
     {
@@ -959,7 +973,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.17",
+      "currentSlice": "V5.4.20",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1312,15 +1326,33 @@
         {
           "id": "V5.4.19",
           "name": "Owner-scoped partner domain lifecycle console with proof expiry and context-safe retries",
-          "status": "IN_PROGRESS",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "07b69b4cbc298a82398238fc6422d3d55ba3c1cb",
           "evidence": [
             "docs/V5.4.19-PARTNER-DOMAIN-CONSOLE.md"
           ],
           "limitations": [
-            "Protected browser and full CI acceptance pending.",
+            "Protected browser and full CI acceptance passed, including all eight domain browser contracts.",
             "Local Chromium archive download failed; no local browser-pass claim.",
             "Existing test-only DNS verifier retained; no production routing, trusted proxy deployment or Android distribution approval."
+          ],
+          "pullRequest": 1289,
+          "mergeSha": "0e88378725f7a40cf467c78cbe7c2e2c8afdbb3c",
+          "validatedRuntimeSha": "b760e42b5ada678a50e3bcf3b643b44643fe7162",
+          "ciRun": 38518827331
+        },
+        {
+          "id": "V5.4.20",
+          "name": "Immutable test distribution proposals, independent approvals and revocations under active licensing",
+          "status": "IN_PROGRESS",
+          "baselineSha": "0e88378725f7a40cf467c78cbe7c2e2c8afdbb3c",
+          "evidence": [
+            "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Protected PostgreSQL and full CI acceptance pending.",
+            "TEST inputs only; V5.5 source/config/assets/signing/build provenance validation is separate. No production distribution, artifact generation or staging/main promotion."
           ]
         }
       ],
@@ -1332,7 +1364,7 @@
       },
       "remaining": [
         "Trusted reverse-proxy design and nonproduction transport acceptance; no production activation",
-        "Protected partner domain operator acceptance and V5.5 distribution approval"
+        "Protected test distribution approval acceptance; V5.5 complete build-manifest and artifact validation"
       ]
     },
     {
