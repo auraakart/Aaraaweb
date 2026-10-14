@@ -959,7 +959,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.15",
+      "currentSlice": "V5.4.17",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1261,6 +1261,31 @@
           ],
           "pullRequest": 1284,
           "mergeSha": "675b04a2c5f48aa2fa4f14543a419c8e24a7571f"
+        },
+        {
+          "id": "V5.4.16",
+          "name": "Server-persisted partner audience and cross-surface API separation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1285,
+          "mergeSha": "1cca2040c7e646e52a4270357fce4e187cfae90b",
+          "ciRun": 38458096160,
+          "evidence": [
+            "docs/architecture/V5.4.16-SERVER-PARTNER-AUDIENCE.md"
+          ]
+        },
+        {
+          "id": "V5.4.17",
+          "name": "Persisted direct-host test session binding and scoped bearer/refresh revalidation",
+          "status": "IN_PROGRESS",
+          "baselineSha": "1cca2040c7e646e52a4270357fce4e187cfae90b",
+          "evidence": [
+            "docs/architecture/V5.4.17-HOST-BOUND-SESSIONS.md"
+          ],
+          "limitations": [
+            "Direct raw Host test adapter only; production disabled.",
+            "No SSR routing, proxy trust activation or host-only cookie issuance.",
+            "Bound sessions may use only exact partner-param routes; discovery/invitation inbox remains on platform portal."
+          ]
         }
       ],
       "scopedAcceptance": {
@@ -1270,8 +1295,8 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "V5.4.16 persisted partner session audience and cross-surface API separation (in progress)",
-        "Authenticated host-bound SSR sessions, trusted proxy and cookie isolation (not implemented)",
+        "V5.4.17 direct-host test session binding acceptance (protected CI and merge pending)",
+        "Authenticated host-bound SSR sessions, trusted proxy and host-only cookies",
         "Partner domain lifecycle operator experience and V5.5 distribution approval"
       ]
     },

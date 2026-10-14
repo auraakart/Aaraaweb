@@ -223,6 +223,7 @@ model PartnerDomainClaim {
   partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
   createdBy User @relation("DomainClaimCreator",fields:[createdById],references:[id],onDelete:Restrict)
   events PartnerDomainClaimEvent[]
+  boundSessions Session[]
   @@unique([partnerId,idempotencyKey])
   @@index([partnerId,status])
 }
@@ -1192,6 +1193,10 @@ model Session {
   userId           String    @db.Uuid
   societyId        String?   @db.Uuid
   audience         String    @default("STANDARD") @db.VarChar(16)
+  originHost       String?   @db.VarChar(253)
+  hostClaimId      String?   @db.Uuid
+  hostClaimVersion Int?
+  hostClaim        PartnerDomainClaim? @relation(fields: [hostClaimId], references: [id], onDelete: Restrict)
   accessTokenHash  String    @unique
   refreshTokenHash String    @unique
   expiresAt        DateTime
@@ -1206,6 +1211,7 @@ model Session {
   @@index([societyId, revokedAt])
   @@index([expiresAt])
   @@index([refreshExpiresAt])
+  @@index([hostClaimId])
 }
 
 model HelpdeskTicket {

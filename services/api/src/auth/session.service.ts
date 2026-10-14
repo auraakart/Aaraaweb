@@ -5,6 +5,7 @@ import { AppRole, AuthPrincipal } from './auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthStateStore } from './auth-state.store';
 import { AuthContextService } from './auth-context.service';
+import { HostSessionRequest, verifiedHostSessionBinding } from './partner-host-session';
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -19,15 +20,18 @@ export class SessionService {
     private readonly contexts: AuthContextService,
   ) {}
 
-  async create(userId: string, societyId: string | undefined, roles: AppRole[], options?: {audience:'PARTNER'}) {
+  async create(userId: string, societyId: string | undefined, roles: AppRole[], options?: {audience:'PARTNER';hostRequest?:HostSessionRequest}) {
     if (options?.audience === 'PARTNER' && (societyId || roles.length)) throw new UnauthorizedException('Partner session cannot carry society authority');
+    const host = options?.hostRequest ? await verifiedHostSessionBinding(this.prisma,userId,options.hostRequest) : undefined;
     const now = Date.now();
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = randomBytes(48).toString('hex');
     const id = randomUUID();
     const expiresAt = new Date(now + ACCESS_TTL_MS);
     const refreshExpiresAt = new Date(now + REFRESH_TTL_MS);
-    await this.prisma.session.create({ data: { id, userId, societyId: societyId ?? null, audience: options?.audience ?? 'STANDARD', accessTokenHash: hash(accessToken), refreshTokenHash: hash(refreshToken), expiresAt, refreshExpiresAt } });
+    await this.prisma.session.create({ data: { id, userId, societyId: societyId ?? null, audience: options?.audience ?? 'STANDARD',
+      ...(host?{originHost:host.originHost,hostClaimId:host.hostClaimId,hostClaimVersion:host.hostClaimVersion}:{}),
+      accessTokenHash: hash(accessToken), refreshTokenHash: hash(refreshToken), expiresAt, refreshExpiresAt } });
     return { sessionId: id, accessToken, refreshToken, expiresAt: expiresAt.toISOString(), refreshExpiresAt: refreshExpiresAt.toISOString(), roles };
   }
 
@@ -39,7 +43,7 @@ export class SessionService {
     return Boolean(member || invite);
   }
 
-  async getPrincipal(accessToken: string): Promise<AuthPrincipal> {
+  async getPrincipal(accessToken: string, request?:HostSessionRequest): Promise<AuthPrincipal> {
     const session = await this.prisma.session.findUnique({
       where: { accessTokenHash: hash(accessToken) },
       include: { user: true, society: { select: { status: true } } },
@@ -54,12 +58,18 @@ export class SessionService {
       throw new UnauthorizedException('Session is invalid or expired');
     }
 
+    if ((session.originHost || session.hostClaimId || session.hostClaimVersion) &&
+        (session.audience !== 'PARTNER' || !session.originHost || !session.hostClaimId || !Number.isInteger(session.hostClaimVersion) || session.hostClaimVersion! <= 0))
+      throw new UnauthorizedException('Invalid session host binding');
     if (session.audience !== 'STANDARD' && session.audience !== 'PARTNER' && session.audience !== undefined)
       throw new UnauthorizedException('Invalid session audience');
     if (session.audience === 'PARTNER') {
+      const host = session.hostClaimId ? await verifiedHostSessionBinding(this.prisma,session.userId,request,{
+        hostClaimId:session.hostClaimId,hostClaimVersion:session.hostClaimVersion!,originHost:session.originHost!,
+      }) : undefined;
       if (session.societyId || !(await this.currentPartnerAccess(session.userId)))
         throw new UnauthorizedException('Partner session authorization expired');
-      return { userId:session.userId, societyId:undefined, roles:[], audience:'PARTNER' };
+      return { userId:session.userId, societyId:undefined, roles:[], audience:'PARTNER',...(host?{hostPartnerId:host.partnerId}:{}) };
     }
 
     // Independent-home sessions are intentionally society-less and must never
@@ -71,10 +81,15 @@ export class SessionService {
     return this.contexts.resolve(session.userId, session.societyId);
   }
 
-  async refresh(sessionId: string, refreshToken: string) {
+  async refresh(sessionId: string, refreshToken: string, request?:HostSessionRequest) {
     const refreshTokenHash = hash(refreshToken);
     const used = await this.state.getJson<{ sessionId: string }>(replayKey(refreshTokenHash));
     if (used?.sessionId === sessionId) {
+      // A replay from another host must not revoke a valid bound session.
+      const replaySession = await this.prisma.session.findUnique({ where: { id: sessionId } });
+      if (replaySession?.hostClaimId) await verifiedHostSessionBinding(this.prisma,replaySession.userId,request,{
+        hostClaimId:replaySession.hostClaimId,hostClaimVersion:replaySession.hostClaimVersion!,originHost:replaySession.originHost!,
+      });
       await this.revokeCompromised(sessionId, 'REFRESH_REPLAY');
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
@@ -94,8 +109,14 @@ export class SessionService {
       throw new UnauthorizedException('Refresh session is invalid or expired');
     }
 
+    if ((session.originHost || session.hostClaimId || session.hostClaimVersion) &&
+        (session.audience !== 'PARTNER' || !session.originHost || !session.hostClaimId || !Number.isInteger(session.hostClaimVersion) || session.hostClaimVersion! <= 0))
+      throw new UnauthorizedException('Invalid session host binding');
     if (session.audience !== 'STANDARD' && session.audience !== 'PARTNER' && session.audience !== undefined)
       throw new UnauthorizedException('Invalid session audience');
+    if(session.hostClaimId) await verifiedHostSessionBinding(this.prisma,session.userId,request,{
+      hostClaimId:session.hostClaimId,hostClaimVersion:session.hostClaimVersion!,originHost:session.originHost!,
+    });
     if (session.audience === 'PARTNER' &&
       (session.societyId || !(await this.currentPartnerAccess(session.userId))))
       throw new UnauthorizedException('Partner session authorization expired');

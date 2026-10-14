@@ -4,6 +4,8 @@ import { SessionService } from './session.service';
 
 export type AuthenticatedRequest = {
   auth?: AuthPrincipal;
+  method?: string;
+  params?: Record<string, string>;
   header(name: string): string | undefined;
 };
 
