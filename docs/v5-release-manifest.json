@@ -1276,7 +1276,7 @@
         {
           "id": "V5.4.17",
           "name": "Persisted direct-host test session binding and scoped bearer/refresh revalidation",
-          "status": "IN_PROGRESS",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "baselineSha": "1cca2040c7e646e52a4270357fce4e187cfae90b",
           "evidence": [
             "docs/architecture/V5.4.17-HOST-BOUND-SESSIONS.md"
@@ -1285,7 +1285,11 @@
             "Direct raw Host test adapter only; production disabled.",
             "No SSR routing, proxy trust activation or host-only cookie issuance.",
             "Bound sessions may use only exact partner-param routes; discovery/invitation inbox remains on platform portal."
-          ]
+          ],
+          "pullRequest": 1286,
+          "mergeSha": "9d05b40fa5135c61cd78c9ac58e1fe62bfb05209",
+          "validatedRuntimeSha": "c4b30816103998c153758cea514c986a2dd61538",
+          "ciRun": 38502997309
         }
       ],
       "scopedAcceptance": {
@@ -1295,7 +1299,6 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "V5.4.17 direct-host test session binding acceptance (protected CI and merge pending)",
         "Authenticated host-bound SSR sessions, trusted proxy and host-only cookies",
         "Partner domain lifecycle operator experience and V5.5 distribution approval"
       ]
