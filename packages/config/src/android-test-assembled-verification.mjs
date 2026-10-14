@@ -21,7 +21,7 @@ const fields=['schemaVersion','environment','testOnly','appRole','applicationId'
  'signerVerified','archiveVerified','artifactProduced','dispatchAllowed'];
 const prefix=join(tmpdir(),'aaraagate-test-assembled-wrapper-');
 const maxFiles=2500,maxBytes=250*1024*1024,maxFile=12*1024*1024;
-const safeRelative=p=>typeof p==='string'&&p.startsWith('android/')&&
+const safeRelative=p=>typeof p==='string'&&
  p.length<300&&!p.includes('\\')&&!p.split('/').some(s=>!s||s==='.'||s==='..')&&
  !/[\x00-\x1f\x7f]/.test(p);
 
@@ -125,7 +125,7 @@ export async function verifyAssembledTestAndroidWrapperInputs(plan,reservation,
     !original.includes('android/app/src/main/AndroidManifest.xml'))
   error('Unrecognized upstream Flutter launcher template');
  const overpaths=Object.keys(overlay.files).filter(p=>p.startsWith('android/')).sort();
- if(overpaths.length!==10||!overpaths.every(safeRelative))
+ if(overpaths.length!==10||!overpaths.every(p=>p.startsWith('android/')&&safeRelative(p)))
   error('Unexpected native overlay resource paths');
  const expected=new Map();
  for(const f of tmpl){
