@@ -28,44 +28,82 @@ path.write_text(value)
 PY
   exit 0
 fi
-[[ -s "$APK" ]] || { echo 'Missing TEST debug APK' >&2; exit 1; }
-unzip -tq "$APK" > /dev/null
-mkdir -p dist
-zipinfo -1 "$APK" > "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
-grep -Fxq 'AndroidManifest.xml' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
-grep -Fxq 'classes.dex' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
-grep -Fxq 'lib/arm64-v8a/libflutter.so' "dist/aaraagate-$ROLE-test-apk-entry-list.txt"
-SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-if [[ -z "$SDK" ]]; then echo 'Android SDK missing' >&2; exit 1; fi
-TOOLS="$(find "$SDK/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
-[[ -n "$TOOLS" && -x "$TOOLS/aapt" && -x "$TOOLS/apksigner" ]] || {
-  echo 'Missing Android inspection executables' >&2; exit 1;
-}
 mkdir -p dist
 INFO="dist/aaraagate-$ROLE-test-apk-evidence.txt"
-"$TOOLS/aapt" dump badging "$APK" > "$INFO"
-grep -Fq "package: name='$PACKAGE'" "$INFO"
-grep -Fq "sdkVersion:'24'" "$INFO"
-grep -Fq "targetSdkVersion:'36'" "$INFO"
-"$TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 24 "$APK" >> "$INFO"
-grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$INFO"
-grep -Fq 'Signer #1 certificate SHA-256 digest:' "$INFO"
+ENTRIES="dist/aaraagate-$ROLE-test-apk-entry-list.txt"
+: > "$INFO"
+log() { printf '%s\n' "$*" | tee -a "$INFO"; }
+fail() {
+  printf '::error title=Android TEST APK inspection::role=%s stage=%s: %s\n' "$ROLE" "$STAGE" "$*" >&2
+  log "INSPECTION_FAILED role=$ROLE stage=$STAGE reason=$*"
+  exit 1
+}
+STAGE="archive_exists"
+[[ -s "$APK" ]] || fail 'build produced no APK'
 {
   echo "role=$ROLE"
   echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)"
   echo "bytes=$(stat -c%s "$APK")"
-  echo "source_commit=$GITHUB_SHA"
+  echo "source_commit=${GITHUB_SHA:-LOCAL}"
   echo 'runtime_image_attested=false'
   echo 'partner_manifest_bound=false'
   echo 'distribution_approved=false'
 } >> "$INFO"
-cp "$APK" "dist/aaraagate-$ROLE-TEST-debug.apk"
-if [[ -n "$GITHUB_STEP_SUMMARY" ]]; then
+STAGE="zip_integrity"
+unzip -tq "$APK" > /dev/null || fail 'APK ZIP integrity failed'
+STAGE="zip_members"
+zipinfo -1 "$APK" > "$ENTRIES" || fail 'Cannot enumerate APK ZIP members'
+require_member() {
+  if ! grep -Fxq "$1" "$ENTRIES"; then
+    log "Available relevant entries:"
+    grep -E '^(AndroidManifest.xml|classes[0-9]*.dex|lib/[^/]+/libflutter\.so)$' "$ENTRIES" | tee -a "$INFO" || true
+    fail "Missing APK member $1"
+  fi
+}
+require_member "AndroidManifest.xml"
+require_member "classes.dex"
+require_member "lib/arm64-v8a/libflutter.so"
+STAGE="android_sdk_discovery"
+SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+[[ -n "$SDK" && -d "$SDK/build-tools" ]] || fail 'Android SDK build-tools root not found'
+TOOLS="$(find "$SDK/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+[[ -n "$TOOLS" && -x "$TOOLS/aapt" && -x "$TOOLS/apksigner" ]] ||
+  fail 'Android aapt/apksigner not executable in selected build-tools directory'
+log "android_build_tools_version=$(basename "$TOOLS")"
+STAGE="aapt_badging"
+BADGE="dist/aaraagate-$ROLE-test-aapt-badging.txt"
+"$TOOLS/aapt" dump badging "$APK" > "$BADGE" || fail 'aapt dump badging failed'
+require_badge() {
+  if ! grep -Fq "$1" "$BADGE"; then
+    log "Actual aapt identity:"
+    grep -E '^(package:|sdkVersion:|targetSdkVersion:|native-code:)' "$BADGE" | tee -a "$INFO" || true
+    fail "aapt badging mismatch: $2"
+  fi
+}
+STAGE="package_name"
+require_badge "package: name='$PACKAGE'" "expected package $PACKAGE"
+STAGE="min_sdk"
+require_badge "sdkVersion:'24'" 'required minSdk 24'
+STAGE="target_sdk"
+require_badge "targetSdkVersion:'36'" 'required targetSdk 36'
+STAGE="apksigner"
+SIGNING="dist/aaraagate-$ROLE-test-apksigner.txt"
+"$TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 24 "$APK" > "$SIGNING" ||
+  fail 'apksigner cryptographic verification failed'
+if ! grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$SIGNING"; then
+  grep -E '^Verified using|^Number of signers:' "$SIGNING" | tee -a "$INFO" || true
+  fail 'APK v2 signature scheme not verified'
+fi
+if ! grep -Fq 'Signer #1 certificate SHA-256 digest:' "$SIGNING"; then
+  fail 'No signer leaf certificate SHA-256 digest reported'
+fi
+log "INSPECTION_PASSED role=$ROLE sha256=$(sha256sum "$APK" | cut -d' ' -f1)"
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
-    echo "### V5 base-app Android TEST debug APK: $ROLE"
-    echo "- Source commit: $GITHUB_SHA"
+    echo "### V5 base-app TEST debug APK: $ROLE"
+    echo "- Source commit: ${GITHUB_SHA:-LOCAL}"
     echo "- SHA-256: $(sha256sum "$APK" | cut -d' ' -f1)"
-    echo "- Package: $PACKAGE; minSdk 24; targetSdk 36"
-    echo '- Local SDK v2 signature check passed; **trusted runner attestation and partner distribution not established**'
+    echo "- Expected package $PACKAGE, minSdk 24 and targetSdk 36"
+    echo '- Local Android SDK signature accepted; **no attested partner distribution authority**'
   } >> "$GITHUB_STEP_SUMMARY"
 fi

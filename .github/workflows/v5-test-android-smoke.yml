@@ -59,12 +59,16 @@ jobs:
         run: flutter build apk --debug --no-pub
       - name: Check package, SDK, native ABI, archive and debug signer
         run: bash scripts/v5-test-android-smoke.sh inspect "${{ matrix.app }}"
-      - name: Retain TEST evidence briefly
+      - name: Retain TEST APK and acceptance diagnostics even on failure
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: aaraagate-v5-${{ matrix.app }}-base-test-debug-${{ github.sha }}
           path: |
-            dist/aaraagate-${{ matrix.app }}-TEST-debug.apk
+            apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-debug.apk
             dist/aaraagate-${{ matrix.app }}-test-apk-evidence.txt
-          if-no-files-found: error
+            dist/aaraagate-${{ matrix.app }}-test-apk-entry-list.txt
+            dist/aaraagate-${{ matrix.app }}-test-aapt-badging.txt
+            dist/aaraagate-${{ matrix.app }}-test-apksigner.txt
+          if-no-files-found: warn
           retention-days: 1
