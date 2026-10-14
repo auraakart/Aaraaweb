@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.19",
+      "currentSlice": "V5.5.20",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1696,7 +1696,7 @@
         {
           "id": "V5.5.19",
           "name": "Fail-closed Linux TEST runner no-capabilities, no-new-privileges, seccomp and pinned read-only SDK mount policy",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-linux-isolation.mjs",
             "scripts/android-test-linux-isolation.test.mjs",
@@ -1705,11 +1705,29 @@
           "limitations": [
             "Kernel /proc observation in an independently trusted runner process is a local isolation preflight, not cryptographic attestation of an OCI image, host root of trust, or immutable executable mount state.",
             "No external runner provisioned, real build dispatch, Android SDK/Flutter invocation, artifact/archive/signer verification or staging/main promotion."
+          ],
+          "pullRequest": 1310,
+          "mergeSha": "d5e36640fe996f241e3198fbecbeeafe803f5976",
+          "ciRun": 38596591691
+        },
+        {
+          "id": "V5.5.20",
+          "name": "Complete disposable Android 12 TEST native overlay integrity verification and API 24/36 level guardrails",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-final-native-inventory.mjs",
+            "packages/config/src/android-test-native-wrapper.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.20-FINAL-TEST-NATIVE-INVENTORY.md"
+          ],
+          "limitations": [
+            "Final reviewed native overlay does not mean an actual Flutter-generated wrapper or APK/AAB exists; no build execution enabled.",
+            "No externally provisioned runner, independently attested running OCI image, immutable execution authorization, real signing or staging/main promotion."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.19 fail-closed runtime isolation policy with protected CI",
+        "Validate and merge V5.5.20 final native-overlay SHA inventory and Android API 24/36 controls",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
