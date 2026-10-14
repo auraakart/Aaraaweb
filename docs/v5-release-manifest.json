@@ -1290,6 +1290,20 @@
           "mergeSha": "9d05b40fa5135c61cd78c9ac58e1fe62bfb05209",
           "validatedRuntimeSha": "c4b30816103998c153758cea514c986a2dd61538",
           "ciRun": 38502997309
+        },
+        {
+          "id": "V5.4.18",
+          "name": "Direct-host authenticated Next SSR and encrypted host-only cookie lifecycle",
+          "status": "IN_PROGRESS",
+          "baselineSha": "9d064f24435e6ba1e04a8ad830118c723e86664a",
+          "evidence": [
+            "docs/architecture/V5.4.18-HOST-SSR-COOKIES.md"
+          ],
+          "limitations": [
+            "Locally validated; protected CI and develop integration pending.",
+            "Production disabled; direct raw Host only; no trusted reverse-proxy or public DNS/TLS activation.",
+            "Actual Next HTTP acceptance uses a fixed local API double; browser HTTPS deployment acceptance remains excluded."
+          ]
         }
       ],
       "scopedAcceptance": {
@@ -1299,7 +1313,7 @@
         "ciRun": 38408729069
       },
       "remaining": [
-        "Authenticated host-bound SSR sessions, trusted proxy and host-only cookies",
+        "Protected direct-host SSR/cookie acceptance and trusted reverse-proxy design; no production activation",
         "Partner domain lifecycle operator experience and V5.5 distribution approval"
       ]
     },

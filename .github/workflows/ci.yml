@@ -632,6 +632,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test Admin access boundaries
         run: pnpm --filter @aaraagate/admin test
+      - name: Test direct-host partner SSR and cookie isolation
+        run: pnpm --filter @aaraagate/admin test:host-ssr
       - name: Lint shared Admin components and browser contracts
         run: pnpm --filter @aaraagate/admin lint:ui
       - name: Install Admin browser test runtime
