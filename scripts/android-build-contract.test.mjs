@@ -556,7 +556,7 @@ for(const role of ['RESIDENT','GUARD'])
  });
 for(const [name,change] of [
  ['changed assembled Gradle',async(f,b)=>appendFile(join(b.root,'android/app/build.gradle.kts'),'\n// changed')],
- ['additional copied launcher',async(f,b)=>writeFile(join(b.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_resident/MainActivity.kt'),'bad')],
+ ['additional copied launcher',async(f,b)=>{const p=join(b.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_resident/MainActivity.kt');await makeDirectory(join(b.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_resident'),{recursive:true});await writeFile(p,'bad');}],
  ['unexpected injected executable',async(f,b)=>writeFile(join(b.root,'android/app/injected.sh'),'echo unsafe')],
  ['changed receipt',async(f,b)=>writeFile(join(b.root,'.aaraagate/test-assembled-wrapper.json'),'{}')],
  ['symlinked output',async(f,b)=>{const target=join(b.root,'android/settings.gradle.kts');
@@ -567,15 +567,16 @@ for(const [name,change] of [
  ['wrong worker',async f=>{f.acceptance.workerId='TEST_WORKER_OTHER_1';}],
  ['wrong signed acceptance',async f=>{f.acceptance.workerSignatureVerified=false;}],
  ['wrong reserved version',async f=>{f.reservation={...f.reservation,versionCode:102};}],
- ['unauthorized build dispatch',async(f,b)=>{b.dispatchAllowed=true;}],
+ ['unauthorized build dispatch',async(f,b)=>{f.built={...b,dispatchAllowed:true};}],
  ['wrong stored file origin',async(f,b)=>{b.receipt.files['android/settings.gradle.kts'].origin='APPROVED_TEST_OVERLAY';}]
 ])test('V5.5.22 fails closed on '+name,async()=>{
  const f=await wrapperFixture('RESIDENT');let built;
  try{
   built=await materializeVerifiedTestAndroidWrapperInputs(
    f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins);
+  f.built=built;
   await change(f,built);
   await assert.rejects(verifyAssembledTestAndroidWrapperInputs(
-   f.plan,f.reservation,f.themed,built,f.sdk,f.acceptance,f.pins));
+   f.plan,f.reservation,f.themed,f.built,f.sdk,f.acceptance,f.pins));
  }finally{if(built)await rm(built.root,{recursive:true,force:true});await f.cleanup();}
 });
