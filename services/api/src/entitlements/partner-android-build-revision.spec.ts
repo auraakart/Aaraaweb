@@ -82,7 +82,7 @@ describe('V5.5.2 test-only Android build revision authority',()=>{
   const f=fixture(), req={...input,expectedDigest:hash(manifest),reason:'Reviewed test revision'};
   await expect(f.service.approve(principal(),societyId,proposalId,revisionId,req)).rejects.toThrow(/Independent/);
   await expect(f.service.approve(principal(checker),societyId,proposalId,revisionId,{...req,expectedDigest:'0'.repeat(64)})).rejects.toThrow(/digest/);
-  f.tx.$queryRaw.mockResolvedValueOnce([{id:maker}]).mockResolvedValueOnce([]);
+  f.tx.$queryRaw.mockImplementation(async (query:TemplateStringsArray)=>String(query[0]).includes('SELECT u."id"')?[]:[{id:maker}]);
   await expect(f.service.approve(principal(checker),societyId,proposalId,revisionId,req)).rejects.toThrow(/maker/);
   expect(f.tx.partnerAndroidBuildRevisionApproval.create).not.toHaveBeenCalled();
  });
