@@ -103,7 +103,7 @@ export async function probeAuthenticatedTestAndroidRunner(plan,acceptance,policy
    method:'POST',agent:false,servername:policy.serverName,
    ca:policy.caPem,cert:policy.clientCertPem,key:policy.clientKeyPem,
    rejectUnauthorized:true,minVersion:'TLSv1.3',maxVersion:'TLSv1.3',
-   timeout:7000,headers:{
+   timeout:7000,signal:AbortSignal.timeout(8500),headers:{
     'Content-Type':'application/json',
     'Accept':'application/json',
     'Cache-Control':'no-store',
