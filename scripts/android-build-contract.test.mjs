@@ -586,3 +586,6 @@ import './android-test-archive-inspector.test.mjs';
 
 // V5.5.24: fail-closed role and cross-partner TEST Android co-installation namespaces.
 import './android-test-install-isolation.test.mjs';
+
+// V5.5.25: pinned APK aapt2/apksigner fail-closed inspection contract.
+import './android-test-apk-inspection.test.mjs';
