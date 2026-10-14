@@ -110,13 +110,44 @@ export function verifyTestAndroidZip32Bytes(bytes,format){
   if(expanded.length!==uncompressed||crc32(expanded)!==checksum||
      (method===0&&compressed!==uncompressed))
    fail('ZIP file integrity or CRC mismatch');
-  ranges.push({start:local,end:endData});
+  // A ZIP32 stream may put a 12/16-byte data descriptor after compressed
+  // bytes. Account for it exactly; otherwise hidden data could pass the CRC
+  // scanner without appearing in the central directory.
+  let recordEnd=endData;
+  if(flags&0x8){
+   const signed=endData+4<=offset&&bytes.readUInt32LE(endData)===0x08074b50;
+   const at=endData+(signed?4:0);
+   if(at+12>offset||
+      bytes.readUInt32LE(at)!==checksum||
+      bytes.readUInt32LE(at+4)!==compressed||
+      bytes.readUInt32LE(at+8)!==uncompressed)
+    fail('ZIP data descriptor disagrees with central record');
+   recordEnd=at+12;
+  }
+  ranges.push({start:local,end:recordEnd});
   position=end;
  }
  if(position!==e)fail('Hidden central ZIP records');
  ranges.sort((a,b)=>a.start-b.start);
- for(let i=1;i<ranges.length;i++)if(ranges[i].start<ranges[i-1].end)
-  fail('Overlapping ZIP local files');
+ let cursor=0;
+ for(const range of ranges){
+  if(range.start!==cursor)
+   fail('Unaccounted or overlapping ZIP local data');
+  cursor=range.end;
+ }
+ // APK Signature Scheme v2/v3 adds an APK Signing Block between local ZIP
+ // entries and the central directory. Check only its framing here; neither
+ // its cryptographic validity nor signer certificate is verified.
+ if(cursor!==offset){
+  if(format!=='APK'||offset-cursor<32||
+     offset-cursor>16*1024*1024)
+   fail('Unaccounted bytes before ZIP central directory');
+  const blockSize=BigInt(offset-cursor-8);
+  if(bytes.readBigUInt64LE(cursor)!==blockSize||
+     bytes.readBigUInt64LE(offset-24)!==blockSize||
+     !bytes.subarray(offset-16,offset).equals(Buffer.from('APK Sig Block 42')))
+   fail('Invalid APK Signing Block framing');
+ }
  for(const filename of required[format])if(!names.has(filename))
   fail('Missing Android '+format+' structural member '+filename);
  if(format==='APK'&&names.has('base/manifest/AndroidManifest.xml')||

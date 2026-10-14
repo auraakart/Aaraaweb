@@ -22,21 +22,32 @@ function zip(entries){
   const name=Buffer.from(entry.name,'utf8'),body=Buffer.from(entry.body||'test-bytes');
   const compression=entry.deflate?8:0,encoded=entry.deflate?deflateRawSync(body):body;
   const checksum=crc32(body);
+  const descriptor=entry.descriptor?Buffer.alloc(entry.unsignedDescriptor?12:16):null;
+  const flags=descriptor?0x8:0;
   const local=Buffer.alloc(30);
   local.writeUInt32LE(0x04034b50,0);local.writeUInt16LE(20,4);
-  local.writeUInt16LE(0,6);local.writeUInt16LE(compression,8);
-  local.writeUInt32LE(checksum,14);
-  local.writeUInt32LE(encoded.length,18);local.writeUInt32LE(body.length,22);
+  local.writeUInt16LE(flags,6);local.writeUInt16LE(compression,8);
+  local.writeUInt32LE(descriptor?0:checksum,14);
+  local.writeUInt32LE(descriptor?0:encoded.length,18);
+  local.writeUInt32LE(descriptor?0:body.length,22);
   local.writeUInt16LE(name.length,26);
   locals.push(local,name,encoded);
+  if(descriptor){
+   const at=descriptor.length===16?4:0;
+   if(at)descriptor.writeUInt32LE(0x08074b50,0);
+   descriptor.writeUInt32LE(checksum,at);
+   descriptor.writeUInt32LE(encoded.length,at+4);
+   descriptor.writeUInt32LE(body.length,at+8);
+   locals.push(descriptor);
+  }
   const c=Buffer.alloc(46);
   c.writeUInt32LE(0x02014b50,0);c.writeUInt16LE(20,4);
-  c.writeUInt16LE(20,6);c.writeUInt16LE(0,8);
+  c.writeUInt16LE(20,6);c.writeUInt16LE(flags,8);
   c.writeUInt16LE(compression,10);c.writeUInt32LE(checksum,16);
   c.writeUInt32LE(encoded.length,20);c.writeUInt32LE(body.length,24);
   c.writeUInt16LE(name.length,28);c.writeUInt32LE(position,42);
   central.push(c,name);
-  position+=local.length+name.length+encoded.length;
+  position+=local.length+name.length+encoded.length+(descriptor?.length||0);
  }
  const body=Buffer.concat(locals),index=Buffer.concat(central),end=Buffer.alloc(22);
  end.writeUInt32LE(0x06054b50,0);
@@ -151,4 +162,73 @@ for(const [label,mutate] of [
   await mutate(x);
   await assert.rejects(inspectTestAndroidCandidateArchive(x.plan,x.reservation,x.location));
  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+function insertBeforeCentral(bytes, inserted){
+ const offset=bytes.readUInt32LE(bytes.length-22+16);
+ const result=Buffer.concat([bytes.subarray(0,offset),inserted,bytes.subarray(offset)]);
+ result.writeUInt32LE(offset+inserted.length,result.length-22+16);
+ return result;
+}
+function framedApkSigningBlock(bytes){
+ const block=Buffer.alloc(32);
+ block.writeBigUInt64LE(24n,0);
+ block.writeBigUInt64LE(24n,8);
+ Buffer.from('APK Sig Block 42').copy(block,16);
+ return insertBeforeCentral(bytes,block);
+}
+test('V5.5.26 accepts structurally framed APK Signing Block without claiming a verified signature',()=>{
+ const got=verifyTestAndroidZip32Bytes(framedApkSigningBlock(apk()),'APK');
+ assert.equal(got.allMemberCrcsVerified,true);
+ assert.equal(got.apkSigningBlockVerified,false);
+ assert.equal(got.signerVerified,false);
+ assert.equal(got.dispatchAllowed,false);
+});
+test('V5.5.26 accepts signed and unsigned ZIP32 data descriptors when central values match',()=>{
+ for(const unsignedDescriptor of [false,true]){
+  const fixture=zip([
+   {name:'AndroidManifest.xml',descriptor:true,unsignedDescriptor},
+   {name:'classes.dex',body:'streamed dex',deflate:true,descriptor:true,unsignedDescriptor},
+   {name:'resources.arsc'}
+  ]);
+  const got=verifyTestAndroidZip32Bytes(fixture,'APK');
+  assert.equal(got.allMemberCrcsVerified,true);
+ }
+});
+test('V5.5.26 rejects unaccounted bytes in APK and AAB central-directory gaps',()=>{
+ for(const [bytes,format] of [[apk(),'APK'],[aab(),'AAB']]){
+  assert.throws(()=>verifyTestAndroidZip32Bytes(
+   insertBeforeCentral(bytes,Buffer.from('hidden payload')),format));
+ }
+});
+test('V5.5.26 rejects malformed APK Signing Block size, footer and AAB signing block',()=>{
+ const block=framedApkSigningBlock(apk());
+ const offset=block.readUInt32LE(block.length-22+16);
+ for(const mutate of [
+  b=>b.writeBigUInt64LE(25n,offset-32),
+  b=>b.writeBigUInt64LE(25n,offset-24),
+  b=>b[offset-1]^=0xff
+ ]){
+  const changed=Buffer.from(block);mutate(changed);
+  assert.throws(()=>verifyTestAndroidZip32Bytes(changed,'APK'));
+ }
+ const fakeBlock=Buffer.alloc(32);
+ fakeBlock.writeBigUInt64LE(24n,0);fakeBlock.writeBigUInt64LE(24n,8);
+ Buffer.from('APK Sig Block 42').copy(fakeBlock,16);
+ assert.throws(()=>verifyTestAndroidZip32Bytes(
+  insertBeforeCentral(aab(),fakeBlock),'AAB'));
+});
+test('V5.5.26 rejects corrupt or missing streamed ZIP data descriptor',()=>{
+ const fixture=zip([
+  {name:'AndroidManifest.xml',descriptor:true},
+  {name:'classes.dex'},
+  {name:'resources.arsc'}
+ ]);
+ const marker=Buffer.from([0x50,0x4b,0x07,0x08]);
+ const at=fixture.indexOf(marker);
+ assert.ok(at>0);
+ const badCrc=Buffer.from(fixture);badCrc[at+4]^=0xff;
+ assert.throws(()=>verifyTestAndroidZip32Bytes(badCrc,'APK'));
+ const badSize=Buffer.from(fixture);badSize[at+8]^=0xff;
+ assert.throws(()=>verifyTestAndroidZip32Bytes(badSize,'APK'));
 });

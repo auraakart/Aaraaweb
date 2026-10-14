@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.25",
+      "currentSlice": "V5.5.26",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1798,7 +1798,7 @@
         {
           "id": "V5.5.25",
           "name": "Pinned read-only TEST APK aapt2/apksigner inspection and package/version/ABI/certificate output checks",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-apk-inspection.mjs",
             "scripts/android-test-apk-inspection.test.mjs",
@@ -1807,11 +1807,27 @@
           "limitations": [
             "Tests use fake tool executables and synthetic APK bytes; no actual Android package has been compiled/signed and local tool output alone does not attest worker runtime.",
             "No AAB tool adapter, real runner/cloud deployment, build dispatch, signer proof from independently attested executor, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1316,
+          "mergeSha": "d3a80b9beda62c18807086ba0d76f6b728cd04db"
+        },
+        {
+          "id": "V5.5.26",
+          "name": "Account for all TEST APK/AAB ZIP32 local bytes, descriptors and structurally framed APK Signing Block",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-archive-inspector.mjs",
+            "scripts/android-test-archive-inspector.test.mjs",
+            "docs/architecture/V5.5.26-ANDROID-ZIP-LAYOUT.md"
+          ],
+          "limitations": [
+            "Structural envelope checks are not APK cryptographic signing verification or trusted runner attestation.",
+            "Synthetic regression fixtures only; no real APK/AAB built, signed, dispatched or published."
           ]
         }
       ],
       "remaining": [
-        "Validate and merge V5.5.25 pinned TEST APK inspection gates after protected CI",
+        "Validate and merge V5.5.26 canonical archive-layout regressions after protected CI",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
