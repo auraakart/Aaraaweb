@@ -13,8 +13,8 @@ const initial={schemaVersion:1,environment:'TEST',applicationId:'in.fixture.part
  namespace:'in.fixture.partner.resident',appRole:'RESIDENT',label:'Fixture Resident',
  sourceSha:'c'.repeat(40),configDigest:'d'.repeat(64),
  apiOrigin:'https://test.fixture.in',signingProfile:'TEST_CI_ONLY'};
-const manifest={schemaVersion:1,buildMode:'TEST',distributionId:proposalId,approvalId,partnerId,societyId,
- ...initial,sourceSha:initial.sourceSha,lockDigest:'e'.repeat(64),
+const manifest={...initial,schemaVersion:1,buildMode:'TEST',distributionId:proposalId,approvalId,partnerId,societyId,
+ sourceSha:initial.sourceSha,lockDigest:'e'.repeat(64),
  signerFingerprint:'f'.repeat(64)};
 const hash=(v:unknown)=>sha(canonicalLicenseJson(v));
 const principal={userId:actorId,societyId,roles:[AppRole.SUPER_ADMIN]};
@@ -61,7 +61,7 @@ function fixture(){
  };
  const scope={allocationId,partnerId,approvalId,maximumDistributions:1,legacy:{}};
  const run=vi.fn(async(_p:unknown,_s:string,_i:unknown,
-  cb:(t:typeof tx,scope:typeof scope)=>unknown)=>cb(tx,scope));
+  cb:(t:typeof tx,s:typeof scope)=>unknown)=>cb(tx,scope));
  const checkpoint=vi.fn().mockResolvedValue({checkpoint:'CURRENT_TEST_AUTHORITY_ONLY'});
  const service=new PartnerAndroidBuildWorkerConsumptionService(
   {withActiveAllocation:run} as never,{checkpoint} as never);
