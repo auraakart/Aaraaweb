@@ -76,7 +76,7 @@ describe('V5.4.11 partner hostname claim is inert and actor scoped',()=>{
  it('owner-only listing returns no token/hash or society operational records',async()=>{
    const {tx,service}=harness();await service.list(owner,partner);
    expect(tx.partnerDomainClaim.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where:{partnerId:partner},select:{id:true,hostname:true,status:true,createdAt:true,version:true},take:51,
+      where:{partnerId:partner},select:{id:true,hostname:true,status:true,createdAt:true,version:true,verifiedUntil:true},take:51,
    }));
  });
 });

@@ -38,7 +38,7 @@ export class PartnerDomainClaimService {
       await this.authority(tx,actorId,partnerId);
       const rows = await tx.partnerDomainClaim.findMany({
         where:{partnerId},
-        select:{id:true,hostname:true,status:true,createdAt:true,version:true},
+        select:{id:true,hostname:true,status:true,createdAt:true,version:true,verifiedUntil:true},
         orderBy:{createdAt:'asc'},take:51,
       });
       return {claims:rows.slice(0,50),hasMore:rows.length>50};

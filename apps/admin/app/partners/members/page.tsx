@@ -50,7 +50,7 @@ export default function PartnerMembersPage(){
  }
  const memberRole=(m:Member)=>roleDrafts[m.id]??m.role
  return <PageShell>
-  <PageHeader title="Partner membership" description="Commercial team permissions only. Partner access never grants society operations." actions={<><a href="/partners">Partner portfolio</a>{!session&&<a href="/partners/login">Partner sign in</a>}<SecondaryButton disabled={!session||saving||loading} onClick={()=>session&&void load(session,selected)}>Refresh</SecondaryButton></>}/>
+  <PageHeader title="Partner membership" description="Commercial team permissions only. Partner access never grants society operations." actions={<><a href="/partners">Partner portfolio</a><a href="/partners/domains">Partner domains</a>{!session&&<a href="/partners/login">Partner sign in</a>}<SecondaryButton disabled={!session||saving||loading} onClick={()=>session&&void load(session,selected)}>Refresh</SecondaryButton></>}/>
   {error&&<ErrorState title="Partner membership unavailable" description={error}/>}
   {notice&&<p role="status">{notice}</p>}
   {loading?<p role="status">Loading partner membership…</p>:!session?<EmptyState title="Sign in to continue" description="Sign in using your partner account to see active workspaces and invitations."/>:null}
