@@ -18,6 +18,7 @@ model User {
   distributionProposals     PartnerDistributionProposal[]
   androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
   androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
+  androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1806,6 +1807,24 @@ model GateNotificationAttempt {
 }
 
 // Immutable test-build identity approval; never an app/session audience or build dispatch.
+// Immutable claim is NEVER an executable build permit.
+model PartnerAndroidBuildWorkerClaim {
+  id              String @id @default(uuid()) @db.Uuid
+  reservationId   String @unique @db.Uuid
+  actorId         String @db.Uuid
+  workerId        String @db.VarChar(64)
+  assertionDigest String @db.VarChar(64)
+  nonceDigest     String @db.VarChar(64)
+  manifestDigest  String @db.VarChar(64)
+  versionCode     Int
+  issuedAt        DateTime @db.Timestamptz(6)
+  expiresAt       DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  reservation     PartnerAndroidBuildReservation @relation(fields:[reservationId], references:[id], onDelete:Restrict)
+  actor           User @relation("AndroidBuildWorkerClaimActor", fields:[actorId], references:[id], onDelete:Restrict)
+  @@index([workerId, createdAt])
+}
+
 model PartnerAndroidBuildReservation {
   id             String @id @default(uuid()) @db.Uuid
   proposalId     String @db.Uuid
@@ -1818,6 +1837,7 @@ model PartnerAndroidBuildReservation {
   proposal       PartnerDistributionProposal @relation(fields:[proposalId], references:[id], onDelete:Restrict)
   revision       PartnerAndroidBuildRevision @relation(fields:[revisionId], references:[id], onDelete:Restrict)
   actor          User @relation("AndroidBuildReservationCreator", fields:[actorId], references:[id], onDelete:Restrict)
+  workerClaim    PartnerAndroidBuildWorkerClaim?
   @@unique([proposalId, versionCode])
   @@unique([proposalId, idempotencyKey])
   @@index([revisionId, createdAt])

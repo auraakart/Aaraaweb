@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.6",
+      "currentSlice": "V5.5.7",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1472,7 +1472,7 @@
         {
           "id": "V5.5.6",
           "name": "Fail-closed non-executing Kotlin Flutter TEST Android native wrapper patch plan",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED",
           "evidence": [
             "packages/config/src/android-test-native-wrapper.mjs",
             "scripts/android-build-contract.test.mjs",
@@ -1481,15 +1481,33 @@
           "limitations": [
             "Pure native patch data; no real generated Flutter wrapper, verified source checkout, worker or APK/AAB build.",
             "Requires separate authenticated single-use worker, live dispatch/completion checkpoints, pinned template, sanitized resources, splash integration and actual test signer/archive verification."
+          ],
+          "pullRequest": 1297,
+          "mergeSha": "616beb7682c1e19420015134b19a53a74c59b01a",
+          "ciRun": 38557532566
+        },
+        {
+          "id": "V5.5.7",
+          "name": "Append-only single-use TEST Android worker claim ledger with short-lived authenticated assertion",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-worker-claim.service.ts",
+            "services/api/src/entitlements/partner-android-worker-claim.spec.ts",
+            "services/api/prisma/migrations/20261014185000_v557_android_worker_claims/migration.sql",
+            "docs/architecture/V5.5.7-ANDROID-WORKER-CLAIM-AUTHORITY.md"
+          ],
+          "limitations": [
+            "Internal service; no public worker route, executable dispatch, process launch, APK/AAB, signing or artifact verification.",
+            "The separately authenticated isolated builder, single-use execution consumption and fresh completion checkpoint remain unimplemented."
           ]
         }
       ],
       "remaining": [
-        "Validate/merge V5.5.6 Kotlin TEST native patch planner under protected CI",
-        "Create authenticated isolated worker with single-use dispatch and repeated live authority checkpoints",
-        "Generate pinned Flutter 3.47 Kotlin wrapper in verified ephemeral checkout and integrate safe native patch, sanitized icon/splash and Android styles",
-        "Bounded TEST APK/AAB build with actual archive signer/package/version/ABI/SHA checks and append-only provenance",
-        "Partner A/B installation/isolation regression and V5.6 release readiness"
+        "Validate and merge V5.5.7 one-claim-per-version authenticated receipt with protected CI",
+        "Integrate separately authenticated isolated worker with one-time execution consumption and live completion reauthorization",
+        "Stage pinned Flutter Kotlin wrapper and sanitized native resources in verified throwaway checkout; complete splash/theme integration",
+        "Build TEST APK/AAB and verify signer/package/version/ABI, immutable SHA-256 provenance and cleanup",
+        "Partner A/B isolation, default-brand regression and V5.6 closure"
       ]
     },
     {
