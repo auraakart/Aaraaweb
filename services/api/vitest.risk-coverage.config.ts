@@ -8,6 +8,7 @@ export default defineConfig({
       'src/accounting/payment-availability.service.spec.ts',
       'src/auth/session.service.spec.ts',
       'src/auth/partner-session-audience.spec.ts',
+      'src/auth/partner-host-session.spec.ts',
       'src/ai-operations/ai-operations.controlled-assignment.spec.ts',
       'src/ai-operations/ai-operations.service.spec.ts',
       'src/privacy/privacy-self-context.spec.ts',
