@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.30",
+      "currentSlice": "V5.5.31",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1882,7 +1882,7 @@
         {
           "id": "V5.5.30",
           "name": "Enable same-repo PR-scoped actual Resident/Guard Android debug TEST build when automated develop merges suppress downstream push workflows",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_ANDROID_SMOKE_FAILED",
           "evidence": [
             ".github/workflows/v5-test-android-smoke.yml",
             "docs/architecture/V5.5.29-REAL-BASE-ANDROID-TEST-SMOKE.md"
@@ -1890,11 +1890,30 @@
           "limitations": [
             "Code-level TEST smoke must not be marked as real APK completion unless both Android matrix jobs pass and hashes are recorded.",
             "Genuine base debug builds are not trusted partner distribution artifacts or independent OCI runtime attestation."
+          ],
+          "pullRequest": 1321,
+          "mergeSha": "1e807c51e6f04623021cdddb73d56e1dda1304ce",
+          "ciRun": 38622673512,
+          "androidSmokeRun": 38622673264,
+          "androidSmokeResult": "BOTH_APKS_COMPILED_INSPECTION_EXIT_1"
+        },
+        {
+          "id": "V5.5.31",
+          "name": "Diagnose real Resident/Guard TEST APK acceptance failures with explicit stages and retained evidence",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "scripts/v5-test-android-smoke.sh",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.31-REAL-APK-SMOKE-ROOT-CAUSE.md"
+          ],
+          "limitations": [
+            "Base APKs compiled in earlier PR but package/SDK/signing acceptance failed without an identified assertion.",
+            "Passing canonical CI does not independently establish real smoke acceptance or attested partner distribution."
           ]
         }
       ],
       "remaining": [
-        "Validate V5.5.30 PR-scoped actual Resident and Guard Android debug build jobs and record successful APK SHA-256 evidence",
+        "V5.5.31 identify the exact APK acceptance assertion, fix narrow mismatch, confirm both real Android TEST smoke matrix jobs green",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
