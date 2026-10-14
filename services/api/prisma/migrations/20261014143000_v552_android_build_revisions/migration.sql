@@ -48,19 +48,24 @@ ALTER TABLE "PartnerAndroidBuildRevisionApproval" ADD CONSTRAINT "PartnerAndroid
 
 CREATE FUNCTION aaraagate_v552_revision_insert() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE p "PartnerDistributionProposal"%ROWTYPE; a "PartnerDistributionApproval"%ROWTYPE;
- latest_version INTEGER; latest_manifest JSONB;
+ latest_version INTEGER; latest_manifest JSONB; current_partner UUID; current_society UUID;
 BEGIN
  SELECT * INTO STRICT p FROM "PartnerDistributionProposal" WHERE "id"=NEW."proposalId" FOR UPDATE;
  PERFORM aaraagate_v5420_allocation(p."allocationId",NEW."actorId");
  SELECT * INTO STRICT a FROM "PartnerDistributionApproval" WHERE "proposalId"=p."id";
+ SELECT s."partnerId", l."societyId" INTO STRICT current_partner,current_society
+ FROM "SocietyLicenseAllocation" l JOIN "Society" s ON s."id"=l."societyId" WHERE l."id"=p."allocationId";
  IF EXISTS (SELECT 1 FROM "PartnerDistributionRevocation" WHERE "approvalId"=a."id") THEN
   RAISE EXCEPTION 'Revoked distribution cannot gain build revisions' USING ERRCODE='23514';
  END IF;
- IF NEW."manifest"->>'distributionId'<>p."id"::text
-  OR NEW."manifest"->>'approvalId'<>a."id"::text
-  OR NEW."manifest"->>'applicationId'<>p."applicationId"
-  OR NEW."manifest"->>'appRole'<>p."manifest"->>'appRole'
-  OR NEW."manifest"->>'signingProfile'<>p."manifest"->>'signingProfile' THEN
+ IF (NEW."manifest"->>'distributionId') IS DISTINCT FROM p."id"::text
+  OR (NEW."manifest"->>'approvalId') IS DISTINCT FROM a."id"::text
+  OR (NEW."manifest"->>'societyId') IS DISTINCT FROM current_society::text
+  OR (NEW."manifest"->>'partnerId') IS DISTINCT FROM current_partner::text
+  OR (NEW."manifest"->>'applicationId') IS DISTINCT FROM p."applicationId"
+  OR (NEW."manifest"->>'namespace') IS DISTINCT FROM p."applicationId"
+  OR (NEW."manifest"->>'appRole') IS DISTINCT FROM (p."manifest"->>'appRole')
+  OR (NEW."manifest"->>'signingProfile') IS DISTINCT FROM (p."manifest"->>'signingProfile') THEN
   RAISE EXCEPTION 'Android distribution identity changed' USING ERRCODE='23514';
  END IF;
  SELECT COALESCE(MAX("version"),0) INTO latest_version FROM "PartnerAndroidBuildRevision"
@@ -84,7 +89,7 @@ CREATE TRIGGER "android_revision_insert_valid" BEFORE INSERT ON "PartnerAndroidB
  FOR EACH ROW EXECUTE FUNCTION aaraagate_v552_revision_insert();
 
 CREATE FUNCTION aaraagate_v552_revision_review() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE r "PartnerAndroidBuildRevision"%ROWTYPE; p "PartnerDistributionProposal"%ROWTYPE; maker UUID;
+DECLARE r "PartnerAndroidBuildRevision"%ROWTYPE; p "PartnerDistributionProposal"%ROWTYPE;
 BEGIN
  SELECT * INTO STRICT r FROM "PartnerAndroidBuildRevision" WHERE "id"=NEW."revisionId";
  SELECT * INTO STRICT p FROM "PartnerDistributionProposal" WHERE "id"=r."proposalId" FOR UPDATE;
