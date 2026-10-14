@@ -4,6 +4,7 @@ import { PartnerAndroidBuildRevisionService } from './partner-android-build-revi
 import { PartnerAndroidBuildReservationService } from './partner-android-build-reservation.service';
 import { PartnerAndroidBuildWorkerClaimService } from './partner-android-worker-claim.service';
 import { PartnerAndroidBuildWorkerConsumptionService } from './partner-android-worker-consumption.service';
+import { PartnerAndroidRunnerChallengeService } from './partner-android-runner-challenge.service';
 import { LegacySubscriptionConversionService } from './legacy-subscription-conversion.service';
 import { PartnerLicenseOverviewController } from './partner-license-overview.controller';
 import { PartnerLicenseOverviewService } from './partner-license-overview.service';
@@ -31,7 +32,7 @@ import { PartnerPortfolioReadService } from './partner-portfolio-read.service';
 
 @Module({
   controllers: [PartnerDistributionController, PartnerLicenseOverviewController, PartnerLicenseLifecycleController, PlatformCapacityReservationController, PlatformOwnershipTransferController, PlatformEntitlementsController, CurrentEntitlementsController, PlatformPartnerLicenseController, PartnerPortfolioReadController, PartnerMemberLifecycleController, PartnerDomainClaimController],
-  providers: [PartnerDistributionService, PartnerAndroidBuildRevisionService, PartnerAndroidBuildReservationService, PartnerAndroidBuildWorkerClaimService, PartnerAndroidBuildWorkerConsumptionService, LegacySubscriptionConversionService, PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService, PartnerDomainVerificationService],
+  providers: [PartnerDistributionService, PartnerAndroidBuildRevisionService, PartnerAndroidBuildReservationService, PartnerAndroidBuildWorkerClaimService, PartnerAndroidBuildWorkerConsumptionService, PartnerAndroidRunnerChallengeService, LegacySubscriptionConversionService, PartnerLicenseOverviewService, PartnerLicenseLifecycleService, PartnerCapacityReservationService, SocietyOwnershipTransferService, PrismaService, EntitlementService, FeatureGuard, PartnerLicensePersistenceService, PartnerPortfolioReadService, PartnerMemberLifecycleService, PartnerDomainClaimService, PartnerDomainVerificationService],
   exports: [EntitlementService, FeatureGuard],
 })
 export class EntitlementsModule {}
