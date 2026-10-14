@@ -222,3 +222,6 @@ for(const [reason,mutate] of [
  await assert.rejects(materializeTestAndroidNativeWorkspace(
   x.plan,x.reservation,{icon:x.png,splash:x.png},x.generated,x.digests));
 });
+
+// V5.5.10: actual pinned checkout and lock verification contract.
+import './android-test-checkout.test.mjs';
