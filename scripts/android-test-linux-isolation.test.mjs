@@ -16,8 +16,11 @@ function fixture(){
   'CapAmb:\t0000000000000000','NoNewPrivs:\t1','Seccomp:\t2',
   'Seccomp_filters:\t1'].join('\n')+'\n';
  const mountinfo=[
+  '1 0 8:1 / / rw,relatime - ext4 /dev/root rw',
   '20 1 0:4 / /proc rw,nosuid,nodev - proc proc rw',
   '21 1 0:5 / /sys ro,nosuid,nodev - sysfs sysfs ro',
+  '22 1 0:6 / /dev/pts rw,nosuid,noexec - devpts devpts rw',
+  '23 1 0:7 / /dev/mqueue rw,nosuid,nodev - mqueue mqueue rw',
   ...names.map((name,i)=>(
    (130+i)+' 1 0:'+(20+i)+' / '+mounts[name].path+
     ' ro,nosuid,nodev,relatime - squashfs /dev/loop'+i+' ro'
