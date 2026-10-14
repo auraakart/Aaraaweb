@@ -273,3 +273,6 @@ import './android-test-toolchain.test.mjs';
 
 // V5.5.13: signed TEST worker evidence binds consumption, source, assets and toolchain.
 import './android-test-runner-evidence.test.mjs';
+
+// V5.5.16: full local TEST SDK/template root hashes, no runner execution.
+import './android-test-sdk-tree.test.mjs';
