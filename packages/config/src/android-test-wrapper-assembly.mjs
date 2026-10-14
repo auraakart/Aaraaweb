@@ -19,7 +19,7 @@ const canonicalPath=p=>typeof p==='string'&&isAbsolute(p)&&resolve(p)===p&&!p.in
  * EXACTLY the same domain, sorted relative paths, UNIX modes and SHA-256.
  * Reads bytes only; never calls flutter create, Gradle, Java or a shell.
  */
-async function verifyFullPinnedTemplate(root,expected){
+export async function verifyFullPinnedTemplate(root,expected){
  const h=createHash('sha256').update('aaraagate:v5.5.16:test-sdk-tree:v1\n');
  let files=0,dirs=0,total=0;
  const collected=[];

@@ -522,3 +522,61 @@ for(const [label,change] of [
    f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins));
  }finally{await f.cleanup();}
 });
+
+import { symlink, link } from 'node:fs/promises';
+
+// V5.5.22: independent assembled native filesystem and provenance verification.
+import { verifyAssembledTestAndroidWrapperInputs } from '../packages/config/src/android-test-assembled-verification.mjs';
+for(const role of ['RESIDENT','GUARD'])
+ test('V5.5.22 independently rechecks '+role+' assembled TEST native directory byte-for-byte',async()=>{
+  const f=await wrapperFixture(role);let built;
+  try{
+   // Flutter-generated roots may legitimately contain non-Android files.
+   await writeFile(join(f.generatedRoot,'.metadata'),'pinned Flutter metadata',{mode:0o600});
+   const digest=await fixtureTemplateDigest(f.generatedRoot);
+   f.sdk.verifiedTrees.nativeTemplate=digest;
+   f.pins.nativeTemplateSha256=digest.digest;
+   built=await materializeVerifiedTestAndroidWrapperInputs(
+    f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins);
+   const v=await verifyAssembledTestAndroidWrapperInputs(
+    f.plan,f.reservation,f.themed,built,f.sdk,f.acceptance,f.pins);
+   assert.equal(v.exactAssembledFilesystemVerified,true);
+   assert.equal(v.pinnedTemplateAndOverlayMatched,true);
+   assert.equal(v.obsoleteLauncherAbsent,true);
+   assert.equal(v.dispatchAllowed,false);
+   assert.equal(v.runtimeImageAttested,false);
+   assert.equal(v.artifactProduced,false);
+   assert.equal(v.assemblyDigest,built.assemblyDigest);
+   assert.equal(v.verifiedFileCount,built.fileCount);
+   assert.equal(v.minSdk,24);
+   assert.equal(v.targetSdk,36);
+   assert.equal(v.compileSdk,36);
+   assert.match(await readFile(join(built.root,'.metadata'),'utf8'),/pinned Flutter metadata/);
+  }finally{if(built)await rm(built.root,{recursive:true,force:true});await f.cleanup();}
+ });
+for(const [name,change] of [
+ ['changed assembled Gradle',async(f,b)=>appendFile(join(b.root,'android/app/build.gradle.kts'),'\n// changed')],
+ ['additional copied launcher',async(f,b)=>{const p=join(b.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_resident/MainActivity.kt');await makeDirectory(join(b.root,'android/app/src/main/kotlin/com/aaraaplatforms/aaraagate_resident'),{recursive:true});await writeFile(p,'bad');}],
+ ['unexpected injected executable',async(f,b)=>writeFile(join(b.root,'android/app/injected.sh'),'echo unsafe')],
+ ['changed receipt',async(f,b)=>writeFile(join(b.root,'.aaraagate/test-assembled-wrapper.json'),'{}')],
+ ['symlinked output',async(f,b)=>{const target=join(b.root,'android/settings.gradle.kts');
+  await symlink(target,join(b.root,'android','alias.gradle.kts'));}],
+ ['hardlinked output',async(f,b)=>link(join(b.root,'android/settings.gradle.kts'),join(b.root,'android/copy.gradle.kts'))],
+ ['changed source template',async f=>appendFile(join(f.generatedRoot,'android/settings.gradle.kts'),'\n// tamper')],
+ ['changed approved overlay',async f=>appendFile(join(f.themed.root,'android/app/build.gradle.kts'),'\n// tamper')],
+ ['wrong worker',async f=>{f.acceptance.workerId='TEST_WORKER_OTHER_1';}],
+ ['wrong signed acceptance',async f=>{f.acceptance.workerSignatureVerified=false;}],
+ ['wrong reserved version',async f=>{f.reservation={...f.reservation,versionCode:102};}],
+ ['unauthorized build dispatch',async(f,b)=>{f.built={...b,dispatchAllowed:true};}],
+ ['wrong stored file origin',async(f,b)=>{b.receipt.files['android/settings.gradle.kts'].origin='APPROVED_TEST_OVERLAY';}]
+])test('V5.5.22 fails closed on '+name,async()=>{
+ const f=await wrapperFixture('RESIDENT');let built;
+ try{
+  built=await materializeVerifiedTestAndroidWrapperInputs(
+   f.plan,f.reservation,f.themed,f.sdk,f.acceptance,f.pins);
+  f.built=built;
+  await change(f,built);
+  await assert.rejects(verifyAssembledTestAndroidWrapperInputs(
+   f.plan,f.reservation,f.themed,f.built,f.sdk,f.acceptance,f.pins));
+ }finally{if(built)await rm(built.root,{recursive:true,force:true});await f.cleanup();}
+});
