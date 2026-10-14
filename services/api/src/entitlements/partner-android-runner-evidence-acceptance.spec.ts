@@ -124,6 +124,7 @@ describe('V5.5.15 single-use TEST signed worker evidence acceptance',()=>{
   f.challenge.expiresAt=new Date(Date.now()-2000);
   await expect(f.accept()).rejects.toThrow(/expired/);
   f.challenge.expiresAt=new Date(Date.now()+59000);
+  f.active.mockClear(); // The preceding expired-challenge assertion already entered allocation scope.
   f.checkpoint.mockRejectedValue(new Error('approval withdrawn'));
   await expect(f.accept()).rejects.toThrow(/withdrawn/);
   expect(f.active).not.toHaveBeenCalled();
