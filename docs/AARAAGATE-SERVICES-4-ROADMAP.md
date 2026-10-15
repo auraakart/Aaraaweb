@@ -129,10 +129,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Tests cover no-society units, foreign-society campaign non-disclosure, threshold semantics and withdrawn household state.
 - Regenerate the V5 tenant-access inventory, confirm full API CI, and merge to develop only after green gates.
 
+## Services 4.2.4 — threshold-safe manual community deal lock
+
+- Society-admin `PATCH /services-marketplace/community-deals/admin/:campaignId/status` retains the existing tenant/permission gates and OPEN → LOCKED manual workflow.
+- An admin may lock an OPEN campaign **only while its service date is in the future** and its society-scoped **JOINED** household count is at least `thresholdHomes`. Withdrawn interests never count.
+- Check readiness inside the existing campaign-row-lock transaction. Resident join/withdraw operations use the same lock; compute the interest count **after** acquiring the lock to avoid a stale pre-lock count.
+- Below threshold or after the service date, fail without changing the campaign. Terminal state and cancellation transitions retain their existing contracts.
+- LOCKED means participation closed, **not** that a booking exists, the provider is committed, or the discounted price has been charged. There is no consumer payment, invoice, agent dispatch, group-booking conversion, scheduler, migration or new API endpoint.
+- Targeted validation: below-threshold denial, sufficient JOINED interest, expired date, tenant-scope query, lock sequencing, unchanged cancellation behavior, inventory regeneration and full protected CI before merging to `develop`.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.4** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
