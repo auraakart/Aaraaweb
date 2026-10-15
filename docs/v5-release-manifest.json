@@ -2189,7 +2189,7 @@
         {
           "id": "V5.5.38",
           "name": "Read-only TLS 1.3 SPKI-pinned OCI registry manifest byte integrity probe bound to signed TEST image/local layout",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS_REGISTRY_FIXTURE_GREEN",
           "evidence": [
             "packages/config/src/android-test-oci-registry.mjs",
             "scripts/android-test-oci-registry.test.mjs",
@@ -2200,6 +2200,15 @@
             "Ephemeral TLS and OCI/DSSE fixtures; no independently provisioned external registry ownership or remote layers attestation.",
             "No remote worker process/runtime image/mount attestation, approved Partner A/B build/signing, dispatch or release.",
             "Staging/main unchanged; immutable no-authority receipt."
+          ],
+          "pullRequest": 1342,
+          "mergeSha": "76eac759c84c1e0711cb80ea86d1b5da0c39e7e8",
+          "ciRun": 38695431082,
+          "verifiedScope": [
+            "Signed DSSE image claim + real read-only local OCI manifest/config/compressed layer integrity reused",
+            "Ephemeral TLS 1.3 pinned CA, SPKI and hostname registry GET with actual manifest SHA-256 and header binding passed",
+            "Tampered remote bytes, content-type/header, redirect, URL scope, unexpected response, wrong nonce and wrong TLS key cases refused",
+            "Protected Repository structure, full API/Admin/Flutter, dependency security and required merge gates passed"
           ]
         }
       ],
