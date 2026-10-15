@@ -85,7 +85,8 @@ describe('ConsumerRebookingService', () => {
       ...input, notes: 'Kitchen service', idempotencyKey: 'recurrence-once-001',
     });
     expect(result).toEqual({ id: 'new-visit', status: 'REQUESTED' });
-    expect(createBooking).toHaveBeenCalledExactlyOnceWith('user', {
+    expect(createBooking).toHaveBeenCalledOnce();
+    expect(createBooking).toHaveBeenCalledWith('user', {
       locationType: 'HOME', locationId: 'home', offeringId: 'offering',
       scheduledFrom: input.scheduledFrom, scheduledUntil: input.scheduledUntil,
       notes: 'Kitchen service', idempotencyKey: 'recurrence-once-001',
