@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.32",
+      "currentSlice": "V5.5.33",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1959,9 +1959,26 @@
               "testOnly": true
             }
           ]
+        },
+        {
+          "id": "V5.5.33",
+          "name": "Generate and verify genuine base Resident/Guard debug TEST AABs with local JDK JAR signature reports",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "scripts/v5-test-android-aab-smoke.sh",
+            "scripts/v5-test-aab-signer-report.mjs",
+            "scripts/v5-test-aab-signer-report.test.mjs",
+            "docs/architecture/V5.5.33-BASE-TEST-AAB-SMOKE.md"
+          ],
+          "limitations": [
+            "Real base AAB smoke not proven until both protected CI Android matrix jobs pass.",
+            "Local debug signer is not independently pinned or partner-bound; no external attested worker."
+          ]
         }
       ],
       "remaining": [
+        "Validate real V5.5.33 Resident and Guard base TEST AAB CI jobs and record their hashes",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",

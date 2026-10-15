@@ -55,6 +55,11 @@ jobs:
         run: flutter build apk --debug --no-pub
       - name: Check package, SDK, native ABI, archive and debug signer
         run: bash scripts/v5-test-android-smoke.sh inspect "${{ matrix.app }}"
+      - name: Build real base TEST debug AAB
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build appbundle --debug --no-pub
+      - name: Inspect base TEST AAB signature and archive
+        run: bash scripts/v5-test-android-aab-smoke.sh "${{ matrix.app }}"
       - name: Retain TEST APK and acceptance diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,5 +72,11 @@ jobs:
             dist/aaraagate-${{ matrix.app }}-test-aapt-badging.txt
             dist/aaraagate-${{ matrix.app }}-test-apksigner.txt
             dist/aaraagate-${{ matrix.app }}-test-signing-summary.json
+            apps/${{ matrix.app }}/build/app/outputs/bundle/debug/app-debug.aab
+            dist/aaraagate-${{ matrix.app }}-test-aab-evidence.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-entry-list.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-jarsigner.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-certificate.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-signing-summary.json
           if-no-files-found: warn
           retention-days: 1
