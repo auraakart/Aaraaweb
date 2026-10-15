@@ -65,6 +65,29 @@ void main() {
     client.close();
   });
 
+  testWidgets('parent is notified only after a confirmed server save', (tester) async {
+    final client = FakeTechnicianClient();
+    var notified = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: ConsumerTechnicianPreferencePanel(
+        apiClient: client, bookingId: bookingId,
+        onSaved: () => notified++,
+      )),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ChoiceChip));
+    await tester.pumpAndSettle();
+    client.failWrites = true;
+    await tester.tap(find.text('Save technician request'));
+    await tester.pumpAndSettle();
+    expect(notified, 0);
+    client.failWrites = false;
+    await tester.tap(find.text('Save technician request'));
+    await tester.pumpAndSettle();
+    expect(notified, 1);
+    client.close();
+  });
+
   testWidgets('explicitly saves a technician then re-reads server state', (tester) async {
     final client = FakeTechnicianClient();
     await tester.pumpWidget(host(client));

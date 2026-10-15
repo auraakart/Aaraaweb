@@ -166,10 +166,18 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Label selection as a request only. Actual agent availability, provider acceptance and assignment stay in the conflict-safe platform dispatch path; reassignment to another technician remains possible.
 - Targeted API/Flutter regression, refreshed deterministic tenant inventory, protected CI; no new migration or staging/main promotion.
 
+## Services 4.2.8 — technician request and dispatch status consistency
+
+- New authenticated, booking-owner-scoped, read-only `GET /consumer/services/bookings/:bookingId/technician-request-status` joins the saved request to the **currently active** dispatch assignment in one database snapshot. The current HOME/society-unit access check remains mandatory.
+- Return explicit `NO_REQUEST`, `AWAITING_ASSIGNMENT`, `REQUESTED_TECHNICIAN_ASSIGNED`, `OTHER_TECHNICIAN_ASSIGNED`, `REQUEST_CLOSED` states. Only active `ASSIGNED/ACCEPTED/EN_ROUTE/ARRIVED` dispatch counts as current; terminal booking status cancels pending preference. Rejected/released assignments never imply a present assignment.
+- Do **not** assert that a preference caused an assignment. A matching technician can be assigned for unrelated operational reasons. Never reveal private technician phone, address/GPS, other household data, or dispatch authority.
+- Resident **My Bookings → booking details** shows a clear status explanation even after assignment. A successful explicit save refreshes the status from the server. Denied/unavailable status responses fail closed without breaking the existing booking timeline.
+- Focused ownership, lost access, unmatched/matched/other, cancelled/completed/released, no-PII and Flutter refresh/error tests. Inventory regeneration and full protected CI are required. No new tables, payment, platform dispatch rules or staging/main commits.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.7** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.8** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
