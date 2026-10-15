@@ -148,10 +148,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - This is a read-only visibility slice. Requesting that specific technician, preferential dispatch, rebooking UI surfacing and any consumer notification require a separately accepted contract. The existing explicit booking, conflict-safe dispatch, immutable prices and permission rules remain authoritative.
 - Targeted unit tests: foreign plan denial, lost unit access, unsupported/mismatched location, completed+arrived owner/offering/location scoping, no-PII output, paused-history visibility and empty evidence. Regenerate tenant-access inventory and satisfy required PR CI; merge `develop` only.
 
+## Services 4.2.6 — explicit technician request per booking
+
+- Resident-owned `GET/PUT /consumer/services/bookings/:bookingId/technician-preference` accepts an explicit technician UUID (or `null` to clear). Each booking holds at most one preference, persisted separately from booking state.
+- The booking must belong to the authenticated consumer and remain `REQUESTED` or unassigned `CONFIRMED`. The mutation serializes with dispatch via the **existing booking row lock**. A resident must retain current HOME or SOCIETY_UNIT access; former occupants are denied.
+- A selectable technician must still be active under the same verified provider and have recorded arrival on a **COMPLETED booking owned by this user for the same offering and location**. Another household's technician, a different provider/offering, or an inactive agent is rejected.
+- `GET` returns only the owner-visible requested agent ID/display name and a current *record-active* flag, with explicit `requestOnly`, `availabilityConfirmed: false`, `assignmentGuaranteed: false`. No contact details, private agent information or other household history.
+- Existing platform dispatch shortlist reads the request, ranks a conflict-free requested agent before equal alternative agents and marks `residentRequested`; active provider/agent checks and locked schedule-overlap assignment remain authoritative. If the requested agent is unavailable, the platform may assign another eligible agent. This is **not** reservation or skill certification.
+- One small migration adds `ConsumerServiceTechnicianPreference` with booking/owner/provider/agent references. No automatic visits, booking changes, gate permissions, scheduler, charge, refund or invoice.
+- Validate ownership, revoked occupancy, completed historical assignment proof, active dispatch exclusion, clear/update, no-PII return, preference ranking and fallback. Regenerate deterministic V5 tenant inventory and merge to `develop` only after all CI gates pass.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.5** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.6** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.

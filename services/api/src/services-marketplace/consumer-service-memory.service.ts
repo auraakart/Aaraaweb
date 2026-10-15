@@ -157,6 +157,142 @@ export class ConsumerServiceMemoryService {
     };
   }
 
+
+  /** Services 4.2.6: an explicit, optional request, never a reservation. */
+  private async assertCurrentBookingLocation(userId: string, booking: {
+    homeId: string | null; societyUnitId: string | null;
+  }) {
+    const locationType: ConsumerServiceLocationType | null = booking.homeId
+      ? 'HOME' : booking.societyUnitId ? 'SOCIETY_UNIT' : null;
+    const locationId = booking.homeId ?? booking.societyUnitId;
+    if (!locationType || !locationId) throw new NotFoundException('Service booking location unavailable');
+    const location = await this.locations.resolveLocation(userId, locationType, locationId);
+    if (locationType === 'HOME' ? location.homeId !== locationId : location.societyUnitId !== locationId) {
+      throw new NotFoundException('Service booking location unavailable');
+    }
+  }
+
+  async getBookingTechnicianPreference(userId: string, bookingId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      id: string; homeId: string | null; societyUnitId: string | null;
+      agentId: string | null; displayName: string | null; technicianRecordActive: boolean;
+    }>>(Prisma.sql`
+      SELECT b."id", b."homeId", b."societyUnitId",
+             pref."agentId", ag."displayName",
+             COALESCE(
+               ag."active" AND p."active" AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus",
+               false
+             ) AS "technicianRecordActive"
+      FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceTechnicianPreference" pref
+        ON pref."bookingId" = b."id"
+        AND pref."userId" = b."userId"
+        AND pref."providerId" = b."providerId"
+      LEFT JOIN "ConsumerProviderAgent" ag
+        ON ag."id" = pref."agentId" AND ag."providerId" = b."providerId"
+      LEFT JOIN "ServiceProvider" p ON p."id" = b."providerId"
+      WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Service booking not found');
+    await this.assertCurrentBookingLocation(userId, booking);
+    return {
+      bookingId: booking.id,
+      agentId: booking.agentId ?? null,
+      displayName: booking.displayName ?? null,
+      technicianRecordActive: booking.technicianRecordActive ?? false,
+      requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
+      assignedByPreference: false,
+    };
+  }
+
+  async setBookingTechnicianPreference(userId: string, bookingId: string, agentId: string | null) {
+    if (agentId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentId)) {
+      throw new BadRequestException('Valid technician ID or null is required');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      // Dispatch assign() locks the same booking first. Reject any
+      // modification after assignment, including while a dispatch races us.
+      const rows = await tx.$queryRaw<Array<{
+        id: string; homeId: string | null; societyUnitId: string | null;
+        providerId: string; offeringId: string; status: string; hasActiveAssignment: boolean;
+      }>>(Prisma.sql`
+        SELECT b."id", b."homeId", b."societyUnitId",
+               b."providerId", b."offeringId", b."status",
+               EXISTS (
+                 SELECT 1 FROM "ConsumerServiceAssignment" a
+                 WHERE a."bookingId" = b."id"
+                   AND a."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+               ) AS "hasActiveAssignment"
+        FROM "ConsumerServiceBooking" b
+        WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+        FOR UPDATE OF b
+      `);
+      const booking = rows[0];
+      if (!booking) throw new NotFoundException('Service booking not found');
+      if (!['REQUESTED', 'CONFIRMED'].includes(booking.status) || booking.hasActiveAssignment) {
+        throw new BadRequestException('Technician request is closed for this booking');
+      }
+      await this.assertCurrentBookingLocation(userId, booking);
+      if (agentId === null) {
+        await tx.$executeRaw(Prisma.sql`
+          DELETE FROM "ConsumerServiceTechnicianPreference"
+          WHERE "bookingId" = ${bookingId}::uuid AND "userId" = ${userId}::uuid
+        `);
+        return { bookingId, agentId: null, displayName: null, requestOnly: true, assignmentGuaranteed: false };
+      }
+
+      const previous = await tx.$queryRaw<Array<{ agentId: string; displayName: string }>>(Prisma.sql`
+        SELECT ag."id" AS "agentId", ag."displayName"
+        FROM "ConsumerProviderAgent" ag
+        JOIN "ServiceProvider" p
+          ON p."id" = ag."providerId"
+          AND p."active" = true
+          AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+        WHERE ag."id" = ${agentId}::uuid
+          AND ag."providerId" = ${booking.providerId}::uuid
+          AND ag."active" = true
+          AND EXISTS (
+            SELECT 1 FROM "ConsumerServiceBooking" historical
+            JOIN "ConsumerServiceAssignment" a
+              ON a."bookingId" = historical."id"
+              AND a."providerId" = historical."providerId"
+              AND a."agentId" = ag."id"
+              AND a."arrivedAt" IS NOT NULL
+            WHERE historical."userId" = ${userId}::uuid
+              AND historical."offeringId" = ${booking.offeringId}::uuid
+              AND historical."providerId" = ${booking.providerId}::uuid
+              AND historical."status" = 'COMPLETED'::"ServiceBookingStatus"
+              AND (
+                (${booking.homeId}::uuid IS NOT NULL
+                 AND historical."homeId" = ${booking.homeId}::uuid)
+                OR (${booking.societyUnitId}::uuid IS NOT NULL
+                    AND historical."societyUnitId" = ${booking.societyUnitId}::uuid)
+              )
+          )
+        LIMIT 1
+      `);
+      if (!previous[0]) {
+        throw new BadRequestException('Technician must have attended your completed visit for this service and location');
+      }
+      await tx.$queryRaw(Prisma.sql`
+        INSERT INTO "ConsumerServiceTechnicianPreference"
+          ("bookingId", "userId", "providerId", "agentId", "createdAt", "updatedAt")
+        VALUES (
+          ${bookingId}::uuid, ${userId}::uuid, ${booking.providerId}::uuid,
+          ${agentId}::uuid, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("bookingId") DO UPDATE SET
+          "agentId" = EXCLUDED."agentId", "updatedAt" = CURRENT_TIMESTAMP
+      `);
+      return {
+        bookingId, agentId: previous[0].agentId, displayName: previous[0].displayName,
+        requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
+      };
+    });
+  }
+
   async listHistory(
     userId: string,
     locationType: ConsumerServiceLocationType,

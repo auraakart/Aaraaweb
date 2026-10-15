@@ -176,10 +176,33 @@ describe('ConsumerDispatchService', () => {
     expect(sql).toContain('assignedBooking."scheduledUntil"');
     expect(sql).toContain('ag."providerId"');
     expect(sql).toContain('ag."active" = true');
-    expect(sqlQuery.values).toEqual([until, from, providerId]);
+    expect(sqlQuery.values).toEqual([until, from, providerId, null]);
     expect(sql).not.toContain('"phone"');
     expect(sql).not.toContain('"addressSnapshot"');
     expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 puts a resident-requested conflict-free technician first without guaranteeing assignment', async () => {
+    const { prisma, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{
+        id: bookingId, providerId, status: 'CONFIRMED',
+        hasActiveAssignment: false, preferredAgentId: agentId,
+        scheduledFrom: from, scheduledUntil: until,
+      }])
+      .mockResolvedValueOnce([
+        { agentId, displayName: 'Previous Technician', activeAssignmentCount: 0, hasScheduleConflict: false },
+      ]);
+    const result = await service.listDispatchCandidates(bookingId);
+    expect(result.residentPreferencePresent).toBe(true);
+    expect(result.residentPreferenceGuaranteed).toBe(false);
+    expect(result.candidates[0].residentRequested).toBe(true);
+    expect(result.candidates[0].availabilityConfirmed).toBe(false);
+    const sql = prisma.$queryRaw.mock.calls[1][0] as { strings: string[]; values: unknown[] };
+    expect(sql.strings.join(' ')).toContain('IS DISTINCT FROM');
+    expect(sql.values).toEqual([until, from, providerId, agentId]);
   });
 
   it('returns an explicit empty provisional shortlist when no agent is available', async () => {

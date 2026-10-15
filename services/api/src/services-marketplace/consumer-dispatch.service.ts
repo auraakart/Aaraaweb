@@ -300,14 +300,19 @@ export class ConsumerDispatchService {
     const bookings = await this.prisma.$queryRaw<Array<{
       id: string; providerId: string; status: ServiceBookingStatus;
       scheduledFrom: Date; scheduledUntil: Date; hasActiveAssignment: boolean;
+      preferredAgentId: string | null;
     }>>(Prisma.sql`
       SELECT b."id", b."providerId", b."status", b."scheduledFrom", b."scheduledUntil",
+        pref."agentId" AS "preferredAgentId",
         EXISTS (
           SELECT 1 FROM "ConsumerServiceAssignment" active
           WHERE active."bookingId" = b."id"
             AND active."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
         ) AS "hasActiveAssignment"
       FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceTechnicianPreference" pref
+        ON pref."bookingId" = b."id" AND pref."userId" = b."userId"
+        AND pref."providerId" = b."providerId"
       JOIN "ServiceProvider" p ON p."id" = b."providerId"
         AND p."active" = true
         AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
@@ -341,21 +346,25 @@ export class ConsumerDispatchService {
           AND a."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
       ) load
       WHERE ag."providerId" = ${booking.providerId}::uuid AND ag."active" = true
-      ORDER BY "hasScheduleConflict" ASC, load."activeAssignmentCount" ASC,
-        ag."displayName" ASC, ag."id" ASC
+      ORDER BY "hasScheduleConflict" ASC,
+        (ag."id" IS DISTINCT FROM ${booking.preferredAgentId ?? null}::uuid) ASC,
+        load."activeAssignmentCount" ASC, ag."displayName" ASC, ag."id" ASC
       LIMIT 25
     `);
     return {
       bookingId: booking.id, providerId: booking.providerId,
       candidates: rows.map(row => ({
         ...row,
+        residentRequested: !!booking.preferredAgentId && row.agentId === booking.preferredAgentId,
         provisionallyAvailable: !row.hasScheduleConflict,
         availabilityConfirmed: false,
         skillsVerifiedForOffering: false,
         etaMinutes: null as number | null,
       })),
       provisional: true,
-      matchingBasis: 'PROVIDER_OWNERSHIP_SCHEDULE_CONFLICT_ACTIVE_LOAD',
+      residentPreferencePresent: !!booking.preferredAgentId,
+      residentPreferenceGuaranteed: false,
+      matchingBasis: 'PROVIDER_OWNERSHIP_SCHEDULE_CONFLICT_REQUESTED_AGENT_ACTIVE_LOAD',
       assignmentRequired: true,
     };
   }
