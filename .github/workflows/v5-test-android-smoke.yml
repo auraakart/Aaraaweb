@@ -60,6 +60,15 @@ jobs:
         run: flutter build appbundle --debug --no-pub
       - name: Inspect base TEST AAB signature and archive
         run: bash scripts/v5-test-android-aab-smoke.sh "${{ matrix.app }}"
+      - name: Emit checked small APK/AAB metadata record
+        run: node scripts/v5-test-build-matrix-evidence.mjs role "${{ matrix.app }}"
+      - name: Upload small signed TEST identity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: aaraagate-v5-${{ matrix.app }}-test-build-metadata-${{ github.sha }}
+          path: dist/aaraagate-${{ matrix.app }}-test-build-metadata.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Retain TEST APK and acceptance diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,3 +89,23 @@ jobs:
             dist/aaraagate-${{ matrix.app }}-test-aab-signing-summary.json
           if-no-files-found: warn
           retention-days: 1
+
+  verify-cross-role-base-evidence:
+    name: Compare TEST Resident/Guard APK and AAB metadata
+    needs: [base-debug-apk]
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact CI revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download only small TEST metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aaraagate-v5-*-test-build-metadata-${{ github.sha }}
+          path: evidence
+          merge-multiple: true
+      - name: Fail closed on cross-role identity and signing inconsistency
+        run: node scripts/v5-test-build-matrix-evidence.mjs matrix evidence
