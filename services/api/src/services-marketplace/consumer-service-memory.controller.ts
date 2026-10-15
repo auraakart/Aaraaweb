@@ -71,6 +71,14 @@ export class ConsumerServiceMemoryController {
     return this.memory.getRecurringTechnicianContinuity(this.requireUser(userId), planId);
   }
 
+  @Get('bookings/:bookingId/technician-candidates')
+  bookingTechnicianCandidates(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianCandidates(this.requireUser(userId), bookingId);
+  }
+
   @Get('bookings/:bookingId/technician-preference')
   bookingTechnicianPreference(
     @CurrentConsumerUser() userId: string,
