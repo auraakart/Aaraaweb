@@ -123,6 +123,21 @@ export class ConsumerPaymentsService {
       amountPayablePaise: null,
       taxBreakdown: null,
       taxAssessmentStatus: 'NOT_DETERMINED' as const,
+      // Services 4.3.3 — explain precisely which missing contract evidence
+      // prevents any consolidated payable amount. These are not claims
+      // about external finance/legal approvals or tax liability.
+      readiness: {
+        evaluationScope: 'THIS_BOOKING_PREVIEW_ONLY' as const,
+        status: 'NOT_READY' as const,
+        chargeAuthorized: false,
+        blockers: [
+          { code: 'SELLER_OF_RECORD_UNVERIFIED', label: 'Seller and invoice issuer not verified for this checkout' },
+          { code: 'GST_TREATMENT_UNDETERMINED', label: 'Tax/GST treatment not established for this checkout' },
+          { code: 'PARTS_LINE_ITEMS_UNAVAILABLE', label: 'Verified individual parts and labour line items not available' },
+          { code: 'EXTRA_WORK_NOT_BILLABLE', label: 'Approved extra work has no consolidated charge authorization' },
+          { code: 'SETTLEMENT_REFUND_RULES_UNVERIFIED', label: 'Settlement and refund rules not verified for consolidated checkout' },
+        ],
+      },
       baseService: {
         description: booking.offeringName,
         source: 'SAVED_BOOKING_PRICE' as const,
