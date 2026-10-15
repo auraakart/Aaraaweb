@@ -1372,7 +1372,7 @@
         {
           "id": "V5.4.21",
           "name": "Loopback fixed-upstream partner Host proxy transport negative acceptance",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOOPBACK_HTTP_TEST_GREEN",
           "evidence": [
             "scripts/check-v4.79.1.5-v5-local-proxy-transport.mjs",
             "docs/architecture/V5.4.21-LOCAL-TEST-PROXY-TRANSPORT.md"
@@ -1381,6 +1381,15 @@
             "Loopback-only HTTP test harness, not remotely trusted HTTPS/TLS ingress or deployed reverse proxy",
             "Actual Next/API browser session and public routing over trusted ingress remain unverified",
             "No productionization or staging/main promotion"
+          ],
+          "pullRequest": 1330,
+          "mergeSha": "8bf04a274d8e71ccf93a6b51a2182e1bba5db409",
+          "ciRun": 38682767110,
+          "verifiedScope": [
+            "Real loopback HTTP fixed-upstream transport",
+            "Canonical raw Host and matching X-Forwarded-Host",
+            "Forwarded spoof, cross-origin and cross-partner redirect rejection",
+            "Scoped API/Admin/Flutter and required merge CI green"
           ]
         }
       ],
