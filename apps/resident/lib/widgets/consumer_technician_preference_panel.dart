@@ -7,10 +7,12 @@ class ConsumerTechnicianPreferencePanel extends StatefulWidget {
     super.key,
     required this.apiClient,
     required this.bookingId,
+    this.onSaved,
   });
 
   final ApiClient apiClient;
   final String bookingId;
+  final VoidCallback? onSaved;
 
   @override
   State<ConsumerTechnicianPreferencePanel> createState() =>
@@ -97,6 +99,7 @@ class _ConsumerTechnicianPreferencePanelState
             : 'Technician requested. Assignment is not guaranteed.'),
       ));
       await _load(); // Never treat a local choice as proof the server accepted it.
+      if (mounted && _error == null) widget.onSaved?.call();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

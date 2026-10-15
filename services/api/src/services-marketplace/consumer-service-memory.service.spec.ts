@@ -223,6 +223,65 @@ describe('ConsumerServiceMemoryService', () => {
     expect(response.technicianAssignmentGuaranteed).toBe(false);
   });
 
+  it('4.2.8 denies foreign booking request status before resolving location', async () => {
+    const { prisma, locations, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getBookingTechnicianRequestStatus('resident', 'foreign'))
+      .rejects.toThrow('Service booking not found');
+    expect(locations.resolveLocation).not.toHaveBeenCalled();
+    const q = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(q.values).toEqual(['foreign', 'resident']);
+    expect(q.strings.join(' ')).toContain('b."userId"');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('4.2.8 denies request status after unit occupancy is revoked', async () => {
+    const { prisma, locations, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: 'booking', homeId: null, societyUnitId: 'old-unit',
+      bookingStatus: 'CONFIRMED', requestedAgentId: 'agent',
+    }]);
+    locations.resolveLocation.mockRejectedValueOnce(new Error('Occupancy expired'));
+    await expect(service.getBookingTechnicianRequestStatus('former-tenant', 'booking'))
+      .rejects.toThrow('Occupancy expired');
+    expect(locations.resolveLocation).toHaveBeenCalledWith('former-tenant', 'SOCIETY_UNIT', 'old-unit');
+  });
+
+  it.each([
+    ['none', 'REQUESTED', null, null, 'NO_REQUEST', true],
+    ['pending', 'CONFIRMED', 'agent-a', null, 'AWAITING_ASSIGNMENT', true],
+    ['matched', 'CONFIRMED', 'agent-a', 'agent-a', 'REQUESTED_TECHNICIAN_ASSIGNED', false],
+    ['different', 'IN_PROGRESS', 'agent-a', 'agent-b', 'OTHER_TECHNICIAN_ASSIGNED', false],
+    ['released', 'CONFIRMED', 'agent-a', null, 'AWAITING_ASSIGNMENT', true],
+    ['cancelled', 'CANCELLED', 'agent-a', null, 'REQUEST_CLOSED', false],
+    ['completed', 'COMPLETED', 'agent-a', null, 'REQUEST_CLOSED', false],
+    ['completed-with-assignment', 'COMPLETED', 'agent-a', 'agent-a', 'REQUESTED_TECHNICIAN_ASSIGNED', false],
+  ])('4.2.8 reconciles %s without claiming preference-driven assignment', async (
+    _case, bookingStatus, requestedAgentId, assignedAgentId, expected, canChangeRequest,
+  ) => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: 'booking', homeId: '11111111-1111-4111-8111-111111111111',
+      societyUnitId: null, bookingStatus, requestedAgentId, assignedAgentId,
+      requestedTechnicianName: requestedAgentId ? 'Ravi' : null,
+      assignedTechnicianName: assignedAgentId ? 'Technician B' : null,
+      dispatchStatus: assignedAgentId ? 'ASSIGNED' : null,
+    }]);
+    const status = await service.getBookingTechnicianRequestStatus('resident', 'booking');
+    expect(status).toMatchObject({
+      requestStatus: expected, canChangeRequest,
+      availabilityGuaranteed: false, assignmentByRequestProven: false,
+      statusSnapshotOnly: true,
+    });
+    const sql = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(sql).toContain('LEFT JOIN LATERAL');
+    expect(sql).toContain("'ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'");
+    expect(sql).not.toContain('ag."phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(sql).not.toContain('a."phone"');
+    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+  });
+
   it('4.2.6 rejects a foreign booking preference read without resolving the location', async () => {
     const { prisma, locations, service } = setup();
     prisma.$queryRaw.mockResolvedValueOnce([]);

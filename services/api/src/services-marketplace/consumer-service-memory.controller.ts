@@ -79,6 +79,14 @@ export class ConsumerServiceMemoryController {
     return this.memory.getBookingTechnicianCandidates(this.requireUser(userId), bookingId);
   }
 
+  @Get('bookings/:bookingId/technician-request-status')
+  bookingTechnicianRequestStatus(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianRequestStatus(this.requireUser(userId), bookingId);
+  }
+
   @Get('bookings/:bookingId/technician-preference')
   bookingTechnicianPreference(
     @CurrentConsumerUser() userId: string,

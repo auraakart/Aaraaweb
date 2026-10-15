@@ -231,6 +231,78 @@ export class ConsumerServiceMemoryService {
     };
   }
 
+  /**
+   * Services 4.2.8: a single owner-scoped snapshot of an explicit technician
+   * request and an ACTIVE dispatch assignment. Assignment is never inferred
+   * from the request or from historical/released dispatch records.
+   */
+  async getBookingTechnicianRequestStatus(userId: string, bookingId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      id: string; homeId: string | null; societyUnitId: string | null;
+      bookingStatus: string; requestedAgentId: string | null;
+      requestedTechnicianName: string | null;
+      assignedAgentId: string | null; assignedTechnicianName: string | null;
+      dispatchStatus: string | null;
+    }>>(Prisma.sql`
+      SELECT b."id", b."homeId", b."societyUnitId",
+             b."status" AS "bookingStatus",
+             pref."agentId" AS "requestedAgentId",
+             requested."displayName" AS "requestedTechnicianName",
+             assigned."agentId" AS "assignedAgentId",
+             active_agent."displayName" AS "assignedTechnicianName",
+             assigned."status" AS "dispatchStatus"
+      FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceTechnicianPreference" pref
+        ON pref."bookingId" = b."id"
+        AND pref."userId" = b."userId"
+        AND pref."providerId" = b."providerId"
+      LEFT JOIN "ConsumerProviderAgent" requested
+        ON requested."id" = pref."agentId"
+        AND requested."providerId" = b."providerId"
+      LEFT JOIN LATERAL (
+        SELECT a."agentId", a."providerId", a."status"
+        FROM "ConsumerServiceAssignment" a
+        WHERE a."bookingId" = b."id"
+          AND a."providerId" = b."providerId"
+          AND a."status" IN ('ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED')
+        ORDER BY a."assignedAt" DESC, a."id" DESC LIMIT 1
+      ) assigned ON true
+      LEFT JOIN "ConsumerProviderAgent" active_agent
+        ON active_agent."id" = assigned."agentId"
+        AND active_agent."providerId" = assigned."providerId"
+      WHERE b."id" = ${bookingId}::uuid
+        AND b."userId" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Service booking not found');
+    await this.assertCurrentBookingLocation(userId, booking);
+    const hasRequest = booking.requestedAgentId != null;
+    const hasAssignment = booking.assignedAgentId != null;
+    const canChangeRequest = ['REQUESTED', 'CONFIRMED'].includes(booking.bookingStatus) && !hasAssignment;
+    const cancelled = ['CANCELLED', 'REFUNDED'].includes(booking.bookingStatus);
+    const requestStatus = !hasRequest ? 'NO_REQUEST'
+      : cancelled ? 'REQUEST_CLOSED'
+      : hasAssignment ? (
+        booking.requestedAgentId === booking.assignedAgentId
+          ? 'REQUESTED_TECHNICIAN_ASSIGNED' : 'OTHER_TECHNICIAN_ASSIGNED'
+      ) : canChangeRequest ? 'AWAITING_ASSIGNMENT' : 'REQUEST_CLOSED';
+
+    return {
+      bookingId: booking.id,
+      bookingStatus: booking.bookingStatus,
+      requestStatus,
+      requestedTechnicianName: hasRequest ? booking.requestedTechnicianName : null,
+      assignedTechnicianName: hasAssignment ? booking.assignedTechnicianName : null,
+      dispatchStatus: hasAssignment ? booking.dispatchStatus : null,
+      preferenceRecorded: hasRequest,
+      canChangeRequest,
+      statusSnapshotOnly: true,
+      availabilityGuaranteed: false,
+      assignmentByRequestProven: false,
+    };
+  }
+
   async getBookingTechnicianPreference(userId: string, bookingId: string) {
     const rows = await this.prisma.$queryRaw<Array<{
       id: string; homeId: string | null; societyUnitId: string | null;
