@@ -14,6 +14,27 @@ class ConsumerRebookDto {
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) idempotencyKey?: string;
 }
 
+@Controller('consumer/services/recurring-plans')
+@UseGuards(BearerGuard)
+export class ConsumerRecurringBookingController {
+  constructor(private readonly rebooking: ConsumerRebookingService) {}
+
+  @Post(':planId/book')
+  book(
+    @CurrentConsumerUser() userId: string,
+    @Param('planId', ParseUUIDPipe) planId: string,
+    @Body() dto: ConsumerRebookDto,
+  ) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return this.rebooking.bookFromRecurringPlan(userId, planId, {
+      scheduledFrom: new Date(dto.scheduledFrom),
+      scheduledUntil: new Date(dto.scheduledUntil),
+      notes: dto.notes,
+      idempotencyKey: dto.idempotencyKey,
+    });
+  }
+}
+
 @Controller('consumer/services/history')
 @UseGuards(BearerGuard)
 export class ConsumerRebookingController {

@@ -101,10 +101,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Never expose other jobs, GPS coordinates, agent addresses, phone numbers or individual journey records. No automatic dispatch, status mutation, payment change, migrations or location integrations.
 - Require focused owner-boundary/freshness/sample tests and deterministic tenant-access inventory regeneration before develop merge.
 
+## Services 4.2.1 — explicit booking from recurring preferences
+
+- Authenticated `POST /consumer/services/recurring-plans/:planId/book` accepts the same schedule, notes and optional idempotency key as the existing one-off booking flow.
+- Only the authenticated plan owner with `ACTIVE` status can invoke it; `PAUSED` and `CANCELLED` plans are rejected.
+- The plan provides only offering and location references. Current unit/home ownership, provider verification, availability, price, booking-time checklist snapshot and replay safety are all revalidated by the authoritative `ConsumerBookingsService.createBooking` path.
+- Each explicit call creates **one requested booking**, never an automatic recurring schedule, calendar reservation, provider assignment, invoice, or charge.
+- Provider preferences `cadence`, `preferredWeekday` and `preferredTime` remain guidance, not confirmed reservations. Later automation requires separate policy, consent, reminder and scheduling acceptance.
+- Follow-up 4.2 work: clearer next-visit planning, existing community campaign conversion and continuity workflows without parallel ledgers.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.1.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
