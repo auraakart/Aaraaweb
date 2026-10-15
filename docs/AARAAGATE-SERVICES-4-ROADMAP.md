@@ -79,10 +79,22 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Further slices: 4.1.2 authorized quick dispatch with time-conflict checks; 4.1.3 operational ETA based on verified dispatch milestones and explicit freshness rules.
 - Stop condition: all required PR CI gates passing and `develop` merge only; staging/main unchanged. Generate the deterministic V5 tenant inventory with the repository script.
 
+
+## Services 4.1.2 — one-action conflict-safe quick dispatch
+
+- Authorized platform operator uses `POST /platform/services/consumer-bookings/:bookingId/quick-dispatch` (existing `PLATFORM_CONSUMER_DISPATCH_MANAGE` permission). No request body or unreviewed price/location changes.
+- Reuse the read-only provider-scoped 4.1.1 shortlist to select the first candidate without a schedule conflict. If none, fail closed.
+- Dispatch calls the existing authoritative `assign()` transaction, which locks the target booking, rejects existing active assignment, then locks the selected provider agent.
+- **Under the locked agent row**, re-check all active dispatch assignments for time overlap before inserting; this also hardens manual direct agent assignment against concurrent double-booking.
+- If a shortlist becomes stale, reject the transaction and require retry. This does not certify skills, physical availability or operational ETA.
+- Retain assignment event, existing notification flow, provider verification, no extra payments, no migration and existing society separation.
+- Required gates: source inventory regeneration, targeted dispatch race/authorization tests, full API and security CI, develop merge only.
+- Follow-up: 4.1.3 operational ETA grounded in dispatch milestones and freshness, no fabricated GPS.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.1.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.1.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
