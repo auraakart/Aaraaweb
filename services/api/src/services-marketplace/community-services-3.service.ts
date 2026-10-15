@@ -447,8 +447,10 @@ export class CommunityServices3Service {
     if (status === 'OPEN') throw new BadRequestException('Community service deals cannot be reopened');
 
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.$queryRaw<Array<{ status: CommunityCampaignStatus }>>(Prisma.sql`
-        SELECT "status"
+      const current = await tx.$queryRaw<Array<{
+        status: CommunityCampaignStatus; thresholdHomes: number; serviceDate: Date;
+      }>>(Prisma.sql`
+        SELECT "status", "thresholdHomes", "serviceDate"
         FROM "CommunityServiceCampaign"
         WHERE "id" = ${campaignId}::uuid AND "societyId" = ${societyId}::uuid
         FOR UPDATE
@@ -463,6 +465,28 @@ export class CommunityServices3Service {
       };
       if (!allowed[current[0].status].includes(status)) {
         throw new BadRequestException(`Invalid community deal transition from ${current[0].status} to ${status}`);
+      }
+
+      // Services 4.2.4: a manual lock is only a threshold-qualified interest
+      // closeout, NOT a group booking or resident payment authorization.
+      // Join/withdraw also lock the same campaign row before writing interest.
+      // Count in a *separate statement after acquiring that row lock* so a
+      // concurrent join that completed while we waited is visible.
+      if (status === 'LOCKED') {
+        if (new Date(current[0].serviceDate).getTime() <= Date.now()) {
+          throw new BadRequestException('Community deal service date has passed');
+        }
+        const counts = await tx.$queryRaw<Array<{ joinedHomes: number }>>(Prisma.sql`
+          SELECT COUNT(*)::int AS "joinedHomes"
+          FROM "CommunityServiceCampaignInterest" i
+          WHERE i."campaignId" = ${campaignId}::uuid
+            AND i."societyId" = ${societyId}::uuid
+            AND i."status" = 'JOINED'
+        `);
+        const joinedHomes = Number(counts[0]?.joinedHomes ?? 0);
+        if (!Number.isSafeInteger(joinedHomes) || joinedHomes < current[0].thresholdHomes) {
+          throw new BadRequestException('Community deal household threshold has not been met');
+        }
       }
 
       const rows = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`

@@ -150,6 +150,59 @@ describe('CommunityServices3Service', () => {
     expect(outcome.bookingConfirmed).toBe(false);
   });
 
+  it('4.2.4 refuses to lock below the JOINED household threshold after locking the campaign', async () => {
+    const { service, tx } = setup();
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ status: 'OPEN', thresholdHomes: 3, serviceDate: new Date('2035-01-20') }])
+      .mockResolvedValueOnce([{ joinedHomes: 2 }]);
+
+    await expect(service.setCommunityDealStatus('society-1', 'campaign-1', 'LOCKED'))
+      .rejects.toThrow('household threshold has not been met');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2); // no UPDATE
+    const lock = tx.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(lock.strings.join(' ')).toContain('FOR UPDATE');
+    expect(lock.values).toEqual(['campaign-1', 'society-1']);
+    const count = tx.$queryRaw.mock.calls[1][0] as { strings: string[]; values: unknown[] };
+    expect(count.strings.join(' ')).toContain('i."societyId"');
+    expect(count.strings.join(' ')).toContain('i."status" = \'JOINED\'');
+    expect(count.values).toEqual(['campaign-1', 'society-1']);
+  });
+
+  it('4.2.4 locks a threshold-qualified campaign without booking, charging or sending invitations', async () => {
+    const { service, tx, prisma } = setup();
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ status: 'OPEN', thresholdHomes: 3, serviceDate: new Date('2035-01-20') }])
+      .mockResolvedValueOnce([{ joinedHomes: 3 }])
+      .mockResolvedValueOnce([{ id: 'campaign-1', status: 'LOCKED' }]);
+
+    await expect(service.setCommunityDealStatus('society-1', 'campaign-1', 'LOCKED'))
+      .resolves.toMatchObject({ status: 'LOCKED' });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect((tx.$queryRaw.mock.calls[2][0] as { strings: string[] }).strings.join(' '))
+      .toContain('UPDATE "CommunityServiceCampaign"');
+    expect(prisma.serviceOffering.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('4.2.4 rejects locking a past-service-date deal before counting interest', async () => {
+    const { service, tx } = setup();
+    tx.$queryRaw.mockResolvedValueOnce([
+      { status: 'OPEN', thresholdHomes: 3, serviceDate: new Date('2020-01-20') },
+    ]);
+    await expect(service.setCommunityDealStatus('society-1', 'campaign-1', 'LOCKED'))
+      .rejects.toThrow('service date has passed');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('4.2.4 preserves permitted cancellation without requiring the JOINED threshold', async () => {
+    const { service, tx } = setup();
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ status: 'OPEN', thresholdHomes: 10, serviceDate: new Date('2035-01-20') }])
+      .mockResolvedValueOnce([{ id: 'campaign-1', status: 'CANCELLED' }]);
+    await expect(service.setCommunityDealStatus('society-1', 'campaign-1', 'CANCELLED'))
+      .resolves.toMatchObject({ status: 'CANCELLED' });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
   it('does not allow a terminal or locked campaign to be reopened', async () => {
     const { service, prisma } = setup();
 
