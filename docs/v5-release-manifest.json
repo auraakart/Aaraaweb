@@ -2345,6 +2345,22 @@
             "Existing V5.5.42 target-process SDK isolation reused; live CI ordinary-process observation correctly refused privilege/isolation acceptance",
             "Protected CI completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
+        },
+        {
+          "id": "V5.5.44",
+          "name": "Linux host-local TARGET process executable SHA-256, argv hash and stable PID/user/mount namespace preflight",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-linux-executable-observer.mjs",
+            "scripts/android-test-linux-executable-observer.test.mjs",
+            "scripts/check-v4.79.1.16-v5-executable-observer.mjs",
+            "docs/architecture/V5.5.44-LINUX-EXECUTABLE-OBSERVER.md"
+          ],
+          "limitations": [
+            "Synthetic /proc snapshots and a reject-only live CI sanity probe, not a provisioned external runner or independent OCI image digest measurement.",
+            "Pinned executable SHA-256 and argv do not establish container image/layer identity, continuously immutable mount state or separate observer ownership.",
+            "No Android build/dispatch, signer, Partner A/B APK/AAB, staging/main changes."
+          ]
         }
       ],
       "remaining": [
