@@ -51,6 +51,61 @@ describe('ConsumerDispatchService', () => {
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+
+  it('rejects candidate requests for unknown or unverified provider bookings', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.listDispatchCandidates(bookingId)).rejects.toThrow('Verified provider booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].strings.join(' ')).toContain('ProviderVerificationStatus');
+  });
+
+  it('does not suggest candidates for an assigned booking', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: true }]);
+    await expect(service.listDispatchCandidates(bookingId)).rejects.toThrow('unassigned confirmed booking');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a scoped provisional shortlist with no invented live ETA', async () => {
+    const { prisma, tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z');
+    const until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([
+        { agentId, displayName: 'Ravi', activeAssignmentCount: 0, hasScheduleConflict: false },
+        { agentId: '77777777-7777-4777-8777-777777777777', displayName: 'Busy', activeAssignmentCount: 2, hasScheduleConflict: true },
+      ]);
+    const output = await service.listDispatchCandidates(bookingId);
+    expect(output.candidates[0]).toEqual(expect.objectContaining({
+      agentId, provisionallyAvailable: true, availabilityConfirmed: false,
+      skillsVerifiedForOffering: false, etaMinutes: null,
+    }));
+    expect(output.candidates[1].provisionallyAvailable).toBe(false);
+    expect(output.assignmentRequired).toBe(true);
+    const sqlQuery = prisma.$queryRaw.mock.calls[1][0] as { values: unknown[]; strings: string[] };
+    const sql = sqlQuery.strings.join(' ');
+    expect(sql).toContain('assignedBooking."scheduledFrom"');
+    expect(sql).toContain('assignedBooking."scheduledUntil"');
+    expect(sql).toContain('ag."providerId"');
+    expect(sql).toContain('ag."active" = true');
+    expect(sqlQuery.values).toEqual([until, from, providerId]);
+    expect(sql).not.toContain('"phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('returns an explicit empty provisional shortlist when no agent is available', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: new Date(), scheduledUntil: new Date() }])
+      .mockResolvedValueOnce([]);
+    const response = await service.listDispatchCandidates(bookingId);
+    expect(response.candidates).toEqual([]);
+    expect(response.provisional).toBe(true);
+  });
+
   it('rejects an agent that does not belong to the booking provider', async () => {
     const { tx, service } = setup();
     tx.$queryRaw
