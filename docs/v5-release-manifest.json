@@ -1419,7 +1419,7 @@
         {
           "id": "V5.4.23",
           "name": "Run real Next.js partner host SSR, sealed session cookies and lifecycle through a disposable TLS 1.3 fixed loopback ingress",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_REAL_NEXT_HTTPS_TEST_GREEN",
           "evidence": [
             "apps/admin/scripts/v5.4.23-host-https-ssr-regression.mjs",
             "apps/admin/package.json",
@@ -1428,7 +1428,17 @@
           "limitations": [
             "Ephemeral self-signed TLS/loopback ingress and deterministic local API double; externally trusted ingress not attested",
             "No public DNS or public PKI, live provider, production activation or staging/main promotion",
-            "Actual Next SSR is exercised, but real browser trust/deployment and independently verified remote proxy configuration remain excluded"
+            "Actual Next SSR is exercised, but real browser trust/deployment and independently verified remote proxy configuration remain excluded",
+            "Actual Next SSR passed via controlled local HTTPS fixture; this does not attest a separately provisioned remote proxy, public TLS chain or real external API provider."
+          ],
+          "pullRequest": 1334,
+          "mergeSha": "a0bc74472b7d16036d377eb30d59d721f4891303",
+          "ciRun": 38686191032,
+          "verifiedScope": [
+            "Existing V5.4.18 direct-host SSR acceptance still green",
+            "Actual Next.js partner-host SSR and host-bound encrypted cookie behind ephemeral local TLS 1.3 ingress green",
+            "Cross-host session copy, wrong SNI, missing untrusted CA, TLS downgrade, spoofed forwarded headers denied",
+            "Real Admin full CI, dependency security, required merge gates and develop auto merge passed"
           ]
         }
       ],
