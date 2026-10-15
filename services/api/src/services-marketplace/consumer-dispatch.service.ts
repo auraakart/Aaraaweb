@@ -182,6 +182,75 @@ export class ConsumerDispatchService {
     return rows[0] ?? null;
   }
 
+
+  /**
+   * Services 4.1.1: provisional platform dispatch suggestions only.
+   * Not actual availability, verified skills, an assignment, or live GPS ETA.
+   */
+  async listDispatchCandidates(bookingId: string) {
+    const bookings = await this.prisma.$queryRaw<Array<{
+      id: string; providerId: string; status: ServiceBookingStatus;
+      scheduledFrom: Date; scheduledUntil: Date; hasActiveAssignment: boolean;
+    }>>(Prisma.sql`
+      SELECT b."id", b."providerId", b."status", b."scheduledFrom", b."scheduledUntil",
+        EXISTS (
+          SELECT 1 FROM "ConsumerServiceAssignment" active
+          WHERE active."bookingId" = b."id"
+            AND active."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+        ) AS "hasActiveAssignment"
+      FROM "ConsumerServiceBooking" b
+      JOIN "ServiceProvider" p ON p."id" = b."providerId"
+        AND p."active" = true
+        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      WHERE b."id" = ${bookingId}::uuid LIMIT 1
+    `);
+    const booking = bookings[0];
+    if (!booking) throw new NotFoundException('Verified provider booking not found');
+    if (booking.status !== ServiceBookingStatus.CONFIRMED || booking.hasActiveAssignment) {
+      throw new BadRequestException('Dispatch candidates require an unassigned confirmed booking');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{
+      agentId: string; displayName: string;
+      activeAssignmentCount: number; hasScheduleConflict: boolean;
+    }>>(Prisma.sql`
+      SELECT ag."id" AS "agentId", ag."displayName",
+        load."activeAssignmentCount",
+        (load."overlapCount" > 0) AS "hasScheduleConflict"
+      FROM "ConsumerProviderAgent" ag
+      JOIN "ServiceProvider" p ON p."id" = ag."providerId"
+        AND p."active" = true AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      CROSS JOIN LATERAL (
+        SELECT COUNT(*)::int AS "activeAssignmentCount",
+          COUNT(*) FILTER (
+            WHERE assignedBooking."scheduledFrom" < ${booking.scheduledUntil}
+              AND assignedBooking."scheduledUntil" > ${booking.scheduledFrom}
+          )::int AS "overlapCount"
+        FROM "ConsumerServiceAssignment" a
+        JOIN "ConsumerServiceBooking" assignedBooking ON assignedBooking."id" = a."bookingId"
+        WHERE a."agentId" = ag."id" AND a."providerId" = ag."providerId"
+          AND a."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+      ) load
+      WHERE ag."providerId" = ${booking.providerId}::uuid AND ag."active" = true
+      ORDER BY "hasScheduleConflict" ASC, load."activeAssignmentCount" ASC,
+        ag."displayName" ASC, ag."id" ASC
+      LIMIT 25
+    `);
+    return {
+      bookingId: booking.id, providerId: booking.providerId,
+      candidates: rows.map(row => ({
+        ...row,
+        provisionallyAvailable: !row.hasScheduleConflict,
+        availabilityConfirmed: false,
+        skillsVerifiedForOffering: false,
+        etaMinutes: null as number | null,
+      })),
+      provisional: true,
+      matchingBasis: 'PROVIDER_OWNERSHIP_SCHEDULE_CONFLICT_ACTIVE_LOAD',
+      assignmentRequired: true,
+    };
+  }
+
   async assign(actorUserId: string, bookingId: string, agentId: string) {
     const assignment = await this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`

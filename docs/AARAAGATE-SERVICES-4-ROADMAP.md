@@ -67,10 +67,22 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - No migration, mutable quality score, membership, finance or warranty impact. KPI interpretation and any ranking require independent product/UAT acceptance.
 - Before PR review, run `node services/api/scripts/tenant-access-inventory.mjs --write` and include the deterministic output to avoid blocked CI after introducing API/SQL paths.
 
+
+## Services 4.1.1 — provisional provider-scoped dispatch candidate matching
+
+- Platform dispatch operators use `GET /platform/services/consumer-bookings/:bookingId/dispatch-candidates` under existing `PLATFORM_CONSUMER_DISPATCH_READ` permissions.
+- Booking must be confirmed, unassigned and associated with an active verified provider. Up to 25 active agents are restricted to that exact provider.
+- Rank by conflicting active assignment schedules, active assignment count and deterministic agent display name/ID. Do not use any cross-provider work, ratings, paid placement or unverified capabilities as selection criteria.
+- Returns only agent IDs, display names and provisional load/conflict metadata, no agent phone, home address or consumer PII.
+- Always declare `availabilityConfirmed: false`, `skillsVerifiedForOffering: false`, `etaMinutes: null`. This is not GPS availability, a guarantee, or a real ETA.
+- This endpoint makes **no assignments or state changes**. Existing platform authorization and assignment transaction remain authoritative; concurrent assignments can invalidate a shortlist.
+- Further slices: 4.1.2 authorized quick dispatch with time-conflict checks; 4.1.3 operational ETA based on verified dispatch milestones and explicit freshness rules.
+- Stop condition: all required PR CI gates passing and `develop` merge only; staging/main unchanged. Generate the deterministic V5 tenant inventory with the repository script.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.6** until CI is green. Any quality scoring formula, rework SLA or provider sanction needs independent product acceptance.
+5. **Stop after 4.1.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
