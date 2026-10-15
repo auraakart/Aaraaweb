@@ -22,6 +22,7 @@ model User {
   androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
   androidBuildRunnerChallenges PartnerAndroidRunnerChallenge[] @relation("AndroidRunnerChallengeActor")
   androidBuildRunnerAcceptances PartnerAndroidRunnerEvidenceAcceptance[] @relation("AndroidRunnerAcceptanceActor")
+  androidBuildRuntimeProbes PartnerAndroidRunnerRuntimeProbe[] @relation("AndroidRunnerRuntimeProbeActor")
   androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
   distributionApprovals     PartnerDistributionApproval[]
   distributionRevocations   PartnerDistributionRevocation[]
@@ -1853,6 +1854,28 @@ model PartnerAndroidRunnerEvidenceAcceptance {
  createdAt              DateTime @default(now()) @db.Timestamptz(6)
  challenge              PartnerAndroidRunnerChallenge @relation(fields:[challengeId],references:[id],onDelete:Restrict)
  actor                  User @relation("AndroidRunnerAcceptanceActor",fields:[actorId],references:[id],onDelete:Restrict)
+ runtimeProbe           PartnerAndroidRunnerRuntimeProbe?
+ @@index([workerId,createdAt])
+}
+
+model PartnerAndroidRunnerRuntimeProbe {
+ id                        String @id @default(uuid()) @db.Uuid
+ acceptanceId              String @unique @db.Uuid
+ challengeId               String @unique @db.Uuid
+ actorId                   String @db.Uuid
+ workerId                  String @db.VarChar(64)
+ runId                     String @unique @db.VarChar(64)
+ imageDigest               String @db.VarChar(71)
+ sourceSha                 String @db.VarChar(40)
+ manifestDigest            String @db.VarChar(64)
+ transportNonceDigest      String @unique @db.VarChar(64)
+ runtimeEnvelopeDigest     String @unique @db.VarChar(64)
+ transportSignatureDigest  String @unique @db.VarChar(64)
+ serverSpkiSha256          String @db.VarChar(64)
+ verifiedAt                DateTime @db.Timestamptz(6)
+ createdAt                 DateTime @default(now()) @db.Timestamptz(6)
+ acceptance                PartnerAndroidRunnerEvidenceAcceptance @relation(fields:[acceptanceId],references:[id],onDelete:Restrict)
+ actor                     User @relation("AndroidRunnerRuntimeProbeActor",fields:[actorId],references:[id],onDelete:Restrict)
  @@index([workerId,createdAt])
 }
 
