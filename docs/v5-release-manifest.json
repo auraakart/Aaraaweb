@@ -2324,7 +2324,7 @@
         {
           "id": "V5.5.43",
           "name": "Pinned cgroup v2 and read-only root filesystem observation of a stable Linux TEST target process",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_CGROUP_ROOT_OBSERVER_ONLY",
           "evidence": [
             "packages/config/src/android-test-linux-cgroup-observer.mjs",
             "scripts/android-test-linux-cgroup-observer.test.mjs",
@@ -2335,6 +2335,15 @@
             "Pure Linux kernel-snapshot tests use fixtures; live local CI only refuses an ordinary unisolated process.",
             "No independently operated external observer or authenticated OCI image digest/layer/runtime state.",
             "No consumption of an execution challenge, build authority, APK/AAB or staging/main promotion."
+          ],
+          "pullRequest": 1352,
+          "mergeSha": "ce5affec4a8c8abb10c6a41e94787f07f0b538a3",
+          "ciRun": 38705938201,
+          "verifiedScope": [
+            "Verified a stable target-PID starttime and mount namespace around fixed Linux /proc cgroup/root-mount reads with operator-pinned process/container cgroup v2 scope",
+            "Strict root mount filesystem/source policy and read-only mount+superblock flags; malformed cgroup/v1/hybrid, PID reuse, writable root, overmount and unpinned digest refused",
+            "Existing V5.5.42 target-process SDK isolation reused; live CI ordinary-process observation correctly refused privilege/isolation acceptance",
+            "Protected CI completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
         }
       ],
