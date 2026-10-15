@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
+import '../widgets/consumer_technician_preference_panel.dart';
 
 class ConsumerBookingsScreen extends StatefulWidget {
   const ConsumerBookingsScreen({super.key, required this.apiClient});
@@ -277,12 +278,12 @@ class _BookingTimelineSheet extends StatelessWidget {
     final agentName = dispatch?['agentDisplayName']?.toString();
     final bookingId = booking['id']?.toString() ?? '';
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.82,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: ListView(
+            children: [
             Text(booking['offeringName']?.toString() ?? 'Service', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text('Current status: ${currentStatus.replaceAll('_', ' ')}'),
@@ -299,6 +300,13 @@ class _BookingTimelineSheet extends StatelessWidget {
                   subtitle: Text(_dispatchMessage(dispatchStatus)),
                 ),
               ),
+            if (bookingId.isNotEmpty &&
+                (currentStatus == 'REQUESTED' || currentStatus == 'CONFIRMED') &&
+                dispatchStatus == null)
+              ConsumerTechnicianPreferencePanel(
+                apiClient: apiClient,
+                bookingId: bookingId,
+              ),
             if (bookingId.isNotEmpty)
               ConsumerBookingPostServicePanel(apiClient: apiClient, bookingId: bookingId),
             const SizedBox(height: 18),
@@ -307,9 +315,9 @@ class _BookingTimelineSheet extends StatelessWidget {
             if (events.isEmpty)
               const Text('Your service request is waiting for its first fulfilment update.')
             else
-              Flexible(
-                child: ListView.separated(
+              ListView.separated(
                   shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: events.length,
                   separatorBuilder: (_, __) => const Divider(height: 20),
                   itemBuilder: (context, index) {
@@ -328,9 +336,9 @@ class _BookingTimelineSheet extends StatelessWidget {
                     );
                   },
                 ),
-              ),
           ],
         ),
+      ),
       ),
     );
   }

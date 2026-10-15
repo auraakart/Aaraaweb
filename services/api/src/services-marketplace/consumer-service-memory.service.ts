@@ -172,6 +172,65 @@ export class ConsumerServiceMemoryService {
     }
   }
 
+  /** Services 4.2.7: historical eligible agents for an owned booking, not availability. */
+  async getBookingTechnicianCandidates(userId: string, bookingId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      id: string; homeId: string | null; societyUnitId: string | null;
+      offeringId: string; providerId: string; status: string; hasActiveAssignment: boolean;
+    }>>(Prisma.sql`
+      SELECT b."id", b."homeId", b."societyUnitId", b."offeringId", b."providerId", b."status",
+        EXISTS (
+          SELECT 1 FROM "ConsumerServiceAssignment" active
+          WHERE active."bookingId" = b."id"
+            AND active."status" IN ('ASSIGNED','ACCEPTED','EN_ROUTE','ARRIVED')
+        ) AS "hasActiveAssignment"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const booking = rows[0];
+    if (!booking) throw new NotFoundException('Service booking not found');
+    await this.assertCurrentBookingLocation(userId, booking);
+    if (!['REQUESTED', 'CONFIRMED'].includes(booking.status) || booking.hasActiveAssignment) {
+      throw new BadRequestException('Technician preference is closed for this booking');
+    }
+    const candidates = await this.prisma.$queryRaw<Array<{
+      agentId: string; displayName: string; completedVisits: number; lastArrivedAt: Date;
+    }>>(Prisma.sql`
+      SELECT ag."id" AS "agentId", ag."displayName",
+        COUNT(DISTINCT historical."id")::int AS "completedVisits",
+        MAX(a."arrivedAt") AS "lastArrivedAt"
+      FROM "ConsumerServiceBooking" historical
+      JOIN "ConsumerServiceAssignment" a
+        ON a."bookingId" = historical."id"
+        AND a."providerId" = historical."providerId"
+        AND a."arrivedAt" IS NOT NULL
+      JOIN "ConsumerProviderAgent" ag
+        ON ag."id" = a."agentId" AND ag."providerId" = a."providerId"
+        AND ag."active" = true
+      JOIN "ServiceProvider" p
+        ON p."id" = ag."providerId" AND p."active" = true
+        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      WHERE historical."userId" = ${userId}::uuid
+        AND historical."offeringId" = ${booking.offeringId}::uuid
+        AND historical."providerId" = ${booking.providerId}::uuid
+        AND historical."status" = 'COMPLETED'::"ServiceBookingStatus"
+        AND (
+          (${booking.homeId}::uuid IS NOT NULL AND historical."homeId" = ${booking.homeId}::uuid)
+          OR (${booking.societyUnitId}::uuid IS NOT NULL AND historical."societyUnitId" = ${booking.societyUnitId}::uuid)
+        )
+      GROUP BY ag."id", ag."displayName"
+      ORDER BY "lastArrivedAt" DESC, "agentId" ASC
+      LIMIT 20
+    `);
+    return {
+      bookingId: booking.id, candidates,
+      evidenceBasis: 'OWNER_COMPLETED_VISIT_SAME_OFFERING_AND_LOCATION',
+      historicalEvidenceOnly: true,
+      availabilityConfirmed: false, technicianAssignmentGuaranteed: false, requestOnly: true,
+    };
+  }
+
   async getBookingTechnicianPreference(userId: string, bookingId: string) {
     const rows = await this.prisma.$queryRaw<Array<{
       id: string; homeId: string | null; societyUnitId: string | null;

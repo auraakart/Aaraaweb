@@ -156,6 +156,73 @@ describe('ConsumerServiceMemoryService', () => {
     expect(result.technicianAssignmentGuaranteed).toBe(false);
   });
 
+  it('4.2.7 refuses a foreign booking before disclosing technician candidates', async () => {
+    const { prisma, locations, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getBookingTechnicianCandidates('owner', 'foreign'))
+      .rejects.toThrow('Service booking not found');
+    const q = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(q.values).toEqual(['foreign', 'owner']);
+    expect(q.strings.join(' ')).toContain('b."userId"');
+    expect(locations.resolveLocation).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('4.2.7 denies revoked location access and already assigned bookings', async () => {
+    const { prisma, locations, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: 'booking', homeId: null,
+      societyUnitId: 'unit', status: 'REQUESTED', hasActiveAssignment: false }]);
+    locations.resolveLocation.mockRejectedValueOnce(new Error('Occupancy revoked'));
+    await expect(service.getBookingTechnicianCandidates('owner', 'booking'))
+      .rejects.toThrow('Occupancy revoked');
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: 'booking',
+      homeId: '11111111-1111-4111-8111-111111111111', societyUnitId: null,
+      status: 'CONFIRMED', hasActiveAssignment: true }]);
+    await expect(service.getBookingTechnicianCandidates('owner', 'booking'))
+      .rejects.toThrow('Technician preference is closed');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('4.2.7 scopes historical arrival candidates to the same owner, provider, offering and home', async () => {
+    const { prisma, locations, service } = setup();
+    const homeId = '11111111-1111-4111-8111-111111111111';
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: 'booking', homeId, societyUnitId: null,
+      offeringId: 'offering', providerId: 'provider', status: 'REQUESTED', hasActiveAssignment: false,
+    }]).mockResolvedValueOnce([{
+      agentId: 'agent', displayName: 'Ravi', completedVisits: 2,
+      lastArrivedAt: new Date('2026-10-11T10:00:00Z'),
+    }]);
+    const response = await service.getBookingTechnicianCandidates('owner', 'booking');
+    expect(locations.resolveLocation).toHaveBeenCalledWith('owner', 'HOME', homeId);
+    expect(response).toMatchObject({ historicalEvidenceOnly: true,
+      availabilityConfirmed: false, technicianAssignmentGuaranteed: false,
+      candidates: [{ agentId: 'agent', completedVisits: 2 }] });
+    const q = prisma.$queryRaw.mock.calls[1][0] as { strings: string[]; values: unknown[] };
+    const sql = q.strings.join(' ');
+    for (const fragment of ['historical."userId"', 'historical."providerId"',
+      'historical."offeringId"', 'historical."homeId"', 'historical."societyUnitId"',
+      'a."arrivedAt" IS NOT NULL', 'ag."active" = true',
+      "'VERIFIED'::\"ProviderVerificationStatus\"",
+      "'COMPLETED'::\"ServiceBookingStatus\"", 'LIMIT 20']) {
+      expect(sql).toContain(fragment);
+    }
+    expect(sql).not.toContain('ag."phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(q.values).toEqual(['owner', 'offering', 'provider', homeId, homeId, null, null]);
+  });
+
+  it('4.2.7 returns an explicit empty candidate list', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: 'booking', homeId: '11111111-1111-4111-8111-111111111111',
+      societyUnitId: null, offeringId: 'offering', providerId: 'provider',
+      status: 'CONFIRMED', hasActiveAssignment: false,
+    }]).mockResolvedValueOnce([]);
+    const response = await service.getBookingTechnicianCandidates('owner', 'booking');
+    expect(response.candidates).toEqual([]);
+    expect(response.technicianAssignmentGuaranteed).toBe(false);
+  });
+
   it('4.2.6 rejects a foreign booking preference read without resolving the location', async () => {
     const { prisma, locations, service } = setup();
     prisma.$queryRaw.mockResolvedValueOnce([]);

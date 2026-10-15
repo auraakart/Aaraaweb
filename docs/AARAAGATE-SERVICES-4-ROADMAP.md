@@ -158,10 +158,18 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - One small migration adds `ConsumerServiceTechnicianPreference` with booking/owner/provider/agent references. No automatic visits, booking changes, gate permissions, scheduler, charge, refund or invoice.
 - Validate ownership, revoked occupancy, completed historical assignment proof, active dispatch exclusion, clear/update, no-PII return, preference ranking and fallback. Regenerate deterministic V5 tenant inventory and merge to `develop` only after all CI gates pass.
 
+## Services 4.2.7 — resident booking technician selector
+
+- Add a booking-scoped read-only `GET /consumer/services/bookings/:bookingId/technician-candidates`. Owner and current HOME/SOCIETY_UNIT access are checked before reading history. Only REQUESTED/CONFIRMED unassigned bookings qualify.
+- Return at most 20 active technicians of the booking's verified provider with a documented arrival on this owner's completed visit for the same offering and location, showing only display name, completed visit count and last arrival. No phones, GPS, other households, automatic booking or implied availability.
+- Wire the selector into Resident **My Bookings → booking details** for pending unassigned work, with explicit save/clear, server refresh, loading, empty and error states; keep all statuses and history visible in a bounded scrolling modal.
+- Label selection as a request only. Actual agent availability, provider acceptance and assignment stay in the conflict-safe platform dispatch path; reassignment to another technician remains possible.
+- Targeted API/Flutter regression, refreshed deterministic tenant inventory, protected CI; no new migration or staging/main promotion.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.6** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.7** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
