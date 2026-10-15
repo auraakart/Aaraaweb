@@ -151,6 +151,11 @@ export class ConsumerBookingsController {
     return this.payments.listMine(this.requireUser(userId));
   }
 
+  @Get('services/bookings/:id/checkout-breakdown')
+  checkoutBreakdown(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
+    return this.payments.getCheckoutBreakdown(this.requireUser(userId), bookingId);
+  }
+
   @Get('services/bookings/:id/payments')
   listBookingPayments(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
     return this.payments.listForBooking(this.requireUser(userId), bookingId);
