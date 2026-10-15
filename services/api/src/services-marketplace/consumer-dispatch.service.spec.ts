@@ -130,6 +130,7 @@ describe('ConsumerDispatchService', () => {
       .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: agentId, providerId, displayName: 'Ravi', active: true }])
+      .mockResolvedValueOnce([]) // No overlap under the agent row lock.
       .mockResolvedValueOnce([assignment]);
     tx.$executeRaw.mockResolvedValue(1);
     prisma.$queryRaw.mockResolvedValueOnce([{
@@ -161,6 +162,61 @@ describe('ConsumerDispatchService', () => {
     await expect(service.assign(actorUserId, bookingId, agentId)).rejects.toThrow(
       'Only confirmed consumer bookings can be assigned',
     );
+  });
+
+
+  it('blocks direct assignment when the selected agent has an overlapping active job', async () => {
+    const { tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z'), until = new Date('2030-01-01T11:00:00Z');
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED', scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: agentId, providerId, active: true }])
+      .mockResolvedValueOnce([{ id: '88888888-8888-4888-8888-888888888888' }]);
+    await expect(service.assign(actorUserId, bookingId, agentId)).rejects.toThrow('overlapping active service assignment');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    const agentLock = tx.$queryRaw.mock.calls[2][0] as { strings: string[] };
+    expect(agentLock.strings.join(' ')).toContain('FOR UPDATE OF ag');
+    const overlap = tx.$queryRaw.mock.calls[3][0] as { strings: string[]; values: unknown[] };
+    expect(overlap.strings.join(' ')).toContain('other."scheduledFrom"');
+    expect(overlap.strings.join(' ')).toContain('other."scheduledUntil"');
+    expect(overlap.values).toEqual([agentId, providerId, until, from]);
+  });
+
+  it('one-action dispatch only selects a candidate without a reported conflict', async () => {
+    const { prisma, tx, service } = setup();
+    const from = new Date('2030-01-01T10:00:00Z'), until = new Date('2030-01-01T11:00:00Z');
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false,
+      scheduledFrom: from, scheduledUntil: until,
+    }]).mockResolvedValueOnce([
+      { agentId: '77777777-7777-4777-8777-777777777777', displayName: 'Busy', activeAssignmentCount: 2, hasScheduleConflict: true },
+      { agentId, displayName: 'Ravi', activeAssignmentCount: 0, hasScheduleConflict: false },
+    ]);
+    const assignment = { id: assignmentId, bookingId, providerId, agentId, status: 'ASSIGNED' };
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, userId: consumerUserId, providerId, status: 'CONFIRMED', scheduledFrom: from, scheduledUntil: until }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: agentId, providerId, active: true }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([assignment]);
+    // The post-commit notification query may return no recipients in this isolated test.
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    const result = await service.quickDispatch(actorUserId, bookingId);
+    expect(result.agentId).toBe(agentId);
+    expect(tx.$queryRaw.mock.calls[2][0].values).toContain(agentId);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails without writing if all provisional candidates have conflicts', async () => {
+    const { prisma, tx, service } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ id: bookingId, providerId, status: 'CONFIRMED', hasActiveAssignment: false, scheduledFrom: new Date(), scheduledUntil: new Date() }])
+      .mockResolvedValueOnce([{ agentId, displayName: 'Ravi', activeAssignmentCount: 1, hasScheduleConflict: true }]);
+    await expect(service.quickDispatch(actorUserId, bookingId)).rejects.toThrow('No conflict-free provider agent currently available');
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('rejects invalid dispatch state jumps', async () => {

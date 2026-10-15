@@ -28,6 +28,8 @@ type BookingRow = {
   userId: string;
   providerId: string;
   status: ServiceBookingStatus;
+  scheduledFrom: Date;
+  scheduledUntil: Date;
 };
 
 type AssignmentRow = {
@@ -251,10 +253,21 @@ export class ConsumerDispatchService {
     };
   }
 
+  /**
+   * One-action dispatch reuses the existing platform-authorized assignment path.
+   * Candidate reads are stale by definition; assign() rechecks with row locks.
+   */
+  async quickDispatch(actorUserId: string, bookingId: string) {
+    const shortlist = await this.listDispatchCandidates(bookingId);
+    const candidate = shortlist.candidates.find((item) => item.provisionallyAvailable);
+    if (!candidate) throw new BadRequestException('No conflict-free provider agent currently available');
+    return this.assign(actorUserId, bookingId, candidate.agentId);
+  }
+
   async assign(actorUserId: string, bookingId: string, agentId: string) {
     const assignment = await this.prisma.$transaction(async (tx) => {
       const bookingRows = await tx.$queryRaw<BookingRow[]>(Prisma.sql`
-        SELECT "id", "userId", "providerId", "status"
+        SELECT "id", "userId", "providerId", "status", "scheduledFrom", "scheduledUntil"
         FROM "ConsumerServiceBooking"
         WHERE "id" = ${bookingId}::uuid
         FOR UPDATE
@@ -288,6 +301,24 @@ export class ConsumerDispatchService {
       `);
       const agent = agents[0];
       if (!agent) throw new BadRequestException('Selected agent is not active for the booking provider');
+
+      // This agent row is already FOR UPDATE locked. Other direct/quick
+      // assignments for this technician serialize here, preventing two
+      // concurrent bookings from committing overlapping active work.
+      const conflicting = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT a."id"
+        FROM "ConsumerServiceAssignment" a
+        JOIN "ConsumerServiceBooking" other ON other."id" = a."bookingId"
+        WHERE a."agentId" = ${agentId}::uuid
+          AND a."providerId" = ${booking.providerId}::uuid
+          AND a."status" IN ('ASSIGNED', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED')
+          AND other."scheduledFrom" < ${booking.scheduledUntil}
+          AND other."scheduledUntil" > ${booking.scheduledFrom}
+        LIMIT 1
+      `);
+      if (conflicting[0]) {
+        throw new BadRequestException('Agent has an overlapping active service assignment; refresh candidates');
+      }
 
       const assignmentId = randomUUID();
       const rows = await tx.$queryRaw<AssignmentRow[]>(Prisma.sql`
