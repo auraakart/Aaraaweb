@@ -2320,6 +2320,22 @@
             "Live Linux /proc sanity check demonstrates a regular CI process is rejected as an isolated TEST worker",
             "Protected CI passed Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
+        },
+        {
+          "id": "V5.5.43",
+          "name": "Pinned cgroup v2 and read-only root filesystem observation of a stable Linux TEST target process",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-linux-cgroup-observer.mjs",
+            "scripts/android-test-linux-cgroup-observer.test.mjs",
+            "scripts/check-v4.79.1.15-v5-linux-cgroup.mjs",
+            "docs/architecture/V5.5.43-LINUX-CGROUP-ROOT-OBSERVER.md"
+          ],
+          "limitations": [
+            "Pure Linux kernel-snapshot tests use fixtures; live local CI only refuses an ordinary unisolated process.",
+            "No independently operated external observer or authenticated OCI image digest/layer/runtime state.",
+            "No consumption of an execution challenge, build authority, APK/AAB or staging/main promotion."
+          ]
         }
       ],
       "remaining": [
