@@ -283,8 +283,7 @@ class _BookingTimelineSheet extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: ListView(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            children: [
             Text(booking['offeringName']?.toString() ?? 'Service', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text('Current status: ${currentStatus.replaceAll('_', ' ')}'),
