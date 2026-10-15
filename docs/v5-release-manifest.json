@@ -1444,7 +1444,7 @@
         {
           "id": "V5.4.24",
           "name": "Nonproduction ingress acceptance probe with independently reviewed SPKI pin, exact approved QA host, TLS 1.3 and negative spoof/header checks",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS_PROBE_CONTRACT_GREEN",
           "evidence": [
             "scripts/v5.4.24-ingress-acceptance.mjs",
             "scripts/v5.4.24-ingress-acceptance.test.mjs",
@@ -1456,7 +1456,18 @@
             "Protected CI executes only a loopback self-signed TLS test fixture; no external ingress has been contacted or attested.",
             "Actual remote TLS probe is explicitly manual, read-only and requires independently reviewed operator-approved test DNS and certificate public-key fingerprint.",
             "A passing TLS probe alone does not prove remote operator control, real partner-host Next/API session isolation, or distribution/production approval.",
-            "No staging/main promotion or productionization."
+            "No staging/main promotion or productionization.",
+            "Remote ingress attestation, actual remote Next/API host-session acceptance, real operator keys and production trust have NOT been established."
+          ],
+          "pullRequest": 1336,
+          "mergeSha": "ac413b0fa4da6db6cf5ea159c3015c2b365218ca",
+          "ciRun": 38687222200,
+          "verifiedScope": [
+            "Real localhost TLS 1.3 socket and externally supplied SPKI SHA-256 pin negative fixture passed",
+            "Unapproved target, production claim, credentials and unknown config rejected",
+            "External CLI remains manual-only; automatic CI has no external network probe",
+            "Full API/Admin/Flutter and dependency-security protected gates passed",
+            "Required merge gate and develop auto merge successful"
           ]
         }
       ],
