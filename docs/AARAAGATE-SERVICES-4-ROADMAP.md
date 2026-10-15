@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1 merged to develop; Services 4.0.2 is under CI validation in a separate PR.**
+Status: **Services 4.0.1 and 4.0.2 merged to develop; Services 4.0.3 is an independently gated PR.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -31,10 +31,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - `quality-checklist-preview` remains a separate live, explicitly non-binding offering preview.
 - Technician per-item evidence, resident acceptance and rework claims are **not** part of this slice.
 
+## Services 4.0.3 deliverable
+
+- The authenticated, verified assigned technician may record `{ "itemId": "inspect_filter", "passed": true, "note": "Checked" }` through `POST /provider-agent/services/assignments/:assignmentId/quality-evidence`.
+- Writes require an `ARRIVED` assignment, the matching active `IN_PROGRESS` booking, and an item ID in that booking's immutable checklist snapshot. The booking row is locked to prevent completion/evidence races.
+- The assessment history is append-only, not overwritten by retry, and cannot mutate previously snapshotted items or original booking price.
+- Agent read `GET /provider-agent/services/assignments/:assignmentId/quality-evidence` uses the authenticated agent/provider assignment mapping.
+- Consumer read `GET /consumer/services/bookings/:bookingId/quality-evidence` is limited to the authenticated booking owner.
+- No claims about technician certification, resident approval, automatic warranty, booking completion gating or rework settlement are added.
+- Tests include unauthorized assignment/consumer reads, invalid checklist items, absent legacy snapshots, ownership enforcement and immutable event insertion.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.2** until its CI is green. Continue technician evidence and rework governance as separately bounded slices.
+5. **Stop after 4.0.3** until its CI is green. Continue completion-quality gating and rework governance as separate bounded slices.
