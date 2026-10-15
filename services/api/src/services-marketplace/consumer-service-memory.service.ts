@@ -203,7 +203,6 @@ export class ConsumerServiceMemoryService {
       displayName: booking.displayName ?? null,
       technicianRecordActive: booking.technicianRecordActive ?? false,
       requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
-      assignedByPreference: false,
     };
   }
 
@@ -276,7 +275,7 @@ export class ConsumerServiceMemoryService {
       if (!previous[0]) {
         throw new BadRequestException('Technician must have attended your completed visit for this service and location');
       }
-      await tx.$queryRaw(Prisma.sql`
+      await tx.$executeRaw(Prisma.sql`
         INSERT INTO "ConsumerServiceTechnicianPreference"
           ("bookingId", "userId", "providerId", "agentId", "createdAt", "updatedAt")
         VALUES (

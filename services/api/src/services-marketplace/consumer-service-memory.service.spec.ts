@@ -234,11 +234,46 @@ describe('ConsumerServiceMemoryService', () => {
       agentId: '22222222-2222-4222-8222-222222222222',
       requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
     });
-    const sql = sqlText(tx.$queryRaw.mock.calls[2][0]);
+    const sql = sqlText(tx.$executeRaw.mock.calls[0][0]);
     expect(sql).toContain('ON CONFLICT ("bookingId")');
     expect(sql).toContain('"ConsumerServiceTechnicianPreference"');
     expect(sql).not.toContain('"ConsumerServiceAssignment"');
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+  });
+
+  it('4.2.6 refuses mutation when the booking location is no longer accessible', async () => {
+    const { prisma, locations, service } = setup();
+    const tx = { $queryRaw: vi.fn().mockResolvedValueOnce([{
+      id: 'booking', homeId: null, societyUnitId: 'unit-1',
+      status: 'REQUESTED', hasActiveAssignment: false,
+    }]), $executeRaw: vi.fn() };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    locations.resolveLocation.mockRejectedValueOnce(new Error('Occupancy revoked'));
+    await expect(service.setBookingTechnicianPreference('former-resident', 'booking', null))
+      .rejects.toThrow('Occupancy revoked');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 reads the resident request without sharing agent contact details', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: 'booking',
+      homeId: '11111111-1111-4111-8111-111111111111', societyUnitId: null,
+      agentId: '22222222-2222-4222-8222-222222222222',
+      displayName: 'Ravi', technicianRecordActive: true,
+    }]);
+    const result = await service.getBookingTechnicianPreference('owner', 'booking');
+    expect(result).toEqual({
+      bookingId: 'booking',
+      agentId: '22222222-2222-4222-8222-222222222222',
+      displayName: 'Ravi', technicianRecordActive: true,
+      requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
+    });
+    const sql = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(sql).not.toContain('ag."phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
   });
 
   it('4.2.6 allows clearing an unassigned preference without validating technician history', async () => {
