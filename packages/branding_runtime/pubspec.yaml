@@ -1,7 +1,0 @@
-name: aaraagate_branding_runtime
-description: Validated presentation-only society brand context shared by Aaraagate mobile apps.
-publish_to: 'none'
-version: 0.1.0
-
-environment:
-  sdk: '>=3.5.0 <4.0.0'

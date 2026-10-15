@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1 implementation proposed on a feature branch; validation pending.**
+Status: **Services 4.0.1 merged to develop; Services 4.0.2 is under CI validation in a separate PR.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
