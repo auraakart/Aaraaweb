@@ -72,6 +72,37 @@ describe('Services 4.0 quality-checklist templates', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('does not return another consumer\'s immutable checklist snapshot', async () => {
+    const { svc, prisma } = setup();
+    prisma.$queryRaw.mockResolvedValue([]);
+    await expect(svc.getConsumerBookingSnapshot(userId, bookingId)).rejects.toThrow('Booking not found');
+    const sql = prisma.$queryRaw.mock.calls[0][0];
+    expect(sql.strings.join(' ')).toContain('b."userId"');
+    expect(sql.values).toEqual([bookingId, userId]);
+  });
+
+  it('returns a saved immutable booking checklist even if the live template later changes', async () => {
+    const { svc, prisma } = setup();
+    const snapshot = { bookingId, offeringId, templateVersion: 1, items, capturedAt: new Date(), captured: true };
+    prisma.$queryRaw.mockResolvedValue([snapshot]);
+    await expect(svc.getConsumerBookingSnapshot(userId, bookingId)).resolves.toEqual({
+      ...snapshot, immutable: true,
+    });
+    const query = prisma.$queryRaw.mock.calls[0][0];
+    expect(query.strings.join(' ')).toContain('ConsumerServiceQualityChecklistSnapshot');
+    expect(query.strings.join(' ')).not.toContain('ServiceOfferingQualityChecklist" t');
+  });
+
+  it('does not misrepresent legacy bookings as immutable checklist commitments', async () => {
+    const { svc, prisma } = setup();
+    prisma.$queryRaw.mockResolvedValue([{
+      bookingId, offeringId, templateVersion: 0, items: [], capturedAt: null, captured: false,
+    }]);
+    await expect(svc.getConsumerBookingSnapshot(userId, bookingId)).resolves.toEqual({
+      bookingId, offeringId, templateVersion: 0, items: [], capturedAt: null, captured: false, immutable: false,
+    });
+  });
+
   it('does not reveal another consumer\'s booking checklist', async () => {
     const { svc, prisma } = setup();
     prisma.$queryRaw.mockResolvedValue([]);

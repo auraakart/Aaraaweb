@@ -21,10 +21,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - `GET /consumer/services/bookings/:bookingId/quality-checklist-preview` is scoped to the authenticated booking owner and responds with `previewOnly: true`, current `templateVersion`, and checklist items (or an empty preview).
 - This is **current offering guidance**, not a booking-time immutable snapshot, completed checklist evidence, technician QA certification or new/revised guarantee. Do not gate completion on a mutable template.
 
+## Services 4.0.2 deliverable
+
+- Booking creation atomically copies the offering's current checklist `version` and `items` into a per-booking snapshot when a template exists.
+- The idempotent same-key retry path returns the existing booking without replacing its original checklist.
+- Repeat bookings already use `ConsumerBookingsService.createBooking`, so each new repeat booking receives the **then-current** template.
+- `GET /consumer/services/bookings/:bookingId/quality-checklist` returns the booking-time snapshot only to the booking owner.
+- Legacy bookings and offerings without a configured template return `captured: false` and `immutable: false`; do not impose a retrospective checklist.
+- `quality-checklist-preview` remains a separate live, explicitly non-binding offering preview.
+- Technician per-item evidence, resident acceptance and rework claims are **not** part of this slice.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.1** until its CI is green. Continue 4.0 booking snapshots, technician evidence and rework governance as separately bounded slices.
+5. **Stop after 4.0.2** until its CI is green. Continue technician evidence and rework governance as separately bounded slices.

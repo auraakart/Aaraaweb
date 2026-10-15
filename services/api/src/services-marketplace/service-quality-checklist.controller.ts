@@ -49,6 +49,11 @@ export class ProviderQualityChecklistController {
 export class ConsumerQualityChecklistController {
   constructor(private readonly quality: ServiceQualityChecklistService) {}
 
+  @Get('bookings/:bookingId/quality-checklist')
+  snapshot(@CurrentUser() userId: string, @Param('bookingId', ParseUUIDPipe) bookingId: string) {
+    return this.quality.getConsumerBookingSnapshot(requireUser(userId), bookingId);
+  }
+
   @Get('bookings/:bookingId/quality-checklist-preview')
   preview(@CurrentUser() userId: string, @Param('bookingId', ParseUUIDPipe) bookingId: string) {
     return this.quality.getConsumerBookingPreview(requireUser(userId), bookingId);
