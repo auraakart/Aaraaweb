@@ -2236,6 +2236,22 @@
             "Negative tampering, key reuse, unsigned payload, replayed nonce/challenge, foreign source, writable-mount claims, expiration and signature substitution refused",
             "Protected CI: Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge passed"
           ]
+        },
+        {
+          "id": "V5.5.40",
+          "name": "Read-only TLS 1.3 mTLS fresh-nonce signed worker/observer runtime process-claim transport probe",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-oci-runtime-transport.mjs",
+            "scripts/android-test-oci-runtime-transport.test.mjs",
+            "scripts/check-v4.79.1.12-v5-runtime-transport.mjs",
+            "docs/architecture/V5.5.40-MTLS-RUNTIME-EVIDENCE.md"
+          ],
+          "limitations": [
+            "Disposable local TLS and Ed25519 keys only; no independently operated external worker, OCI runtime or real observer key custody.",
+            "No trusted container/kernel mount measurements, no persisted consumption of fresh transport nonce and no Partner A/B artifact.",
+            "Read-only challenge and signed claim only; buildExecutionAuthorized:false and dispatchAllowed:false; staging/main unchanged."
+          ]
         }
       ],
       "remaining": [
