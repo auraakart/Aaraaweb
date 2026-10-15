@@ -2349,7 +2349,7 @@
         {
           "id": "V5.5.44",
           "name": "Linux host-local TARGET process executable SHA-256, argv hash and stable PID/user/mount namespace preflight",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_EXECUTABLE_OBSERVER_ONLY",
           "evidence": [
             "packages/config/src/android-test-linux-executable-observer.mjs",
             "scripts/android-test-linux-executable-observer.test.mjs",
@@ -2360,6 +2360,15 @@
             "Synthetic /proc snapshots and a reject-only live CI sanity probe, not a provisioned external runner or independent OCI image digest measurement.",
             "Pinned executable SHA-256 and argv do not establish container image/layer identity, continuously immutable mount state or separate observer ownership.",
             "No Android build/dispatch, signer, Partner A/B APK/AAB, staging/main changes."
+          ],
+          "pullRequest": 1354,
+          "mergeSha": "bf5c330cc9137a72e4fc2f921cada923fcde175b",
+          "ciRun": 38708353856,
+          "verifiedScope": [
+            "Read-only bounded Linux target proc executable file-descriptor SHA-256 and raw argv hash bound to separately pinned executable/identity/namespace policy",
+            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
+            "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
+            "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
           ]
         }
       ],
