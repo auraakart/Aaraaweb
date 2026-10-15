@@ -2163,7 +2163,7 @@
         {
           "id": "V5.5.37",
           "name": "Verify single-manifest OCI TEST image layout file digests and source/platform against independently signed/pinned DSSE image claim",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_OCI_BYTES_GREEN",
           "evidence": [
             "packages/config/src/android-test-oci-layout.mjs",
             "scripts/android-test-oci-layout.test.mjs",
@@ -2173,7 +2173,17 @@
           "limitations": [
             "Real byte-integrity check is against disposable local OCI layout fixtures, not remote registry or live runtime image.",
             "Independent attestor and worker keys in CI are ephemeral fixture keys; no remotely trusted worker ownership or immutable OCI deployment is attested.",
-            "No partner-specific APK/AAB, real registry lookup, signing or co-installation; dispatchAllowed:false, staging/main untouched."
+            "No partner-specific APK/AAB, real registry lookup, signing or co-installation; dispatchAllowed:false, staging/main untouched.",
+            "No external OCI registry digest or actual runtime image observed, only local read-only file integrity; no execution authorized."
+          ],
+          "pullRequest": 1340,
+          "mergeSha": "e1bf02f02cd3923acb081689c089f90f95a98455",
+          "ciRun": 38693852187,
+          "verifiedScope": [
+            "Existing V5.5.36 pinned Ed25519 DSSE TEST image claim verifier reused and passed",
+            "Real disposable on-disk OCI v1 manifest/config/compressed layer SHA-256 integrity and signed source/platform binding passed",
+            "Negative OCI tampering, symlink, changed source, wrong platform, extra/missing blob cases passed",
+            "Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto merge passed"
           ]
         }
       ],
