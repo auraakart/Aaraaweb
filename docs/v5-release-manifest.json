@@ -2294,6 +2294,22 @@
             "Tenant-access inventory regenerated and exact Git blob reconciled after initial API CI inventory drift; migration applied successfully in CI",
             "Protected CI re-run completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
+        },
+        {
+          "id": "V5.5.42",
+          "name": "Stable Linux /proc target-process observer (PID starttime, mount namespace, seccomp and read-only SDK mounts) without external image attestation",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-linux-observer.mjs",
+            "scripts/android-test-linux-observer.test.mjs",
+            "scripts/check-v4.79.1.14-v5-linux-observer.mjs",
+            "docs/architecture/V5.5.42-LINUX-PROCESS-OBSERVER.md"
+          ],
+          "limitations": [
+            "Pure parser tests use synthetic kernel snapshots; live CI sanity probes only its own non-isolated runner and refuses attestation.",
+            "A host-local /proc observation cannot prove external operator ownership, remote OCI image digest/layers, continuously immutable mounts, or challenge consumption.",
+            "No Partner A/B build authorization, artifact or release; staging/main remain untouched."
+          ]
         }
       ],
       "remaining": [
