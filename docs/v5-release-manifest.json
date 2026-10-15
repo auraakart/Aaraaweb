@@ -2020,7 +2020,7 @@
         {
           "id": "V5.5.35",
           "name": "Prevent recurring CI delay via automatic Bash syntax, duplicate-job and selective Android scope regression guards",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_REGRESSION_GUARD_ACTIVE",
           "evidence": [
             "scripts/check-v4.79.1.3-v5-ci-shell-invariants.mjs",
             "docs/architecture/V5.5.35-CI-REGRESSION-PREVENTION.md"
@@ -2028,11 +2028,13 @@
           "limitations": [
             "The guard executes inside repository-structure when GitHub accepts a workflow definition; local pre-commit validation is still necessary for outright invalid GitHub YAML.",
             "No external TEST runner attestation, partner artifact or distribution authority is asserted."
-          ]
+          ],
+          "pullRequest": 1327,
+          "mergeSha": "83069a133a7d35370687f0acb12953afe5b160cd",
+          "ciRun": 38673709850
         }
       ],
       "remaining": [
-        "V5.5.35 validate self-discovered CI shell/scope regression guard and protected merge",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
