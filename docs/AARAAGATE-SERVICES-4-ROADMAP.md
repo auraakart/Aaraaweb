@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1–4.0.4 merged to develop; Services 4.0.5 under validation.**
+Status: **Services 4.0.1–4.2.8 merged to develop; Services 4.3.1 under review and CI validation.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -174,10 +174,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Resident **My Bookings → booking details** shows a clear status explanation even after assignment. A successful explicit save refreshes the status from the server. Denied/unavailable status responses fail closed without breaking the existing booking timeline.
 - Focused ownership, lost access, unmatched/matched/other, cancelled/completed/released, no-PII and Flutter refresh/error tests. Inventory regeneration and full protected CI are required. No new tables, payment, platform dispatch rules or staging/main commits.
 
+## Services 4.3.1 — owner-only, nonpayable booking checkout breakdown
+
+- New authenticated `GET /consumer/services/bookings/:id/checkout-breakdown` provides the original saved booking-service price, separate existing extra-work quote statuses and existing base-payment status.
+- Queries are strictly booking-owner scoped at **each** data-access boundary; never expose addresses, payment provider identifiers, other residents, agents or provider-private settlement data.
+- `baseService.amountPaise` is copied from `ConsumerServiceBooking.servicePricePaise`. Extra-work quotes remain individually labeled `includedInBasePayment: false`; even `APPROVED` quote consent **is not** added to payable totals or converted into invoices.
+- `readOnly: true`, `checkoutReady: false`, `amountPayablePaise: null` and `taxBreakdown: null` explicitly avoid pretending that GST, legal seller, parts taxes, invoice or consolidated settlement are approved. Lists show up to 20 records each; no aggregate claim about omitted records.
+- No write to payment, invoice, quote consent, refund, settlement or booking lifecycle. No new migration or production integration.
+- Focused tests must prove owner boundaries, invalid amount denial, approved-quote separation, payment status provenance, and zero-amount historical bookings.
+- Next 4.3 slice requires product/finance decisions on seller-of-record, tax regime/GST, invoice ownership, parts provenance, and refund/reconciliation before enabling consolidated payable checkout.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.8** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.3.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
