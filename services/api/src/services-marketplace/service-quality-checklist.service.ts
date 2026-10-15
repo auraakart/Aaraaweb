@@ -103,6 +103,30 @@ export class ServiceQualityChecklistService {
     return { ...rows[0], previewOnly: true };
   }
 
+  async getConsumerBookingSnapshot(actorUserId: string, bookingId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      bookingId: string;
+      offeringId: string;
+      templateVersion: number;
+      items: ChecklistItem[];
+      capturedAt: Date | null;
+      captured: boolean;
+    }>>(Prisma.sql`
+      SELECT b."id" AS "bookingId", b."offeringId",
+             COALESCE(s."templateVersion", 0) AS "templateVersion",
+             COALESCE(s."items", '[]'::jsonb) AS "items",
+             s."capturedAt", (s."bookingId" IS NOT NULL) AS "captured"
+      FROM "ConsumerServiceBooking" b
+      LEFT JOIN "ConsumerServiceQualityChecklistSnapshot" s
+        ON s."bookingId" = b."id"
+      WHERE b."id" = ${bookingId}::uuid AND b."userId" = ${actorUserId}::uuid
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new NotFoundException('Booking not found');
+    // Legacy bookings or offerings with no template are explicitly uncaptured.
+    return { ...rows[0], immutable: rows[0].captured };
+  }
+
   private async requireOwnedOffering(actorUserId: string, offeringId: string) {
     const provider = await this.operators.resolveProvider(actorUserId);
     const offering = await this.prisma.serviceOffering.findFirst({
