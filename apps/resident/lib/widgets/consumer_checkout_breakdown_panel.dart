@@ -143,13 +143,18 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
             ),
           ),
         ] else if (_data != null) ...[
-          _content(_data!, theme),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh breakdown'),
+          // Keep refresh as its own early ListView child. A long blocker list
+          // must not push it outside Flutter's lazy-build viewport.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh breakdown'),
+            ),
           ),
+          const SizedBox(height: 12),
+          _content(_data!, theme),
         ],
       ],
     );
