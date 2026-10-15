@@ -2214,7 +2214,7 @@
         {
           "id": "V5.5.39",
           "name": "Two independently pinned Ed25519 TEST worker/observer runtime process claims bound to OCI image/source, challenge, container, mount namespace and TLS peer without dispatch",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_OFFLINE_RUNTIME_CLAIM_ONLY",
           "evidence": [
             "packages/config/src/android-test-oci-runtime-claim.mjs",
             "scripts/android-test-oci-runtime-claim.test.mjs",
@@ -2224,7 +2224,17 @@
           "limitations": [
             "Cryptographically authentic disposable TEST claims are not independently measured real runtime processes, container digests or mounts.",
             "No real independent worker/observer provisioning, remotely authenticated source/registry image, or atomic persistent nonce consumption.",
-            "No partner APK/AAB or build authorization; staging/main untouched."
+            "No partner APK/AAB or build authorization; staging/main untouched.",
+            "Only the signature authenticity and strict claim binding were verified; no remote runtime measurement or live TLS worker observation occurred."
+          ],
+          "pullRequest": 1344,
+          "mergeSha": "e0008d424f79f83c6cb56bf0ed06344dfcad4bb0",
+          "ciRun": 38696806887,
+          "verifiedScope": [
+            "Operator-pinned prior OCI image attestor Ed25519 DSSE verification reused",
+            "Independent Ed25519 observer and worker signatures bound to image/source, worker/run, challenge, manifest, container, mount namespace and transport SPKI passed fixture tests",
+            "Negative tampering, key reuse, unsigned payload, replayed nonce/challenge, foreign source, writable-mount claims, expiration and signature substitution refused",
+            "Protected CI: Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge passed"
           ]
         }
       ],
