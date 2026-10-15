@@ -61,6 +61,7 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
           response['amountPayablePaise'] != null ||
           response['taxBreakdown'] != null ||
           response['currency'] != 'INR' ||
+          !_hasSafeReadiness(response['readiness']) ||
           response['baseService'] is! Map<String, dynamic>) {
         throw const FormatException('Unexpected checkout preview');
       }
@@ -76,6 +77,34 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
     } finally {
       if (mounted && generation == _generation) setState(() => _loading = false);
     }
+  }
+
+  static const _allowedReadinessCodes = <String>{
+    'SELLER_OF_RECORD_UNVERIFIED',
+    'GST_TREATMENT_UNDETERMINED',
+    'PARTS_LINE_ITEMS_UNAVAILABLE',
+    'EXTRA_WORK_NOT_BILLABLE',
+    'SETTLEMENT_REFUND_RULES_UNVERIFIED',
+  };
+
+  static bool _hasSafeReadiness(Object? raw) {
+    if (raw is! Map<String, dynamic> ||
+        raw['evaluationScope'] != 'THIS_BOOKING_PREVIEW_ONLY' ||
+        raw['status'] != 'NOT_READY' ||
+        raw['chargeAuthorized'] != false ||
+        raw['blockers'] is! List<dynamic>) return false;
+    final blockers = raw['blockers'] as List<dynamic>;
+    if (blockers.length != _allowedReadinessCodes.length) return false;
+    final codes = <String>{};
+    for (final blocker in blockers) {
+      if (blocker is! Map<String, dynamic>) return false;
+      final code = blocker['code'];
+      final label = blocker['label'];
+      if (code is! String || !_allowedReadinessCodes.contains(code) ||
+          !codes.add(code) || label is! String ||
+          label.trim().isEmpty || label.length > 180) return false;
+    }
+    return codes.length == _allowedReadinessCodes.length;
   }
 
   static String? _formatPaise(Object? raw) {
@@ -114,13 +143,18 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
             ),
           ),
         ] else if (_data != null) ...[
-          _content(_data!, theme),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh breakdown'),
+          // Keep refresh as its own early ListView child. A long blocker list
+          // must not push it outside Flutter's lazy-build viewport.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh breakdown'),
+            ),
           ),
+          const SizedBox(height: 12),
+          _content(_data!, theme),
         ],
       ],
     );
@@ -176,6 +210,22 @@ class _ConsumerCheckoutBreakdownPanelState extends State<ConsumerCheckoutBreakdo
             title: Text('Payment status: ${p['status'] ?? 'UNKNOWN'}'),
             trailing: Text(_formatPaise(p['grossAmountPaise']) ?? 'Unavailable'),
           )),
+        const SizedBox(height: 14),
+        Text('Why consolidated checkout is not available', style: theme.textTheme.titleMedium),
+        const Text('These are missing verification requirements for this booking preview, not an invoice or final tax assessment.'),
+        ...((info['readiness'] as Map<String, dynamic>)['blockers'] as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .map((blocker) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(blocker['label'] as String)),
+                ],
+              ),
+            )),
         const SizedBox(height: 8),
         const Text('GST and any final consolidated total have not been determined. '
             'No new payment, invoice or refund can be made from this view.'),

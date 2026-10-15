@@ -10,12 +10,26 @@ class _CheckoutClient extends ApiClient {
   bool invalidContract = false;
   int reads = 0;
   int writes = 0;
+  static const readiness = <String, dynamic>{
+    'evaluationScope': 'THIS_BOOKING_PREVIEW_ONLY',
+    'status': 'NOT_READY',
+    'chargeAuthorized': false,
+    'blockers': [
+      {'code': 'SELLER_OF_RECORD_UNVERIFIED', 'label': 'Seller and invoice issuer not verified for this checkout'},
+      {'code': 'GST_TREATMENT_UNDETERMINED', 'label': 'Tax/GST treatment not established for this checkout'},
+      {'code': 'PARTS_LINE_ITEMS_UNAVAILABLE', 'label': 'Verified individual parts and labour line items not available'},
+      {'code': 'EXTRA_WORK_NOT_BILLABLE', 'label': 'Approved extra work has no consolidated charge authorization'},
+      {'code': 'SETTLEMENT_REFUND_RULES_UNVERIFIED', 'label': 'Settlement and refund rules not verified for consolidated checkout'},
+    ],
+  };
+
   Map<String, dynamic> response = {
     'readOnly': true,
     'checkoutReady': false,
     'amountPayablePaise': null,
     'currency': 'INR',
     'taxBreakdown': null,
+    'readiness': readiness,
     'baseService': {'description': 'AC service', 'amountPaise': 75000},
     'extraWorkQuotes': [
       {'description': 'Replace filter', 'quotedAmountPaise': '12500', 'status': 'APPROVED'},
@@ -59,6 +73,9 @@ void main() {
     expect(find.text('Payment status: CAPTURED'), findsOneWidget);
     expect(find.textContaining('This is not an invoice'), findsOneWidget);
     expect(find.textContaining('GST and any final consolidated total'), findsOneWidget);
+    await tester.ensureVisible(find.text('Why consolidated checkout is not available'));
+    expect(find.text('Why consolidated checkout is not available'), findsOneWidget);
+    expect(find.textContaining('Verified individual parts and labour line items'), findsOneWidget);
     expect(api.writes, 0);
     api.close();
   });
@@ -87,10 +104,23 @@ void main() {
     api.close();
   });
 
+  testWidgets('rejects a misleading readiness contract and never invokes checkout mutations', (tester) async {
+    final api = _CheckoutClient();
+    api.response = {...api.response, 'readiness': {
+      ..._CheckoutClient.readiness, 'status': 'READY',
+    }};
+    await tester.pumpWidget(_host(api));
+    await tester.pumpAndSettle();
+    expect(find.text('Retry price breakdown'), findsOneWidget);
+    expect(api.writes, 0);
+    api.close();
+  });
+
   testWidgets('empty quotes and payments stay distinct and do not create totals', (tester) async {
     final api = _CheckoutClient()..response = {
       'readOnly': true, 'checkoutReady': false, 'amountPayablePaise': null,
       'currency': 'INR', 'taxBreakdown': null,
+      'readiness': _CheckoutClient.readiness,
       'baseService': {'description': 'Cleaning', 'amountPaise': 0},
       'extraWorkQuotes': <Map<String, dynamic>>[],
       'baseBookingPayments': <Map<String, dynamic>>[],

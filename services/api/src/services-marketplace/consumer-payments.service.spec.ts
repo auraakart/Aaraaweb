@@ -76,6 +76,17 @@ describe('ConsumerPaymentsService', () => {
       currency: 'INR', taxBreakdown: null, taxAssessmentStatus: 'NOT_DETERMINED',
       baseService: { description: 'AC service', source: 'SAVED_BOOKING_PRICE', amountPaise: 75000 },
     }));
+    expect(summary.readiness).toEqual(expect.objectContaining({
+      evaluationScope: 'THIS_BOOKING_PREVIEW_ONLY',
+      status: 'NOT_READY', chargeAuthorized: false,
+      blockers: expect.arrayContaining([
+        expect.objectContaining({ code: 'SELLER_OF_RECORD_UNVERIFIED' }),
+        expect.objectContaining({ code: 'GST_TREATMENT_UNDETERMINED' }),
+        expect.objectContaining({ code: 'PARTS_LINE_ITEMS_UNAVAILABLE' }),
+        expect.objectContaining({ code: 'EXTRA_WORK_NOT_BILLABLE' }),
+        expect.objectContaining({ code: 'SETTLEMENT_REFUND_RULES_UNVERIFIED' }),
+      ]),
+    }));
     expect(summary.extraWorkQuotes).toEqual([expect.objectContaining({
       status: 'APPROVED', quotedAmountPaise: '15000',
       includedInBasePayment: false, createsInvoice: false,
@@ -106,6 +117,10 @@ describe('ConsumerPaymentsService', () => {
     expect(summary.baseBookingPayments).toEqual([]);
     expect(summary.baseService.amountPaise).toBe(0);
     expect(summary.amountPayablePaise).toBeNull();
+    // No quotes or payments must not be misread as finance readiness.
+    expect(summary.readiness.status).toBe('NOT_READY');
+    expect(summary.readiness.chargeAuthorized).toBe(false);
+    expect(summary.readiness.blockers).toHaveLength(5);
   });
 
   it('scopes payment listing to the authenticated user', async () => {

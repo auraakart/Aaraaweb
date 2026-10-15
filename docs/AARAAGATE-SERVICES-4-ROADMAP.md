@@ -193,10 +193,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Widget regression coverage: base amount/approved-quote separation, denial and retry, unsafe contract refusal, zero/missing historical rows and server-state refresh.
 - Full Flutter/API/security CI required before `develop` merge; staging/main untouched.
 
+## Services 4.3.3 — evidence-based checkout readiness blockers
+
+- The existing owner-only `checkout-breakdown` API now returns `readiness` with status `NOT_READY`, `chargeAuthorized: false` and five explicit blockers: seller/invoice issuer, GST regime, parts/labour itemization, extra-work billing authorization, and settlement/refund rules.
+- `evaluationScope: THIS_BOOKING_PREVIEW_ONLY` makes clear these are **not claims about enterprise-wide legal approval**. They identify missing verified evidence in the booking preview contract. These are not legal or tax advice.
+- The resident breakdown sheet shows the blockers without building a payable amount, taxable invoice, new payment CTA or quote-to-charge conversion. New fail-closed contract validation refuses a misleading `READY` response.
+- Existing booking price, quote status and original payment reads are unchanged; no finance writes, schema migration, external integrations or new background tasks.
+- Focused API + Flutter tests cover approved quote separation, no-quote no-false-readiness, displayed blockers, invalid contract refusal and no payment mutations.
+- Future 4.3 slices require explicit seller-of-record, GST/HSN-SAC, itemized parts provenance and refund/reconciliation product signoff before any chargeable checkout.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.3.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.3.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
