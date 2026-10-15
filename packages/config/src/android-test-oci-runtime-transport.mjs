@@ -153,6 +153,13 @@ export async function probePinnedTestOciRuntimeEvidence(imageEnvelope,imagePolic
   tls13PinnedPeerVerified:true,clientTlsCertificateConfigured:true,
   freshTransportNonceSignatureVerified:true,
   independentRuntimeClaimSignaturesVerified:true,
+  // Stable digests for the V5.5.41 append-only PostgreSQL replay ledger.
+  // Never persist the raw transport nonce or unbounded signed payload here.
+  transportNonceDigest:sha(requestNonce),
+  runtimeEnvelopeDigest:sha(Buffer.from(canonical(response.runtimeEnvelope),'utf8')),
+  transportSignatureDigest:sha(sig),
+  serverSpkiSha256:transportPolicy.serverSpkiSha256,
+  verifiedAt:new Date().toISOString(),
   // TLS+signatures prove a fresh response from pinned fixture keys, NOT a
   // remotely measured process, trusted operator deployment or DB replay barrier.
   independentlyProvisionedWorkerVerified:false,remoteProcessMeasured:false,

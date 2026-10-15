@@ -2262,6 +2262,27 @@
             "Negative untrusted endpoint/TLS identity, response replay, wrong nonce, invalid signatures, foreign process/container claim, content-type and encoding tests passed",
             "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
+        },
+        {
+          "id": "V5.5.41",
+          "name": "Append-only PostgreSQL one-time runtime mTLS nonce digest ledger bound to accepted TEST challenge and active distribution authority",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "services/api/prisma/migrations/20261015080000_v5541_runtime_probe_replay/migration.sql",
+            "services/api/prisma/schema.prisma",
+            "services/api/src/entitlements/partner-android-runner-runtime-probe-ledger.service.ts",
+            "services/api/src/entitlements/partner-android-runner-runtime-probe-ledger.spec.ts",
+            "packages/config/src/android-test-oci-runtime-transport.mjs",
+            "scripts/android-test-oci-runtime-transport.test.mjs",
+            "scripts/check-v4.79.1.13-v5-runtime-replay.mjs",
+            "docs/architecture/V5.5.41-RUNTIME-PROBE-REPLAY-LEDGER.md"
+          ],
+          "limitations": [
+            "Append-only durable ledger and tests use mocked service/PostgreSQL contract; no provisioned live external runner or independent measured kernel image.",
+            "No direct HTTP controller; only internal orchestration can invoke the pinned mTLS probe and then this ledger; a stored receipt is not execution proof.",
+            "Fresh probe nonce consumption is scoped to read-only runtime acceptance, distinct from any future build-execution challenge.",
+            "No partner APK/AAB, execution or release authority; staging and main unchanged."
+          ]
         }
       ],
       "remaining": [

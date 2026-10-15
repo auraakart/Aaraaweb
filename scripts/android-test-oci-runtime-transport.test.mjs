@@ -127,6 +127,11 @@ test('V5.5.40 read-only local mTLS runtime claim probe verifies fresh nonce; no 
  assert.equal(receipt.tls13PinnedPeerVerified,true);
  assert.equal(receipt.freshTransportNonceSignatureVerified,true);
  assert.equal(receipt.independentRuntimeClaimSignaturesVerified,true);
+ assert.match(receipt.transportNonceDigest,/^[0-9a-f]{64}$/);
+ assert.match(receipt.runtimeEnvelopeDigest,/^[0-9a-f]{64}$/);
+ assert.match(receipt.transportSignatureDigest,/^[0-9a-f]{64}$/);
+ assert.equal(receipt.serverSpkiSha256,tls.serverSpkiSha256);
+ assert.ok(Number.isFinite(Date.parse(receipt.verifiedAt)));
  for(const x of ['independentlyProvisionedWorkerVerified','remoteProcessMeasured',
   'runtimeImageAttested','immutableMountVerified','singleUseChallengeConsumed',
   'buildExecutionAuthorized','artifactProduced','dispatchAllowed'])assert.equal(receipt[x],false,x);
