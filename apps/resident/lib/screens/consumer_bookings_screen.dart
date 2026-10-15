@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
 import '../widgets/consumer_technician_preference_panel.dart';
+import '../widgets/consumer_technician_request_status_panel.dart';
 
 class ConsumerBookingsScreen extends StatefulWidget {
   const ConsumerBookingsScreen({super.key, required this.apiClient});
@@ -257,7 +258,7 @@ class _BookingCard extends StatelessWidget {
   }
 }
 
-class _BookingTimelineSheet extends StatelessWidget {
+class _BookingTimelineSheet extends StatefulWidget {
   const _BookingTimelineSheet({
     required this.booking,
     required this.events,
@@ -271,7 +272,19 @@ class _BookingTimelineSheet extends StatelessWidget {
   final ApiClient apiClient;
 
   @override
+  State<_BookingTimelineSheet> createState() => _BookingTimelineSheetState();
+}
+
+class _BookingTimelineSheetState extends State<_BookingTimelineSheet> {
+  int _preferenceRevision = 0;
+  bool _canEditRequest = false;
+
+  @override
   Widget build(BuildContext context) {
+    final booking = widget.booking;
+    final dispatch = widget.dispatch;
+    final events = widget.events;
+    final apiClient = widget.apiClient;
     final theme = Theme.of(context);
     final currentStatus = booking['status']?.toString() ?? 'REQUESTED';
     final dispatchStatus = dispatch?['status']?.toString();
@@ -300,12 +313,31 @@ class _BookingTimelineSheet extends StatelessWidget {
                   subtitle: Text(_dispatchMessage(dispatchStatus)),
                 ),
               ),
+            if (bookingId.isNotEmpty)
+              ConsumerTechnicianRequestStatusPanel(
+                key: ValueKey('technician-request-$bookingId-$_preferenceRevision'),
+                apiClient: apiClient,
+                bookingId: bookingId,
+                onEditabilityChanged: (allowed) {
+                  if (mounted && _canEditRequest != allowed) {
+                    setState(() => _canEditRequest = allowed);
+                  }
+                },
+              ),
             if (bookingId.isNotEmpty &&
                 (currentStatus == 'REQUESTED' || currentStatus == 'CONFIRMED') &&
-                dispatchStatus == null)
+                dispatchStatus == null && _canEditRequest)
               ConsumerTechnicianPreferencePanel(
                 apiClient: apiClient,
                 bookingId: bookingId,
+                onSaved: () {
+                  if (mounted) {
+                    setState(() {
+                      _canEditRequest = false;
+                      _preferenceRevision++;
+                    });
+                  }
+                },
               ),
             if (bookingId.isNotEmpty)
               ConsumerBookingPostServicePanel(apiClient: apiClient, bookingId: bookingId),
