@@ -2298,7 +2298,7 @@
         {
           "id": "V5.5.42",
           "name": "Stable Linux /proc target-process observer (PID starttime, mount namespace, seccomp and read-only SDK mounts) without external image attestation",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_HOST_LOCAL_PROCFS_OBSERVER_ONLY",
           "evidence": [
             "packages/config/src/android-test-linux-observer.mjs",
             "scripts/android-test-linux-observer.test.mjs",
@@ -2309,6 +2309,16 @@
             "Pure parser tests use synthetic kernel snapshots; live CI sanity probes only its own non-isolated runner and refuses attestation.",
             "A host-local /proc observation cannot prove external operator ownership, remote OCI image digest/layers, continuously immutable mounts, or challenge consumption.",
             "No Partner A/B build authorization, artifact or release; staging/main remain untouched."
+          ],
+          "pullRequest": 1350,
+          "mergeSha": "fc430a5d15fbb2dda5595eed6c185c431a21b967",
+          "ciRun": 38703608620,
+          "verifiedScope": [
+            "Read-only Linux target PID /proc stat-starttime/mount-namespace double-sampling and strict pinned identity policy",
+            "V5.5.19 complete rootless/seccomp/no-new-privileges/four pinned read-only SDK mount validation reused",
+            "Negative tests reject PID reuse, process exit, different namespace, privileged status, writable/overmounted SDK paths and forged digest/policy",
+            "Live Linux /proc sanity check demonstrates a regular CI process is rejected as an isolated TEST worker",
+            "Protected CI passed Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
         }
       ],
