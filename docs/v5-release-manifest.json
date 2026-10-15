@@ -2210,6 +2210,22 @@
             "Tampered remote bytes, content-type/header, redirect, URL scope, unexpected response, wrong nonce and wrong TLS key cases refused",
             "Protected Repository structure, full API/Admin/Flutter, dependency security and required merge gates passed"
           ]
+        },
+        {
+          "id": "V5.5.39",
+          "name": "Two independently pinned Ed25519 TEST worker/observer runtime process claims bound to OCI image/source, challenge, container, mount namespace and TLS peer without dispatch",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-oci-runtime-claim.mjs",
+            "scripts/android-test-oci-runtime-claim.test.mjs",
+            "scripts/check-v4.79.1.11-v5-runtime-claim.mjs",
+            "docs/architecture/V5.5.39-RUNTIME-PROCESS-CLAIMS.md"
+          ],
+          "limitations": [
+            "Cryptographically authentic disposable TEST claims are not independently measured real runtime processes, container digests or mounts.",
+            "No real independent worker/observer provisioning, remotely authenticated source/registry image, or atomic persistent nonce consumption.",
+            "No partner APK/AAB or build authorization; staging/main untouched."
+          ]
         }
       ],
       "remaining": [
