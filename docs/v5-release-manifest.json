@@ -983,7 +983,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.20",
+      "currentSlice": "V5.4.21",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1368,6 +1368,20 @@
           "mergeSha": "771e10b00b1473b0a8cd517b4ff654e6c530de70",
           "validatedRuntimeSha": "2c358159cf430755d35c81258dd9bfd1f7a09c06",
           "ciRun": 38520943451
+        },
+        {
+          "id": "V5.4.21",
+          "name": "Loopback fixed-upstream partner Host proxy transport negative acceptance",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "scripts/check-v4.79.1.5-v5-local-proxy-transport.mjs",
+            "docs/architecture/V5.4.21-LOCAL-TEST-PROXY-TRANSPORT.md"
+          ],
+          "limitations": [
+            "Loopback-only HTTP test harness, not remotely trusted HTTPS/TLS ingress or deployed reverse proxy",
+            "Actual Next/API browser session and public routing over trusted ingress remain unverified",
+            "No productionization or staging/main promotion"
+          ]
         }
       ],
       "scopedAcceptance": {
