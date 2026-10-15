@@ -94,6 +94,11 @@ export class ConsumerBookingsController {
     return this.dispatch.getConsumerDispatch(this.requireUser(userId), bookingId);
   }
 
+  @Get('services/bookings/:id/operational-eta')
+  getBookingOperationalEta(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
+    return this.dispatch.getConsumerOperationalEta(this.requireUser(userId), bookingId);
+  }
+
   @Get('services/bookings/:id/completion')
   getBookingCompletion(@CurrentConsumerUser() userId: string, @Param('id', ParseUUIDPipe) bookingId: string) {
     return this.completion.getForConsumer(this.requireUser(userId), bookingId);
