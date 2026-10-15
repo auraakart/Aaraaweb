@@ -6,6 +6,8 @@ import { FileSafetyModule } from '../storage/file-safety.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
 import { ServiceQualityChecklistService } from './service-quality-checklist.service';
+import { ServiceQualityEvidenceService } from './service-quality-evidence.service';
+import { AgentQualityEvidenceController, ConsumerQualityEvidenceController } from './service-quality-evidence.controller';
 import { ConsumerQualityChecklistController, ProviderQualityChecklistController } from './service-quality-checklist.controller';
 import {
   ConsumerCommunityServicesController,
@@ -81,6 +83,8 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesCommunityDealAdminController,
     ConsumerCommunityServicesController,
     ConsumerQualityChecklistController,
+    AgentQualityEvidenceController,
+    ConsumerQualityEvidenceController,
     ProviderQualityChecklistController,
     ProviderServiceExperienceController,
     ServiceBookingHistoryController,
@@ -117,6 +121,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     PrismaService,
     CommunityServices3Service,
     ServiceQualityChecklistService,
+    ServiceQualityEvidenceService,
     ServiceProviderSocietyTrustService,
     ServiceBookingAccessService,
     ServiceBookingHistoryService,
