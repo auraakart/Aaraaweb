@@ -78,7 +78,7 @@ jobs:
 
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           git diff --name-only "$BASE_SHA" "${{ github.sha }}" > /tmp/aaraagate-changed-files.txt
-          if grep -Eq '^(\.github/workflows/v5-test-android-smoke\.yml|scripts/v5-test-android-smoke\.sh|scripts/v5-test-apksigner-report(\.test)?\.mjs|scripts/v5-test-android-aab-smoke\.sh|scripts/v5-test-aab-signer-report(\.test)?\.mjs|scripts/v5-test-build-matrix-evidence(\.test)?\.mjs) /tmp/aaraagate-changed-files.txt; then /tmp/aaraagate-changed-files.txt; then
+          if grep -Eq '^(\.github/workflows/v5-test-android-smoke\.yml|scripts/v5-test-android-smoke\.sh|scripts/v5-test-apksigner-report(\.test)?\.mjs|scripts/v5-test-android-aab-smoke\.sh|scripts/v5-test-aab-signer-report(\.test)?\.mjs|scripts/v5-test-build-matrix-evidence(\.test)?\.mjs)$' /tmp/aaraagate-changed-files.txt; then
             echo "run_android_smoke=true" >> "$GITHUB_OUTPUT"
           fi
 
