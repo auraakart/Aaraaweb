@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1–4.0.3 merged to develop; Services 4.0.4 submitted for independent validation.**
+Status: **Services 4.0.1–4.0.4 merged to develop; Services 4.0.5 under validation.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -49,10 +49,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Legacy bookings with no captured checklist continue unchanged. No pricing, warranties, guarantees, rework, approvals, or payments are introduced.
 - Focused tests assert missing/failed/passing evidence, optional items, stale retries, active-assignment scoping, and legacy compatibility.
 
+## Services 4.0.5 — review-only rework intake
+
+- Reuse existing `ConsumerServiceDispute` and associated evidence/reviewer flows; no parallel support ledger or rework payment system.
+- `GET /consumer/services/bookings/:id/rework-terms` returns original captured warranty/revisit terms only for the booking owner and only after completion, with explicit expiry/absence status.
+- `POST /consumer/services/bookings/:id/request-rework` opens an owner-scoped existing dispute with reason `REWORK_REQUEST` and requires a 10–2000 character description.
+- Every rework intake is **review only**. No automatic warranty approval, guaranteed visit, billing or refund. Expired or uncaptured terms are not represented as coverage.
+- The existing one-open-dispute constraint and reviewer permission gate remain authoritative; duplicate case APIs are deliberately avoided.
+- Follow-up slice: provider quality scoring and agreed rework SLA after independent product acceptance.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.4** until its CI is green. Continue rework governance and provider quality reporting as separate bounded slices.
+5. **Stop after 4.0.5** until CI is green. Continue rework governance and provider quality reporting as separate bounded slices.
