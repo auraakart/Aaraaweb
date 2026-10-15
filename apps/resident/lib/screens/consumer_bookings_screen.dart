@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../widgets/consumer_booking_post_service_panel.dart';
+import '../widgets/consumer_checkout_breakdown_panel.dart';
 import '../widgets/consumer_technician_preference_panel.dart';
 import '../widgets/consumer_technician_request_status_panel.dart';
 
@@ -338,6 +339,28 @@ class _BookingTimelineSheetState extends State<_BookingTimelineSheet> {
                     });
                   }
                 },
+              ),
+            if (bookingId.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('View price and quote breakdown'),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (sheetContext) => SafeArea(
+                      child: SizedBox(
+                        height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+                        child: ConsumerCheckoutBreakdownPanel(
+                          apiClient: apiClient,
+                          bookingId: bookingId,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             if (bookingId.isNotEmpty)
               ConsumerBookingPostServicePanel(apiClient: apiClient, bookingId: bookingId),

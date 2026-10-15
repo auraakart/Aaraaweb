@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1–4.2.8 merged to develop; Services 4.3.1 under review and CI validation.**
+Status: **Services 4.0.1–4.3.1 merged to develop; Services 4.3.2 under review and CI validation.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -184,10 +184,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Focused tests must prove owner boundaries, invalid amount denial, approved-quote separation, payment status provenance, and zero-amount historical bookings.
 - Next 4.3 slice requires product/finance decisions on seller-of-record, tax regime/GST, invoice ownership, parts provenance, and refund/reconciliation before enabling consolidated payable checkout.
 
+## Services 4.3.2 — resident read-only checkout breakdown
+
+- Add a dedicated, explicitly opened **View price and quote breakdown** sheet under Resident → My Bookings → booking details. No silent background financial reads on routine timeline navigation.
+- The widget uses only `GET /consumer/services/bookings/:id/checkout-breakdown`, validates its nonpayable contract, provides loading/denied/retry/refresh states, and safely converts integer-paise amounts to rupees.
+- Show the original booking price, each extra-work quote's separate status/amount, original payment state, and a persistent explanation that approved extra work is **not part of base payment**, GST/final total are undetermined, and this view is not an invoice or payment UI.
+- No payment buttons, mutation calls, hidden sum, GST inference or changes to quote consent flows.
+- Widget regression coverage: base amount/approved-quote separation, denial and retry, unsafe contract refusal, zero/missing historical rows and server-state refresh.
+- Full Flutter/API/security CI required before `develop` merge; staging/main untouched.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.3.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.3.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
