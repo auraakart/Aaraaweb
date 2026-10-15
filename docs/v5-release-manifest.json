@@ -1389,7 +1389,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.33",
+      "currentSlice": "V5.5.34",
       "slices": [
         {
           "id": "V5.5.1",
@@ -1963,7 +1963,7 @@
         {
           "id": "V5.5.33",
           "name": "Generate and verify genuine base Resident/Guard debug TEST AABs with local JDK JAR signature reports",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_REAL_APK_AAB_SMOKE_GREEN",
           "evidence": [
             ".github/workflows/v5-test-android-smoke.yml",
             "scripts/v5-test-android-aab-smoke.sh",
@@ -1973,12 +1973,45 @@
           ],
           "limitations": [
             "Real base AAB smoke not proven until both protected CI Android matrix jobs pass.",
-            "Local debug signer is not independently pinned or partner-bound; no external attested worker."
+            "Local debug signer is not independently pinned or partner-bound; no external attested worker.",
+            "Both base AAB builds and local JAR inspections passed in 38668369729; SHA-256 values remain in short-lived artifact reports, not trusted partner release evidence."
+          ],
+          "pullRequest": 1325,
+          "mergeSha": "af8570dc04e5f21adbe7089601a59bbce38811b9",
+          "ciRun": 38668369729,
+          "realBuilds": {
+            "resident": "SUCCESS",
+            "guard": "SUCCESS"
+          },
+          "debugArtifacts": [
+            {
+              "role": "RESIDENT",
+              "artifactId": 11943323437
+            },
+            {
+              "role": "GUARD",
+              "artifactId": 11942413398
+            }
+          ]
+        },
+        {
+          "id": "V5.5.34",
+          "name": "Cross-role TEST APK/AAB build metadata verification with distinct application IDs, source SHA, signer consistency and fail-closed distribution flags",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "scripts/v5-test-build-matrix-evidence.mjs",
+            "scripts/v5-test-build-matrix-evidence.test.mjs",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.34-CROSS-ROLE-TEST-BUILD-METADATA.md"
+          ],
+          "limitations": [
+            "Metadata-only cross-role checks do not prove real co-installation or independently attest a runner.",
+            "Only existing base debug app IDs, not Partner A/B distribution identity, are compared."
           ]
         }
       ],
       "remaining": [
-        "Validate real V5.5.33 Resident and Guard base TEST AAB CI jobs and record their hashes",
+        "V5.5.34 verify real TEST cross-role metadata gate passes for both base APK and AAB builds",
         "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
         "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
         "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
