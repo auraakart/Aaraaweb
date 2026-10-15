@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1 and 4.0.2 merged to develop; Services 4.0.3 is an independently gated PR.**
+Status: **Services 4.0.1–4.0.3 merged to develop; Services 4.0.4 submitted for independent validation.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -41,10 +41,18 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - No claims about technician certification, resident approval, automatic warranty, booking completion gating or rework settlement are added.
 - Tests include unauthorized assignment/consumer reads, invalid checklist items, absent legacy snapshots, ownership enforcement and immutable event insertion.
 
+## Services 4.0.4 — required quality gates
+
+- Provider-agent completion requests AND final consumer completion confirmation verify `required: true` steps against the **immutable booking-time snapshot**.
+- Only the latest assessment for each item on the *current arrived assignment* counts; a failed or missing required step blocks completion and optional steps do not.
+- The booking lock serializes agent evidence with completion confirmation; rechecks prevent lost-response retries from bypassing failed assessments.
+- Legacy bookings with no captured checklist continue unchanged. No pricing, warranties, guarantees, rework, approvals, or payments are introduced.
+- Focused tests assert missing/failed/passing evidence, optional items, stale retries, active-assignment scoping, and legacy compatibility.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.3** until its CI is green. Continue completion-quality gating and rework governance as separate bounded slices.
+5. **Stop after 4.0.4** until its CI is green. Continue rework governance and provider quality reporting as separate bounded slices.
