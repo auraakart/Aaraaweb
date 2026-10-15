@@ -2266,7 +2266,7 @@
         {
           "id": "V5.5.41",
           "name": "Append-only PostgreSQL one-time runtime mTLS nonce digest ledger bound to accepted TEST challenge and active distribution authority",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_PERSISTENT_RUNTIME_PROBE_NONCE_LEDGER",
           "evidence": [
             "services/api/prisma/migrations/20261015080000_v5541_runtime_probe_replay/migration.sql",
             "services/api/prisma/schema.prisma",
@@ -2281,7 +2281,18 @@
             "Append-only durable ledger and tests use mocked service/PostgreSQL contract; no provisioned live external runner or independent measured kernel image.",
             "No direct HTTP controller; only internal orchestration can invoke the pinned mTLS probe and then this ledger; a stored receipt is not execution proof.",
             "Fresh probe nonce consumption is scoped to read-only runtime acceptance, distinct from any future build-execution challenge.",
-            "No partner APK/AAB, execution or release authority; staging and main unchanged."
+            "No partner APK/AAB, execution or release authority; staging and main unchanged.",
+            "No independent real worker OCI digest, kernel process or mount verification; database row records tested non-dispatchable claims, not execution authorization."
+          ],
+          "pullRequest": 1348,
+          "mergeSha": "aaf67dcab94e43a684919a05aae5edd50e6c8ad3",
+          "ciRun": 38701477594,
+          "verifiedScope": [
+            "Append-only PostgreSQL runtime probe row with unique accepted challenge/run/transport nonce/observer signature/envelope digest; DB insert trigger rechecks active allocation, actor, approved source/version and time window",
+            "V5.5.40 tested TLS 1.3 mTLS runtime claim receipt now supplies hashed nonce, signed evidence digest, SPKI and verification timestamp; raw nonce never persisted",
+            "Nest internal-only recording service exercises fresh commercial checkpoint and a trusted callback then records non-dispatchable probe evidence",
+            "Tenant-access inventory regenerated and exact Git blob reconciled after initial API CI inventory drift; migration applied successfully in CI",
+            "Protected CI re-run completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
         }
       ],
