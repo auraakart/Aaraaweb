@@ -1,0 +1,23 @@
+{
+  "version": "V4.55",
+  "fieldPilotStatus": "NOT_EXECUTED",
+  "candidateSha": null,
+  "candidateTreeSha": null,
+  "hostedStagingAcceptanceRun": null,
+  "societyPilotIdentifier": null,
+  "residentDevices": [],
+  "guardDevices": [],
+  "adminBrowsers": [],
+  "liveProviderEvidence": [],
+  "approver": null,
+  "acceptedExceptions": [],
+  "externalEvidenceRequired": [
+    "green hosted staging acceptance for the exact candidate",
+    "managed backup/PITR/encryption and isolated restore evidence",
+    "live OTP, push and payment-provider acceptance",
+    "physical ANPR/RFID/boom-barrier evidence where enabled",
+    "signed Play internal/closed-test release evidence",
+    "real society field-pilot and business acceptance"
+  ],
+  "boundary": "V4.55 repository convergence cannot claim field-pilot, provider, hardware, store or production acceptance without external evidence."
+}

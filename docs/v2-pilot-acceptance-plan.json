@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "aaraagate.v2.pilot-acceptance.v1",
+  "phase": "V2.4",
+  "status": "NOT_STARTED",
+  "pilotSociety": null,
+  "participants": {
+    "ACCOUNTANT_TREASURER": [],
+    "COMMITTEE": []
+  },
+  "scenarios": [
+    {
+      "id": "PA-FIN-01",
+      "personas": ["ACCOUNTANT_TREASURER"],
+      "domains": ["V2-FIN"],
+      "title": "Validate journal truth and period totals against pilot books",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["pilot reconciliation worksheet", "accountant sign-off"],
+      "evidence": []
+    },
+    {
+      "id": "PA-FIN-02",
+      "personas": ["ACCOUNTANT_TREASURER"],
+      "domains": ["V2-FIN", "V2-ANL"],
+      "title": "Validate accounting export artifact and downstream reconciliation evidence",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["export evidence JSON", "downstream receipt or reconciliation record"],
+      "evidence": []
+    },
+    {
+      "id": "PA-ANL-01",
+      "personas": ["ACCOUNTANT_TREASURER", "COMMITTEE"],
+      "domains": ["V2-ANL"],
+      "title": "Validate period comparison analytics against agreed source figures",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["comparison worksheet", "joint review sign-off"],
+      "evidence": []
+    },
+    {
+      "id": "PA-FIN-03",
+      "personas": ["ACCOUNTANT_TREASURER", "COMMITTEE"],
+      "domains": ["V2-FIN"],
+      "title": "Validate finance audit trail and controlled report download behavior",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["audit trail capture", "role-boundary verification"],
+      "evidence": []
+    },
+    {
+      "id": "PA-GOV-01",
+      "personas": ["COMMITTEE"],
+      "domains": ["V2-FIN", "V2-ANL"],
+      "title": "Validate committee visibility is sufficient for oversight without finance-management escalation",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["committee walkthrough record", "committee sign-off"],
+      "evidence": []
+    },
+    {
+      "id": "PA-OPS-01",
+      "personas": ["ACCOUNTANT_TREASURER", "COMMITTEE"],
+      "domains": ["V2-FIN", "V2-ANL"],
+      "title": "Validate failed connector delivery review, manual retry governance and evidence trail",
+      "status": "NOT_RUN",
+      "requiredEvidence": ["controlled failure/retry record", "joint acceptance note"],
+      "evidence": []
+    }
+  ],
+  "signOff": {
+    "ACCOUNTANT_TREASURER": {"status": "NOT_SIGNED", "evidence": []},
+    "COMMITTEE": {"status": "NOT_SIGNED", "evidence": []}
+  }
+}

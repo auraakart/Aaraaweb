@@ -1,0 +1,21 @@
+# Default repository ownership
+* @auraakart
+
+# High-risk authorization and tenant boundaries
+/services/api/src/auth/ @auraakart
+/services/api/src/prisma/ @auraakart
+/services/api/prisma/ @auraakart
+
+# Finance, payment and gate authority
+/services/api/src/billing/ @auraakart
+/services/api/src/accounting/ @auraakart
+/services/api/src/access/ @auraakart
+/services/api/src/gates/ @auraakart
+/services/api/src/guard-operations/ @auraakart
+
+# Release and security controls
+/.github/workflows/ @auraakart
+/scripts/open-main-release-pr.sh @auraakart
+/scripts/check-staging-release-contract.sh @auraakart
+/scripts/production-preflight.sh @auraakart
+/SECURITY.md @auraakart

@@ -1,0 +1,114 @@
+{
+  "version": "4.0",
+  "candidateBranch": "develop",
+  "baselineSha": "04bea6a0e45cdc3665222b909394a00108be7f32",
+  "scorecard": {
+    "gateSecurity": 9,
+    "residentExperience": 9,
+    "accountingErp": 8.7,
+    "administrationGovernance": 8.8,
+    "amenitiesCommunityServices": 8.8,
+    "architecturePlatform": 9.1,
+    "differentiation": 9.3,
+    "productionFieldReadiness": 8,
+    "overall": 8.84
+  },
+  "milestones": [
+    {
+      "id": "V4.1",
+      "name": "RWA Finance and Reconciliation Hardening",
+      "evidence": [
+        "V2 receivables/ledger/payment exception foundations",
+        "finance reconciliation and role tests"
+      ]
+    },
+    {
+      "id": "V4.2",
+      "name": "Guard Operations 3.0",
+      "evidence": [
+        "offline queue/sync regression",
+        "localization and mobile validation"
+      ]
+    },
+    {
+      "id": "V4.3",
+      "name": "Competitor Migration and Society Onboarding Engine",
+      "evidence": [
+        "migration validation/dry-run/rollback contracts",
+        "tenant isolation"
+      ]
+    },
+    {
+      "id": "V4.4",
+      "name": "Production Reliability and Resilience",
+      "mergeSha": "3fc1c7665a301c28b691f1a563bf978dd92bf94d",
+      "evidence": [
+        "runtime reliability",
+        "backup restore smoke",
+        "idempotency/concurrency controls"
+      ]
+    },
+    {
+      "id": "V4.5",
+      "name": "Privacy, Security and Trust Controls",
+      "mergeSha": "faa779da1c520c7b0f4e3467348b61485635f633",
+      "evidence": [
+        "privacy/security controls",
+        "security-event retention",
+        "document authorization",
+        "sensitive log redaction"
+      ]
+    },
+    {
+      "id": "V4.6",
+      "name": "AI Operations 2.0",
+      "mergeSha": "ee014ad5146ba1856b4515565801436f26a2b502",
+      "evidence": [
+        "permission-aware grounding",
+        "explicit confirmation",
+        "mutation allow-list",
+        "resident/admin assistant"
+      ]
+    },
+    {
+      "id": "V4.7",
+      "name": "Vendor-Neutral Access Integration Hardening",
+      "mergeSha": "9c142fecd3b088665d6efeb0e530d300b4e82ced",
+      "evidence": [
+        "ANPR/barrier/RFID contracts",
+        "semantic idempotency",
+        "manual fallback"
+      ]
+    },
+    {
+      "id": "V4.8",
+      "name": "Outcome Analytics, Adoption and Operational UX",
+      "mergeSha": "04bea6a0e45cdc3665222b909394a00108be7f32",
+      "evidence": [
+        "authoritative KPI analytics",
+        "privacy-minimal adoption evidence",
+        "operational UX/accessibility"
+      ]
+    }
+  ],
+  "requiredWorkflows": [
+    "CI",
+    "V2 Security Privacy Review",
+    "V2 Role UAT Contract",
+    "V2 Policy Pilot Contract",
+    "V2 Pilot Acceptance Contract",
+    "V2 Staging Pilot Execution Contract",
+    "Backup restore smoke",
+    "V3 Runtime Reliability"
+  ],
+  "externalProofsRemaining": [
+    "hosted staging deployment of exact candidate SHA",
+    "managed PostgreSQL backup/PITR configuration and isolated provider restore",
+    "monitoring and alert-delivery routing in hosted environment",
+    "real payment/OTP/push provider end-to-end checks with production credentials",
+    "representative Resident and Guard physical-device UAT",
+    "real ANPR/RFID/boom-barrier vendor/site certification",
+    "business release-owner acceptance"
+  ],
+  "releasePromotionApproved": false
+}

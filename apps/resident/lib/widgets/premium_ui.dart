@@ -1,0 +1,418 @@
+import 'package:flutter/material.dart';
+import '../theme/aaraagate_theme.dart';
+
+enum AaraagateStatusTone { neutral, info, success, warning, danger }
+
+/// Shared low-chrome surface for resident journeys. Interactive surfaces add
+/// restrained press feedback while preserving a full semantic button target.
+class PremiumSurface extends StatefulWidget {
+  const PremiumSurface({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.semanticLabel,
+    this.padding = const EdgeInsets.all(AaraagateTokens.space4),
+    this.color,
+    this.elevated = false,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final String? semanticLabel;
+  final EdgeInsetsGeometry padding;
+  final Color? color;
+  final bool elevated;
+
+  @override
+  State<PremiumSurface> createState() => _PremiumSurfaceState();
+}
+
+class _PremiumSurfaceState extends State<PremiumSurface> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AaraagateTokens.radiusCard);
+    final surface = AnimatedScale(
+      scale: widget.onTap != null && _pressed && !MediaQuery.disableAnimationsOf(context) ? .985 : 1,
+      duration: AaraagateMotion.duration(context, AaraagateMotion.quick),
+      curve: AaraagateMotion.emphasized,
+      child: AnimatedContainer(
+        duration: AaraagateMotion.duration(context, AaraagateMotion.standard),
+        curve: AaraagateMotion.emphasized,
+        decoration: BoxDecoration(
+          color: widget.color ?? (widget.elevated ? scheme.surface : scheme.surfaceContainerLow),
+          borderRadius: radius,
+          boxShadow: widget.elevated ? AaraagateElevation.raised(scheme.shadow) : null,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
+            onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
+            onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
+            borderRadius: radius,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: widget.onTap == null ? 0 : AaraagateTokens.minTouchTarget,
+                minWidth: widget.onTap == null ? 0 : AaraagateTokens.minTouchTarget,
+              ),
+              child: Padding(padding: widget.padding, child: widget.child),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (widget.onTap == null) return surface;
+    return Semantics(button: true, label: widget.semanticLabel, child: surface);
+  }
+}
+
+class PremiumPageIntro extends StatelessWidget {
+  const PremiumPageIntro({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.supportingText,
+    this.action,
+    this.eyebrow,
+  });
+
+  final IconData icon;
+  final String title;
+  final String supportingText;
+  final Widget? action;
+  final String? eyebrow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final copy = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: AaraagateTokens.iconContainer,
+          height: AaraagateTokens.iconContainer,
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          ),
+          child: Icon(icon, color: scheme.primary, size: 24),
+        ),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (eyebrow != null) ...[
+                Text(
+                  eyebrow!,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: .2,
+                  ),
+                ),
+                const SizedBox(height: AaraagateTokens.space1),
+              ],
+              Text(
+                title,
+                style: theme.textTheme.headlineSmall,
+              ),
+              const SizedBox(height: AaraagateTokens.space1),
+              Text(
+                supportingText,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (action == null) return copy;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 420 || scale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy,
+              const SizedBox(height: AaraagateTokens.space3),
+              Align(alignment: Alignment.centerLeft, child: action!),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy),
+            const SizedBox(width: AaraagateTokens.space3),
+            action!,
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Consistent section heading for scan-friendly resident screens.
+/// Keeps headings quiet enough that the screen title remains dominant.
+/// Use in a scrolling page: essential copy grows with the user's text setting.
+class PremiumSectionHeader extends StatelessWidget {
+  const PremiumSectionHeader({
+    super.key,
+    required this.title,
+    this.supportingText,
+    this.trailing,
+  });
+
+  final String title;
+  final String? supportingText;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium,
+        ),
+        if (supportingText != null) ...[
+          const SizedBox(height: AaraagateTokens.space1),
+          Text(
+            supportingText!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ],
+    );
+
+    if (trailing == null) return copy;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final stacked = constraints.maxWidth < 420 || scale > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              copy,
+              const SizedBox(height: AaraagateTokens.space2),
+              Align(alignment: Alignment.centerLeft, child: trailing!),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: copy),
+            const SizedBox(width: AaraagateTokens.space3),
+            trailing!,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class PremiumQuickAction extends StatelessWidget {
+  const PremiumQuickAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PremiumSurface(
+      onTap: onTap,
+      semanticLabel: label,
+      color: scheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AaraagateTokens.space3,
+        vertical: AaraagateTokens.space3,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 76),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+              ),
+              child: Icon(icon, color: scheme.primary, size: 24),
+            ),
+            const SizedBox(width: AaraagateTokens.space3),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.labelLarge,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AaraagateStatusPill extends StatelessWidget {
+  const AaraagateStatusPill({super.key, required this.label, this.tone = AaraagateStatusTone.neutral});
+
+  final String label;
+  final AaraagateStatusTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = switch (tone) {
+      AaraagateStatusTone.info => (scheme.primaryContainer, scheme.onPrimaryContainer),
+      AaraagateStatusTone.success => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+      AaraagateStatusTone.warning => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      AaraagateStatusTone.danger => (scheme.errorContainer, scheme.onErrorContainer),
+      AaraagateStatusTone.neutral => (scheme.surfaceContainerHigh, scheme.onSurfaceVariant),
+    };
+    return Semantics(
+      label: 'Status: $label',
+      excludeSemantics: true,
+      child: AnimatedContainer(
+        duration: AaraagateMotion.duration(context, AaraagateMotion.standard),
+        curve: AaraagateMotion.emphasized,
+        constraints: const BoxConstraints(minHeight: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.$1,
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
+        ),
+        child: AnimatedSwitcher(
+          duration: AaraagateMotion.duration(context, AaraagateMotion.quick),
+          switchInCurve: AaraagateMotion.emphasized,
+          switchOutCurve: AaraagateMotion.emphasized,
+          child: Text(
+            label,
+            key: ValueKey(label),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colors.$2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Identity stays readable while secondary status wraps below the copy.
+/// Used for arrivals and facilities instead of competing trailing columns.
+class PremiumIdentityHeader extends StatelessWidget {
+  const PremiumIdentityHeader({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.supportingText,
+    this.status,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? supportingText;
+  final Widget? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: AaraagateTokens.iconContainer,
+          height: AaraagateTokens.iconContainer,
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+          ),
+          child: Icon(icon, color: scheme.onPrimaryContainer),
+        ),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              if (supportingText != null && supportingText!.isNotEmpty) ...[
+                const SizedBox(height: AaraagateTokens.space1),
+                Text(supportingText!, style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                )),
+              ],
+              if (status != null) ...[
+                const SizedBox(height: AaraagateTokens.space2),
+                status!,
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Keeps primary and secondary actions usable at narrow widths or large type.
+class PremiumActionGroup extends StatelessWidget {
+  const PremiumActionGroup({super.key, required this.primary, this.secondary});
+  final Widget primary;
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (secondary == null) return SizedBox(width: double.infinity, child: primary);
+      if (constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          primary,
+          const SizedBox(height: AaraagateTokens.space2),
+          secondary!,
+        ]);
+      }
+      return Row(children: [
+        Expanded(child: secondary!),
+        const SizedBox(width: AaraagateTokens.space3),
+        Expanded(flex: 2, child: primary),
+      ]);
+    },
+  );
+}

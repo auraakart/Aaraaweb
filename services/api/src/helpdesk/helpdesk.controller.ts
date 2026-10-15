@@ -1,0 +1,204 @@
+import { BadRequestException, Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, createParamDecorator } from '@nestjs/common';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
+import { AppPermission } from '../auth/permission.types';
+import { RequiresPermissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { CurrentTenant } from '../auth/tenant.decorator';
+import { TenantGuard } from '../auth/tenant.guard';
+import { ProductFeature } from '../entitlements/entitlement.types';
+import { RequiresFeature } from '../entitlements/feature.decorator';
+import { FeatureGuard } from '../entitlements/feature.guard';
+import { HelpdeskService } from './helpdesk.service';
+
+const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
+  ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId,
+);
+
+const STATUS_REASON_CODES = [
+  'FIXED', 'WORKAROUND', 'DUPLICATE', 'NOT_REPRODUCIBLE', 'REQUEST_WITHDRAWN', 'OTHER',
+  'RESOLVED_CONFIRMED', 'RESIDENT_CONFIRMED', 'INVALID_REQUEST',
+] as const;
+
+class CreateHelpdeskTicketDto {
+  @IsUUID() unitId!: string;
+  @IsString() @MinLength(8) @MaxLength(120) idempotencyKey!: string;
+  @IsString() @MinLength(3) @MaxLength(120) title!: string;
+  @IsString() @MinLength(5) @MaxLength(2000) description!: string;
+  @IsOptional() @IsString() @MaxLength(80) category?: string;
+  @IsOptional() @IsIn(['LOW', 'NORMAL', 'HIGH', 'URGENT']) priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+}
+
+class AddHelpdeskCommentDto {
+  @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(120) idempotencyKey?: string;
+}
+
+class AddInternalNoteDto {
+  @IsString() @MinLength(1) @MaxLength(1000) message!: string;
+}
+
+class LinkHelpdeskAssetDto {
+  @IsOptional() @IsUUID() assetId?: string | null;
+}
+
+class AssignHelpdeskTicketDto {
+  @IsOptional() @IsUUID() assignedToId?: string | null;
+}
+
+class ReopenHelpdeskTicketDto {
+  @IsString() @MinLength(3) @MaxLength(1000) note!: string;
+}
+
+class UpdateHelpdeskStatusDto {
+  @IsIn(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']) status!: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  @IsOptional() @IsString() @MaxLength(1000) note?: string;
+  @IsOptional() @IsIn(STATUS_REASON_CODES) reasonCode?: typeof STATUS_REASON_CODES[number];
+}
+
+@Controller('helpdesk')
+@UseGuards(BearerGuard, TenantGuard, FeatureGuard, PermissionsGuard)
+@RequiresFeature(ProductFeature.HELPDESK)
+export class HelpdeskController {
+  constructor(private readonly helpdesk: HelpdeskService) {}
+
+  @Get('mine')
+  @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
+  mine(@CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.helpdesk.listMine(societyId, this.requireUser(userId));
+  }
+
+  @Post()
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  create(@Body() dto: CreateHelpdeskTicketDto, @CurrentTenant() societyId: string, @CurrentUser() userId?: string) {
+    return this.helpdesk.createMine(societyId, this.requireUser(userId), dto);
+  }
+
+  @Post(':ticketId/comments')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  comment(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AddHelpdeskCommentDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, false, dto.idempotencyKey);
+  }
+
+  @Post(':ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_MANAGE_OWN)
+  reopenMine(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopenMine(societyId, this.requireUser(userId), ticketId, dto.note);
+  }
+
+  @Get(':ticketId/activities')
+  @RequiresPermissions(AppPermission.HELPDESK_READ_OWN)
+  activities(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.activitiesMine(societyId, this.requireUser(userId), ticketId);
+  }
+
+  @Get('review/context')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reviewContext(@CurrentTenant() societyId: string) {
+    return this.helpdesk.reviewContext(societyId);
+  }
+
+  @Get('review/queue')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  queue(@CurrentTenant() societyId: string) {
+    return this.helpdesk.listReview(societyId);
+  }
+
+  @Get('review/assets')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  reviewAssets(@CurrentTenant() societyId:string) {
+    return this.helpdesk.reviewAssets(societyId);
+  }
+
+  @Patch('review/:ticketId/asset')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW, AppPermission.FACILITIES_READ)
+  linkAsset(@Param('ticketId',ParseUUIDPipe) ticketId:string,@Body() dto:LinkHelpdeskAssetDto,@CurrentTenant() societyId:string,@CurrentUser() userId?:string) {
+    return this.helpdesk.linkAsset(societyId,this.requireUser(userId),ticketId,dto.assetId??null);
+  }
+
+  @Get('review/:ticketId/triage-intelligence')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  triageIntelligence(@Param('ticketId', ParseUUIDPipe) ticketId:string,@CurrentTenant() societyId:string) {
+    return this.helpdesk.triageIntelligence(societyId,ticketId);
+  }
+
+  @Patch('review/:ticketId/assignment')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  assignment(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AssignHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.assign(societyId, this.requireUser(userId), ticketId, dto.assignedToId ?? null);
+  }
+
+  @Get('review/:ticketId/activities')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reviewActivities(@Param('ticketId', ParseUUIDPipe) ticketId: string, @CurrentTenant() societyId: string) {
+    return this.helpdesk.activitiesReview(societyId, ticketId);
+  }
+
+  @Post('review/:ticketId/comments')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reviewComment(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AddHelpdeskCommentDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.addComment(societyId, this.requireUser(userId), ticketId, dto.message, true);
+  }
+
+  @Post('review/:ticketId/internal-notes')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  internalNote(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: AddInternalNoteDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.addInternalNote(societyId, this.requireUser(userId), ticketId, dto.message);
+  }
+
+  @Patch('review/:ticketId/status')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  status(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: UpdateHelpdeskStatusDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.updateStatus(societyId, this.requireUser(userId), ticketId, dto.status, dto.note, dto.reasonCode);
+  }
+
+  @Post('review/:ticketId/reopen')
+  @RequiresPermissions(AppPermission.HELPDESK_REVIEW)
+  reopen(
+    @Param('ticketId', ParseUUIDPipe) ticketId: string,
+    @Body() dto: ReopenHelpdeskTicketDto,
+    @CurrentTenant() societyId: string,
+    @CurrentUser() userId?: string,
+  ) {
+    return this.helpdesk.reopen(societyId, this.requireUser(userId), ticketId, dto.note);
+  }
+
+  private requireUser(userId?: string) {
+    if (!userId) throw new BadRequestException('Authenticated user is required');
+    return userId;
+  }
+}

@@ -1,0 +1,299 @@
+name: Staging smoke
+
+on:
+  pull_request:
+    branches: [staging]
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  staging-smoke:
+    name: Staging API smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aaraagate_staging_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaraagate_staging_smoke"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aaraagate_staging_smoke
+      REDIS_URL: redis://localhost:6379
+      PORT: 3000
+      NODE_ENV: production
+      APP_VERSION: staging-smoke
+      GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      OTP_DELIVERY_PROVIDER: msg91
+      MSG91_AUTH_KEY: staging-smoke-placeholder
+      MSG91_OTP_TEMPLATE_ID: staging-smoke-placeholder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Record exact candidate evidence
+        env:
+          SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+          TARGET_REF: ${{ github.base_ref || github.ref_name }}
+          TARGET_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: |
+          mkdir -p staging-evidence
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          CHECKED_OUT_TREE="$(git rev-parse "HEAD^{tree}")"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_SHA"
+          {
+            echo "# Aaraagate staging evidence"
+            echo
+            echo "- Candidate SHA: ${CANDIDATE_SHA}"
+            echo "- Checked-out SHA: ${CHECKED_OUT_SHA}"
+            echo "- Candidate tree SHA: ${CHECKED_OUT_TREE}"
+            echo "- Source ref: ${SOURCE_REF}"
+            echo "- Target ref: ${TARGET_REF}"
+            echo "- Target SHA at workflow start: ${TARGET_SHA}"
+            echo "- Workflow run: ${GITHUB_RUN_ID}"
+            echo "- Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > staging-evidence/staging-evidence.md
+
+      - name: Enforce develop-equivalent staging promotion path
+        if: github.event_name == 'pull_request'
+        env:
+          SOURCE_REF: ${{ github.head_ref }}
+          TARGET_REF: ${{ github.base_ref }}
+          TARGET_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$TARGET_REF" != "staging" ]; then
+            echo "Staging promotions must target staging."
+            exit 1
+          fi
+          case "$SOURCE_REF" in
+            develop|release/*-staging-candidate) ;;
+            *)
+              echo "Staging promotions must come from develop or an exact-tree staging candidate."
+              exit 1
+              ;;
+          esac
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git fetch origin develop staging main --no-tags
+          DEVELOP_SHA="$(git rev-parse refs/remotes/origin/develop)"
+          STAGING_SHA="$(git rev-parse refs/remotes/origin/staging)"
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          DEVELOP_TREE="$(git rev-parse "${DEVELOP_SHA}^{tree}")"
+          CANDIDATE_TREE="$(git rev-parse "${CANDIDATE_SHA}^{tree}")"
+          STAGING_TREE="$(git rev-parse "${STAGING_SHA}^{tree}")"
+          MAIN_TREE="$(git rev-parse "${MAIN_SHA}^{tree}")"
+          {
+            echo "- Current develop tree SHA: ${DEVELOP_TREE}"
+            echo "- Current staging tree SHA: ${STAGING_TREE}"
+            echo "- Current main tree SHA: ${MAIN_TREE}"
+          } >> staging-evidence/staging-evidence.md
+          if [ "$SOURCE_REF" = "develop" ] && [ "$CANDIDATE_SHA" != "$DEVELOP_SHA" ]; then
+            echo "Direct staging promotion must validate the current develop head exactly."
+            exit 1
+          fi
+          if [ "$SOURCE_REF" != "develop" ] && [ "$CANDIDATE_TREE" != "$DEVELOP_TREE" ]; then
+            echo "Release candidate source tree must exactly match current develop."
+            exit 1
+          fi
+          if [ "$SOURCE_REF" != "develop" ] && ! git merge-base --is-ancestor "$TARGET_SHA" "$CANDIDATE_SHA"; then
+            echo "Release candidate must descend from the current staging target."
+            exit 1
+          fi
+          if [ "$TARGET_SHA" != "$STAGING_SHA" ]; then
+            echo "Staging target moved after this promotion run started."
+            exit 1
+          fi
+          # Staging normally represents the currently released main source.
+          # If a prior staging candidate was never promoted, permit it to be
+          # superseded only through an exact-develop-tree release candidate and
+          # only when every staging-only commit is release/reconciliation history.
+          if ! git diff --quiet "$TARGET_SHA" "$MAIN_SHA" -- .; then
+            if [ "$SOURCE_REF" = "develop" ]; then
+              echo "A stale staging candidate must be superseded through release/*-staging-candidate so ancestry is preserved."
+              exit 1
+            fi
+            STAGING_ONLY_SUBJECTS="$(bash scripts/list-staging-only-release-subjects.sh "$DEVELOP_SHA" "$TARGET_SHA" "$MAIN_SHA")"
+            if [ -z "$STAGING_ONLY_SUBJECTS" ]; then
+              echo "Staging differs from main without attributable staging-only release history."
+              exit 1
+            fi
+            if ! printf '%s\n' "$STAGING_ONLY_SUBJECTS" | node scripts/check-staging-release-history.mjs; then
+              exit 1
+            fi
+            {
+              echo "- Staging baseline: superseding stale release-only candidate history"
+              echo "- Staging-only commits reviewed: $(printf '%s\n' "$STAGING_ONLY_SUBJECTS" | wc -l | tr -d ' ')"
+            } >> staging-evidence/staging-evidence.md
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @aaraagate/api prisma:generate
+
+      - name: Apply staging migrations
+        run: pnpm --filter @aaraagate/api prisma:migrate:deploy
+
+      - name: Build API
+        run: pnpm --filter @aaraagate/api build
+
+      - name: Start API
+        run: |
+          pnpm --filter @aaraagate/api start > /tmp/aaraagate-api.log 2>&1 &
+          echo $! > /tmp/aaraagate-api.pid
+
+      - name: Wait for readiness endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health/ready > /tmp/readiness.json; then
+              cat /tmp/readiness.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready in time"
+          cat /tmp/aaraagate-api.log || true
+          exit 1
+
+      - name: Assert readiness response and release metadata
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/readiness.json', 'utf8'));
+          const expected = {
+            status: 'ready',
+            service: 'aaraagate-api',
+            environment: 'production',
+            version: process.env.APP_VERSION,
+            commit: process.env.GIT_SHA,
+          };
+          for (const [key, value] of Object.entries(expected)) {
+            if (h[key] !== value) {
+              console.error(`Unexpected ${key}:`, h[key], 'expected:', value);
+              process.exit(1);
+            }
+          }
+          if (h.dependencies?.database !== 'ok' || h.dependencies?.authState !== 'redis-ok') {
+            console.error('Dependency readiness missing or unhealthy:', h.dependencies);
+            process.exit(1);
+          }
+          NODE
+          cp /tmp/readiness.json staging-evidence/readiness.json
+
+      - name: Verify liveness endpoint and release metadata
+        run: |
+          curl --fail --silent http://127.0.0.1:3000/api/v1/health/live > /tmp/liveness.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/liveness.json', 'utf8'));
+          if (
+            h.status !== 'ok' ||
+            h.service !== 'aaraagate-api' ||
+            h.environment !== 'production' ||
+            h.version !== process.env.APP_VERSION ||
+            h.commit !== process.env.GIT_SHA
+          ) {
+            console.error(h);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/aaraagate-api.pid ]; then
+            kill $(cat /tmp/aaraagate-api.pid) || true
+          fi
+
+      - name: Print API logs on failure
+        if: failure()
+        run: cat /tmp/aaraagate-api.log || true
+
+      - name: Publish exact-SHA staging evidence
+        if: always()
+        run: |
+          echo "### Staging promotion evidence" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f staging-evidence/staging-evidence.md ]; then
+            cat staging-evidence/staging-evidence.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Staging evidence file was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload exact-SHA staging evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-evidence-${{ github.run_id }}
+          path: staging-evidence/
+          if-no-files-found: error
+          retention-days: 7
+
+
+  staging-auto-merge:
+    name: Staging auto merge after API smoke
+    needs: staging-smoke
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.base_ref == 'staging' &&
+      needs.staging-smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate for release controller
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Auto-merge exact staging candidate after companion gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COMPANION_WORKFLOW: Backup restore smoke
+          COMPANION_JOB: PostgreSQL backup restore drill
+        run: bash scripts/try-staging-auto-merge.sh

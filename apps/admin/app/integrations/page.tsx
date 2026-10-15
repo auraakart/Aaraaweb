@@ -1,0 +1,76 @@
+'use client'
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { ActionBar, DetailPanel, EmptyState, ErrorState, FormField, PageHeader, PageShell, PrimaryButton, ReadinessPanel, SecondaryButton, StatusPill, Timeline } from '../../components/admin-ui'
+import { api, type Session } from '../../lib/admin-client'
+
+type Family='OTP'|'WHATSAPP'|'PUSH'|'PAYMENT_GATEWAY'|'ACCESS_CONTROL'|'OBJECT_STORAGE'|'SMART_METER'|'ACCOUNTING_CONNECTOR'
+type RegistryFamily=Family|'TELEPHONY_IVR'
+type OperationContract={operationId:string;contractVersion:string;direction:string;idempotency:string;timeoutMs:number;reconciliationRequired:boolean;callbackVerification:string;providerAuthority:'NONE'|'QUARANTINED_INPUT';fieldEvidenceRequired:boolean;degradationMode:string}
+type Capability={family:RegistryFamily;provider:string;configurationScope:'DEPLOYMENT'|'SOCIETY';configured:boolean;health:'READY'|'DEGRADED'|'UNCONFIGURED';capabilities:string[];operations:OperationContract[];boundary:string;contractVersion:string;retryDisposition:string;retryOwner:string;degradationMode:string}
+type Configuration={societyId:string;family:Family;providerKey:string;enabled:boolean;updatedByUserId:string;createdAt:string;updatedAt:string}
+type Conformance={family:RegistryFamily;provider:string;health:Capability['health'];checks:Record<string,boolean>;missing:string[];configurationBlockers:string[];status:'CONTRACT_READY'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'CONTRACT_GAP';certificationClaim:false;adapterConfigurationReady:boolean;selectionRequired:boolean;societySelectionReady:boolean;selectedProviderKey:string|null;societyEnabled:boolean|null;configurationReady:boolean;contractReady:boolean;fieldEvidenceRequired:boolean;productionActivationApproved:boolean;boundary:string}
+type ConfigurationEvent={id:string;family:Family;eventType:string;providerKey:string;enabled:boolean;actorUserId:string;occurredAt:string}
+type ActivationPlan={status:'BLOCKED_CONTRACT'|'CONFIGURATION_REQUIRED'|'FIELD_EVIDENCE_REQUIRED'|'READY_FOR_INTERNAL_ENABLEMENT';summary:{total:number;activationReady:number;contractGaps:number;configurationRequired:number;fieldEvidenceRequired:number};items:Array<{family:RegistryFamily;provider:string;status:Conformance['status'];productionActivationApproved:boolean;fieldEvidenceRequired:boolean;blockers:string[];nextActions:string[]}>;generatedAt:string;certificationClaim:false;mutationPerformed:false;boundary:string}
+
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','COMMITTEE_MEMBER','FACILITY_MANAGER','AUDITOR'])
+const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN'])
+function currentSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw) as Session:null}catch{return null}}
+function tone(health:Capability['health']){return health==='READY'?'success':health==='DEGRADED'?'warning':'neutral'} 
+
+export default function IntegrationReadinessPage(){
+  const[s,setS]=useState<Session|null>(null),[registry,setRegistry]=useState<Capability[]>([]),[config,setConfig]=useState<Configuration[]>([]),[events,setEvents]=useState<ConfigurationEvent[]>([]),[conformance,setConformance]=useState<Conformance[]>([]),[activationPlan,setActivationPlan]=useState<ActivationPlan|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[feedback,setFeedback]=useState('')
+  const[family,setFamily]=useState<Family>('OTP'),[providerKey,setProviderKey]=useState(''),[enabled,setEnabled]=useState(true)
+  const canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
+  const selected=useMemo(()=>config.find(item=>item.family===family),[config,family])
+  const selectableRegistry=useMemo(()=>registry.filter((item):item is Capability&{family:Family}=>item.family!=='TELEPHONY_IVR'),[registry])
+
+  const load=useCallback(async(session:Session)=>{
+    setLoading(true);setError('')
+    try{const[r,c,e,cf,plan]=await Promise.all([api<Capability[]>('/integrations/registry',{},session),api<Configuration[]>('/integrations/registry/configuration',{},session),api<ConfigurationEvent[]>('/integrations/registry/configuration/events',{},session),api<Conformance[]>('/integrations/registry/conformance',{},session),api<ActivationPlan>('/integrations/registry/activation-plan',{},session)]);setRegistry(r);setConfig(c);setEvents(e);setConformance(cf);setActivationPlan(plan)}
+    catch(err){setError(err instanceof Error?err.message:'Integration readiness could not be loaded')}
+    finally{setLoading(false)}
+  },[])
+
+  useEffect(()=>{const session=currentSession();setS(session);if(!session){setError('Sign in to the Admin console first.');setLoading(false);return}if(!readRoles.has(session.role)){setError('Your role does not have society configuration read access.');setLoading(false);return}void load(session)},[load])
+  useEffect(()=>{setProviderKey(selected?.providerKey??registry.find(item=>item.family===family)?.provider??'');setEnabled(selected?.enabled??true)},[family,selected,registry])
+
+  async function save(event:FormEvent){event.preventDefault();if(!s||!canManage)return;setBusy(true);setError('');setFeedback('');try{await api('/integrations/registry/configuration',{method:'PUT',body:JSON.stringify({family,providerKey,enabled})},s);setFeedback('Society integration selection saved with audit evidence.');await load(s)}catch(err){setError(err instanceof Error?err.message:'Integration configuration could not be saved')}finally{setBusy(false)}}
+
+  if(!canRead&&!loading)return <PageShell><ErrorState title="Integration readiness unavailable" description={error}/></PageShell>
+
+  const ready=conformance.filter(item=>item.productionActivationApproved).length
+  const blockers=conformance.filter(item=>!item.productionActivationApproved).map(item=>`${item.family.replaceAll('_',' ')}: ${item.status.replaceAll('_',' ').toLowerCase()}`)
+  return <PageShell>
+    <PageHeader title="Integration readiness" context={`${s?.societyName??'Current society'} · ${s?.role.replaceAll('_',' ')??''}`} description="Inspect versioned provider capabilities, society selections and audit history without exposing credentials or treating provider state as domain truth." actions={<SecondaryButton onClick={()=>s&&void load(s)} loading={loading}>Refresh</SecondaryButton>}/>
+    {error&&<ErrorState title="Integration readiness needs attention" description={error}/>}
+    <ReadinessPanel title="Provider ecosystem readiness" status={{label:activationPlan?.status.replaceAll('_',' ')??`${ready}/${conformance.length} activation-ready`,tone:activationPlan?.status==='READY_FOR_INTERNAL_ENABLEMENT'?'success':'warning'}} blockers={activationPlan?.items.flatMap(item=>item.blockers.map(value=>`${item.family.replaceAll('_',' ')}: ${value.replaceAll('_',' ')}`))??blockers} nextActions={activationPlan?.items.flatMap(item=>item.nextActions.map(action=>`${item.family.replaceAll('_',' ')}: ${action}`)).slice(0,12)??[]} boundary={activationPlan?.boundary??'Repository readiness does not certify live credentials, commercial providers, physical devices or field operations.'} state={loading?'loading':'ready'} />
+    {activationPlan&&<DetailPanel title="Activation plan"><div style={{display:'grid',gap:10}}>{activationPlan.items.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:12,padding:12,display:'grid',gap:5}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.productionActivationApproved?'ACTIVATION READY':item.status.replaceAll('_',' ')} tone={item.productionActivationApproved?'success':item.status==='CONTRACT_GAP'?'danger':'warning'}/></div><small>{item.provider}</small>{item.nextActions.map((action,index)=><small key={index}>• {action}</small>)}</article>)}</div></DetailPanel>}
+    <DetailPanel title="Adapter conformance" state={loading?'loading':conformance.length?'ready':'empty'} empty={<EmptyState title="No conformance evidence reported."/>}>
+      <div style={{display:'grid',gap:12}}>{conformance.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:6}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.status.replaceAll('_',' ')} tone={item.status==='CONTRACT_READY'?'success':item.status==='CONTRACT_GAP'?'danger':'warning'}/></div><small>{Object.entries(item.checks).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value?'yes':'no'}`).join(' · ')}</small><small>Configuration ready: {item.configurationReady?'yes':'no'} · Adapter configuration ready: {item.adapterConfigurationReady?'yes':'no'} · Society selection: {item.selectionRequired?(item.societySelectionReady?'ready':item.societyEnabled===false?'disabled':item.selectedProviderKey?'provider mismatch':'missing'):'not required'}</small><small>Contract ready: {item.contractReady?'yes':'no'} · Field evidence required: {item.fieldEvidenceRequired?'yes':'no'} · Production activation approved: {item.productionActivationApproved?'yes':'no'}</small>{item.configurationBlockers.length>0&&<small>Configuration blockers: {item.configurationBlockers.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}<small>{item.boundary}</small></article>)}</div>
+    </DetailPanel>
+    <DetailPanel title="Capability registry" state={loading?'loading':registry.length?'ready':'empty'} empty={<EmptyState title="No integration capabilities reported."/>}>
+      <div style={{display:'grid',gap:12}}>{registry.map(item=><article key={item.family} style={{border:'1px solid #e5e7eb',borderRadius:14,padding:14,display:'grid',gap:7}}>
+        <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><strong>{item.family.replaceAll('_',' ')}</strong><StatusPill label={item.health} tone={tone(item.health)}/></div>
+        <span>{item.provider} · {item.configurationScope.toLowerCase()} scope · {item.contractVersion}</span>
+        <small>{item.capabilities.join(' · ')}</small><small>Retry: {item.retryDisposition.replaceAll('_',' ')} · owner {item.retryOwner}</small><small>{item.degradationMode}</small>
+        <div style={{display:'grid',gap:6,marginTop:4}}>{item.operations.map(operation=><div key={operation.operationId} style={{padding:8,borderRadius:10,background:'var(--surface-muted,#f8fafc)'}}>
+          <strong>{operation.operationId.replaceAll('_',' ')}</strong><br/>
+          <small>{operation.direction.replaceAll('_',' ')} · idempotency {operation.idempotency.replaceAll('_',' ')} · timeout {operation.timeoutMs} ms</small><br/>
+          <small>Callback {operation.callbackVerification.replaceAll('_',' ')} · provider authority {operation.providerAuthority.replaceAll('_',' ')} · reconciliation {operation.reconciliationRequired?'required':'not required'} · field evidence {operation.fieldEvidenceRequired?'required':'not required'}</small><br/>
+          <small>{operation.degradationMode}</small>
+        </div>)}</div>
+        <small>{item.boundary}</small>
+      </article>)}</div>
+    </DetailPanel>
+    {canManage&&<DetailPanel title="Society provider selection"><form onSubmit={save} style={{display:'grid',gap:14}}>
+      <label>Integration family<select value={family} onChange={e=>setFamily(e.target.value as Family)} style={{display:'block',width:'100%',marginTop:6,padding:10,borderRadius:10,border:'1px solid #cbd5e1'}}>{selectableRegistry.map(item=><option key={item.family} value={item.family}>{item.family.replaceAll('_',' ')}</option>)}</select></label>
+      <FormField label="Provider key" value={providerKey} onChange={e=>setProviderKey(e.target.value)} maxLength={80} required hint="Provider identity only. Never paste API keys, tokens, credentials or private keys."/>
+      <label style={{display:'flex',alignItems:'center',gap:8}}><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enabled for this society</label>
+      <ActionBar feedback={feedback}><PrimaryButton type="submit" loading={busy}>Save selection</PrimaryButton></ActionBar>
+    </form></DetailPanel>}
+    <DetailPanel title="Configuration audit history" state={loading?'loading':events.length?'ready':'empty'} empty={<EmptyState title="No provider selection changes recorded yet."/>}>
+      <Timeline events={events.slice(0,50).map(item=>({id:item.id,label:`${item.family.replaceAll('_',' ')} · ${item.eventType.replaceAll('_',' ')}`,actor:item.actorUserId,timeLabel:new Date(item.occurredAt).toLocaleString('en-IN'),dateTime:item.occurredAt,evidence:<small>{item.providerKey} · {item.enabled?'enabled':'disabled'}</small>}))}/>
+    </DetailPanel>
+  </PageShell>
+}

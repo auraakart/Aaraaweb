@@ -1,0 +1,550 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import '../data/api_client.dart';
+
+class PrivacyDataScreen extends StatefulWidget {
+  const PrivacyDataScreen({super.key, this.apiClient, this.demoMode = false});
+
+  final ApiClient? apiClient;
+  final bool demoMode;
+
+  @override
+  State<PrivacyDataScreen> createState() => _PrivacyDataScreenState();
+}
+
+class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
+  bool _loading = false;
+  bool _submitting = false;
+  String? _error;
+  List<Map<String, dynamic>> _requests = const [];
+  Map<String, dynamic>? _grievanceContact;
+  Map<String, dynamic>? _privacyProgram;
+  String? _pendingFingerprint;
+  String? _pendingRequestKey;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.apiClient != null && !widget.demoMode) _loadRequests();
+  }
+
+  Future<void> _loadRequests() async {
+    final api = widget.apiClient;
+    if (api == null || widget.demoMode) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        api.get('/api/v1/privacy/self/requests'),
+        api.get('/api/v1/privacy/self/context').catchError((_) => null),
+      ]);
+      if (!mounted) return;
+      final raw = results[0];
+      final context = results[1];
+      setState(() {
+        _requests = (raw as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        final mapped = context is Map ? Map<String, dynamic>.from(context) : <String, dynamic>{};
+        final contact = mapped['grievanceContact'];
+        final program = mapped['privacyProgram'];
+        _grievanceContact = contact is Map ? Map<String, dynamic>.from(contact) : null;
+        _privacyProgram = program is Map ? Map<String, dynamic>.from(program) : null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<String?> _requestDetails({
+    required String title,
+    required String prompt,
+    bool required = false,
+  }) async {
+    var details = '';
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(title),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(prompt),
+                const SizedBox(height: 12),
+                TextField(
+                  maxLength: 1000,
+                  maxLines: 4,
+                  onChanged: (value) => setDialogState(() => details = value),
+                  decoration: InputDecoration(
+                    labelText: required ? 'Details (required)' : 'Additional details (optional)',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: required && details.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, details.trim()),
+              child: const Text('Submit request'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createRequest({
+    required String type,
+    required String title,
+    required String prompt,
+    required String baseSummary,
+    bool detailsRequired = false,
+  }) async {
+    final api = widget.apiClient;
+    if (api == null || widget.demoMode || _submitting) return;
+    final details = await _requestDetails(title: title, prompt: prompt, required: detailsRequired);
+    if (details == null || !mounted) return;
+
+    final summary = details.isEmpty ? baseSummary : '$baseSummary Details: $details';
+    final fingerprint = '$type|$summary';
+    if (_pendingFingerprint != fingerprint || _pendingRequestKey == null) {
+      _pendingFingerprint = fingerprint;
+      _pendingRequestKey = 'privacy-${DateTime.now().microsecondsSinceEpoch}';
+    }
+    final requestKey = _pendingRequestKey!;
+
+    setState(() => _submitting = true);
+    try {
+      await api.post('/api/v1/privacy/self/requests', {
+        'requestType': type,
+        'requestSummary': summary,
+        'requestKey': requestKey,
+      });
+      _pendingFingerprint = null;
+      _pendingRequestKey = null;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Privacy request submitted.')));
+      await _loadRequests();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Request was not confirmed. Retrying the same request is safe. ${error.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Privacy & data use')),
+      body: RefreshIndicator(
+        onRefresh: widget.apiClient == null || widget.demoMode ? () async {} : _loadRequests,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          children: [
+            Text(
+              'How Aaraagate uses your information',
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Aaraagate uses account, property and activity information to provide society, gate, billing and household-service features. This screen explains the current product behaviour; it does not replace the formal privacy notice or society policy.',
+            ),
+            const SizedBox(height: 20),
+            const _PrivacySection(
+              icon: Icons.person_outline_rounded,
+              title: 'Account & property context',
+              body: 'Your verified mobile account and selected society/property context are used to show only the features and records available for that context.',
+            ),
+            const _PrivacySection(
+              icon: Icons.shield_outlined,
+              title: 'Gate & visitor activity',
+              body: 'Visitor, delivery, cab and access records are used for entry approval, gate operations and related audit history. Share visitor pass codes only with the intended visitor.',
+            ),
+            const _PrivacySection(
+              icon: Icons.notifications_none_rounded,
+              title: 'Notifications',
+              body: 'If notifications are enabled on this device, Aaraagate may register the device for society and property-related alerts. Device notification permission remains under your phone settings.',
+            ),
+            const _PrivacySection(
+              icon: Icons.payments_outlined,
+              title: 'Payments',
+              body: 'Maintenance payment orders and their status are recorded so dues and receipts can be reconciled. A payment is not shown as successful until the configured payment gateway confirms it.',
+            ),
+            const _PrivacySection(
+              icon: Icons.home_repair_service_outlined,
+              title: 'Household services & staff',
+              body: 'Bookings, provider assignments, domestic-help activity and ratings are used to operate the services you request for the selected property.',
+            ),
+            const _PrivacySection(
+              icon: Icons.campaign_outlined,
+              title: 'Commercial placement & provider trust',
+              body: 'Featured or Sponsored service placement is a commercial label. Provider verification, Society Trusted evidence, society approval and resident ratings remain separate signals; paid placement does not grant a provider access to household-private records.',
+            ),
+            const _PrivacySection(
+              icon: Icons.verified_user_outlined,
+              title: 'Security & assurance boundary',
+              body: 'Access is scoped by your authenticated society/property context and sensitive actions remain server-authorized and auditable. These product controls are not presented as an external security or privacy certification.',
+            ),
+            if (_privacyProgram != null) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Row(children: [
+                      Icon(Icons.policy_outlined),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('Privacy controls snapshot', style: TextStyle(fontWeight: FontWeight.w900))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('${(_privacyProgram!['categories'] as List? ?? const []).length} active data categories · ${_privacyProgram!['activeConsentCount'] ?? 0} active consent records'),
+                    const SizedBox(height: 10),
+                    for (final raw in (_privacyProgram!['categories'] as List? ?? const []).take(4))
+                      if (raw is Map) Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '${raw['name'] ?? raw['code'] ?? 'Data category'} · ${raw['purpose'] ?? 'Configured purpose'} · Retention: ${raw['retentionTrigger'] ?? 'configured trigger'}${raw['retentionDays'] == null ? '' : ' + ${raw['retentionDays']} days'}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    if ((_privacyProgram!['consents'] as List? ?? const []).isNotEmpty) ...[
+                      const Text('Recorded consent evidence', style: TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      for (final raw in (_privacyProgram!['consents'] as List? ?? const []).take(4))
+                        if (raw is Map) Text(
+                          '${raw['status'] ?? 'UNKNOWN'} · ${raw['dataCategoryCode'] ?? 'General'} · ${raw['purpose'] ?? ''}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(_privacyProgram!['boundary']?.toString() ?? 'Configuration and recorded consent evidence only.', style: theme.textTheme.bodySmall),
+                  ]),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Card(
+              child: Column(
+                children: [
+                  const ListTile(
+                    leading: Icon(Icons.manage_accounts_outlined),
+                    title: Text('Manage my data', style: TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: Text('Request a copy, correction, or deletion review when you need it.'),
+                  ),
+                  if (widget.demoMode)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Demo mode: privacy requests are shown as a product capability only. Nothing is submitted or tracked.'),
+                      ),
+                    )
+                  else if (widget.apiClient == null)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Align(alignment: Alignment.centerLeft, child: Text('Sign in to manage privacy requests.')),
+                    )
+                  else ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.download_outlined),
+                      title: const Text('Get a copy of my data'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'ACCESS',
+                                title: 'Request a copy of your data',
+                                prompt: 'You can add context for the data-access request, or submit without additional details.',
+                                baseSummary: 'Provide a copy of my personal data associated with this account context.',
+                              ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.edit_note_rounded),
+                      title: const Text('Correct my information'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'CORRECTION',
+                                title: 'Request a correction',
+                                prompt: 'Describe what information you believe should be corrected.',
+                                baseSummary: 'Review and correct my personal data.',
+                                detailsRequired: true,
+                              ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline_rounded),
+                      title: const Text('Request deletion review'),
+                      subtitle: const Text('Some records may need to be retained.'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      enabled: !_submitting,
+                      onTap: _submitting
+                          ? null
+                          : () => _createRequest(
+                                type: 'ERASURE',
+                                title: 'Request an erasure review',
+                                prompt: 'You may add context for the request. Some records can require retention and may not be immediately deletable.',
+                                baseSummary: 'Review my personal data for erasure subject to applicable retention and legal-hold requirements.',
+                              ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_grievanceContact != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.support_agent_outlined),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Privacy help & grievance contact', style: TextStyle(fontWeight: FontWeight.w900))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_grievanceContact!['displayName']?.toString() ?? 'Privacy contact'),
+                      if ((_grievanceContact!['email']?.toString() ?? '').isNotEmpty)
+                        Text(_grievanceContact!['email'].toString()),
+                      if ((_grievanceContact!['phone']?.toString() ?? '').isNotEmpty)
+                        Text(_grievanceContact!['phone'].toString()),
+                      if ((_grievanceContact!['instructions']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(_grievanceContact!['instructions'].toString()),
+                      ],
+                      const SizedBox(height: 6),
+                      Text('This is the configured society contact for privacy questions. It does not determine legal rights or case outcomes.', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            if (widget.demoMode) ...[
+              Text('Privacy request status', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.verified_user_outlined),
+                  title: Text('No demo privacy requests'),
+                  subtitle: Text('Demo mode does not contact the privacy service or create request records.'),
+                ),
+              ),
+            ] else if (widget.apiClient != null) ...[
+              Row(
+                children: [
+                  Expanded(child: Text('Privacy request status', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
+                  if (_loading)
+                    const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (_error != null)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_off_outlined),
+                    title: const Text('Could not load privacy requests'),
+                    subtitle: const Text('Privacy requests are temporarily unavailable.'),
+                    trailing: TextButton(onPressed: _loadRequests, child: const Text('Retry')),
+                  ),
+                )
+              else if (!_loading && _requests.isEmpty)
+                const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No privacy requests in this account context yet.')))
+              else
+                for (final request in _requests) _RequestCard(request: request, apiClient: widget.apiClient!),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'Aaraagate does not make a data-retention or regulatory-compliance claim on this screen. Formal commitments come from the applicable privacy notice, configured deployment process and qualified legal review.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatefulWidget {
+  const _RequestCard({required this.request, required this.apiClient});
+
+  final Map<String, dynamic> request;
+  final ApiClient apiClient;
+
+  @override
+  State<_RequestCard> createState() => _RequestCardState();
+}
+
+class _RequestCardState extends State<_RequestCard> {
+  bool _exporting=false;
+
+  Future<void> _shareExport() async {
+    if(_exporting)return;
+    setState(()=>_exporting=true);
+    try{
+      final payload=await widget.apiClient.get('/api/v1/privacy/self/requests/${widget.request['id']}/export');
+      final formatted=const JsonEncoder.withIndent('  ').convert(payload);
+      await Share.share(formatted,subject:'Aaraagate personal data export');
+    }catch(error){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not prepare data export. $error')));
+    }finally{
+      if(mounted)setState(()=>_exporting=false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final request=widget.request;
+
+    final type = request['requestType']?.toString() ?? 'OTHER';
+    final status = request['status']?.toString() ?? 'OPEN';
+    final legalHold = request['legalHold'] == true;
+    final created = DateTime.tryParse(request['createdAt']?.toString() ?? '')?.toLocal();
+    final dueAt = DateTime.tryParse(request['dueAt']?.toString() ?? '')?.toLocal();
+    final nextAction = _nextAction(type, status, legalHold);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(_typeLabel(type), style: const TextStyle(fontWeight: FontWeight.w900))),
+                Chip(label: Text(status.replaceAll('_', ' ').toLowerCase())),
+              ],
+            ),
+            Text(request['requestSummary']?.toString() ?? ''),
+            if (created != null) ...[
+              const SizedBox(height: 6),
+              Text('Submitted ${created.day}/${created.month}/${created.year}', style: Theme.of(context).textTheme.bodySmall),
+            ],
+            const SizedBox(height: 8),
+            Text(nextAction, style: const TextStyle(fontWeight: FontWeight.w700)),
+            if (dueAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Operational target: ${dueAt.day}/${dueAt.month}/${dueAt.year}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if(type=='ACCESS'&&status=='COMPLETED') ...[
+              const SizedBox(height:10),
+              OutlinedButton.icon(
+                onPressed:_exporting?null:_shareExport,
+                icon:_exporting?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.ios_share_outlined),
+                label:Text(_exporting?'Preparing export…':'Share my data export'),
+              ),
+            ],
+            if(type=='ACCESS'&&status!='COMPLETED') ...[
+              const SizedBox(height:8),
+              Text(
+                'Data export becomes available after this ACCESS request is completed.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (legalHold) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Retention review applies before this request can be completed.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _nextAction(String type, String status, bool legalHold) {
+    if (legalHold) return 'Retention/legal-hold review is active before this request can be completed.';
+    switch (status) {
+      case 'OPEN':
+        return 'Submitted and waiting for privacy-team review.';
+      case 'IN_REVIEW':
+        return 'Your request is being reviewed.';
+      case 'WAITING':
+        return 'The privacy team is waiting on additional review or information.';
+      case 'COMPLETED':
+        return type == 'ACCESS' ? 'Completed. Your data export is available below.' : 'Completed. No further action is required in the app.';
+      case 'REJECTED':
+        return 'The request was not completed. Contact the configured privacy contact for clarification if needed.';
+      case 'CANCELLED':
+        return 'This request is closed. Submit a new request if your needs have changed.';
+      default:
+        return 'Track this request here for status changes.';
+    }
+  }
+
+  static String _typeLabel(String type) {
+    switch (type) {
+      case 'ACCESS':
+        return 'Data access request';
+      case 'CORRECTION':
+        return 'Correction request';
+      case 'ERASURE':
+        return 'Erasure review request';
+      default:
+        return 'Privacy request';
+    }
+  }
+}
+
+class _PrivacySection extends StatelessWidget {
+  const _PrivacySection({required this.icon, required this.title, required this.body});
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(child: Icon(icon)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 5),
+                    Text(body),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}

@@ -1,0 +1,312 @@
+import 'package:aaraagate_branding_runtime/branding_runtime.dart';
+import 'package:flutter/material.dart';
+
+class AaraagateTokens {
+  static const double space1 = 4;
+  static const double space2 = 8;
+  static const double space3 = 12;
+  static const double space4 = 16;
+  static const double space5 = 20;
+  static const double space6 = 24;
+  static const double space8 = 32;
+  static const double space10 = 40;
+
+  static const double radiusSmall = 12;
+  static const double radiusControl = 16;
+  static const double radiusCard = 16;
+  static const double radiusSheet = 24;
+  static const double radiusPill = 999;
+
+  static const double minTouchTarget = 48;
+  static const double primaryActionHeight = 52;
+  static const double pageGutter = 20;
+  static const double iconContainer = 48;
+}
+
+class AaraagateMotion {
+  static const Duration quick = Duration(milliseconds: 120);
+  static const Duration standard = Duration(milliseconds: 220);
+  /// Respect the platform's reduced-motion preference for optional feedback.
+  static Duration duration(BuildContext context, Duration normal) =>
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : normal;
+
+  static const Curve emphasized = Curves.easeOutCubic;
+}
+
+class AaraagateElevation {
+  static List<BoxShadow> raised(Color shadow) => [
+        BoxShadow(
+          color: shadow.withValues(alpha: .06),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
+        ),
+      ];
+}
+
+class AaraagateTheme {
+  static const Color brand = Color(0xFF0EABBE);
+  static const Color brandDeep = Color(0xFF05879A);
+  static const Color canvas = Color(0xFFF5FBFC);
+  static const Color aquaSoft = Color(0xFFD4F2F4);
+  static const Color ink = Color(0xFF17323A);
+  static const Color line = Color(0xFFD5E8EB);
+
+  static ThemeData light({SocietyBrandTokens? societyBrand}) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: societyBrand == null ? brandDeep : Color(societyBrand.primaryDeepArgb),
+      brightness: Brightness.light,
+      surface: Colors.white,
+    ).copyWith(
+      primary: societyBrand == null ? brandDeep : Color(societyBrand.primaryDeepArgb),
+      // White on brandDeep is below 4.5:1 for small button labels.
+      onPrimary: societyBrand == null ? const Color(0xFF001014) : Color(societyBrand.onPrimaryDeepArgb),
+      secondary: societyBrand == null ? brand : Color(societyBrand.primaryArgb),
+      surface: Colors.white,
+      surfaceContainerLowest: Colors.white,
+      surfaceContainerLow: const Color(0xFFF8FCFD),
+      surfaceContainer: const Color(0xFFF0F8F9),
+      surfaceContainerHigh: const Color(0xFFE8F4F6),
+      surfaceContainerHighest: const Color(0xFFE1EFF2),
+      onSurface: ink,
+      outline: const Color(0xFF6C858B),
+      outlineVariant: const Color(0xFFE7F1F3),
+    );
+
+    return _build(
+      scheme: scheme,
+      scaffoldBackground: canvas,
+      divider: line,
+    );
+  }
+
+  static ThemeData dark({SocietyBrandTokens? societyBrand}) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: societyBrand == null ? brand : Color(societyBrand.primaryArgb),
+      brightness: Brightness.dark,
+      surface: const Color(0xFF152126),
+    ).copyWith(
+      primary: societyBrand == null ? const Color(0xFF55D5E1) : Color(societyBrand.primaryArgb),
+      onPrimary: societyBrand == null ? null : Color(societyBrand.onPrimaryArgb),
+      secondary: societyBrand == null ? brand : Color(societyBrand.primaryDeepArgb),
+      surface: const Color(0xFF152126),
+      surfaceContainerLowest: const Color(0xFF101A1E),
+      surfaceContainerLow: const Color(0xFF18262B),
+      surfaceContainer: const Color(0xFF1D2D32),
+      surfaceContainerHigh: const Color(0xFF24373D),
+      surfaceContainerHighest: const Color(0xFF2B4148),
+      outline: const Color(0xFF80999F),
+      outlineVariant: const Color(0xFF293E44),
+    );
+
+    return _build(
+      scheme: scheme,
+      scaffoldBackground: const Color(0xFF101A1E),
+      divider: const Color(0xFF293E44),
+    );
+  }
+
+  static ThemeData _build({
+    required ColorScheme scheme,
+    required Color scaffoldBackground,
+    required Color divider,
+  }) {
+    final baseText = ThemeData(brightness: scheme.brightness).textTheme;
+
+    return ThemeData(
+      useMaterial3: true,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scaffoldBackground,
+      dividerColor: divider,
+      textTheme: baseText.copyWith(
+        headlineMedium: baseText.headlineMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.6,
+        ),
+        headlineSmall: baseText.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4,
+        ),
+        titleLarge: baseText.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
+        ),
+        titleMedium: baseText.titleMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        bodyLarge: baseText.bodyLarge?.copyWith(height: 1.45),
+        bodyMedium: baseText.bodyMedium?.copyWith(height: 1.4),
+        bodySmall: baseText.bodySmall?.copyWith(height: 1.35),
+        labelLarge: baseText.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: scaffoldBackground,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withValues(alpha: .08),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusCard),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AaraagateTokens.minTouchTarget),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+          ),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        minVerticalPadding: AaraagateTokens.space3,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AaraagateTokens.space4,
+          vertical: AaraagateTokens.space1,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 72,
+        backgroundColor: scheme.surface,
+        indicatorColor: scheme.primaryContainer,
+        surfaceTintColor: Colors.transparent,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+          );
+        }),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          minimumSize: const Size(
+            AaraagateTokens.minTouchTarget,
+            AaraagateTokens.primaryActionHeight,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          minimumSize: const Size(
+            AaraagateTokens.minTouchTarget,
+            AaraagateTokens.primaryActionHeight,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          side: BorderSide(color: scheme.outline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          minimumSize: const Size(
+            AaraagateTokens.minTouchTarget,
+            AaraagateTokens.minTouchTarget,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surface,
+        floatingLabelStyle: TextStyle(color: scheme.onSurface),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          borderSide: BorderSide(color: scheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          borderSide: BorderSide(color: scheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+          borderSide: BorderSide(color: scheme.primary, width: 1.6),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: scheme.surfaceContainer,
+        selectedColor: scheme.primaryContainer,
+        checkmarkColor: scheme.onPrimaryContainer,
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusPill),
+        ),
+        labelStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: TextStyle(
+          color: scheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AaraagateTokens.radiusSheet),
+          ),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusSheet),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: scheme.onInverseSurface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusControl),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(AaraagateTokens.radiusSmall),
+        ),
+        textStyle: TextStyle(color: scheme.onInverseSurface),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
+    );
+  }
+}

@@ -1,0 +1,201 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DomesticWorkerVerificationStatus, Prisma, WorkforceAssignmentStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class WorkforceSuspensionService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  listSuspended(societyId: string) {
+    return this.prisma.withTenantContext(societyId, async tx => {
+      const [workers, assignments] = await Promise.all([
+      tx.domesticWorker.findMany({
+        where: {
+          societyId,
+          active: true,
+          verification: DomesticWorkerVerificationStatus.SUSPENDED,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      tx.workforceAssignment.findMany({
+        where: {
+          societyId,
+          active: true,
+          status: WorkforceAssignmentStatus.SUSPENDED,
+        },
+        include: {
+          worker: true,
+          household: { include: { unit: { include: { building: true } } } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+      return { workers, assignments };
+    });
+  }
+
+  history(societyId: string) {
+    return this.prisma.withTenantContext(societyId, tx => tx.$queryRaw(Prisma.sql`
+      SELECT
+        e."id", e."workerId", e."assignmentId", e."actorUserId", e."action", e."reason", e."occurredAt",
+        dw."name" AS "workerName",
+        wa."householdId"
+      FROM "WorkforceSuspensionEvent" e
+      LEFT JOIN "DomesticWorker" dw ON dw."id" = e."workerId" AND dw."societyId" = ${societyId}::uuid
+      LEFT JOIN "WorkforceAssignment" wa ON wa."id" = e."assignmentId" AND wa."societyId" = ${societyId}::uuid
+      WHERE e."societyId" = ${societyId}::uuid
+      ORDER BY e."occurredAt" DESC
+      LIMIT 200
+    `));
+  }
+
+  async suspendWorker(societyId: string, workerId: string, actorUserId: string, reason: string) {
+    const normalizedReason = this.requireReason(reason);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.lockWorker(tx, societyId, workerId);
+      const worker = await tx.domesticWorker.findFirst({
+        where: { id: workerId, societyId, active: true },
+      });
+      if (!worker) throw new NotFoundException('Active domestic worker not found');
+      if (worker.verification === DomesticWorkerVerificationStatus.SUSPENDED) return worker;
+      if (worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) {
+        throw new BadRequestException('Only verified domestic workers can be suspended');
+      }
+
+      const updated = await tx.domesticWorker.update({
+        where: { id: worker.id, societyId },
+        data: { verification: DomesticWorkerVerificationStatus.SUSPENDED },
+      });
+      await this.recordEvent(tx, societyId, actorUserId, 'SUSPEND', normalizedReason, worker.id, null);
+      return updated;
+    });
+  }
+
+  async reinstateWorker(societyId: string, workerId: string, actorUserId: string, reason?: string) {
+    const normalizedReason = this.optionalReason(reason);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.lockWorker(tx, societyId, workerId);
+      const worker = await tx.domesticWorker.findFirst({
+        where: { id: workerId, societyId, active: true },
+      });
+      if (!worker) throw new NotFoundException('Active domestic worker not found');
+      if (worker.verification === DomesticWorkerVerificationStatus.VERIFIED) return worker;
+      if (worker.verification !== DomesticWorkerVerificationStatus.SUSPENDED) {
+        throw new BadRequestException('Only suspended domestic workers can be reinstated');
+      }
+
+      const updated = await tx.domesticWorker.update({
+        where: { id: worker.id, societyId },
+        data: { verification: DomesticWorkerVerificationStatus.VERIFIED },
+      });
+      await this.recordEvent(tx, societyId, actorUserId, 'REINSTATE', normalizedReason, worker.id, null);
+      return updated;
+    });
+  }
+
+  async suspendAssignment(societyId: string, assignmentId: string, actorUserId: string, reason: string) {
+    const normalizedReason = this.requireReason(reason);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.lockAssignment(tx, societyId, assignmentId);
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: assignmentId, societyId, active: true },
+      });
+      if (!assignment) throw new NotFoundException('Active workforce assignment not found');
+      if (assignment.status === WorkforceAssignmentStatus.SUSPENDED) return assignment;
+      if (assignment.status !== WorkforceAssignmentStatus.APPROVED) {
+        throw new BadRequestException('Only approved workforce assignments can be suspended');
+      }
+
+      const updated = await tx.workforceAssignment.update({
+        where: { id: assignment.id, societyId },
+        data: { status: WorkforceAssignmentStatus.SUSPENDED },
+      });
+      await this.recordEvent(tx, societyId, actorUserId, 'SUSPEND', normalizedReason, null, assignment.id);
+      return updated;
+    });
+  }
+
+  async reinstateAssignment(societyId: string, assignmentId: string, actorUserId: string, reason?: string) {
+    const normalizedReason = this.optionalReason(reason);
+    return this.prisma.withTenantContext(societyId, async (tx) => {
+      await this.lockAssignment(tx, societyId, assignmentId);
+      const assignment = await tx.workforceAssignment.findFirst({
+        where: { id: assignmentId, societyId, active: true },
+        include: { worker: true },
+      });
+      if (!assignment) throw new NotFoundException('Active workforce assignment not found');
+      if (assignment.status === WorkforceAssignmentStatus.APPROVED) return assignment;
+      if (assignment.status !== WorkforceAssignmentStatus.SUSPENDED) {
+        throw new BadRequestException('Only suspended workforce assignments can be reinstated');
+      }
+      // Prevent a concurrent worker suspension between verification and reinstatement.
+      await this.lockWorker(tx, societyId, assignment.workerId);
+      const worker = await tx.domesticWorker.findFirst({ where: { id: assignment.workerId, societyId, active: true } });
+      if (!worker || worker.verification !== DomesticWorkerVerificationStatus.VERIFIED) {
+        throw new BadRequestException('Domestic worker must be active and verified before assignment reinstatement');
+      }
+
+      const updated = await tx.workforceAssignment.update({
+        where: { id: assignment.id, societyId },
+        data: { status: WorkforceAssignmentStatus.APPROVED },
+        include: { worker: true },
+      });
+      await this.recordEvent(tx, societyId, actorUserId, 'REINSTATE', normalizedReason, null, assignment.id);
+      return updated;
+    });
+  }
+
+  private async lockWorker(tx: Prisma.TransactionClient, societyId: string, workerId: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "DomesticWorker"
+      WHERE "id" = ${workerId}::uuid AND "societyId" = ${societyId}::uuid AND "active" = true
+      LIMIT 1 FOR UPDATE
+    `);
+    if (!rows.length) throw new NotFoundException('Active domestic worker not found');
+  }
+
+  private async lockAssignment(tx: Prisma.TransactionClient, societyId: string, assignmentId: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "WorkforceAssignment"
+      WHERE "id" = ${assignmentId}::uuid AND "societyId" = ${societyId}::uuid AND "active" = true
+      LIMIT 1 FOR UPDATE
+    `);
+    if (!rows.length) throw new NotFoundException('Active workforce assignment not found');
+  }
+
+  private requireReason(reason: string) {
+    const normalized = reason?.trim();
+    if (!normalized || normalized.length < 3) throw new BadRequestException('Suspension reason must be at least 3 characters');
+    if (normalized.length > 300) throw new BadRequestException('Suspension reason must be 300 characters or fewer');
+    return normalized;
+  }
+
+  private optionalReason(reason?: string) {
+    const normalized = reason?.trim() || null;
+    if (normalized && normalized.length > 300) throw new BadRequestException('Reason must be 300 characters or fewer');
+    return normalized;
+  }
+
+  private recordEvent(
+    tx: Prisma.TransactionClient,
+    societyId: string,
+    actorUserId: string,
+    action: 'SUSPEND' | 'REINSTATE',
+    reason: string | null,
+    workerId: string | null,
+    assignmentId: string | null,
+  ) {
+    return tx.$executeRaw(Prisma.sql`
+      INSERT INTO "WorkforceSuspensionEvent" (
+        "societyId", "workerId", "assignmentId", "actorUserId", "action", "reason"
+      ) VALUES (
+        ${societyId}::uuid,
+        ${workerId}::uuid,
+        ${assignmentId}::uuid,
+        ${actorUserId}::uuid,
+        ${action},
+        ${reason}
+      )
+    `);
+  }
+}

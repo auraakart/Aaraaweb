@@ -1,0 +1,2417 @@
+{
+  "schemaVersion": 1,
+  "programVersion": "5.0.0",
+  "program": "Aaraagate V5 Society Branding and Partner White Label",
+  "status": "IN_DEVELOPMENT",
+  "baselineSha": "4e3bc2e4af4e3f597557d119586d7ce60462d348",
+  "repository": "auraakart/Aaraaweb",
+  "defaultBrand": "aaraagate",
+  "productionizationIncluded": false,
+  "promotion": {
+    "target": "develop",
+    "staging": "CONSOLIDATED_CANDIDATE_ONLY",
+    "main": "EXPLICIT_OWNER_APPROVAL_REQUIRED"
+  },
+  "milestones": [
+    {
+      "id": "V5.0",
+      "name": "Baseline contracts and architecture",
+      "status": "IN_PROGRESS",
+      "currentSlice": "V5.0.2",
+      "slices": [
+        {
+          "id": "V5.0.1",
+          "name": "Read-only default-brand and authenticated context configuration",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/branding/branding.service.spec.ts",
+            "services/api/src/branding/branding.controller.spec.ts",
+            "services/api/scripts/branding-http-smoke.mjs"
+          ],
+          "pullRequest": 1209
+        },
+        {
+          "id": "V5.0.2",
+          "name": "Reproducible tenant-access inventory and isolation conversion queue",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5-TENANT-ACCESS-INVENTORY.md",
+            "docs/architecture/v5-tenant-access-inventory.json",
+            "services/api/scripts/tenant-access-inventory.mjs"
+          ],
+          "pullRequest": 1210,
+          "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+          "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
+        }
+      ]
+    },
+    {
+      "id": "V5.1",
+      "name": "Partner ownership and compatibility schema",
+      "status": "COMPLETED",
+      "dependsOn": [
+        "V5.0"
+      ],
+      "currentSlice": "V5.1.2",
+      "slices": [
+        {
+          "id": "V5.1.0",
+          "name": "Default partner ownership and immutable legacy entitlement cutover evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5-PARTNER-OWNERSHIP-COMPATIBILITY.md",
+            "services/api/scripts/partner-ownership-migration-smoke.mjs",
+            "services/api/src/societies/societies-compatibility.postgres.spec.ts"
+          ],
+          "pullRequest": 1210,
+          "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+          "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
+        },
+        {
+          "id": "V5.1.1",
+          "name": "Immutable ownership proposals and independent scoped approval with atomic transfer history",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/society-ownership-transfer.service.ts",
+            "services/api/src/entitlements/society-ownership-transfer.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013124000_v511_ownership_transfer_history/migration.sql"
+          ],
+          "limitations": [
+            "Both operators require active SUPER_ADMIN memberships in the selected society; no commercial partner role elevates authority.",
+            "No live licensing activation, entitlement conversion, partner onboarding or staging/main promotion."
+          ],
+          "pullRequest": 1269,
+          "mergeSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
+          "ciRun": 38399142929
+        },
+        {
+          "id": "V5.1.2",
+          "name": "Explicit immutable grandfathered subscription conversion preserving historical/current legacy rights",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+            "services/api/src/entitlements/legacy-subscription-conversion.service.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Protected PostgreSQL and full CI passed, including all four new native cases and 2173 API tests (15 intentional skips).",
+            "Additive commercial representation only; legacy operational resolver remains authoritative. No automatic/live society migration, pricing or maintenance-billing changes."
+          ],
+          "pullRequest": 1290,
+          "mergeSha": "771e10b00b1473b0a8cd517b4ff654e6c530de70",
+          "validatedRuntimeSha": "2c358159cf430755d35c81258dd9bfd1f7a09c06",
+          "ciRun": 38520943451
+        }
+      ],
+      "remaining": [],
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION",
+        "evidence": "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+        "ciRun": 38520943451,
+        "limitations": [
+          "Explicit historical conversion only; no live batch migration, pricing or operational resolver cutover. Existing legacy rights remain authoritative."
+        ]
+      }
+    },
+    {
+      "id": "V5.2",
+      "name": "Audience RBAC and tenant isolation",
+      "status": "COMPLETED",
+      "dependsOn": [
+        "V5.1"
+      ],
+      "currentSlice": "V5.2.29",
+      "slices": [
+        {
+          "id": "V5.2.1",
+          "name": "Revalidate society authority for bearer and refresh sessions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/auth/session.service.spec.ts",
+            "services/api/src/occupancy-authority.regression.spec.ts"
+          ],
+          "baselineSha": "c2b80e16edb4e0f6f13f1d39a621d2ca0ef6bcdd",
+          "pullRequest": 1212,
+          "validatedRuntimeSha": "53a8ee739ab8c72d4ab911a2c59e3a97f1f88468",
+          "mergeSha": "806ab618eed144c23c231b96afc104a50605151c"
+        },
+        {
+          "id": "V5.2.2",
+          "name": "Tenant transaction for configuration and society detail with dedicated auditor parity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "806ab618eed144c23c231b96afc104a50605151c",
+          "evidence": [
+            "services/api/src/branding/branding.service.spec.ts",
+            "services/api/src/branding/branding-context.postgres.spec.ts",
+            "services/api/src/societies/societies.authorization.spec.ts",
+            "services/api/src/entitlements/entitlement.service.spec.ts"
+          ],
+          "pullRequest": 1213,
+          "validatedRuntimeSha": "be55234e2b879b48344d62a1b7b1084cddd31df9",
+          "mergeSha": "6a364bf6880396524902229421aa215d545b513d"
+        },
+        {
+          "id": "V5.2.3",
+          "name": "Gate assignment tenant transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "6a364bf6880396524902229421aa215d545b513d",
+          "evidence": [
+            "services/api/src/gates/gate-assignment.service.spec.ts",
+            "services/api/src/gates/gate-assignment.postgres.spec.ts"
+          ],
+          "pullRequest": 1214,
+          "validatedRuntimeSha": "1b988d8ea4b732a4a2c605bb418f7ef8b256cd1a",
+          "mergeSha": "360537eaf2d3ffd167a4c597826b30c87bef0203"
+        },
+        {
+          "id": "V5.2.4",
+          "name": "Community poll participation and results tenant transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "360537eaf2d3ffd167a4c597826b30c87bef0203",
+          "evidence": [
+            "services/api/src/governance/governance-poll-participation.controller.spec.ts",
+            "services/api/src/governance/governance-poll-participation.postgres.spec.ts"
+          ],
+          "pullRequest": 1215,
+          "validatedRuntimeSha": "62465f42a19c8c9ef745afb2f5d2d4c82769318a",
+          "mergeSha": "a92428210ceddba03aef0aecd51ede1b25b08619"
+        },
+        {
+          "id": "V5.2.5",
+          "name": "Community event listing, lifecycle and RSVP tenant transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "a92428210ceddba03aef0aecd51ede1b25b08619",
+          "evidence": [
+            "services/api/src/governance/community-events.service.spec.ts",
+            "services/api/src/governance/community-events.postgres.spec.ts"
+          ],
+          "pullRequest": 1216,
+          "validatedRuntimeSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff",
+          "mergeSha": "a276ae344ebc0e51a0a75afe6313b2b38a494e5b"
+        },
+        {
+          "id": "V5.2.6",
+          "name": "Resident directory profiles and consent-based contact tenant transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "ac9a878a486e78ad3d175fe29f9e8dae85ad07ff",
+          "evidence": [
+            "services/api/src/governance/resident-directory.service.spec.ts",
+            "services/api/src/governance/resident-directory.postgres.spec.ts"
+          ],
+          "mergeSha": "12d861fe02d6b056ceab415ed86822d0e8ac7ec9",
+          "pullRequest": 1217,
+          "validatedRuntimeSha": "db72cfc4b1ab9a05341f54e5cfbce5708c575d1e",
+          "ciRun": 38155971108
+        },
+        {
+          "id": "V5.2.7",
+          "name": "Scope community-circle membership, posts and moderation to society transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "12d861fe02d6b056ceab415ed86822d0e8ac7ec9",
+          "evidence": [
+            "services/api/src/governance/community-circles.service.spec.ts",
+            "services/api/src/governance/community-circles.postgres.spec.ts"
+          ],
+          "exceptions": [
+            "Scheduled cross-society expiry cleanup retains its bounded platform transaction; worker conversion remains ISO-03 work."
+          ],
+          "mergeSha": "2d2dd11d1c844a4d793ef24284668c63a0585d82",
+          "pullRequest": 1218,
+          "validatedRuntimeSha": "c10c14fb4bfd1b439a1f5a71023c50ecd01cc938",
+          "ciRun": 38156639668
+        },
+        {
+          "id": "V5.2.8",
+          "name": "Scope committee and meeting operations with atomic governance evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "2d2dd11d1c844a4d793ef24284668c63a0585d82",
+          "evidence": [
+            "services/api/src/governance/governance.service.spec.ts",
+            "services/api/src/governance/governance.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No RLS activation or partner audience change. Existing identity-reference validation is preserved; full ISO-04 reference governance and remaining controllers stay open."
+          ],
+          "mergeSha": "5c73fab6d3b242676687c0fea7d3251872ab39ca",
+          "pullRequest": 1219,
+          "validatedRuntimeSha": "d03ef1bc69f40459baf7132433648698e025d0ec",
+          "ciRun": 38158624597
+        },
+        {
+          "id": "V5.2.9",
+          "name": "Scope governance document and poll artifacts with atomic evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "5c73fab6d3b242676687c0fea7d3251872ab39ca",
+          "evidence": [
+            "services/api/src/governance/governance-artifacts.transactions.spec.ts",
+            "services/api/src/governance/governance-artifacts.postgres.spec.ts"
+          ],
+          "pullRequest": 1220,
+          "mergeSha": "d3967f146a627fb9c8e8993703ab8884df68a2e9",
+          "validatedRuntimeSha": "fd6f7bf76d206dbd3b9404cbd3c3749b4c2c2463",
+          "ciRun": 38159353051
+        },
+        {
+          "id": "V5.2.10",
+          "name": "Scope existing community governance visibility and audience transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "d3967f146a627fb9c8e8993703ab8884df68a2e9",
+          "evidence": [
+            "services/api/src/governance/governance-community.transactions.spec.ts",
+            "services/api/src/governance/governance-community.postgres.spec.ts"
+          ],
+          "pullRequest": 1221,
+          "mergeSha": "9714207c62b7ac8651aa33ce390eeef78982d296",
+          "validatedRuntimeSha": "444c4880ca59eb1759dd6febf9941eccdf3a4e42",
+          "ciRun": 38161686487
+        },
+        {
+          "id": "V5.2.11",
+          "name": "Scope existing election policy and electorate snapshot transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "9714207c62b7ac8651aa33ce390eeef78982d296",
+          "evidence": [
+            "services/api/src/governance/governance-election-foundation.transactions.spec.ts",
+            "services/api/src/governance/governance-election-foundation.postgres.spec.ts"
+          ],
+          "pullRequest": 1222,
+          "mergeSha": "75564a450ecb8b8360a35481263529b27f728db9",
+          "validatedRuntimeSha": "8527e2eff55ddab75520c6b36d043d2c8abe5d62",
+          "ciRun": 38162178749
+        },
+        {
+          "id": "V5.2.12",
+          "name": "Scope existing election procedure/privacy evidence and enforce latest policy",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "75564a450ecb8b8360a35481263529b27f728db9",
+          "evidence": [
+            "services/api/src/governance/governance-election-policy-evidence.transactions.spec.ts",
+            "services/api/src/governance/governance-election-policy-evidence.postgres.spec.ts"
+          ],
+          "pullRequest": 1223,
+          "mergeSha": "9f2deeaf0209add86490b12ebb492f59971be96e",
+          "validatedRuntimeSha": "0d59fe025791aaddd82ad6b95f81497d7e27d444",
+          "ciRun": 38162653650
+        },
+        {
+          "id": "V5.2.13",
+          "name": "Scope existing election hold lifecycle and readiness transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "9f2deeaf0209add86490b12ebb492f59971be96e",
+          "evidence": [
+            "services/api/src/governance/governance-election-hold-readiness.transactions.spec.ts",
+            "services/api/src/governance/governance-election-hold-readiness.postgres.spec.ts"
+          ],
+          "pullRequest": 1224,
+          "mergeSha": "6e32d0ee572dd1f6652ba1502554c417b55bff8d",
+          "validatedRuntimeSha": "9e8335a242725e8170623f90e6d2611de81b248f",
+          "ciRun": 38163180918
+        },
+        {
+          "id": "V5.2.14",
+          "name": "Scope existing ballot review, draft and decision evidence transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "6e32d0ee572dd1f6652ba1502554c417b55bff8d",
+          "evidence": [
+            "services/api/src/governance/governance-election-ballot-evidence.transactions.spec.ts",
+            "services/api/src/governance/governance-election-ballot-evidence.postgres.spec.ts"
+          ],
+          "pullRequest": 1225,
+          "mergeSha": "91d1ffd839df925deb98b591ea44ab1a83decea5",
+          "validatedRuntimeSha": "7cb01012149c37288c8062027d61432374b12271",
+          "ciRun": 38164444258
+        },
+        {
+          "id": "V5.2.15",
+          "name": "Verify PostgreSQL pooled tenant context concurrency and SQL-error rollback",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "91d1ffd839df925deb98b591ea44ab1a83decea5",
+          "evidence": [
+            "services/api/src/prisma/prisma.tenant-context.integration.spec.ts"
+          ],
+          "limitations": [
+            "Test-only database context regression slice. No runtime RLS policies, tenant enforcement, new permissions or partner audience activation. ISO-01 through ISO-07 remain open."
+          ],
+          "mergeSha": "c4b32e493cd22eaf9dfdc4c831d4d6b28f19135d",
+          "pullRequest": 1226,
+          "validatedRuntimeSha": "08f50d3771606d28944fc9b80a712249a3fe23da",
+          "ciRun": 38195067713
+        },
+        {
+          "id": "V5.2.16",
+          "name": "Scope existing privacy consent records, representative validation and append-only history to society transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "c4b32e493cd22eaf9dfdc4c831d4d6b28f19135d",
+          "evidence": [
+            "services/api/src/privacy/privacy-consent.service.spec.ts",
+            "services/api/src/privacy/privacy-consent.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No consent feature redesign, API changes, new permissions, schema/RLS policy or partner audience. This closes the consent subpath only; privacy requests, workers, other isolation batches and RLS remain open."
+          ],
+          "pullRequest": 1227,
+          "mergeSha": "d2f3daa2f3af65b7ba3bed1947ef3c9294129045",
+          "validatedRuntimeSha": "a0054eceaab8105fa2e9109bf63f0296b8e7bb43",
+          "ciRun": 38196375573
+        },
+        {
+          "id": "V5.2.17",
+          "name": "Scope privacy registry categories, processors, and evidence to tenant transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "d2f3daa2f3af65b7ba3bed1947ef3c9294129045",
+          "evidence": [
+            "services/api/src/privacy/privacy-registry.service.spec.ts",
+            "services/api/src/privacy/privacy-registry.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No schema/RLS policy or entitlement/permission changes. Preserves category and processor workflows, response behavior and append-only audit evidence. Other privacy, worker and isolation areas remain open."
+          ],
+          "pullRequest": 1228,
+          "mergeSha": "65b3419f54d9c99168cdec80e6be0833a3f0b25c",
+          "validatedRuntimeSha": "393c0e3a33cfedc708f2678dd3aef1e8d36171b9",
+          "ciRun": 38197415670
+        },
+        {
+          "id": "V5.2.18",
+          "name": "Tenant-context privacy case intake, operator lists and parent-gated history, retaining independent-home requests",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "65b3419f54d9c99168cdec80e6be0833a3f0b25c",
+          "evidence": [
+            "services/api/src/privacy/privacy.service.spec.ts",
+            "services/api/src/privacy/privacy-case-intake.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only society case intake, listing and case/event history are converted; self-service and platform privacy cases remain independent-home-capable. Status, legal-hold, retention, subject-data erasure, readiness and reporting paths require separate review. No schema/RLS, permission, brand, endpoint or productionization change."
+          ],
+          "pullRequest": 1229,
+          "mergeSha": "e946b953adacd5250b55ea265293ae58af48854b",
+          "validatedRuntimeSha": "066c7369ef867768e45fea7857a906e93a75aae2",
+          "ciRun": 38198067407
+        },
+        {
+          "id": "V5.2.19",
+          "name": "Transaction-local lock and revalidation of privacy case status, legal hold, and retention review",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "e946b953adacd5250b55ea265293ae58af48854b",
+          "evidence": [
+            "services/api/src/privacy/privacy-retention-enforcement.spec.ts",
+            "services/api/src/privacy/privacy.service.spec.ts",
+            "services/api/src/privacy/privacy-case-lifecycle.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only status, legal-hold and retention-review lifecycle mutations are converted. Privacy program readiness, reporting, erasure, worker paths, and database RLS remain separate slices. Independent-home case workflows remain unscoped without fabricated society IDs. No schema, API contract, new authorization, partner activation or productionization changes."
+          ],
+          "pullRequest": 1230,
+          "mergeSha": "5dfbced4cf80d51f0d63f730d73fc970d1cc16a0",
+          "validatedRuntimeSha": "675d6203ba529bb8c6e9c4d26e520ecbdbcb4408",
+          "ciRun": 38198822233
+        },
+        {
+          "id": "V5.2.20",
+          "name": "Scope privacy program readiness, evidence reporting and per-case readiness to society transactions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "5dfbced4cf80d51f0d63f730d73fc970d1cc16a0",
+          "evidence": [
+            "services/api/src/privacy/privacy.program-readiness.spec.ts",
+            "services/api/src/privacy/privacy-readiness.spec.ts",
+            "services/api/src/privacy/privacy-reporting.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Only programReadiness, programEvidence and caseReadiness are converted. Reporting still uses default PostgreSQL READ COMMITTED transaction semantics; no repeatable-read guarantee or RLS activation. Other privacy context, self-service, erasure, worker and multi-partner isolation slices remain open. No schema, API, permission or productionization change."
+          ],
+          "pullRequest": 1231,
+          "mergeSha": "44fa81a086dcdbae5ddfce6e2cde29421dc33eca",
+          "validatedRuntimeSha": "0bd3c613f5cad82dffff4529997b3f4fb0fc4bdd",
+          "ciRun": 38199991943
+        },
+        {
+          "id": "V5.2.21",
+          "name": "Tenant-scope privacy self-service requests, consent context, and operator subject audiences",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "44fa81a086dcdbae5ddfce6e2cde29421dc33eca",
+          "evidence": [
+            "services/api/src/privacy/privacy-self.service.spec.ts",
+            "services/api/src/privacy/privacy-operator-context.spec.ts",
+            "services/api/src/privacy/privacy-self-context.postgres.spec.ts"
+          ],
+          "limitations": [
+            "No change to public controller guards or society-selection semantics. Requests without a society retain an unscoped transaction; the globally unique per-user request key remains unchanged across contexts. Platform society-null queue stays unscoped and filtered. This establishes tenant context, not database RLS or proof of statutory privacy compliance. Other subject-data and worker isolation, RLS and productionization remain open."
+          ],
+          "pullRequest": 1232,
+          "mergeSha": "254b0533e64b4838c9bd6f2c6f6e413f73a91537",
+          "validatedRuntimeSha": "afeff38840bdd1b7e2c0e21d1a5d2a15eae9515f",
+          "ciRun": 38200747698
+        },
+        {
+          "id": "V5.2.22",
+          "name": "Tenant-scope privacy subject-data exports and erasure planning/execution while preserving independent-home workflows",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "254b0533e64b4838c9bd6f2c6f6e413f73a91537",
+          "evidence": [
+            "services/api/src/privacy/privacy-subject-data.service.spec.ts",
+            "services/api/src/privacy/privacy-subject-data.erasure-race.spec.ts",
+            "services/api/src/privacy/privacy-subject-data.postgres.spec.ts"
+          ],
+          "limitations": [
+            "RLS remains disabled; setting tenant transaction context is a migration toward defense in depth and explicit SQL society/subject predicates remain mandatory. Erasure preflight and locked execution remain separate transactions; rechecks and row locks in the execution transaction are retained. No change to data minimisation categories, legal-hold/retention rules, endpoints, permissions, cross-society login guards or productionization."
+          ],
+          "pullRequest": 1233,
+          "mergeSha": "1404bf7576dbe48e460d8a6180af7e84e22fae03",
+          "validatedRuntimeSha": "e6ef9f81410b01e6562be4e954fa0d7963d21453",
+          "ciRun": 38201724033
+        },
+        {
+          "id": "V5.2.23",
+          "name": "Tenant-context privacy incident and grievance access with locked incident lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "1404bf7576dbe48e460d8a6180af7e84e22fae03",
+          "evidence": [
+            "services/api/src/privacy/privacy-incident.service.spec.ts",
+            "services/api/src/privacy/privacy-incident.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Society-scoped incident and grievance workflows only; no separate society-less incident endpoint. Transaction-local society context does not activate database RLS. Incident disclosure policies, regulatory processes, external processors and production integrations are not broadened. Existing controller permissions and audit event types retained."
+          ],
+          "pullRequest": 1234,
+          "mergeSha": "7a87758a88b7f3cbc06a6a83c51c20515cb3aa93",
+          "validatedRuntimeSha": "b21721c175caa58a5126e160a4d9d4ea6c4ce013",
+          "ciRun": 38202811530
+        },
+        {
+          "id": "V5.2.24",
+          "name": "Targeted workforce leave tenant isolation and concurrent overlap closure",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "7a87758a88b7f3cbc06a6a83c51c20515cb3aa93",
+          "evidence": [
+            "services/api/src/workforce/workforce-leave.service.spec.ts",
+            "services/api/src/workforce/workforce-leave.postgres.spec.ts"
+          ],
+          "limitations": [
+            "V5.2.24 is a targeted workforce-leave slice informed by inspection of existing workforce services; not a claim that all inventory findings are closed. Workforce ratings, suspensions, general staffing, gate integration, and cross-partner controls need separate review. Transaction-local society context does not activate RLS. No schema, API, permission, independent-home, hardware integration, staging/main promotion or productionization change."
+          ],
+          "pullRequest": 1235,
+          "mergeSha": "630ee09b720c88bd17a5471d82b66b2f58bec976",
+          "validatedRuntimeSha": "304357d3c675af613e8e44acb5b3f1b2beb03a6b",
+          "ciRun": 38208802762
+        },
+        {
+          "id": "V5.2.25",
+          "name": "Tenant-scope workforce rating and suspension actions with serialized status transitions and audit rollback",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "630ee09b720c88bd17a5471d82b66b2f58bec976",
+          "evidence": [
+            "services/api/src/workforce/workforce-rating.service.spec.ts",
+            "services/api/src/workforce/workforce-suspension.service.spec.ts",
+            "services/api/src/workforce/workforce-rating-suspension.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Scope is ratings and suspension only; not all workforce routes. Explicit society and active-occupancy guards retained; tenant context does not enable RLS. Worker and assignment suspension events retain existing audit table semantics. No controller permission, API, database schema, hardware integration, staging/main branch, or productionization change."
+          ],
+          "pullRequest": 1236,
+          "mergeSha": "4c6f9b4749bca0225e35c15fdedcf8047e8d8a09",
+          "validatedRuntimeSha": "a83a3dab8066ef37cf61b585079dd8b6a88f108c",
+          "ciRun": 38210861496
+        },
+        {
+          "id": "V5.2.26",
+          "name": "Core workforce reviewer and resident mutation isolation with tenant-context gate visibility",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "4c6f9b4749bca0225e35c15fdedcf8047e8d8a09",
+          "evidence": [
+            "services/api/src/workforce/workforce.service.spec.ts",
+            "services/api/src/workforce/workforce-core-tenant.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Scope is core workforce review, deactivation, resident status and gate eligibility list; no replacement of existing serializable gate mutation path. Remaining workforce creation, payroll recording, attendance, cross-partner enforcement, broader RLS and productionization reviewed separately. Explicit society and UnitOccupancy filters preserved."
+          ],
+          "pullRequest": 1237,
+          "mergeSha": "043a879d6facd77e09677fe1c3893eb60fc6e9c4",
+          "validatedRuntimeSha": "6b60b3d58184211a4087018f315fac9351af81a9",
+          "ciRun": 38213821926
+        },
+        {
+          "id": "V5.2.27",
+          "name": "Cross-society operational RBAC fail-closed checks and partner authority separation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "043a879d6facd77e09677fe1c3893eb60fc6e9c4",
+          "evidence": [
+            "services/api/src/auth/auth-context-boundary.spec.ts",
+            "services/api/src/auth/auth-context-partner-boundary.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Does not create partner portal or commercial partner APIs. Existing society membership and auth repository remain authoritative, session and gate SoD remain unchanged. This adds fail-closed request-boundary checks and two-partner PostgreSQL evidence; RLS and productionization out of scope."
+          ],
+          "pullRequest": 1238,
+          "mergeSha": "e684fe728f85250bb5bc8ac91b09578b7a596743",
+          "validatedRuntimeSha": "50f0121164555d195649b4bef5818de94495b685",
+          "ciRun": 38214550398
+        },
+        {
+          "id": "V5.2.28",
+          "name": "Workforce creation, private payment and attendance data access isolation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "e684fe728f85250bb5bc8ac91b09578b7a596743",
+          "evidence": [
+            "services/api/src/workforce/workforce-payment-context.spec.ts",
+            "services/api/src/workforce/workforce-payment-context.postgres.spec.ts",
+            "services/api/src/workforce/workforce.service.spec.ts"
+          ],
+          "limitations": [
+            "Scope is workforce household creation, payment record/attendance visibility and idempotent recording only; contract and existing gate serializable path remain unchanged. Commercial partner RBAC and independent-home requests not extended; tenant context does not activate RLS. Productionization and staging/main changes excluded."
+          ],
+          "pullRequest": 1239,
+          "mergeSha": "84093ace89bfc4e795e7ba043c727b5058cddaab",
+          "validatedRuntimeSha": "7b4a714cb016fc07948a3b76a7ce87dc0da7114c",
+          "ciRun": 38219450606
+        },
+        {
+          "id": "V5.2.29",
+          "name": "Final gate check-in authorization revalidation and V5.2 audience isolation regression/closure evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "84093ace89bfc4e795e7ba043c727b5058cddaab",
+          "evidence": [
+            "services/api/src/workforce/workforce-gate-revalidation.spec.ts",
+            "services/api/src/workforce/workforce.service.spec.ts",
+            "docs/architecture/V5.2-AUDIENCE-ISOLATION-CLOSURE.md"
+          ],
+          "limitations": [
+            "RLS remains disabled and is a separately tracked defense-in-depth enablement, not asserted here. Existing worker attendance/payments still rely on explicit society and occupancy predicates. No partner portal, external payment providers, physical access hardware, or productionization. Staging/main stay untouched. Final milestone status must be reconciled after protected CI merge."
+          ],
+          "pullRequest": 1240,
+          "mergeSha": "3b9a2b2dcdeedf62f6ffc6fb3c614c4f6359a937",
+          "validatedRuntimeSha": "e095da5fc7c1449d414a3cfc89036f433ecd806d",
+          "ciRun": 38220433996
+        }
+      ]
+    },
+    {
+      "id": "V5.3",
+      "name": "Runtime society branding",
+      "status": "COMPLETED",
+      "dependsOn": [
+        "V5.2"
+      ],
+      "currentSlice": "V5.3.19",
+      "slices": [
+        {
+          "id": "V5.3.1",
+          "name": "Runtime society branding contract, immutable revision persistence and authenticated read resolution",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "2b49e67ee6fb6db30b684f4dafb64406bc8cde92",
+          "evidence": [
+            "services/api/src/branding/branding-contract.ts",
+            "services/api/src/branding/branding-contract.spec.ts",
+            "services/api/src/branding/branding-context.postgres.spec.ts",
+            "services/api/prisma/migrations/20261012143000_v53_society_brand_revisions/migration.sql"
+          ],
+          "limitations": [
+            "This slice does not expose draft/publish or image upload endpoints. The public bootstrap remains Aaraagate. Only validated, published society presentation can override the authenticated context response; no partner/distribution/host selection is introduced. No entitlements, roles, CSS/HTML, physical gate or finance behavior changed. RLS, productionization, staging/main promotion remain separate."
+          ],
+          "pullRequest": 1242,
+          "mergeSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "validatedRuntimeSha": "452c1a05a1ddaf8845a0c9a3eddde3547205d8b2",
+          "ciRun": 38228058750
+        },
+        {
+          "id": "V5.3.2",
+          "name": "Society-brand authoring, optimistic revision control and atomic publication",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "fd4338f918c2b16ddadb11ddd75c0f39d676f982",
+          "evidence": [
+            "services/api/src/branding/branding-publish.service.spec.ts",
+            "services/api/src/branding/branding-publish.postgres.spec.ts",
+            "services/api/src/branding/branding.controller.spec.ts"
+          ],
+          "limitations": [
+            "Only society presentation fields; no brand asset upload, media URL, custom CSS, partner distribution or portal host. No new entitlement or identity grants; management requires current operational SOCIETY_CONFIGURATION_MANAGE permission. Publishing is an immutable draft timestamp transition and history remains capped at 100 rows; rollback via future new revision, not mutating published record. No productionization, RLS or staging/main promotion."
+          ],
+          "pullRequest": 1243,
+          "mergeSha": "e6cdcd8149eadd7ee325bf18277af0bb8af67f9e",
+          "validatedRuntimeSha": "1f3d1e1ac5166115f3d598a1039b53e39f8e6c77",
+          "ciRun": 38236648327
+        },
+        {
+          "id": "V5.3.3",
+          "name": "Shared Dart runtime society-brand contract and Resident/Guard theme adapters",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "e6cdcd8149eadd7ee325bf18277af0bb8af67f9e",
+          "evidence": [
+            "packages/branding_runtime/lib/branding_runtime.dart",
+            "apps/resident/test/society_brand_runtime_test.dart",
+            "apps/guard/test/society_brand_runtime_test.dart"
+          ],
+          "limitations": [
+            "This slice supplies a common validated presentation model and optional theme adapters; the current MaterialApp defaults remain unchanged until an authenticated context loader is explicitly wired in the next slice. No storage/caching, logos, native APK label/icon, partner host, billing, entitlements or operational authority changes."
+          ],
+          "pullRequest": 1244,
+          "mergeSha": "a6e396c0ed99214612eb58e92ffd16c0ae6bdf3b",
+          "validatedRuntimeSha": "63bac915ee0100a9c0b3ace04cf157a6d455eb03",
+          "ciRun": 38237600054
+        },
+        {
+          "id": "V5.3.4",
+          "name": "Resident authenticated society brand loader and stale-context-safe theme lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "a6e396c0ed99214612eb58e92ffd16c0ae6bdf3b",
+          "evidence": [
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/resident/test/resident_branding_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "No persistent or cross-society offline brand cache. Failed config request uses the exact default Aaraagate theme; no login denial/entitlement effects. Demo, independent-home and signed-out contexts never fetch. Guard runtime fetching, Admin browser CSS, asset upload and rollback remain separate V5.3 slices."
+          ],
+          "pullRequest": 1245,
+          "mergeSha": "292bd0f125f4fc4c92c67e35adde8a34204d0545",
+          "validatedRuntimeSha": "aba0e60fbae8dba87f3518de8abb323a5e0f2a42",
+          "ciRun": 38238402826
+        },
+        {
+          "id": "V5.3.5",
+          "name": "Guard runtime society-brand fetch and session-scoped presentation lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "292bd0f125f4fc4c92c67e35adde8a34204d0545",
+          "evidence": [
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/guard/test/guard_branding_lifecycle_test.dart",
+            "apps/guard/lib/data/guard_api.dart"
+          ],
+          "limitations": [
+            "Uses existing API authenticated society context; presentation only. No persistent offline cross-society branding cache; demo/default, login failures or network errors retain built-in Guard theme and never block gate operations. Native app identity, logos, signed assets, web CSS/metadata and brand editor remain separate."
+          ],
+          "pullRequest": 1246,
+          "mergeSha": "2cfc35c033efd86e489f214622e461e976eead1d",
+          "validatedRuntimeSha": "947f2477e7f9efee4d51cfdc1c9af1343bcef168",
+          "ciRun": 38241510738
+        },
+        {
+          "id": "V5.3.6",
+          "name": "Admin scoped runtime society-brand palette and client metadata",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "2cfc35c033efd86e489f214622e461e976eead1d",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand.ts",
+            "apps/admin/app/admin-console.tsx",
+            "apps/admin/scripts/v5.3.6-runtime-branding-regression.mjs"
+          ],
+          "limitations": [
+            "Branding is applied to the authenticated AdminConsole shell only and never to SSR root metadata or unauthenticated login. Dynamic colors must meet AA white-text contrast; unsafe colors use built-in default. Does not add admin brand editing UX, asset upload, verified hosts, partner white label, a persistent offline cache, RLS or productionization."
+          ],
+          "pullRequest": 1247,
+          "mergeSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "validatedRuntimeSha": "f887df1527ab005f7c7563f6319232749a285762",
+          "ciRun": 38242329936
+        },
+        {
+          "id": "V5.3.7",
+          "name": "Admin society-brand editor with safe preview, versioned drafts and publish actions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "3861167633f3069e42ee318e57ca91eb0ac018c5",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand-editor.ts",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/scripts/v5.3.7-brand-editor-regression.mjs"
+          ],
+          "limitations": [
+            "Only existing SOCIETY_CONFIGURATION_MANAGE management API routes are used. Operational permissions, finance, legal issuer, default login branding, native Android identity, partner portal, media upload, domain binding and RLS remain unchanged. The editor is exposed only to society/super administrators with backend reauthorization; individual tabs are not new authority. No staging/main promotion or productionization."
+          ],
+          "pullRequest": 1248,
+          "mergeSha": "789738bec522cb3e9381de430a0ed33867bfd744",
+          "validatedRuntimeSha": "650f87149ccac4e77084cdc0447cd42b1dee4423",
+          "ciRun": 38258078889
+        },
+        {
+          "id": "V5.3.8",
+          "name": "Immutable society branding appearance restoration using versioned draft and publish lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "789738bec522cb3e9381de430a0ed33867bfd744",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand-editor.ts",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/scripts/v5.3.8-brand-restore-regression.mjs"
+          ],
+          "limitations": [
+            "Restore is a two-request opt-in workflow that leaves an unpublished draft if interrupted after draft creation; the UI surfaces that explicitly and requires reload. Existing server publication conflict checks remain authoritative. Only prior published society revisions are restorable; drafts and newer/current revisions cannot be treated as rollback targets. No new server authorization, schema, partner portal, media upload, native binary changes, productionization, RLS or staging/main promotion."
+          ],
+          "pullRequest": 1250,
+          "mergeSha": "1991645d6375a483b9a748d7e6fa59f9352cc180",
+          "validatedRuntimeSha": "0ac1f5a7a6606af19b39737cbfac36a9b15b0057",
+          "ciRun": 38259341072
+        },
+        {
+          "id": "V5.3.9",
+          "name": "Admin society palette accessibility parity with Resident and Guard using adaptive foreground tokens",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "1991645d6375a483b9a748d7e6fa59f9352cc180",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand.ts",
+            "apps/admin/app/admin-console.tsx",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/scripts/v5.3.9-brand-contrast-regression.mjs"
+          ],
+          "limitations": [
+            "Presentation-only Admin consistency: does not add image/logo storage, custom hostnames, offline brand persistence, partner distributions or native Android identity. No changes to backend brand publication, society RBAC, legal issuer, payment, guard gates, RLS or productionization. Scoped CSS variables never apply to login/SSR metadata and staging/main are unchanged."
+          ],
+          "pullRequest": 1251,
+          "mergeSha": "a2c60abe402a4fc62ab55373af752f3a230b4273",
+          "validatedRuntimeSha": "ccf07beaa3a04db4eb7a0f1bd2a6f6fcf1e579bd",
+          "ciRun": 38267019860
+        },
+        {
+          "id": "V5.3.10",
+          "name": "Resident and Guard foreground society-brand refresh with stale-response and offline safeguards",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "a2c60abe402a4fc62ab55373af752f3a230b4273",
+          "evidence": [
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/resident/test/resident_branding_lifecycle_test.dart",
+            "apps/guard/test/guard_branding_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Only presentation on authenticated foreground resume; no periodic push channel, persistent cross-society cache, image/logo asset, distribution-specific branding or native Android packaging. Offline refresh failures preserve only a previously validated theme for the exact current session; signing out or switching societies synchronously clears it. No auth, gate data, server entitlement, schema, production infrastructure, RLS or staging/main change."
+          ],
+          "pullRequest": 1252,
+          "mergeSha": "9ab658deb10e7cf021c2d15feccc392302045ea2",
+          "validatedRuntimeSha": "359fb4976035305240400adc37122cf2a6ac14c7",
+          "ciRun": 38268036530
+        },
+        {
+          "id": "V5.3.11",
+          "name": "Safe runtime society-branded support contacts across API, shared Dart and Admin editor",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "9ab658deb10e7cf021c2d15feccc392302045ea2",
+          "evidence": [
+            "services/api/src/branding/branding-contract.spec.ts",
+            "services/api/src/branding/branding.service.spec.ts",
+            "apps/admin/scripts/v5.3.11-brand-support-regression.mjs",
+            "apps/resident/test/society_brand_runtime_test.dart",
+            "apps/guard/test/society_brand_runtime_test.dart"
+          ],
+          "limitations": [
+            "Only authenticated society support email and E.164 phone; no arbitrary URLs, mail sending or call triggering, partner distribution, media upload/logo rendering or independent-home society branding. Cosmetic fields never become authorization, legal issuer or entitlement values. Existing default public bootstrap and native application identity unchanged. RLS, infrastructure and staging/main promotion excluded."
+          ],
+          "pullRequest": 1253,
+          "mergeSha": "46752895a4662ddd470a17c6acc6c568bb52673b"
+        },
+        {
+          "id": "V5.3.12",
+          "name": "Private society PNG logo acquisition, bounded parser, ClamAV quarantine and society permissions",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "46752895a4662ddd470a17c6acc6c568bb52673b",
+          "evidence": [
+            "services/api/src/branding/society-logo-validation.ts",
+            "services/api/src/branding/society-logo-validation.spec.ts",
+            "services/api/src/branding/brand-logo.service.ts",
+            "services/api/src/branding/brand-logo.service.spec.ts",
+            "services/api/prisma/migrations/20261012233000_v5312_society_brand_logo_assets/migration.sql"
+          ],
+          "limitations": [
+            "No logo publication, Admin/Flutter rendering, public image URL or native Android binary changes; asset revision binding is a separate V5.3.13 slice.",
+            "Real upload confirmation requires configured private object storage and ClamAV; infrastructure, productionization and hosted data remain outside scope.",
+            "Staging and main untouched; this slice requires protected CI gates before develop merge."
+          ],
+          "pullRequest": 1254,
+          "mergeSha": "2e9d72f44047c47650d4731e378bd1a0465051cb",
+          "ciRun": 38291636399
+        },
+        {
+          "id": "V5.3.13",
+          "name": "Admin private PNG logo acquisition and malware-review workflow",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "2e9d72f44047c47650d4731e378bd1a0465051cb",
+          "evidence": [
+            "apps/admin/lib/admin-society-logo.ts",
+            "apps/admin/app/admin-society-logo-quarantine.tsx",
+            "apps/admin/scripts/v5.3.13-private-logo-regression.mjs"
+          ],
+          "limitations": [
+            "Logo remains quarantined. Immutable revision linkage, protected image-delivery endpoint and mobile/Admin rendering are not enabled in this slice.",
+            "Direct signed PUT requires a configured private object store with Admin-origin CORS; no infrastructure setup, public logo URL, identity/entitlement change, staging or main promotion."
+          ],
+          "pullRequest": 1255,
+          "mergeSha": "b3880b0aa22c0445cc0e2447130ba1eb1c61a6e1",
+          "ciRun": 38292807830
+        },
+        {
+          "id": "V5.3.14",
+          "name": "Versioned branding revision accepts same-society VERIFIED logo reference only",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "b3880b0aa22c0445cc0e2447130ba1eb1c61a6e1",
+          "evidence": [
+            "services/api/src/branding/branding-contract.ts",
+            "services/api/src/branding/branding.service.ts",
+            "services/api/src/branding/branding-publish.service.spec.ts",
+            "services/api/src/branding/branding-contract.spec.ts",
+            "apps/admin/lib/admin-society-brand-editor.ts"
+          ],
+          "limitations": [
+            "Server validates logo ownership and verified status at draft/publish; no public/bootstrap/context image URL and no image bytes or rendering yet.",
+            "Admin/Flutter consumer image delivery and preview require a separate secured V5.3.15 slice.",
+            "No new tenant, roles, entitlements, storage migration or staging/main promotion."
+          ],
+          "pullRequest": 1256,
+          "mergeSha": "03ee8bc8952f9ced1451c1341d694288015ea79f",
+          "ciRun": 38293928578
+        },
+        {
+          "id": "V5.3.15",
+          "name": "Authenticated current-published society logo PNG delivery with integrity verification",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "03ee8bc8952f9ced1451c1341d694288015ea79f",
+          "evidence": [
+            "services/api/src/branding/brand-logo-read.service.ts",
+            "services/api/src/branding/brand-logo-read.controller.ts",
+            "services/api/src/branding/brand-logo-read.service.spec.ts"
+          ],
+          "limitations": [
+            "Returns bytes only under current society authentication and verified immutable publication, no signed GET/public CDN or direct arbitrary ID access.",
+            "No Resident/Guard/Admin image consumption in this slice; V5.3.16 required for scoped UI with default fallback.",
+            "Private store configuration and real-world infrastructure remain outside scope; no main/staging promotion."
+          ],
+          "pullRequest": 1257,
+          "mergeSha": "0dc44e1d1332b535b78f3c41ab4760051c816ce8",
+          "ciRun": 38330170071
+        },
+        {
+          "id": "V5.3.16",
+          "name": "Verified Admin society-logo selection in immutable revisions and authenticated published preview",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "0dc44e1d1332b535b78f3c41ab4760051c816ce8",
+          "evidence": [
+            "apps/admin/lib/admin-society-brand-editor.ts",
+            "apps/admin/app/admin-society-brand-editor.tsx",
+            "apps/admin/app/admin-society-logo-quarantine.tsx",
+            "apps/admin/app/admin-published-society-logo.tsx",
+            "apps/admin/scripts/v5.3.16-logo-publish-preview-regression.mjs"
+          ],
+          "limitations": [
+            "Only verified metadata is selectable; backend independently checks society ownership and verification on draft/publication.",
+            "Browser uses current authenticated PNG bytes and ephemeral blob URL; mobile Resident/Guard image presentation is V5.3.17.",
+            "No native app identity/host, partner role, gate/finance changes, staging/main promotion or production infrastructure."
+          ],
+          "pullRequest": 1258,
+          "mergeSha": "a5273722731112af1df5ccb5291dd73612db4c33",
+          "ciRun": 38332035672
+        },
+        {
+          "id": "V5.3.17",
+          "name": "Session-scoped Resident/Guard PNG logo display with secure reuse and fallback",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "a5273722731112af1df5ccb5291dd73612db4c33",
+          "evidence": [
+            "packages/branding_runtime/lib/society_logo_fetcher.dart",
+            "apps/resident/lib/theme/resident_branding_controller.dart",
+            "apps/guard/lib/theme/guard_branding_controller.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Mobile in-memory image only; no public/CDN URL, image persistence, new packages, native APK identity, hardware or productionization changes.",
+            "Already authenticated and scoped GET /context/logo remains the sole server authority; a missing/invalid logo leaves built-in Aaraagate presentation.",
+            "No role, entitlement, finance, guard workflow, staging or main changes."
+          ],
+          "pullRequest": 1259,
+          "mergeSha": "89758faaa1eae30d0d2c0039fcc84ea02a82de1b"
+        },
+        {
+          "id": "V5.3.18",
+          "name": "Mobile published-logo transport security and response timeout hardening",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "89758faaa1eae30d0d2c0039fcc84ea02a82de1b",
+          "evidence": [
+            "packages/branding_runtime/lib/society_logo_fetcher.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart"
+          ],
+          "limitations": [
+            "Remote mobile logo delivery requires HTTPS; cleartext localhost/loopback/Android emulator hosts remain permitted for local development only.",
+            "Response size, MIME, published-society authorization, PNG digest and file integrity continue to be validated by the existing backend; mobile maintains in-memory scope isolation.",
+            "No staging/main changes, production host configuration, native APK identity, role/permission/entitlement, gate or finance logic changes."
+          ],
+          "pullRequest": 1260,
+          "mergeSha": "a7cd59749dd0cf35f022d258ae904ae47887ddc5",
+          "ciRun": 38344096891
+        },
+        {
+          "id": "V5.3.19",
+          "name": "Accessible society-logo presentation and immutable published-revision restore parity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "a7cd59749dd0cf35f022d258ae904ae47887ddc5",
+          "evidence": [
+            "apps/resident/lib/main.dart",
+            "apps/resident/lib/screens/home_screen.dart",
+            "apps/guard/lib/main.dart",
+            "apps/guard/lib/screens/guard_operations_screen.dart",
+            "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+            "apps/guard/test/guard_society_logo_lifecycle_test.dart",
+            "apps/admin/lib/admin-society-brand-editor.ts"
+          ],
+          "limitations": [
+            "Branding name/logos are cosmetic, session/society scoped and only obtained through existing authorized presentation flows.",
+            "Restoring an earlier appearance publishes a NEW immutable revision; backend verified-asset and owner permission gates are not bypassed.",
+            "No native identity, partner branding distribution, new infrastructure, external image URL, role, entitlement, finance or gate workflow changes.",
+            "No staging/main promotion. Full V5.3 closure requires CI and cross-society/rollback evidence."
+          ],
+          "pullRequest": 1261,
+          "mergeSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+          "ciRun": 38344686338
+        }
+      ],
+      "closure": {
+        "scope": "NON_PRODUCTION_ENGINEERING_ONLY",
+        "lastMergedPr": 1261,
+        "developBaselineSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+        "evidence": [
+          "services/api/src/branding/brand-logo-read.service.spec.ts",
+          "services/api/src/branding/branding-publish.service.spec.ts",
+          "apps/admin/scripts/v5.3.16-logo-publish-preview-regression.mjs",
+          "apps/resident/test/resident_society_logo_lifecycle_test.dart",
+          "apps/guard/test/guard_society_logo_lifecycle_test.dart",
+          "docs/architecture/V5.3-NONPRODUCTION-CLOSURE.md"
+        ],
+        "limits": [
+          "CI green is repository-based and does not prove live private-object-store/ClamAV/DNS/TLS/device rollout.",
+          "Partner-owned domains, licensing, Android distributions, and productionization remain future milestones."
+        ]
+      }
+    },
+    {
+      "id": "V5.4",
+      "name": "Partner portal licensing and domain contracts",
+      "status": "IN_PROGRESS",
+      "dependsOn": [
+        "V5.2",
+        "V5.3"
+      ],
+      "currentSlice": "V5.4.24",
+      "slices": [
+        {
+          "id": "V5.4.1",
+          "name": "Pure partner commercial license contract: bounded UTC/grace/capacity checks and non-granting feature ceilings",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "88ef6dc526a0db9a8a1da8f7fe207be2be5bae9a",
+          "evidence": [
+            "services/api/src/entitlements/partner-license-contract.ts",
+            "services/api/src/entitlements/partner-license-contract.spec.ts",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Policy calculation is not connected to existing production entitlements or login/guard actions; legacy Society.productTier and boolean overrides remain authoritative.",
+            "Capacity computation is a preview, not a reservation or enforcement; transactional licensing grant models, idempotency and platform role checks remain pending.",
+            "Commercial price/grace terms are not assumed; no partners/domains activated, no production infrastructure or staging/main change."
+          ],
+          "pullRequest": 1262,
+          "mergeSha": "47e18e96e9302a7c1e57396d2bcd14fe703d46b9",
+          "ciRun": 38346208795
+        },
+        {
+          "id": "V5.4.2",
+          "name": "Shared hostname canonicalization, reserved-domain denial and verified-only presentation candidate contract",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "47e18e96e9302a7c1e57396d2bcd14fe703d46b9",
+          "evidence": [
+            "packages/config/src/partner-domain-contract.mjs",
+            "scripts/partner-domain-contract.test.mjs",
+            ".github/workflows/ci.yml",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "No live DNS lookups, TXT challenge verification, partner portal routing, TLS, cookie changes or domain activation.",
+            "A registered/verified hostname supplies a cosmetic routing candidate only; it cannot grant partner/society permissions or access to data.",
+            "Existing legacy entitlements and society isolation remain unchanged; CI and safe partner-scoped API integration are separate gates."
+          ],
+          "pullRequest": 1263,
+          "mergeSha": "4964e497de2a9b868d8c94dfa138d69bf91742e0",
+          "ciRun": 38348292805
+        },
+        {
+          "id": "V5.4.3",
+          "name": "Commercial plan revisions and DRAFT-only partner license grant/audit persistence with Super Admin endpoints",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "4964e497de2a9b868d8c94dfa138d69bf91742e0",
+          "evidence": [
+            "services/api/prisma/schema.prisma",
+            "services/api/prisma/migrations/20261013073000_v543_partner_license_persistence/migration.sql",
+            "services/api/src/entitlements/partner-license-persistence.service.ts",
+            "services/api/src/entitlements/platform-partner-license.controller.ts",
+            "services/api/src/entitlements/partner-license-persistence.spec.ts",
+            "services/api/src/entitlements/partner-license-persistence.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Commercial revisions and audit events are immutable at the DB layer. New grants are DRAFT only; DB constraint rejects GRANTED or REVOKED until separately reviewed V5.4.5 activation.",
+            "Only existing platform SUPER_ADMIN sessions may create plan revisions or grant drafts. No partner portal authorization or partner self-service is enabled.",
+            "Existing Society.productTier, featureOverrides and EntitlementService.current remain authoritative. No change to gate, SOS, billing, finance or resident feature access.",
+            "No real-world pricing/grants, migrations applied to live environments, production infrastructure or staging/main promotion."
+          ],
+          "pullRequest": 1264,
+          "mergeSha": "9a87387eea75ab74e0385c776fd7fddffe10c9cb",
+          "ciRun": 38349491663
+        },
+        {
+          "id": "V5.4.4",
+          "name": "PartnerMembership-scoped read-only portfolio and non-PII member role views",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "9a87387eea75ab74e0385c776fd7fddffe10c9cb",
+          "evidence": [
+            "services/api/src/entitlements/partner-portfolio-read.service.ts",
+            "services/api/src/entitlements/partner-portfolio-read.controller.ts",
+            "services/api/src/entitlements/partner-portfolio-read.spec.ts"
+          ],
+          "limitations": [
+            "Only ACTIVE PartnerMembership plus ACTIVE Partner authorizes reads; no AppRole or society membership elevation, partner writes or support impersonation.",
+            "Portfolio returns limited society display metadata; member listings omit user identity, contact, operational PII and cross-partner rows.",
+            "Partner status/ownership transfers and service workers remain separate V5.1/5.4.5 controls; no production routing or grants.",
+            "No staging/main promotion, real DNS or partner distributions."
+          ],
+          "pullRequest": 1265,
+          "mergeSha": "9a6ec8641b471aba1019a5c1f5d6d9a04edcd828",
+          "ciRun": 38350305887
+        },
+        {
+          "id": "V5.4.5",
+          "name": "Atomic partner license capacity allocation, idempotent lifecycle and safety-preserving grace contract",
+          "status": "COMPLETED_NONPRODUCTION",
+          "dependsOn": [
+            "V5.1 audited ownership transfer rules"
+          ],
+          "limitations": [
+            "Immutable independent approval, explicit society consent and serialized allocation are implemented and protected-CI validated in V5.4.5.4. Historical proposal status remains DRAFT; approval records provide additive authority.",
+            "Legacy EntitlementService.current remains authoritative, preserving gate/SOS and all current features through commercial expiry, withdrawal and revocation.",
+            "No hosted migration, pricing/payment integration, production DNS/TLS or staging/main promotion."
+          ]
+        },
+        {
+          "id": "V5.4.5.1",
+          "name": "Pure optimistic partner allocation and legacy-entitlement cutover safety simulator",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "e5d0ee529754b8cc4e3f90750115b184d3cc6a4c",
+          "evidence": [
+            "packages/types/src/partner-license-allocation-simulation.mjs",
+            "scripts/partner-license-allocation-simulation.test.mjs",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Pure deterministic rehearsal only: no PostgreSQL reservation, distributed locks, live license activation or society entitlements writes.",
+            "V5.1 audited ownership transfer/history is not yet closed. Do not use the simulator to authorize society or partner access.",
+            "All existing DRAFT-only DB constraints, current gate/SOS and legacy feature authority remain unchanged.",
+            "V5.4.5 requires transactional capacity/idempotency and transfer/compatibility approval before its final closure; no staging/main promotion."
+          ],
+          "pullRequest": 1267,
+          "mergeSha": "db0d195fb3355f4d1494fa1a77c7709b454a8d1e",
+          "ciRun": 38362661393
+        },
+        {
+          "id": "V5.4.5.2",
+          "name": "Fail-closed idempotency replay across partner revocation, ownership and approval changes",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "db0d195fb3355f4d1494fa1a77c7709b454a8d1e",
+          "evidence": [
+            "packages/types/src/partner-license-allocation-simulation.mjs",
+            "scripts/partner-license-allocation-simulation.test.mjs",
+            "docs/architecture/V5.4-PARTNER-LICENSING-DOMAIN-CONTRACTS.md"
+          ],
+          "limitations": [
+            "Pure snapshot simulation only; no server authorization, ownership transfer history, allocation transaction or license activation.",
+            "Legacy features and essential gate/SOS behavior are unchanged. V5.1 ownership transfer/audit and PostgreSQL allocator remain prerequisites.",
+            "No staging/main changes or production integration."
+          ],
+          "pullRequest": 1268,
+          "mergeSha": "b7d6b6fffc105afcd316c03ffe1f0d3c8f5a4b1e",
+          "ciRun": 38393104389
+        },
+        {
+          "id": "V5.4.5.3",
+          "name": "PostgreSQL serialized immutable DRAFT capacity reservations with legacy feature parity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "68edf5be8517518fdd4d88a97d27fd6676144f9b",
+          "evidence": [
+            "services/api/src/entitlements/partner-capacity-reservation.service.ts",
+            "services/api/src/entitlements/partner-capacity-reservation.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013130000_v5453_capacity_reservations/migration.sql"
+          ],
+          "limitations": [
+            "Real persisted development reservations, not live grant activation or entitlement cutover.",
+            "DRAFT-only grant constraint, existing legacy tier/override authority and gate/SOS access preserved.",
+            "Commercial approval/opt-in lifecycle, domain activation and Admin control-plane views remain pending. No staging/main promotion."
+          ],
+          "pullRequest": 1270,
+          "mergeSha": "573ea908378a5d8704c0148ee31043f5f1468101",
+          "ciRun": 38400319041
+        },
+        {
+          "id": "V5.4.5.4",
+          "name": "Independent commercial approval, explicit legacy opt-in/withdrawal and approved licensed allocation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "ea5b9f566afda52dda1324e64a4aedb231e91bd7",
+          "evidence": [
+            "services/api/src/entitlements/partner-license-lifecycle.service.ts",
+            "services/api/src/entitlements/partner-license-lifecycle.postgres.spec.ts",
+            "services/api/prisma/migrations/20261013134000_v5454_license_approval_optin/migration.sql"
+          ],
+          "limitations": [
+            "Approved licensing authority is additive immutable approval/revocation history; historical DRAFT proposals remain immutable.",
+            "Explicit consent/withdrawal and allocation preserve current tier/raw overrides/features, including existing gate/SOS through grace, expiry and revocation.",
+            "No hosted migrations, partner onboarding, pricing/payment integration, production DNS/TLS or staging/main promotion."
+          ],
+          "pullRequest": 1272,
+          "mergeSha": "cc020bd4e46964db0d48440e69951cfbf90bc765",
+          "ciRun": 38404087250
+        },
+        {
+          "id": "V5.4.6",
+          "name": "Current-society Admin licensing controls and authorized cosmetic test-domain inspection",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "cc020bd4e46964db0d48440e69951cfbf90bc765",
+          "evidence": [
+            "apps/admin/app/licensing/page.tsx",
+            "services/api/src/entitlements/partner-license-overview.service.ts",
+            "apps/admin/tests/admin-ui/licensing.spec.mjs"
+          ],
+          "limitations": [
+            "Domain inspection requires explicit test/development flag and configured registry, approved active allocation and exact society/partner binding. No production routing/DNS/verification claims.",
+            "Society administrators see their approved or consented plans, own consent/allocation and no partner-wide usage/platform actions.",
+            "No new partner onboarding, pricing/payment integration, hosted migration, branded binary or staging/main promotion."
+          ],
+          "pullRequest": 1273,
+          "mergeSha": "ab7874246de843c6406321d360ade13ec3228fea",
+          "ciRun": 38407077962
+        },
+        {
+          "id": "V5.4.7",
+          "name": "Immutable proposal terms, raw Host test-domain context and legacy rollback regression closure",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "ab7874246de843c6406321d360ade13ec3228fea",
+          "evidence": [
+            "docs/architecture/V5.4-NONPRODUCTION-CLOSURE.md",
+            "services/api/src/entitlements/partner-license-lifecycle.postgres.spec.ts",
+            "services/api/src/entitlements/partner-license-overview.spec.ts",
+            "services/api/prisma/migrations/20261013142000_v547_immutable_license_proposals/migration.sql"
+          ],
+          "limitations": [
+            "Rollback regression exercises unchanged legacy readers and DRAFT writers against the additive schema; no deployed rollback drill.",
+            "Authenticated raw Host context is test/development-only and cosmetic. No public partner login, production routing, DNS/TLS or dedicated partner onboarding UI.",
+            "Broader V5 remains in development; branded Android automation and full-program regression closure remain planned."
+          ],
+          "pullRequest": 1274,
+          "validatedRuntimeSha": "cadb6414fdf5660546d9f4b4a2cb78194fe92a39",
+          "mergeSha": "906d595119bccc58f3ecd3e800720fc9a587acd0",
+          "ciRun": 38408729069
+        },
+        {
+          "id": "V5.4.8",
+          "name": "Authenticated workspace discovery and scoped read-only partner portal",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "92288e0461999107b3aaf2bcd44954c5b6ca49d9",
+          "evidence": [
+            "services/api/src/entitlements/partner-portfolio-read.postgres.spec.ts",
+            "apps/admin/app/partners/page.tsx",
+            "apps/admin/tests/admin-ui/partner.spec.mjs"
+          ],
+          "limitations": [
+            "Existing bearer session required; no dedicated partner login/onboarding or member writes.",
+            "No host routing, production integration or staging/main promotion."
+          ],
+          "pullRequest": 1276,
+          "validatedRuntimeSha": "50df115cb1f0717b22ec33300b9ccbf8fdff800f",
+          "mergeSha": "cbe82d9e2a5ca4095321447ea9aa0d1342fa2ff3",
+          "ciRun": 38417736630
+        },
+        {
+          "id": "V5.4.9",
+          "name": "Audited partner member invite, role and revocation lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-member-lifecycle.service.ts"
+          ],
+          "pullRequest": 1278,
+          "mergeSha": "91f6f23b2123ced321c6af2d9af9f82aaf56ef51"
+        },
+        {
+          "id": "V5.4.10",
+          "name": "Partner member console and invitation acceptance",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "apps/admin/app/partners/members/page.tsx"
+          ],
+          "pullRequest": 1279,
+          "mergeSha": "a557f4131eb382f3dd10a7397b4270825b35a522"
+        },
+        {
+          "id": "V5.4.11",
+          "name": "Audited non-routing domain-claim registry",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.11-PARTNER-DOMAIN-CLAIM-REGISTRY.md"
+          ],
+          "pullRequest": 1280,
+          "mergeSha": "52753cf7ac7efd9940c513e6cda0e3f190e6e59c"
+        },
+        {
+          "id": "V5.4.12",
+          "name": "Development-only DNS TXT verification and license capacity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.12-DOMAIN-PROOF.md"
+          ],
+          "pullRequest": 1281,
+          "mergeSha": "a54ed46cb959e22cf78bd16b713a32baa5005fec"
+        },
+        {
+          "id": "V5.4.13",
+          "name": "Audited claim revocation and challenge reissue",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.13-DOMAIN-LIFECYCLE.md"
+          ],
+          "pullRequest": 1282,
+          "mergeSha": "847ebf24cfc198491a3b63a06df51cbc891edfef"
+        },
+        {
+          "id": "V5.4.14",
+          "name": "Partner OTP sign-in and browser-session separation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.14-PARTNER-OTP-LOGIN.md"
+          ],
+          "pullRequest": 1283,
+          "mergeSha": "992d0f58752936eed198b58221c99343b5dd76de"
+        },
+        {
+          "id": "V5.4.15",
+          "name": "Local Host/Origin preview and cross-host negatives",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "docs/architecture/V5.4.15-HOST-ORIGIN-BOUNDARY.md"
+          ],
+          "pullRequest": 1284,
+          "mergeSha": "675b04a2c5f48aa2fa4f14543a419c8e24a7571f"
+        },
+        {
+          "id": "V5.4.16",
+          "name": "Server-persisted partner audience and cross-surface API separation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1285,
+          "mergeSha": "1cca2040c7e646e52a4270357fce4e187cfae90b",
+          "ciRun": 38458096160,
+          "evidence": [
+            "docs/architecture/V5.4.16-SERVER-PARTNER-AUDIENCE.md"
+          ]
+        },
+        {
+          "id": "V5.4.17",
+          "name": "Persisted direct-host test session binding and scoped bearer/refresh revalidation",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "1cca2040c7e646e52a4270357fce4e187cfae90b",
+          "evidence": [
+            "docs/architecture/V5.4.17-HOST-BOUND-SESSIONS.md"
+          ],
+          "limitations": [
+            "Direct raw Host test adapter only; production disabled.",
+            "No SSR routing, proxy trust activation or host-only cookie issuance.",
+            "Bound sessions may use only exact partner-param routes; discovery/invitation inbox remains on platform portal."
+          ],
+          "pullRequest": 1286,
+          "mergeSha": "9d05b40fa5135c61cd78c9ac58e1fe62bfb05209",
+          "validatedRuntimeSha": "c4b30816103998c153758cea514c986a2dd61538",
+          "ciRun": 38502997309
+        },
+        {
+          "id": "V5.4.18",
+          "name": "Direct-host authenticated Next SSR and encrypted host-only cookie lifecycle",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "9d064f24435e6ba1e04a8ad830118c723e86664a",
+          "evidence": [
+            "docs/architecture/V5.4.18-HOST-SSR-COOKIES.md"
+          ],
+          "limitations": [
+            "Protected direct-host SSR/cookie acceptance passed; production remains disabled.",
+            "Production disabled; direct raw Host only; no trusted reverse-proxy or public DNS/TLS activation.",
+            "Actual Next HTTP acceptance uses a fixed local API double; browser HTTPS deployment acceptance remains excluded."
+          ],
+          "pullRequest": 1288,
+          "mergeSha": "07b69b4cbc298a82398238fc6422d3d55ba3c1cb",
+          "validatedRuntimeSha": "aca73bac4f90877dfec0c9d4a174d499018248c9",
+          "ciRun": 38516992907
+        },
+        {
+          "id": "V5.4.19",
+          "name": "Owner-scoped partner domain lifecycle console with proof expiry and context-safe retries",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "07b69b4cbc298a82398238fc6422d3d55ba3c1cb",
+          "evidence": [
+            "docs/V5.4.19-PARTNER-DOMAIN-CONSOLE.md"
+          ],
+          "limitations": [
+            "Protected browser and full CI acceptance passed, including all eight domain browser contracts.",
+            "Local Chromium archive download failed; no local browser-pass claim.",
+            "Existing test-only DNS verifier retained; no production routing, trusted proxy deployment or Android distribution approval."
+          ],
+          "pullRequest": 1289,
+          "mergeSha": "0e88378725f7a40cf467c78cbe7c2e2c8afdbb3c",
+          "validatedRuntimeSha": "b760e42b5ada678a50e3bcf3b643b44643fe7162",
+          "ciRun": 38518827331
+        },
+        {
+          "id": "V5.4.20",
+          "name": "Immutable test distribution proposals, independent approvals and revocations under active licensing",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "baselineSha": "0e88378725f7a40cf467c78cbe7c2e2c8afdbb3c",
+          "evidence": [
+            "docs/architecture/V5.4.20-DISTRIBUTION-AND-LEGACY-CONVERSION.md",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts"
+          ],
+          "limitations": [
+            "Protected PostgreSQL and full CI passed, including all four new native cases and 2173 API tests (15 intentional skips).",
+            "TEST inputs only; V5.5 source/config/assets/signing/build provenance validation is separate. No production distribution, artifact generation or staging/main promotion."
+          ],
+          "pullRequest": 1290,
+          "mergeSha": "771e10b00b1473b0a8cd517b4ff654e6c530de70",
+          "validatedRuntimeSha": "2c358159cf430755d35c81258dd9bfd1f7a09c06",
+          "ciRun": 38520943451
+        },
+        {
+          "id": "V5.4.21",
+          "name": "Loopback fixed-upstream partner Host proxy transport negative acceptance",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOOPBACK_HTTP_TEST_GREEN",
+          "evidence": [
+            "scripts/check-v4.79.1.5-v5-local-proxy-transport.mjs",
+            "docs/architecture/V5.4.21-LOCAL-TEST-PROXY-TRANSPORT.md"
+          ],
+          "limitations": [
+            "Loopback-only HTTP test harness, not remotely trusted HTTPS/TLS ingress or deployed reverse proxy",
+            "Actual Next/API browser session and public routing over trusted ingress remain unverified",
+            "No productionization or staging/main promotion"
+          ],
+          "pullRequest": 1330,
+          "mergeSha": "8bf04a274d8e71ccf93a6b51a2182e1bba5db409",
+          "ciRun": 38682767110,
+          "verifiedScope": [
+            "Real loopback HTTP fixed-upstream transport",
+            "Canonical raw Host and matching X-Forwarded-Host",
+            "Forwarded spoof, cross-origin and cross-partner redirect rejection",
+            "Scoped API/Admin/Flutter and required merge CI green"
+          ]
+        },
+        {
+          "id": "V5.4.22",
+          "name": "Verify TLS 1.3 local ingress Host/SNI isolation, fixed loopback upstream and spoofed forwarded-header rejection",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS13_TEST_GREEN",
+          "evidence": [
+            "scripts/check-v4.79.1.6-v5-local-tls-ingress.mjs",
+            "docs/architecture/V5.4.22-LOCAL-TLS13-INGRESS.md"
+          ],
+          "limitations": [
+            "Disposable self-signed loopback HTTPS test only; independently trusted ingress not provisioned",
+            "Deterministic HTTP upstream double; actual Next SSR/API session over HTTPS not verified",
+            "No production DNS, remote TLS issuance, partner artifact signing, staging or main promotion",
+            "The CI acceptance uses a fixed local upstream test double; browser and deployed trusted ingress not verified."
+          ],
+          "pullRequest": 1332,
+          "mergeSha": "2c2dc451c82ea3c0ab36bebda69463d673763b64",
+          "ciRun": 38683855827,
+          "verifiedScope": [
+            "OpenSSL ephemeral SAN certificate and TLS 1.3 loopback ingress",
+            "Nine negative header/SNI/origin/method cases before upstream",
+            "TLS 1.2 / untrusted certificate / wrong SAN rejection",
+            "Repository structure, API/Admin/Flutter, dependency security and required merge gates successful"
+          ]
+        },
+        {
+          "id": "V5.4.23",
+          "name": "Run real Next.js partner host SSR, sealed session cookies and lifecycle through a disposable TLS 1.3 fixed loopback ingress",
+          "status": "MERGED_PROTECTED_CI_PASSED_REAL_NEXT_HTTPS_TEST_GREEN",
+          "evidence": [
+            "apps/admin/scripts/v5.4.23-host-https-ssr-regression.mjs",
+            "apps/admin/package.json",
+            "docs/architecture/V5.4.23-REAL-NEXT-HTTPS-SSR-ACCEPTANCE.md"
+          ],
+          "limitations": [
+            "Ephemeral self-signed TLS/loopback ingress and deterministic local API double; externally trusted ingress not attested",
+            "No public DNS or public PKI, live provider, production activation or staging/main promotion",
+            "Actual Next SSR is exercised, but real browser trust/deployment and independently verified remote proxy configuration remain excluded",
+            "Actual Next SSR passed via controlled local HTTPS fixture; this does not attest a separately provisioned remote proxy, public TLS chain or real external API provider."
+          ],
+          "pullRequest": 1334,
+          "mergeSha": "a0bc74472b7d16036d377eb30d59d721f4891303",
+          "ciRun": 38686191032,
+          "verifiedScope": [
+            "Existing V5.4.18 direct-host SSR acceptance still green",
+            "Actual Next.js partner-host SSR and host-bound encrypted cookie behind ephemeral local TLS 1.3 ingress green",
+            "Cross-host session copy, wrong SNI, missing untrusted CA, TLS downgrade, spoofed forwarded headers denied",
+            "Real Admin full CI, dependency security, required merge gates and develop auto merge passed"
+          ]
+        },
+        {
+          "id": "V5.4.24",
+          "name": "Nonproduction ingress acceptance probe with independently reviewed SPKI pin, exact approved QA host, TLS 1.3 and negative spoof/header checks",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS_PROBE_CONTRACT_GREEN",
+          "evidence": [
+            "scripts/v5.4.24-ingress-acceptance.mjs",
+            "scripts/v5.4.24-ingress-acceptance.test.mjs",
+            "scripts/v5.4.24-run-ingress-probe.mjs",
+            "scripts/check-v4.79.1.7-v5-ingress-acceptance.mjs",
+            "docs/architecture/V5.4.24-OPERATOR-TEST-INGRESS-PROBE.md"
+          ],
+          "limitations": [
+            "Protected CI executes only a loopback self-signed TLS test fixture; no external ingress has been contacted or attested.",
+            "Actual remote TLS probe is explicitly manual, read-only and requires independently reviewed operator-approved test DNS and certificate public-key fingerprint.",
+            "A passing TLS probe alone does not prove remote operator control, real partner-host Next/API session isolation, or distribution/production approval.",
+            "No staging/main promotion or productionization.",
+            "Remote ingress attestation, actual remote Next/API host-session acceptance, real operator keys and production trust have NOT been established."
+          ],
+          "pullRequest": 1336,
+          "mergeSha": "ac413b0fa4da6db6cf5ea159c3015c2b365218ca",
+          "ciRun": 38687222200,
+          "verifiedScope": [
+            "Real localhost TLS 1.3 socket and externally supplied SPKI SHA-256 pin negative fixture passed",
+            "Unapproved target, production claim, credentials and unknown config rejected",
+            "External CLI remains manual-only; automatic CI has no external network probe",
+            "Full API/Admin/Flutter and dependency-security protected gates passed",
+            "Required merge gate and develop auto merge successful"
+          ]
+        }
+      ],
+      "scopedAcceptance": {
+        "name": "Approved licensing backend, Admin controls and cosmetic test-domain context",
+        "status": "COMPLETED_NONPRODUCTION",
+        "evidence": "docs/architecture/V5.4-NONPRODUCTION-CLOSURE.md",
+        "ciRun": 38408729069
+      },
+      "remaining": [
+        "Trusted reverse-proxy design and nonproduction transport acceptance; no production activation",
+        "V5.5 full build manifests, identity revisions and approved artifact provenance; TEST approval alone never authorizes dispatch"
+      ]
+    },
+    {
+      "id": "V5.5",
+      "name": "Branded Android build automation",
+      "status": "IN_PROGRESS",
+      "dependsOn": [
+        "V5.3",
+        "V5.4"
+      ],
+      "currentSlice": "V5.5.37",
+      "slices": [
+        {
+          "id": "V5.5.1",
+          "name": "Immutable TEST Android build planning, identity and non-dispatchable provenance contracts",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "pullRequest": 1292,
+          "mergeSha": "aa35252c69f0ff2b48b968ab6908887bd980c26f",
+          "ciRun": 38522438582
+        },
+        {
+          "id": "V5.5.2",
+          "name": "Persist immutable reviewed TEST Android revisions without dispatch, with update identity/signer continuity",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-build-revision.service.ts",
+            "services/api/src/entitlements/partner-android-build-revision.spec.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts",
+            "services/api/prisma/migrations/20261014143000_v552_android_build_revisions/migration.sql"
+          ],
+          "limitations": [
+            "Review records are non-dispatchable and do not certify source, signed assets, actual app links or build artifacts.",
+            "Keep initial distribution identity immutable; default demo workflow and staging/main are unchanged."
+          ],
+          "pullRequest": 1293,
+          "mergeSha": "d720e26c06be2c18897eabe146d2d2e769c17c38",
+          "ciRun": 38541594633
+        },
+        {
+          "id": "V5.5.3",
+          "name": "Monotonic TEST Android versionCode reservation and immutable non-dispatchable build-job ledger",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-build-reservation.service.ts",
+            "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
+            "services/api/src/entitlements/partner-distribution.postgres.spec.ts",
+            "services/api/prisma/migrations/20261014154000_v553_android_build_version_reservations/migration.sql"
+          ],
+          "limitations": [
+            "Reservations are not dispatch/completion authority; the trusted builder and authenticated worker checkpoint remain outstanding.",
+            "Default Resident/Guard update identity, real signing, generated APK/AAB and production external providers are untouched."
+          ],
+          "pullRequest": 1294,
+          "mergeSha": "ca3bb72e64d5602019362c95f795c3a2202bb824",
+          "ciRun": 38543744066
+        },
+        {
+          "id": "V5.5.4",
+          "name": "Isolated disposable TEST Android native resource overlay with explicit non-dispatchable metadata",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-overlay.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.4-ANDROID-TEST-NATIVE-OVERLAY.md"
+          ],
+          "limitations": [
+            "Overlay only; no Flutter create/build or APK/AAB, no source checkout, no manifest/Gradle patch, no credential signing.",
+            "Brand/asset, source/lock and signer verifications remain builder responsibilities; TEST assets must already come from verified sanitized pipeline."
+          ],
+          "pullRequest": 1295,
+          "mergeSha": "aaa4b77a6d90bd5c352b144d5feb098b8e286fe4",
+          "ciRun": 38548511220
+        },
+        {
+          "id": "V5.5.5",
+          "name": "Live TEST Android build reservation authority checkpoints before dispatch and completion (non-executing)",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-build-reservation.service.ts",
+            "services/api/src/entitlements/partner-android-build-reservation.spec.ts",
+            "docs/architecture/V5.5.5-ANDROID-BUILDER-AUTHORITY-CHECKPOINTS.md"
+          ],
+          "limitations": [
+            "Read-only checks are not a worker session or executable build authorization; checkout, native asset, toolchain and signer checks still required.",
+            "No APK/AAB, trusted worker credentials, new API route, workflow change, artifact record, or production promotion."
+          ],
+          "pullRequest": 1296,
+          "mergeSha": "1d4758f5409fa0ae9621dc441b56f376e78b0782",
+          "ciRun": 38550926469
+        },
+        {
+          "id": "V5.5.6",
+          "name": "Fail-closed non-executing Kotlin Flutter TEST Android native wrapper patch plan",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-native-wrapper.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.6-ANDROID-NATIVE-WRAPPER-PATCH.md"
+          ],
+          "limitations": [
+            "Pure native patch data; no real generated Flutter wrapper, verified source checkout, worker or APK/AAB build.",
+            "Requires separate authenticated single-use worker, live dispatch/completion checkpoints, pinned template, sanitized resources, splash integration and actual test signer/archive verification."
+          ],
+          "pullRequest": 1297,
+          "mergeSha": "616beb7682c1e19420015134b19a53a74c59b01a",
+          "ciRun": 38557532566
+        },
+        {
+          "id": "V5.5.7",
+          "name": "Append-only single-use TEST Android worker claim ledger with short-lived authenticated assertion",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-worker-claim.service.ts",
+            "services/api/src/entitlements/partner-android-worker-claim.spec.ts",
+            "services/api/prisma/migrations/20261014185000_v557_android_worker_claims/migration.sql",
+            "docs/architecture/V5.5.7-ANDROID-WORKER-CLAIM-AUTHORITY.md"
+          ],
+          "limitations": [
+            "Internal service; no public worker route, executable dispatch, process launch, APK/AAB, signing or artifact verification.",
+            "The separately authenticated isolated builder, single-use execution consumption and fresh completion checkpoint remain unimplemented."
+          ],
+          "pullRequest": 1298,
+          "mergeSha": "02d76a35c2826977094b24bc68adda19fc1bf43a",
+          "ciRun": 38559750327
+        },
+        {
+          "id": "V5.5.8",
+          "name": "Append-only TEST worker claim consumption and fresh completion authority without executable dispatch",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-worker-consumption.service.ts",
+            "services/api/src/entitlements/partner-android-worker-consumption.spec.ts",
+            "services/api/prisma/migrations/20261014194000_v558_android_worker_consumption/migration.sql",
+            "docs/architecture/V5.5.8-ANDROID-WORKER-CONSUMPTION.md"
+          ],
+          "limitations": [
+            "No external worker service transport, Flutter/Gradle execution, signed APK/AAB, persisted signed artifact or production credentials.",
+            "Worker assertion and consumption provide replay barriers, not an execution permit; completion check remains non-verifying until trusted archive proof is separately implemented."
+          ],
+          "pullRequest": 1299,
+          "mergeSha": "3741c64131b9d4238d07390090b8114b9a96c3d3"
+        },
+        {
+          "id": "V5.5.9",
+          "name": "Disposable TEST native resource plus Kotlin patch staging with independently expected template SHA digests",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-native-workspace.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.9-ANDROID-NATIVE-STAGING.md"
+          ],
+          "limitations": [
+            "Stages native resources and Kotlin patch data in a new temporary directory; it does not generate a Flutter project, integrate styles, invoke Gradle/Flutter, or produce an APK/AAB.",
+            "An expected template digest cannot prove trusted origin by itself; it must originate from the separately authenticated pinned runner."
+          ],
+          "pullRequest": 1300,
+          "mergeSha": "ba2043ff2168057a4da13dc4e753730d9f7015aa",
+          "ciRun": 38570393795
+        },
+        {
+          "id": "V5.5.10",
+          "name": "Verify real local TEST Git checkout HEAD and dependency-lock bytes against immutable source pins",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-pinned-checkout.mjs",
+            "scripts/android-test-checkout.test.mjs",
+            "docs/architecture/V5.5.10-ANDROID-PINNED-CHECKOUT.md"
+          ],
+          "limitations": [
+            "Read-only local verification, not source acquisition or remote authenticity. Independently authenticated trusted worker and pinned toolchain/template remain outstanding.",
+            "No Flutter/Gradle invocation, signer/archive checks, executable dispatch, API or schema changes; staging/main and default demo stay untouched."
+          ],
+          "pullRequest": 1301,
+          "mergeSha": "b8029d873a154dbf13406952ba43d8b0ad000c5b",
+          "ciRun": 38572555868
+        },
+        {
+          "id": "V5.5.11",
+          "name": "Recheck staged TEST native and PNG file inventory against pinned source, reservation and SHA receipts",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-staging-inventory.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.11-ANDROID-STAGING-INVENTORY.md"
+          ],
+          "limitations": [
+            "Filesystem inventory check is not an authenticated builder, immutable mount or proof of trusted pin origin; recheck must happen at consumption under isolated worker.",
+            "No Flutter generation, APK/AAB, signing, publication, DB/API migration, productionization or staging/main changes."
+          ],
+          "pullRequest": 1302,
+          "mergeSha": "2e82812a58123a26f9dda8967644b51f261dcfa1",
+          "ciRun": 38573990842
+        },
+        {
+          "id": "V5.5.12",
+          "name": "Pinned local TEST toolchain executable hashes and actual version responses",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-toolchain.mjs",
+            "scripts/android-test-toolchain.test.mjs",
+            "docs/architecture/V5.5.12-ANDROID-TOOLCHAIN-PREFLIGHT.md"
+          ],
+          "limitations": [
+            "Local hash/version validation does not authenticate runner or verify full SDK/template/container provenance.",
+            "No executable build permission, APK/AAB, signer verification, API/schema changes, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1303,
+          "mergeSha": "40186f322e624d7b4430de5ae02bf417d9d3235b",
+          "ciRun": 38578193570
+        },
+        {
+          "id": "V5.5.13",
+          "name": "Ed25519-signed TEST worker consumption, native inventory, toolchain and image-claim binding",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-runner-evidence.mjs",
+            "scripts/android-test-runner-evidence.test.mjs",
+            "docs/architecture/V5.5.13-ANDROID-RUNNER-EVIDENCE.md"
+          ],
+          "limitations": [
+            "Signature proof alone is not remote runner authentication, verified OCI image, or durable replay protection; no execution permitted.",
+            "No real APK/AAB, Flutter/Gradle, signer verification, productionization, API/schema migration or staging/main promotion."
+          ],
+          "pullRequest": 1304,
+          "mergeSha": "e245c1e4c7b0a8183d24061a59ebb42b11c3e4c3",
+          "ciRun": 38579897221
+        },
+        {
+          "id": "V5.5.14",
+          "name": "Durable server-minted one-use TEST runner challenge for each previously consumed worker claim",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-runner-challenge.service.ts",
+            "services/api/src/entitlements/partner-android-runner-challenge.spec.ts",
+            "services/api/prisma/migrations/20261014234000_v5514_runner_challenges/migration.sql",
+            "docs/architecture/V5.5.14-ANDROID-RUNNER-CHALLENGES.md"
+          ],
+          "limitations": [
+            "Challenge issuance only; no signed-proof acceptance, verified image execution, transport authentication or APK/AAB.",
+            "Internal-only, append-only, unique per consumption; no productionization or staging/main promotion."
+          ],
+          "pullRequest": 1305,
+          "mergeSha": "acd0329e6e097e0e7dbc4baba3224efaa136884d",
+          "ciRun": 38582432830
+        },
+        {
+          "id": "V5.5.15",
+          "name": "Atomically accept Ed25519-signed TEST runner response once with immutable live authority and replay ledger",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "services/api/src/entitlements/partner-android-runner-evidence-acceptance.service.ts",
+            "services/api/src/entitlements/partner-android-runner-evidence-acceptance.spec.ts",
+            "services/api/prisma/migrations/20261014235500_v5515_runner_evidence_acceptance/migration.sql",
+            "docs/architecture/V5.5.15-ANDROID-RUNNER-EVIDENCE-ACCEPTANCE.md"
+          ],
+          "limitations": [
+            "Accepting a signature and replay barrier does not prove authenticated transport, executed OCI image or genuine SDK measurement.",
+            "No live builder, APK/AAB, signer verification, productionization, new HTTP route, or staging/main promotion."
+          ],
+          "pullRequest": 1306,
+          "mergeSha": "1f28184466f02d6debc462f403ae8b64aef4d685",
+          "ciRun": 38587090379
+        },
+        {
+          "id": "V5.5.16",
+          "name": "Exhaustive independently pinned Flutter/Android SDK, JDK and native template filesystem byte inventory",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-sdk-tree.mjs",
+            "scripts/android-test-sdk-tree.test.mjs",
+            "docs/architecture/V5.5.16-ANDROID-PINNED-SDK-INVENTORY.md"
+          ],
+          "limitations": [
+            "Local entire-tree hashes alone do not authenticate the transport, attest actual OCI runtime, certify immutable mounts or grant build dispatch.",
+            "No Android wrapper generation, Gradle execution, APK/AAB, signer verification, API/database migration, staging or main promotion."
+          ],
+          "pullRequest": 1307,
+          "mergeSha": "367ff350a8df274b0f11947c3036af04282906f0",
+          "ciRun": 38589844952
+        },
+        {
+          "id": "V5.5.17",
+          "name": "Compose reviewed Android 12 light/night splash themes and Flutter manifest theme wiring into disposable TEST overlay",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-android12-themes.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.17-ANDROID12-THEME-OVERLAY.md"
+          ],
+          "limitations": [
+            "Composes an isolated non-dispatchable Android native input overlay; real Flutter wrapper generation/execution and independent final inventory still pending.",
+            "No APK/AAB, real signer, live isolated runner transport, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1308,
+          "mergeSha": "f37a1c438fde31348c5a62c48d384f9c646e99a3",
+          "ciRun": 38591175792
+        },
+        {
+          "id": "V5.5.18",
+          "name": "Authenticated TLS 1.3 mutual-certificate TEST worker identity-only transport with server SPKI pin and signed fresh nonce binding",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-mtls-transport.mjs",
+            "scripts/android-test-mtls-transport.test.mjs",
+            "docs/architecture/V5.5.18-ANDROID-MTLS-WORKER-TRANSPORT.md"
+          ],
+          "limitations": [
+            "Identity-only local test/client contract: no remotely provisioned isolated worker, real OCI image or mount attestation; does not enable build dispatch.",
+            "No Flutter/Gradle invocation, actual APK/AAB, signer verification, API/DB integration, productionization, staging/main promotion."
+          ],
+          "pullRequest": 1309,
+          "mergeSha": "ca271f3d903cb08e63caf58cc83810c0f8e3b55b",
+          "ciRun": 38593459234
+        },
+        {
+          "id": "V5.5.19",
+          "name": "Fail-closed Linux TEST runner no-capabilities, no-new-privileges, seccomp and pinned read-only SDK mount policy",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-linux-isolation.mjs",
+            "scripts/android-test-linux-isolation.test.mjs",
+            "docs/architecture/V5.5.19-LINUX-RUNNER-ISOLATION.md"
+          ],
+          "limitations": [
+            "Kernel /proc observation in an independently trusted runner process is a local isolation preflight, not cryptographic attestation of an OCI image, host root of trust, or immutable executable mount state.",
+            "No external runner provisioned, real build dispatch, Android SDK/Flutter invocation, artifact/archive/signer verification or staging/main promotion."
+          ],
+          "pullRequest": 1310,
+          "mergeSha": "d5e36640fe996f241e3198fbecbeeafe803f5976",
+          "ciRun": 38596591691
+        },
+        {
+          "id": "V5.5.20",
+          "name": "Complete disposable Android 12 TEST native overlay integrity verification and API 24/36 level guardrails",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-final-native-inventory.mjs",
+            "packages/config/src/android-test-native-wrapper.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.20-FINAL-TEST-NATIVE-INVENTORY.md"
+          ],
+          "limitations": [
+            "Final reviewed native overlay does not mean an actual Flutter-generated wrapper or APK/AAB exists; no build execution enabled.",
+            "No externally provisioned runner, independently attested running OCI image, immutable execution authorization, real signing or staging/main promotion."
+          ],
+          "pullRequest": 1311,
+          "mergeSha": "2dd8903b9c617d3db53eba274eeb4cc1bfea5c9a",
+          "ciRun": 38598412753
+        },
+        {
+          "id": "V5.5.21",
+          "name": "Safely assemble verified TEST Android native overlays onto an independently SHA-pinned Flutter 3.47 generated wrapper in a disposable workspace",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-wrapper-assembly.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.21-PINNED-FLUTTER-WRAPPER-ASSEMBLY.md"
+          ],
+          "limitations": [
+            "Requires the already-generated Flutter 3.47 wrapper from an independently trusted runner; the assembly routine itself does not execute Flutter or assert that a remote runner is provisioned.",
+            "No build dispatch, actual APK/AAB, signer verification, runtime image attestation, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1312,
+          "mergeSha": "2e64226c35d1c63c12aab6a0d634c03c6a228667",
+          "ciRun": 38599846431
+        },
+        {
+          "id": "V5.5.22",
+          "name": "Independently rescan and verify every assembled TEST Flutter Android wrapper byte and provenance against pinned template and approved overlay",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-assembled-verification.mjs",
+            "scripts/android-build-contract.test.mjs",
+            "docs/architecture/V5.5.22-ANDROID-ASSEMBLED-VERIFICATION.md"
+          ],
+          "limitations": [
+            "The verification uses a synthetic template in unit tests; a genuinely provisioned Flutter 3.47 runner and independent OCI attestation are not yet available.",
+            "No build authorization, Flutter/Gradle execution, APK/AAB, signing, infrastructure provisioning or staging/main promotion."
+          ],
+          "pullRequest": 1313,
+          "mergeSha": "af03b45764652adc55f500c7f4880900114a66e3",
+          "ciRun": 38602382985
+        },
+        {
+          "id": "V5.5.23",
+          "name": "Offline bounded TEST APK/AAB ZIP archive inspection with complete member CRC verification and no signing claims",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-archive-inspector.mjs",
+            "scripts/android-test-archive-inspector.test.mjs",
+            "docs/architecture/V5.5.23-OFFLINE-ANDROID-ARCHIVE-INSPECTION.md"
+          ],
+          "limitations": [
+            "Zip32 structure and decompression CRC verification are not Android package/version/ABI/certificate verification; strict ZIP policy may reject valid ZIP64, commented, split or nonstandard Android artifacts until reviewed.",
+            "No real runner, APK/AAB generation, signing, deployment, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1314,
+          "mergeSha": "eadbcc05754008f99c0cb9f781a44eb58605dc7b",
+          "ciRun": 38604317631
+        },
+        {
+          "id": "V5.5.24",
+          "name": "Pure TEST Android Resident/Guard and Partner A/B co-installation namespace, signing reference and App Link host collision prevention",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-install-isolation.mjs",
+            "scripts/android-test-install-isolation.test.mjs",
+            "docs/architecture/V5.5.24-ANDROID-PARTNER-COINSTALLATION.md"
+          ],
+          "limitations": [
+            "Plan-level package/provider/App Link/signing-reference collision prevention is not proof of real installed packages, checked Android certificates or independent app storage isolation.",
+            "No real device install, signing, APK/AAB generation, productionization, staging/main promotion."
+          ],
+          "pullRequest": 1315,
+          "mergeSha": "ee2c64df626c7f2ffbe5da92ef2506b637a1873d"
+        },
+        {
+          "id": "V5.5.25",
+          "name": "Pinned read-only TEST APK aapt2/apksigner inspection and package/version/ABI/certificate output checks",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-apk-inspection.mjs",
+            "scripts/android-test-apk-inspection.test.mjs",
+            "docs/architecture/V5.5.25-PINNED-APK-INSPECTION.md"
+          ],
+          "limitations": [
+            "Tests use fake tool executables and synthetic APK bytes; no actual Android package has been compiled/signed and local tool output alone does not attest worker runtime.",
+            "No AAB tool adapter, real runner/cloud deployment, build dispatch, signer proof from independently attested executor, productionization or staging/main promotion."
+          ],
+          "pullRequest": 1316,
+          "mergeSha": "d3a80b9beda62c18807086ba0d76f6b728cd04db"
+        },
+        {
+          "id": "V5.5.26",
+          "name": "Account for all TEST APK/AAB ZIP32 local bytes, descriptors and structurally framed APK Signing Block",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-archive-inspector.mjs",
+            "scripts/android-test-archive-inspector.test.mjs",
+            "docs/architecture/V5.5.26-ANDROID-ZIP-LAYOUT.md"
+          ],
+          "limitations": [
+            "Structural envelope checks are not APK cryptographic signing verification or trusted runner attestation.",
+            "Synthetic regression fixtures only; no real APK/AAB built, signed, dispatched or published."
+          ],
+          "pullRequest": 1317,
+          "mergeSha": "3cfb3ff22ef84da73d247239b65f6f4b7a93caf8",
+          "ciRun": 38614540277
+        },
+        {
+          "id": "V5.5.27",
+          "name": "Pinned read-only TEST AAB bundletool validation and base manifest identity inspection",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-aab-inspection.mjs",
+            "scripts/android-test-aab-inspection.test.mjs",
+            "docs/architecture/V5.5.27-PINNED-AAB-INSPECTION.md"
+          ],
+          "limitations": [
+            "Uses synthetic AAB ZIP bytes and fake Java command implementation; not actual bundletool or true signed AAB evidence.",
+            "No external attestation, trusted runner execution, AAB signature verification, build dispatch, or publishing."
+          ],
+          "pullRequest": 1318,
+          "mergeSha": "0eaf387a4bbe4b878068976a774317c33ec69130",
+          "ciRun": 38617239816
+        },
+        {
+          "id": "V5.5.28",
+          "name": "TEST AAB pinned jarsigner and keytool signer fingerprint and structural-member signing reports",
+          "status": "MERGED_PROTECTED_CI_PASSED",
+          "evidence": [
+            "packages/config/src/android-test-aab-signing.mjs",
+            "scripts/android-test-aab-signing.test.mjs",
+            "docs/architecture/V5.5.28-PINNED-AAB-SIGNING.md"
+          ],
+          "limitations": [
+            "Reports from pinned local JDK tools are not independent runner attestation. Synthetic fixtures are not cryptographically signed Android bundles.",
+            "No actual APK/AAB generated, worker dispatch, secret signing, device installation or productionization."
+          ],
+          "pullRequest": 1319,
+          "mergeSha": "2761922291bf4fce083d0e9afc546c20da6cf151",
+          "ciRun": 38620432410
+        },
+        {
+          "id": "V5.5.29",
+          "name": "Real base Resident/Guard TEST debug APK generation and local Android package/signature smoke",
+          "status": "MERGED_PROTECTED_CI_PASSED_RUNTIME_SMOKE_NOT_OBSERVED",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "scripts/v5-test-android-smoke.sh",
+            "docs/architecture/V5.5.29-REAL-BASE-ANDROID-TEST-SMOKE.md"
+          ],
+          "limitations": [
+            "Requires genuine post-merge workflow success for both roles before real APK generation can be counted complete.",
+            "Default debug app only, not reviewed partner distribution, externally attested builder, production signer, AAB or on-device installation."
+          ],
+          "pullRequest": 1320,
+          "mergeSha": "7fb6d2fdbbf58ca5a5044c4a12650811bc572a23",
+          "ciRun": 38621685554
+        },
+        {
+          "id": "V5.5.30",
+          "name": "Enable same-repo PR-scoped actual Resident/Guard Android debug TEST build when automated develop merges suppress downstream push workflows",
+          "status": "MERGED_PROTECTED_CI_PASSED_ANDROID_SMOKE_FAILED",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.29-REAL-BASE-ANDROID-TEST-SMOKE.md"
+          ],
+          "limitations": [
+            "Code-level TEST smoke must not be marked as real APK completion unless both Android matrix jobs pass and hashes are recorded.",
+            "Genuine base debug builds are not trusted partner distribution artifacts or independent OCI runtime attestation."
+          ],
+          "pullRequest": 1321,
+          "mergeSha": "1e807c51e6f04623021cdddb73d56e1dda1304ce",
+          "ciRun": 38622673512,
+          "androidSmokeRun": 38622673264,
+          "androidSmokeResult": "BOTH_APKS_COMPILED_INSPECTION_EXIT_1"
+        },
+        {
+          "id": "V5.5.31",
+          "name": "Diagnose real Resident/Guard TEST APK acceptance failures with explicit stages and retained evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED_ANDROID_SMOKE_FAILED",
+          "evidence": [
+            "scripts/v5-test-android-smoke.sh",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.31-REAL-APK-SMOKE-ROOT-CAUSE.md"
+          ],
+          "limitations": [
+            "Base APKs compiled in earlier PR but package/SDK/signing acceptance failed without an identified assertion.",
+            "Passing canonical CI does not independently establish real smoke acceptance or attested partner distribution."
+          ],
+          "pullRequest": 1322,
+          "mergeSha": "637a49eb37f2e4b5862b422e541ab26264a5aa7b",
+          "ciRun": 38639898894,
+          "androidSmokeRun": 38639898755,
+          "androidSmokeResult": "BOTH_BASE_APKS_BUILT; V2_VERIFIED; SDK37_SIGNER_LABEL_MISMATCH"
+        },
+        {
+          "id": "V5.5.32",
+          "name": "Support Android Build Tools 37 real v2 signer report and gate develop merge on both TEST Android APK smoke jobs",
+          "status": "MERGED_PROTECTED_CI_PASSED_RUNTIME_SMOKE_GREEN",
+          "evidence": [
+            "scripts/v5-test-apksigner-report.mjs",
+            "scripts/v5-test-apksigner-report.test.mjs",
+            "scripts/v5-test-android-smoke.sh",
+            ".github/workflows/ci.yml",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.32-REAL-ANDROID-SIGNER-CI-GATES.md"
+          ],
+          "limitations": [
+            "Base Resident/Guard debug binaries only, not independently attested V5 builder or commercial partner-branded distribution.",
+            "Milestone remains pending until both real Android smoke jobs and protected gate pass."
+          ],
+          "pullRequest": 1323,
+          "mergeSha": "82a42e1458d4b349f93f8575c2349806885d341e",
+          "ciRun": 38641846894,
+          "androidSmokeRun": 38641846894,
+          "androidSmokeResult": "RESIDENT_GUARD_REAL_BASE_DEBUG_APK_BUILT_INSPECTED_GREEN",
+          "evidenceArtifacts": [
+            {
+              "appRole": "RESIDENT",
+              "jobId": 116119476933,
+              "artifactId": 11931341996,
+              "sha256": "cd1cad7a42106efba9ca4e8b14461b53478d8cc918f07fc4f51dca598e041445",
+              "androidBuildTools": "37.0.0",
+              "signatureScheme": "v2",
+              "signerCount": 1,
+              "testOnly": true
+            },
+            {
+              "appRole": "GUARD",
+              "jobId": 116119476936,
+              "artifactId": 11930004613,
+              "sha256": "7c172ba08ba714af95a09ba39b218053aa44c853682faebd4a506a9fb294113e",
+              "androidBuildTools": "37.0.0",
+              "signatureScheme": "v2",
+              "signerCount": 1,
+              "testOnly": true
+            }
+          ]
+        },
+        {
+          "id": "V5.5.33",
+          "name": "Generate and verify genuine base Resident/Guard debug TEST AABs with local JDK JAR signature reports",
+          "status": "MERGED_PROTECTED_CI_PASSED_REAL_APK_AAB_SMOKE_GREEN",
+          "evidence": [
+            ".github/workflows/v5-test-android-smoke.yml",
+            "scripts/v5-test-android-aab-smoke.sh",
+            "scripts/v5-test-aab-signer-report.mjs",
+            "scripts/v5-test-aab-signer-report.test.mjs",
+            "docs/architecture/V5.5.33-BASE-TEST-AAB-SMOKE.md"
+          ],
+          "limitations": [
+            "Real base AAB smoke not proven until both protected CI Android matrix jobs pass.",
+            "Local debug signer is not independently pinned or partner-bound; no external attested worker.",
+            "Both base AAB builds and local JAR inspections passed in 38668369729; SHA-256 values remain in short-lived artifact reports, not trusted partner release evidence."
+          ],
+          "pullRequest": 1325,
+          "mergeSha": "af8570dc04e5f21adbe7089601a59bbce38811b9",
+          "ciRun": 38668369729,
+          "realBuilds": {
+            "resident": "SUCCESS",
+            "guard": "SUCCESS"
+          },
+          "debugArtifacts": [
+            {
+              "role": "RESIDENT",
+              "artifactId": 11943323437
+            },
+            {
+              "role": "GUARD",
+              "artifactId": 11942413398
+            }
+          ]
+        },
+        {
+          "id": "V5.5.34",
+          "name": "Cross-role TEST APK/AAB build metadata verification with distinct application IDs, source SHA, signer consistency and fail-closed distribution flags",
+          "status": "MERGED_PROTECTED_CI_PASSED_REAL_APK_AAB_MATRIX_GREEN",
+          "evidence": [
+            "scripts/v5-test-build-matrix-evidence.mjs",
+            "scripts/v5-test-build-matrix-evidence.test.mjs",
+            ".github/workflows/v5-test-android-smoke.yml",
+            "docs/architecture/V5.5.34-CROSS-ROLE-TEST-BUILD-METADATA.md"
+          ],
+          "limitations": [
+            "Metadata-only cross-role checks do not prove real co-installation or independently attest a runner.",
+            "Only existing base debug app IDs, not Partner A/B distribution identity, are compared."
+          ],
+          "pullRequest": 1326,
+          "mergeSha": "95c724ae60b047fb1fd06aaa30db9012606c5b2f",
+          "ciRun": 38669336722,
+          "actualMatrix": {
+            "resident": "SUCCESS",
+            "guard": "SUCCESS",
+            "crossRole": "SUCCESS"
+          }
+        },
+        {
+          "id": "V5.5.35",
+          "name": "Prevent recurring CI delay via automatic Bash syntax, duplicate-job and selective Android scope regression guards",
+          "status": "MERGED_PROTECTED_CI_PASSED_REGRESSION_GUARD_ACTIVE",
+          "evidence": [
+            "scripts/check-v4.79.1.3-v5-ci-shell-invariants.mjs",
+            "docs/architecture/V5.5.35-CI-REGRESSION-PREVENTION.md"
+          ],
+          "limitations": [
+            "The guard executes inside repository-structure when GitHub accepts a workflow definition; local pre-commit validation is still necessary for outright invalid GitHub YAML.",
+            "No external TEST runner attestation, partner artifact or distribution authority is asserted."
+          ],
+          "pullRequest": 1327,
+          "mergeSha": "83069a133a7d35370687f0acb12953afe5b160cd",
+          "ciRun": 38673709850
+        },
+        {
+          "id": "V5.5.36",
+          "name": "Cryptographic DSSE signature verification for independently pinned TEST OCI worker-image claims with separate attestor and worker identities",
+          "status": "MERGED_PROTECTED_CI_PASSED_SIGNED_OCI_CLAIM_PREFLIGHT",
+          "evidence": [
+            "packages/config/src/android-test-oci-provenance.mjs",
+            "scripts/android-test-oci-provenance.test.mjs",
+            "scripts/check-v4.79.1.8-v5-oci-attestation.mjs",
+            "docs/architecture/V5.5.36-INDEPENDENT-OCI-ATTESTATION.md"
+          ],
+          "limitations": [
+            "Independent attestor and worker public keys are ephemeral local test fixtures, not external trusted keys.",
+            "Offline signature verification only: no OCI registry image-byte lookup, remote runner ownership or live mTLS runtime check.",
+            "No approved execution, actual Partner A/B build/archive, productionization, staging or main promotion.",
+            "Separate runtime OCI image attestation remains pending and no partner APK/AAB execution was authorized."
+          ],
+          "pullRequest": 1338,
+          "mergeSha": "eb2c8ee8a839253b5aa383f664fa7beec31a90cf",
+          "ciRun": 38690058634,
+          "verifiedScope": [
+            "Ed25519 DSSE offline attestor claim signature tests passed (15 cases)",
+            "Exact worker/attestor key separation, OCI digest, source commit and server nonce/run pin",
+            "Repository structure, full API/Admin/Flutter and dependency-security checks passed",
+            "Required merge gates and develop auto merge passed"
+          ]
+        },
+        {
+          "id": "V5.5.37",
+          "name": "Verify single-manifest OCI TEST image layout file digests and source/platform against independently signed/pinned DSSE image claim",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_OCI_BYTES_GREEN",
+          "evidence": [
+            "packages/config/src/android-test-oci-layout.mjs",
+            "scripts/android-test-oci-layout.test.mjs",
+            "scripts/check-v4.79.1.9-v5-oci-layout.mjs",
+            "docs/architecture/V5.5.37-OFFLINE-OCI-IMAGE-BYTES.md"
+          ],
+          "limitations": [
+            "Real byte-integrity check is against disposable local OCI layout fixtures, not remote registry or live runtime image.",
+            "Independent attestor and worker keys in CI are ephemeral fixture keys; no remotely trusted worker ownership or immutable OCI deployment is attested.",
+            "No partner-specific APK/AAB, real registry lookup, signing or co-installation; dispatchAllowed:false, staging/main untouched.",
+            "No external OCI registry digest or actual runtime image observed, only local read-only file integrity; no execution authorized."
+          ],
+          "pullRequest": 1340,
+          "mergeSha": "e1bf02f02cd3923acb081689c089f90f95a98455",
+          "ciRun": 38693852187,
+          "verifiedScope": [
+            "Existing V5.5.36 pinned Ed25519 DSSE TEST image claim verifier reused and passed",
+            "Real disposable on-disk OCI v1 manifest/config/compressed layer SHA-256 integrity and signed source/platform binding passed",
+            "Negative OCI tampering, symlink, changed source, wrong platform, extra/missing blob cases passed",
+            "Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto merge passed"
+          ]
+        },
+        {
+          "id": "V5.5.38",
+          "name": "Read-only TLS 1.3 SPKI-pinned OCI registry manifest byte integrity probe bound to signed TEST image/local layout",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_TLS_REGISTRY_FIXTURE_GREEN",
+          "evidence": [
+            "packages/config/src/android-test-oci-registry.mjs",
+            "scripts/android-test-oci-registry.test.mjs",
+            "scripts/check-v4.79.1.10-v5-oci-registry.mjs",
+            "docs/architecture/V5.5.38-OCI-REGISTRY-MANIFEST-PROBE.md"
+          ],
+          "limitations": [
+            "Ephemeral TLS and OCI/DSSE fixtures; no independently provisioned external registry ownership or remote layers attestation.",
+            "No remote worker process/runtime image/mount attestation, approved Partner A/B build/signing, dispatch or release.",
+            "Staging/main unchanged; immutable no-authority receipt."
+          ],
+          "pullRequest": 1342,
+          "mergeSha": "76eac759c84c1e0711cb80ea86d1b5da0c39e7e8",
+          "ciRun": 38695431082,
+          "verifiedScope": [
+            "Signed DSSE image claim + real read-only local OCI manifest/config/compressed layer integrity reused",
+            "Ephemeral TLS 1.3 pinned CA, SPKI and hostname registry GET with actual manifest SHA-256 and header binding passed",
+            "Tampered remote bytes, content-type/header, redirect, URL scope, unexpected response, wrong nonce and wrong TLS key cases refused",
+            "Protected Repository structure, full API/Admin/Flutter, dependency security and required merge gates passed"
+          ]
+        },
+        {
+          "id": "V5.5.39",
+          "name": "Two independently pinned Ed25519 TEST worker/observer runtime process claims bound to OCI image/source, challenge, container, mount namespace and TLS peer without dispatch",
+          "status": "MERGED_PROTECTED_CI_PASSED_OFFLINE_RUNTIME_CLAIM_ONLY",
+          "evidence": [
+            "packages/config/src/android-test-oci-runtime-claim.mjs",
+            "scripts/android-test-oci-runtime-claim.test.mjs",
+            "scripts/check-v4.79.1.11-v5-runtime-claim.mjs",
+            "docs/architecture/V5.5.39-RUNTIME-PROCESS-CLAIMS.md"
+          ],
+          "limitations": [
+            "Cryptographically authentic disposable TEST claims are not independently measured real runtime processes, container digests or mounts.",
+            "No real independent worker/observer provisioning, remotely authenticated source/registry image, or atomic persistent nonce consumption.",
+            "No partner APK/AAB or build authorization; staging/main untouched.",
+            "Only the signature authenticity and strict claim binding were verified; no remote runtime measurement or live TLS worker observation occurred."
+          ],
+          "pullRequest": 1344,
+          "mergeSha": "e0008d424f79f83c6cb56bf0ed06344dfcad4bb0",
+          "ciRun": 38696806887,
+          "verifiedScope": [
+            "Operator-pinned prior OCI image attestor Ed25519 DSSE verification reused",
+            "Independent Ed25519 observer and worker signatures bound to image/source, worker/run, challenge, manifest, container, mount namespace and transport SPKI passed fixture tests",
+            "Negative tampering, key reuse, unsigned payload, replayed nonce/challenge, foreign source, writable-mount claims, expiration and signature substitution refused",
+            "Protected CI: Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge passed"
+          ]
+        },
+        {
+          "id": "V5.5.40",
+          "name": "Read-only TLS 1.3 mTLS fresh-nonce signed worker/observer runtime process-claim transport probe",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_MTLS_RUNTIME_CLAIM_ONLY",
+          "evidence": [
+            "packages/config/src/android-test-oci-runtime-transport.mjs",
+            "scripts/android-test-oci-runtime-transport.test.mjs",
+            "scripts/check-v4.79.1.12-v5-runtime-transport.mjs",
+            "docs/architecture/V5.5.40-MTLS-RUNTIME-EVIDENCE.md"
+          ],
+          "limitations": [
+            "Disposable local TLS and Ed25519 keys only; no independently operated external worker, OCI runtime or real observer key custody.",
+            "No trusted container/kernel mount measurements, no persisted consumption of fresh transport nonce and no Partner A/B artifact.",
+            "Read-only challenge and signed claim only; buildExecutionAuthorized:false and dispatchAllowed:false; staging/main unchanged.",
+            "The nonce-binding is cryptographic but has no new atomic persistent challenge consumption; V5.5.14-15 durable acceptance remains separate."
+          ],
+          "pullRequest": 1346,
+          "mergeSha": "baafa9cce8094a08d5043d3231c2d2c2fb512ec4",
+          "ciRun": 38698936201,
+          "verifiedScope": [
+            "Local TLS 1.3 mutual TLS read-only runtime-evidence POST, pinned CA/server hostname and client+server SPKI verified",
+            "Fresh per-request transport nonce bound by independently signed observer response around separately signed worker/observer runtime DSSE claim",
+            "Negative untrusted endpoint/TLS identity, response replay, wrong nonce, invalid signatures, foreign process/container claim, content-type and encoding tests passed",
+            "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
+          ]
+        },
+        {
+          "id": "V5.5.41",
+          "name": "Append-only PostgreSQL one-time runtime mTLS nonce digest ledger bound to accepted TEST challenge and active distribution authority",
+          "status": "MERGED_PROTECTED_CI_PASSED_PERSISTENT_RUNTIME_PROBE_NONCE_LEDGER",
+          "evidence": [
+            "services/api/prisma/migrations/20261015080000_v5541_runtime_probe_replay/migration.sql",
+            "services/api/prisma/schema.prisma",
+            "services/api/src/entitlements/partner-android-runner-runtime-probe-ledger.service.ts",
+            "services/api/src/entitlements/partner-android-runner-runtime-probe-ledger.spec.ts",
+            "packages/config/src/android-test-oci-runtime-transport.mjs",
+            "scripts/android-test-oci-runtime-transport.test.mjs",
+            "scripts/check-v4.79.1.13-v5-runtime-replay.mjs",
+            "docs/architecture/V5.5.41-RUNTIME-PROBE-REPLAY-LEDGER.md"
+          ],
+          "limitations": [
+            "Append-only durable ledger and tests use mocked service/PostgreSQL contract; no provisioned live external runner or independent measured kernel image.",
+            "No direct HTTP controller; only internal orchestration can invoke the pinned mTLS probe and then this ledger; a stored receipt is not execution proof.",
+            "Fresh probe nonce consumption is scoped to read-only runtime acceptance, distinct from any future build-execution challenge.",
+            "No partner APK/AAB, execution or release authority; staging and main unchanged.",
+            "No independent real worker OCI digest, kernel process or mount verification; database row records tested non-dispatchable claims, not execution authorization."
+          ],
+          "pullRequest": 1348,
+          "mergeSha": "aaf67dcab94e43a684919a05aae5edd50e6c8ad3",
+          "ciRun": 38701477594,
+          "verifiedScope": [
+            "Append-only PostgreSQL runtime probe row with unique accepted challenge/run/transport nonce/observer signature/envelope digest; DB insert trigger rechecks active allocation, actor, approved source/version and time window",
+            "V5.5.40 tested TLS 1.3 mTLS runtime claim receipt now supplies hashed nonce, signed evidence digest, SPKI and verification timestamp; raw nonce never persisted",
+            "Nest internal-only recording service exercises fresh commercial checkpoint and a trusted callback then records non-dispatchable probe evidence",
+            "Tenant-access inventory regenerated and exact Git blob reconciled after initial API CI inventory drift; migration applied successfully in CI",
+            "Protected CI re-run completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
+          ]
+        },
+        {
+          "id": "V5.5.42",
+          "name": "Stable Linux /proc target-process observer (PID starttime, mount namespace, seccomp and read-only SDK mounts) without external image attestation",
+          "status": "MERGED_PROTECTED_CI_PASSED_HOST_LOCAL_PROCFS_OBSERVER_ONLY",
+          "evidence": [
+            "packages/config/src/android-test-linux-observer.mjs",
+            "scripts/android-test-linux-observer.test.mjs",
+            "scripts/check-v4.79.1.14-v5-linux-observer.mjs",
+            "docs/architecture/V5.5.42-LINUX-PROCESS-OBSERVER.md"
+          ],
+          "limitations": [
+            "Pure parser tests use synthetic kernel snapshots; live CI sanity probes only its own non-isolated runner and refuses attestation.",
+            "A host-local /proc observation cannot prove external operator ownership, remote OCI image digest/layers, continuously immutable mounts, or challenge consumption.",
+            "No Partner A/B build authorization, artifact or release; staging/main remain untouched."
+          ],
+          "pullRequest": 1350,
+          "mergeSha": "fc430a5d15fbb2dda5595eed6c185c431a21b967",
+          "ciRun": 38703608620,
+          "verifiedScope": [
+            "Read-only Linux target PID /proc stat-starttime/mount-namespace double-sampling and strict pinned identity policy",
+            "V5.5.19 complete rootless/seccomp/no-new-privileges/four pinned read-only SDK mount validation reused",
+            "Negative tests reject PID reuse, process exit, different namespace, privileged status, writable/overmounted SDK paths and forged digest/policy",
+            "Live Linux /proc sanity check demonstrates a regular CI process is rejected as an isolated TEST worker",
+            "Protected CI passed Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
+          ]
+        },
+        {
+          "id": "V5.5.43",
+          "name": "Pinned cgroup v2 and read-only root filesystem observation of a stable Linux TEST target process",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_CGROUP_ROOT_OBSERVER_ONLY",
+          "evidence": [
+            "packages/config/src/android-test-linux-cgroup-observer.mjs",
+            "scripts/android-test-linux-cgroup-observer.test.mjs",
+            "scripts/check-v4.79.1.15-v5-linux-cgroup.mjs",
+            "docs/architecture/V5.5.43-LINUX-CGROUP-ROOT-OBSERVER.md"
+          ],
+          "limitations": [
+            "Pure Linux kernel-snapshot tests use fixtures; live local CI only refuses an ordinary unisolated process.",
+            "No independently operated external observer or authenticated OCI image digest/layer/runtime state.",
+            "No consumption of an execution challenge, build authority, APK/AAB or staging/main promotion."
+          ],
+          "pullRequest": 1352,
+          "mergeSha": "ce5affec4a8c8abb10c6a41e94787f07f0b538a3",
+          "ciRun": 38705938201,
+          "verifiedScope": [
+            "Verified a stable target-PID starttime and mount namespace around fixed Linux /proc cgroup/root-mount reads with operator-pinned process/container cgroup v2 scope",
+            "Strict root mount filesystem/source policy and read-only mount+superblock flags; malformed cgroup/v1/hybrid, PID reuse, writable root, overmount and unpinned digest refused",
+            "Existing V5.5.42 target-process SDK isolation reused; live CI ordinary-process observation correctly refused privilege/isolation acceptance",
+            "Protected CI completed successfully: Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
+          ]
+        },
+        {
+          "id": "V5.5.44",
+          "name": "Linux host-local TARGET process executable SHA-256, argv hash and stable PID/user/mount namespace preflight",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_EXECUTABLE_OBSERVER_ONLY",
+          "evidence": [
+            "packages/config/src/android-test-linux-executable-observer.mjs",
+            "scripts/android-test-linux-executable-observer.test.mjs",
+            "scripts/check-v4.79.1.16-v5-executable-observer.mjs",
+            "docs/architecture/V5.5.44-LINUX-EXECUTABLE-OBSERVER.md"
+          ],
+          "limitations": [
+            "Synthetic /proc snapshots and a reject-only live CI sanity probe, not a provisioned external runner or independent OCI image digest measurement.",
+            "Pinned executable SHA-256 and argv do not establish container image/layer identity, continuously immutable mount state or separate observer ownership.",
+            "No Android build/dispatch, signer, Partner A/B APK/AAB, staging/main changes."
+          ],
+          "pullRequest": 1354,
+          "mergeSha": "bf5c330cc9137a72e4fc2f921cada923fcde175b",
+          "ciRun": 38708353856,
+          "verifiedScope": [
+            "Read-only bounded Linux target proc executable file-descriptor SHA-256 and raw argv hash bound to separately pinned executable/identity/namespace policy",
+            "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
+            "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
+            "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
+          ]
+        }
+      ],
+      "remaining": [
+        "Provision a separately trusted TEST runner and verify its externally attested OCI image digest before enabling any execution",
+        "Implement trusted runner authentication and fixed SHA-pinned source/toolchain in isolated disposable checkout",
+        "Generate Flutter 3.47 Android wrapper, integrate staged branding/manifest/Gradle/Kotlin and Android 12 splash themes",
+        "Bounded actual TEST APK/AAB generation and independent signer/package/version/ABI/archive SHA verification",
+        "Partner A/B installation isolation and V5.6 release acceptance"
+      ]
+    },
+    {
+      "id": "V5.6",
+      "name": "Regression rollback and engineering closure",
+      "status": "PLANNED",
+      "dependsOn": [
+        "V5.1",
+        "V5.2",
+        "V5.3",
+        "V5.4",
+        "V5.5"
+      ]
+    }
+  ],
+  "roadmap": "docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md",
+  "invariants": [
+    "One shared codebase",
+    "Society operational isolation",
+    "Aaraagate default brand",
+    "Existing effective entitlements preserved",
+    "Branding does not grant authorization",
+    "No productionization",
+    "No staging/main per-slice promotion"
+  ],
+  "implementationBaselineSha": "8e87dbf8f809215db92e14dfd727c42ac7f76553",
+  "validationEvidence": {
+    "pullRequest": 1210,
+    "runtimeHeadSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
+    "developMergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91",
+    "workflowRun": "https://github.com/auraakart/Aaraaweb/actions/runs/38132938204",
+    "protectedGates": "PASSED",
+    "nativePostgresUpgrade": "189 prior migrations; 64 compatibility fixtures; replay; atomic failure rollback; constraints; legacy response contract",
+    "apiAdminFlutter": "Full validation passed",
+    "stagingMainPromotion": "NONE"
+  }
+}

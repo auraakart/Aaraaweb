@@ -1,0 +1,111 @@
+name: V5 Android Base App TEST Smoke
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/v5-test-android-smoke.yml'
+      - 'scripts/v5-test-android-smoke.sh'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v5-base-test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  base-debug-apk:
+    name: TEST base debug APK - ${{ matrix.app }}
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [resident, guard]
+    steps:
+      - name: Checkout immutable CI run revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter 3.47 stable
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Generate disposable default Android wrapper
+        working-directory: apps/${{ matrix.app }}
+        run: flutter create --platforms=android --project-name aaraagate_${{ matrix.app }} --org com.aaraaplatforms .
+      - name: Restore reviewed source and pin TEST native SDK levels
+        run: bash scripts/v5-test-android-smoke.sh prepare "${{ matrix.app }}"
+      - name: Resolve app dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get
+      - name: Build real debug APK without production signing
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build apk --debug --no-pub
+      - name: Check package, SDK, native ABI, archive and debug signer
+        run: bash scripts/v5-test-android-smoke.sh inspect "${{ matrix.app }}"
+      - name: Build real base TEST debug AAB
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build appbundle --debug --no-pub
+      - name: Inspect base TEST AAB signature and archive
+        run: bash scripts/v5-test-android-aab-smoke.sh "${{ matrix.app }}"
+      - name: Emit checked small APK/AAB metadata record
+        run: node scripts/v5-test-build-matrix-evidence.mjs role "${{ matrix.app }}"
+      - name: Upload small signed TEST identity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: aaraagate-v5-${{ matrix.app }}-test-build-metadata-${{ github.sha }}
+          path: dist/aaraagate-${{ matrix.app }}-test-build-metadata.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain TEST APK and acceptance diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aaraagate-v5-${{ matrix.app }}-base-test-debug-${{ github.sha }}
+          path: |
+            apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-debug.apk
+            dist/aaraagate-${{ matrix.app }}-test-apk-evidence.txt
+            dist/aaraagate-${{ matrix.app }}-test-apk-entry-list.txt
+            dist/aaraagate-${{ matrix.app }}-test-aapt-badging.txt
+            dist/aaraagate-${{ matrix.app }}-test-apksigner.txt
+            dist/aaraagate-${{ matrix.app }}-test-signing-summary.json
+            apps/${{ matrix.app }}/build/app/outputs/bundle/debug/app-debug.aab
+            dist/aaraagate-${{ matrix.app }}-test-aab-evidence.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-entry-list.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-jarsigner.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-certificate.txt
+            dist/aaraagate-${{ matrix.app }}-test-aab-signing-summary.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  verify-cross-role-base-evidence:
+    name: Compare TEST Resident/Guard APK and AAB metadata
+    needs: [base-debug-apk]
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact CI revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download only small TEST metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aaraagate-v5-*-test-build-metadata-${{ github.sha }}
+          path: evidence
+          merge-multiple: true
+      - name: Fail closed on cross-role identity and signing inconsistency
+        run: node scripts/v5-test-build-matrix-evidence.mjs matrix evidence

@@ -1,0 +1,2021 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                        String                     @id @default(uuid()) @db.Uuid
+  phone                     String                     @unique
+  email                     String?                    @unique
+  name                      String?
+  status                    UserStatus                 @default(ACTIVE)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  distributionProposals     PartnerDistributionProposal[]
+  androidBuildRevisionsCreated PartnerAndroidBuildRevision[] @relation("AndroidBuildRevisionCreator")
+  androidBuildReservationsCreated PartnerAndroidBuildReservation[] @relation("AndroidBuildReservationCreator")
+  androidBuildWorkerClaims PartnerAndroidBuildWorkerClaim[] @relation("AndroidBuildWorkerClaimActor")
+  androidBuildWorkerConsumptions PartnerAndroidBuildWorkerConsumption[] @relation("AndroidBuildConsumptionActor")
+  androidBuildRunnerChallenges PartnerAndroidRunnerChallenge[] @relation("AndroidRunnerChallengeActor")
+  androidBuildRunnerAcceptances PartnerAndroidRunnerEvidenceAcceptance[] @relation("AndroidRunnerAcceptanceActor")
+  androidBuildRuntimeProbes PartnerAndroidRunnerRuntimeProbe[] @relation("AndroidRunnerRuntimeProbeActor")
+  androidBuildRevisionsReviewed PartnerAndroidBuildRevisionApproval[] @relation("AndroidBuildRevisionReviewer")
+  distributionApprovals     PartnerDistributionApproval[]
+  distributionRevocations   PartnerDistributionRevocation[]
+  legacySubscriptions       SocietyLegacySubscription[]
+  memberships               SocietyMembership[]
+  partnerMemberships        PartnerMembership[]
+  partnerDomainClaims       PartnerDomainClaim[] @relation("DomainClaimCreator")
+  partnerDomainEvents       PartnerDomainClaimEvent[] @relation("DomainClaimEventActor")
+  partnerInvitations        PartnerInvitation[] @relation("PartnerInvitee")
+  partnerInvitationsSent    PartnerInvitation[] @relation("PartnerInviteAuthor")
+  partnerMemberEvents       PartnerMembershipEvent[] @relation("PartnerEventSubject")
+  partnerMemberEventsActor  PartnerMembershipEvent[] @relation("PartnerEventActor")
+  ownershipRequests         SocietyOwnershipTransferRequest[] @relation("OwnershipInitiator")
+  ownershipApprovals        SocietyOwnershipTransfer[] @relation("OwnershipApprover")
+  capacityReservations      PartnerLicenseCapacityReservation[] @relation("CapacityReservationActor")
+  licensesApproved          PartnerLicenseApproval[] @relation("LicenseApprover")
+  licensesRevoked           PartnerLicenseRevocation[] @relation("LicenseRevoker")
+  licenseConsents            SocietyLicenseConsent[] @relation("LicenseConsentActor")
+  licensesAllocated         SocietyLicenseAllocation[] @relation("LicenseAllocationActor")
+  partnerLicensePlansCreated PartnerLicensePlanRevision[] @relation("PartnerLicensePlanCreator")
+  partnerLicenseGrantsCreated PartnerLicenseGrant[] @relation("PartnerLicenseGrantCreator")
+  partnerLicenseEventsCreated PartnerLicenseEvent[] @relation("PartnerLicenseEventActor")
+  unitOwnerships            UnitOwnership[]
+  unitOccupancies           UnitOccupancy[]
+  visitors                  Visitor[]
+  accessRequests            AccessRequest[]
+  serviceBookings           ServiceBooking[]
+  serviceRatings            ServiceRating[]
+  sessions                  Session[]
+  pushDeviceTokens          DevicePushToken[]
+  workforceLeavesCreated    WorkforceLeave[]           @relation("WorkforceLeaveCreator")
+  societyBrandRevisionsCreated SocietyBrandRevision[] @relation("SocietyBrandRevisionCreator")
+  societyBrandLogoAssetsCreated SocietyBrandLogoAsset[] @relation("SocietyBrandLogoCreator")
+  workforceRatingsGiven     WorkforceRating[]          @relation("WorkforceRatingAuthor")
+  workforceSuspensionEvents WorkforceSuspensionEvent[] @relation("WorkforceSuspensionActor")
+  helpdeskTicketsCreated    HelpdeskTicket[]           @relation("HelpdeskTicketCreator")
+  helpdeskTicketsAssigned   HelpdeskTicket[]           @relation("HelpdeskTicketAssignee")
+  helpdeskActivities        HelpdeskActivity[]
+  noticesCreated            Notice[]                   @relation("NoticeCreator")
+  noticeEvents              NoticeEvent[]
+  sosIncidents              SosIncident[]              @relation("SosResident")
+  sosAcknowledgements       SosIncident[]              @relation("SosAcknowledgedBy")
+  sosResolutions            SosIncident[]              @relation("SosResolvedBy")
+  sosEvents                 SosIncidentEvent[]
+  invoicesCreated           MaintenanceInvoice[]       @relation("InvoiceCreator")
+  paymentEvents             PaymentEvent[]             @relation("PaymentEventActor")
+  householdChangesRequested HouseholdChangeRequest[]   @relation("HouseholdChangeRequester")
+  householdChangesReviewed  HouseholdChangeRequest[]   @relation("HouseholdChangeReviewer")
+}
+
+model Society {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  name                 String
+  code                 String                     @unique
+  status               SocietyStatus              @default(ACTIVE)
+  productTier          ProductTier                @default(STARTER)
+  featureOverrides     Json                       @default("{}")
+  partnerId            String                     @default("00000000-0000-4000-8000-000000000001") @db.Uuid
+  ownershipVersion     Int                        @default(1)
+  partner              Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  entitlementCompatibility SocietyEntitlementCompatibility?
+  ownershipRequests    SocietyOwnershipTransferRequest[]
+  ownershipTransfers   SocietyOwnershipTransfer[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+  licenseApprovals     PartnerLicenseApproval[]
+  licenseRevocations   PartnerLicenseRevocation[]
+  licenseConsents      SocietyLicenseConsent[]
+  licensedAllocations  SocietyLicenseAllocation[]
+  societyBrandRevisions SocietyBrandRevision[]
+  societyBrandLogoAssets SocietyBrandLogoAsset[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  memberships          SocietyMembership[]
+  buildings            Building[]
+  gates                Gate[]
+  unitOwnerships       UnitOwnership[]
+  unitOccupancies      UnitOccupancy[]
+  households           Household[]
+  vehicles             HouseholdVehicle[]
+  emergencyContacts    EmergencyContact[]
+  domesticWorkers      DomesticWorker[]
+  workforceAssignments WorkforceAssignment[]
+  societyWorkers        SocietyWorker[]
+  societyWorkerGates    SocietyWorkerGateAccess[]
+  societyWorkerAttendance SocietyWorkerAttendance[]
+  societyWorkerLeaves   SocietyWorkerLeave[]
+  societyWorkerEvents   SocietyWorkerEvent[]
+  visitors             Visitor[]
+  visitorPasses        VisitorPass[]
+  accessRequests       AccessRequest[]
+  providerApprovals    ServiceProviderSociety[]
+  serviceBookings      ServiceBooking[]
+  serviceRatings       ServiceRating[]
+  auditEvents          AuditEvent[]
+  gateMutations        GateMutationReceipt[]
+  sessions             Session[]
+  pushDeviceTokens     DevicePushToken[]
+  workforceLeaves      WorkforceLeave[]
+  workforceRatings     WorkforceRating[]
+  workforceSuspensions WorkforceSuspensionEvent[]
+  helpdeskTickets      HelpdeskTicket[]
+  helpdeskActivities   HelpdeskActivity[]
+  notices              Notice[]
+  noticeEvents         NoticeEvent[]
+  sosIncidents         SosIncident[]
+  sosEvents            SosIncidentEvent[]
+  maintenanceInvoices  MaintenanceInvoice[]
+  payments             Payment[]
+  paymentEvents        PaymentEvent[]
+  householdChanges     HouseholdChangeRequest[]
+
+  @@index([partnerId, status])
+}
+
+// Commercial ownership is separate from society operational authorization.
+model Partner {
+  id          String              @id @default(uuid()) @db.Uuid
+  slug        String              @unique
+  displayName String
+  status      PartnerStatus       @default(DRAFT)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
+  societies   Society[]
+  memberships PartnerMembership[]
+  domainClaims PartnerDomainClaim[]
+  invitations PartnerInvitation[]
+  memberEvents PartnerMembershipEvent[]
+  licenseGrants PartnerLicenseGrant[]
+  ownershipRequestsFrom SocietyOwnershipTransferRequest[] @relation("OwnershipRequestFrom")
+  ownershipRequestsTo SocietyOwnershipTransferRequest[] @relation("OwnershipRequestTo")
+}
+
+enum PartnerInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+enum PartnerMemberAction {
+  INVITED
+  ACCEPTED
+  DECLINED
+  INVITATION_REVOKED
+  ROLE_CHANGED
+  MEMBER_REVOKED
+}
+model PartnerInvitation {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  userId String @db.Uuid
+  invitedById String @db.Uuid
+  role PartnerRole
+  status PartnerInvitationStatus @default(PENDING)
+  idempotencyKey String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  respondedAt DateTime? @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  invitee User @relation("PartnerInvitee", fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy User @relation("PartnerInviteAuthor", fields: [invitedById], references: [id], onDelete: Restrict)
+  @@unique([partnerId, idempotencyKey])
+  @@index([userId, status, expiresAt])
+  @@index([partnerId, userId, status])
+}
+model PartnerMembershipEvent {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  subjectUserId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerMemberAction
+  beforeRole PartnerRole?
+  afterRole PartnerRole?
+  invitationId String? @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  subject User @relation("PartnerEventSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  actor User @relation("PartnerEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([partnerId, createdAt])
+}
+// V5.4.11: registration is an inert pending claim, never route authority.
+enum PartnerDomainClaimStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+enum PartnerDomainClaimAction {
+  REGISTERED
+  VERIFIED
+  REVOKED
+  CHALLENGE_REISSUED
+}
+model PartnerDomainClaim {
+  id String @id @default(uuid()) @db.Uuid
+  partnerId String @db.Uuid
+  hostname String @unique @db.VarChar(253)
+  status PartnerDomainClaimStatus @default(PENDING)
+  challengeHash String @db.Char(64)
+  idempotencyKey String @db.Uuid
+  version Int @default(1)
+  verificationAttempts Int @default(0)
+  challengeRotationCount Int @default(0)
+  challengeIssuedAt DateTime @default(now()) @db.Timestamptz(6)
+  lastVerificationAttemptAt DateTime? @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  verifiedUntil DateTime? @db.Timestamptz(6)
+  createdById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  partner Partner @relation(fields:[partnerId],references:[id],onDelete:Restrict)
+  createdBy User @relation("DomainClaimCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  events PartnerDomainClaimEvent[]
+  boundSessions Session[]
+  @@unique([partnerId,idempotencyKey])
+  @@index([partnerId,status])
+}
+model PartnerDomainClaimEvent {
+  id String @id @default(uuid()) @db.Uuid
+  claimId String @db.Uuid
+  actorId String @db.Uuid
+  action PartnerDomainClaimAction
+  idempotencyKey String? @db.Uuid
+  resultVersion Int?
+  reason String? @db.VarChar(500)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  claim PartnerDomainClaim @relation(fields:[claimId],references:[id],onDelete:Restrict)
+  actor User @relation("DomainClaimEventActor",fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([claimId,createdAt])
+  @@unique([claimId,idempotencyKey])
+}
+
+model PartnerMembership {
+  id        String      @id @default(uuid()) @db.Uuid
+  partnerId String      @db.Uuid
+  userId    String      @db.Uuid
+  role      PartnerRole
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  partner   Partner     @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, userId, role])
+  @@index([partnerId, userId, active])
+}
+
+// Immutable proposals and applied two-person approvals; never operational roles.
+model SocietyOwnershipTransferRequest {
+  id                     String @id @default(uuid()) @db.Uuid
+  societyId              String @db.Uuid
+  fromPartnerId          String @db.Uuid
+  toPartnerId            String @db.Uuid
+  expectedOwnershipVersion Int
+  initiatedById          String @db.Uuid
+  idempotencyKey         String @db.Uuid
+  reason                 String @db.VarChar(500)
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  fromPartner            Partner @relation("OwnershipRequestFrom", fields: [fromPartnerId], references: [id], onDelete: Restrict)
+  toPartner              Partner @relation("OwnershipRequestTo", fields: [toPartnerId], references: [id], onDelete: Restrict)
+  initiatedBy            User @relation("OwnershipInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  transfer               SocietyOwnershipTransfer?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
+}
+
+model SocietyOwnershipTransfer {
+  id                     String @id @default(uuid()) @db.Uuid
+  requestId              String @unique @db.Uuid
+  societyId              String @db.Uuid
+  ownershipVersion       Int
+  approvedById           String @db.Uuid
+  appliedAt              DateTime @default(now()) @db.Timestamptz(6)
+  request                SocietyOwnershipTransferRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  society                Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy             User @relation("OwnershipApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, ownershipVersion])
+}
+
+// Cutover evidence, not a replacement live entitlement resolver or invoice.
+// Immutable configuration snapshots; publishing changes publishedAt only once.
+model SocietyBrandLogoAsset {
+  id                 String    @id @default(uuid()) @db.Uuid
+  societyId          String    @db.Uuid
+  createdById        String    @db.Uuid
+  storageKey         String    @unique
+  contentType        String
+  contentLengthBytes Int
+  uploadExpiresAt    DateTime  @db.Timestamptz(6)
+  status             String    @default("PENDING")
+  sha256             String?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  verifiedAt         DateTime? @db.Timestamptz(6)
+  society            Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy          User      @relation("SocietyBrandLogoCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, status])
+}
+
+model SocietyBrandRevision {
+  id            String   @id @default(uuid()) @db.Uuid
+  societyId     String   @db.Uuid
+  version       Int
+  schemaVersion Int      @default(1)
+  config        Json
+  digest        String
+  publishedAt   DateTime? @db.Timestamptz(6)
+  createdById   String   @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("SocietyBrandRevisionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, version])
+  @@index([societyId, publishedAt(sort: Desc), version(sort: Desc)])
+}
+
+model SocietyEntitlementCompatibility {
+  societyId        String      @id @db.Uuid
+  sourceProductTier ProductTier
+  sourceOverrides  Json
+  enabledFeatures  Json
+  sourceMigration  String
+  capturedAt       DateTime    @default(now()) @db.Timestamptz(6)
+  society          Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  subscriptions    SocietyLegacySubscription[]
+}
+
+// Commercial-only revisions; these tables do NOT grant live society features.
+model PartnerLicensePlanRevision {
+  id                   String               @id @default(uuid()) @db.Uuid
+  code                 String
+  version              Int
+  featureAllowlist     Json
+  maximumSocieties     Int
+  maximumDomains       Int                  @default(0)
+  maximumDistributions Int                  @default(0)
+  createdById          String               @db.Uuid
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
+  createdBy            User                 @relation("PartnerLicensePlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  grants               PartnerLicenseGrant[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+
+  @@unique([code, version])
+}
+
+model PartnerLicenseGrant {
+  id             String                     @id @default(uuid()) @db.Uuid
+  partnerId      String                     @db.Uuid
+  planRevisionId String                     @db.Uuid
+  status         PartnerLicenseGrantStatus  @default(DRAFT)
+  startsAt       DateTime                   @db.Timestamptz(6)
+  endsAt         DateTime                   @db.Timestamptz(6)
+  graceUntil     DateTime?                  @db.Timestamptz(6)
+  idempotencyKey String                     @db.Uuid
+  version        Int                        @default(1)
+  createdById    String                     @db.Uuid
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                   @updatedAt @db.Timestamptz(6)
+  partner        Partner                    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  planRevision   PartnerLicensePlanRevision @relation(fields: [planRevisionId], references: [id], onDelete: Restrict)
+  createdBy      User                       @relation("PartnerLicenseGrantCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events         PartnerLicenseEvent[]
+  capacityReservations PartnerLicenseCapacityReservation[]
+
+  @@unique([partnerId, idempotencyKey])
+  @@index([partnerId, status, endsAt])
+  approval       PartnerLicenseApproval?
+  societyConsents SocietyLicenseConsent[]
+}
+
+// Persisted development reservation, NOT a live license or operational grant.
+model PartnerLicenseCapacityReservation {
+  id               String @id @default(uuid()) @db.Uuid
+  grantId          String @db.Uuid
+  planRevisionId   String @db.Uuid
+  grantVersion     Int
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  enabledFeatures  Json
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  grant            PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  planRevision     PartnerLicensePlanRevision @relation(fields: [planRevisionId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  actor            User @relation("CapacityReservationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, idempotencyKey])
+  @@unique([grantId, societyId, ownershipVersion])
+  @@index([societyId, ownershipVersion])
+}
+
+model PartnerLicenseEvent {
+  id             String                  @id @default(uuid()) @db.Uuid
+  grantId        String                  @db.Uuid
+  actorId        String                  @db.Uuid
+  type           PartnerLicenseEventType
+  idempotencyKey String                  @db.Uuid
+  detail         Json                    @default("{}")
+  occurredAt     DateTime                @default(now()) @db.Timestamptz(6)
+  grant          PartnerLicenseGrant     @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor          User                    @relation("PartnerLicenseEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, idempotencyKey])
+  @@index([grantId, occurredAt])
+}
+
+// Approved license authority is separate from its immutable DRAFT proposal.
+model PartnerLicenseApproval {
+  id               String @id @default(uuid()) @db.Uuid
+  grantId          String @unique @db.Uuid
+  grantVersion     Int
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  approvedById     String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  essentialPolicy  String @default("PRESERVE_LEGACY")
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  grant            PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  approvedBy       User @relation("LicenseApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  revocation       PartnerLicenseRevocation?
+  allocations      SocietyLicenseAllocation[]
+
+  @@index([societyId, createdAt])
+}
+
+model PartnerLicenseRevocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @unique @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  reason           String @db.VarChar(500)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseRevoker", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, createdAt])
+}
+
+model SocietyLicenseConsent {
+  id                   String @id @default(uuid()) @db.Uuid
+  sequence             Int @unique @default(autoincrement())
+  societyId            String @db.Uuid
+  ownershipVersion     Int
+  grantId              String @db.Uuid
+  grantVersion         Int
+  actorId              String @db.Uuid
+  decision             String @db.VarChar(16)
+  idempotencyKey       String @db.Uuid
+  productTier          ProductTier
+  featureOverrides     Json
+  enabledFeatures      Json
+  compatibilityMigration String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  society              Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  grant                PartnerLicenseGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  actor                User @relation("LicenseConsentActor", fields: [actorId], references: [id], onDelete: Restrict)
+  allocation           SocietyLicenseAllocation?
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, grantId, ownershipVersion, sequence(sort: Desc)])
+}
+
+model SocietyLicenseAllocation {
+  id               String @id @default(uuid()) @db.Uuid
+  approvalId       String @db.Uuid
+  societyId        String @db.Uuid
+  ownershipVersion Int
+  consentId        String @unique @db.Uuid
+  actorId          String @db.Uuid
+  idempotencyKey   String @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  approval         PartnerLicenseApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  society          Society @relation(fields: [societyId], references: [id], onDelete: Restrict)
+  distributionProposals PartnerDistributionProposal[]
+  legacySubscription SocietyLegacySubscription?
+  consent          SocietyLicenseConsent @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  actor            User @relation("LicenseAllocationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([approvalId, idempotencyKey])
+  @@index([societyId, ownershipVersion])
+}
+
+enum PartnerLicenseGrantStatus {
+  DRAFT
+  GRANTED
+  REVOKED
+}
+
+enum PartnerLicenseEventType {
+  DRAFT_CREATED
+  GRANTED
+  REVOKED
+}
+
+enum PartnerStatus {
+  DRAFT
+  ACTIVE
+  RESTRICTED
+  TERMINATED
+}
+
+enum PartnerRole {
+  OWNER
+  BRAND_MANAGER
+  COMMERCIAL_ADMIN
+  SUPPORT
+}
+
+model SocietyMembership {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  societyId String         @db.Uuid
+  role      MembershipRole
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society   Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, societyId, role])
+  @@index([societyId])
+}
+
+model Building {
+  id        String  @id @default(uuid()) @db.Uuid
+  societyId String  @db.Uuid
+  name      String
+  code      String
+  society   Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  units     Unit[]
+
+  @@unique([societyId, code])
+}
+
+model Unit {
+  id                  String               @id @default(uuid()) @db.Uuid
+  societyId           String               @db.Uuid
+  buildingId          String               @db.Uuid
+  number              String
+  building            Building             @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  ownerships          UnitOwnership[]
+  occupancies         UnitOccupancy[]
+  household           Household?
+  visitors            Visitor[]
+  accessRequests      AccessRequest[]
+  serviceBookings     ServiceBooking[]
+  helpdeskTickets     HelpdeskTicket[]
+  sosIncidents        SosIncident[]
+  maintenanceInvoices MaintenanceInvoice[]
+
+  @@unique([buildingId, number])
+  @@index([societyId])
+}
+
+/// Legal/property relationship. Ownership does not imply residence, household
+/// access, gate notifications or gate approval authority.
+model UnitOwnership {
+  id            String    @id @default(uuid()) @db.Uuid
+  societyId     String    @db.Uuid
+  unitId        String    @db.Uuid
+  userId        String    @db.Uuid
+  verified      Boolean   @default(false)
+  ownershipBps  Int       @default(10000)
+  effectiveFrom DateTime  @default(now()) @db.Timestamptz(6)
+  effectiveTo   DateTime? @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+  society       Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([unitId, userId, active])
+  @@index([societyId, unitId, active])
+  @@index([societyId, userId, active])
+}
+
+/// Time-bound physical occupancy. Gate routing and day-to-day household
+/// authority are derived from this record, never from ownership alone.
+model UnitOccupancy {
+  id                      String       @id @default(uuid()) @db.Uuid
+  societyId               String       @db.Uuid
+  unitId                  String       @db.Uuid
+  userId                  String       @db.Uuid
+  relation                UnitRelation
+  effectiveFrom           DateTime     @default(now()) @db.Timestamptz(6)
+  effectiveTo             DateTime?    @db.Timestamptz(6)
+  active                  Boolean      @default(true)
+  primaryGateContact      Boolean      @default(false)
+  gateApprovalEnabled     Boolean      @default(true)
+  gateApprovalExpiresAt   DateTime?    @db.Timestamptz(6)
+  gateNotificationEnabled Boolean      @default(true)
+  escalationOrder         Int          @default(100)
+  createdAt               DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime     @updatedAt @db.Timestamptz(6)
+  society                 Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                    Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([unitId, userId, active])
+  @@index([societyId, unitId, active, gateNotificationEnabled])
+  @@index([societyId, userId, active])
+}
+
+model Household {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  societyId            String                   @db.Uuid
+  unitId               String                   @unique @db.Uuid
+  displayName          String?
+  accessPreferences    Json                     @default("{}")
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  society              Society                  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit                 Unit                     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  vehicles             HouseholdVehicle[]
+  emergencyContacts    EmergencyContact[]
+  workforceAssignments WorkforceAssignment[]
+  changeRequests       HouseholdChangeRequest[]
+
+  @@index([societyId])
+}
+
+model HouseholdChangeRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  societyId         String    @db.Uuid
+  householdId       String    @db.Uuid
+  requestedByUserId String    @db.Uuid
+  type              String
+  status            String
+  targetId          String?   @db.Uuid
+  payload           Json      @default("{}")
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  reviewedByUserId  String?   @db.Uuid
+  reviewedAt        DateTime? @db.Timestamptz(6)
+  reviewNote        String?
+  society           Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household         Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  requestedBy       User      @relation("HouseholdChangeRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  reviewedBy        User?     @relation("HouseholdChangeReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([societyId, status, createdAt], map: "HouseholdChangeRequest_society_status_created_idx")
+  @@index([societyId, requestedByUserId, createdAt(sort: Desc)], map: "HouseholdChangeRequest_society_requester_created_idx")
+  @@index([householdId, status], map: "HouseholdChangeRequest_household_status_idx")
+}
+
+model HouseholdVehicle {
+  id          String      @id @default(uuid()) @db.Uuid
+  societyId   String      @db.Uuid
+  householdId String      @db.Uuid
+  plateNumber String
+  vehicleType VehicleType
+  make        String?
+  model       String?
+  color       String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  society     Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, plateNumber])
+  @@index([householdId, active])
+}
+
+model EmergencyContact {
+  id          String    @id @default(uuid()) @db.Uuid
+  societyId   String    @db.Uuid
+  householdId String    @db.Uuid
+  name        String
+  phone       String
+  relation    String?
+  priority    Int       @default(1)
+  idempotencyKey String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, householdId, idempotencyKey], map: "EmergencyContact_society_household_idempotency_key")
+  @@index([householdId, active, priority])
+}
+
+model DomesticWorker {
+  id               String                           @id @default(uuid()) @db.Uuid
+  societyId        String                           @db.Uuid
+  name             String
+  phone            String
+  role             DomesticWorkerRole
+  verification     DomesticWorkerVerificationStatus @default(PENDING)
+  active           Boolean                          @default(true)
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
+  society          Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignments      WorkforceAssignment[]
+  ratings          WorkforceRating[]
+  suspensionEvents WorkforceSuspensionEvent[]
+
+  @@unique([societyId, phone])
+  @@index([societyId, verification, active])
+}
+
+model WorkforceAssignment {
+  id               String                     @id @default(uuid()) @db.Uuid
+  societyId        String                     @db.Uuid
+  householdId      String                     @db.Uuid
+  workerId         String                     @db.Uuid
+  status           WorkforceAssignmentStatus  @default(PENDING)
+  schedule         Json                       @default("{}")
+  active           Boolean                    @default(true)
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  society          Society                    @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  household        Household                  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  worker           DomesticWorker             @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  leaves           WorkforceLeave[]
+  rating           WorkforceRating?
+  suspensionEvents WorkforceSuspensionEvent[]
+
+  @@unique([householdId, workerId])
+  @@index([societyId, status, active])
+  @@index([societyId, workerId, active])
+}
+
+model WorkforceLeave {
+  id           String              @id @default(uuid()) @db.Uuid
+  societyId    String              @db.Uuid
+  assignmentId String              @db.Uuid
+  createdById  String              @db.Uuid
+  startsOn     DateTime            @db.Date
+  endsOn       DateTime            @db.Date
+  reason       String?
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @db.Timestamptz(6)
+  society      Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdBy    User                @relation("WorkforceLeaveCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, active, startsOn, endsOn], map: "WorkforceLeave_societyId_active_startsOn_endsOn_idx")
+  @@index([assignmentId, active, startsOn, endsOn], map: "WorkforceLeave_assignmentId_active_startsOn_endsOn_idx")
+}
+
+model WorkforcePaymentRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  societyId      String   @db.Uuid
+  assignmentId   String   @db.Uuid
+  recordedById   String   @db.Uuid
+  kind           String
+  amountPaise    Int
+  paymentDate    DateTime @db.Date
+  periodMonth    String?
+  note           String?
+  idempotencyKey String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([societyId, recordedById, idempotencyKey], map: "WorkforcePaymentRecord_society_recorder_idempotency_key")
+  @@index([societyId, assignmentId, paymentDate(sort: Desc)], map: "WorkforcePaymentRecord_society_assignment_date_idx")
+  @@index([societyId, recordedById, createdAt(sort: Desc)], map: "WorkforcePaymentRecord_society_recorder_created_idx")
+}
+
+model WorkforceRating {
+  id           String              @id @default(uuid()) @db.Uuid
+  societyId    String              @db.Uuid
+  assignmentId String              @unique @db.Uuid
+  workerId     String              @db.Uuid
+  ratedById    String              @db.Uuid
+  score        Int                 @db.SmallInt
+  comment      String?
+  createdAt    DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime            @default(now()) @db.Timestamptz(6)
+  society      Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  worker       DomesticWorker      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  ratedBy      User                @relation("WorkforceRatingAuthor", fields: [ratedById], references: [id], onDelete: Restrict)
+
+  @@index([societyId, workerId], map: "WorkforceRating_societyId_workerId_idx")
+  @@index([societyId, score], map: "WorkforceRating_societyId_score_idx")
+}
+
+model WorkforceSuspensionEvent {
+  id           String               @id @default(uuid()) @db.Uuid
+  societyId    String               @db.Uuid
+  workerId     String?              @db.Uuid
+  assignmentId String?              @db.Uuid
+  actorUserId  String               @db.Uuid
+  action       String
+  reason       String?
+  occurredAt   DateTime             @default(now()) @db.Timestamptz(6)
+  society      Society              @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker       DomesticWorker?      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  assignment   WorkforceAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  actor        User                 @relation("WorkforceSuspensionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_societyId_occurredAt_idx")
+  @@index([workerId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_workerId_occurredAt_idx")
+  @@index([assignmentId, occurredAt(sort: Desc)], map: "WorkforceSuspensionEvent_assignmentId_occurredAt_idx")
+}
+
+model SocietyWorker {
+  id               String                           @id @default(uuid()) @db.Uuid
+  societyId        String                           @db.Uuid
+  name             String
+  phone            String
+  role             String
+  department       String
+  employer         String?
+  verification     SocietyWorkerVerificationStatus  @default(PENDING)
+  active           Boolean                          @default(true)
+  schedule         Json                             @default("{}")
+  startDate        DateTime?                        @db.Timestamptz(6)
+  endDate          DateTime?                        @db.Timestamptz(6)
+  createdByUserId  String                           @db.Uuid
+  verifiedByUserId String?                          @db.Uuid
+  verifiedAt       DateTime?                        @db.Timestamptz(6)
+  createdAt        DateTime                         @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime                         @updatedAt @db.Timestamptz(6)
+  society          Society                          @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gateAccesses     SocietyWorkerGateAccess[]
+  attendances      SocietyWorkerAttendance[]
+  leaves           SocietyWorkerLeave[]
+  events           SocietyWorkerEvent[]
+
+  @@unique([societyId, phone])
+  @@index([societyId, verification, active])
+  @@index([societyId, department, active])
+}
+
+model SocietyWorkerGateAccess {
+  id        String        @id @default(uuid()) @db.Uuid
+  societyId String        @db.Uuid
+  workerId  String        @db.Uuid
+  gateId    String        @db.Uuid
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now()) @db.Timestamptz(6)
+  society   Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker    SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  gate      Gate          @relation(fields: [gateId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, gateId])
+  @@index([societyId, gateId, active])
+}
+
+model SocietyWorkerAttendance {
+  id               String        @id @default(uuid()) @db.Uuid
+  societyId        String        @db.Uuid
+  workerId         String        @db.Uuid
+  gateId           String        @db.Uuid
+  checkedInAt      DateTime      @db.Timestamptz(6)
+  checkedOutAt     DateTime?     @db.Timestamptz(6)
+  checkInByUserId  String        @db.Uuid
+  checkOutByUserId String?       @db.Uuid
+  checkInKey       String
+  checkOutKey      String?
+  createdAt        DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(6)
+  society          Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker           SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  gate             Gate          @relation(fields: [gateId], references: [id], onDelete: Restrict)
+
+  @@unique([societyId, checkInKey])
+  @@unique([societyId, checkOutKey])
+  @@index([societyId, workerId, checkedOutAt])
+  @@index([societyId, gateId, checkedInAt(sort: Desc)])
+}
+
+model SocietyWorkerLeave {
+  id                String        @id @default(uuid()) @db.Uuid
+  societyId         String        @db.Uuid
+  workerId          String        @db.Uuid
+  startsOn          DateTime      @db.Date
+  endsOn            DateTime      @db.Date
+  reason            String?
+  active            Boolean       @default(true)
+  createdByUserId   String        @db.Uuid
+  cancelledByUserId String?       @db.Uuid
+  cancelledAt       DateTime?     @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
+  society           Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker            SocietyWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, workerId, active, startsOn, endsOn], map: "SocietyWorkerLeave_scope_worker_dates_idx")
+  @@index([societyId, active, startsOn, endsOn], map: "SocietyWorkerLeave_scope_dates_idx")
+}
+
+model SocietyWorkerEvent {
+  id          String                     @id @default(uuid()) @db.Uuid
+  societyId   String                     @db.Uuid
+  workerId    String                     @db.Uuid
+  event       SocietyWorkerEventType
+  actorUserId String                     @db.Uuid
+  reason      String?
+  details     Json                       @default("{}")
+  occurredAt  DateTime                   @default(now()) @db.Timestamptz(6)
+  society     Society                    @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  worker      SocietyWorker              @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, workerId, occurredAt(sort: Desc)])
+  @@index([societyId, event, occurredAt(sort: Desc)])
+}
+
+model Gate {
+  id            String                @id @default(uuid()) @db.Uuid
+  societyId     String                @db.Uuid
+  name          String
+  code          String
+  active        Boolean               @default(true)
+  society       Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  auditEvents   AuditEvent[]
+  gateMutations GateMutationReceipt[]
+  societyWorkerGateAccess SocietyWorkerGateAccess[]
+  societyWorkerAttendance SocietyWorkerAttendance[]
+
+  @@unique([societyId, code])
+}
+
+/// Physical gate assignment for a security guard or supervisor. The partial
+/// unique index allowing only one active row per society/gate/user is created
+/// by migration because Prisma schema syntax cannot express partial indexes.
+model GateGuardAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  societyId     String    @db.Uuid
+  gateId        String    @db.Uuid
+  userId        String    @db.Uuid
+  effectiveFrom DateTime  @default(now()) @db.Timestamptz(6)
+  effectiveTo   DateTime? @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, gateId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_gate_active_idx")
+  @@index([societyId, userId, active, effectiveFrom, effectiveTo], map: "GateGuardAssignment_society_user_active_idx")
+}
+
+model AccessRequest {
+  id             String                @id @default(uuid()) @db.Uuid
+  societyId      String                @db.Uuid
+  unitId         String                @db.Uuid
+  requestedById  String                @db.Uuid
+  subjectType    AccessSubjectType
+  subjectName    String
+  subjectPhone   String?
+  purpose        String?
+  status         AccessRequestStatus   @default(PENDING)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  credentialHash String?
+  enteredAt      DateTime?
+  exitedAt       DateTime?
+  metadata       Json                  @default("{}")
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  society        Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit           Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  requestedBy    User                  @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  serviceBooking ServiceBooking?
+  auditEvents    AuditEvent[]
+  gateMutations  GateMutationReceipt[]
+
+  @@index([societyId, unitId, status])
+  @@index([societyId, requestedById, createdAt])
+  @@index([societyId, credentialHash])
+}
+
+model ServiceCategory {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String            @unique
+  active    Boolean           @default(true)
+  sortOrder Int               @default(0)
+  offerings ServiceOffering[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model ServiceProvider {
+  id           String                     @id @default(uuid()) @db.Uuid
+  businessName String
+  contactName  String?
+  phone        String
+  email        String?
+  description  String?
+  verification ProviderVerificationStatus @default(PENDING)
+  active       Boolean                    @default(true)
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  societies    ServiceProviderSociety[]
+  offerings    ServiceOffering[]
+  bookings     ServiceBooking[]
+  ratings      ServiceRating[]
+
+  @@index([verification, active])
+}
+
+model ServiceProviderSociety {
+  id            String                @id @default(uuid()) @db.Uuid
+  societyId     String                @db.Uuid
+  providerId    String                @db.Uuid
+  status        ProviderSocietyStatus @default(PENDING)
+  commissionBps Int                   @default(1000)
+  approvedAt    DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  society       Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  provider      ServiceProvider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, providerId])
+  @@index([societyId, status])
+}
+
+model ServiceOffering {
+  id              String           @id @default(uuid()) @db.Uuid
+  providerId      String           @db.Uuid
+  categoryId      String           @db.Uuid
+  name            String
+  description     String?
+  pricePaise      Int
+  durationMinutes Int?
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  provider        ServiceProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category        ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  bookings        ServiceBooking[]
+
+  @@index([categoryId, active])
+  @@index([providerId, active])
+}
+
+model ServiceBooking {
+  id                String               @id @default(uuid()) @db.Uuid
+  societyId         String               @db.Uuid
+  unitId            String               @db.Uuid
+  residentUserId    String               @db.Uuid
+  providerId        String               @db.Uuid
+  offeringId        String               @db.Uuid
+  accessRequestId   String?              @unique @db.Uuid
+  status            ServiceBookingStatus @default(REQUESTED)
+  scheduledFrom     DateTime
+  scheduledUntil    DateTime
+  servicePricePaise Int
+  commissionBps     Int
+  commissionPaise   Int
+  notes             String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  society           Society              @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit              Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  residentUser      User                 @relation(fields: [residentUserId], references: [id], onDelete: Cascade)
+  provider          ServiceProvider      @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  offering          ServiceOffering      @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  accessRequest     AccessRequest?       @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
+  rating            ServiceRating?
+
+  @@index([societyId, residentUserId, createdAt])
+  @@index([societyId, providerId, status])
+}
+
+model ServiceRating {
+  id             String          @id @default(uuid()) @db.Uuid
+  societyId      String          @db.Uuid
+  bookingId      String          @unique @db.Uuid
+  providerId     String          @db.Uuid
+  residentUserId String          @db.Uuid
+  score          Int
+  comment        String?
+  createdAt      DateTime        @default(now())
+  society        Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  booking        ServiceBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  provider       ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  residentUser   User            @relation(fields: [residentUserId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, createdAt])
+  @@index([societyId, createdAt])
+}
+
+model Visitor {
+  id         String        @id @default(uuid()) @db.Uuid
+  societyId  String        @db.Uuid
+  unitId     String        @db.Uuid
+  hostUserId String        @db.Uuid
+  name       String
+  phone      String?
+  purpose    String?
+  status     VisitorStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  society    Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit       Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  hostUser   User          @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  passes     VisitorPass[]
+
+  @@index([societyId, hostUserId])
+  @@index([societyId, unitId])
+}
+
+model VisitorPass {
+  id             String            @id @default(uuid()) @db.Uuid
+  societyId      String            @db.Uuid
+  visitorId      String            @db.Uuid
+  credentialHash String
+  validFrom      DateTime
+  validUntil     DateTime
+  status         VisitorPassStatus @default(ACTIVE)
+  checkedInAt    DateTime?
+  checkedOutAt   DateTime?
+  createdAt      DateTime          @default(now())
+  society        Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  visitor        Visitor           @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  auditEvents    AuditEvent[]
+
+  @@index([societyId, status])
+  @@index([visitorId])
+  @@index([societyId, credentialHash])
+}
+
+model AuditEvent {
+  id              String         @id @default(uuid()) @db.Uuid
+  societyId       String         @db.Uuid
+  actorUserId     String         @db.Uuid
+  gateId          String?        @db.Uuid
+  visitorPassId   String?        @db.Uuid
+  accessRequestId String?        @db.Uuid
+  event           AuditEventType
+  occurredAt      DateTime       @default(now())
+  society         Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gate            Gate?          @relation(fields: [gateId], references: [id], onDelete: SetNull)
+  visitorPass     VisitorPass?   @relation(fields: [visitorPassId], references: [id], onDelete: SetNull)
+  accessRequest   AccessRequest? @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
+
+  @@index([societyId, occurredAt])
+  @@index([societyId, event, occurredAt(sort: Desc)], map: "AuditEvent_society_event_time_idx")
+  @@index([societyId, gateId, occurredAt])
+  @@index([societyId, visitorPassId, occurredAt])
+  @@index([societyId, accessRequestId, occurredAt])
+}
+
+model GateMutationReceipt {
+  id              String             @id @default(uuid()) @db.Uuid
+  societyId       String             @db.Uuid
+  gateId          String             @db.Uuid
+  accessRequestId String             @db.Uuid
+  actorUserId     String             @db.Uuid
+  idempotencyKey  String
+  action          GateMutationAction
+  createdAt       DateTime           @default(now())
+  society         Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gate            Gate               @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  accessRequest   AccessRequest      @relation(fields: [accessRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, gateId, createdAt])
+  @@index([accessRequestId, createdAt])
+}
+
+model DevicePushToken {
+  id         String         @id @default(uuid()) @db.Uuid
+  societyId  String         @db.Uuid
+  userId     String         @db.Uuid
+  token      String         @unique
+  platform   DevicePlatform
+  deviceId   String?
+  active     Boolean        @default(true)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  society    Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, userId, active])
+  @@index([userId, active])
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  societyId        String?   @db.Uuid
+  audience         String    @default("STANDARD") @db.VarChar(16)
+  originHost       String?   @db.VarChar(253)
+  hostClaimId      String?   @db.Uuid
+  hostClaimVersion Int?
+  hostClaim        PartnerDomainClaim? @relation(fields: [hostClaimId], references: [id], onDelete: Restrict)
+  accessTokenHash  String    @unique
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  refreshExpiresAt DateTime
+  revokedAt        DateTime?
+  revocationReason String?   @db.VarChar(64)
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  society          Society?  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([societyId, revokedAt])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@index([hostClaimId])
+}
+
+model HelpdeskTicket {
+  id           String             @id @default(uuid()) @db.Uuid
+  societyId    String             @db.Uuid
+  unitId       String             @db.Uuid
+  createdById  String             @db.Uuid
+  idempotencyKey String?
+  title        String
+  description  String
+  category     String?
+  priority     String             @default("NORMAL")
+  status       String             @default("OPEN")
+  assignedToId String?            @db.Uuid
+  assetId      String?            @db.Uuid
+  resolvedAt   DateTime?          @db.Timestamptz(6)
+  closedAt     DateTime?          @db.Timestamptz(6)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime           @default(now()) @db.Timestamptz(6)
+  society      Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit         Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("HelpdeskTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo   User?              @relation("HelpdeskTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activities   HelpdeskActivity[]
+
+  @@index([societyId, status, createdAt(sort: Desc)], map: "HelpdeskTicket_society_status_created_idx")
+  @@unique([societyId, createdById, idempotencyKey], map: "HelpdeskTicket_society_creator_idempotency_key")
+  @@index([societyId, createdById, createdAt(sort: Desc)], map: "HelpdeskTicket_society_creator_created_idx")
+  @@index([societyId, unitId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_unit_created_idx")
+  @@index([societyId, assetId, createdAt(sort: Desc)], map: "HelpdeskTicket_society_asset_created_idx")
+}
+
+model HelpdeskActivity {
+  id          String         @id @default(uuid()) @db.Uuid
+  societyId   String         @db.Uuid
+  ticketId    String         @db.Uuid
+  actorUserId String         @db.Uuid
+  type        String
+  message     String?
+  idempotencyKey String?
+  fromStatus  String?
+  toStatus    String?
+  occurredAt  DateTime       @default(now()) @db.Timestamptz(6)
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  ticket      HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor       User           @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([societyId, actorUserId, idempotencyKey], map: "HelpdeskActivity_society_actor_idempotency_key")
+  @@index([ticketId, occurredAt], map: "HelpdeskActivity_ticket_time_idx")
+  @@index([societyId, occurredAt(sort: Desc)], map: "HelpdeskActivity_society_time_idx")
+}
+
+model CommunityCircle {
+  id              String   @id @default(uuid()) @db.Uuid
+  societyId       String   @db.Uuid
+  name            String
+  description     String?
+  status          String   @default("ACTIVE")
+  createdByUserId String   @db.Uuid
+  expiresAt DateTime? @db.Timestamptz(6)
+  reviewedByUserId String? @db.Uuid
+  reviewedAt DateTime? @db.Timestamptz(6)
+  reviewNote String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, status, createdAt(sort: Desc)], map: "CommunityCircle_society_status_created_idx")
+}
+
+model CommunityCircleMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  circleId  String   @db.Uuid
+  userId    String   @db.Uuid
+  joinedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([societyId, circleId, userId], map: "CommunityCircleMember_society_circle_user_key")
+  @@index([societyId, userId, joinedAt(sort: Desc)], map: "CommunityCircleMember_society_user_joined_idx")
+}
+
+model CommunityCirclePost {
+  id           String   @id @default(uuid()) @db.Uuid
+  societyId    String   @db.Uuid
+  circleId     String   @db.Uuid
+  authorUserId String   @db.Uuid
+  body         String
+  senderName String?
+  senderFlat String?
+  hidden Boolean @default(false)
+  moderatedByUserId String? @db.Uuid
+  moderatedAt DateTime? @db.Timestamptz(6)
+  moderationReason String?
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([societyId, circleId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_circle_created_idx")
+  @@index([societyId, authorUserId, createdAt(sort: Desc)], map: "CommunityCirclePost_society_author_created_idx")
+}
+
+model CommunityCircleReport {
+  id String @id @default(uuid()) @db.Uuid
+  societyId String @db.Uuid
+  circleId String @db.Uuid
+  postId String @db.Uuid
+  reporterUserId String @db.Uuid
+  reason String
+  status String @default("OPEN")
+  resolvedByUserId String? @db.Uuid
+  resolvedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([societyId, postId, reporterUserId])
+  @@index([societyId, status, createdAt], map: "CommunityCircleReport_queue_idx")
+}
+
+model Notice {
+  id          String         @id @default(uuid()) @db.Uuid
+  societyId   String         @db.Uuid
+  createdById String         @db.Uuid
+  title       String
+  body        String
+  category    String?
+  audience    NoticeAudience @default(OWNER_AND_OCCUPANTS)
+  status      String         @default("DRAFT")
+  publishedAt DateTime?      @db.Timestamptz(6)
+  expiresAt   DateTime?      @db.Timestamptz(6)
+  archivedAt  DateTime?      @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @db.Timestamptz(6)
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  events      NoticeEvent[]
+
+  @@index([societyId, status, publishedAt(sort: Desc)], map: "Notice_society_status_published_idx")
+  @@index([societyId, createdAt(sort: Desc)], map: "Notice_society_created_idx")
+}
+
+model NoticeEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  societyId   String   @db.Uuid
+  noticeId    String   @db.Uuid
+  actorUserId String   @db.Uuid
+  action      String
+  fromStatus  String?
+  toStatus    String?
+  occurredAt  DateTime @default(now()) @db.Timestamptz(6)
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  notice      Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([noticeId, occurredAt], map: "NoticeEvent_notice_time_idx")
+  @@index([societyId, occurredAt(sort: Desc)], map: "NoticeEvent_society_time_idx")
+}
+
+model MaintenanceInvoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  societyId     String        @db.Uuid
+  unitId        String        @db.Uuid
+  createdById   String        @db.Uuid
+  invoiceNumber String
+  billingPeriod String
+  description   String?
+  amountPaise   Int
+  dueDate       DateTime      @db.Date
+  status        InvoiceStatus @default(ISSUED)
+  issuedAt      DateTime      @default(now()) @db.Timestamptz(6)
+  paidAt        DateTime?     @db.Timestamptz(6)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(6)
+  society       Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit          Unit          @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  createdBy     User          @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  payments      Payment[]
+
+  @@unique([societyId, invoiceNumber])
+  @@index([societyId, unitId, status, dueDate])
+}
+
+model PaymentAutopayPreference {
+  id                    String   @id @default(uuid()) @db.Uuid
+  societyId             String   @db.Uuid
+  unitId                String   @db.Uuid
+  payerUserId           String   @db.Uuid
+  enabled               Boolean  @default(false)
+  maxAmountPaise        Int?
+  debitDaysBefore       Int      @default(1)
+  provider              String?
+  providerMandateId     String?
+  providerMandateStatus String?
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, unitId, payerUserId])
+  @@index([societyId, unitId, enabled])
+}
+
+model Payment {
+  id                String              @id @default(uuid()) @db.Uuid
+  societyId         String              @db.Uuid
+  invoiceId         String?             @db.Uuid
+  amenityBookingId  String?             @db.Uuid
+  purposeType       String              @default("MAINTENANCE_INVOICE")
+  payerUserId       String              @db.Uuid
+  idempotencyKey    String
+  provider          String
+  providerOrderId   String              @unique
+  providerPaymentId String?
+  amountPaise       Int
+  status            PaymentStatus       @default(CREATED)
+  failureCode       String?
+  createdAt         DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(6)
+  completedAt       DateTime?           @db.Timestamptz(6)
+  society           Society             @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  invoice           MaintenanceInvoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  events            PaymentEvent[]
+
+  @@unique([societyId, payerUserId, idempotencyKey])
+  @@index([societyId, invoiceId, status])
+  @@index([societyId, purposeType, amenityBookingId, status], map: "Payment_society_purpose_amenity_status_idx")
+}
+
+model PaymentEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  societyId       String   @db.Uuid
+  paymentId       String   @db.Uuid
+  actorUserId     String?  @db.Uuid
+  providerEventId String?  @unique
+  type            String
+  payloadDigest   String?
+  occurredAt      DateTime @default(now()) @db.Timestamptz(6)
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  actorUser       User?    @relation("PaymentEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([societyId, paymentId, occurredAt])
+}
+
+model SosIncident {
+  id               String             @id @default(uuid()) @db.Uuid
+  societyId        String             @db.Uuid
+  unitId           String             @db.Uuid
+  residentUserId   String             @db.Uuid
+  status           SosStatus          @default(ACTIVE)
+  message          String?
+  latitude         Float?
+  longitude        Float?
+  acknowledgedById String?            @db.Uuid
+  acknowledgedAt   DateTime?          @db.Timestamp(3)
+  resolvedById     String?            @db.Uuid
+  resolvedAt       DateTime?          @db.Timestamp(3)
+  cancelledAt      DateTime?          @db.Timestamp(3)
+  createdAt        DateTime           @default(now()) @db.Timestamp(3)
+  updatedAt        DateTime           @default(now()) @db.Timestamp(3)
+  society          Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unit             Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  resident         User               @relation("SosResident", fields: [residentUserId], references: [id], onDelete: Cascade)
+  acknowledgedBy   User?              @relation("SosAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy       User?              @relation("SosResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  events           SosIncidentEvent[]
+
+  @@index([societyId, status, createdAt], map: "SosIncident_societyId_status_createdAt_idx")
+  @@index([societyId, residentUserId, createdAt], map: "SosIncident_societyId_residentUserId_createdAt_idx")
+}
+
+model SosIncidentEvent {
+  id          String      @id @default(uuid()) @db.Uuid
+  societyId   String      @db.Uuid
+  incidentId  String      @db.Uuid
+  actorUserId String      @db.Uuid
+  action      String
+  fromStatus  SosStatus?
+  toStatus    SosStatus?
+  note        String?
+  occurredAt  DateTime    @default(now()) @db.Timestamp(3)
+  society     Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  incident    SosIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  actor       User        @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([societyId, incidentId, occurredAt], map: "SosIncidentEvent_societyId_incidentId_occurredAt_idx")
+}
+
+/// Prisma representation of the migration-managed amenity catalog. Foreign-key
+/// relations and CHECK constraints remain owned by the foundation migration.
+model Amenity {
+  id                    String   @id @default(uuid()) @db.Uuid
+  societyId             String   @db.Uuid
+  code                  String
+  name                  String
+  description           String?
+  location              String?
+  schedule              Json     @default("{}")
+  bookingRules          Json     @default("{}")
+  feePaise              Int      @default(0)
+  currency              String   @default("INR")
+  requiresApproval      Boolean  @default(false)
+  slotMinutes           Int      @default(60)
+  maxConcurrentBookings Int      @default(1)
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, code], map: "Amenity_societyId_code_key")
+  @@index([societyId, active, name], map: "Amenity_societyId_active_name_idx")
+}
+
+/// Booking rows intentionally stay relationless in Prisma so this reconciliation
+/// does not alter existing User/Society/Unit relation graphs. The database
+/// migration owns those foreign keys and the partial active-slot unique index.
+model AmenityBooking {
+  id               String               @id @default(uuid()) @db.Uuid
+  societyId        String               @db.Uuid
+  amenityId        String               @db.Uuid
+  unitId           String               @db.Uuid
+  userId           String               @db.Uuid
+  startsAt         DateTime             @db.Timestamptz(6)
+  endsAt           DateTime             @db.Timestamptz(6)
+  status           AmenityBookingStatus @default(PENDING)
+  feePaise         Int                  @default(0)
+  currency         String               @default("INR")
+  guestCount       Int                  @default(0)
+  depositPaise     Int                  @default(0)
+  depositStatus    String               @default("NOT_REQUIRED")
+  depositDueAt     DateTime?            @db.Timestamptz(6)
+  depositPaymentWindowMinutes Int?
+  reviewNote       String?
+  reviewedByUserId String?              @db.Uuid
+  checkedInAt      DateTime?            @db.Timestamptz(6)
+  completedAt      DateTime?            @db.Timestamptz(6)
+  noShowAt         DateTime?            @db.Timestamptz(6)
+  attendanceByUserId String?            @db.Uuid
+  attendanceNote   String?
+  idempotencyKey   String?
+  createdAt        DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(6)
+
+  @@index([societyId, amenityId, startsAt, endsAt, status], map: "AmenityBooking_society_amenity_window_idx")
+  @@index([societyId, userId, createdAt(sort: Desc)], map: "AmenityBooking_society_user_created_idx")
+  @@index([societyId, unitId, createdAt(sort: Desc)], map: "AmenityBooking_society_unit_created_idx")
+  @@unique([societyId, userId, idempotencyKey], map: "AmenityBooking_society_user_idempotency_key")
+}
+
+model AmenityWaitlistEntry {
+  id                String   @id @default(uuid()) @db.Uuid
+  societyId         String   @db.Uuid
+  amenityId         String   @db.Uuid
+  unitId            String   @db.Uuid
+  userId            String   @db.Uuid
+  startsAt          DateTime @db.Timestamptz(6)
+  endsAt            DateTime @db.Timestamptz(6)
+  guestCount         Int      @default(0)
+  status            String   @default("WAITING")
+  joinedAt          DateTime @default(now()) @db.Timestamptz(6)
+  promotedAt        DateTime? @db.Timestamptz(6)
+  cancelledAt       DateTime? @db.Timestamptz(6)
+  promotedBookingId String?  @db.Uuid
+
+  @@index([societyId, amenityId, startsAt, endsAt, status, joinedAt], map: "AmenityWaitlist_society_window_status_idx")
+  @@index([societyId, userId, unitId, joinedAt(sort: Desc)], map: "AmenityWaitlist_society_user_unit_idx")
+}
+
+enum AmenityBookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+  REJECTED
+  CANCELLED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum SosStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  CANCELLED
+}
+
+enum SocietyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+  VOID
+}
+
+enum NoticeAudience {
+  OWNER_ONLY
+  OWNER_AND_OCCUPANTS
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum ProductTier {
+  STARTER
+  PROFESSIONAL
+  PREMIUM
+  ENTERPRISE
+}
+
+enum MembershipRole {
+  SUPER_ADMIN
+  SOCIETY_ADMIN
+  COMMITTEE_MEMBER
+  FACILITY_MANAGER
+  ACCOUNTANT
+  OWNER
+  TENANT
+  FAMILY_MEMBER
+  SECURITY_SUPERVISOR
+  SECURITY_GUARD
+  STAFF
+  VENDOR
+}
+
+enum UnitRelation {
+  OWNER
+  TENANT
+  FAMILY_MEMBER
+}
+
+enum VehicleType {
+  TWO_WHEELER
+  CAR
+  OTHER
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum DomesticWorkerRole {
+  MAID
+  DRIVER
+  COOK
+  NANNY
+  OTHER
+}
+
+enum SocietyWorkerVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum SocietyWorkerEventType {
+  CREATED
+  CONFIGURED
+  VERIFIED
+  REJECTED
+  SUSPENDED
+  REACTIVATED
+  LEAVE_ADDED
+  LEAVE_CANCELLED
+  ATTENDANCE_CORRECTED
+}
+
+enum DomesticWorkerVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum WorkforceAssignmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum AccessSubjectType {
+  VISITOR
+  DELIVERY
+  CAB
+  DOMESTIC_HELP
+  VENDOR
+  SERVICE_PROVIDER
+  CONTRACTOR
+  OTHER
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
+  CHECKED_IN
+  CHECKED_OUT
+  EXPIRED
+}
+
+enum GateMutationAction {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum ProviderVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum ProviderSocietyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ServiceBookingStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum VisitorStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum VisitorPassStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum AuditEventType {
+  VISITOR_VERIFIED
+  VISITOR_CHECKED_IN
+  VISITOR_CHECKED_OUT
+  ACCESS_CREATED
+  ACCESS_APPROVED
+  ACCESS_DENIED
+  ACCESS_CANCELLED
+  ACCESS_VERIFIED
+  ACCESS_CHECKED_IN
+  ACCESS_CHECKED_OUT
+  REPORT_EXPORTED
+  ACCOUNTING_EXPORT_REQUESTED
+}
+
+
+model GateNotificationAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  societyId String   @db.Uuid
+  requestId String   @db.Uuid
+  userId    String   @db.Uuid
+  channel   String
+  status    String
+  reason    String?
+  evidence  Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([societyId, requestId, userId, channel], map: "GateNotificationAttempt_scope_request_user_channel_key")
+  @@index([societyId, requestId, createdAt(sort: Desc)], map: "GateNotificationAttempt_scope_request_time_idx")
+}
+
+// Immutable test-build identity approval; never an app/session audience or build dispatch.
+// Immutable claim is NEVER an executable build permit.
+// One append-only NON-EXECUTING consumption per TEST claim; not a process permit.
+model PartnerAndroidBuildWorkerConsumption {
+ id              String @id @default(uuid()) @db.Uuid
+ claimId         String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ manifestDigest  String @db.VarChar(64)
+ nonceDigest     String @db.VarChar(64)
+ sourceSha       String @db.VarChar(40)
+ lockDigest      String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ runnerChallenge PartnerAndroidRunnerChallenge?
+ claim           PartnerAndroidBuildWorkerClaim @relation(fields:[claimId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidBuildConsumptionActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
+
+
+model PartnerAndroidRunnerEvidenceAcceptance {
+ id                     String @id @default(uuid()) @db.Uuid
+ challengeId            String @unique @db.Uuid
+ actorId                String @db.Uuid
+ workerId               String @db.VarChar(64)
+ runId                  String @unique @db.VarChar(64)
+ nonceDigest            String @unique @db.VarChar(64)
+ imageDigest            String @db.VarChar(71)
+ manifestDigest         String @db.VarChar(64)
+ sourceSha              String @db.VarChar(40)
+ lockDigest             String @db.VarChar(64)
+ nativeInventoryDigest  String @db.VarChar(64)
+ toolchainReceiptDigest String @db.VarChar(64)
+ signatureDigest        String @unique @db.VarChar(64)
+ versionCode            Int
+ issuedAt               DateTime @db.Timestamptz(6)
+ expiresAt              DateTime @db.Timestamptz(6)
+ createdAt              DateTime @default(now()) @db.Timestamptz(6)
+ challenge              PartnerAndroidRunnerChallenge @relation(fields:[challengeId],references:[id],onDelete:Restrict)
+ actor                  User @relation("AndroidRunnerAcceptanceActor",fields:[actorId],references:[id],onDelete:Restrict)
+ runtimeProbe           PartnerAndroidRunnerRuntimeProbe?
+ @@index([workerId,createdAt])
+}
+
+model PartnerAndroidRunnerRuntimeProbe {
+ id                        String @id @default(uuid()) @db.Uuid
+ acceptanceId              String @unique @db.Uuid
+ challengeId               String @unique @db.Uuid
+ actorId                   String @db.Uuid
+ workerId                  String @db.VarChar(64)
+ runId                     String @unique @db.VarChar(64)
+ imageDigest               String @db.VarChar(71)
+ sourceSha                 String @db.VarChar(40)
+ manifestDigest            String @db.VarChar(64)
+ transportNonceDigest      String @unique @db.VarChar(64)
+ runtimeEnvelopeDigest     String @unique @db.VarChar(64)
+ transportSignatureDigest  String @unique @db.VarChar(64)
+ serverSpkiSha256          String @db.VarChar(64)
+ verifiedAt                DateTime @db.Timestamptz(6)
+ createdAt                 DateTime @default(now()) @db.Timestamptz(6)
+ acceptance                PartnerAndroidRunnerEvidenceAcceptance @relation(fields:[acceptanceId],references:[id],onDelete:Restrict)
+ actor                     User @relation("AndroidRunnerRuntimeProbeActor",fields:[actorId],references:[id],onDelete:Restrict)
+ @@index([workerId,createdAt])
+}
+
+model PartnerAndroidRunnerChallenge {
+ id              String @id @default(uuid()) @db.Uuid
+ consumptionId   String @unique @db.Uuid
+ actorId         String @db.Uuid
+ workerId        String @db.VarChar(64)
+ runId           String @unique @db.VarChar(64)
+ nonceDigest     String @unique @db.VarChar(64)
+ imageDigest     String @db.VarChar(71)
+ manifestDigest  String @db.VarChar(64)
+ versionCode     Int
+ issuedAt        DateTime @db.Timestamptz(6)
+ expiresAt       DateTime @db.Timestamptz(6)
+ createdAt       DateTime @default(now()) @db.Timestamptz(6)
+ acceptance PartnerAndroidRunnerEvidenceAcceptance?
+ consumption     PartnerAndroidBuildWorkerConsumption @relation(fields:[consumptionId], references:[id], onDelete:Restrict)
+ actor           User @relation("AndroidRunnerChallengeActor", fields:[actorId], references:[id], onDelete:Restrict)
+ @@index([workerId, createdAt])
+}
+
+model PartnerAndroidBuildWorkerClaim {
+  id              String @id @default(uuid()) @db.Uuid
+  reservationId   String @unique @db.Uuid
+  actorId         String @db.Uuid
+  workerId        String @db.VarChar(64)
+  assertionDigest String @db.VarChar(64)
+  nonceDigest     String @db.VarChar(64)
+  manifestDigest  String @db.VarChar(64)
+  versionCode     Int
+  issuedAt        DateTime @db.Timestamptz(6)
+  expiresAt       DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  consumption     PartnerAndroidBuildWorkerConsumption?
+  reservation     PartnerAndroidBuildReservation @relation(fields:[reservationId], references:[id], onDelete:Restrict)
+  actor           User @relation("AndroidBuildWorkerClaimActor", fields:[actorId], references:[id], onDelete:Restrict)
+  @@index([workerId, createdAt])
+}
+
+model PartnerAndroidBuildReservation {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @db.Uuid
+  revisionId     String @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  versionCode    Int
+  digest         String @db.VarChar(64)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields:[proposalId], references:[id], onDelete:Restrict)
+  revision       PartnerAndroidBuildRevision @relation(fields:[revisionId], references:[id], onDelete:Restrict)
+  actor          User @relation("AndroidBuildReservationCreator", fields:[actorId], references:[id], onDelete:Restrict)
+  workerClaim    PartnerAndroidBuildWorkerClaim?
+  @@unique([proposalId, versionCode])
+  @@unique([proposalId, idempotencyKey])
+  @@index([revisionId, createdAt])
+}
+
+model PartnerAndroidBuildRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  proposalId     String   @db.Uuid
+  version        Int
+  manifest       Json
+  digest         String   @db.VarChar(64)
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionCreator", fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerAndroidBuildRevisionApproval?
+  reservations   PartnerAndroidBuildReservation[]
+
+  @@unique([proposalId, version])
+  @@unique([proposalId, idempotencyKey])
+}
+
+model PartnerAndroidBuildRevisionApproval {
+  id             String   @id @default(uuid()) @db.Uuid
+  revisionId     String   @unique @db.Uuid
+  actorId        String   @db.Uuid
+  idempotencyKey String   @db.Uuid
+  reason         String   @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  revision       PartnerAndroidBuildRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  actor          User @relation("AndroidBuildRevisionReviewer", fields: [actorId], references: [id], onDelete: Restrict)
+}
+
+model PartnerDistributionProposal {
+  id             String @id @default(uuid()) @db.Uuid
+  allocationId   String @db.Uuid
+  applicationId  String @unique @db.VarChar(150)
+  manifest       Json
+  digest         String @db.VarChar(64)
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  allocation     SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  approval       PartnerDistributionApproval?
+  androidBuildRevisions PartnerAndroidBuildRevision[]
+  androidBuildReservations PartnerAndroidBuildReservation[]
+  @@unique([allocationId, idempotencyKey])
+}
+model PartnerDistributionApproval {
+  id             String @id @default(uuid()) @db.Uuid
+  proposalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  proposal       PartnerDistributionProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  revocation     PartnerDistributionRevocation?
+}
+model PartnerDistributionRevocation {
+  id             String @id @default(uuid()) @db.Uuid
+  approvalId     String @unique @db.Uuid
+  actorId        String @db.Uuid
+  idempotencyKey String @db.Uuid
+  reason         String @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  approval       PartnerDistributionApproval @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  actor          User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+}
+// Explicit grandfathered commercial representation of immutable historical rights.
+// Live operational features still use Society.productTier/featureOverrides.
+model SocietyLegacySubscription {
+  id                 String @id @default(uuid()) @db.Uuid
+  societyId          String @db.Uuid
+  allocationId       String @unique @db.Uuid
+  actorId            String @db.Uuid
+  idempotencyKey     String @db.Uuid
+  sourceMigration    String
+  productTier        ProductTier
+  featureOverrides   Json
+  enabledFeatures    Json
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  compatibility      SocietyEntitlementCompatibility @relation(fields: [societyId], references: [societyId], onDelete: Restrict)
+  allocation         SocietyLicenseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  actor              User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([societyId, idempotencyKey])
+  @@index([societyId, createdAt])
+}

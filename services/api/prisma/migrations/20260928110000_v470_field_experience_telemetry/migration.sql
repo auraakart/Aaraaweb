@@ -1,0 +1,13 @@
+ALTER TABLE "OperationalUsageEvent"
+  DROP CONSTRAINT IF EXISTS "OperationalUsageEvent_type_check";
+
+ALTER TABLE "OperationalUsageEvent"
+  ADD CONSTRAINT "OperationalUsageEvent_type_check" CHECK ("eventType" IN (
+    'PROPERTY_CONTEXT_SWITCHED',
+    'SERVICE_DISCOVERY_VIEWED',
+    'SERVICE_BOOKING_CREATED',
+    'INDEPENDENT_HOME_ENTERED',
+    'AMENITY_BOOKING_STARTED',
+    'PAYMENT_CHECKOUT_STARTED',
+    'HELPDESK_DRAFT_STARTED'
+  ));

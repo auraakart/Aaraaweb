@@ -1,0 +1,203 @@
+/* Shared visual system for standalone Admin workspaces such as Property,
+   People & roles, Occupancy lifecycle, Household approvals and Parking.
+   This layer intentionally changes presentation only; page-level authority,
+   API calls and workflow logic remain owned by each screen. */
+
+body > main:not(.shell):not(.login) {
+  width: min(1180px, calc(100% - 32px)) !important;
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+  padding: 32px 0 88px !important;
+  color: var(--ink);
+}
+
+body > main:not(.shell):not(.login) > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+body > main:not(.shell):not(.login) > header > div {
+  min-width: 0;
+  flex: 1 1 560px;
+}
+
+body > main:not(.shell):not(.login) > header small {
+  color: var(--brand);
+  font-weight: 800;
+  letter-spacing: .035em;
+}
+
+body > main:not(.shell):not(.login) > header h1 {
+  margin: 5px 0 7px !important;
+  font-size: clamp(1.65rem, 2.5vw, 2.15rem);
+  line-height: 1.12;
+  letter-spacing: -.025em;
+}
+
+body > main:not(.shell):not(.login) > header p {
+  max-width: 760px;
+  margin: 0 !important;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+body > main:not(.shell):not(.login) > header a,
+body > main:not(.shell):not(.login) > header p > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--brand);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+body > main:not(.shell):not(.login) > header a:hover,
+body > main:not(.shell):not(.login) > header p > a:hover {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+}
+
+body > main:not(.shell):not(.login) > section {
+  margin-top: 20px !important;
+  padding: 22px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 20px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 10px 30px rgba(5, 135, 154, .055);
+}
+
+body > main:not(.shell):not(.login) > section h2,
+body > main:not(.shell):not(.login) > section h3 {
+  color: var(--ink);
+  letter-spacing: -.015em;
+}
+
+body > main:not(.shell):not(.login) > section h2:first-child {
+  margin-top: 0;
+}
+
+body > main:not(.shell):not(.login) article {
+  border-color: var(--line) !important;
+  border-radius: 16px !important;
+  background: #fbfeff;
+  box-shadow: 0 5px 18px rgba(23, 50, 58, .035);
+}
+
+body > main:not(.shell):not(.login) article:hover {
+  border-color: var(--accent-strong) !important;
+}
+
+body > main:not(.shell):not(.login) label {
+  color: var(--ink-soft);
+  font-size: .91rem;
+  font-weight: 700;
+}
+
+body > main:not(.shell):not(.login) input,
+body > main:not(.shell):not(.login) select,
+body > main:not(.shell):not(.login) textarea {
+  min-height: 44px;
+  border-color: var(--line-strong) !important;
+  border-radius: 12px !important;
+  background: #fff;
+  font: inherit;
+}
+
+body > main:not(.shell):not(.login) input:focus,
+body > main:not(.shell):not(.login) select:focus,
+body > main:not(.shell):not(.login) textarea:focus {
+  outline: 3px solid var(--focus-ring) !important;
+  outline-offset: 1px;
+  border-color: var(--brand) !important;
+}
+
+body > main:not(.shell):not(.login) button {
+  min-height: 44px;
+  border-radius: 12px !important;
+  font: inherit;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+body > main:not(.shell):not(.login) button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 16px rgba(23, 50, 58, .09);
+}
+
+body > main:not(.shell):not(.login) button:focus-visible,
+body > main:not(.shell):not(.login) a:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+body > main:not(.shell):not(.login) button:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+body > main:not(.shell):not(.login) dl {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfeff;
+}
+
+body > main:not(.shell):not(.login) dt {
+  color: var(--muted);
+  font-size: .86rem;
+  font-weight: 800;
+}
+
+body > main:not(.shell):not(.login) dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+body > main:not(.shell):not(.login) section small,
+body > main:not(.shell):not(.login) article small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  body > main:not(.shell):not(.login) {
+    width: min(100% - 20px, 1180px) !important;
+    padding: 18px 0 64px !important;
+  }
+
+  body > main:not(.shell):not(.login) > header,
+  body > main:not(.shell):not(.login) > section {
+    padding: 17px !important;
+    border-radius: 17px !important;
+  }
+
+  body > main:not(.shell):not(.login) > header a,
+  body > main:not(.shell):not(.login) > header p > a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  body > main:not(.shell):not(.login) article {
+    align-items: stretch !important;
+  }
+
+  body > main:not(.shell):not(.login) input,
+  body > main:not(.shell):not(.login) select,
+  body > main:not(.shell):not(.login) textarea,
+  body > main:not(.shell):not(.login) button {
+    max-width: 100%;
+  }
+}

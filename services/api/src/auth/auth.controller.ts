@@ -1,0 +1,273 @@
+import { Body, Controller, ExecutionContext, Get, Header, Post, Req, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { IsNotEmpty, IsPhoneNumber, IsString, IsUUID, Length } from 'class-validator';
+import { PartnerInvitationStatus, PartnerRole } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { OperationalUsageService } from '../analytics/operational-usage.service';
+import { AuthService } from './auth.service';
+import { AuthenticatedRequest, BearerGuard } from './bearer.guard';
+import { SessionService } from './session.service';
+import { AppRole } from './auth.types';
+
+const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AuthenticatedRequest>().auth?.userId);
+
+class RequestOtpDto { @IsPhoneNumber() phone!: string; }
+class VerifyOtpDto { @IsString() challengeId!: string; @IsString() @Length(6, 6) code!: string; }
+class SelectSocietyDto { @IsUUID() userId!: string; @IsUUID() societyId!: string; @IsString() @IsNotEmpty() selectionToken!: string; }
+class SwitchSocietyDto { @IsUUID() societyId!: string; }
+class RefreshDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
+class LogoutDto { @IsUUID() sessionId!: string; @IsString() @IsNotEmpty() refreshToken!: string; }
+
+type PropertyContext = {
+  unitId: string;
+  unitNumber: string;
+  buildingName: string;
+  buildingCode: string;
+  relationship: 'OWNER' | 'OCCUPANT';
+};
+
+type SocietyContext = {
+  societyId: string;
+  role: string;
+  roles: string[];
+  society: { name: string; code: string };
+  properties: PropertyContext[];
+};
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService, private readonly prisma: PrismaService, private readonly sessions: SessionService, private readonly usage?: OperationalUsageService) {}
+
+  @Post('otp/request') async requestOtp(@Body() dto: RequestOtpDto) {
+    const challenge = await this.authService.requestOtp(dto.phone);
+    return { challengeId: challenge.challengeId, expiresAt: challenge.expiresAt };
+  }
+
+  @Post('otp/verify') async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const result = await this.authService.verifyOtp(dto.challengeId, dto.code);
+    if (!result.verified || !result.phone) throw new UnauthorizedException('Invalid or expired OTP');
+    const user = await this.prisma.user.findUnique({ where: { phone: result.phone } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User is not active');
+
+    const membershipRows = await this.prisma.societyMembership.findMany({
+      where: { userId: user.id, active: true, society: { status: 'ACTIVE' } },
+      select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
+    });
+    const contexts = await this.listSocietyContexts(user.id, membershipRows);
+
+    if (membershipRows.length === 0) {
+      await this.usage?.record(user.id, undefined, 'INDEPENDENT_HOME_ENTERED');
+      return {
+        verified: true,
+        userId: user.id,
+        contextType: 'INDEPENDENT_HOME',
+        memberships: [],
+        contexts: [],
+        session: await this.sessions.create(user.id, undefined, []),
+      };
+    }
+
+    // Preserve the legacy auth response contract for the guard/admin clients:
+    // only one raw membership receives a session immediately. Multiple role rows
+    // continue through the existing selection-grant path. The resident app uses
+    // the new grouped `contexts` field and can auto-select a sole society context.
+    if (membershipRows.length === 1) {
+      return {
+        verified: true,
+        userId: user.id,
+        contextType: 'SOCIETY',
+        memberships: membershipRows,
+        contexts,
+        session: await this.sessions.create(user.id, membershipRows[0].societyId, [membershipRows[0].role as AppRole]),
+      };
+    }
+
+    const selectionGrant = await this.authService.createSocietySelectionGrant(user.id);
+    return {
+      verified: true,
+      userId: user.id,
+      contextType: 'SOCIETY_SELECTION',
+      memberships: membershipRows,
+      contexts,
+      selectionToken: selectionGrant.token,
+      selectionExpiresAt: selectionGrant.expiresAt,
+    };
+  }
+
+  /** Dedicated, society-less commercial login using the existing one-time OTP store. */
+  @Post('partner/otp/verify')
+  @Header('Cache-Control', 'no-store')
+  async verifyPartnerOtp(@Body() dto: VerifyOtpDto, hostRequest?: AuthenticatedRequest) {
+    const proof = await this.authService.verifyOtp(dto.challengeId, dto.code);
+    if (!proof.verified || !proof.phone) throw new UnauthorizedException('Invalid or expired OTP');
+    const user = await this.prisma.user.findUnique({ where: { phone: proof.phone }, select: { id: true, status: true } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Partner access unavailable');
+    const [membership, invitation] = await Promise.all([
+      this.prisma.partnerMembership.findFirst({
+        where: {userId:user.id, active:true, role:{in:[PartnerRole.OWNER,PartnerRole.BRAND_MANAGER,PartnerRole.COMMERCIAL_ADMIN,PartnerRole.SUPPORT]},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+      this.prisma.partnerInvitation.findFirst({
+        where: {userId:user.id,status:PartnerInvitationStatus.PENDING,expiresAt:{gt:new Date()},partner:{is:{status:'ACTIVE'}}},
+        select: {id:true},
+      }),
+    ]);
+    if (!membership && !invitation) throw new UnauthorizedException('Partner access unavailable');
+    // A partner identity receives no societyId, AppRole or operational permission.
+    // Every partner action still reloads current membership/invitation authority.
+    return {verified:true,contextType:'PARTNER' as const,
+      session:await this.sessions.create(user.id,undefined,[],{audience:'PARTNER',...(hostRequest?{hostRequest}:{})})};
+  }
+
+  /** Direct-host test adapter; receives no client-supplied partner identity. */
+  @Post('partner/host/otp/verify')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Vary', 'Host, Origin')
+  async verifyHostPartnerOtp(@Body() dto: VerifyOtpDto, @Req() request: AuthenticatedRequest) {
+    const result = await this.verifyPartnerOtp(dto, request);
+    const hostContext = await this.hostPartnerContext(result.session.accessToken, request);
+    return { ...result, hostContext };
+  }
+
+  /** BFF/SSR session validation: never accept an unbound platform token. */
+  @Get('partner/host/session')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Vary', 'Host, Origin')
+  async hostPartnerSession(@Req() request: AuthenticatedRequest) {
+    const authorization = request.header('authorization');
+    if (!authorization?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required');
+    return this.hostPartnerContext(authorization.slice(7), request);
+  }
+
+  private async hostPartnerContext(accessToken: string, request: AuthenticatedRequest) {
+    const principal = await this.sessions.getPrincipal(accessToken, request);
+    if (principal.audience !== 'PARTNER' || !principal.hostPartnerId || principal.societyId || principal.roles.length)
+      throw new UnauthorizedException('Host-bound partner access required');
+    return { contextType: 'PARTNER_HOST' as const, partnerId: principal.hostPartnerId, hostname: request.header('host') };
+  }
+
+  @Post('society/select') async selectSociety(@Body() dto: SelectSocietyDto) {
+    await this.authService.consumeSocietySelectionGrant(dto.selectionToken, dto.userId);
+    return this.createSocietySession(dto.userId, dto.societyId);
+  }
+
+  @Get('contexts')
+  @UseGuards(BearerGuard)
+  async contexts(@CurrentUser() userId: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    const contexts = await this.listSocietyContexts(userId);
+    return {
+      memberships: contexts,
+      contexts,
+      independentHomeAvailable: contexts.length === 0,
+    };
+  }
+
+  @Post('society/switch')
+  @UseGuards(BearerGuard)
+  async switchSociety(@CurrentUser() userId: string, @Body() dto: SwitchSocietyDto) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    const result=await this.createSocietySession(userId, dto.societyId);
+    await this.usage?.record(userId,dto.societyId,'PROPERTY_CONTEXT_SWITCHED');
+    return result;
+  }
+
+  @Post('refresh') refresh(@Body() dto: RefreshDto, @Req() request: AuthenticatedRequest) { return request ? this.sessions.refresh(dto.sessionId, dto.refreshToken, request) : this.sessions.refresh(dto.sessionId, dto.refreshToken); }
+  @Post('logout') async logout(@Body() dto: LogoutDto) { await this.sessions.revoke(dto.sessionId, dto.refreshToken); return { success: true }; }
+
+  private async createSocietySession(userId: string, societyId: string) {
+    const memberships = await this.prisma.societyMembership.findMany({
+      where: { userId, societyId, active: true, society: { status: 'ACTIVE' } },
+      select: { role: true },
+    });
+    if (!memberships.length) throw new UnauthorizedException('User is not an active member of this society');
+    const roles = memberships.map((membership) => membership.role as AppRole);
+    const session = await this.sessions.create(userId, societyId, roles);
+    return { contextType: 'SOCIETY', societyId, role: memberships[0].role, roles, session };
+  }
+
+  private async listSocietyContexts(
+    userId: string,
+    suppliedMembershipRows?: Array<{ societyId: string; role: string; society: { name: string; code: string } }>,
+  ): Promise<SocietyContext[]> {
+    const now = new Date();
+    const [membershipRows, ownershipRows, occupancyRows] = await Promise.all([
+      suppliedMembershipRows
+        ? Promise.resolve(suppliedMembershipRows)
+        : this.prisma.societyMembership.findMany({
+            where: { userId, active: true, society: { status: 'ACTIVE' } },
+            select: { societyId: true, role: true, society: { select: { name: true, code: true } } },
+          }),
+      this.prisma.unitOwnership.findMany({
+        where: {
+          userId,
+          active: true,
+          verified: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        select: {
+          societyId: true,
+          unitId: true,
+          unit: { select: { number: true, building: { select: { name: true, code: true } } } },
+        },
+      }),
+      this.prisma.unitOccupancy.findMany({
+        where: {
+          userId,
+          active: true,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+        },
+        select: {
+          societyId: true,
+          unitId: true,
+          unit: { select: { number: true, building: { select: { name: true, code: true } } } },
+        },
+      }),
+    ]);
+
+    const propertyMap = new Map<string, PropertyContext[]>();
+    const addProperty = (societyId: string, property: PropertyContext) => {
+      const rows = propertyMap.get(societyId) ?? [];
+      const duplicate = rows.some((row) => row.unitId === property.unitId);
+      if (!duplicate) rows.push(property);
+      propertyMap.set(societyId, rows);
+    };
+
+    for (const row of ownershipRows) {
+      addProperty(row.societyId, {
+        unitId: row.unitId,
+        unitNumber: row.unit.number,
+        buildingName: row.unit.building.name,
+        buildingCode: row.unit.building.code,
+        relationship: 'OWNER',
+      });
+    }
+    for (const row of occupancyRows) {
+      addProperty(row.societyId, {
+        unitId: row.unitId,
+        unitNumber: row.unit.number,
+        buildingName: row.unit.building.name,
+        buildingCode: row.unit.building.code,
+        relationship: 'OCCUPANT',
+      });
+    }
+
+    const societyMap = new Map<string, SocietyContext>();
+    for (const row of membershipRows) {
+      const existing = societyMap.get(row.societyId);
+      if (existing) {
+        if (!existing.roles.includes(row.role)) existing.roles.push(row.role);
+        continue;
+      }
+      societyMap.set(row.societyId, {
+        societyId: row.societyId,
+        role: row.role,
+        roles: [row.role],
+        society: row.society,
+        properties: propertyMap.get(row.societyId) ?? [],
+      });
+    }
+    return [...societyMap.values()];
+  }
+}

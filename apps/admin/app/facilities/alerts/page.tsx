@@ -1,0 +1,29 @@
+'use client'
+
+import { useEffect,useMemo,useState } from 'react'
+import { ActionBar, EmptyState, ErrorState, EvidenceGrid, PageHeader, PageShell, PrimaryButton, SecondaryButton, StatusPill } from '../../../components/admin-ui'
+import { api, type Session } from '../../../lib/admin-client'
+
+type Alert={id:string;alertType:'WORK_ORDER_OVERDUE'|'CONTRACT_EXPIRING'|'CONTRACT_EXPIRED';sourceType:string;sourceId:string;severity:'INFO'|'WARNING'|'CRITICAL';title:string;message:string;dueAt?:string|null;status:'OPEN'|'ACKNOWLEDGED'|'RESOLVED';acknowledgedAt?:string|null;acknowledgedByUserId?:string|null;createdAt:string;updatedAt:string}
+const readRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER','COMMITTEE_MEMBER'])
+const manageRoles=new Set(['SUPER_ADMIN','SOCIETY_ADMIN','FACILITY_MANAGER'])
+function getSession():Session|null{try{const raw=sessionStorage.getItem('aaraagate.admin.session');return raw?JSON.parse(raw):null}catch{return null}}
+const fmt=(v?:string|null)=>v?new Date(v).toLocaleString('en-IN'):'—'
+export default function FacilitiesAlertsPage(){
+ const s=typeof window==='undefined'?null:getSession(),canRead=!!s&&readRoles.has(s.role),canManage=!!s&&manageRoles.has(s.role)
+ const[alerts,setAlerts]=useState<Alert[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(''),[filter,setFilter]=useState<'ALL'|'OPEN'|'ACKNOWLEDGED'|'RESOLVED'>('ALL')
+ const summary=useMemo(()=>({open:alerts.filter(a=>a.status==='OPEN').length,critical:alerts.filter(a=>a.status!=='RESOLVED'&&a.severity==='CRITICAL').length,warning:alerts.filter(a=>a.status!=='RESOLVED'&&a.severity==='WARNING').length,resolved:alerts.filter(a=>a.status==='RESOLVED').length}),[alerts])
+ const visible=useMemo(()=>filter==='ALL'?alerts:alerts.filter(a=>a.status===filter),[alerts,filter])
+ async function load(){if(!s||!canRead)return;setBusy(true);setError('');try{setAlerts(await api<Alert[]>('/facilities/alerts',{},s))}catch(e){setError(e instanceof Error?e.message:'Could not load facilities alerts')}finally{setBusy(false)}}
+ useEffect(()=>{void load()},[])
+ async function generate(){if(!s||!canManage)return;setBusy(true);setError('');setResult('');try{const r=await api<{eligible:number;generated:number}>('/facilities/alerts/generate',{method:'POST',body:JSON.stringify({windowDays:30})},s);setResult(`Scan complete: ${r.eligible} eligible, ${r.generated} new alert${r.generated===1?'':'s'}.`);await load()}catch(e){setError(e instanceof Error?e.message:'Could not generate alerts')}finally{setBusy(false)}}
+ async function setStatus(id:string,status:'ACKNOWLEDGED'|'RESOLVED'){if(!s||!canManage)return;setBusy(true);setError('');try{await api(`/facilities/alerts/${id}/status`,{method:'POST',body:JSON.stringify({status})},s);await load()}catch(e){setError(e instanceof Error?e.message:'Could not update alert')}finally{setBusy(false)}}
+ if(!s||!canRead)return <PageShell><PageHeader title="Facilities access required" actions={<a href="/">Return to Admin</a>}/></PageShell>
+ return <PageShell><PageHeader context={`${s.societyName??'Current society'} · ${s.role.replaceAll('_',' ')}`} title="Facilities alert inbox" description="Track overdue maintenance and AMC, warranty or service-contract expiry risks." actions={<span><a href="/facilities">← Facilities operations</a> · <a href="/facilities/contracts">AMC & evidence</a></span>}/>{error&&<ErrorState title="Facilities alerts unavailable" description={error}/>}<ActionBar feedback={result} label="Alert inbox actions"><SecondaryButton loading={busy} onClick={()=>void load()}>Refresh</SecondaryButton>{canManage&&<PrimaryButton loading={busy} onClick={()=>void generate()}>Scan now</PrimaryButton>}</ActionBar><section style={panel}><h2>Alert summary</h2><EvidenceGrid items={[{id:'open',label:'Open',value:summary.open},{id:'critical',label:'Critical',value:summary.critical},{id:'warning',label:'Warnings',value:summary.warning},{id:'resolved',label:'Resolved',value:summary.resolved}]}/><div style={filterRow}>{(['ALL','OPEN','ACKNOWLEDGED','RESOLVED'] as const).map(v=>filter===v?<PrimaryButton key={v} onClick={()=>setFilter(v)}>{v.replaceAll('_',' ')}</PrimaryButton>:<SecondaryButton key={v} onClick={()=>setFilter(v)}>{v.replaceAll('_',' ')}</SecondaryButton>)}</div></section><section style={panel}><h2>Operational alerts</h2>{visible.length===0?<EmptyState title="No alerts in this view"/>:visible.map(a=><article key={a.id} style={item}><div><div style={badgeRow}><strong>{a.title}</strong><StatusPill label={a.severity} tone={a.severity==='CRITICAL'?'danger':a.severity==='WARNING'?'warning':'info'}/><StatusPill label={a.status} tone={a.status==='RESOLVED'?'success':a.status==='ACKNOWLEDGED'?'info':'neutral'}/></div><p>{a.message}</p><small>{a.alertType.replaceAll('_',' ')} · Due {fmt(a.dueAt)} · Created {fmt(a.createdAt)}</small>{a.acknowledgedAt?<><br/><small>Acknowledged {fmt(a.acknowledgedAt)}</small></>:null}</div>{canManage&&a.status!=='RESOLVED'&&<div style={actions}>{a.status==='OPEN'&&<SecondaryButton disabled={busy} onClick={()=>void setStatus(a.id,'ACKNOWLEDGED')}>Acknowledge</SecondaryButton>}<PrimaryButton disabled={busy} onClick={()=>void setStatus(a.id,'RESOLVED')}>Resolve</PrimaryButton></div>}</article>)}</section></PageShell>
+}
+const panel={background:'#fff',border:'1px solid #e5e7eb',borderRadius:18,padding:20,boxShadow:'0 8px 24px rgba(15,23,42,.05)'}
+const item={display:'flex',justifyContent:'space-between',gap:16,padding:'16px 0',borderBottom:'1px solid #eef2f7',alignItems:'flex-start'}
+const actions={display:'flex',gap:8,flexWrap:'wrap' as const,justifyContent:'flex-end'}
+
+const filterRow:React.CSSProperties={display:'flex',gap:8,flexWrap:'wrap',marginTop:16}
+const badgeRow:React.CSSProperties={display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}

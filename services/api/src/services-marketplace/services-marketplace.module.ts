@@ -1,0 +1,152 @@
+import { Module } from '@nestjs/common';
+import { AccessModule } from '../access/access.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { PrismaService } from '../prisma/prisma.service';
+import { FileSafetyModule } from '../storage/file-safety.module';
+import { ObjectStorageModule } from '../storage/object-storage.module';
+import { ConsumerAvailabilityService } from './consumer-availability.service';
+import { ServiceQualityChecklistService } from './service-quality-checklist.service';
+import { ConsumerQualityChecklistController, ProviderQualityChecklistController } from './service-quality-checklist.controller';
+import {
+  ConsumerCommunityServicesController,
+  ProviderServiceExperienceController,
+  ServicesCommunityDealAdminController,
+} from './community-services-3.controller';
+import { CommunityServices3Service } from './community-services-3.service';
+import { ConsumerBookingsController } from './consumer-bookings.controller';
+import { ConsumerBookingsService } from './consumer-bookings.service';
+import { ConsumerCommercialDiscoveryController } from './consumer-commercial-discovery.controller';
+import { ConsumerCommercialDiscoveryService } from './consumer-commercial-discovery.service';
+import { ConsumerDispatchPlatformController } from './consumer-dispatch-platform.controller';
+import { ConsumerDispatchService } from './consumer-dispatch.service';
+import { ConsumerFulfilmentService } from './consumer-fulfilment.service';
+import { ConsumerOffersController } from './consumer-offers.controller';
+import { ConsumerOffersService } from './consumer-offers.service';
+import { ConsumerPaymentsService } from './consumer-payments.service';
+import { ConsumerProviderAgentController } from './consumer-provider-agent.controller';
+import { ConsumerProviderAgentPlatformController } from './consumer-provider-agent-platform.controller';
+import { ConsumerProviderAgentService } from './consumer-provider-agent.service';
+import { ConsumerProviderExperienceController } from './consumer-provider-experience.controller';
+import { ConsumerProviderExperienceService } from './consumer-provider-experience.service';
+import { ConsumerProviderMediaController } from './consumer-provider-media.controller';
+import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
+import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
+import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
+import { ConsumerRebookingController } from './consumer-rebooking.controller';
+import { ConsumerRebookingService } from './consumer-rebooking.service';
+import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
+import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
+import { ConsumerServiceLocationService } from './consumer-service-location.service';
+import { ConsumerServiceMemoryController } from './consumer-service-memory.controller';
+import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
+import { ConsumerServiceRatingsService } from './consumer-service-ratings.service';
+import { ConsumerServicesController } from './consumer-services.controller';
+import { ProviderCommercialPlatformController } from './provider-commercial-platform.controller';
+import { ProviderCommercialSelfServiceController } from './provider-commercial-self-service.controller';
+import { ProviderCommercialService } from './provider-commercial.service';
+import { ProviderMediaPlatformController } from './provider-media-platform.controller';
+import { ProviderMediaService } from './provider-media.service';
+import { ProviderOfferingContinuityController } from './provider-offering-continuity.controller';
+import { ProviderSettlementPlatformController } from './provider-settlement-platform.controller';
+import { ProviderSettlementSelfServiceController } from './provider-settlement-self-service.controller';
+import { ProviderSettlementService } from './provider-settlement.service';
+import { ProviderOfferingContinuityService } from './provider-offering-continuity.service';
+import { ProviderTrustReviewController } from './provider-trust-review.controller';
+import { ProviderTrustReviewService } from './provider-trust-review.service';
+import {
+  ConsumerMarketplaceCompletionController,
+  PlatformMarketplaceCompletionController,
+  PlatformProviderApplicationController,
+  ProviderMarketplaceCompletionController,
+  ProviderOnboardingController,
+} from './provider-marketplace-completion.controller';
+import { ProviderMarketplaceCompletionService } from './provider-marketplace-completion.service';
+import { ServiceBookingAccessService } from './service-booking-access.service';
+import { ServiceProviderSocietyTrustService } from './service-provider-society-trust.service';
+import { ServiceBookingHistoryController } from './service-booking-history.controller';
+import { ServiceBookingHistoryService } from './service-booking-history.service';
+import { ServiceBookingRatingService } from './service-booking-rating.service';
+import { ServiceBookingTransitionService } from './service-booking-transition.service';
+import { ServicesMarketplaceController } from './services-marketplace.controller';
+import { ServicesMarketplaceOperationsSummaryController } from './services-marketplace-operations-summary.controller';
+import { ServicesMarketplaceOperationsSummaryService } from './services-marketplace-operations-summary.service';
+import { ServicesPlatformController } from './services-platform.controller';
+import { ServicesMarketplaceOperationsService } from './services-marketplace-operations.service';
+import { ServicesMarketplaceService } from './services-marketplace.service';
+
+@Module({
+  imports: [AccessModule, EntitlementsModule, ObjectStorageModule, FileSafetyModule],
+  controllers: [
+    ServicesMarketplaceController,
+    ServicesCommunityDealAdminController,
+    ConsumerCommunityServicesController,
+    ConsumerQualityChecklistController,
+    ProviderQualityChecklistController,
+    ProviderServiceExperienceController,
+    ServiceBookingHistoryController,
+    ServicesPlatformController,
+    ServicesMarketplaceOperationsSummaryController,
+    ProviderCommercialPlatformController,
+    ProviderCommercialSelfServiceController,
+    ProviderMediaPlatformController,
+    ProviderTrustReviewController,
+    ConsumerDispatchPlatformController,
+    ConsumerProviderAgentPlatformController,
+    ConsumerProviderOperatorPlatformController,
+    ConsumerServiceLocationPlatformController,
+    ConsumerServicesController,
+    ConsumerCommercialDiscoveryController,
+    ConsumerServiceMemoryController,
+    ConsumerRebookingController,
+    ConsumerBookingsController,
+    ConsumerOffersController,
+    ConsumerProviderExperienceController,
+    ConsumerProviderAgentController,
+    ConsumerProviderOperatorController,
+    ConsumerProviderMediaController,
+    ProviderOfferingContinuityController,
+    ProviderSettlementPlatformController,
+    ProviderSettlementSelfServiceController,
+    ProviderOnboardingController,
+    PlatformProviderApplicationController,
+    ProviderMarketplaceCompletionController,
+    ConsumerMarketplaceCompletionController,
+    PlatformMarketplaceCompletionController,
+  ],
+  providers: [
+    PrismaService,
+    CommunityServices3Service,
+    ServiceQualityChecklistService,
+    ServiceProviderSocietyTrustService,
+    ServiceBookingAccessService,
+    ServiceBookingHistoryService,
+    ServiceBookingRatingService,
+    ServiceBookingTransitionService,
+    ServicesMarketplaceOperationsService,
+    ServicesMarketplaceOperationsSummaryService,
+    ServicesMarketplaceService,
+    ConsumerAvailabilityService,
+    ConsumerBookingsService,
+    ConsumerCommercialDiscoveryService,
+    ConsumerDispatchService,
+    ConsumerFulfilmentService,
+    ConsumerOffersService,
+    ConsumerPaymentsService,
+    ConsumerProviderAgentService,
+    ConsumerProviderExperienceService,
+    ConsumerProviderOperatorService,
+    ConsumerRebookingService,
+    ConsumerServiceCompletionService,
+    ConsumerServiceLocationService,
+    ConsumerServiceMemoryService,
+    ConsumerServiceRatingsService,
+    ProviderCommercialService,
+    ProviderMediaService,
+    ProviderOfferingContinuityService,
+    ProviderSettlementService,
+    ProviderMarketplaceCompletionService,
+    ProviderTrustReviewService,
+  ],
+  exports: [ServicesMarketplaceService],
+})
+export class ServicesMarketplaceModule {}

@@ -1,0 +1,10 @@
+{
+  "name": "@aaraagate/types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./partner-license-allocation": "./src/partner-license-allocation-simulation.mjs"
+  }
+}

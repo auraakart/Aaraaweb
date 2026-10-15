@@ -1,0 +1,119 @@
+# Aaraagate V4.3 — Competitor Migration and Society Onboarding
+
+Date: 2026-09-18
+Status: Complete on `develop` after V4.3 completion PR
+Baseline: V4.2-complete `develop`
+
+## Goal
+Reduce switching friction for societies moving from incumbent society-management products or spreadsheets without coupling Aaraagate to a competitor-specific export format.
+
+## Implemented contracts
+
+### Non-mutating preview
+`POST /api/v1/migration/preview`
+
+The preview endpoint is authenticated, tenant-scoped and protected by `SOCIETY_CONFIGURATION_MANAGE`. It validates canonical rows without writing target society data.
+
+### Persisted dry-run batch
+`POST /api/v1/migration/batches`
+
+Dry-run batches persist actor/society ownership, deterministic SHA-256 checksum, normalized row evidence, duplicate/referential issues and READY/PREVIEWED state. Identical normalized data for one society is idempotent.
+
+History/evidence:
+- `GET /api/v1/migration/batches`
+- `GET /api/v1/migration/batches/:id`
+
+### Controlled structural commit
+`POST /api/v1/migration/batches/:id/commit`
+
+The first mutation-enabled slice deliberately supports only:
+1. `BUILDING`
+2. `UNIT`
+
+A batch must be `READY`. Building rows require stable `name` and `code`; unit rows resolve a current-society building reference before insert. Every created target UUID and commit timestamp is recorded against the immutable source row. Commit is transaction-scoped and advisory-locked by batch id.
+
+Controlled commit is enabled for all currently supported V4.3 canonical entities: `BUILDING`, `UNIT`, `RESIDENT`, `VEHICLE`, `PARKING`, `WORKFORCE`, `VENDOR` and `OPENING_BALANCE`.
+
+### Controlled structural rollback
+`POST /api/v1/migration/batches/:id/rollback`
+
+Rollback is intentionally fail-closed:
+- a migrated building cannot roll back while any unit exists beneath it;
+- a migrated unit cannot roll back after ownership, occupancy, household, visitor, access-request, service-booking, helpdesk, SOS or maintenance data depends on it;
+- rollback deletes only target UUIDs recorded by that migration batch;
+- source evidence and target UUIDs remain recorded after rollback, with rollback actor/time added.
+
+This creates a strict reverse dependency order: unit batches must roll back before their building batch.
+
+## Supported dry-run entity types
+- building;
+- unit;
+- resident / owner / tenant relationship input;
+- vehicle;
+- parking;
+- workforce/staff;
+- vendor;
+- opening finance balance.
+
+## Validation principles
+- Headers normalize to lower snake-style keys.
+- Common aliases such as `flat_number`, `mobile`, `vehicle_number` and `ledger_code` are accepted.
+- Batches are bounded to 10,000 rows per entity.
+- Required-field, invalid-value and duplicate failures are row-scoped.
+- Opening-balance amounts use integer paise.
+- References resolve only inside the authenticated society.
+- Ambiguous bare unit numbers fail closed; `BUILDING_CODE/UNIT_NUMBER` disambiguates.
+- Opening-balance account codes must exist in the active-society chart of accounts.
+- Existing operational identities are reported as conflicts before commit.
+
+## Generic mapping strategy
+Aaraagate uses a canonical migration schema rather than competitor-specific write code. MyGate, NoBrokerHood, ADDA, ApnaComplex or spreadsheet exports should map into the same canonical fields.
+
+## Persisted evidence model
+`MigrationBatch` records society, actor, lifecycle, checksum, validation counts and commit/rollback actors/timestamps. `MigrationBatchRow` records normalized source, identity, issues, target type/UUID, committed time and rolled-back time.
+
+These tables are migration evidence, not a parallel operational store.
+
+## Planned V4.3 sequence
+1. Preview/normalization/duplicate validation. **Complete**
+2. Referential validation/source mapping. **Complete**
+3. Persisted dry-run/checksum/audit evidence. **Complete**
+4. Dependency-ordered commit engine. **Structural BUILDING/UNIT slice implemented**
+5. Rollback/undo boundary. **Structural BUILDING/UNIT slice implemented**
+6. Resident/vehicle/parking/workforce/vendor domain-safe commit adapters. **Implemented**
+7. Opening-balance handoff into the V4.1 idempotent cutover contract and reconciliation summary. **Complete**
+8. Admin onboarding checklist/progress surface. **Complete**
+9. Migration evidence export. **Complete**
+10. Large-import, invalid-data, duplicate, rollback and cross-society isolation regression evidence. **Complete**
+
+## Safety invariants
+- Every request resolves an authenticated society tenant.
+- Plain preview never writes data.
+- Persisted preview writes migration evidence only.
+- A commit cannot run from PREVIEWED/invalid state.
+- No commit bypasses society ownership or database/domain constraints.
+- Rollback is blocked after downstream operational dependencies appear.
+- Vehicle commit requires an already-existing household for the referenced unit; migration never creates an untracked household as a side effect.
+- Parking commit reuses the live slot/event model; optional building references stay tenant-scoped, and rollback is blocked after any allocation.
+- Resident migration keys relationships by phone + unit so one owner may migrate across multiple units while conflicting roles on the same unit are rejected.
+- Existing global users and active society membership roles may be reused without profile overwrite; inactive historical memberships require manual review.
+- `MigrationBatchArtifact` records created versus reused user, membership, ownership, occupancy and household artifacts per source row.
+- Resident rollback is blocked after post-migration gate/service/helpdesk/SOS/payment/household activity, after created memberships gain other relationships, or after a migration-created household/user becomes independently used.
+- Workforce rollback is blocked once assignments/ratings/suspension evidence exists.
+- Vendor rollback is blocked once procurement records reference the migrated vendor.
+- Opening-balance migration requires one shared cutover date, positive integer paise, balanced debit/credit totals, valid society ledger/fund/unit references and one open period covering the date.
+- Opening-balance commit delegates to the V4.1 `OpeningBalancesService` with a deterministic migration batch key; rollback uses normal posted-journal reversal in an open accounting period and never deletes ledger history.
+- `AccountingModule` now registers and exports the V4.1 opening-balance controller/service, correcting the previously unexposed runtime contract.
+- Cross-society references fail closed.
+- Migration evidence is never silently destroyed.
+
+## V4.3 completion evidence
+- Batch detail returns opening-balance reconciliation evidence from the authoritative posted journal: debit total, credit total, balanced flag, journal status and reversal reference.
+- `GET /api/v1/migration/batches/:id/evidence.csv` exports society-scoped row evidence and finance reconciliation without bypassing tenant/permission guards.
+- Admin `/migration` provides onboarding checklist/progress, batch history/detail, evidence export and controlled commit/rollback actions for Society Admin/Super Admin.
+- Preview regression evidence accepts the documented 10,000-row boundary and rejects 10,001 rows.
+- Batch lookup/export regression evidence asserts the society scope is present in the batch lookup contract.
+- Invalid-data, duplicate, referential, commit and rollback cases remain covered by the focused V4.3 service suites.
+
+## V4.3 exit decision
+All planned V4.3 implementation acceptance items are represented in code/tests. External competitor source files can vary, but they map into the canonical import contract; no vendor-specific runtime dependency is required. Staging/main promotion remains deferred under the V4 release policy.

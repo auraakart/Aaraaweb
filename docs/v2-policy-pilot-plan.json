@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "aaraagate.v2.policy-pilot.v1",
+  "phase": "V2.4",
+  "status": "NOT_STARTED",
+  "pilotSociety": null,
+  "reviewers": [],
+  "scenarios": [
+    {
+      "id": "POL-OCC-001",
+      "title": "Configure owner, tenant and occupant relationships for a real society policy set",
+      "domains": ["V2-OCC"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["policy-reference", "configured-behavior", "reviewer-signoff"],
+      "evidence": []
+    },
+    {
+      "id": "POL-OCC-002",
+      "title": "Verify gate notifications reach the current occupant regardless of ownership status",
+      "domains": ["V2-OCC"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["society-policy", "occupancy-example", "notification-result"],
+      "evidence": []
+    },
+    {
+      "id": "POL-GOV-001",
+      "title": "Configure committee and governance visibility rules from actual society bye-laws",
+      "domains": ["V2-GOV"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["bye-law-reference", "configured-behavior", "reviewer-signoff"],
+      "evidence": []
+    },
+    {
+      "id": "POL-GOV-002",
+      "title": "Verify governance records and notices follow the society-approved audience rules",
+      "domains": ["V2-GOV", "V2-COM"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["audience-rule", "sample-record", "visibility-result"],
+      "evidence": []
+    },
+    {
+      "id": "POL-AMN-001",
+      "title": "Configure amenity booking limits, eligibility and operating windows from society rules",
+      "domains": ["V2-AMN"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["amenity-policy", "configured-rule", "booking-result"],
+      "evidence": []
+    },
+    {
+      "id": "POL-AMN-002",
+      "title": "Verify tenant and owner amenity eligibility matches the selected society policy",
+      "domains": ["V2-AMN", "V2-OCC"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["eligibility-policy", "owner-result", "tenant-result"],
+      "evidence": []
+    },
+    {
+      "id": "POL-COM-001",
+      "title": "Configure community communication moderation and posting rules from society policy",
+      "domains": ["V2-COM"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["communication-policy", "configured-rule", "moderation-result"],
+      "evidence": []
+    },
+    {
+      "id": "POL-COM-002",
+      "title": "Verify multi-society members see policy-scoped content only for the selected society context",
+      "domains": ["V2-COM", "V2-OCC"],
+      "status": "NOT_RUN",
+      "requiredEvidence": ["multi-society-example", "society-a-result", "society-b-result"],
+      "evidence": []
+    }
+  ]
+}
