@@ -156,6 +156,143 @@ describe('ConsumerServiceMemoryService', () => {
     expect(result.technicianAssignmentGuaranteed).toBe(false);
   });
 
+  it('4.2.6 rejects a foreign booking preference read without resolving the location', async () => {
+    const { prisma, locations, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getBookingTechnicianPreference('user', 'foreign-booking'))
+      .rejects.toThrow('Service booking not found');
+    expect(locations.resolveLocation).not.toHaveBeenCalled();
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(query.strings.join(' ')).toContain('b."userId"');
+    expect(query.values).toEqual(['foreign-booking', 'user']);
+  });
+
+  it('4.2.6 denies mutation after assignment while holding the booking lock', async () => {
+    const { prisma, locations, service } = setup();
+    const tx = { $queryRaw: vi.fn().mockResolvedValueOnce([{
+      id: 'booking', status: 'CONFIRMED', hasActiveAssignment: true,
+    }]), $executeRaw: vi.fn() };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    await expect(service.setBookingTechnicianPreference('owner', 'booking', '11111111-1111-4111-8111-111111111111'))
+      .rejects.toThrow('Technician request is closed');
+    expect(tx.$queryRaw.mock.calls[0][0].strings.join(' ')).toContain('FOR UPDATE OF b');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(locations.resolveLocation).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 denies a technician without own completed visit evidence', async () => {
+    const { prisma, locations, service } = setup();
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'booking', offeringId: 'offering', providerId: 'provider',
+          homeId: '11111111-1111-4111-8111-111111111111', societyUnitId: null,
+          status: 'REQUESTED', hasActiveAssignment: false,
+        }])
+        .mockResolvedValueOnce([]),
+      $executeRaw: vi.fn(),
+    };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    await expect(service.setBookingTechnicianPreference(
+      'owner', 'booking', '22222222-2222-4222-8222-222222222222',
+    )).rejects.toThrow('Technician must have attended your completed visit');
+    expect(locations.resolveLocation).toHaveBeenCalledWith(
+      'owner', 'HOME', '11111111-1111-4111-8111-111111111111',
+    );
+    const sql = sqlText(tx.$queryRaw.mock.calls[1][0]);
+    for (const fragment of [
+      'historical."userId"', 'historical."offeringId"', 'historical."providerId"',
+      'historical."homeId"', 'historical."societyUnitId"',
+      'a."arrivedAt" IS NOT NULL', 'ag."active" = true',
+    ]) expect(sql).toContain(fragment);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 persists an explicitly requested technician with no availability or payment side effects', async () => {
+    const { prisma, service } = setup();
+    const tx = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'booking', offeringId: 'offering', providerId: 'provider',
+          homeId: '11111111-1111-4111-8111-111111111111', societyUnitId: null,
+          status: 'CONFIRMED', hasActiveAssignment: false,
+        }])
+        .mockResolvedValueOnce([{ agentId: '22222222-2222-4222-8222-222222222222', displayName: 'Ravi' }])
+        .mockResolvedValueOnce([]),
+      $executeRaw: vi.fn(),
+    };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    const result = await service.setBookingTechnicianPreference(
+      'owner', 'booking', '22222222-2222-4222-8222-222222222222',
+    );
+    expect(result).toMatchObject({
+      agentId: '22222222-2222-4222-8222-222222222222',
+      requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
+    });
+    const sql = sqlText(tx.$executeRaw.mock.calls[0][0]);
+    expect(sql).toContain('ON CONFLICT ("bookingId")');
+    expect(sql).toContain('"ConsumerServiceTechnicianPreference"');
+    expect(sql).not.toContain('"ConsumerServiceAssignment"');
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+  });
+
+  it('4.2.6 refuses mutation when the booking location is no longer accessible', async () => {
+    const { prisma, locations, service } = setup();
+    const tx = { $queryRaw: vi.fn().mockResolvedValueOnce([{
+      id: 'booking', homeId: null, societyUnitId: 'unit-1',
+      status: 'REQUESTED', hasActiveAssignment: false,
+    }]), $executeRaw: vi.fn() };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    locations.resolveLocation.mockRejectedValueOnce(new Error('Occupancy revoked'));
+    await expect(service.setBookingTechnicianPreference('former-resident', 'booking', null))
+      .rejects.toThrow('Occupancy revoked');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('4.2.6 reads the resident request without sharing agent contact details', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      id: 'booking',
+      homeId: '11111111-1111-4111-8111-111111111111', societyUnitId: null,
+      agentId: '22222222-2222-4222-8222-222222222222',
+      displayName: 'Ravi', technicianRecordActive: true,
+    }]);
+    const result = await service.getBookingTechnicianPreference('owner', 'booking');
+    expect(result).toEqual({
+      bookingId: 'booking',
+      agentId: '22222222-2222-4222-8222-222222222222',
+      displayName: 'Ravi', technicianRecordActive: true,
+      requestOnly: true, availabilityConfirmed: false, assignmentGuaranteed: false,
+    });
+    const sql = sqlText(prisma.$queryRaw.mock.calls[0][0]);
+    expect(sql).not.toContain('ag."phone"');
+    expect(sql).not.toContain('"addressSnapshot"');
+  });
+
+  it('4.2.6 allows clearing an unassigned preference without validating technician history', async () => {
+    const { prisma, service } = setup();
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{
+        id: 'booking', homeId: '11111111-1111-4111-8111-111111111111',
+        societyUnitId: null, status: 'REQUESTED', hasActiveAssignment: false,
+      }]),
+      $executeRaw: vi.fn(),
+    };
+    (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction =
+      vi.fn((fn: (client: typeof tx) => unknown) => fn(tx));
+    const result = await service.setBookingTechnicianPreference('owner', 'booking', null);
+    expect(result.agentId).toBeNull();
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(sqlText(tx.$executeRaw.mock.calls[0][0])).toContain('"userId"');
+  });
+
   it('derives location-scoped history after authorization resolution', async () => {
     const { prisma, locations, service } = setup();
     prisma.$queryRaw.mockResolvedValueOnce([

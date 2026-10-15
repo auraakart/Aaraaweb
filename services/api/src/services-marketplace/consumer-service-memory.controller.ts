@@ -11,7 +11,7 @@ import {
   UseGuards,
   createParamDecorator,
 } from '@nestjs/common';
-import { IsBoolean, IsIn, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsUUID, ValidateIf } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerServiceLocationType } from './consumer-service-location.service';
 import { ConsumerServiceMemoryService } from './consumer-service-memory.service';
@@ -23,6 +23,12 @@ const CurrentConsumerUser = createParamDecorator((_data: unknown, ctx: Execution
 class FavoriteProviderDto {
   @IsBoolean()
   active!: boolean;
+}
+
+class TechnicianPreferenceDto {
+  @ValidateIf((_, value: unknown) => value !== null)
+  @IsUUID()
+  agentId!: string | null;
 }
 
 class ServiceHistoryQueryDto {
@@ -63,6 +69,23 @@ export class ConsumerServiceMemoryController {
     @Param('planId', ParseUUIDPipe) planId: string,
   ) {
     return this.memory.getRecurringTechnicianContinuity(this.requireUser(userId), planId);
+  }
+
+  @Get('bookings/:bookingId/technician-preference')
+  bookingTechnicianPreference(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+  ) {
+    return this.memory.getBookingTechnicianPreference(this.requireUser(userId), bookingId);
+  }
+
+  @Put('bookings/:bookingId/technician-preference')
+  setBookingTechnicianPreference(
+    @CurrentConsumerUser() userId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: TechnicianPreferenceDto,
+  ) {
+    return this.memory.setBookingTechnicianPreference(this.requireUser(userId), bookingId, dto.agentId);
   }
 
   @Get('history')
