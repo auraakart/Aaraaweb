@@ -119,10 +119,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - No personal addresses, agent details, payment mutations, new tables or scheduled jobs. No changes to Services 3.1.
 - Validation: focused auth, location scoping, status and historical-origin tests, plus full required PR CI.
 
+## Services 4.2.3 — society-scoped group participation transparency
+
+- `GET /consumer/services/community-deals/:campaignId/participation?locationType=SOCIETY_UNIT&locationId=<unit-id>` reuses the existing society-unit ownership validator.
+- Campaign lookup and the user's unit's participation are restricted to the resolved society. Return a not-found response for foreign campaigns.
+- Return only aggregate joined-household count, threshold and dates, campaign price, status and the requesting unit's own participation status. No household list, phone, address, or private booking details.
+- Explicitly state `interestOnly: true`, `bookingConfirmed: false`, `paymentAuthorized: false`, and `serviceGuaranteed: false`: joining, even after a threshold is met or a campaign is LOCKED, is not a purchased/confirmed booking.
+- No group booking conversion, payment capture, resident charging, new schema, or existing contract changes; confirmation policy and execution still require separate product acceptance.
+- Tests cover no-society units, foreign-society campaign non-disclosure, threshold semantics and withdrawn household state.
+- Regenerate the V5 tenant-access inventory, confirm full API CI, and merge to develop only after green gates.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
