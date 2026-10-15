@@ -110,10 +110,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Provider preferences `cadence`, `preferredWeekday` and `preferredTime` remain guidance, not confirmed reservations. Later automation requires separate policy, consent, reminder and scheduling acceptance.
 - Follow-up 4.2 work: clearer next-visit planning, existing community campaign conversion and continuity workflows without parallel ledgers.
 
+## Services 4.2.2 — owner-scoped recurring preference visit visibility
+
+- `GET /consumer/services/recurring-plans/:planId/visits` returns at most 25 actual bookings matching the owner, offering and location of the plan.
+- Both HOME and SOCIETY_UNIT are scoped to the authenticated plan owner. Paused/cancelled plans may read matching historical bookings.
+- The endpoint deliberately returns `planOriginVerified: false`. Bookings are matched by references only; the system does not record a plan-to-booking foreign key.
+- Booking statuses, timestamps and past activity are records, not calculated next visits, guaranteed recurring commitments or automatic reservations.
+- No personal addresses, agent details, payment mutations, new tables or scheduled jobs. No changes to Services 3.1.
+- Validation: focused auth, location scoping, status and historical-origin tests, plus full required PR CI.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.

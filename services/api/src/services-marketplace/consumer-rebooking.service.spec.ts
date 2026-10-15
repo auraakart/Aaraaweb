@@ -115,6 +115,72 @@ describe('ConsumerRebookingService', () => {
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
+
+  it('refuses recurring plan visit reads from another consumer', async () => {
+    const query = vi.fn().mockResolvedValueOnce([]);
+    const service = new ConsumerRebookingService(
+      { $queryRaw: query } as unknown as RebookingPrisma,
+      { createBooking: vi.fn() } as unknown as RebookingBookings,
+    );
+    await expect(service.listMatchingRecurringVisits('other-user', 'plan'))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect((query.mock.calls[0][0] as { values: unknown[] }).values).toEqual(['plan', 'other-user']);
+  });
+
+  it('scopes actual visits to the same owner, offering and home, even for paused plans', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([{id:'plan',offeringId:'offer',locationType:'HOME',locationId:'home',status:'PAUSED'}])
+      .mockResolvedValueOnce([{bookingId:'booking',status:ServiceBookingStatus.CONFIRMED,
+        scheduledFrom:new Date('2030-01-02'),scheduledUntil:new Date('2030-01-03')}]);
+    const service = new ConsumerRebookingService(
+      { $queryRaw: query } as unknown as RebookingPrisma,
+      { createBooking: vi.fn() } as unknown as RebookingBookings,
+    );
+    const result = await service.listMatchingRecurringVisits('owner','plan');
+    expect(result).toEqual(expect.objectContaining({
+      planStatus:'PAUSED',planOriginVerified:false,automaticallyScheduled:false,recordsLimitedTo:25,
+    }));
+    expect(result.visits).toHaveLength(1);
+    const sqlQuery = query.mock.calls[1][0] as { strings:string[];values:unknown[] };
+    const sql=sqlQuery.strings.join(' ');
+    expect(sql).toContain('b."userId"');
+    expect(sql).toContain('b."offeringId"');
+    expect(sql).toContain('b."homeId"');
+    expect(sql).toContain('b."societyUnitId"');
+    expect(sql).toContain('LIMIT 25');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(sqlQuery.values).toEqual(['owner','offer','HOME','home','HOME','home']);
+  });
+
+  it('uses the society-unit predicate for the same resident and plan references', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([{id:'plan',offeringId:'offer',locationType:'SOCIETY_UNIT',locationId:'unit',status:'ACTIVE'}])
+      .mockResolvedValueOnce([]);
+    const service = new ConsumerRebookingService(
+      { $queryRaw: query } as unknown as RebookingPrisma,
+      { createBooking: vi.fn() } as unknown as RebookingBookings,
+    );
+    const result = await service.listMatchingRecurringVisits('resident','plan');
+    expect(result.visits).toEqual([]);
+    expect(result.planOriginVerified).toBe(false);
+    expect((query.mock.calls[1][0] as { values:unknown[] }).values)
+      .toEqual(['resident','offer','SOCIETY_UNIT','unit','SOCIETY_UNIT','unit']);
+  });
+
+  it('fails closed on unsupported plan location types', async () => {
+    const query=vi.fn().mockResolvedValueOnce([
+      {id:'plan',offeringId:'offer',locationType:'EXTERNAL',locationId:'invalid',status:'ACTIVE'},
+    ]);
+    const service = new ConsumerRebookingService(
+      { $queryRaw: query } as unknown as RebookingPrisma,
+      { createBooking: vi.fn() } as unknown as RebookingBookings,
+    );
+    await expect(service.listMatchingRecurringVisits('user','plan'))
+      .rejects.toThrow('Unsupported recurring service location');
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects rebooking a non-completed booking', async () => {
     const prisma = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 'booking', userId: 'user', homeId: 'home', societyUnitId: null, offeringId: 'offering', status: ServiceBookingStatus.CONFIRMED }]),
