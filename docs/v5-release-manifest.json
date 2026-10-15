@@ -2185,6 +2185,22 @@
             "Negative OCI tampering, symlink, changed source, wrong platform, extra/missing blob cases passed",
             "Repository structure, full API/Admin/Flutter, dependency security, required merge gates and develop auto merge passed"
           ]
+        },
+        {
+          "id": "V5.5.38",
+          "name": "Read-only TLS 1.3 SPKI-pinned OCI registry manifest byte integrity probe bound to signed TEST image/local layout",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "packages/config/src/android-test-oci-registry.mjs",
+            "scripts/android-test-oci-registry.test.mjs",
+            "scripts/check-v4.79.1.10-v5-oci-registry.mjs",
+            "docs/architecture/V5.5.38-OCI-REGISTRY-MANIFEST-PROBE.md"
+          ],
+          "limitations": [
+            "Ephemeral TLS and OCI/DSSE fixtures; no independently provisioned external registry ownership or remote layers attestation.",
+            "No remote worker process/runtime image/mount attestation, approved Partner A/B build/signing, dispatch or release.",
+            "Staging/main unchanged; immutable no-authority receipt."
+          ]
         }
       ],
       "remaining": [
