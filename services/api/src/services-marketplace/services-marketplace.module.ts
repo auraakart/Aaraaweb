@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FileSafetyModule } from '../storage/file-safety.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
 import { ConsumerAvailabilityService } from './consumer-availability.service';
+import { ServiceQualityChecklistService } from './service-quality-checklist.service';
+import { ConsumerQualityChecklistController, ProviderQualityChecklistController } from './service-quality-checklist.controller';
 import {
   ConsumerCommunityServicesController,
   ProviderServiceExperienceController,
@@ -78,6 +80,8 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ServicesMarketplaceController,
     ServicesCommunityDealAdminController,
     ConsumerCommunityServicesController,
+    ConsumerQualityChecklistController,
+    ProviderQualityChecklistController,
     ProviderServiceExperienceController,
     ServiceBookingHistoryController,
     ServicesPlatformController,
@@ -112,6 +116,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
   providers: [
     PrismaService,
     CommunityServices3Service,
+    ServiceQualityChecklistService,
     ServiceProviderSocietyTrustService,
     ServiceBookingAccessService,
     ServiceBookingHistoryService,
