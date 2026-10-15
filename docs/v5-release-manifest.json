@@ -2240,7 +2240,7 @@
         {
           "id": "V5.5.40",
           "name": "Read-only TLS 1.3 mTLS fresh-nonce signed worker/observer runtime process-claim transport probe",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_LOCAL_MTLS_RUNTIME_CLAIM_ONLY",
           "evidence": [
             "packages/config/src/android-test-oci-runtime-transport.mjs",
             "scripts/android-test-oci-runtime-transport.test.mjs",
@@ -2250,7 +2250,17 @@
           "limitations": [
             "Disposable local TLS and Ed25519 keys only; no independently operated external worker, OCI runtime or real observer key custody.",
             "No trusted container/kernel mount measurements, no persisted consumption of fresh transport nonce and no Partner A/B artifact.",
-            "Read-only challenge and signed claim only; buildExecutionAuthorized:false and dispatchAllowed:false; staging/main unchanged."
+            "Read-only challenge and signed claim only; buildExecutionAuthorized:false and dispatchAllowed:false; staging/main unchanged.",
+            "The nonce-binding is cryptographic but has no new atomic persistent challenge consumption; V5.5.14-15 durable acceptance remains separate."
+          ],
+          "pullRequest": 1346,
+          "mergeSha": "baafa9cce8094a08d5043d3231c2d2c2fb512ec4",
+          "ciRun": 38698936201,
+          "verifiedScope": [
+            "Local TLS 1.3 mutual TLS read-only runtime-evidence POST, pinned CA/server hostname and client+server SPKI verified",
+            "Fresh per-request transport nonce bound by independently signed observer response around separately signed worker/observer runtime DSSE claim",
+            "Negative untrusted endpoint/TLS identity, response replay, wrong nonce, invalid signatures, foreign process/container claim, content-type and encoding tests passed",
+            "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security, required merge gates and develop auto-merge"
           ]
         }
       ],
