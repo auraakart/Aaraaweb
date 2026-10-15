@@ -40,6 +40,45 @@ export class ConsumerRebookingService {
    * The existing booking engine revalidates current ownership, serviceability,
    * schedule, price and keyed retry semantics.
    */
+  /**
+   * Actual matching booking history, not proof of automated plan execution.
+   * The legacy booking schema has no plan foreign key.
+   */
+  async listMatchingRecurringVisits(userId: string, planId: string) {
+    const plans = await this.prisma.$queryRaw<RecurringExecutionRow[]>(Prisma.sql`
+      SELECT "id", "offeringId", "locationType", "locationId", "status"
+      FROM "ConsumerServiceRecurringPlan"
+      WHERE "id" = ${planId}::uuid AND "userId" = ${userId}::uuid LIMIT 1
+    `);
+    const plan = plans[0];
+    if (!plan) throw new NotFoundException('Recurring service plan not found');
+    if (plan.locationType !== 'HOME' && plan.locationType !== 'SOCIETY_UNIT') {
+      throw new BadRequestException('Unsupported recurring service location');
+    }
+
+    const visits = await this.prisma.$queryRaw<Array<{
+      bookingId: string; status: ServiceBookingStatus;
+      scheduledFrom: Date; scheduledUntil: Date; createdAt: Date;
+    }>>(Prisma.sql`
+      SELECT b."id" AS "bookingId", b."status",
+             b."scheduledFrom", b."scheduledUntil", b."createdAt"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."userId" = ${userId}::uuid
+        AND b."offeringId" = ${plan.offeringId}::uuid
+        AND (
+          (${plan.locationType} = 'HOME' AND b."homeId" = ${plan.locationId}::uuid)
+          OR (${plan.locationType} = 'SOCIETY_UNIT' AND b."societyUnitId" = ${plan.locationId}::uuid)
+        )
+      ORDER BY b."scheduledFrom" DESC, b."id" DESC LIMIT 25
+    `);
+    return {
+      planId: plan.id, planStatus: plan.status,
+      matchingBasis: 'SAME_OWNER_OFFERING_AND_LOCATION' as const,
+      planOriginVerified: false, automaticallyScheduled: false,
+      recordsLimitedTo: 25, visits,
+    };
+  }
+
   async bookFromRecurringPlan(userId: string, planId: string, input: ConsumerRebookInput) {
     if (!(input.scheduledFrom instanceof Date) || !(input.scheduledUntil instanceof Date) ||
         !Number.isFinite(input.scheduledFrom.getTime()) || !Number.isFinite(input.scheduledUntil.getTime()) ||

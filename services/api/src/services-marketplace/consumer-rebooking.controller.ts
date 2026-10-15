@@ -1,4 +1,4 @@
-import { Body, Controller, ExecutionContext, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
+import { Body, Controller, ExecutionContext, Get, Param, ParseUUIDPipe, Post, UnauthorizedException, UseGuards, createParamDecorator } from '@nestjs/common';
 import { IsISO8601, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthenticatedRequest, BearerGuard } from '../auth/bearer.guard';
 import { ConsumerRebookingService } from './consumer-rebooking.service';
@@ -18,6 +18,12 @@ class ConsumerRebookDto {
 @UseGuards(BearerGuard)
 export class ConsumerRecurringBookingController {
   constructor(private readonly rebooking: ConsumerRebookingService) {}
+
+  @Get(':planId/visits')
+  visits(@CurrentConsumerUser() userId: string, @Param('planId', ParseUUIDPipe) planId: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    return this.rebooking.listMatchingRecurringVisits(userId, planId);
+  }
 
   @Post(':planId/book')
   book(
