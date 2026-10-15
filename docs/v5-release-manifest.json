@@ -983,7 +983,7 @@
         "V5.2",
         "V5.3"
       ],
-      "currentSlice": "V5.4.23",
+      "currentSlice": "V5.4.24",
       "slices": [
         {
           "id": "V5.4.1",
@@ -1439,6 +1439,24 @@
             "Actual Next.js partner-host SSR and host-bound encrypted cookie behind ephemeral local TLS 1.3 ingress green",
             "Cross-host session copy, wrong SNI, missing untrusted CA, TLS downgrade, spoofed forwarded headers denied",
             "Real Admin full CI, dependency security, required merge gates and develop auto merge passed"
+          ]
+        },
+        {
+          "id": "V5.4.24",
+          "name": "Nonproduction ingress acceptance probe with independently reviewed SPKI pin, exact approved QA host, TLS 1.3 and negative spoof/header checks",
+          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "evidence": [
+            "scripts/v5.4.24-ingress-acceptance.mjs",
+            "scripts/v5.4.24-ingress-acceptance.test.mjs",
+            "scripts/v5.4.24-run-ingress-probe.mjs",
+            "scripts/check-v4.79.1.7-v5-ingress-acceptance.mjs",
+            "docs/architecture/V5.4.24-OPERATOR-TEST-INGRESS-PROBE.md"
+          ],
+          "limitations": [
+            "Protected CI executes only a loopback self-signed TLS test fixture; no external ingress has been contacted or attested.",
+            "Actual remote TLS probe is explicitly manual, read-only and requires independently reviewed operator-approved test DNS and certificate public-key fingerprint.",
+            "A passing TLS probe alone does not prove remote operator control, real partner-host Next/API session isolation, or distribution/production approval.",
+            "No staging/main promotion or productionization."
           ]
         }
       ],
