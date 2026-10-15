@@ -57,6 +57,14 @@ export class ConsumerServiceMemoryController {
     return this.memory.setFavorite(this.requireUser(userId), providerId, body.active);
   }
 
+  @Get('recurring-plans/:planId/technician-continuity')
+  technicianContinuity(
+    @CurrentConsumerUser() userId: string,
+    @Param('planId', ParseUUIDPipe) planId: string,
+  ) {
+    return this.memory.getRecurringTechnicianContinuity(this.requireUser(userId), planId);
+  }
+
   @Get('history')
   listHistory(@CurrentConsumerUser() userId: string, @Query() query: ServiceHistoryQueryDto) {
     return this.memory.listHistory(this.requireUser(userId), query.locationType, query.locationId);

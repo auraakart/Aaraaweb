@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsumerServiceLocationService, ConsumerServiceLocationType } from './consumer-service-location.service';
@@ -80,6 +80,81 @@ export class ConsumerServiceMemoryService {
       RETURNING "providerId", "active"
     `);
     return rows[0];
+  }
+
+  /**
+   * Services 4.2.5: read-only, owner-scoped technician continuity evidence.
+   * Only the plan owner's COMPLETED visits with a recorded arrival count.
+   * Active/verified listing is not skill, schedule or dispatch availability.
+   */
+  async getRecurringTechnicianContinuity(userId: string, planId: string) {
+    const plans = await this.prisma.$queryRaw<Array<{
+      id: string; offeringId: string; locationType: ConsumerServiceLocationType;
+      locationId: string; status: string;
+    }>>(Prisma.sql`
+      SELECT "id", "offeringId", "locationType", "locationId", "status"
+      FROM "ConsumerServiceRecurringPlan"
+      WHERE "id" = ${planId}::uuid AND "userId" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const plan = plans[0];
+    if (!plan) throw new NotFoundException('Recurring service plan not found');
+    if (plan.locationType !== 'HOME' && plan.locationType !== 'SOCIETY_UNIT') {
+      throw new BadRequestException('Unsupported recurring service location');
+    }
+
+    // Revalidate CURRENT home ownership or society occupancy/verified ownership.
+    // A historical plan does not grant indefinite society-unit visibility.
+    const location = await this.locations.resolveLocation(userId, plan.locationType, plan.locationId);
+    const matchesCurrentLocation = plan.locationType === 'HOME'
+      ? location.homeId === plan.locationId
+      : location.societyUnitId === plan.locationId;
+    if (!matchesCurrentLocation) throw new NotFoundException('Recurring service location not available');
+
+    const technicians = await this.prisma.$queryRaw<Array<{
+      agentId: string; displayName: string; lastArrivedAt: Date; completedVisits: number;
+    }>>(Prisma.sql`
+      SELECT ag."id" AS "agentId", ag."displayName",
+             MAX(a."arrivedAt") AS "lastArrivedAt",
+             COUNT(DISTINCT b."id")::int AS "completedVisits"
+      FROM "ConsumerServiceBooking" b
+      JOIN "ServiceOffering" o
+        ON o."id" = b."offeringId" AND o."active" = true
+      JOIN "ServiceProvider" p
+        ON p."id" = o."providerId" AND p."active" = true
+        AND p."verification" = 'VERIFIED'::"ProviderVerificationStatus"
+      JOIN "ConsumerServiceAssignment" a
+        ON a."bookingId" = b."id"
+        AND a."providerId" = b."providerId"
+        AND a."arrivedAt" IS NOT NULL
+      JOIN "ConsumerProviderAgent" ag
+        ON ag."id" = a."agentId"
+        AND ag."providerId" = a."providerId"
+        AND ag."active" = true
+      WHERE b."userId" = ${userId}::uuid
+        AND b."offeringId" = ${plan.offeringId}::uuid
+        AND b."providerId" = p."id"
+        AND b."status" = 'COMPLETED'::"ServiceBookingStatus"
+        AND (
+          (${plan.locationType} = 'HOME' AND b."homeId" = ${plan.locationId}::uuid)
+          OR (${plan.locationType} = 'SOCIETY_UNIT' AND b."societyUnitId" = ${plan.locationId}::uuid)
+        )
+      GROUP BY ag."id", ag."displayName"
+      ORDER BY "lastArrivedAt" DESC, "agentId" ASC
+      LIMIT 3
+    `);
+    return {
+      planId: plan.id,
+      planStatus: plan.status,
+      evidenceBasis: 'OWNER_COMPLETED_VISITS_WITH_RECORDED_AGENT_ARRIVAL' as const,
+      historicalEvidenceOnly: true,
+      activeAgentRecordOnly: true,
+      technicianAvailabilityConfirmed: false,
+      technicianAssignmentGuaranteed: false,
+      bookingCreated: false,
+      automaticDispatch: false,
+      candidates: technicians,
+    };
   }
 
   async listHistory(

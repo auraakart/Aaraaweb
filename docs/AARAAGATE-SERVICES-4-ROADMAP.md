@@ -138,10 +138,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - LOCKED means participation closed, **not** that a booking exists, the provider is committed, or the discounted price has been charged. There is no consumer payment, invoice, agent dispatch, group-booking conversion, scheduler, migration or new API endpoint.
 - Targeted validation: below-threshold denial, sufficient JOINED interest, expired date, tenant-scope query, lock sequencing, unchanged cancellation behavior, inventory regeneration and full protected CI before merging to `develop`.
 
+## Services 4.2.5 — owner-scoped technician continuity evidence
+
+- Authenticated `GET /consumer/services/recurring-plans/:planId/technician-continuity` reuses `ConsumerServiceMemoryService` and the existing recurring preference/booking/dispatch tables; it does not create another technician, booking, or preference ledger.
+- First fetch the recurring plan by **authenticated user ID**. Revalidate the plan's **current** HOME or SOCIETY_UNIT access with `ConsumerServiceLocationService.resolveLocation`; former occupants cannot use a stale plan as a society access grant.
+- Return up to three currently **active** technician records belonging to the currently active, verified offering provider, supported by that user's own **COMPLETED** bookings for the **same offering and same location**, with a recorded technician `arrivedAt` milestone.
+- Response exposes only technician display name, internal reference ID, recorded arrival timestamp and number of matched completed visits; never phone number, address, GPS or another household's history. A PAUSED/CANCELLED plan can view its own historical evidence if the user still owns the location.
+- Response explicitly declares `historicalEvidenceOnly: true`, `technicianAvailabilityConfirmed: false`, `technicianAssignmentGuaranteed: false`, `bookingCreated: false` and `automaticDispatch: false`. An active technician record **does not mean they are available** for a date, qualified for the offering, or committed to a new visit.
+- This is a read-only visibility slice. Requesting that specific technician, preferential dispatch, rebooking UI surfacing and any consumer notification require a separately accepted contract. The existing explicit booking, conflict-safe dispatch, immutable prices and permission rules remain authoritative.
+- Targeted unit tests: foreign plan denial, lost unit access, unsupported/mismatched location, completed+arrived owner/offering/location scoping, no-PII output, paused-history visibility and empty evidence. Regenerate tenant-access inventory and satisfy required PR CI; merge `develop` only.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.2.4** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.2.5** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
