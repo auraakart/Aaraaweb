@@ -163,7 +163,11 @@ try {
   assert.match(authenticated.headers.get('cache-control'), /no-store/)
   for (const path of ['/partners', '/finance', '/_next/data/fake/finance.json']) assert.equal((await request(path)).status, 404)
   const before = calls, beforeProxy = forwardedToNext
-  for (const headers of [{ 'x-forwarded-host': 'other.partner.in' }, { forwarded: `host=${host}` }, { origin: 'https://other.partner.in' }]) assert.equal((await request('/', headers)).status, 404)
+  for (const [headers, expectedStatus] of [
+    [{ 'x-forwarded-host': 'other.partner.in' }, 400],
+    [{ forwarded: `host=${host}` }, 400],
+    [{ origin: 'https://other.partner.in' }, 403]
+  ]) assert.equal((await request('/', headers)).status, expectedStatus)
   assert.equal(calls, before, 'Spoofed headers must fail before upstream I/O')
   assert.equal(forwardedToNext, beforeProxy, 'Spoofed requests must not reach real Next')
   // The TLS proxy must reject a different SNI, an untrusted CA and TLS 1.2.
