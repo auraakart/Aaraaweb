@@ -86,6 +86,70 @@ describe('CommunityServices3Service', () => {
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+
+  it('does not query campaign data for a home outside an accessible society unit', async () => {
+    const { service, prisma, locations } = setup();
+    locations.resolveLocation.mockResolvedValue({
+      type: 'HOME', id: 'home-1', societyId: null, societyUnitId: null,
+    });
+    await expect(service.getCommunityDealParticipation('user-1', 'campaign-1', 'HOME', 'home-1'))
+      .rejects.toThrow('requires an accessible society unit');
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('enforces society membership before reading campaign participation', async () => {
+    const { service, prisma, locations } = setup();
+    locations.resolveLocation.mockResolvedValue({
+      type: 'SOCIETY_UNIT', societyId: 'society-1', societyUnitId: 'unit-1',
+    });
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getCommunityDealParticipation('user-1', 'foreign-campaign', 'SOCIETY_UNIT', 'unit-1'))
+      .rejects.toBeInstanceOf(NotFoundException);
+    const q = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(q.strings.join(' ')).toContain('c."societyId"');
+    expect(q.strings.join(' ')).toContain('own."unitId"');
+    expect(q.values).toEqual(['unit-1', 'foreign-campaign', 'society-1']);
+  });
+
+  it('reports joined threshold without claiming a booked or chargeable service', async () => {
+    const { service, prisma, locations } = setup();
+    locations.resolveLocation.mockResolvedValue({
+      type: 'SOCIETY_UNIT', societyId: 'society-1', societyUnitId: 'unit-1',
+    });
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      campaignId: 'campaign-1', status: 'LOCKED',
+      serviceDate: new Date('2030-02-01'), joinEndsAt: new Date('2030-01-20'),
+      thresholdHomes: 5, maxHomes: 20, residentPricePaise: 50000,
+      joinedHomes: 7, participationStatus: 'JOINED',
+    }]);
+    const outcome = await service.getCommunityDealParticipation('user-1', 'campaign-1', 'SOCIETY_UNIT', 'unit-1');
+    expect(outcome).toEqual(expect.objectContaining({
+      thresholdMet: true, joinedByThisHome: true,
+      participationStatus: 'JOINED', interestOnly: true,
+      bookingConfirmed: false, paymentAuthorized: false,
+      serviceGuaranteed: false, confirmationRequired: true,
+    }));
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes withdrawn or unjoined households from actual bookings', async () => {
+    const { service, prisma, locations } = setup();
+    locations.resolveLocation.mockResolvedValue({
+      type: 'SOCIETY_UNIT', societyId: 'society-1', societyUnitId: 'unit-1',
+    });
+    prisma.$queryRaw.mockResolvedValueOnce([{
+      campaignId: 'campaign-1', status: 'OPEN',
+      serviceDate: new Date('2030-02-01'), joinEndsAt: new Date('2030-01-20'),
+      thresholdHomes: 5, maxHomes: null, residentPricePaise: 50000,
+      joinedHomes: 2, participationStatus: 'WITHDRAWN',
+    }]);
+    const outcome = await service.getCommunityDealParticipation('user-1','campaign-1','SOCIETY_UNIT','unit-1');
+    expect(outcome.thresholdMet).toBe(false);
+    expect(outcome.joinedByThisHome).toBe(false);
+    expect(outcome.participationStatus).toBe('WITHDRAWN');
+    expect(outcome.bookingConfirmed).toBe(false);
+  });
+
   it('does not allow a terminal or locked campaign to be reopened', async () => {
     const { service, prisma } = setup();
 
