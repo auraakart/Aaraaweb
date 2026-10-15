@@ -34,7 +34,7 @@ import { ConsumerProviderMediaController } from './consumer-provider-media.contr
 import { ConsumerProviderOperatorController } from './consumer-provider-operator.controller';
 import { ConsumerProviderOperatorPlatformController } from './consumer-provider-operator-platform.controller';
 import { ConsumerProviderOperatorService } from './consumer-provider-operator.service';
-import { ConsumerRebookingController } from './consumer-rebooking.controller';
+import { ConsumerRebookingController, ConsumerRecurringBookingController } from './consumer-rebooking.controller';
 import { ConsumerRebookingService } from './consumer-rebooking.service';
 import { ConsumerServiceCompletionService } from './consumer-service-completion.service';
 import { ConsumerServiceLocationPlatformController } from './consumer-service-location-platform.controller';
@@ -102,6 +102,7 @@ import { ServicesMarketplaceService } from './services-marketplace.service';
     ConsumerCommercialDiscoveryController,
     ConsumerServiceMemoryController,
     ConsumerRebookingController,
+    ConsumerRecurringBookingController,
     ConsumerBookingsController,
     ConsumerOffersController,
     ConsumerProviderExperienceController,
