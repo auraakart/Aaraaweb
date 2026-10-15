@@ -2137,7 +2137,7 @@
         {
           "id": "V5.5.36",
           "name": "Cryptographic DSSE signature verification for independently pinned TEST OCI worker-image claims with separate attestor and worker identities",
-          "status": "IN_PROGRESS_PROTECTED_CI_PENDING",
+          "status": "MERGED_PROTECTED_CI_PASSED_SIGNED_OCI_CLAIM_PREFLIGHT",
           "evidence": [
             "packages/config/src/android-test-oci-provenance.mjs",
             "scripts/android-test-oci-provenance.test.mjs",
@@ -2147,7 +2147,17 @@
           "limitations": [
             "Independent attestor and worker public keys are ephemeral local test fixtures, not external trusted keys.",
             "Offline signature verification only: no OCI registry image-byte lookup, remote runner ownership or live mTLS runtime check.",
-            "No approved execution, actual Partner A/B build/archive, productionization, staging or main promotion."
+            "No approved execution, actual Partner A/B build/archive, productionization, staging or main promotion.",
+            "Separate runtime OCI image attestation remains pending and no partner APK/AAB execution was authorized."
+          ],
+          "pullRequest": 1338,
+          "mergeSha": "eb2c8ee8a839253b5aa383f664fa7beec31a90cf",
+          "ciRun": 38690058634,
+          "verifiedScope": [
+            "Ed25519 DSSE offline attestor claim signature tests passed (15 cases)",
+            "Exact worker/attestor key separation, OCI digest, source commit and server nonce/run pin",
+            "Repository structure, full API/Admin/Flutter and dependency-security checks passed",
+            "Required merge gates and develop auto merge passed"
           ]
         }
       ],
