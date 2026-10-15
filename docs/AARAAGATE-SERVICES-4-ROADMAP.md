@@ -91,10 +91,20 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Required gates: source inventory regeneration, targeted dispatch race/authorization tests, full API and security CI, develop merge only.
 - Follow-up: 4.1.3 operational ETA grounded in dispatch milestones and freshness, no fabricated GPS.
 
+## Services 4.1.3 — conservative operational arrival estimate
+
+- `GET /consumer/services/bookings/:id/operational-eta` is authenticated and scoped through the pre-existing booking-owner dispatch authorization.
+- `ARRIVED` uses the authoritative recorded arrival milestone: no calculated ETA.
+- Other non-en-route statuses, absent evidence and an en-route timestamp over 15 minutes old return `etaMinutes: null` with an explicit reason.
+- A fresh en-route milestone may use the provider's last 90 days of historical en-route→arrival intervals (5–180 minutes) if there are **at least five** observations. The current assignment is excluded. The response rounds remaining minutes upwards in five-minute bands.
+- Results are explicitly `confidence: LOW`, `liveTracking: false`, `guaranteedArrival: false`, with provenance `PROVIDER_HISTORICAL_EN_ROUTE_TO_ARRIVED`. If the historical time window has already elapsed, no ETA is claimed.
+- Never expose other jobs, GPS coordinates, agent addresses, phone numbers or individual journey records. No automatic dispatch, status mutation, payment change, migrations or location integrations.
+- Require focused owner-boundary/freshness/sample tests and deterministic tenant-access inventory regeneration before develop merge.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.1.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.1.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.

@@ -52,6 +52,92 @@ describe('ConsumerDispatchService', () => {
   });
 
 
+
+  it('refuses operational ETA for another booking owner before reading provider history', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.getConsumerOperationalEta(consumerUserId, bookingId)).rejects.toThrow('Booking not found');
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not predict an ETA before an en-route event', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'ACCEPTED', enRouteAt: null, arrivedAt: null }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta).toEqual(expect.objectContaining({
+      etaMinutes: null, liveTracking: false, reason: 'WAITING_FOR_EN_ROUTE_MILESTONE',
+    }));
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns only confirmed arrival and no prediction once arrived', async () => {
+    const { prisma, service } = setup();
+    const arrival = new Date();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'ARRIVED', enRouteAt: arrival, arrivedAt: arrival }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('ARRIVAL_CONFIRMED');
+    expect(eta.etaMinutes).toBeNull();
+    expect(eta.lastMilestoneAt).toEqual(arrival);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('withholds an ETA when en-route telemetry is stale', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 30 * 60_000), arrivedAt: null }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('EN_ROUTE_MILESTONE_STALE');
+    expect(eta.etaMinutes).toBeNull();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not manufacture ETA without at least five historical provider journeys', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 2 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 4, medianMinutes: 35 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('INSUFFICIENT_PROVIDER_HISTORY');
+    expect(eta.confidence).toBe('UNAVAILABLE');
+    expect(eta.etaMinutes).toBeNull();
+    const historical = prisma.$queryRaw.mock.calls[2][0] as { values: unknown[]; strings: string[] };
+    expect(historical.values).toContain(providerId);
+    expect(historical.values).toContain(assignmentId);
+    expect(historical.strings.join(' ')).not.toContain('"phone"');
+    expect(historical.strings.join(' ')).not.toContain('"addressSnapshot"');
+  });
+
+  it('returns a rounded low-confidence historical baseline only for fresh dispatch', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 6 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 11, medianMinutes: 31 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta).toEqual(expect.objectContaining({
+      etaMinutes: 25, confidence: 'LOW', liveTracking: false, guaranteedArrival: false,
+      source: 'PROVIDER_HISTORICAL_EN_ROUTE_TO_ARRIVED', reason: 'HISTORICAL_ESTIMATE_ONLY',
+      milestoneFresh: true, sampleSize: 11,
+    }));
+    expect(eta.estimatedArrivalAt).toBeInstanceOf(Date);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  it('withholds an overdue historical window rather than showing an invented imminent ETA', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: bookingId }])
+      .mockResolvedValueOnce([{ assignmentId, providerId, status: 'EN_ROUTE',
+        enRouteAt: new Date(Date.now() - 10 * 60_000), arrivedAt: null }])
+      .mockResolvedValueOnce([{ sampleSize: 10, medianMinutes: 7 }]);
+    const eta = await service.getConsumerOperationalEta(consumerUserId, bookingId);
+    expect(eta.reason).toBe('HISTORICAL_WINDOW_ELAPSED');
+    expect(eta.etaMinutes).toBeNull();
+  });
+
   it('rejects candidate requests for unknown or unverified provider bookings', async () => {
     const { prisma, service } = setup();
     prisma.$queryRaw.mockResolvedValueOnce([]);
