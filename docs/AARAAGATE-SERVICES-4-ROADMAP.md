@@ -58,10 +58,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - The existing one-open-dispute constraint and reviewer permission gate remain authoritative; duplicate case APIs are deliberately avoided.
 - Follow-up slice: provider quality scoring and agreed rework SLA after independent product acceptance.
 
+## Services 4.0.6 — provider quality evidence summary
+
+- `GET /provider/services/quality-summary` returns a **provider-private**, verified-operator-scoped 90-day summary using existing booking, booked-checklist and rework-dispute records.
+- It exposes completed bookings, completed bookings with checklist snapshots, rework-review request counts, and currently open rework-review counts; no individual resident, household, address, or agent is exposed.
+- The completed-booking cohort uses current booking completion state and `updatedAt` in the last 90 days. It is an **operational proxy**, not a precise original-completion-time cohort or quality success rate.
+- 5+ completed bookings is a sample-size readiness indicator only; it does not authorize scoring. `qualityScore: null`, `reviewOnly: true`, public ranking disabled, automatic penalties disabled.
+- No migration, mutable quality score, membership, finance or warranty impact. KPI interpretation and any ranking require independent product/UAT acceptance.
+- Before PR review, run `node services/api/scripts/tenant-access-inventory.mjs --write` and include the deterministic output to avoid blocked CI after introducing API/SQL paths.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.0.5** until CI is green. Continue rework governance and provider quality reporting as separate bounded slices.
+5. **Stop after 4.0.6** until CI is green. Any quality scoring formula, rework SLA or provider sanction needs independent product acceptance.

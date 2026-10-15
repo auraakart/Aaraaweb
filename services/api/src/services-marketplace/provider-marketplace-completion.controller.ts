@@ -127,6 +127,9 @@ export class ProviderMarketplaceCompletionController{
  @Get('offerings/:id/availability-exceptions') exceptions(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string){return this.svc.listAvailabilityExceptions(requireUser(u),id);}
  @Post('offerings/:id/availability-exceptions') setException(@CurrentUser() u:string|undefined,@Param('id',ParseUUIDPipe) id:string,@Body() d:ExceptionDto){return this.svc.setAvailabilityException(requireUser(u),id,d);}
  @Get('readiness') readiness(@CurrentUser() u:string|undefined){return this.svc.getProviderReadiness(requireUser(u));}
+ @Get('quality-summary') qualitySummary(@CurrentUser() u:string|undefined){
+  return this.svc.getProviderQualitySummary(requireUser(u));
+ }
 }
 
 @Controller('consumer/services')
