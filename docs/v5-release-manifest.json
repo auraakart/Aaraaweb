@@ -2374,7 +2374,7 @@
         {
           "id": "V5.5.45",
           "name": "Fail-closed V5 manifest progress and release authority consistency guard",
-          "status": "PENDING_PROTECTED_CI",
+          "status": "MERGED_PROTECTED_CI_PASSED_MANIFEST_PROGRESS_INTEGRITY_ONLY",
           "evidence": [
             "scripts/v5-manifest-progress.mjs",
             "scripts/v5-manifest-progress.test.mjs",
@@ -2385,6 +2385,14 @@
             "Checks checked-in nonproduction scope, highest V5.5 slice pointer, external runner blocker and V5.6 status only; not a remote runner or proof of delivery.",
             "Even a green manifest guard cannot authorize an Android build, partner artifact signing or staging/main promotion.",
             "No independent external OCI image/process, trusted TLS ingress, Partner A/B APK/AAB or device co-installation has been inspected."
+          ],
+          "pullRequest": 1378,
+          "ciRun": 38840208904,
+          "mergeSha": "859978e32c87a73961d7cf37344d54c0557d700c",
+          "verifiedScope": [
+            "Protected Repository structure, Mastermind preflight, API, Admin, Flutter and dependency-security gates passed",
+            "Required merge gates and develop auto merge passed for PR #1378 at SHA 859978e32c87a73961d7cf37344d54c0557d700c",
+            "Offline nonproduction milestone pointer validation only; zero external TEST runner or distribution authority"
           ]
         }
       ],
