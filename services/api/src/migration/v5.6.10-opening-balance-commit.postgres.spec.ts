@@ -346,4 +346,89 @@ const disposable = (() => {
     `);
     expect(secondFinal).toMatchObject([{ status: 'REVERSED', reversals: 1n }]);
   }, 30_000);
+
+  it('rejects adoption of a historical posted orphan after its accounting period closes', async () => {
+    // Deliberately isolate the period in a separate disposable society; closing
+    // it must not alter the OPEN period used by the other migration tests.
+    const closedSociety = randomUUID();
+    const closedBatch = randomUUID();
+    const closedPeriod = randomUUID();
+    const closedAsset = randomUUID();
+    const closedEquity = randomUUID();
+    const amount = 31000;
+    await prisma.society.create({ data: {
+      id: closedSociety, name: 'Closed-period orphan replay negative', code: 'closed-' + closedSociety,
+    } });
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "LedgerAccount" ("id","societyId","code","name","type")
+      VALUES (${closedAsset}::uuid,${closedSociety}::uuid,'BANK','Closed-period bank','ASSET'),
+             (${closedEquity}::uuid,${closedSociety}::uuid,'EQUITY','Closed-period equity','EQUITY')
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "AccountingPeriod" ("id","societyId","code","name","startsOn","endsOn")
+      VALUES (${closedPeriod}::uuid,${closedSociety}::uuid,'FY26','Closed-period fixture',
+        '2026-01-01'::date,'2026-12-31'::date)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatch"
+        ("id","societyId","actorUserId","entityType","status","checksum",
+         "totalRows","validRows","invalidRows","duplicateRows")
+      VALUES (${closedBatch}::uuid,${closedSociety}::uuid,${actorId}::uuid,
+        'OPENING_BALANCE','READY',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatchRow" ("batchId","rowNumber","normalized","valid")
+      VALUES (${closedBatch}::uuid,1,
+        '{"entry_date":"2026-10-10","account_code":"BANK","amount_paise":"31000","side":"DEBIT"}'::jsonb,true),
+             (${closedBatch}::uuid,2,
+        '{"entry_date":"2026-10-10","account_code":"EQUITY","amount_paise":"31000","side":"CREDIT"}'::jsonb,true)
+    `);
+
+    const orphan = await opening.apply(closedSociety, actorId, {
+      batchKey: `migration:${closedBatch}`,
+      periodId: closedPeriod,
+      entryNumber: `MIG-OB-${closedBatch.replace(/-/g, '').slice(0, 16).toUpperCase()}`,
+      entryDate: '2026-10-10',
+      description: `Opening balances migrated from batch ${closedBatch}`,
+      externalReference: `migration-batch:${closedBatch}`,
+      lines: [
+        { accountId: closedAsset, debitPaise: amount, creditPaise: 0 },
+        { accountId: closedEquity, debitPaise: 0, creditPaise: amount },
+      ],
+    });
+
+    // Closing is a legitimate irreversible state transition. The previously
+    // posted financial journal remains immutable, but the READY batch must not
+    // be retrospectively marked committed across that period boundary.
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE "AccountingPeriod"
+      SET "status"='CLOSED',"closedAt"=CURRENT_TIMESTAMP,
+          "closedByUserId"=${actorId}::uuid,"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${closedPeriod}::uuid AND "societyId"=${closedSociety}::uuid
+        AND "status"='OPEN'
+    `);
+    await expect(service.commit(closedSociety, actorId, closedBatch))
+      .rejects.toThrow('Opening-balance entry_date must resolve to exactly one open accounting period');
+
+    const state = await prisma.$queryRaw<Array<{
+      batchStatus:string; periodStatus:string; linkedRows:bigint;
+      journals:bigint; journalStatus:string;
+    }>>(Prisma.sql`
+      SELECT b."status" AS "batchStatus", p."status"::text AS "periodStatus",
+        j."status"::text AS "journalStatus",
+        (SELECT COUNT(*) FROM "MigrationBatchRow" WHERE "batchId"=${closedBatch}::uuid
+          AND "targetId" IS NOT NULL) AS "linkedRows",
+        (SELECT COUNT(*) FROM "JournalEntry" WHERE "societyId"=${closedSociety}::uuid
+          AND "sourceType"='OPENING_BALANCE' AND "sourceId"=${'migration:' + closedBatch}) AS "journals"
+      FROM "MigrationBatch" b
+      JOIN "AccountingPeriod" p ON p."id"=${closedPeriod}::uuid AND p."societyId"=b."societyId"
+      JOIN "JournalEntry" j ON j."id"=${orphan.journalId}::uuid AND j."societyId"=b."societyId"
+      WHERE b."id"=${closedBatch}::uuid AND b."societyId"=${closedSociety}::uuid
+    `);
+    expect(state).toMatchObject([{
+      batchStatus:'READY', periodStatus:'CLOSED', journalStatus:'POSTED',
+      linkedRows:0n, journals:1n,
+    }]);
+  }, 30_000);
+
 });
