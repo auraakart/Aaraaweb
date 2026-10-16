@@ -80,6 +80,48 @@ withDatabase('Payment integrity on migrated PostgreSQL', () => {
     await expect(recipients.notificationRecipients(otherSocietyId, unitId)).resolves.toEqual([]);
   });
 
+  it('keeps a shared tenant within each society and enforces gate opt-out and exact expiry on migrated PostgreSQL', async () => {
+    // One global person can be a tenant in more than one society, including
+    // societies owned by different partners. Neither society may cross-route.
+    const cutoff = new Date(Date.now() + 60_000);
+    const beforeCutoff = new Date(cutoff.getTime() - 1);
+    const other = await prisma.unitOccupancy.create({ data: {
+      societyId: otherSocietyId, unitId: otherUnitId, userId: tenantId,
+      relation: 'TENANT', effectiveFrom: new Date(cutoff.getTime() - 60_000),
+      effectiveTo: cutoff, gateNotificationEnabled: true,
+    } });
+    const recipients = new GateRecipientService(prisma);
+    try {
+      const tenantContact = [{ userId: tenantId, gateApprovalEnabled: true }];
+      await expect(recipients.notificationRecipients(societyId, unitId, beforeCutoff))
+        .resolves.toEqual(tenantContact);
+      await expect(recipients.notificationRecipients(otherSocietyId, otherUnitId, beforeCutoff))
+        .resolves.toEqual(tenantContact);
+      await expect(recipients.notificationRecipients(societyId, otherUnitId, beforeCutoff))
+        .resolves.toEqual([]);
+      await expect(recipients.notificationRecipients(otherSocietyId, unitId, beforeCutoff))
+        .resolves.toEqual([]);
+
+      // The database uses an exclusive effectiveTo boundary, not <=.
+      await expect(recipients.notificationRecipients(otherSocietyId, otherUnitId, cutoff))
+        .resolves.toEqual([]);
+      // The other society's expiration does not revoke a still-current
+      // occupancy record for the original society.
+      await expect(recipients.notificationRecipients(societyId, unitId, cutoff))
+        .resolves.toEqual(tenantContact);
+
+      await prisma.unitOccupancy.update({
+        where: { id: other.id }, data: { gateNotificationEnabled: false },
+      });
+      await expect(recipients.notificationRecipients(otherSocietyId, otherUnitId, beforeCutoff))
+        .resolves.toEqual([]);
+      await expect(recipients.notificationRecipients(societyId, unitId, beforeCutoff))
+        .resolves.toEqual(tenantContact);
+    } finally {
+      await prisma.unitOccupancy.delete({ where: { id: other.id } });
+    }
+  });
+
   it('rejects a cross-society invoice even when the user owns that other property', async () => {
     const other = await invoice(otherUnitId, otherSocietyId);
     await expect(orders.createPayment(societyId, ownerId, other.id, randomUUID())).rejects.toBeInstanceOf(NotFoundException);
