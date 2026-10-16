@@ -6,6 +6,7 @@ import {verifyV5ManifestProgress} from './v5-manifest-progress.mjs';
 const actual=JSON.parse(readFileSync(new URL('../docs/v5-release-manifest.json',import.meta.url),'utf8'));
 const changed=mutate=>{const data=structuredClone(actual);mutate(data);return data;};
 const build=m=>m.milestones.find(x=>x.id==='V5.5');
+const engineering=m=>m.milestones.find(x=>x.id==='V5.6').preAcceptanceEngineering;
 test('V5.5.45 checked-in manifest remains nonproduction and points to its latest slice',()=>{
  const report=verifyV5ManifestProgress(actual);
  assert.equal(report.latestSlice,'V5.5.45');
@@ -49,4 +50,51 @@ test('V5.5.45 permits only a new evidence-free pending head slice',()=>{
  assert.equal(report.latestSlice,'V5.5.46');
  assert.equal(report.currentStatus,'PENDING_PROTECTED_CI');
  assert.equal(report.buildExecutionAuthorized,false);
+});
+
+test('V5.6.18 checked-in engineering evidence tracks the latest protected merge but never release acceptance',()=>{
+ const report=verifyV5ManifestProgress(actual);
+ assert.equal(report.latestVerifiedEngineeringSlice,'V5.6.17');
+ assert.equal(report.latestVerifiedEngineeringPr,1398);
+ assert.equal(report.buildExecutionAuthorized,false);
+ assert.equal(report.partnerArtifactsVerified,false);
+ const v=engineering(actual);
+ assert.equal(v.externalAcceptanceVerified,false);
+ assert.equal(v.releaseCandidateApproved,false);
+ assert.equal(actual.milestones.find(x=>x.id==='V5.6').status,'PLANNED');
+});
+
+const invalidV56=[
+ ['stale verified slice pointer',m=>{engineering(m).lastVerifiedSlice='V5.6.15';}],
+ ['stale verified merge SHA pointer',m=>{engineering(m).lastVerifiedMergeSha='a'.repeat(40);}],
+ ['stale verified PR pointer',m=>{engineering(m).lastVerifiedPr=1397;}],
+ ['stale verified CI pointer',m=>{engineering(m).lastVerifiedCI=38924094484;}],
+ ['duplicate engineering slice',m=>{engineering(m).verifiedSlices.push(structuredClone(engineering(m).verifiedSlices.at(-1)));}],
+ ['out-of-order engineering slice',m=>{engineering(m).verifiedSlices.reverse();}],
+ ['missing protected CI evidence',m=>{delete engineering(m).verifiedSlices.at(-1).ciRun;}],
+ ['missing merged PR evidence',m=>{delete engineering(m).verifiedSlices.at(-1).pullRequest;}],
+ ['malformed merge SHA',m=>{engineering(m).verifiedSlices.at(-1).mergeSha='bad';}],
+ ['reused merge SHA',m=>{engineering(m).verifiedSlices.at(-1).mergeSha=engineering(m).verifiedSlices[0].mergeSha;}],
+ ['false unverified-slice completion',m=>{engineering(m).verifiedSlices.at(-1).status='COMPLETED';}],
+ ['deleted historical finance tracker',m=>{delete engineering(m).pendingFinanceRecoveryIssue;}],
+ ['deleted independent TEST tracker',m=>{delete engineering(m).pendingIndependentTestIssue;}],
+ ['false external acceptance',m=>{engineering(m).externalAcceptanceVerified=true;}],
+ ['unauthorized build execution',m=>{engineering(m).buildExecutionAuthorized=true;}],
+ ['fabricated partner APK verification',m=>{engineering(m).partnerArtifactsVerified=true;}],
+ ['unauthorized release candidate',m=>{engineering(m).releaseCandidateApproved=true;}],
+ ['unverified in-flight pointer',m=>{engineering(m).latestRegressionUnderReview='V5.6.18';}],
+];
+for(const [scenario,mutate] of invalidV56) test('V5.6.18 rejects '+scenario,()=>{
+ assert.throws(()=>verifyV5ManifestProgress(changed(mutate)),/V5 manifest progress:/);
+});
+
+test('V5.6.18 retains independent 15-case TEST acceptance as NOT_EXECUTED',()=>{
+ const matrix=JSON.parse(readFileSync(new URL('../docs/architecture/v5.6.2-nonproduction-acceptance-matrix.json',import.meta.url),'utf8'));
+ assert.equal(matrix.cases.length,15);
+ assert.equal(matrix.status,'PREPARATION_ONLY');
+ assert.equal(matrix.externalAcceptanceVerified,false);
+ assert.equal(matrix.authority.buildExecutionAuthorized,false);
+ assert.equal(matrix.authority.stagingPromotionApproved,false);
+ assert.equal(matrix.authority.mainPromotionApproved,false);
+ assert.ok(matrix.cases.every(row=>row.executionStatus==='NOT_EXECUTED'&&row.evidenceRefs.length===0));
 });
