@@ -40,6 +40,11 @@ export function verifyV5ManifestProgress(manifest) {
   if (!Array.isArray(build.slices) || build.slices.length === 0) {
     fail('V5.5 slice inventory missing');
   }
+  // Every historical slice must have tracked merge evidence; a new in-flight
+  // head slice may be pending, but cannot masquerade as completed.
+  const isMergedStatus = status => typeof status === 'string' &&
+    status.startsWith('MERGED_PROTECTED_CI_PASSED');
+  const SHA = /^[a-f0-9]{40}$/;
   let previous = 0;
   for (const slice of build.slices) {
     if (!isObject(slice) || typeof slice.id !== 'string' ||
@@ -51,6 +56,19 @@ export function verifyV5ManifestProgress(manifest) {
       fail('duplicate or out-of-order V5.5 slice');
     }
     previous = seq;
+    const isLatest = slice === build.slices.at(-1);
+    if (isMergedStatus(slice.status)) {
+      if (!Number.isSafeInteger(slice.pullRequest) || slice.pullRequest <= 0 ||
+          !SHA.test(slice.mergeSha)) {
+        fail('merged V5.5 slice missing PR or exact merge SHA evidence');
+      }
+    } else if (slice.status === 'PENDING_PROTECTED_CI' && isLatest) {
+      if (slice.mergeSha !== undefined || slice.ciRun !== undefined) {
+        fail('pending V5.5 slice contradicts recorded merge/CI evidence');
+      }
+    } else {
+      fail('previous V5.5 slice remains pending or has unknown completion state');
+    }
     if (typeof slice.name !== 'string' || slice.name.length === 0 ||
         typeof slice.status !== 'string' || slice.status.length === 0) {
       fail('unnamed or untracked V5.5 slice');
