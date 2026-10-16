@@ -211,10 +211,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - This is a contract foundation for a later resident-facing benefits experience. Any chargeable membership requires product/finance approvals, refund/cancellation policy, GST treatment and entitlement governance. Any optional protection product requires provider, policy and regulatory review.
 - Focused tests: owner-scoped aggregate, no PII, high booking counts never generate points, empty and invalid aggregates. Regenerate deterministic V5 tenant-access inventory and pass required CI before merging into `develop`.
 
+## Services 4.4.2 — resident read-only benefits readiness sheet
+
+- Add an explicit **Service benefits** button to External/Insta Services (no background endpoint call during regular service catalog discovery). The sheet reads only the existing authenticated `GET /consumer/services/benefits-readiness` API when opened or refreshed.
+- Display completed service count and distinct provider count as **historical activity only**. Zero bookings has an explicit empty state.
+- Show **Membership: Not launched**, **Loyalty rewards: Not launched**, and **Optional protection: Not offered** with clear plain-language explanations and no entitlement, points, price, redemptions, offers, protection claims or purchase call-to-action.
+- Fail closed for denied/unavailable responses and contradictory JSON contracts (such as enrollment enabled or a purported points balance). Supply retry and refresh actions, preserve accessible scrolling and text.
+- Existing resident and independent-service entry points share the same consumer service screen. No new API/DB schema, tenant context or payment mutation; generated tenant-access inventory remains unchanged.
+- Focused Flutter widget tests cover successful read-only results, empty history, denied/retry, invalid contract refusal and refresh without any mutations. Merge to `develop` only after required CI checks.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.4.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.4.2** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
