@@ -83,7 +83,7 @@ export class MigrationOpeningBalanceCommitService {
       const journalId = journalIds[0];
       const journals = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
         SELECT "status"::text AS "status" FROM "JournalEntry"
-        WHERE "id"=${journalId}::uuid AND "societyId"=${societyId}::uuid AND "sourceType"='OPENING_BALANCE'
+        WHERE "id"=${journalId}::uuid AND "societyId"=${societyId}::uuid AND "sourceType"='OPENING_BALANCE' AND "sourceId"=${`migration:${batchId}`}
         LIMIT 1 FOR UPDATE
       `);
       if (!journals[0]) throw new NotFoundException('Opening-balance journal not found');
