@@ -1497,7 +1497,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.46",
+      "currentSlice": "V5.5.47",
       "slices": [
         {
           "id": "V5.5.1",
@@ -2424,6 +2424,30 @@
             "17 no-network operator-policy cases plus protected full API/Admin/Flutter and security CI passed",
             "Requires explicit TEST confirmation and externally approved source SHA, image digest, mTLS pins and off-repository operator credentials",
             "Develop-only merge with required gates; no productionization, staging/main promotion or external runtime acceptance"
+          ]
+        },
+        {
+          "id": "V5.5.47",
+          "name": "Private file-identity and SHA-256 snapshots for operator-provided TEST signed-claim evidence",
+          "status": "MERGED_PROTECTED_CI_PASSED_READ_ONLY_FILE_INTEGRITY_ONLY",
+          "evidence": [
+            "scripts/v5.5.46-readonly-runtime-probe-policy.mjs",
+            "scripts/v5.5.46-run-readonly-runtime-probe.mjs",
+            "scripts/v5.5.46-readonly-runtime-probe.test.mjs",
+            "docs/architecture/V5.5.47-OPERATOR-EVIDENCE-FILE-INTEGRITY.md"
+          ],
+          "limitations": [
+            "Pinned local file snapshots and no-symlink private operator plan are not proof of a remotely attested worker or independently measured OCI image.",
+            "External private key custody, single-use challenge store, genuine Partner A/B APK/AAB and physical-device acceptance remain issue #1380.",
+            "No build, signer approval, dispatch, partner distribution or staging/main promotion."
+          ],
+          "pullRequest": 1404,
+          "ciRun": 38941746329,
+          "mergeSha": "76996a136a519bff9a178f85655bf45269649a23",
+          "verifiedScope": [
+            "Protected repository structure, full API/Admin/Flutter, security and required merge gates succeeded",
+            "Ten extra file substitution/permission/race test cases passed",
+            "Develop-only merge, with TEST runner external dependencies unchanged"
           ]
         }
       ],
