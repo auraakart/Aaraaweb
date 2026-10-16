@@ -26,6 +26,8 @@ export function classifyV5OperatorOnlyChanges(changes){
      Object.keys(change).sort().join('|')!=='path|status'||
      !['A','M'].includes(change.status)||
      typeof change.path!=='string'||seen.has(change.path))return false;
+  if(change.path.split('/').some(component=>component==='.'||component==='..')||
+     change.path.includes('\\')||change.path.includes('\0'))return false;
   seen.add(change.path);
   if(reviewed.has(change.path)){operatorChanged=true;continue;}
   if(documentation.test(change.path))continue;
