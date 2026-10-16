@@ -129,10 +129,13 @@ export class MigrationOpeningBalanceCommitService {
         throw new ConflictException('Opening-balance journal is not in a reversible state');
       }
 
-      await tx.$executeRaw(Prisma.sql`
+      const updatedRows = await tx.$executeRaw(Prisma.sql`
         UPDATE "MigrationBatchRow" SET "rolledBackAt"=CURRENT_TIMESTAMP
         WHERE "batchId"=${batchId}::uuid
       `);
+      if (updatedRows !== batch.totalRows) {
+        throw new ConflictException('Opening-balance migration row state changed during rollback');
+      }
       const updated = await tx.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
         UPDATE "MigrationBatch"
         SET "status"='ROLLED_BACK',"rolledBackAt"=CURRENT_TIMESTAMP,

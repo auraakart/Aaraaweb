@@ -14,7 +14,7 @@ const batch = (status = 'COMMITTED') => ({ id: batchId, status, totalRows: 2 });
 
 function setup(outputs: unknown[]) {
   const tx = {
-    $executeRaw: vi.fn().mockResolvedValue(1),
+    $executeRaw: vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(2),
     $queryRaw: vi.fn(),
   };
   for (const output of outputs) {
@@ -121,6 +121,23 @@ describe('MigrationOpeningBalanceCommitService V5.6.7 rollback atomicity', () =>
     const invocation = accounting.reverseJournalWithinTransaction.mock.invocationCallOrder[0];
     expect(invocation).toBeGreaterThan(tx.$queryRaw.mock.invocationCallOrder[3]); // reversal after date
     expect(invocation).toBeLessThan(tx.$executeRaw.mock.invocationCallOrder[1]); // before row update
+  });
+
+  it('refuses a short rollback row update after reversal, before marking batch rolled back', async () => {
+    const period = {
+      startsOn: new Date('2026-10-01T00:00:00.000Z'),
+      endsOn: new Date('2026-10-31T00:00:00.000Z'),
+    };
+    const { service, tx, accounting } = setup([
+      [batch()], [row('row-a'), row('row-b')], [{ status: 'POSTED' }],
+      [period],
+    ]);
+    tx.$executeRaw.mockReset().mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    await expect(service.rollback(societyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration row state changed during rollback');
+    expect(accounting.reverseJournalWithinTransaction).toHaveBeenCalledOnce();
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4); // no batch state UPDATE
   });
 
   it('propagates migration status-write failure from the containing journal transaction', async () => {
