@@ -79,7 +79,9 @@ export function verifyV5ManifestProgress(manifest) {
   const engineering = closure.preAcceptanceEngineering;
   if (!isObject(engineering) ||
       engineering.status !== 'ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE' ||
-      engineering.pendingFinanceRecoveryIssue !== 1387 ||
+      engineering.resolvedFinanceRecoveryIssue !== 1387 ||
+      engineering.financeRecoveryEngineeringClosed !== true ||
+      engineering.pendingFinanceRecoveryIssue !== undefined ||
       engineering.pendingIndependentTestIssue !== 1380 ||
       engineering.externalAcceptanceVerified !== false ||
       engineering.buildExecutionAuthorized !== false ||
