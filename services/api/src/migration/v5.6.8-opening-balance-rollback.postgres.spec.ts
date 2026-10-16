@@ -169,6 +169,39 @@ const disposable = (() => {
     expect(foreign).toMatchObject([{ status: 'COMMITTED', rolledBack: 0n }]);
   }, 20_000);
 
+  it('reverts a real journal reversal when the rollback row update count is incomplete', async () => {
+    expect(await state()).toMatchObject({
+      batchStatus: 'COMMITTED', journalStatus: 'POSTED', rolledBack: 0n, reversals: 0n,
+    });
+    let injected = false;
+    const partialUpdatePrisma = {
+      $transaction: (work: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        prisma.$transaction(tx => work({
+          $queryRaw: (sql: Prisma.Sql) => tx.$queryRaw(sql),
+          $executeRaw: async (sql: Prisma.Sql) => {
+            const affected = await tx.$executeRaw(sql);
+            if (sql.strings.join(' ').includes('UPDATE "MigrationBatchRow"') &&
+                sql.strings.join(' ').includes('"rolledBackAt"')) {
+              injected = true;
+              // The real UPDATE ran against this transaction, but pretend only
+              // one of the two rows was written. Its rejection must undo the journal.
+              return 1;
+            }
+            return affected;
+          },
+        } as Prisma.TransactionClient)),
+    } as unknown as PrismaService;
+    const incomplete = new MigrationOpeningBalanceCommitService(
+      partialUpdatePrisma, {} as never, accounting,
+    );
+    await expect(incomplete.rollback(societyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration row state changed during rollback');
+    expect(injected).toBe(true);
+    expect(await state()).toMatchObject({
+      batchStatus: 'COMMITTED', journalStatus: 'POSTED', rolledBack: 0n, reversals: 0n,
+    });
+  }, 30_000);
+
   it('rolls back all PostgreSQL journal work after a late batch-write fault, then recovers once', async () => {
     expect(await state()).toMatchObject({
       batchStatus: 'COMMITTED',journalStatus: 'POSTED',rolledBack: 0n,reversals: 0n,
