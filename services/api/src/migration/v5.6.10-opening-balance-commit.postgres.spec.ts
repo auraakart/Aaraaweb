@@ -194,6 +194,64 @@ const disposable = (() => {
     });
   }, 30_000);
 
+
+  it('recovers a matching historical orphan without duplicating financial records and rejects mismatched evidence', async () => {
+    // Simulates the old crash window: a POSTED journal while its batch is READY and unlinked.
+    const seed = async (id: string, amount: number) => {
+      const debit = JSON.stringify({entry_date:'2026-10-10', account_code:'BANK', amount_paise:String(amount), side:'DEBIT'});
+      const credit = JSON.stringify({entry_date:'2026-10-10', account_code:'EQUITY', amount_paise:String(amount), side:'CREDIT'});
+      await prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "MigrationBatch"
+          ("id","societyId","actorUserId","entityType","status","checksum","totalRows","validRows","invalidRows","duplicateRows")
+        VALUES (${id}::uuid,${societyId}::uuid,${actorId}::uuid,'OPENING_BALANCE',
+          'READY',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0)
+      `);
+      await prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "MigrationBatchRow" ("batchId","rowNumber","normalized","valid")
+        VALUES (${id}::uuid,1,${debit}::jsonb,true),(${id}::uuid,2,${credit}::jsonb,true)
+      `);
+    };
+    const prior = (id: string, amount: number) => opening.apply(societyId, actorId, {
+      batchKey: `migration:${id}`,
+      periodId,
+      entryNumber: `MIG-OB-${id.replace(/-/g, '').slice(0, 16).toUpperCase()}`,
+      entryDate: '2026-10-10',
+      description: `Opening balances migrated from batch ${id}`,
+      externalReference: `migration-batch:${id}`,
+      lines: [
+        {accountId:assetId, debitPaise:amount, creditPaise:0},
+        {accountId:equityId, debitPaise:0, creditPaise:amount},
+      ],
+    });
+    const state = (id: string) => prisma.$queryRaw<Array<{
+      status:string; journals:bigint; linkedRows:bigint;
+    }>>(Prisma.sql`
+      SELECT b."status",
+        (SELECT COUNT(*) FROM "JournalEntry" WHERE "societyId"=${societyId}::uuid
+          AND "sourceType"='OPENING_BALANCE' AND "sourceId"=${'migration:' + id}) AS "journals",
+        (SELECT COUNT(*) FROM "MigrationBatchRow"
+          WHERE "batchId"=${id}::uuid AND "targetId" IS NOT NULL) AS "linkedRows"
+      FROM "MigrationBatch" b WHERE b."id"=${id}::uuid AND b."societyId"=${societyId}::uuid
+    `);
+
+    const recoverable = randomUUID();
+    await seed(recoverable, 19000);
+    const orphan = await prior(recoverable, 19000);
+    expect(await state(recoverable)).toMatchObject([{status:'READY', journals:1n, linkedRows:0n}]);
+    await expect(service.commit(societyId, actorId, recoverable))
+      .resolves.toMatchObject({status:'COMMITTED', journalId:orphan.journalId});
+    expect(await state(recoverable)).toMatchObject([{status:'COMMITTED', journals:1n, linkedRows:2n}]);
+    await expect(service.commit(societyId, actorId, recoverable))
+      .resolves.toHaveProperty('journalId', orphan.journalId);
+
+    const conflicting = randomUUID();
+    await seed(conflicting, 21000);
+    await prior(conflicting, 22000);
+    await expect(service.commit(societyId, actorId, conflicting))
+      .rejects.toThrow('Opening balance batch key already exists with different or non-posted content');
+    expect(await state(conflicting)).toMatchObject([{status:'READY', journals:1n, linkedRows:0n}]);
+  }, 30_000);
+
   it('enforces exact society scope for the same global actor across two migration batches', async () => {
     const otherSocietyId = randomUUID();
     const otherBatchId = randomUUID();

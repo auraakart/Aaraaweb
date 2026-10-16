@@ -16,7 +16,7 @@
     {
       "id": "V5.0",
       "name": "Baseline contracts and architecture",
-      "status": "IN_PROGRESS",
+      "status": "COMPLETED",
       "currentSlice": "V5.0.2",
       "slices": [
         {
@@ -43,7 +43,14 @@
           "validatedRuntimeSha": "f2a28dda4c5c2531d3ac2c95be62341010b0b2a3",
           "mergeSha": "2ee24a4ab6f302e0d767df3c31f18229883baf91"
         }
-      ]
+      ],
+      "scopedAcceptance": {
+        "status": "COMPLETED_NONPRODUCTION",
+        "evidence": "V5.0.1 PR #1209 and V5.0.2 / V5.1.0 PR #1210, both merged with protected CI",
+        "limitations": [
+          "Foundational contracts/inventory only; V5.5 TEST partner-build acceptance and V5.6 composite acceptance are tracked separately."
+        ]
+      }
     },
     {
       "id": "V5.1",
@@ -2414,7 +2421,17 @@
         "V5.3",
         "V5.4",
         "V5.5"
-      ]
+      ],
+      "preAcceptanceEngineering": {
+        "lastVerifiedSlice": "V5.6.15",
+        "lastVerifiedPr": 1396,
+        "lastVerifiedMergeSha": "fc4ae7bff53ba09bfa0b98b87bdfedab4fcfa747",
+        "latestRegressionUnderReview": "V5.6.16",
+        "pendingFinanceRecoveryIssue": 1387,
+        "pendingIndependentTestIssue": 1380,
+        "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
+        "note": "15 formal TEST acceptance cases remain NOT_EXECUTED; build execution and branch promotion are unauthorized."
+      }
     }
   ],
   "roadmap": "docs/AARAAGATE-V5-MULTIBRAND-ROADMAP.md",
