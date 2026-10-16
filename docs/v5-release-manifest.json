@@ -1490,7 +1490,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.37",
+      "currentSlice": "V5.5.45",
       "slices": [
         {
           "id": "V5.5.1",
@@ -2369,6 +2369,22 @@
             "Stable PID starttime and mount/pid/user namespace sampling, reusing existing V5.5.42–43 cgroup and rootfs checks",
             "Negative executable replacement, PID reuse, namespaces, process exit, malformed bounds and permission-injection tests passed",
             "Protected CI passed Repository structure, Mastermind preflight, full API/Admin/Flutter, dependency security and develop auto-merge"
+          ]
+        },
+        {
+          "id": "V5.5.45",
+          "name": "Fail-closed V5 manifest progress and release authority consistency guard",
+          "status": "PENDING_PROTECTED_CI",
+          "evidence": [
+            "scripts/v5-manifest-progress.mjs",
+            "scripts/v5-manifest-progress.test.mjs",
+            "scripts/check-v4.79.1.17-v5-manifest-progress.mjs",
+            "docs/architecture/V5.5.45-MANIFEST-PROGRESS-INTEGRITY.md"
+          ],
+          "limitations": [
+            "Checks checked-in nonproduction scope, highest V5.5 slice pointer, external runner blocker and V5.6 status only; not a remote runner or proof of delivery.",
+            "Even a green manifest guard cannot authorize an Android build, partner artifact signing or staging/main promotion.",
+            "No independent external OCI image/process, trusted TLS ingress, Partner A/B APK/AAB or device co-installation has been inspected."
           ]
         }
       ],
