@@ -211,7 +211,7 @@ const disposable = (() => {
         VALUES (${id}::uuid,1,${debit}::jsonb,true),(${id}::uuid,2,${credit}::jsonb,true)
       `);
     };
-    const prior = (id: string, amount: number) => opening.apply(societyId, actorId, {
+    const prior = (id: string, amount: number, author = actorId) => opening.apply(societyId, author, {
       batchKey: `migration:${id}`,
       periodId,
       entryNumber: `MIG-OB-${id.replace(/-/g, '').slice(0, 16).toUpperCase()}`,
@@ -243,6 +243,31 @@ const disposable = (() => {
     expect(await state(recoverable)).toMatchObject([{status:'COMMITTED', journals:1n, linkedRows:2n}]);
     await expect(service.commit(societyId, actorId, recoverable))
       .resolves.toHaveProperty('journalId', orphan.journalId);
+
+
+    // The batch was created by actor A, but an old two-phase path posted the
+    // matching journal under actor B. Do not adopt the hash as authority for
+    // immutable creator/poster audit evidence or mutate the READY batch.
+    const otherActor = randomUUID();
+    await prisma.user.create({data:{id:otherActor, phone:'v5620-' + otherActor}});
+    const crossActor = randomUUID();
+    await seed(crossActor, 23000);
+    const wrongOwnerJournal = await prior(crossActor, 23000, otherActor);
+    await expect(service.commit(societyId, actorId, crossActor))
+      .rejects.toThrow('Historical opening-balance migration journal provenance is incomplete');
+    expect(await state(crossActor)).toMatchObject([
+      {status:'READY',journals:1n,linkedRows:0n},
+    ]);
+    const wrongOwner = await prisma.$queryRaw<Array<{
+      createdByUserId:string;postedByUserId:string;status:string;
+    }>>(Prisma.sql`
+      SELECT "createdByUserId","postedByUserId","status"::text AS "status"
+      FROM "JournalEntry"
+      WHERE "id"=${wrongOwnerJournal.journalId}::uuid AND "societyId"=${societyId}::uuid
+    `);
+    expect(wrongOwner).toMatchObject([{
+      createdByUserId:otherActor,postedByUserId:otherActor,status:'POSTED',
+    }]);
 
     const conflicting = randomUUID();
     await seed(conflicting, 21000);
