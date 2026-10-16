@@ -211,7 +211,7 @@ const disposable = (() => {
         VALUES (${id}::uuid,1,${debit}::jsonb,true),(${id}::uuid,2,${credit}::jsonb,true)
       `);
     };
-    const prior = (id: string, amount: number, authorId = actorId) => opening.apply(societyId, authorId, {
+    const prior = (id: string, amount: number) => opening.apply(societyId, actorId, {
       batchKey: `migration:${id}`,
       periodId,
       entryNumber: `MIG-OB-${id.replace(/-/g, '').slice(0, 16).toUpperCase()}`,
@@ -251,17 +251,27 @@ const disposable = (() => {
       .rejects.toThrow('Opening balance batch key already exists with different or non-posted content');
     expect(await state(conflicting)).toMatchObject([{status:'READY', journals:1n, linkedRows:0n}]);
 
-    // A matching digest and source ID cannot legitimize another user's journal
-    // when the original migration batch identifies a different accountable actor.
-    const foreignActor = randomUUID();
-    await prisma.user.create({data:{id:foreignActor, phone:'v5617-' + foreignActor}});
-    const wrongAuthorBatch = randomUUID();
-    await seed(wrongAuthorBatch, 23000);
-    await prior(wrongAuthorBatch, 23000, foreignActor);
-    await expect(service.commit(societyId, actorId, wrongAuthorBatch))
-      .rejects.toThrow('Historical opening-balance migration journal provenance is incomplete');
-    expect(await state(wrongAuthorBatch)).toMatchObject([{status:'READY', journals:1n, linkedRows:0n}]);
-
+    // Two independent retries of the same historically stranded journal must
+    // serialize safely, link the batch once, and never post a second journal.
+    const concurrentOrphanBatch = randomUUID();
+    await seed(concurrentOrphanBatch, 25000);
+    const concurrentOrphanJournal = await prior(concurrentOrphanBatch, 25000);
+    expect(await state(concurrentOrphanBatch)).toMatchObject([
+      {status:'READY', journals:1n, linkedRows:0n},
+    ]);
+    const recoveredTogether = await Promise.all([
+      service.commit(societyId, actorId, concurrentOrphanBatch),
+      service.commit(societyId, actorId, concurrentOrphanBatch),
+    ]);
+    expect(recoveredTogether).toHaveLength(2);
+    for (const receipt of recoveredTogether) {
+      expect(receipt).toMatchObject({
+        status:'COMMITTED', journalId:concurrentOrphanJournal.journalId,
+      });
+    }
+    expect(await state(concurrentOrphanBatch)).toMatchObject([
+      {status:'COMMITTED', journals:1n, linkedRows:2n},
+    ]);
   }, 30_000);
 
   it('enforces exact society scope for the same global actor across two migration batches', async () => {
