@@ -142,7 +142,10 @@ const disposable = (() => {
       service.commit(societyId, actorId, concurrentBatch),
     ]);
     expect(commits).toHaveLength(2);
-    expect(commits.every(item => item.status === 'COMMITTED')).toBe(true);
+    expect(commits).toEqual([
+      expect.objectContaining({ status: 'COMMITTED' }),
+      expect.objectContaining({ status: 'COMMITTED' }),
+    ]);
 
     const linked = await prisma.$queryRaw<Array<{
       id: string; lineCount: bigint; postedCount: bigint; linkedRows: bigint;
