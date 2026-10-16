@@ -22,7 +22,7 @@ function setup() {
 }
 
 describe('V5.6.3 nonproduction cross-society realtime notification regression', () => {
-  it('keeps one user's separate society resident streams isolated, including after unsubscribe', async () => {
+  it("keeps one user's separate society resident streams isolated, including after unsubscribe", async () => {
     const { service, sendResidentEvent } = setup();
     const a: unknown[] = [];
     const b: unknown[] = [];
