@@ -114,6 +114,7 @@ const disposable = (() => {
     });
     const replay = await service.commit(societyId, actorId, batchId);
     expect(replay).toMatchObject({ status: 'COMMITTED' });
+    expect(replay).toHaveProperty('journalId', (committed as { journalId: string }).journalId);
     expect(await snapshot()).toMatchObject({
       status: 'COMMITTED', linkedRows: 2n, journals: 1n, posted: 1n,
     });
@@ -163,6 +164,8 @@ const disposable = (() => {
     `);
     expect(linked).toHaveLength(1);
     expect(linked[0]).toMatchObject({ lineCount: 2n, postedCount: 1n, linkedRows: 2n });
+    // Both overlapping requests must return the same authoritative receipt.
+    for (const receipt of commits) expect(receipt).toHaveProperty('journalId', linked[0].id);
 
     const rollbacks = await Promise.all([
       service.rollback(societyId, actorId, concurrentBatch),
