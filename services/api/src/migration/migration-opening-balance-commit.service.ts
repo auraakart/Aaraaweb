@@ -47,7 +47,7 @@ export class MigrationOpeningBalanceCommitService {
           LIMIT 1
         `);
         if (recorded.length !== 1) throw new ConflictException('Opening-balance migration committed journal evidence is incomplete');
-        return batch;
+        return { ...batch, journalId: ids[0] };
       }
       if (batch.status !== 'READY') {
         throw new ConflictException('Only a READY opening-balance migration batch can be committed');
