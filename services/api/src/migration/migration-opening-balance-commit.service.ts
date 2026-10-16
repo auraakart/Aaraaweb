@@ -71,7 +71,9 @@ export class MigrationOpeningBalanceCommitService {
     }
     const rows = await this.loadRows(batchId);
     const journalIds = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
-    if (!rows.length || rows.some((row) => !row.targetId) || journalIds.length !== 1) {
+    // Every original row must remain valid and bound to the same journal
+    // before issuing a financial reversal; partial evidence fails closed.
+    if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId) || journalIds.length !== 1) {
       throw new ConflictException('Opening-balance migration journal evidence is incomplete');
     }
     const journalId = journalIds[0];
