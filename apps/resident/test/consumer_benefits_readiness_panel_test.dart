@@ -90,11 +90,8 @@ void main() {
   });
 
   testWidgets('reports empty service history without making an offer', (tester) async {
-    final api = _BenefitsClient()..response = {
-      ..._BenefitsClient().response,
-      'completedBookings': 0,
-      'completedProviders': 0,
-    };
+    final api = _BenefitsClient();
+    api.response = {...api.response, 'completedBookings': 0, 'completedProviders': 0};
     await tester.pumpWidget(_host(api));
     await tester.pumpAndSettle();
     expect(find.text('No completed services recorded yet.'), findsOneWidget);
@@ -125,7 +122,7 @@ void main() {
     api.response = {
       ...api.response,
       'membership': {
-        ...api.response['membership'] as Map<String, dynamic>,
+        ...(api.response['membership'] as Map<String, dynamic>),
         'enrollmentAvailable': true,
       },
     };
