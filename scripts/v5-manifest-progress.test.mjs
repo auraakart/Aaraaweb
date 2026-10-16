@@ -7,10 +7,10 @@ const actual=JSON.parse(readFileSync(new URL('../docs/v5-release-manifest.json',
 const changed=mutate=>{const data=structuredClone(actual);mutate(data);return data;};
 const build=m=>m.milestones.find(x=>x.id==='V5.5');
 const engineering=m=>m.milestones.find(x=>x.id==='V5.6').preAcceptanceEngineering;
-test('V5.5.45 checked-in manifest remains nonproduction and points to its latest slice',()=>{
+test('V5.5.46 checked-in manifest remains nonproduction and points to its latest slice',()=>{
  const report=verifyV5ManifestProgress(actual);
- assert.equal(report.latestSlice,'V5.5.45');
- assert.equal(report.currentStatus,'MERGED_PROTECTED_CI_PASSED_MANIFEST_PROGRESS_INTEGRITY_ONLY');
+ assert.equal(report.latestSlice,'V5.5.46');
+ assert.equal(report.currentStatus,'MERGED_PROTECTED_CI_PASSED_READ_ONLY_OPERATOR_PROBE_ONLY');
  assert.equal(report.buildExecutionAuthorized,false);
  assert.equal(report.partnerArtifactsVerified,false);
  assert.equal(report.mainPromoted,false);
@@ -25,7 +25,7 @@ const invalid=[
  ['merged slice missing PR evidence',m=>{delete build(m).slices.at(-1).pullRequest;}],
  ['merged slice missing merge SHA',m=>{delete build(m).slices.at(-1).mergeSha;}],
  ['invalid merge SHA',m=>{build(m).slices.at(-1).mergeSha='not-a-sha';}],
- ['fabricated future slice',m=>{build(m).currentSlice='V5.5.46';}],
+ ['fabricated future slice',m=>{build(m).currentSlice='V5.5.47';}],
  ['duplicate slice',m=>{build(m).slices.push(structuredClone(build(m).slices.at(-1)));}],
  ['out of order slice',m=>{const a=build(m).slices;a.push({...a.at(-1),id:'V5.5.3'});}],
  ['external runner blocker erased',m=>{build(m).remaining=[];}],
@@ -40,14 +40,14 @@ for(const [scenario,mutate] of invalid) test('V5.5.45 rejects '+scenario,()=>{
  assert.throws(()=>verifyV5ManifestProgress(changed(mutate)),/V5 manifest progress:/);
 });
 
-test('V5.5.45 permits only a new evidence-free pending head slice',()=>{
+test('V5.5.46 permits only a new evidence-free pending head slice',()=>{
  const data=changed(m=>{
    const current=build(m);
-   current.slices.push({id:'V5.5.46',name:'Future bounded test slice',status:'PENDING_PROTECTED_CI'});
-   current.currentSlice='V5.5.46';
+   current.slices.push({id:'V5.5.47',name:'Future bounded test slice',status:'PENDING_PROTECTED_CI'});
+   current.currentSlice='V5.5.47';
  });
  const report=verifyV5ManifestProgress(data);
- assert.equal(report.latestSlice,'V5.5.46');
+ assert.equal(report.latestSlice,'V5.5.47');
  assert.equal(report.currentStatus,'PENDING_PROTECTED_CI');
  assert.equal(report.buildExecutionAuthorized,false);
 });
