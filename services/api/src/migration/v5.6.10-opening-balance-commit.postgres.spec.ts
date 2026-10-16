@@ -104,11 +104,9 @@ const disposable = (() => {
     expect(faultInjected).toBe(true);
     expect(await snapshot()).toMatchObject(pristine);
 
-    const committed = await service.commit(societyId, actorId, batchId) as {
-      journalId: string; status: string;
-    };
-    expect(committed.status).toBe('COMMITTED');
-    expect(committed.journalId).toMatch(/^[0-9a-f-]{36}$/);
+    const committed = await service.commit(societyId, actorId, batchId);
+    expect(committed).toMatchObject({ status: 'COMMITTED' });
+    expect(committed).toHaveProperty('journalId', expect.stringMatching(/^[0-9a-f-]{36}$/));
     expect(await snapshot()).toMatchObject({
       status: 'COMMITTED', linkedRows: 2n, journals: 1n, posted: 1n,
     });
