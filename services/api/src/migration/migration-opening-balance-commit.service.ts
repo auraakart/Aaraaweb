@@ -11,6 +11,7 @@ type FinanceRow = {
   normalized: Record<string, string>;
   valid: boolean;
   targetId: string | null;
+  targetType: string | null;
 };
 
 @Injectable()
@@ -35,7 +36,7 @@ export class MigrationOpeningBalanceCommitService {
       const rows = await this.loadRowsTx(tx, batchId);
       if (batch.status === 'COMMITTED') {
         const ids = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
-        if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId) || ids.length !== 1) {
+        if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId || row.targetType !== 'JournalEntry') || ids.length !== 1) {
           throw new ConflictException('Opening-balance migration committed journal evidence is incomplete');
         }
         const recorded = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -89,7 +90,7 @@ export class MigrationOpeningBalanceCommitService {
       }
       const rows = await this.loadRowsTx(tx, batchId);
       const journalIds = [...new Set(rows.map((row) => row.targetId).filter((id): id is string => !!id))];
-      if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId) || journalIds.length !== 1) {
+      if (rows.length !== batch.totalRows || rows.some((row) => !row.valid || !row.targetId || row.targetType !== 'JournalEntry') || journalIds.length !== 1) {
         throw new ConflictException('Opening-balance migration journal evidence is incomplete');
       }
       const journalId = journalIds[0];
@@ -263,14 +264,14 @@ export class MigrationOpeningBalanceCommitService {
 
   private loadRows(batchId: string) {
     return this.prisma.$queryRaw<FinanceRow[]>(Prisma.sql`
-      SELECT "id","rowNumber","normalized","valid","targetId"
+      SELECT "id","rowNumber","normalized","valid","targetId","targetType"
       FROM "MigrationBatchRow" WHERE "batchId"=${batchId}::uuid ORDER BY "rowNumber"
     `);
   }
 
   private loadRowsTx(tx: Prisma.TransactionClient, batchId: string) {
     return tx.$queryRaw<FinanceRow[]>(Prisma.sql`
-      SELECT "id","rowNumber","normalized","valid","targetId"
+      SELECT "id","rowNumber","normalized","valid","targetId","targetType"
       FROM "MigrationBatchRow" WHERE "batchId"=${batchId}::uuid ORDER BY "rowNumber"
     `);
   }

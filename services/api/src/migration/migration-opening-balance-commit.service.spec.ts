@@ -8,7 +8,7 @@ const batchId = '11111111-1111-1111-1111-111111111111';
 const journalId = '22222222-2222-2222-2222-222222222222';
 const row = (id: string, overrides = {}) => ({
   id, rowNumber: id === 'row-a' ? 1 : 2, normalized: {},
-  valid: true, targetId: journalId, ...overrides,
+  valid: true, targetId: journalId, targetType: 'JournalEntry', ...overrides,
 });
 const batch = (status = 'COMMITTED') => ({ id: batchId, status, totalRows: 2 });
 
@@ -51,6 +51,28 @@ describe('MigrationOpeningBalanceCommitService V5.6.7 rollback atomicity', () =>
       expect(accounting.reverseJournalWithinTransaction).not.toHaveBeenCalled();
     });
   }
+
+  it('rejects a non-journal row target before any rollback reversal', async () => {
+    const { service, tx, accounting } = setup([
+      [batch()],
+      [row('row-a'), row('row-b', { targetType: 'Unit' })],
+    ]);
+    await expect(service.rollback(societyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration journal evidence is incomplete');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(accounting.reverseJournalWithinTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects committed replay when a row target type no longer identifies a journal', async () => {
+    const { service, tx } = setup([
+      [batch()],
+      [row('row-a'), row('row-b', { targetType: 'Unit' })],
+    ]);
+    await expect(service.commit(societyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration committed journal evidence is incomplete');
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1); // batch lock only
+  });
 
   it('rejects a non-committed batch before journal reads or reversal', async () => {
     const { service, tx, accounting } = setup([[batch('READY')]]);
