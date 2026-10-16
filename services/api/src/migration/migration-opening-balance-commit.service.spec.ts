@@ -88,7 +88,8 @@ describe('MigrationOpeningBalanceCommitService V5.6.7 rollback atomicity', () =>
     ]);
     await expect(service.rollback(societyId, actorId, batchId)).resolves.toEqual(updated);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(accounting.reverseJournalWithinTransaction).toHaveBeenCalledExactlyOnceWith(
+    expect(accounting.reverseJournalWithinTransaction).toHaveBeenCalledTimes(1);
+    expect(accounting.reverseJournalWithinTransaction).toHaveBeenCalledWith(
       tx, societyId, actorId, journalId, expect.objectContaining({
         entryNumber: 'MIG-RV-1111111111111111', reason: 'Rollback opening-balance migration ' + batchId,
       }),
