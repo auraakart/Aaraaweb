@@ -59,7 +59,10 @@ for(const [name,mutate] of [
 ])test('V5.5.46 rejects '+name,t=>{
  const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const e={...env};mutate(plan,e);
- assert.throws(()=>validate(plan,e,root),/policy rejected/);
+ // Source/image pins are compared against the operator files at loading,
+ // while intent/path checks fail at invocation validation.
+ const attempt=()=>load(validate(plan,e,root),e);
+ assert.throws(attempt,/policy rejected/);
 });
 test('V5.5.46 rejects symlinked signing key',t=>{
  const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
