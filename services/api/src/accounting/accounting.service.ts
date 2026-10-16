@@ -241,7 +241,11 @@ export class AccountingService {
         FROM "JournalLine" WHERE "entryId" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid
       `);
       if (Number(totals[0].lineCount) < 2) throw new BadRequestException('A journal needs at least two lines');
-      if (totals[0].debit !== totals[0].credit) throw new BadRequestException('Journal debits and credits must balance');
+      // PostgreSQL SUM(bigint) returns numeric, decoded by Prisma as Decimal.
+      // Compare integral paise values rather than Decimal object identities.
+      if (BigInt(totals[0].debit.toString()) !== BigInt(totals[0].credit.toString())) {
+        throw new BadRequestException('Journal debits and credits must balance');
+      }
       await tx.$executeRaw(Prisma.sql`
         UPDATE "JournalEntry" SET "status" = 'POSTED', "postedByUserId" = ${userId}::uuid, "postedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid AND "status" = 'DRAFT'
