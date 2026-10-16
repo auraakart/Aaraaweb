@@ -1497,7 +1497,7 @@
         "V5.3",
         "V5.4"
       ],
-      "currentSlice": "V5.5.45",
+      "currentSlice": "V5.5.46",
       "slices": [
         {
           "id": "V5.5.1",
@@ -2400,6 +2400,30 @@
             "Protected Repository structure, Mastermind preflight, API, Admin, Flutter and dependency-security gates passed",
             "Required merge gates and develop auto merge passed for PR #1378 at SHA 859978e32c87a73961d7cf37344d54c0557d700c",
             "Offline nonproduction milestone pointer validation only; zero external TEST runner or distribution authority"
+          ]
+        },
+        {
+          "id": "V5.5.46",
+          "name": "Explicit operator-only pinned TEST runtime read-only mTLS evidence probe",
+          "status": "MERGED_PROTECTED_CI_PASSED_READ_ONLY_OPERATOR_PROBE_ONLY",
+          "evidence": [
+            "scripts/v5.5.46-readonly-runtime-probe-policy.mjs",
+            "scripts/v5.5.46-run-readonly-runtime-probe.mjs",
+            "scripts/v5.5.46-readonly-runtime-probe.test.mjs",
+            "docs/architecture/V5.5.46-TEST-RUNNER-OPERATOR-READONLY-PROBE.md"
+          ],
+          "limitations": [
+            "Read-only signed runtime claim probe is operator-invoked, not proof of separately operated OCI runtime measurement or independent signer custody.",
+            "No persistent challenge consumption, build/dispatch authorization, signed Partner A/B artifacts or device acceptance.",
+            "GitHub CI uses local fixtures; external TEST runner/observer and partner build validation remain issue #1380."
+          ],
+          "pullRequest": 1403,
+          "mergeSha": "a73c7f688677146ce2318a0a17585795a5533100",
+          "ciRun": 38937824571,
+          "verifiedScope": [
+            "17 no-network operator-policy cases plus protected full API/Admin/Flutter and security CI passed",
+            "Requires explicit TEST confirmation and externally approved source SHA, image digest, mTLS pins and off-repository operator credentials",
+            "Develop-only merge with required gates; no productionization, staging/main promotion or external runtime acceptance"
           ]
         }
       ],

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,chmodSync,symlinkSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,chmodSync,symlinkSync,rmSync,renameSync,linkSync,unlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-import {validateReadOnlyTestRuntimeProbePlan as validate,
+import {readReadOnlyTestRuntimeProbePlan as readPlan,
+ validateReadOnlyTestRuntimeProbePlan as validate,
  loadReadOnlyTestRuntimeProbeInputs as load}
  from './v5.5.46-readonly-runtime-probe-policy.mjs';
 
@@ -84,4 +85,72 @@ for(const [name,mutate] of [
  const p=JSON.parse('{"endpoint":"'+ENDPOINT+'","serverName":"test-runner.example.invalid","serverSpkiSha256":"'+ 'c'.repeat(64)+'","clientSpkiSha256":"'+ 'd'.repeat(64)+'"}');
  mutate(p);writeFileSync(plan.transportPinsFile,JSON.stringify(p),{mode:0o600});
  assert.throws(()=>load(validate(plan,env,root),env),/policy rejected/);
+});
+
+test('V5.5.47 rejects a changed image policy after a successful validation snapshot',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ writeFileSync(plan.imagePolicyFile,JSON.stringify({sourceSha:SHA,imageDigest:'sha256:'+'f'.repeat(64)}));
+ assert.throws(()=>load(checked,env),/policy rejected/);
+});
+test('V5.5.47 rejects same-path inode replacement between validation and loading',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ const moved=join(dir,'old-cert.pem');
+ renameSync(plan.clientCertificateFile,moved);
+ writeFileSync(plan.clientCertificateFile,'-----BEGIN TEST MATERIAL-----\n'+'Z'.repeat(200),{mode:0o600});
+ assert.throws(()=>load(checked,env),/policy rejected/);
+});
+test('V5.5.47 rejects post-validation private key mode downgrade',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ chmodSync(plan.clientPrivateKeyFile,0o644);
+ assert.throws(()=>load(checked,env),/policy rejected/);
+});
+test('V5.5.47 rejects post-validation symlink swap even to formerly trusted bytes',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ const moved=join(dir,'saved-original.json');
+ renameSync(plan.runtimePolicyFile,moved);
+ symlinkSync(moved,plan.runtimePolicyFile);
+ assert.throws(()=>load(checked,env),/policy rejected/);
+});
+test('V5.5.47 rejects hardlink reuse across nominally different trust files',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ unlinkSync(plan.runtimePolicyFile);
+ linkSync(plan.imagePolicyFile,plan.runtimePolicyFile);
+ assert.throws(()=>validate(plan,env,root),/policy rejected/);
+});
+test('V5.5.47 refuses forged or cloned validated file records',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ assert.throws(()=>load({...checked},env),/policy rejected/);
+ assert.throws(()=>load(Object.freeze({...checked}),env),/policy rejected/);
+});
+test('V5.5.47 denies revoked operator approval between validation and loading',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const checked=validate(plan,env,root);
+ assert.throws(()=>load(checked,{...env,
+  AARAAGATE_V5_TEST_RUNTIME_PROBE_CONFIRM:'REVOKED'}),/policy rejected/);
+});
+test('V5.5.47 accepts private operator plan outside checkout',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const filename=join(dir,'operator-plan.json');
+ writeFileSync(filename,JSON.stringify(plan),{mode:0o600});
+ const loaded=readPlan(filename,root);
+ assert.deepEqual(loaded,plan);
+ const checked=validate(loaded,env,root);
+ assert.equal(load(checked,env).imagePolicy.sourceSha,SHA);
+});
+test('V5.5.47 rejects symlink or world-readable operator plan',t=>{
+ const {dir,plan}=setup();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const filename=join(dir,'operator-plan.json'),alias=join(dir,'operator-plan-alias.json');
+ writeFileSync(filename,JSON.stringify(plan),{mode:0o600});
+ symlinkSync(filename,alias);
+ assert.throws(()=>readPlan(alias,root),/policy rejected/);
+ chmodSync(filename,0o644);
+ assert.throws(()=>readPlan(filename,root),/policy rejected/);
+});
+test('V5.5.47 rejects operator plan stored within git checkout',()=>{
+ assert.throws(()=>readPlan(join(root,'package.json'),root),/policy rejected/);
 });
