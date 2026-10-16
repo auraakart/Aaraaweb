@@ -1,6 +1,6 @@
 # Aaraagate Services 4.0–4.4 — independent roadmap
 
-Status: **Services 4.0.1–4.3.1 merged to develop; Services 4.3.2 under review and CI validation.**
+Status: **Services 4.0.1–4.3.3 merged to develop; Services 4.4.1 submitted for gated validation.**
 Owner: Services engineering / Product acceptance. Branch target: `develop`.
 Do not reopen Services 3.1 or infer staging/main/production approval.
 
@@ -202,10 +202,19 @@ Do not reopen Services 3.1 or infer staging/main/production approval.
 - Focused API + Flutter tests cover approved quote separation, no-quote no-false-readiness, displayed blockers, invalid contract refusal and no payment mutations.
 - Future 4.3 slices require explicit seller-of-record, GST/HSN-SAC, itemized parts provenance and refund/reconciliation product signoff before any chargeable checkout.
 
+## Services 4.4.1 — consumer benefits readiness, no entitlements
+
+- The authenticated `GET /consumer/services/benefits-readiness` summarizes the requesting consumer's historical **COMPLETED** bookings and distinct providers used, using one owner-filtered aggregate. No family, society, cross-provider or other household records are returned.
+- All activity is **historical evidence only**; it does not confer benefits, membership eligibility, reward points, cash value, or protection.
+- Membership enrollment, pricing, entitlement activation, loyalty point earning/redemption, wallet credits and optional protection are explicitly disabled/not launched. No protection terms, automatic coverage or insurance-like claims are implied.
+- The endpoint is read-only and has no payment, booking, subscription, reminder or policy mutation and no new schema, wallet ledger or infrastructure cost.
+- This is a contract foundation for a later resident-facing benefits experience. Any chargeable membership requires product/finance approvals, refund/cancellation policy, GST treatment and entitlement governance. Any optional protection product requires provider, policy and regulatory review.
+- Focused tests: owner-scoped aggregate, no PII, high booking counts never generate points, empty and invalid aggregates. Regenerate deterministic V5 tenant-access inventory and pass required CI before merging into `develop`.
+
 ## Acceptance / scope gates
 
 1. Migration deploy and rollback rehearsal in test environment; no schema drift in deployed DB.
 2. API typecheck, Vitest and auth/tenant isolation regression; stale optimistic updates fail closed, revision audit is transactional.
 3. Review provider/consumer UI and accessibility only after checklist template contract is stable.
 4. No payment, invoice, warranty extension, existing Services 3.1 behavior, or branch-promotion changes.
-5. **Stop after 4.3.3** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.
+5. **Stop after 4.4.1** until CI is green. Quality scoring, rework SLA, public rankings and provider sanctions still need independent product acceptance.

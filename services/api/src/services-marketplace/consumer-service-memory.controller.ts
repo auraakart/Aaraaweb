@@ -49,6 +49,11 @@ export class ConsumerServiceMemoryController {
     return this.memory.listFavorites(this.requireUser(userId));
   }
 
+  @Get('benefits-readiness')
+  benefitsReadiness(@CurrentConsumerUser() userId: string) {
+    return this.memory.getMyBenefitsReadiness(this.requireUser(userId));
+  }
+
   @Get('recent-providers')
   listRecentProviders(@CurrentConsumerUser() userId: string) {
     return this.memory.listRecentProviders(this.requireUser(userId));
