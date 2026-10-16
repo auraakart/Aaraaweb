@@ -5,6 +5,7 @@ import '../data/resident_error_message.dart';
 import '../theme/aaraagate_theme.dart';
 import '../widgets/premium_ui.dart';
 import '../widgets/app_state_card.dart';
+import '../widgets/consumer_benefits_readiness_panel.dart';
 import '../data/push_registration_service.dart';
 import '../data/resident_repository.dart';
 import 'consumer_booking_screen.dart';
@@ -318,6 +319,19 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
     ));
   }
 
+  Future<void> _openServiceBenefits() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SizedBox(
+        height: MediaQuery.sizeOf(sheetContext).height * 0.82,
+        child: ConsumerBenefitsReadinessPanel(apiClient: widget.apiClient),
+      ),
+    );
+  }
+
   Future<void> _openMyBookings() async {
     if (!mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsumerBookingsScreen(apiClient: widget.apiClient)));
@@ -358,6 +372,7 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               action: Wrap(spacing: 8, runSpacing: 8, children: [
                 OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
                 OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
+                OutlinedButton.icon(onPressed: _openServiceBenefits, icon: const Icon(Icons.card_giftcard_outlined), label: const Text('Service benefits')),
               ]),
             ),
             const SizedBox(height: 16),
