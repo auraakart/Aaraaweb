@@ -4,7 +4,7 @@ import { AccountingService } from '../accounting/accounting.service';
 import { OpeningBalancesService, OpeningBalanceLineInput } from '../accounting/opening-balances.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-type FinanceBatch = { id: string; status: string; totalRows: number; actorUserId: string };
+type FinanceBatch = { id: string; status: string; totalRows: number };
 type FinanceRow = {
   id: string;
   rowNumber: number;
@@ -57,36 +57,6 @@ export class MigrationOpeningBalanceCommitService {
       }
       const input = await this.buildOpeningBalanceInput(societyId, batchId, rows, tx);
       const applied = await this.openingBalances.applyWithinTransaction(tx, societyId, actorUserId, input);
-
-      // An old two-transaction crash may leave a POSTED journal with READY batch
-      // rows. Matching the content digest alone is insufficient authorization
-      // to adopt its immutable finance evidence as this batch's commit.
-      if (applied.idempotent) {
-        const debits = input.lines.reduce((sum, line) => sum + line.debitPaise, 0);
-        const credits = input.lines.reduce((sum, line) => sum + line.creditPaise, 0);
-        const trusted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT j."id" FROM "JournalEntry" j
-          JOIN "AccountingPeriod" p
-            ON p."id"=j."periodId" AND p."societyId"=j."societyId"
-          WHERE j."id"=${applied.journalId}::uuid AND j."societyId"=${societyId}::uuid
-            AND j."sourceType"='OPENING_BALANCE' AND j."sourceId"=${`migration:${batchId}`}
-            AND j."status"='POSTED' AND j."postedAt" IS NOT NULL
-            AND j."createdByUserId"=${batch.actorUserId}::uuid
-            AND j."postedByUserId"=${batch.actorUserId}::uuid
-            AND j."periodId"=${input.periodId}::uuid
-            AND j."entryNumber"=${input.entryNumber} AND j."entryDate"=${input.entryDate}::date
-            AND (SELECT COUNT(*) FROM "JournalLine" l
-                 WHERE l."entryId"=j."id" AND l."societyId"=j."societyId")=${batch.totalRows}::bigint
-            AND (SELECT COALESCE(SUM(l."debitPaise"), 0) FROM "JournalLine" l
-                 WHERE l."entryId"=j."id" AND l."societyId"=j."societyId")=${debits}::bigint
-            AND (SELECT COALESCE(SUM(l."creditPaise"), 0) FROM "JournalLine" l
-                 WHERE l."entryId"=j."id" AND l."societyId"=j."societyId")=${credits}::bigint
-          FOR UPDATE OF j
-        `);
-        if (trusted.length !== 1) {
-          throw new ConflictException('Historical opening-balance migration journal provenance is incomplete');
-        }
-      }
 
       const count = await tx.$executeRaw(Prisma.sql`
         UPDATE "MigrationBatchRow"
@@ -277,7 +247,7 @@ export class MigrationOpeningBalanceCommitService {
 
   private async loadBatch(societyId: string, batchId: string) {
     const rows = await this.prisma.$queryRaw<FinanceBatch[]>(Prisma.sql`
-      SELECT "id","status","totalRows","actorUserId" FROM "MigrationBatch"
+      SELECT "id","status","totalRows" FROM "MigrationBatch"
       WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
       LIMIT 1
     `);
@@ -287,7 +257,7 @@ export class MigrationOpeningBalanceCommitService {
 
   private async loadBatchForUpdate(tx: Prisma.TransactionClient, societyId: string, batchId: string) {
     const rows = await tx.$queryRaw<FinanceBatch[]>(Prisma.sql`
-      SELECT "id","status","totalRows","actorUserId" FROM "MigrationBatch"
+      SELECT "id","status","totalRows" FROM "MigrationBatch"
       WHERE "id"=${batchId}::uuid AND "societyId"=${societyId}::uuid AND "entityType"='OPENING_BALANCE'
       FOR UPDATE
     `);
