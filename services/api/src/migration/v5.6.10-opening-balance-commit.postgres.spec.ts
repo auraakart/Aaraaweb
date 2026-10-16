@@ -250,6 +250,28 @@ const disposable = (() => {
     await expect(service.commit(societyId, actorId, conflicting))
       .rejects.toThrow('Opening balance batch key already exists with different or non-posted content');
     expect(await state(conflicting)).toMatchObject([{status:'READY', journals:1n, linkedRows:0n}]);
+
+    // Two independent retries of the same historically stranded journal must
+    // serialize safely, link the batch once, and never post a second journal.
+    const concurrentOrphanBatch = randomUUID();
+    await seed(concurrentOrphanBatch, 25000);
+    const concurrentOrphanJournal = await prior(concurrentOrphanBatch, 25000);
+    expect(await state(concurrentOrphanBatch)).toMatchObject([
+      {status:'READY', journals:1n, linkedRows:0n},
+    ]);
+    const recoveredTogether = await Promise.all([
+      service.commit(societyId, actorId, concurrentOrphanBatch),
+      service.commit(societyId, actorId, concurrentOrphanBatch),
+    ]);
+    expect(recoveredTogether).toHaveLength(2);
+    for (const receipt of recoveredTogether) {
+      expect(receipt).toMatchObject({
+        status:'COMMITTED', journalId:concurrentOrphanJournal.journalId,
+      });
+    }
+    expect(await state(concurrentOrphanBatch)).toMatchObject([
+      {status:'COMMITTED', journals:1n, linkedRows:2n},
+    ]);
   }, 30_000);
 
   it('enforces exact society scope for the same global actor across two migration batches', async () => {
