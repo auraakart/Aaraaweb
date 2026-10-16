@@ -251,7 +251,16 @@ export class AccountingService {
   }
 
   async reverseJournal(societyId: string, userId: string, journalId: string, input: ReverseInput) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction((tx) =>
+      this.reverseJournalWithinTransaction(tx, societyId, userId, journalId, input),
+    ).catch((error) => this.rethrowKnownDatabaseError(error, 'Journal could not be reversed'));
+  }
+
+  /** Internal composable accounting operation. Callers must supply their live
+   * Prisma transaction so journal reversal and related state writes commit together. */
+  async reverseJournalWithinTransaction(
+    tx: Prisma.TransactionClient, societyId: string, userId: string, journalId: string, input: ReverseInput,
+  ) {
       const sourceRows = await tx.$queryRaw<JournalRow[]>(Prisma.sql`SELECT * FROM "JournalEntry" WHERE "id" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid FOR UPDATE`);
       const source = sourceRows[0];
       if (!source) throw new NotFoundException('Journal not found');
@@ -277,7 +286,6 @@ export class AccountingService {
       `);
       await tx.$executeRaw(Prisma.sql`UPDATE "JournalEntry" SET "status" = 'REVERSED', "reversedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ${journalId}::uuid AND "societyId" = ${societyId}::uuid`);
       return this.getJournal(tx, societyId, reversalId);
-    }).catch((error) => this.rethrowKnownDatabaseError(error, 'Journal could not be reversed'));
   }
 
   private validateLines(lines: JournalLineInput[]) {
