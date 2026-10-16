@@ -2423,14 +2423,36 @@
         "V5.5"
       ],
       "preAcceptanceEngineering": {
-        "lastVerifiedSlice": "V5.6.15",
-        "lastVerifiedPr": 1396,
-        "lastVerifiedMergeSha": "fc4ae7bff53ba09bfa0b98b87bdfedab4fcfa747",
-        "latestRegressionUnderReview": "V5.6.16",
+        "lastVerifiedSlice": "V5.6.17",
+        "lastVerifiedPr": 1398,
+        "lastVerifiedMergeSha": "e340aae16d6122b0e38f618f7f9c132a3db64831",
         "pendingFinanceRecoveryIssue": 1387,
         "pendingIndependentTestIssue": 1380,
         "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
-        "note": "15 formal TEST acceptance cases remain NOT_EXECUTED; build execution and branch promotion are unauthorized."
+        "note": "V5.6.16 and V5.6.17 regression slices merged with protected CI. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no independent runner, partner artifacts, build execution, release approval, productionization or staging/main promotion.",
+        "verifiedSlices": [
+          {
+            "id": "V5.6.16",
+            "name": "Historical opening-balance orphan recovery and V5 foundation status reconciliation",
+            "status": "MERGED_PROTECTED_CI_PASSED",
+            "pullRequest": 1397,
+            "mergeSha": "bb848e935133f917b1ee6b474d7fe3b1f99af0a8",
+            "ciRun": 38924094484
+          },
+          {
+            "id": "V5.6.17",
+            "name": "Concurrent historical opening-balance orphan replay on disposable PostgreSQL",
+            "status": "MERGED_PROTECTED_CI_PASSED",
+            "pullRequest": 1398,
+            "mergeSha": "e340aae16d6122b0e38f618f7f9c132a3db64831",
+            "ciRun": 38925515227
+          }
+        ],
+        "lastVerifiedCI": 38925515227,
+        "externalAcceptanceVerified": false,
+        "buildExecutionAuthorized": false,
+        "partnerArtifactsVerified": false,
+        "releaseCandidateApproved": false
       }
     }
   ],

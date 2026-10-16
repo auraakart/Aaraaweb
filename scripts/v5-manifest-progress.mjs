@@ -74,11 +74,67 @@ export function verifyV5ManifestProgress(manifest) {
       fail('unnamed or untracked V5.5 slice');
     }
   }
+  // V5.6 engineering evidence is distinct from formal TEST acceptance.
+  // This is a local consistency check; it cannot verify GitHub online.
+  const engineering = closure.preAcceptanceEngineering;
+  if (!isObject(engineering) ||
+      engineering.status !== 'ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE' ||
+      engineering.pendingFinanceRecoveryIssue !== 1387 ||
+      engineering.pendingIndependentTestIssue !== 1380 ||
+      engineering.externalAcceptanceVerified !== false ||
+      engineering.buildExecutionAuthorized !== false ||
+      engineering.partnerArtifactsVerified !== false ||
+      engineering.releaseCandidateApproved !== false ||
+      !Array.isArray(engineering.verifiedSlices) ||
+      engineering.verifiedSlices.length === 0) {
+    fail('V5.6 nonproduction engineering tracking or external blockers missing');
+  }
+  let lastEngineeringSequence = 0;
+  let lastEngineering = null;
+  const engineeringPrs = new Set();
+  const engineeringMergeShas = new Set();
+  for (const slice of engineering.verifiedSlices) {
+    if (!isObject(slice) || typeof slice.id !== 'string' ||
+        !/^V5\.6\.[1-9]\d*$/.test(slice.id)) {
+      fail('malformed V5.6 engineering slice identifier');
+    }
+    const sequence = Number(slice.id.slice('V5.6.'.length));
+    if (!Number.isSafeInteger(sequence) || sequence <= lastEngineeringSequence) {
+      fail('duplicate or out-of-order V5.6 engineering slice');
+    }
+    if (slice.status !== 'MERGED_PROTECTED_CI_PASSED' ||
+        typeof slice.name !== 'string' || !slice.name.trim() ||
+        !Number.isSafeInteger(slice.pullRequest) || slice.pullRequest <= 0 ||
+        !Number.isSafeInteger(slice.ciRun) || slice.ciRun <= 0 ||
+        !SHA.test(slice.mergeSha) ||
+        engineeringPrs.has(slice.pullRequest) ||
+        engineeringMergeShas.has(slice.mergeSha)) {
+      fail('V5.6 engineering slice missing unique protected merge evidence');
+    }
+    engineeringPrs.add(slice.pullRequest);
+    engineeringMergeShas.add(slice.mergeSha);
+    lastEngineeringSequence = sequence;
+    lastEngineering = slice;
+  }
+  if (!lastEngineering ||
+      engineering.lastVerifiedSlice !== lastEngineering.id ||
+      engineering.lastVerifiedPr !== lastEngineering.pullRequest ||
+      engineering.lastVerifiedMergeSha !== lastEngineering.mergeSha ||
+      engineering.lastVerifiedCI !== lastEngineering.ciRun) {
+    fail('stale V5.6 verified engineering pointer');
+  }
+  if (engineering.latestRegressionUnderReview !== undefined ||
+      engineering.inFlightSlice !== undefined) {
+    // A future in-flight slice must not be pre-declared as merged.
+    fail('V5.6 in-flight slice requires a separate pending-evidence contract');
+  }
+
   const latest = build.slices.at(-1);
   if (build.currentSlice !== latest.id) fail('stale V5.5 currentSlice pointer');
   return Object.freeze({
     latestSlice:latest.id, currentStatus:latest.status,
     remainingExternalBlockers:build.remaining.length,
+    latestVerifiedEngineeringSlice:lastEngineering.id, latestVerifiedEngineeringPr:lastEngineering.pullRequest,
     buildExecutionAuthorized:false, partnerArtifactsVerified:false,
     stagingPromoted:false, mainPromoted:false
   });
