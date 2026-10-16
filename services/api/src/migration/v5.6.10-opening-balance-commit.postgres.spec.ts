@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AccountingService } from '../accounting/accounting.service';
 import { OpeningBalancesService } from '../accounting/opening-balances.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MigrationOpeningBalanceCommitService } from './migration-opening-balance-commit.service';
@@ -20,7 +21,8 @@ const disposable = (() => {
 (disposable ? describe : describe.skip)('V5.6.10 atomic opening-balance commit on disposable PostgreSQL', () => {
   const prisma = new PrismaService();
   const opening = new OpeningBalancesService(prisma);
-  const service = new MigrationOpeningBalanceCommitService(prisma, opening, {} as never);
+  const accounting = new AccountingService(prisma);
+  const service = new MigrationOpeningBalanceCommitService(prisma, opening, accounting);
   const societyId = randomUUID();
   const actorId = randomUUID();
   const batchId = randomUUID();
@@ -114,6 +116,78 @@ const disposable = (() => {
     expect(replay).toMatchObject({ status: 'COMMITTED' });
     expect(await snapshot()).toMatchObject({
       status: 'COMMITTED', linkedRows: 2n, journals: 1n, posted: 1n,
+    });
+  }, 30_000);
+
+  it('serializes overlapping commit and rollback calls into one journal and reversal', async () => {
+    // A distinct batch prevents dependency on the preceding failure/retry test.
+    const concurrentBatch = randomUUID();
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatch"
+        ("id","societyId","actorUserId","entityType","status","checksum",
+         "totalRows","validRows","invalidRows","duplicateRows")
+      VALUES (${concurrentBatch}::uuid,${societyId}::uuid,${actorId}::uuid,'OPENING_BALANCE',
+        'READY',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatchRow" ("batchId","rowNumber","normalized","valid")
+      VALUES (${concurrentBatch}::uuid,1,
+        '{"entry_date":"2026-10-10","account_code":"BANK","amount_paise":"12000","side":"DEBIT"}'::jsonb,true),
+             (${concurrentBatch}::uuid,2,
+        '{"entry_date":"2026-10-10","account_code":"EQUITY","amount_paise":"12000","side":"CREDIT"}'::jsonb,true)
+    `);
+
+    const commits = await Promise.all([
+      service.commit(societyId, actorId, concurrentBatch),
+      service.commit(societyId, actorId, concurrentBatch),
+    ]);
+    expect(commits).toHaveLength(2);
+    expect(commits).toEqual([
+      expect.objectContaining({ status: 'COMMITTED' }),
+      expect.objectContaining({ status: 'COMMITTED' }),
+    ]);
+
+    const linked = await prisma.$queryRaw<Array<{
+      id: string; lineCount: bigint; postedCount: bigint; linkedRows: bigint;
+    }>>(Prisma.sql`
+      SELECT j."id",
+        (SELECT COUNT(*) FROM "JournalLine" WHERE "entryId"=j."id") AS "lineCount",
+        (SELECT COUNT(*) FROM "JournalEntry" WHERE "sourceId"=${'migration:' + concurrentBatch}
+          AND "sourceType"='OPENING_BALANCE' AND "status"='POSTED'
+          AND "societyId"=${societyId}::uuid) AS "postedCount",
+        (SELECT COUNT(*) FROM "MigrationBatchRow" WHERE "batchId"=${concurrentBatch}::uuid
+          AND "targetId"=j."id") AS "linkedRows"
+      FROM "JournalEntry" j WHERE j."societyId"=${societyId}::uuid
+        AND j."sourceType"='OPENING_BALANCE'
+        AND j."sourceId"=${'migration:' + concurrentBatch}
+    `);
+    expect(linked).toHaveLength(1);
+    expect(linked[0]).toMatchObject({ lineCount: 2n, postedCount: 1n, linkedRows: 2n });
+
+    const rollbacks = await Promise.all([
+      service.rollback(societyId, actorId, concurrentBatch),
+      service.rollback(societyId, actorId, concurrentBatch),
+    ]);
+    expect(rollbacks).toHaveLength(2);
+    expect(rollbacks.every(item => item.status === 'ROLLED_BACK')).toBe(true);
+
+    const after = await prisma.$queryRaw<Array<{
+      batchStatus: string; sourceStatus: string; reversals: bigint; rolledBackRows: bigint;
+    }>>(Prisma.sql`
+      SELECT b."status" AS "batchStatus",j."status"::text AS "sourceStatus",
+        (SELECT COUNT(*) FROM "JournalEntry" WHERE "reversalOfEntryId"=j."id"
+          AND "societyId"=${societyId}::uuid) AS "reversals",
+        (SELECT COUNT(*) FROM "MigrationBatchRow" WHERE "batchId"=${concurrentBatch}::uuid
+          AND "rolledBackAt" IS NOT NULL) AS "rolledBackRows"
+      FROM "MigrationBatch" b
+      JOIN "JournalEntry" j ON j."sourceId"=${'migration:' + concurrentBatch}
+        AND j."sourceType"='OPENING_BALANCE' AND j."societyId"=b."societyId"
+      WHERE b."id"=${concurrentBatch}::uuid AND b."societyId"=${societyId}::uuid
+    `);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({
+      batchStatus: 'ROLLED_BACK', sourceStatus: 'REVERSED',
+      reversals: 1n, rolledBackRows: 2n,
     });
   }, 30_000);
 });
