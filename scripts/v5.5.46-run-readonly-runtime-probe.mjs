@@ -1,3 +1,5 @@
+import {createReadOnlyTestRuntimeAuditReceipt}
+ from './v5.5.48-readonly-runtime-audit-receipt.mjs';
 import {realpathSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {probePinnedTestOciRuntimeEvidence}
@@ -20,20 +22,14 @@ try{
  const receipt=await probePinnedTestOciRuntimeEvidence(
   inputs.imageEnvelope,inputs.imagePolicy,
   inputs.runtimePolicy,inputs.transportPolicy);
- // Fixed allowlist: signed TLS claim validation is NOT independent runtime
- // measurement, challenge consumption or approval to execute a build.
- process.stdout.write(JSON.stringify({
-  schemaVersion:1,environment:'TEST',testOnly:true,
-  sourceSha:receipt.sourceSha,imageDigest:receipt.imageDigest,
-  workerId:receipt.workerId,runId:receipt.runId,
-  tls13PinnedPeerVerified:receipt.tls13PinnedPeerVerified,
-  freshTransportNonceSignatureVerified:receipt.freshTransportNonceSignatureVerified,
-  independentRuntimeClaimSignaturesVerified:receipt.independentRuntimeClaimSignaturesVerified,
-  runtimeImageAttested:false,remoteProcessMeasured:false,
-  independentlyProvisionedWorkerVerified:false,
-  singleUseChallengeConsumed:false,
-  buildExecutionAuthorized:false,artifactProduced:false,dispatchAllowed:false,
- },null,2)+'\n');
+ // Exact source, image and TLS certificate pins are held by the operator.
+ // This is an UNSIGNED locally verified claim receipt, NOT runtime attestation.
+ const audit=createReadOnlyTestRuntimeAuditReceipt(receipt,{
+  sourceSha:process.env.AARAAGATE_V5_APPROVED_TEST_SOURCE_SHA,
+  imageDigest:process.env.AARAAGATE_V5_APPROVED_TEST_IMAGE_DIGEST,
+  serverSpkiSha256:inputs.transportPolicy.serverSpkiSha256,
+ });
+ process.stdout.write(JSON.stringify(audit,null,2)+'\n');
 }catch{
  // Avoid leaking operator-provided paths, TLS key material or claim payloads.
  process.stderr.write('TEST read-only runtime probe failed closed. Review private operator configuration.\n');
