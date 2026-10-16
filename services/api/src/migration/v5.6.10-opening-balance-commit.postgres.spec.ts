@@ -193,4 +193,77 @@ const disposable = (() => {
       reversals: 1n, rolledBackRows: 2n,
     });
   }, 30_000);
+
+  it('enforces exact society scope for the same global actor across two migration batches', async () => {
+    const otherSocietyId = randomUUID();
+    const otherBatchId = randomUUID();
+    const otherPeriodId = randomUUID();
+    const otherAssetId = randomUUID();
+    const otherEquityId = randomUUID();
+    await prisma.society.create({ data: {
+      id: otherSocietyId, name: 'Second society migration scope', code: 'scope-' + otherSocietyId,
+    } });
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "LedgerAccount" ("id","societyId","code","name","type")
+      VALUES (${otherAssetId}::uuid,${otherSocietyId}::uuid,'BANK','Second bank','ASSET'),
+             (${otherEquityId}::uuid,${otherSocietyId}::uuid,'EQUITY','Second equity','EQUITY')
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "AccountingPeriod" ("id","societyId","code","name","startsOn","endsOn")
+      VALUES (${otherPeriodId}::uuid,${otherSocietyId}::uuid,'FY26','Second period',
+        '2026-01-01'::date,'2026-12-31'::date)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatch"
+        ("id","societyId","actorUserId","entityType","status","checksum",
+         "totalRows","validRows","invalidRows","duplicateRows")
+      VALUES (${otherBatchId}::uuid,${otherSocietyId}::uuid,${actorId}::uuid,'OPENING_BALANCE',
+        'READY',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatchRow" ("batchId","rowNumber","normalized","valid")
+      VALUES (${otherBatchId}::uuid,1,
+        '{"entry_date":"2026-10-10","account_code":"BANK","amount_paise":"17000","side":"DEBIT"}'::jsonb,true),
+             (${otherBatchId}::uuid,2,
+        '{"entry_date":"2026-10-10","account_code":"EQUITY","amount_paise":"17000","side":"CREDIT"}'::jsonb,true)
+    `);
+
+    // The actor is the same global user. A valid UUID for the *other* society
+    // must not grant authority to mutate or read this batch.
+    await expect(service.commit(societyId, actorId, otherBatchId))
+      .rejects.toThrow('Opening-balance migration batch not found');
+    await expect(service.commit(otherSocietyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration batch not found');
+    await expect(service.rollback(societyId, actorId, otherBatchId))
+      .rejects.toThrow('Opening-balance migration batch not found');
+    await expect(service.rollback(otherSocietyId, actorId, batchId))
+      .rejects.toThrow('Opening-balance migration batch not found');
+
+    const secondCommit = await service.commit(otherSocietyId, actorId, otherBatchId);
+    expect(secondCommit).toMatchObject({ status: 'COMMITTED' });
+    const secondJournalId = (secondCommit as { journalId: string }).journalId;
+    expect(secondJournalId).toMatch(/^[0-9a-f-]{36}$/);
+    const second = await prisma.$queryRaw<Array<{ societyId: string; status: string; debit: bigint }>>(Prisma.sql`
+      SELECT j."societyId",j."status"::text AS "status",
+        (SELECT COALESCE(SUM("debitPaise"),0)::bigint FROM "JournalLine"
+          WHERE "entryId"=j."id") AS "debit"
+      FROM "JournalEntry" j WHERE j."id"=${secondJournalId}::uuid
+    `);
+    expect(second).toMatchObject([{ societyId: otherSocietyId, status: 'POSTED', debit: 17000n }]);
+
+    await expect(service.rollback(otherSocietyId, actorId, otherBatchId))
+      .resolves.toMatchObject({ status: 'ROLLED_BACK' });
+    // A's completed commit remains intact even after B is independently reversed.
+    expect(await snapshot()).toMatchObject({
+      status: 'COMMITTED', linkedRows: 2n, journals: 1n, posted: 1n,
+    });
+    const secondFinal = await prisma.$queryRaw<Array<{ status: string; reversals: bigint }>>(Prisma.sql`
+      SELECT j."status"::text AS "status",
+        (SELECT COUNT(*) FROM "JournalEntry"
+          WHERE "societyId"=${otherSocietyId}::uuid AND "reversalOfEntryId"=j."id") AS "reversals"
+      FROM "JournalEntry" j WHERE j."id"=${secondJournalId}::uuid
+        AND j."societyId"=${otherSocietyId}::uuid
+    `);
+    expect(secondFinal).toMatchObject([{ status: 'REVERSED', reversals: 1n }]);
+  }, 30_000);
 });
