@@ -54,6 +54,18 @@ function readPinnedFile(path,prior){
  finally{if(fd!==undefined)closeSync(fd);}
 }
 
+export function readReadOnlyTestRuntimeProbePlan(file,repositoryRoot){
+ if(typeof file!=='string'||file.length>1024||!isAbsolute(file)||
+    file!==resolve(file)||!isAbsolute(repositoryRoot))reject();
+ const root=realpathSync(repositoryRoot),within=relative(root,file);
+ if(within===''||(!within.startsWith('..'+sep)&&within!=='..'&&!isAbsolute(within)))
+  reject();
+ const {text,proof}=readPinnedFile(file);
+ // The plan discloses all private operator material paths; keep it private too.
+ if((proof.mode&0o077)!==0||text.length>8192)reject();
+ return parseJson(text);
+}
+
 export function validateReadOnlyTestRuntimeProbePlan(plan,environment,repositoryRoot){
  if(!exact(plan,expected)||plan.schemaVersion!==1||
     plan.environment!=='TEST'||plan.purpose!=='READ_ONLY_RUNTIME_CLAIM_PROBE'||
