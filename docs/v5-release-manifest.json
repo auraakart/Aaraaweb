@@ -2423,13 +2423,12 @@
         "V5.5"
       ],
       "preAcceptanceEngineering": {
-        "lastVerifiedSlice": "V5.6.17",
-        "lastVerifiedPr": 1398,
-        "lastVerifiedMergeSha": "e340aae16d6122b0e38f618f7f9c132a3db64831",
-        "pendingFinanceRecoveryIssue": 1387,
+        "lastVerifiedSlice": "V5.6.20",
+        "lastVerifiedPr": 1401,
+        "lastVerifiedMergeSha": "899d064927fe2b139028b26ce622e2a680895689",
         "pendingIndependentTestIssue": 1380,
         "status": "ENGINEERING_PROGRESS_NOT_RELEASE_ACCEPTANCE",
-        "note": "V5.6.16 and V5.6.17 regression slices merged with protected CI. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no independent runner, partner artifacts, build execution, release approval, productionization or staging/main promotion.",
+        "note": "V5.6.16–20 verified merged with protected CI; repo-only historical finance recovery issue #1387 is completed. Independent TEST worker and Partner A/B signed build acceptance #1380 remain pending. All 15 formal TEST acceptance cases remain NOT_EXECUTED; no build execution, distribution, release or branch promotion authorization.",
         "verifiedSlices": [
           {
             "id": "V5.6.16",
@@ -2446,13 +2445,39 @@
             "pullRequest": 1398,
             "mergeSha": "e340aae16d6122b0e38f618f7f9c132a3db64831",
             "ciRun": 38925515227
+          },
+          {
+            "id": "V5.6.18",
+            "name": "Protected engineering evidence ledger and fail-closed TEST acceptance metadata",
+            "status": "MERGED_PROTECTED_CI_PASSED",
+            "pullRequest": 1399,
+            "mergeSha": "607f3c0fae8e35e1112af184e21fdadaca4da8f4",
+            "ciRun": 38926979313
+          },
+          {
+            "id": "V5.6.19",
+            "name": "Closed accounting-period historical migration journal recovery rejection",
+            "status": "MERGED_PROTECTED_CI_PASSED",
+            "pullRequest": 1400,
+            "mergeSha": "906138a2260a747a1519cb79ad988bcaae3efedf",
+            "ciRun": 38928613932
+          },
+          {
+            "id": "V5.6.20",
+            "name": "Historical journal actor, period and immutable ledger line provenance",
+            "status": "MERGED_PROTECTED_CI_PASSED",
+            "pullRequest": 1401,
+            "mergeSha": "899d064927fe2b139028b26ce622e2a680895689",
+            "ciRun": 38932019095
           }
         ],
-        "lastVerifiedCI": 38925515227,
+        "lastVerifiedCI": 38932019095,
         "externalAcceptanceVerified": false,
         "buildExecutionAuthorized": false,
         "partnerArtifactsVerified": false,
-        "releaseCandidateApproved": false
+        "releaseCandidateApproved": false,
+        "resolvedFinanceRecoveryIssue": 1387,
+        "financeRecoveryEngineeringClosed": true
       }
     }
   ],
