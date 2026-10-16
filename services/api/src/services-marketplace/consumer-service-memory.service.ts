@@ -28,6 +28,64 @@ export class ConsumerServiceMemoryService {
     `);
   }
 
+  /**
+   * Services 4.4.1 — informational groundwork only, not a rewards program.
+   * Bookings are scoped to the authenticated consumer; no payment or
+   * entitlement ledger is read or changed. Historical activity never
+   * grants loyalty points, coverage, discounts or membership eligibility.
+   */
+  async getMyBenefitsReadiness(userId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      completedBookings: number;
+      completedProviders: number;
+    }>>(Prisma.sql`
+      SELECT COUNT(*) FILTER (
+        WHERE b."status" = 'COMPLETED'::"ServiceBookingStatus"
+      )::int AS "completedBookings",
+      COUNT(DISTINCT b."providerId") FILTER (
+        WHERE b."status" = 'COMPLETED'::"ServiceBookingStatus"
+      )::int AS "completedProviders"
+      FROM "ConsumerServiceBooking" b
+      WHERE b."userId" = ${userId}::uuid
+    `);
+    // The aggregate is historical activity, not a benefit eligibility rule.
+    const completedBookings = Number(rows[0]?.completedBookings ?? 0);
+    const completedProviders = Number(rows[0]?.completedProviders ?? 0);
+    if (!Number.isSafeInteger(completedBookings) || completedBookings < 0 ||
+        !Number.isSafeInteger(completedProviders) || completedProviders < 0) {
+      throw new BadRequestException('Invalid service activity summary');
+    }
+    return {
+      readOnly: true,
+      activitySource: 'AUTHENTICATED_COMPLETED_BOOKINGS' as const,
+      historicalActivityOnly: true,
+      completedBookings,
+      completedProviders,
+      eligibilityDetermined: false,
+      membership: {
+        status: 'NOT_LAUNCHED' as const,
+        enrollmentAvailable: false,
+        activeEntitlement: null,
+        pricePaise: null,
+      },
+      loyalty: {
+        status: 'NOT_LAUNCHED' as const,
+        pointsBalance: null,
+        redeemableAmountPaise: null,
+        earnRate: null,
+        redemptionEnabled: false,
+      },
+      optionalProtection: {
+        status: 'NOT_OFFERED' as const,
+        coverageConfirmed: false,
+        claimAvailable: false,
+        terms: null,
+      },
+      bookingCreated: false,
+      chargeAuthorized: false,
+    };
+  }
+
   listRecentProviders(userId: string) {
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT

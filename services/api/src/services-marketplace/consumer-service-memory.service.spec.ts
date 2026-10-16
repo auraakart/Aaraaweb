@@ -26,6 +26,55 @@ describe('ConsumerServiceMemoryService', () => {
     };
   };
 
+
+  it('4.4.1 scopes benefits activity to only the authenticated consumer', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ completedBookings: 8, completedProviders: 3 }]);
+    const result = await service.getMyBenefitsReadiness('current-consumer');
+    expect(result.completedBookings).toBe(8);
+    expect(result.completedProviders).toBe(3);
+    expect(result.historicalActivityOnly).toBe(true);
+    const query = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+    expect(query.values).toEqual(['current-consumer']);
+    const sql = sqlText(query);
+    expect(sql).toContain('b."userId"');
+    expect(sql).toContain('COUNT(DISTINCT b."providerId")');
+    expect(sql).toContain('"ConsumerServiceBooking"');
+    expect(sql).not.toContain('"addressSnapshot"');
+    expect(sql).not.toContain('"phone"');
+  });
+
+  it('4.4.1 never converts completed visits to reward points, cash credits, or protection', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ completedBookings: 200, completedProviders: 20 }]);
+    const result = await service.getMyBenefitsReadiness('resident');
+    expect(result).toMatchObject({
+      readOnly: true, eligibilityDetermined: false,
+      membership: { status: 'NOT_LAUNCHED', enrollmentAvailable: false, activeEntitlement: null, pricePaise: null },
+      loyalty: { status: 'NOT_LAUNCHED', pointsBalance: null, redeemableAmountPaise: null, earnRate: null, redemptionEnabled: false },
+      optionalProtection: { status: 'NOT_OFFERED', coverageConfirmed: false, claimAvailable: false, terms: null },
+      chargeAuthorized: false, bookingCreated: false,
+    });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('4.4.1 has an honest empty history state without invented balances', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ completedBookings: 0, completedProviders: 0 }]);
+    const result = await service.getMyBenefitsReadiness('new-consumer');
+    expect(result.completedBookings).toBe(0);
+    expect(result.completedProviders).toBe(0);
+    expect(result.loyalty.pointsBalance).toBeNull();
+    expect(result.optionalProtection.coverageConfirmed).toBe(false);
+  });
+
+  it('4.4.1 fails closed on invalid aggregate values', async () => {
+    const { prisma, service } = setup();
+    prisma.$queryRaw.mockResolvedValueOnce([{ completedBookings: -1, completedProviders: 2 }]);
+    await expect(service.getMyBenefitsReadiness('resident'))
+      .rejects.toThrow('Invalid service activity summary');
+  });
+
   it('upserts a favourite only after provider verification check', async () => {
     const { prisma, service } = setup();
     prisma.$queryRaw
