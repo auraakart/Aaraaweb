@@ -372,8 +372,15 @@ class _IndependentServicesScreenState extends State<IndependentServicesScreen> {
               action: Wrap(spacing: 8, runSpacing: 8, children: [
                 OutlinedButton.icon(onPressed: _openMyBookings, icon: const Icon(Icons.event_note_rounded), label: const Text('My bookings')),
                 OutlinedButton.icon(onPressed: _selectedLocation == null ? null : _openServiceHistory, icon: const Icon(Icons.history_rounded), label: const Text('Service history')),
-                OutlinedButton.icon(onPressed: _openServiceBenefits, icon: const Icon(Icons.card_giftcard_outlined), label: const Text('Service benefits')),
               ]),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _openServiceBenefits,
+                icon: const Icon(Icons.card_giftcard_outlined),
+                label: const Text('Service benefits'),
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
