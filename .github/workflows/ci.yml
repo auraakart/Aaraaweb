@@ -121,6 +121,23 @@ jobs:
             exit 0
           fi
 
+          # Offline, manually invoked TEST operator claim/probe files have
+          # their own mandatory tests in Repository structure. Require a
+          # *strict* reviewed allowlist; every API, client, workflow, package,
+          # runner-hook, delete or rename change still runs the broad gates.
+          operator_scope_only="$(node scripts/classify-v5-test-operator-change.mjs "$BASE_SHA" "${{ github.sha }}")"
+          if [ "$operator_scope_only" = "true" ]; then
+            node scripts/check-secret-patterns.mjs
+            echo "V5 operator-claim-only files: required offline tests and secret scan still enforced; no runtime application surfaces changed."
+            echo "run_api=false" >> "$GITHUB_OUTPUT"
+            echo "run_admin=false" >> "$GITHUB_OUTPUT"
+            echo "run_flutter=false" >> "$GITHUB_OUTPUT"
+            echo "run_resident=false" >> "$GITHUB_OUTPUT"
+            echo "run_guard=false" >> "$GITHUB_OUTPUT"
+            echo "run_dependency_audit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           run_api=false
           run_admin=false
           run_flutter=false
