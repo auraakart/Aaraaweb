@@ -89,6 +89,35 @@ const disposable = (() => {
     return result[0];
   }
 
+  it('rejects a second migration batch that points to the first batch journal', async () => {
+    const foreignBatchId = randomUUID();
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatch"
+        ("id","societyId","actorUserId","entityType","status","checksum",
+         "totalRows","validRows","invalidRows","duplicateRows","committedAt","committedByUserId")
+      VALUES (${foreignBatchId}::uuid,${societyId}::uuid,${actorId}::uuid,'OPENING_BALANCE',
+        'COMMITTED',${randomUUID().replaceAll('-', '').repeat(2)},2,2,0,0,
+        CURRENT_TIMESTAMP,${actorId}::uuid)
+    `);
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MigrationBatchRow"
+        ("batchId","rowNumber","normalized","valid","targetType","targetId","committedAt")
+      VALUES (${foreignBatchId}::uuid,1,'{}'::jsonb,true,'JournalEntry',${journalId}::uuid,CURRENT_TIMESTAMP),
+             (${foreignBatchId}::uuid,2,'{}'::jsonb,true,'JournalEntry',${journalId}::uuid,CURRENT_TIMESTAMP)
+    `);
+    await expect(service.rollback(societyId, actorId, foreignBatchId))
+      .rejects.toThrow('Opening-balance journal not found');
+    expect(await state()).toMatchObject({
+      batchStatus: 'COMMITTED',journalStatus: 'POSTED',rolledBack: 0n,reversals: 0n,
+    });
+    const foreign = await prisma.$queryRaw<Array<{ status: string; rolledBack: bigint }>>(Prisma.sql`
+      SELECT b."status", (SELECT COUNT(*) FROM "MigrationBatchRow"
+        WHERE "batchId"=${foreignBatchId}::uuid AND "rolledBackAt" IS NOT NULL) AS "rolledBack"
+      FROM "MigrationBatch" b WHERE b."id"=${foreignBatchId}::uuid AND b."societyId"=${societyId}::uuid
+    `);
+    expect(foreign).toMatchObject([{ status: 'COMMITTED', rolledBack: 0n }]);
+  }, 20_000);
+
   it('rolls back all PostgreSQL journal work after a late batch-write fault, then recovers once', async () => {
     expect(await state()).toMatchObject({
       batchStatus: 'COMMITTED',journalStatus: 'POSTED',rolledBack: 0n,reversals: 0n,
